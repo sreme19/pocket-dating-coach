@@ -10,19 +10,33 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync, readdirSync } from 'fs';
 import { join, extname } from 'path';
 import { createRequire } from 'module';
-import { pipeline } from '@xenova/transformers';
 
 const require = createRequire(import.meta.url);
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? '';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY ?? '';
+const VOYAGE_API_KEY = process.env.VOYAGE_API_KEY ?? '';
 const DATA_DIR = join(process.cwd(), 'data');
 const CHUNK_SIZE = 500;
 const CHUNK_OVERLAP = 50;
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
-	console.error('❌ Missing SUPABASE_URL or SUPABASE_SERVICE_KEY in environment');
+if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY || !VOYAGE_API_KEY) {
+	console.error('❌ Missing SUPABASE_URL, SUPABASE_SERVICE_KEY, or VOYAGE_API_KEY in environment');
 	process.exit(1);
+}
+
+async function getEmbeddingsBatch(texts: string[]): Promise<number[][]> {
+	const res = await fetch('https://api.voyageai.com/v1/embeddings', {
+		method: 'POST',
+		headers: {
+			'Authorization': `Bearer ${VOYAGE_API_KEY}`,
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({ input: texts, model: 'voyage-3-lite' })
+	});
+	if (!res.ok) throw new Error(`Voyage error: ${await res.text()}`);
+	const data = await res.json() as { data: Array<{ embedding: number[] }> };
+	return data.data.map(d => d.embedding);
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
@@ -84,8 +98,6 @@ function chunkText(text: string, chunkSize: number, overlap: number): string[] {
 async function main() {
 	console.log('🚀 Starting book ingestion...');
 
-	const embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
-
 	const pdfFiles = readdirSync(DATA_DIR).filter(f => extname(f).toLowerCase() === '.pdf');
 
 	if (pdfFiles.length === 0) {
@@ -102,40 +114,57 @@ async function main() {
 		console.log('🗑️  Cleared existing chunks');
 	}
 
-	let totalChunks = 0;
+	// Collect all chunks first
+	const allChunks: Array<{ content: string; chapter: string }> = [];
 
 	for (const pdfFile of pdfFiles) {
 		const filePath = join(DATA_DIR, pdfFile);
 		console.log(`\n📖 Processing: ${pdfFile}`);
-
 		const sections = await extractTextFromPdf(filePath);
 		console.log(`   Found ${sections.length} sections`);
-
 		for (const section of sections) {
 			const chunks = chunkText(section.text, CHUNK_SIZE, CHUNK_OVERLAP);
-
-			for (let i = 0; i < chunks.length; i++) {
-				const chunk = chunks[i];
-				if (chunk.trim().length < 50) continue;
-
-				process.stdout.write(`   Embedding chunk ${totalChunks + 1}...\r`);
-
-				const output = await embedder(chunk, { pooling: 'mean', normalize: true });
-				const embedding = Array.from(output.data);
-
-				const { error: insertError } = await supabase.from('book_chunks').insert({
-					content: chunk,
-					chapter: section.chapter,
-					chunk_index: totalChunks,
-					embedding
-				});
-
-				if (insertError) {
-					console.error(`\n❌ Failed to insert chunk ${totalChunks}:`, insertError.message);
-				} else {
-					totalChunks++;
+			for (const chunk of chunks) {
+				if (chunk.trim().length >= 50) {
+					allChunks.push({ content: chunk, chapter: section.chapter });
 				}
 			}
+		}
+	}
+
+	console.log(`\n📦 Total chunks to embed: ${allChunks.length}`);
+
+	// Free tier: 3 RPM, 10K TPM. ~500 words/chunk ≈ 650 tokens. 3 chunks ≈ 2K tokens, safe.
+	const BATCH_SIZE = 3;
+	const BATCH_DELAY_MS = 22000;
+	let totalChunks = 0;
+
+	for (let i = 0; i < allChunks.length; i += BATCH_SIZE) {
+		const batch = allChunks.slice(i, i + BATCH_SIZE);
+		const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+		const totalBatches = Math.ceil(allChunks.length / BATCH_SIZE);
+
+		console.log(`   Batch ${batchNum}/${totalBatches} (${batch.length} chunks)...`);
+
+		const embeddings = await getEmbeddingsBatch(batch.map(c => c.content));
+
+		for (let j = 0; j < batch.length; j++) {
+			const { error: insertError } = await supabase.from('book_chunks').insert({
+				content: batch[j].content,
+				chapter: batch[j].chapter,
+				chunk_index: i + j,
+				embedding: embeddings[j]
+			});
+			if (insertError) {
+				console.error(`   ❌ Failed chunk ${i + j}:`, insertError.message);
+			} else {
+				totalChunks++;
+			}
+		}
+
+		if (i + BATCH_SIZE < allChunks.length) {
+			console.log(`   ⏳ Waiting ${BATCH_DELAY_MS / 1000}s (rate limit)...`);
+			await new Promise(r => setTimeout(r, BATCH_DELAY_MS));
 		}
 	}
 

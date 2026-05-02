@@ -9,7 +9,7 @@ create table if not exists book_chunks (
   content text not null,
   chapter text not null default 'Unknown',
   chunk_index integer not null,
-  embedding vector(384),  -- all-MiniLM-L6-v2 produces 384-dim embeddings
+  embedding vector(512),  -- voyage-3-lite produces 512-dim embeddings
   created_at timestamp with time zone default now()
 );
 
@@ -21,7 +21,7 @@ create index if not exists book_chunks_embedding_idx
 
 -- Similarity search function used by the app
 create or replace function match_book_chunks (
-  query_embedding vector(384),
+  query_embedding vector(512),
   match_count int default 5
 )
 returns table (

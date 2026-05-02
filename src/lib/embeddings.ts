@@ -1,35 +1,32 @@
-import { execFile } from 'child_process';
-import { fileURLToPath } from 'url';
-import { join, dirname } from 'path';
+import { VOYAGE_API_KEY } from '$env/static/private';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const WORKER_PATH = join(__dirname, 'embed-worker.mjs');
+const VOYAGE_MODEL = 'voyage-3-lite';
+const VOYAGE_URL = 'https://api.voyageai.com/v1/embeddings';
 
-function runEmbedWorker(text: string): Promise<number[]> {
-	return new Promise((resolve, reject) => {
-		execFile(
-			process.execPath,
-			[WORKER_PATH, text],
-			{ maxBuffer: 1024 * 1024 * 10 },
-			(err, stdout, stderr) => {
-				if (err) {
-					reject(new Error(`Embed worker error: ${stderr || err.message}`));
-					return;
-				}
-				try {
-					resolve(JSON.parse(stdout));
-				} catch {
-					reject(new Error(`Failed to parse embedding: ${stdout.slice(0, 100)}`));
-				}
-			}
-		);
+async function fetchEmbeddings(inputs: string[]): Promise<number[][]> {
+	const res = await fetch(VOYAGE_URL, {
+		method: 'POST',
+		headers: {
+			'Authorization': `Bearer ${VOYAGE_API_KEY}`,
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify({ input: inputs, model: VOYAGE_MODEL })
 	});
+
+	if (!res.ok) {
+		const err = await res.text();
+		throw new Error(`Voyage AI error ${res.status}: ${err}`);
+	}
+
+	const data = await res.json() as { data: Array<{ embedding: number[] }> };
+	return data.data.map(d => d.embedding);
 }
 
 export async function getEmbedding(text: string): Promise<number[]> {
-	return runEmbedWorker(text);
+	const results = await fetchEmbeddings([text]);
+	return results[0];
 }
 
 export async function getEmbeddings(texts: string[]): Promise<number[][]> {
-	return Promise.all(texts.map(runEmbedWorker));
+	return fetchEmbeddings(texts);
 }
