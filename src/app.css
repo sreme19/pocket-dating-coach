@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+@theme {
+	--color-rose-primary: #e11d48;
+	--color-rose-secondary: #fb7185;
+	--font-sans: 'Inter', system-ui, sans-serif;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html {
+	font-family: var(--font-sans);
+}
