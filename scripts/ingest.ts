@@ -107,11 +107,18 @@ async function main() {
 
 	console.log(`📚 Found ${pdfFiles.length} PDF file(s): ${pdfFiles.join(', ')}`);
 
-	const { error: clearError } = await supabase.from('book_chunks').delete().neq('id', 0);
-	if (clearError) {
-		console.log('⚠️  Could not clear existing chunks (may be empty):', clearError.message);
+	const resume = process.argv.includes('--resume');
+
+	if (!resume) {
+		const { error: clearError } = await supabase.from('book_chunks').delete().neq('id', 0);
+		if (clearError) {
+			console.log('⚠️  Could not clear existing chunks (may be empty):', clearError.message);
+		} else {
+			console.log('🗑️  Cleared existing chunks');
+		}
 	} else {
-		console.log('🗑️  Cleared existing chunks');
+		const { count } = await supabase.from('book_chunks').select('*', { count: 'exact', head: true });
+		console.log(`▶️  Resuming — ${count ?? 0} chunks already in Supabase`);
 	}
 
 	// Collect all chunks first
@@ -134,17 +141,27 @@ async function main() {
 
 	console.log(`\n📦 Total chunks to embed: ${allChunks.length}`);
 
-	// Free tier: 3 RPM, 10K TPM. ~500 words/chunk ≈ 650 tokens. 3 chunks ≈ 2K tokens, safe.
-	const BATCH_SIZE = 3;
+	// Free tier: 3 RPM, 10K TPM. Send 1 chunk per request to stay under limits.
+	const BATCH_SIZE = 1;
 	const BATCH_DELAY_MS = 22000;
 	let totalChunks = 0;
 
+	// Get already-ingested indices when resuming
+	let existingIndices = new Set<number>();
+	if (resume) {
+		const { data } = await supabase.from('book_chunks').select('chunk_index');
+		existingIndices = new Set((data ?? []).map((r: { chunk_index: number }) => r.chunk_index));
+		console.log(`   Skipping ${existingIndices.size} already-ingested chunks`);
+	}
+
 	for (let i = 0; i < allChunks.length; i += BATCH_SIZE) {
+		if (resume && existingIndices.has(i)) continue;
+
 		const batch = allChunks.slice(i, i + BATCH_SIZE);
 		const batchNum = Math.floor(i / BATCH_SIZE) + 1;
 		const totalBatches = Math.ceil(allChunks.length / BATCH_SIZE);
 
-		console.log(`   Batch ${batchNum}/${totalBatches} (${batch.length} chunks)...`);
+		console.log(`   Chunk ${i + 1}/${allChunks.length} (batch ${batchNum}/${totalBatches})...`);
 
 		const embeddings = await getEmbeddingsBatch(batch.map(c => c.content));
 
