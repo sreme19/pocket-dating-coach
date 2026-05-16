@@ -1,42 +1,61 @@
-# sv
+# Pocket Dating Coach
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+SvelteKit dating coach app powered by Claude, Supabase, pgvector, and Voyage AI embeddings.
 
-## Creating a project
+## Features
 
-If you're seeing this, you've probably already done this step. Congrats!
+- Ask Coach: conversational dating advice grounded in the ingested dating book.
+- Profile Review: upload a dating app profile screenshot for structured feedback.
+- Chat Analyzer: paste or upload a conversation screenshot for next-move guidance.
+- Reply Suggester: generate playful, warm, and direct reply options.
+- For Her: guided female profile journey with photo story intake, preference prompts, a public profile, private matching brief, compatibility signals, and approval controls.
+
+## Local Setup
 
 ```sh
-# create a new project
-npx sv create my-app
+npm install
+cp .env.example .env.local
+npm run dev
 ```
 
-To recreate this project with the same configuration:
+Open `http://127.0.0.1:5173/`.
+
+## Environment
+
+Set these in `.env.local` and your deployment environment:
 
 ```sh
-# recreate this project
-npx sv@0.15.2 create --template minimal --types ts --no-install pocket-dating-coach
+ANTHROPIC_API_KEY=sk-ant-api03-...
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_KEY=your-service-role-key-here
+VOYAGE_API_KEY=pa-...
 ```
 
-## Developing
+## Supabase Setup
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+Run `supabase-schema.sql` in the Supabase SQL editor. It creates:
+
+- `book_chunks` and `match_book_chunks` for pgvector book retrieval.
+- `female_profiles` for anonymous female journey sessions.
+- `female_profile_photos` for photo story metadata.
+- `female_profile_answers` for profile and preference chat answers.
+- `female_generated_profiles` for generated public/private profile outputs.
+- `female_profile_audit_events` for save and approval audit trail.
+- `profile-uploads` storage bucket for future file storage.
+
+The current female journey saves through `/api/female-profile` and falls back to local device storage when Supabase is unavailable.
+
+## Scripts
 
 ```sh
 npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
-## Building
-
-To create a production version of your app:
-
-```sh
+npm run check
 npm run build
+npm run ingest
 ```
 
-You can preview the production build with `npm run preview`.
+## Notes
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+- `npm run ingest` loads the dating book into Supabase using Voyage AI embeddings.
+- The female journey keeps public profile output separate from private matching notes and raw preference inputs.
+- The app currently uses a stable anonymous browser session ID. Full Supabase Auth is a planned next step.
