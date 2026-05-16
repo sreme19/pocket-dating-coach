@@ -2,7 +2,7 @@
 	import '../app.css';
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
-	import { Heart, MessageCircle, User, Search, ChevronRight, Settings } from 'lucide-svelte';
+	import { Heart, MessageCircle, User, Search, ChevronRight, Settings, Sparkles } from 'lucide-svelte';
 	import OnboardingModal from '$lib/components/OnboardingModal.svelte';
 	import type { UserProfile } from '$lib/types';
 
@@ -15,6 +15,7 @@
 	const navItems = [
 		{ href: '/chat', icon: MessageCircle, label: 'Ask Coach', description: 'Get advice' },
 		{ href: '/profile-review', icon: User, label: 'Profile Review', description: 'Analyze your profile' },
+		{ href: '/female-profile', icon: Sparkles, label: 'For Her', description: 'Profile journey' },
 		{ href: '/chat-analyzer', icon: Search, label: 'Chat Analyzer', description: 'Review conversations' },
 		{ href: '/reply-suggester', icon: ChevronRight, label: 'Reply Suggester', description: 'Get reply ideas' }
 	];

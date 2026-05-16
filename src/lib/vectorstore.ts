@@ -1,11 +1,51 @@
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_SERVICE_KEY } from '$env/static/private';
 
-let _supabase: ReturnType<typeof createClient> | null = null;
+type Database = {
+	public: {
+		Tables: {
+			book_chunks: {
+				Row: {
+					id: string;
+					content: string;
+					chapter: string;
+					chunk_index: number;
+					embedding: number[];
+				};
+				Insert: {
+					content: string;
+					chapter: string;
+					chunk_index: number;
+					embedding: number[];
+				};
+				Update: Partial<Database['public']['Tables']['book_chunks']['Insert']>;
+				Relationships: [];
+			};
+		};
+		Functions: {
+			match_book_chunks: {
+				Args: {
+					query_embedding: number[];
+					match_count: number;
+				};
+				Returns: Array<{
+					content: string;
+					chapter: string;
+					similarity: number;
+				}>;
+			};
+		};
+		Views: Record<string, never>;
+		Enums: Record<string, never>;
+		CompositeTypes: Record<string, never>;
+	};
+};
+
+let _supabase: ReturnType<typeof createClient<Database>> | null = null;
 
 function getSupabase() {
 	if (!_supabase) {
-		_supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+		_supabase = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 	}
 	return _supabase;
 }
