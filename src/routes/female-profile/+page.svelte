@@ -27,8 +27,10 @@
 	} from '$lib/types';
 
 	const STORAGE_KEY = 'pdc_female_journey';
+	const SESSION_KEY = 'pdc_session_id';
 
 	let stage = $state<FemaleProfileStage>('profile');
+	let sessionId = $state('');
 	let displayName = $state('');
 	let ageRange = $state('25-30');
 	let city = $state('');
@@ -39,6 +41,7 @@
 	let approvedForMatching = $state(false);
 	let generatedProfile = $state<FemaleGeneratedProfile | null>(null);
 	let preferenceModel = $state<FemalePreferenceModel | null>(null);
+	let syncStatus = $state<'idle' | 'saving' | 'saved' | 'offline' | 'error'>('idle');
 	let activePrompt = $derived(nextFemalePrompt(answers));
 
 	const roleOptions: Array<{ value: FemalePhotoAsset['storyRole']; label: string }> = [
@@ -49,10 +52,35 @@
 		{ value: 'social', label: 'Social' }
 	];
 
-	onMount(() => {
+	onMount(async () => {
+		sessionId = getOrCreateSessionId();
 		const stored = localStorage.getItem(STORAGE_KEY);
 		if (!stored) return;
 		const parsed = JSON.parse(stored);
+		applyStoredProfile(parsed);
+		await loadRemoteProfile();
+	});
+
+	function getOrCreateSessionId() {
+		const stored = localStorage.getItem(SESSION_KEY);
+		if (stored) return stored;
+		const next = crypto.randomUUID();
+		localStorage.setItem(SESSION_KEY, next);
+		return next;
+	}
+
+	function applyStoredProfile(parsed: {
+		stage?: FemaleProfileStage;
+		displayName?: string;
+		ageRange?: string;
+		city?: string;
+		intent?: string;
+		photoAssets?: FemalePhotoAsset[];
+		answers?: FemaleJourneyAnswer[];
+		approvedForMatching?: boolean;
+		generatedProfile?: FemaleGeneratedProfile | null;
+		preferenceModel?: FemalePreferenceModel | null;
+	}) {
 		displayName = parsed.displayName ?? '';
 		ageRange = parsed.ageRange ?? '25-30';
 		city = parsed.city ?? '';
@@ -63,9 +91,27 @@
 		generatedProfile = parsed.generatedProfile ?? null;
 		preferenceModel = parsed.preferenceModel ?? null;
 		stage = parsed.stage ?? 'profile';
-	});
+	}
 
-	function persist() {
+	async function loadRemoteProfile() {
+		if (!sessionId) return;
+		try {
+			const response = await fetch(`/api/female-profile?sessionId=${encodeURIComponent(sessionId)}`);
+			if (!response.ok) return;
+			const data = await response.json();
+			if (!data.profile) return;
+			applyStoredProfile({
+				...data.profile,
+				stage: data.profile.generatedProfile ? 'review' : data.profile.answers?.length ? 'fantasy' : 'profile'
+			});
+			persistLocal();
+			syncStatus = 'saved';
+		} catch {
+			syncStatus = 'offline';
+		}
+	}
+
+	function persistLocal() {
 		localStorage.setItem(
 			STORAGE_KEY,
 			JSON.stringify({
@@ -83,6 +129,34 @@
 		);
 	}
 
+	async function persist() {
+		persistLocal();
+		if (!sessionId) return;
+		syncStatus = 'saving';
+		try {
+			const response = await fetch('/api/female-profile', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					sessionId,
+					displayName,
+					ageRange,
+					city,
+					intent,
+					approvedForMatching,
+					photoAssets,
+					answers,
+					generatedProfile,
+					preferenceModel
+				})
+			});
+			if (!response.ok) throw new Error('Save failed');
+			syncStatus = 'saved';
+		} catch {
+			syncStatus = 'offline';
+		}
+	}
+
 	function handlePhotoSelect(event: Event) {
 		const files = Array.from((event.target as HTMLInputElement).files ?? []);
 		const nextPhotos = files.map((file, index) => ({
@@ -93,27 +167,27 @@
 			note: ''
 		}));
 		photoAssets = [...photoAssets, ...nextPhotos].slice(0, 8);
-		persist();
+		void persist();
 	}
 
 	function updatePhotoRole(id: string, storyRole: FemalePhotoAsset['storyRole']) {
 		photoAssets = photoAssets.map((photo) => (photo.id === id ? { ...photo, storyRole } : photo));
-		persist();
+		void persist();
 	}
 
 	function updatePhotoNote(id: string, note: string) {
 		photoAssets = photoAssets.map((photo) => (photo.id === id ? { ...photo, note } : photo));
-		persist();
+		void persist();
 	}
 
 	function removePhoto(id: string) {
 		photoAssets = photoAssets.filter((photo) => photo.id !== id);
-		persist();
+		void persist();
 	}
 
 	function continueToFantasy() {
 		stage = 'fantasy';
-		persist();
+		void persist();
 	}
 
 	function addAnswer() {
@@ -130,21 +204,21 @@
 		currentAnswer = '';
 		generatedProfile = null;
 		preferenceModel = null;
-		persist();
+		void persist();
 	}
 
 	function removeAnswer(id: string) {
 		answers = answers.filter((answer) => answer.id !== id);
 		generatedProfile = null;
 		preferenceModel = null;
-		persist();
+		void persist();
 	}
 
 	function generateProfile() {
 		preferenceModel = buildFemalePreferenceModel(answers);
 		generatedProfile = generateFemaleProfile(answers, photoAssets, approvedForMatching);
 		stage = 'review';
-		persist();
+		void persist();
 	}
 
 	function toggleApproval() {
@@ -152,7 +226,7 @@
 		if (generatedProfile) {
 			generatedProfile = { ...generatedProfile, approvedForMatching };
 		}
-		persist();
+		void persist();
 	}
 
 	function resetJourney() {
@@ -168,6 +242,7 @@
 		preferenceModel = null;
 		stage = 'profile';
 		localStorage.removeItem(STORAGE_KEY);
+		syncStatus = 'idle';
 	}
 </script>
 
@@ -185,10 +260,24 @@
 		</button>
 	</div>
 
+	<div class="border-b border-gray-900 px-6 py-2 text-xs text-gray-500">
+		{#if syncStatus === 'saving'}
+			Saving to Supabase...
+		{:else if syncStatus === 'saved'}
+			Saved to Supabase and this device
+		{:else if syncStatus === 'offline'}
+			Saved locally. Supabase sync will retry when the API is available.
+		{:else if syncStatus === 'error'}
+			Could not save latest changes
+		{:else}
+			Ready
+		{/if}
+	</div>
+
 	<div class="mx-auto grid w-full max-w-6xl flex-1 gap-6 p-6 lg:grid-cols-[240px_minmax(0,1fr)]">
 		<aside class="space-y-3">
 			<button
-				onclick={() => { stage = 'profile'; persist(); }}
+					onclick={() => { stage = 'profile'; void persist(); }}
 				class={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all ${
 					stage === 'profile'
 						? 'border-rose-500/40 bg-rose-600/15 text-rose-200'
@@ -199,7 +288,7 @@
 				<span class="text-sm font-medium">Profile & photos</span>
 			</button>
 			<button
-				onclick={() => { stage = 'fantasy'; persist(); }}
+				onclick={() => { stage = 'fantasy'; void persist(); }}
 				class={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all ${
 					stage === 'fantasy'
 						? 'border-rose-500/40 bg-rose-600/15 text-rose-200'
@@ -210,7 +299,7 @@
 				<span class="text-sm font-medium">Preference chat</span>
 			</button>
 			<button
-				onclick={() => { stage = 'review'; persist(); }}
+				onclick={() => { stage = 'review'; void persist(); }}
 				class={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all ${
 					stage === 'review'
 						? 'border-rose-500/40 bg-rose-600/15 text-rose-200'
@@ -253,11 +342,11 @@
 						<div class="grid gap-4 md:grid-cols-2">
 							<label class="space-y-2">
 								<span class="text-sm font-medium text-gray-300">Name or nickname</span>
-								<input bind:value={displayName} onblur={persist} class="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-rose-500/60" placeholder="What should the profile call her?" />
+								<input bind:value={displayName} onblur={() => void persist()} class="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-rose-500/60" placeholder="What should the profile call her?" />
 							</label>
 							<label class="space-y-2">
 								<span class="text-sm font-medium text-gray-300">Age range</span>
-								<select bind:value={ageRange} onchange={persist} class="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-rose-500/60">
+								<select bind:value={ageRange} onchange={() => void persist()} class="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-rose-500/60">
 									{#each ['18-22', '23-27', '28-32', '33-37', '38-42', '43-50', '50+'] as range}
 										<option value={range}>{range}</option>
 									{/each}
@@ -265,11 +354,11 @@
 							</label>
 							<label class="space-y-2">
 								<span class="text-sm font-medium text-gray-300">City</span>
-								<input bind:value={city} onblur={persist} class="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-rose-500/60" placeholder="Mumbai, Bengaluru, Delhi..." />
+								<input bind:value={city} onblur={() => void persist()} class="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-rose-500/60" placeholder="Mumbai, Bengaluru, Delhi..." />
 							</label>
 							<label class="space-y-2">
 								<span class="text-sm font-medium text-gray-300">Dating intent</span>
-								<input bind:value={intent} onblur={persist} class="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-rose-500/60" placeholder="Intentional dating, serious, exploratory..." />
+								<input bind:value={intent} onblur={() => void persist()} class="w-full rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 text-sm text-white outline-none transition-colors focus:border-rose-500/60" placeholder="Intentional dating, serious, exploratory..." />
 							</label>
 						</div>
 					</div>
@@ -465,7 +554,7 @@
 			{:else}
 				<div class="rounded-2xl border border-gray-800 bg-gray-900 p-8 text-center">
 					<p class="mb-4 text-gray-300">No generated profile yet.</p>
-					<button onclick={() => stage = 'fantasy'} class="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white">Go to preference chat</button>
+					<button onclick={() => { stage = 'fantasy'; void persist(); }} class="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white">Go to preference chat</button>
 				</div>
 			{/if}
 		</section>
