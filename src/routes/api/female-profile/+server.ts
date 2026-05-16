@@ -21,6 +21,9 @@ type FemaleProfilePayload = {
 	preferenceModel: FemalePreferenceModel | null;
 };
 
+const PHOTO_BUCKET = 'profile-uploads';
+const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 7;
+
 function requireSessionId(value: unknown): string {
 	if (typeof value !== 'string' || value.trim().length < 8) {
 		throw error(400, 'sessionId is required');
@@ -97,13 +100,25 @@ export const GET: RequestHandler = async ({ url }) => {
 		if (answersResult.error) throw error(500, answersResult.error.message);
 		if (generatedResult.error) throw error(500, generatedResult.error.message);
 
-		const photoAssets: FemalePhotoAsset[] = (photosResult.data ?? []).map((photo) => ({
-			id: photo.client_id ?? photo.id,
-			name: photo.file_name,
-			url: photo.preview_url ?? '',
-			storyRole: photo.story_role,
-			note: photo.note
-		}));
+		const photoAssets: FemalePhotoAsset[] = await Promise.all(
+			(photosResult.data ?? []).map(async (photo) => {
+				let url = photo.preview_url ?? '';
+				if (photo.storage_path) {
+					const { data: signedData } = await supabase.storage
+						.from(PHOTO_BUCKET)
+						.createSignedUrl(photo.storage_path, SIGNED_URL_TTL_SECONDS);
+					url = signedData?.signedUrl ?? url;
+				}
+				return {
+					id: photo.client_id ?? photo.id,
+					name: photo.file_name,
+					url,
+					storagePath: photo.storage_path,
+					storyRole: photo.story_role,
+					note: photo.note
+				};
+			})
+		);
 
 		const answers: FemaleJourneyAnswer[] = (answersResult.data ?? []).map((answer) => ({
 			id: answer.client_id ?? answer.id,
@@ -195,6 +210,7 @@ export const POST: RequestHandler = async ({ request }) => {
 					client_id: photo.id,
 					file_name: photo.name,
 					preview_url: photo.url.startsWith('blob:') ? null : photo.url,
+					storage_path: photo.storagePath ?? null,
 					story_role: photo.storyRole,
 					note: photo.note,
 					sort_order: index

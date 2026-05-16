@@ -15,6 +15,7 @@ export interface FemalePhotoAsset {
 	id: string;
 	name: string;
 	url: string;
+	storagePath?: string | null;
 	storyRole: 'lead' | 'warmth' | 'lifestyle' | 'conversation' | 'social';
 	note: string;
 }

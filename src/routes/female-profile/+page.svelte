@@ -41,7 +41,7 @@
 	let approvedForMatching = $state(false);
 	let generatedProfile = $state<FemaleGeneratedProfile | null>(null);
 	let preferenceModel = $state<FemalePreferenceModel | null>(null);
-	let syncStatus = $state<'idle' | 'saving' | 'saved' | 'offline' | 'error'>('idle');
+	let syncStatus = $state<'idle' | 'saving' | 'saved' | 'offline' | 'error' | 'uploading'>('idle');
 	let activePrompt = $derived(nextFemalePrompt(answers));
 
 	const roleOptions: Array<{ value: FemalePhotoAsset['storyRole']; label: string }> = [
@@ -157,17 +157,54 @@
 		}
 	}
 
-	function handlePhotoSelect(event: Event) {
+	async function uploadPhoto(file: File): Promise<Pick<FemalePhotoAsset, 'url' | 'storagePath'>> {
+		if (!sessionId) return { url: URL.createObjectURL(file), storagePath: null };
+		const formData = new FormData();
+		formData.append('sessionId', sessionId);
+		formData.append('file', file);
+		const response = await fetch('/api/female-profile/photo', {
+			method: 'POST',
+			body: formData
+		});
+		if (!response.ok) throw new Error('Photo upload failed');
+		const data = await response.json();
+		return {
+			url: data.signedUrl,
+			storagePath: data.storagePath
+		};
+	}
+
+	async function handlePhotoSelect(event: Event) {
 		const files = Array.from((event.target as HTMLInputElement).files ?? []);
-		const nextPhotos = files.map((file, index) => ({
-			id: crypto.randomUUID(),
-			name: file.name,
-			url: URL.createObjectURL(file),
-			storyRole: (index === 0 && photoAssets.length === 0 ? 'lead' : 'lifestyle') as FemalePhotoAsset['storyRole'],
-			note: ''
-		}));
+		if (files.length === 0) return;
+		syncStatus = 'uploading';
+		const nextPhotos: FemalePhotoAsset[] = [];
+		for (const [index, file] of files.entries()) {
+			try {
+				const uploaded = await uploadPhoto(file);
+				nextPhotos.push({
+					id: crypto.randomUUID(),
+					name: file.name,
+					url: uploaded.url,
+					storagePath: uploaded.storagePath,
+					storyRole: (index === 0 && photoAssets.length === 0 ? 'lead' : 'lifestyle') as FemalePhotoAsset['storyRole'],
+					note: ''
+				});
+			} catch {
+				nextPhotos.push({
+					id: crypto.randomUUID(),
+					name: file.name,
+					url: URL.createObjectURL(file),
+					storagePath: null,
+					storyRole: (index === 0 && photoAssets.length === 0 ? 'lead' : 'lifestyle') as FemalePhotoAsset['storyRole'],
+					note: ''
+				});
+				syncStatus = 'offline';
+			}
+		}
 		photoAssets = [...photoAssets, ...nextPhotos].slice(0, 8);
 		void persist();
+		(event.target as HTMLInputElement).value = '';
 	}
 
 	function updatePhotoRole(id: string, storyRole: FemalePhotoAsset['storyRole']) {
@@ -263,6 +300,8 @@
 	<div class="border-b border-gray-900 px-6 py-2 text-xs text-gray-500">
 		{#if syncStatus === 'saving'}
 			Saving to Supabase...
+		{:else if syncStatus === 'uploading'}
+			Uploading photos to Supabase Storage...
 		{:else if syncStatus === 'saved'}
 			Saved to Supabase and this device
 		{:else if syncStatus === 'offline'}
