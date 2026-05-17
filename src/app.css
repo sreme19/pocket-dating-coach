@@ -4,6 +4,231 @@
 	--color-rose-primary: #e11d48;
 	--color-rose-secondary: #fb7185;
 	--font-sans: 'Inter', system-ui, sans-serif;
+
+	/* Verified Vibe Primary Accent Colors */
+	--color-vibe-emerald: #10b981;
+	--color-vibe-mint: #14b8a6;
+	--color-vibe-lime: #84cc16;
+	--color-vibe-amber: #f59e0b;
+
+	/* Verified Vibe Background Colors */
+	--color-vibe-bg-1: #ffffff;
+	--color-vibe-bg-2: #f9fafb;
+	--color-vibe-bg-3: #f3f4f6;
+
+	/* Verified Vibe Text Colors */
+	--color-vibe-text-1: #111827;
+	--color-vibe-text-2: #374151;
+	--color-vibe-text-3: #6b7280;
+	--color-vibe-text-4: #9ca3af;
+
+	/* Verified Vibe Border Colors */
+	--color-vibe-border: #e5e7eb;
+	--color-vibe-border-light: #f3f4f6;
+}
+
+:root {
+	/* ============================================
+	   COLOR TOKENS
+	   ============================================ */
+
+	/* Primary Accent Colors */
+	--color-vibe-emerald: #10b981;
+	--color-vibe-mint: #14b8a6;
+	--color-vibe-lime: #84cc16;
+	--color-vibe-amber: #f59e0b;
+
+	/* Background Colors */
+	--color-vibe-bg-1: #ffffff;
+	--color-vibe-bg-2: #f9fafb;
+	--color-vibe-bg-3: #f3f4f6;
+
+	/* Text Colors */
+	--color-vibe-text-1: #111827;
+	--color-vibe-text-2: #374151;
+	--color-vibe-text-3: #6b7280;
+	--color-vibe-text-4: #9ca3af;
+
+	/* Border Colors */
+	--color-vibe-border: #e5e7eb;
+	--color-vibe-border-light: #f3f4f6;
+
+	/* Verified Vibe Gate Screen Variables (light mode) */
+	--bg-1: #ffffff;
+	--bg-2: #f9fafb;
+	--bg-3: #f3f4f6;
+	--text-1: #111827;
+	--text-2: #374151;
+	--text-3: #6b7280;
+	--text-4: #9ca3af;
+	--border-1: #e5e7eb;
+	--border-2: #d1d5db;
+	--border-3: #bfdbfe;
+	--accent: #10b981;
+	--accent-bright: #34d399;
+	--accent-dim: #064e3b;
+	--accent-tint: rgba(16, 185, 129, 0.12);
+	--accent-glow: rgba(16, 185, 129, 0.35);
+	--font-serif: 'Georgia', serif;
+	--font-mono: 'Menlo', 'Monaco', 'Courier New', monospace;
+	--r-lg: 0.75rem;
+
+	/* ============================================
+	   SPACING TOKENS
+	   ============================================ */
+
+	/* Padding */
+	--spacing-xs: 0.25rem;    /* 4px */
+	--spacing-sm: 0.5rem;     /* 8px */
+	--spacing-md: 1rem;       /* 16px */
+	--spacing-lg: 1.5rem;     /* 24px */
+	--spacing-xl: 2rem;       /* 32px */
+	--spacing-2xl: 2.5rem;    /* 40px */
+	--spacing-3xl: 3rem;      /* 48px */
+	--spacing-4xl: 4rem;      /* 64px */
+
+	/* Margin */
+	--margin-xs: 0.25rem;
+	--margin-sm: 0.5rem;
+	--margin-md: 1rem;
+	--margin-lg: 1.5rem;
+	--margin-xl: 2rem;
+	--margin-2xl: 2.5rem;
+	--margin-3xl: 3rem;
+	--margin-4xl: 4rem;
+
+	/* Gap (for flexbox/grid) */
+	--gap-xs: 0.25rem;
+	--gap-sm: 0.5rem;
+	--gap-md: 1rem;
+	--gap-lg: 1.5rem;
+	--gap-xl: 2rem;
+	--gap-2xl: 2.5rem;
+	--gap-3xl: 3rem;
+	--gap-4xl: 4rem;
+
+	/* ============================================
+	   BORDER RADIUS TOKENS
+	   ============================================ */
+
+	--radius-none: 0;
+	--radius-sm: 0.25rem;     /* 4px */
+	--radius-md: 0.5rem;      /* 8px */
+	--radius-lg: 0.75rem;     /* 12px */
+	--radius-xl: 1rem;        /* 16px */
+	--radius-2xl: 1.5rem;     /* 24px */
+	--radius-3xl: 2rem;       /* 32px */
+	--radius-full: 9999px;    /* Fully rounded */
+
+	/* ============================================
+	   FONT TOKENS
+	   ============================================ */
+
+	/* Font Family */
+	--font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+	--font-mono: 'Menlo', 'Monaco', 'Courier New', monospace;
+
+	/* Font Size */
+	--font-size-xs: 0.75rem;      /* 12px */
+	--font-size-sm: 0.875rem;     /* 14px */
+	--font-size-base: 1rem;       /* 16px */
+	--font-size-lg: 1.125rem;     /* 18px */
+	--font-size-xl: 1.25rem;      /* 20px */
+	--font-size-2xl: 1.5rem;      /* 24px */
+	--font-size-3xl: 1.875rem;    /* 30px */
+	--font-size-4xl: 2.25rem;     /* 36px */
+	--font-size-5xl: 3rem;        /* 48px */
+
+	/* Font Weight */
+	--font-weight-light: 300;
+	--font-weight-normal: 400;
+	--font-weight-medium: 500;
+	--font-weight-semibold: 600;
+	--font-weight-bold: 700;
+
+	/* Line Height */
+	--line-height-tight: 1.25;
+	--line-height-normal: 1.5;
+	--line-height-relaxed: 1.75;
+	--line-height-loose: 2;
+
+	/* Letter Spacing */
+	--letter-spacing-tight: -0.02em;
+	--letter-spacing-normal: 0;
+	--letter-spacing-wide: 0.02em;
+
+	/* ============================================
+	   SHADOW TOKENS
+	   ============================================ */
+
+	--shadow-none: none;
+	--shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+	--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+	--shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+	--shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+	--shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+
+	/* Inset shadows */
+	--shadow-inset: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+
+	/* ============================================
+	   TRANSITION/ANIMATION TOKENS
+	   ============================================ */
+
+	/* Transition Duration */
+	--duration-fast: 150ms;
+	--duration-base: 200ms;
+	--duration-slow: 300ms;
+	--duration-slower: 500ms;
+
+	/* Transition Timing Function */
+	--ease-linear: linear;
+	--ease-in: cubic-bezier(0.4, 0, 1, 1);
+	--ease-out: cubic-bezier(0, 0, 0.2, 1);
+	--ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+	/* Common Transitions */
+	--transition-fast: all var(--duration-fast) var(--ease-in-out);
+	--transition-base: all var(--duration-base) var(--ease-in-out);
+	--transition-slow: all var(--duration-slow) var(--ease-in-out);
+	--transition-colors: color var(--duration-base) var(--ease-in-out), background-color var(--duration-base) var(--ease-in-out), border-color var(--duration-base) var(--ease-in-out);
+	--transition-transform: transform var(--duration-base) var(--ease-in-out);
+	--transition-opacity: opacity var(--duration-base) var(--ease-in-out);
+}
+
+/* Dark mode overrides for Verified Vibe colors */
+@media (prefers-color-scheme: dark) {
+	:root {
+		--color-vibe-bg-1: #111827;
+		--color-vibe-bg-2: #1f2937;
+		--color-vibe-bg-3: #374151;
+		--color-vibe-text-1: #f9fafb;
+		--color-vibe-text-2: #e5e7eb;
+		--color-vibe-text-3: #d1d5db;
+		--color-vibe-text-4: #9ca3af;
+		--color-vibe-border: #4b5563;
+		--color-vibe-border-light: #374151;
+
+		/* Verified Vibe Gate Screen Variables (dark mode) */
+		--bg-1: #111827;
+		--bg-2: #1f2937;
+		--bg-3: #374151;
+		--text-1: #f9fafb;
+		--text-2: #e5e7eb;
+		--text-3: #d1d5db;
+		--text-4: #9ca3af;
+		--border-1: #4b5563;
+		--border-2: #6b7280;
+		--border-3: #9ca3af;
+
+		/* Dark mode shadow adjustments */
+		--shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+		--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+		--shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+		--shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.15);
+		--shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+		--shadow-inset: inset 0 2px 4px 0 rgba(0, 0, 0, 0.3);
+	}
 }
 
 * {

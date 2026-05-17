@@ -1,11 +1,26 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
+  import { currentPhase, setPhase } from '$lib/verified-vibe/stores';
 
-	onMount(() => {
-		window.location.replace('/verified-vibe/index.html');
-	});
+  onMount(() => {
+    // Redirect to gate screen if not already in app phase
+    if ($currentPhase === 'gate') {
+      goto('/verified-vibe/gate');
+    }
+  });
 </script>
 
-<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#0b1120;color:#f1f5f9;font-family:system-ui,sans-serif;">
-	<p style="color:#94a3b8;font-size:14px;">Loading Verified Vibe…</p>
+<div class="verified-vibe-entry">
+  <p>Loading Verified Vibe...</p>
 </div>
+
+<style>
+  .verified-vibe-entry {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-2);
+  }
+</style>

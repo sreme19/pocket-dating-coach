@@ -10,6 +10,8 @@
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"test": "vitest --run",
+		"test:watch": "vitest",
 		"ingest": "npx tsx --env-file=.env.local scripts/ingest.ts"
 	},
 	"devDependencies": {
@@ -18,9 +20,14 @@
 		"@sveltejs/kit": "^2.57.0",
 		"@sveltejs/vite-plugin-svelte": "^7.0.0",
 		"@tailwindcss/vite": "^4.2.4",
+		"@testing-library/dom": "^10.4.1",
+		"@testing-library/svelte": "^5.3.1",
+		"@testing-library/user-event": "^14.6.1",
 		"@types/node": "^25.6.0",
+		"@vitest/ui": "^4.1.6",
 		"bits-ui": "^2.18.0",
 		"clsx": "^2.1.1",
+		"jsdom": "^29.1.1",
 		"svelte": "^5.55.2",
 		"svelte-check": "^4.4.6",
 		"svelte-sonner": "^1.1.1",
@@ -28,7 +35,8 @@
 		"tailwindcss": "^4.2.4",
 		"tsx": "^4.21.0",
 		"typescript": "^6.0.2",
-		"vite": "^8.0.7"
+		"vite": "^8.0.7",
+		"vitest": "^4.1.6"
 	},
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.92.0",
