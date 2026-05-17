@@ -1,0 +1,163 @@
+import { json } from '@sveltejs/kit';
+import type { RequestHandler } from '@sveltejs/kit';
+import { ANTHROPIC_API_KEY } from '$env/static/private';
+
+interface CheckPhotoConsistencyRequest {
+  images: string[]; // base64 encoded images
+  mimeTypes: string[];
+}
+
+interface PhotoConsistencyResult {
+  confidence: number;
+  consistent: boolean;
+}
+
+/**
+ * POST /api/verified-vibe/check-photo-consistency
+ *
+ * Analyzes multiple photos to determine if they are all of the same person.
+ * Uses Claude Vision API to compare photos and return a confidence score.
+ *
+ * Request body:
+ * {
+ *   images: string[] - base64 encoded images
+ *   mimeTypes: string[] - MIME types for each image
+ * }
+ *
+ * Response:
+ * {
+ *   data: {
+ *     confidence: number (0-100),
+ *     consistent: boolean (confidence >= 80%)
+ *   }
+ * }
+ */
+export const POST: RequestHandler = async ({ request }) => {
+  try {
+    const body = (await request.json()) as CheckPhotoConsistencyRequest;
+
+    // Validate request
+    if (!body.images || !Array.isArray(body.images) || body.images.length < 5) {
+      return json(
+        { error: 'At least 5 images are required' },
+        { status: 400 }
+      );
+    }
+
+    if (!body.mimeTypes || body.mimeTypes.length !== body.images.length) {
+      return json(
+        { error: 'MIME types must match number of images' },
+        { status: 400 }
+      );
+    }
+
+    // Build Claude message with images
+    const imageContent = body.images.map((image, index) => ({
+      type: 'image' as const,
+      source: {
+        type: 'base64' as const,
+        media_type: body.mimeTypes[index] as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+        data: image
+      }
+    }));
+
+    // Add text prompt
+    const content = [
+      ...imageContent,
+      {
+        type: 'text' as const,
+        text: `Analyze these ${body.images.length} photos carefully. Determine if they are all of the same person.
+
+Consider:
+- Facial features (shape, proportions, distinctive marks)
+- Eye color and shape
+- Nose shape and size
+- Mouth and lips
+- Skin tone and texture
+- Hair color and style (may vary)
+- Overall facial structure
+
+Provide your analysis as JSON with:
+{
+  "confidence": <number 0-100>,
+  "consistent": <boolean>,
+  "reasoning": "<brief explanation>"
+}
+
+Be strict: if there's any doubt, lower the confidence. Only mark as consistent if confidence >= 80%.`
+      }
+    ];
+
+    // Call Claude API
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 1024,
+        messages: [
+          {
+            role: 'user',
+            content: content
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('Claude API error:', error);
+      return json(
+        { error: 'Failed to analyze photos' },
+        { status: 500 }
+      );
+    }
+
+    const claudeResponse = await response.json();
+    const textContent = claudeResponse.content.find(
+      (block: any) => block.type === 'text'
+    );
+
+    if (!textContent) {
+      return json(
+        { error: 'No response from Claude' },
+        { status: 500 }
+      );
+    }
+
+    // Parse Claude's response
+    let result: PhotoConsistencyResult;
+    try {
+      // Extract JSON from response (Claude might include extra text)
+      const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No JSON found in response');
+      }
+      const parsed = JSON.parse(jsonMatch[0]);
+      result = {
+        confidence: Math.round(parsed.confidence),
+        consistent: parsed.confidence >= 80
+      };
+    } catch (parseError) {
+      console.error('Failed to parse Claude response:', textContent.text);
+      return json(
+        { error: 'Failed to parse analysis results' },
+        { status: 500 }
+      );
+    }
+
+    return json({
+      data: result
+    });
+  } catch (error) {
+    console.error('Photo consistency check error:', error);
+    return json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+};
