@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verified Vibe — Design Wireframes</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #0f172a;
+            color: #f1f5f9;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            line-height: 1.6;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+            color: #10b981;
+        }
+        
+        h2 {
+            font-size: 24px;
+            margin: 30px 0 20px 0;
+            color: #10b981;
+            border-bottom: 2px solid #1e293b;
+            padding-bottom: 10px;
+        }
+        
+        h3 {
+            font-size: 18px;
+            margin: 20px 0 15px 0;
+            color: #cbd5e1;
+        }
+        
+        .wireframe-section {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .wireframe-preview {
+            background: #0f172a;
+            border: 2px dashed #475569;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            line-height: 1.4;
+        }
+        
+        .archetype-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 15px 0;
+            display: flex;
+            gap: 15px;
+        }
+        
+        .archetype-icon {
+            font-size: 32px;
+            min-width: 50px;
+        }
+        
+        .archetype-info h4 {
+            margin: 0 0 5px 0;
+            color: #10b981;
+        }
+        
+        .archetype-info p {
+            color: #94a3b8;
+            font-size: 14px;
+            margin: 0;
+        }
+        
+        .screen-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .screen-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .screen-card:hover {
+            border-color: #10b981;
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+        }
+        
+        .screen-card h4 {
+            color: #10b981;
+            margin-bottom: 8px;
+        }
+        
+        .screen-card p {
+            color: #94a3b8;
+            font-size: 13px;
+        }
+        
+        .badge {
+            display: inline-block;
+            background: #10b981;
+            color: #0f172a;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 8px;
+        }
+        
+        .section-nav {
+            position: sticky;
+            top: 20px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .section-nav h3 {
+            margin-top: 0;
+        }
+        
+        .section-nav a {
+            display: block;
+            color: #10b981;
+            text-decoration: none;
+            padding: 8px 0;
+            font-size: 14px;
+        }
+        
+        .section-nav a:hover {
+            color: #6ee7b7;
+        }
+        
+        code {
+            background: #334155;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        th, td {
+            border: 1px solid #334155;
+            padding: 12px;
+            text-align: left;
+        }
+        
+        th {
+            background: #1e293b;
+            color: #10b981;
+        }
+        
+        .footer {
+            margin-top: 60px;
+            padding: 30px;
+            border-top: 1px solid #334155;
+            text-align: center;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛡️ Verified Vibe — Design Wireframes</h1>
+        <p style="color: #94a3b8; margin-bottom: 20px;">Phase 1 MVP • Archetype-based trust verification dating app</p>
+        
+        <div class="section-nav">
+            <h3>Quick Navigation</h3>
+            <a href="#screen1">Screen 1: Archetype Selector</a>
+            <a href="#screen2">Screen 2: Intent Declaration</a>
+            <a href="#screen3">Screen 3: Profile Builder</a>
+            <a href="#screen4">Screen 4: ID + Liveness</a>
+            <a href="#screen5">Screen 5: Photos</a>
+            <a href="#screen6">Screen 6: Bank Statement</a>
+            <a href="#screen7">Screen 7: Q&A</a>
+            <a href="#screen8">Screen 8: Trust Score</a>
+            <a href="#screen9">Screen 9: Discovery Feed</a>
+            <a href="#screen10">Screen 10: Match</a>
+            <a href="#screen11">Screen 11: Chat</a>
+            <a href="#components">Component Library</a>
+        </div>
+        
+        <div class="wireframe-section">
+            <h2>🎯 Design Overview</h2>
+            <p>11 core screens for the Verified Vibe MVP, featuring:</p>
+            <ul style="margin: 15px 0 15px 20px; color: #cbd5e1;">
+                <li><strong>4 Archetypes:</strong> Casual Man, Spoilt Woman, Marriage-Minded Man, Safety-First Woman</li>
+                <li><strong>Trust Verification:</strong> Government ID, Bank statements, 5+ photos, Q&A responses</li>
+                <li><strong>Trust Score:</strong> 0-100 based on Identity (35%), Lifestyle (45%), Intent (20%)</li>
+                <li><strong>Anti-Swipe Design:</strong> Daily pass limits, archetype-filtered feed, mutual match required</li>
+            </ul>
+            
+            <h3>Color System</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin: 15px 0;">
+                <div style="background: #10b981; padding: 15px; border-radius: 8px; text-align: center;">
+                    <strong style="color: #0f172a;">Emerald<br>#10b981</strong><br><small style="color: rgba(15, 23, 42, 0.7);">Trust</small>
+                </div>
+                <div style="background: #f97316; padding: 15px; border-radius: 8px; text-align: center;">
+                    <strong style="color: white;">Orange<br>#f97316</strong><br><small>Warning</small>
+                </div>
+                <div style="background: #ef4444; padding: 15px; border-radius: 8px; text-align: center;">
+                    <strong style="color: white;">Red<br>#ef4444</strong><br><small>Error</small>
+                </div>
+                <div style="background: #1e293b; padding: 15px; border-radius: 8px; border: 1px solid #475569; text-align: center;">
+                    <strong>Slate<br>#1e293b</strong><br><small style="color: #94a3b8;">Surface</small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Screen Grid -->
+        <div class="wireframe-section">
+            <h2>📱 All Screens at a Glance</h2>
+            <div class="screen-grid">
+                <div class="screen-card">
+                    <h4 id="screen1">🏠 Screen 1</h4>
+                    <p>Archetype Selector</p>
+                    <small style="color: #64748b;">User picks their vibe (Casual Man, Spoilt Woman, etc.)</small>
+                </div>
+                <div class="screen-card">
+                    <h4 id="screen2">📋 Screen 2</h4>
+                    <p>Intent Declaration</p>
+                    <small style="color: #64748b;">Confirm archetype commitment, explain what's needed</small>
+                </div>
+                <div class="screen-card">
+                    <h4 id="screen3">✅ Screen 3</h4>
+                    <p>Profile Builder</p>
+                    <small style="color: #64748b;">Artifact checklist (ID, photos, bank, Q&A)</small>
+                </div>
+                <div class="screen-card">
+                    <h4 id="screen4">🆔 Screen 4</h4>
+                    <p>ID + Liveness</p>
+                    <small style="color: #64748b;">Government ID upload + face liveness check</small>
+                </div>
+                <div class="screen-card">
+                    <h4 id="screen5">📸 Screen 5</h4>
+                    <p>Photos Upload</p>
+                    <small style="color: #64748b;">5+ photos with face consistency verification</small>
+                </div>
+                <div class="screen-card">
+                    <h4 id="screen6">💰 Screen 6</h4>
+                    <p>Bank Statement</p>
+                    <small style="color: #64748b;">Spending pattern extraction (restaurants, travel)</small>
+                </div>
+                <div class="screen-card">
+                    <h4 id="screen7">❓ Screen 7</h4>
+                    <p>Q&A Responses</p>
+                    <small style="color: #64748b;">Intent-specific questions, consistency check</small>
+                </div>
+                <div class="screen-card">
+                    <h4 id="screen8">📊 Screen 8</h4>
+                    <p>Trust Score</p>
+                    <small style="color: #64748b;">0-100 score breakdown with improvement nudges</small>
+                </div>
+                <div class="screen-card">
+                    <h4 id="screen9">🔍 Screen 9</h4>
+                    <p>Discovery Feed</p>
+                    <small style="color: #64748b;">Archetype-filtered cards, daily passes, swipe</small>
+                </div>
+                <div class="screen-card">
+                    <h4 id="screen10">❤️ Screen 10</h4>
+                    <p>Match Celebration</p>
+                    <small style="color: #64748b;">Mutual match unlocks chat, intent reminder</small>
+                </div>
+                <div class="screen-card">
+                    <h4 id="screen11">💬 Screen 11</h4>
+                    <p>Chat + Intent</p>
+                    <small style="color: #64748b;">Messaging with archetype banner + date proposal</small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Archetypes -->
+        <div class="wireframe-section">
+            <h2>🎭 The 4 Launch Archetypes</h2>
+            <div class="archetype-card">
+                <div class="archetype-icon">🎯</div>
+                <div class="archetype-info">
+                    <h4>Casual Man</h4>
+                    <p>Wants casual dating leading to consensual connection. No games, real vibes.</p>
+                    <p style="margin-top: 8px; color: #10b981;"><strong>Matches with:</strong> Spoilt Woman (primary), Marriage-Minded (secondary)</p>
+                </div>
+            </div>
+            <div class="archetype-card">
+                <div class="archetype-icon">💎</div>
+                <div class="archetype-info">
+                    <h4>Spoilt Woman</h4>
+                    <p>Wants to be wined, dined, and treated well. Expects quality and attention.</p>
+                    <p style="margin-top: 8px; color: #10b981;"><strong>Matches with:</strong> Casual Man (primary), Marriage-Minded (secondary)</p>
+                </div>
+            </div>
+            <div class="archetype-card">
+                <div class="archetype-icon">💍</div>
+                <div class="archetype-info">
+                    <h4>Marriage-Minded Man</h4>
+                    <p>Wants long-term partner, family, stability. Serious intentions.</p>
+                    <p style="margin-top: 8px; color: #10b981;"><strong>Matches with:</strong> Safety-First Woman (primary), Committed (secondary)</p>
+                </div>
+            </div>
+            <div class="archetype-card">
+                <div class="archetype-icon">🛡️</div>
+                <div class="archetype-info">
+                    <h4>Safety-First Woman</h4>
+                    <p>Won't compromise on safety. Wants verified non-creep, transparent intentions.</p>
+                    <p style="margin-top: 8px; color: #10b981;"><strong>Matches with:</strong> Marriage-Minded Man (primary), Trustworthy (secondary)</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Components -->
+        <div class="wireframe-section" id="components">
+            <h2>🧩 Component Library</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Component</th>
+                        <th>Spec</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Archetype Card</strong></td>
+                        <td>120px tall, emerald hover, emoji + title + description</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Status Badge</strong></td>
+                        <td>Emerald ✓, Orange ⏳, Red ✕ — small pill</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Trust Score Display</strong></td>
+                        <td>Radial gauge (0-100), colored by performance</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Progress Bar</strong></td>
+                        <td>Linear, emerald fill, animated</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Button (Primary)</strong></td>
+                        <td>Full width, 48px, emerald, "This is Me" / "Start"</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Button (Secondary)</strong></td>
+                        <td>Full width, 48px, slate, "Back" / "← Go Back"</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Intent Banner</strong></td>
+                        <td>Sticky top, archetype pairs, trust scores, actions</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Message Bubble</strong></td>
+                        <td>Aligned right/left, emerald/slate, max 100 chars visible</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Date Proposal</strong></td>
+                        <td>Card with When/Where/Budget fields, emerald CTA</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Next Steps -->
+        <div class="wireframe-section">
+            <h2>🚀 Next Steps</h2>
+            <h3>Option 1: Build Frontend (Recommended)</h3>
+            <p>Start with <strong>Increment 1</strong> — Archetype selector screen</p>
+            <ul style="margin: 10px 0 10px 20px; color: #cbd5e1;">
+                <li>Build home screen with 4 archetype cards</li>
+                <li>Learn more modal expansion</li>
+                <li>Navigation to profile builder</li>
+                <li>Test: Do users understand their archetype?</li>
+            </ul>
+            
+            <h3>Option 2: Create Figma Mockups</h3>
+            <p>Use Claude Design to create high-fidelity Figma designs with:</p>
+            <ul style="margin: 10px 0 10px 20px; color: #cbd5e1;">
+                <li>Interactive prototypes (click-through flows)</li>
+                <li>Component library for reuse</li>
+                <li>Design handoff specs for developers</li>
+            </ul>
+            
+            <h3>Option 3: Build Claude Prompts</h3>
+            <p>Create AI verification logic for:</p>
+            <ul style="margin: 10px 0 10px 20px; color: #cbd5e1;">
+                <li>Face liveness check (Claude Vision)</li>
+                <li>Spending extraction from bank statements</li>
+                <li>Q&A intent consistency validation</li>
+            </ul>
+        </div>
+        
+        <div class="footer">
+            <p>📄 Full wireframes available in: <code>DESIGN_WIREFRAMES_VERIFIED_VIBE.md</code></p>
+            <p style="margin-top: 10px; font-size: 12px;">Ready for Figma design handoff or frontend implementation</p>
+        </div>
+    </div>
+</body>
+</html>
