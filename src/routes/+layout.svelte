@@ -2,7 +2,7 @@
 	import '../app.css';
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
-	import { Heart, MessageCircle, User, Search, ChevronRight, Settings, Sparkles } from 'lucide-svelte';
+	import { Heart, MessageCircle, User, Search, ChevronRight, Settings, Sparkles, ShieldCheck } from 'lucide-svelte';
 	import OnboardingModal from '$lib/components/OnboardingModal.svelte';
 	import type { UserProfile } from '$lib/types';
 
@@ -17,7 +17,8 @@
 		{ href: '/profile-review', icon: User, label: 'Profile Review', description: 'Analyze your profile' },
 		{ href: '/female-profile', icon: Sparkles, label: 'For Her', description: 'Profile journey' },
 		{ href: '/chat-analyzer', icon: Search, label: 'Chat Analyzer', description: 'Review conversations' },
-		{ href: '/reply-suggester', icon: ChevronRight, label: 'Reply Suggester', description: 'Get reply ideas' }
+		{ href: '/reply-suggester', icon: ChevronRight, label: 'Reply Suggester', description: 'Get reply ideas' },
+		{ href: '/verified-vibe', icon: ShieldCheck, label: 'Verified Vibe', description: 'Trust-first dating', highlight: true }
 	];
 
 	onMount(() => {
@@ -69,15 +70,20 @@
 					class={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all group ${
 						active
 							? 'bg-rose-600/20 text-rose-400 border border-rose-600/30'
-							: 'text-gray-400 hover:text-white hover:bg-gray-800'
+							: item.highlight
+								? 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-900/20 border border-emerald-800/30'
+								: 'text-gray-400 hover:text-white hover:bg-gray-800'
 					}`}
 				>
 					<item.icon class="w-5 h-5 flex-shrink-0" />
 					{#if sidebarOpen}
-						<div class="min-w-0">
-							<p class={`text-sm font-medium truncate ${active ? 'text-rose-300' : ''}`}>{item.label}</p>
+						<div class="min-w-0 flex-1">
+							<p class={`text-sm font-medium truncate ${active ? 'text-rose-300' : item.highlight ? 'text-emerald-400' : ''}`}>{item.label}</p>
 							<p class="text-xs text-gray-500 truncate">{item.description}</p>
 						</div>
+						{#if item.highlight}
+							<span class="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-full font-medium">New</span>
+						{/if}
 					{/if}
 				</a>
 			{/each}
