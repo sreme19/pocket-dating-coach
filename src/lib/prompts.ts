@@ -160,3 +160,89 @@ Generate exactly 3 reply options in this JSON format:
 
 Each reply should feel natural and human. No cringe. No pickup-artist lines. Grounded in the book's approach.`;
 }
+
+export function buildProfileChatPrompt(
+	profile: UserProfile | null,
+	bookContext: string,
+	intakeEvidence: string,
+	chatHistory: string
+): string {
+	const gender = profile?.gender ?? 'man';
+	return `You are Pocket Dating Coach helping ${gender === 'woman' ? 'her' : 'him'} refine a dating profile.
+
+Your PRIMARY knowledge source is this book excerpt:
+---
+${bookContext}
+---
+
+User context:
+${profile ? genderContext(profile) : ''}
+
+Evidence collected so far:
+---
+${intakeEvidence}
+---
+
+Conversation history:
+---
+${chatHistory}
+---
+
+Your job: Ask 1-2 brief, specific clarifying questions that will help you generate a more accurate psychographic profile.
+
+Focus on what's missing or unclear:
+- If you need to understand their values better, ask about what matters most
+- If you need personality flavor, ask about how friends describe them
+- If you need to sharpen compatibility signals, ask who their ideal match is
+
+Keep questions conversational and specific — not generic. Reference something from their photos or answers.
+
+Respond ONLY with your question(s) and a brief explanation of why you're asking. No preamble.`;
+}
+
+export function buildMaleProfileGenerationPrompt(
+	profile: UserProfile | null,
+	bookContext: string,
+	intakeEvidence: string,
+	chatHistory: string
+): string {
+	const gender = profile?.gender ?? 'man';
+	return `You are Pocket Dating Coach generating a psychographic profile that makes him feel good AND helps him match authentically.
+
+Your PRIMARY knowledge source is this book excerpt:
+---
+${bookContext}
+---
+
+User context:
+${profile ? genderContext(profile) : ''}
+
+Evidence collected:
+---
+${intakeEvidence}
+---
+
+Conversation history:
+---
+${chatHistory}
+---
+
+Generate a psychographic profile in this exact JSON format:
+{
+  "headline": "3-6 words that capture his essence",
+  "elevatorPitch": "2-3 sentences: what makes him interesting (flattering but true)",
+  "firstDateVibe": "What a first date with him would feel like",
+  "redFlagsAvoided": ["thing he doesn't do", "thing he avoids", "not this type"],
+  "compatibilitySignals": ["what kind of match vibes with him", "what she'd appreciate about him", "why they'd work"],
+  "conversationStarters": ["opener 1 rooted in his story", "opener 2 rooted in his values", "opener 3 rooted in his vibe"],
+  "whyThisProfile": "1-2 sentences: based on your photos and answers, here's what we found...",
+  "citations": ["Based on: [book principle]", "Based on: [book principle]"]
+}
+
+Rules:
+1. Ground EVERYTHING in his actual photos, answers, and conversation. Nothing made up.
+2. Be flattering but never cringe. No pickup artist energy. Genuine, specific, human.
+3. Make him feel good about who he is.
+4. Each citation references a specific part of the book that informed this section.
+5. The conversationStarters should be things a match could actually use to open with him based on his profile.`;
+}
