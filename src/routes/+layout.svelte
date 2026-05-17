@@ -48,17 +48,17 @@
 	<!-- Sidebar -->
 	<aside class={`flex flex-col transition-all duration-300 bg-gray-900 border-r border-gray-800 ${sidebarOpen ? 'w-64' : 'w-16'}`}>
 		<!-- Logo -->
-		<div class="flex items-center gap-3 px-4 py-5 border-b border-gray-800">
-			<div class="flex-shrink-0 w-8 h-8 bg-rose-600 rounded-lg flex items-center justify-center">
+		<a href="/" class="flex items-center gap-3 px-4 py-5 border-b border-gray-800 hover:bg-gray-800 transition-colors group">
+			<div class="flex-shrink-0 w-8 h-8 bg-rose-600 rounded-lg flex items-center justify-center group-hover:bg-rose-700 transition-colors">
 				<Heart class="w-4 h-4 text-white" fill="white" />
 			</div>
 			{#if sidebarOpen}
 				<div>
-					<p class="font-bold text-sm text-white leading-none">Pocket Dating</p>
+					<p class="font-bold text-sm text-white leading-none group-hover:text-rose-400 transition-colors">Pocket Dating</p>
 					<p class="text-xs text-rose-400 font-medium">Coach</p>
 				</div>
 			{/if}
-		</div>
+		</a>
 
 		<!-- Nav -->
 		<nav class="flex-1 p-3 space-y-1">
