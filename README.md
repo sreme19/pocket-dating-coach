@@ -2,6 +2,8 @@
 
 SvelteKit dating coach app powered by Claude, Supabase, pgvector, and Voyage AI embeddings.
 
+**Project Management:** [Plane board](https://app.plane.so/woam/projects/bdb013db-8e4f-4bf3-bfb0-07e23c4589ea/issues/)
+
 ## Features
 
 - Ask Coach: conversational dating advice grounded in the ingested dating book.
