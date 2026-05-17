@@ -334,7 +334,7 @@
 								<input
 									type="text"
 									bind:value={height}
-									placeholder="e.g., 6'1\""
+									placeholder="e.g., 6 ft 1 in"
 									class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:border-rose-500 outline-none"
 								/>
 							</div>

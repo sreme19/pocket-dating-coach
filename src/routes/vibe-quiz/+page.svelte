@@ -14,7 +14,7 @@
 	const questions = [
 		{
 			id: 'relationshipGoal',
-			question: "What's your vibe?",
+			question: "Whats your vibe?",
 			subtitle: "Dating goals for now",
 			options: [
 				{ value: 'casual', label: '🔥 Keep it casual', emoji: '🔥' },
@@ -34,7 +34,7 @@
 		},
 		{
 			id: 'personalityVibe',
-			question: 'What's your energy?',
+			question: 'Whats your energy?',
 			subtitle: 'How people describe you',
 			options: [
 				{ value: 'ambitious', label: '🚀 Ambitious & driven', emoji: '🚀' },
