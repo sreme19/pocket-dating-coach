@@ -82,11 +82,11 @@ Phase-based execution with dependency management. Each phase builds on previous 
 
 ### Phase 3: Verification (Week 2-3)
 
-- [ ] 9. Verification Flow Setup - Create src/routes/verified-vibe/verification/+page.svelte implementing multi-step verification flow. Show step navigation (1/4, 2/4, 3/4, 4/4) with progress bar. Implement "Next", "Back", "Skip" buttons with proper logic. Store verification data in store and persist to Supabase on each step. Handle errors gracefully. Mobile responsive.
+- [x] 9. Verification Flow Setup - Create src/routes/verified-vibe/verification/+page.svelte implementing multi-step verification flow. Show step navigation (1/4, 2/4, 3/4, 4/4) with progress bar. Implement "Next", "Back", "Skip" buttons with proper logic. Store verification data in store and persist to Supabase on each step. Handle errors gracefully. Mobile responsive.
 
-- [ ] 10. ID Extraction (Claude Vision) - Create VerificationStep component for ID upload. User can upload ID photo (file input). Send photo to Claude API for extraction (ID number, name, DOB, expiration date). Display extracted data for user confirmation. User can confirm or re-upload. Save to verification record. Handle errors (unclear photo, invalid ID, etc.). Mobile responsive.
+- [x] 10. ID Extraction (Claude Vision) - Create VerificationStep component for ID upload. User can upload ID photo (file input). Send photo to Claude API for extraction (ID number, name, DOB, expiration date). Display extracted data for user confirmation. User can confirm or re-upload. Save to verification record. Handle errors (unclear photo, invalid ID, etc.). Mobile responsive.
 
-- [ ] 11. Liveness Check (Claude Vision) - Create VerificationStep component for selfie capture. User can take selfie (camera input or file upload). Send selfie + ID photo to Claude API for comparison. Claude returns confidence score (0-100). If confidence > 80%, mark as passed. If confidence < 80%, ask user to retake. Display result to user. Save to verification record. Handle errors. Mobile responsive.
+- [x] 11. Liveness Check (Claude Vision) - Create VerificationStep component for selfie capture. User can take selfie (camera input or file upload). Send selfie + ID photo to Claude API for comparison. Claude returns confidence score (0-100). If confidence > 80%, mark as passed. If confidence < 80%, ask user to retake. Display result to user. Save to verification record. Handle errors. Mobile responsive.
 
 - [ ] 12. Photo Upload & Consistency Check - Create VerificationStep component for photo upload. User can upload 5+ photos with labels (lead, warmth, lifestyle, conversation, social). Send all photos to Claude API for consistency check. Claude analyzes if all photos are same person. If consistent, mark as passed. If inconsistent, ask user to re-upload. Display result. Save photos to Supabase storage. Save to verification record. Mobile responsive.
 

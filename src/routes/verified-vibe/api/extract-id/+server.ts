@@ -1,0 +1,94 @@
+import { json } from '@sveltejs/kit';
+import type { RequestHandler } from './$types';
+import { extractIDWithClaude } from '$lib/verified-vibe/server/verification';
+
+/**
+ * POST /api/verified-vibe/extract-id
+ *
+ * Extract ID information from an uploaded image using Claude Vision API.
+ *
+ * Request body:
+ * {
+ *   image: string (base64-encoded image),
+ *   mimeType: string (e.g., "image/jpeg")
+ * }
+ *
+ * Response:
+ * {
+ *   data: {
+ *     idNumber: string,
+ *     idName: string,
+ *     idDOB: string,
+ *     expirationDate?: string
+ *   }
+ * }
+ */
+export const POST: RequestHandler = async ({ request }) => {
+  try {
+    const body = await request.json();
+    const { image, mimeType } = body;
+
+    // Validate required fields
+    if (!image || !mimeType) {
+      return json(
+        { error: 'Missing required fields: image and mimeType' },
+        { status: 400 }
+      );
+    }
+
+    // Validate image format
+    if (!mimeType.startsWith('image/')) {
+      return json(
+        { error: 'Invalid image format' },
+        { status: 400 }
+      );
+    }
+
+    // Validate base64 image
+    if (typeof image !== 'string' || !image.match(/^[A-Za-z0-9+/=]+$/)) {
+      return json(
+        { error: 'Invalid base64 image data' },
+        { status: 400 }
+      );
+    }
+
+    // Extract ID data using Claude Vision
+    const extractedData = await extractIDWithClaude(image, mimeType);
+
+    return json(
+      {
+        data: extractedData
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error('ID extraction error:', error);
+
+    // Handle specific error types
+    if (error instanceof Error) {
+      if (error.message.includes('unclear') || error.message.includes('not readable')) {
+        return json(
+          { error: 'ID photo is unclear. Please upload a clearer photo.' },
+          { status: 400 }
+        );
+      }
+      if (error.message.includes('invalid') || error.message.includes('not found')) {
+        return json(
+          { error: 'Could not find a valid ID in the photo. Please try again.' },
+          { status: 400 }
+        );
+      }
+      if (error.message.includes('API')) {
+        return json(
+          { error: 'Service temporarily unavailable. Please try again.' },
+          { status: 503 }
+        );
+      }
+    }
+
+    return json(
+      { error: 'Failed to extract ID information. Please try again.' },
+      { status: 500 }
+    );
+  }
+};

@@ -1,66 +1,207 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { setPhase, setError } from '$lib/verified-vibe/stores';
+  import { 
+    verificationStep, 
+    verificationProgress, 
+    addVerificationRecord,
+    setPhase,
+    setError,
+    clearError,
+    user
+  } from '$lib/verified-vibe/stores';
+  import { VERIFICATION_STEPS } from '$lib/verified-vibe/constants';
+  import type { VerificationStep as VerificationStepType } from '$lib/verified-vibe/types';
   import { fade, slide } from 'svelte/transition';
+  import { onMount } from 'svelte';
 
-  let currentStep = $state(1);
   const totalSteps = 4;
+  let currentStep = $state(1);
   let loading = $state(false);
+  let error = $state<string | null>(null);
+  let completedSteps = $state<Set<number>>(new Set());
+  let skippedSteps = $state<Set<number>>(new Set());
+  let showSkipWarning = $state(false);
+  let stepData = $state<Record<number, any>>({});
 
   const steps = [
     {
       number: 1,
-      name: 'ID Verification',
-      description: 'Upload your government ID',
-      icon: '🆔'
+      name: 'Government ID',
+      description: 'Upload a clear photo of your government ID',
+      icon: '🆔',
+      stepType: 'id' as VerificationStepType,
+      time: '2 min'
     },
     {
       number: 2,
       name: 'Liveness Check',
-      description: 'Take a selfie to verify it\'s you',
-      icon: '📸'
+      description: 'Take a selfie to prove it\'s really you',
+      icon: '📸',
+      stepType: 'liveness' as VerificationStepType,
+      time: '1 min'
     },
     {
       number: 3,
       name: 'Photo Story',
-      description: 'Upload 5+ photos of yourself',
-      icon: '🖼️'
+      description: 'Upload 5+ photos that tell your story',
+      icon: '🖼️',
+      stepType: 'photos' as VerificationStepType,
+      time: '3 min'
     },
     {
       number: 4,
       name: 'Spending/Q&A',
       description: 'Complete spending or Q&A verification',
-      icon: '💰'
+      icon: '💰',
+      stepType: 'spending_or_qa' as VerificationStepType,
+      time: '4 min'
     }
   ];
 
-  function handleNext() {
-    if (currentStep < totalSteps) {
-      currentStep++;
-    } else {
-      // Verification complete
-      setPhase('app');
-      goto('/verified-vibe/discover');
+  onMount(() => {
+    // Initialize from store
+    verificationStep.subscribe(step => {
+      currentStep = step;
+    });
+    
+    verificationProgress.subscribe(progress => {
+      // Update completed steps based on progress
+      const stepsCompleted = Math.floor((progress / 100) * totalSteps);
+      for (let i = 1; i <= stepsCompleted; i++) {
+        completedSteps.add(i);
+      }
+    });
+  });
+
+  async function handleNext() {
+    error = null;
+    clearError();
+
+    // Validate current step data
+    if (!validateStepData(currentStep)) {
+      error = 'Please complete this step before continuing';
+      return;
+    }
+
+    loading = true;
+
+    try {
+      // Submit current step to API
+      const stepType = steps[currentStep - 1].stepType;
+      const response = await fetch('/api/verified-vibe/verify-step', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          step: stepType,
+          data: stepData[currentStep] || {}
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Verification failed');
+      }
+
+      const result = await response.json();
+
+      // Store verification record
+      addVerificationRecord({
+        id: `${$user?.id}-${stepType}`,
+        userId: $user?.id || '',
+        step: stepType,
+        status: 'completed',
+        data: result.data,
+        completedAt: new Date(),
+        createdAt: new Date()
+      });
+
+      // Mark step as completed
+      completedSteps.add(currentStep);
+
+      // Update progress
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+
+      // Move to next step or complete
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        // All steps complete
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
     }
   }
 
   function handleBack() {
+    error = null;
+    clearError();
+    showSkipWarning = false;
+
     if (currentStep > 1) {
       currentStep--;
+      verificationStep.set(currentStep);
     } else {
       goto('/verified-vibe/verify');
     }
   }
 
-  function handleSkip() {
-    handleNext();
+  function handleSkipClick() {
+    showSkipWarning = true;
+  }
+
+  function confirmSkip() {
+    error = null;
+    clearError();
+    showSkipWarning = false;
+    skippedSteps.add(currentStep);
+
+    if (currentStep < totalSteps) {
+      currentStep++;
+      verificationStep.set(currentStep);
+    } else {
+      // All steps processed (some skipped)
+      setPhase('app');
+      goto('/verified-vibe/discover');
+    }
+  }
+
+  function cancelSkip() {
+    showSkipWarning = false;
+  }
+
+  function validateStepData(step: number): boolean {
+    // Basic validation - in real app, would validate file uploads, etc.
+    return true;
+  }
+
+  function updateStepData(step: number, data: any) {
+    stepData[step] = data;
+  }
+
+  function getProgressPercentage(): number {
+    return (currentStep / totalSteps) * 100;
+  }
+
+  function isStepCompleted(step: number): boolean {
+    return completedSteps.has(step);
+  }
+
+  function isStepSkipped(step: number): boolean {
+    return skippedSteps.has(step);
   }
 </script>
 
 <div class="verification-screen">
   <!-- Header -->
   <div class="verification-header" transition:slide={{ duration: 400, delay: 0, axis: 'y' }}>
-    <button class="back-btn" onclick={handleBack}>
+    <button class="back-btn" onclick={handleBack} disabled={loading} aria-label="Go back">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M19 12H5M12 19l-7-7 7-7"/>
       </svg>
@@ -69,13 +210,45 @@
     <div class="header-spacer"></div>
   </div>
 
+  <!-- Step Navigation Indicator -->
+  <div class="step-navigation" transition:slide={{ duration: 400, delay: 50, axis: 'y' }}>
+    <div class="step-indicators">
+      {#each steps as step (step.number)}
+        {@const completed = isStepCompleted(step.number)}
+        {@const skipped = isStepSkipped(step.number)}
+        {@const active = currentStep === step.number}
+        <div class="step-indicator {active ? 'active' : ''} {completed ? 'completed' : ''} {skipped ? 'skipped' : ''}">
+          <div class="step-number">
+            {#if completed}
+              <span class="checkmark">✓</span>
+            {:else if skipped}
+              <span class="skip-mark">⊘</span>
+            {:else}
+              {step.number}
+            {/if}
+          </div>
+          <div class="step-label">{step.number}/{totalSteps}</div>
+        </div>
+      {/each}
+    </div>
+  </div>
+
   <!-- Progress bar -->
-  <div class="progress-container" transition:slide={{ duration: 400, delay: 50, axis: 'y' }}>
+  <div class="progress-container" transition:slide={{ duration: 400, delay: 100, axis: 'y' }}>
     <div class="progress-bar">
-      <div class="progress-fill" style="width: {(currentStep / totalSteps) * 100}%"></div>
+      <div class="progress-fill" style="width: {getProgressPercentage()}%"></div>
     </div>
     <div class="progress-text">Step {currentStep} of {totalSteps}</div>
   </div>
+
+  <!-- Error message -->
+  {#if error}
+    <div class="error-banner" transition:slide={{ duration: 300, axis: 'y' }}>
+      <div class="error-icon">⚠️</div>
+      <div class="error-message">{error}</div>
+      <button class="error-close" onclick={() => { error = null; clearError(); }}>×</button>
+    </div>
+  {/if}
 
   <!-- Step content -->
   <div class="verification-content" key={currentStep}>
@@ -83,50 +256,107 @@
       <div class="step-icon">{steps[currentStep - 1].icon}</div>
       <h2 class="step-title">{steps[currentStep - 1].name}</h2>
       <p class="step-description">{steps[currentStep - 1].description}</p>
+      <p class="step-time">⏱️ {steps[currentStep - 1].time}</p>
     </div>
 
     <!-- Step-specific content -->
     <div class="step-body" transition:slide={{ duration: 300, axis: 'y' }}>
       {#if currentStep === 1}
-        <div class="upload-area">
+        <div class="upload-area" role="button" tabindex="0">
           <div class="upload-icon">📄</div>
-          <p>Upload your government ID</p>
-          <input type="file" accept="image/*" />
+          <p class="upload-text">Upload your government ID</p>
+          <p class="upload-hint">Clear photo of front or back</p>
+          <input 
+            type="file" 
+            accept="image/*" 
+            disabled={loading}
+            onchange={(e) => updateStepData(1, e.currentTarget.files?.[0])}
+          />
         </div>
       {:else if currentStep === 2}
-        <div class="upload-area">
+        <div class="upload-area" role="button" tabindex="0">
           <div class="upload-icon">📷</div>
-          <p>Take a selfie</p>
-          <input type="file" accept="image/*" capture="user" />
+          <p class="upload-text">Take a selfie</p>
+          <p class="upload-hint">Make sure your face is clearly visible</p>
+          <input 
+            type="file" 
+            accept="image/*" 
+            capture="user"
+            disabled={loading}
+            onchange={(e) => updateStepData(2, e.currentTarget.files?.[0])}
+          />
         </div>
       {:else if currentStep === 3}
-        <div class="upload-area">
+        <div class="upload-area" role="button" tabindex="0">
           <div class="upload-icon">🖼️</div>
-          <p>Upload 5+ photos</p>
-          <input type="file" accept="image/*" multiple />
+          <p class="upload-text">Upload 5+ photos</p>
+          <p class="upload-hint">Show different sides of yourself</p>
+          <input 
+            type="file" 
+            accept="image/*" 
+            multiple
+            disabled={loading}
+            onchange={(e) => updateStepData(3, e.currentTarget.files)}
+          />
         </div>
       {:else if currentStep === 4}
         <div class="qa-area">
           <div class="qa-question">
-            <label>What are you looking for in a partner?</label>
-            <textarea placeholder="Share your thoughts..."></textarea>
+            <label for="q1">What are you looking for in a partner?</label>
+            <textarea 
+              id="q1"
+              placeholder="Share your thoughts..."
+              disabled={loading}
+              onchange={(e) => updateStepData(4, { q1: e.currentTarget.value })}
+            ></textarea>
           </div>
           <div class="qa-question">
-            <label>What's your ideal first date?</label>
-            <textarea placeholder="Share your thoughts..."></textarea>
+            <label for="q2">What's your ideal first date?</label>
+            <textarea 
+              id="q2"
+              placeholder="Share your thoughts..."
+              disabled={loading}
+              onchange={(e) => updateStepData(4, { q2: e.currentTarget.value })}
+            ></textarea>
           </div>
         </div>
       {/if}
     </div>
   </div>
 
+  <!-- Skip Warning Modal -->
+  {#if showSkipWarning}
+    <div class="skip-warning-overlay" transition:fade={{ duration: 200 }}>
+      <div class="skip-warning-modal" transition:slide={{ duration: 300, axis: 'y' }}>
+        <div class="warning-icon">⚠️</div>
+        <h3 class="warning-title">Skip this step?</h3>
+        <p class="warning-text">
+          Skipping verification steps may reduce your trust score and limit your matches.
+        </p>
+        <div class="warning-actions">
+          <button class="btn btn-secondary" onclick={cancelSkip} disabled={loading}>
+            Cancel
+          </button>
+          <button class="btn btn-warning" onclick={confirmSkip} disabled={loading}>
+            Skip Anyway
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
   <!-- Actions -->
   <div class="verification-actions" transition:slide={{ duration: 400, delay: 100, axis: 'y' }}>
-    <button class="btn btn-secondary" onclick={handleSkip} disabled={loading}>
+    <button class="btn btn-secondary" onclick={handleSkipClick} disabled={loading}>
       Skip
     </button>
     <button class="btn btn-primary" onclick={handleNext} disabled={loading}>
-      {currentStep === totalSteps ? 'Complete' : 'Next'}
+      {#if loading}
+        <span class="loading-spinner"></span>
+        Processing...
+      {:else}
+        {currentStep === totalSteps ? 'Complete' : 'Next'}
+      {/if}
     </button>
   </div>
 </div>
@@ -137,14 +367,17 @@
     flex-direction: column;
     height: 100%;
     padding: 0;
+    background: var(--bg-1);
   }
 
+  /* Header */
   .verification-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px;
     border-bottom: 1px solid var(--border-1);
+    background: var(--bg-1);
   }
 
   .back-btn {
@@ -158,25 +391,106 @@
     cursor: pointer;
     color: var(--text-1);
     transition: all 200ms ease;
+    flex-shrink: 0;
   }
 
-  .back-btn:hover {
+  .back-btn:hover:not(:disabled) {
     background: var(--bg-3);
     border-color: var(--border-2);
+  }
+
+  .back-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .header-title {
     font-size: 16px;
     font-weight: 600;
+    color: var(--text-1);
   }
 
   .header-spacer {
     width: 40px;
+    flex-shrink: 0;
   }
 
-  .progress-container {
-    padding: 16px 20px;
+  /* Step Navigation */
+  .step-navigation {
+    padding: 12px 20px;
     border-bottom: 1px solid var(--border-1);
+    background: var(--bg-1);
+  }
+
+  .step-indicators {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .step-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    cursor: pointer;
+    transition: all 200ms ease;
+  }
+
+  .step-number {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--bg-2);
+    border: 2px solid var(--border-1);
+    display: grid;
+    place-items: center;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-2);
+    transition: all 200ms ease;
+  }
+
+  .step-indicator.active .step-number {
+    background: var(--accent-bright);
+    border-color: var(--accent-bright);
+    color: var(--bg-1);
+    box-shadow: 0 0 0 3px var(--accent-tint);
+  }
+
+  .step-indicator.completed .step-number {
+    background: var(--accent-bright);
+    border-color: var(--accent-bright);
+    color: var(--bg-1);
+  }
+
+  .step-indicator.skipped .step-number {
+    background: var(--bg-3);
+    border-color: var(--border-2);
+    color: var(--text-3);
+  }
+
+  .checkmark {
+    font-size: 18px;
+  }
+
+  .skip-mark {
+    font-size: 16px;
+  }
+
+  .step-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-3);
+    text-align: center;
+  }
+
+  /* Progress Container */
+  .progress-container {
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border-1);
+    background: var(--bg-1);
   }
 
   .progress-bar {
@@ -190,20 +504,62 @@
 
   .progress-fill {
     height: 100%;
-    background: var(--accent);
+    background: linear-gradient(90deg, var(--accent-bright), var(--accent-bright));
     transition: width 300ms ease;
+    border-radius: 2px;
   }
 
   .progress-text {
     font-size: 12px;
     color: var(--text-3);
     text-align: center;
+    font-weight: 500;
   }
 
+  /* Error Banner */
+  .error-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    margin: 12px 16px 0;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 8px;
+    color: #ef4444;
+  }
+
+  .error-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .error-message {
+    font-size: 13px;
+    flex: 1;
+  }
+
+  .error-close {
+    background: none;
+    border: none;
+    color: #ef4444;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+
+  /* Content */
   .verification-content {
     flex: 1;
     overflow-y: auto;
     padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
   }
 
   .step-header {
@@ -214,17 +570,25 @@
   .step-icon {
     font-size: 48px;
     margin-bottom: 16px;
+    display: block;
   }
 
   .step-title {
     font-size: 24px;
     font-weight: 600;
     margin: 0 0 8px;
+    color: var(--text-1);
   }
 
   .step-description {
     font-size: 14px;
     color: var(--text-2);
+    margin: 0 0 8px;
+  }
+
+  .step-time {
+    font-size: 12px;
+    color: var(--text-3);
     margin: 0;
   }
 
@@ -232,28 +596,38 @@
     margin-bottom: 24px;
   }
 
+  /* Upload Area */
   .upload-area {
     border: 2px dashed var(--border-2);
-    border-radius: var(--r-lg);
+    border-radius: 12px;
     padding: 32px 20px;
     text-align: center;
     cursor: pointer;
     transition: all 200ms ease;
+    background: var(--bg-2);
   }
 
   .upload-area:hover {
-    border-color: var(--accent);
+    border-color: var(--accent-bright);
     background: var(--accent-tint);
   }
 
   .upload-icon {
     font-size: 48px;
     margin-bottom: 12px;
+    display: block;
   }
 
-  .upload-area p {
+  .upload-text {
     font-size: 14px;
-    color: var(--text-2);
+    font-weight: 600;
+    color: var(--text-1);
+    margin: 0 0 4px;
+  }
+
+  .upload-hint {
+    font-size: 12px;
+    color: var(--text-3);
     margin: 0 0 16px;
   }
 
@@ -261,6 +635,7 @@
     display: none;
   }
 
+  /* Q&A Area */
   .qa-area {
     display: flex;
     flex-direction: column;
@@ -276,36 +651,163 @@
   .qa-question label {
     font-size: 14px;
     font-weight: 600;
+    color: var(--text-1);
   }
 
   .qa-question textarea {
     padding: 12px;
     border: 1px solid var(--border-1);
-    border-radius: var(--r-lg);
+    border-radius: 8px;
     background: var(--bg-2);
     color: var(--text-1);
     font-family: inherit;
     font-size: 14px;
     resize: vertical;
     min-height: 80px;
+    transition: all 200ms ease;
   }
 
+  .qa-question textarea:focus {
+    outline: none;
+    border-color: var(--accent-bright);
+    box-shadow: 0 0 0 3px var(--accent-tint);
+  }
+
+  .qa-question textarea:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Skip Warning Modal */
+  .skip-warning-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: grid;
+    place-items: center;
+    z-index: 100;
+    padding: 20px;
+  }
+
+  .skip-warning-modal {
+    background: var(--bg-1);
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 400px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  }
+
+  .warning-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+  }
+
+  .warning-title {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 12px;
+    color: var(--text-1);
+  }
+
+  .warning-text {
+    font-size: 14px;
+    color: var(--text-2);
+    margin: 0 0 20px;
+    line-height: 1.5;
+  }
+
+  .warning-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  /* Actions */
   .verification-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
     padding: 16px 20px calc(16px + env(safe-area-inset-bottom, 0));
     border-top: 1px solid var(--border-1);
+    background: var(--bg-1);
   }
 
-  @media (max-width: 767px) {
-    .verification-screen {
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      padding: 0;
-    }
+  /* Button Styles */
+  .btn {
+    padding: 12px 16px;
+    border-radius: 8px;
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 200ms ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+  }
 
+  .btn-primary {
+    background: var(--accent-bright);
+    color: var(--bg-1);
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: var(--accent-bright);
+    opacity: 0.9;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+  }
+
+  .btn-secondary {
+    background: var(--bg-2);
+    color: var(--text-1);
+    border: 1px solid var(--border-1);
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    background: var(--bg-3);
+    border-color: var(--border-2);
+  }
+
+  .btn-warning {
+    background: #f59e0b;
+    color: white;
+  }
+
+  .btn-warning:hover:not(:disabled) {
+    background: #d97706;
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .loading-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Mobile Responsive */
+  @media (max-width: 767px) {
     .verification-header {
       padding: 12px 16px;
       gap: 8px;
@@ -316,20 +818,36 @@
       height: 40px;
       min-width: 40px;
       min-height: 40px;
-      border-radius: 8px;
     }
 
     .header-title {
       font-size: 15px;
-      font-weight: 600;
     }
 
     .header-spacer {
       width: 40px;
     }
 
+    .step-navigation {
+      padding: 10px 16px;
+    }
+
+    .step-indicators {
+      gap: 6px;
+    }
+
+    .step-number {
+      width: 32px;
+      height: 32px;
+      font-size: 12px;
+    }
+
+    .step-label {
+      font-size: 9px;
+    }
+
     .progress-container {
-      padding: 12px 16px;
+      padding: 10px 16px;
     }
 
     .progress-bar {
@@ -341,9 +859,13 @@
       font-size: 11px;
     }
 
+    .error-banner {
+      margin: 10px 12px 0;
+      padding: 10px 12px;
+      font-size: 12px;
+    }
+
     .verification-content {
-      flex: 1;
-      overflow-y: auto;
       padding: 18px 16px;
     }
 
@@ -358,13 +880,16 @@
 
     .step-title {
       font-size: 20px;
-      font-weight: 600;
       margin: 0 0 6px;
     }
 
     .step-description {
       font-size: 13px;
-      margin: 0;
+      margin: 0 0 6px;
+    }
+
+    .step-time {
+      font-size: 11px;
     }
 
     .step-body {
@@ -372,11 +897,8 @@
     }
 
     .upload-area {
-      border: 2px dashed var(--border-2);
-      border-radius: var(--r-lg);
       padding: 24px 16px;
-      text-align: center;
-      cursor: pointer;
+      border-radius: 10px;
     }
 
     .upload-icon {
@@ -384,8 +906,13 @@
       margin-bottom: 10px;
     }
 
-    .upload-area p {
+    .upload-text {
       font-size: 13px;
+      margin: 0 0 3px;
+    }
+
+    .upload-hint {
+      font-size: 11px;
       margin: 0 0 12px;
     }
 
@@ -405,7 +932,31 @@
       padding: 10px;
       font-size: 13px;
       min-height: 70px;
-      border-radius: var(--r-lg);
+      border-radius: 8px;
+    }
+
+    .skip-warning-modal {
+      padding: 20px;
+      border-radius: 12px;
+    }
+
+    .warning-icon {
+      font-size: 40px;
+      margin-bottom: 12px;
+    }
+
+    .warning-title {
+      font-size: 16px;
+      margin: 0 0 10px;
+    }
+
+    .warning-text {
+      font-size: 13px;
+      margin: 0 0 16px;
+    }
+
+    .warning-actions {
+      gap: 10px;
     }
 
     .verification-actions {
@@ -416,9 +967,70 @@
 
     .btn {
       min-height: 44px;
-      padding: 12px 16px;
-      font-size: 14px;
-      border-radius: var(--r-lg);
+      padding: 12px 14px;
+      font-size: 13px;
+      border-radius: 8px;
+    }
+  }
+
+  /* Tablet Responsive */
+  @media (min-width: 768px) and (max-width: 1023px) {
+    .verification-content {
+      padding: 28px 24px;
+    }
+
+    .step-header {
+      margin-bottom: 36px;
+    }
+
+    .step-icon {
+      font-size: 44px;
+    }
+
+    .step-title {
+      font-size: 22px;
+    }
+
+    .upload-area {
+      padding: 28px 24px;
+    }
+
+    .verification-actions {
+      gap: 14px;
+      padding: 18px 24px calc(18px + env(safe-area-inset-bottom, 0));
+    }
+  }
+
+  /* Desktop */
+  @media (min-width: 1024px) {
+    .verification-screen {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .verification-content {
+      padding: 32px 28px;
+    }
+
+    .step-header {
+      margin-bottom: 40px;
+    }
+
+    .step-icon {
+      font-size: 52px;
+    }
+
+    .step-title {
+      font-size: 26px;
+    }
+
+    .upload-area {
+      padding: 36px 28px;
+    }
+
+    .verification-actions {
+      gap: 16px;
+      padding: 20px 28px;
     }
   }
 </style>
