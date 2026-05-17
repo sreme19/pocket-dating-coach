@@ -1,68 +1,79 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { currentTab } from '$lib/verified-vibe/stores';
+  import { currentTab, discoveryProfiles, discoveryIndex, discoveryLoading } from '$lib/verified-vibe/stores';
   import { fade, slide } from 'svelte/transition';
+  import type { DiscoveryProfile } from '$lib/verified-vibe/types';
 
-  let currentCardIndex = $state(0);
   let showMatchOverlay = $state(false);
-  let matchedProfile = $state<any>(null);
+  let matchedProfile = $state<DiscoveryProfile | null>(null);
+  let sortBy = $state<'trustScore' | 'compatibility'>('trustScore');
+  let isLoadingMore = $state(false);
+  let hasMoreProfiles = $state(true);
+  let offset = $state(0);
+  const limit = 10;
+  const passedIds = $state<Set<string>>(new Set());
 
-  const profiles = [
-    {
-      id: '1',
-      name: 'Sarah',
-      age: 26,
-      city: 'Brooklyn, NY',
-      distance: '2 mi',
-      archetype: 'spoilt_woman',
-      archetypeEmoji: '👑',
-      photo: '👩',
-      about: 'Looking for someone genuine and ambitious. Love trying new restaurants and weekend trips.',
-      trustScore: 81,
-      verified: ['ID', 'Photos', 'Spending']
-    },
-    {
-      id: '2',
-      name: 'Emma',
-      age: 24,
-      city: 'Manhattan, NY',
-      distance: '5 mi',
-      archetype: 'spoilt_woman',
-      archetypeEmoji: '👑',
-      photo: '👩',
-      about: 'Creative professional seeking meaningful connections. Coffee enthusiast.',
-      trustScore: 76,
-      verified: ['ID', 'Photos']
-    },
-    {
-      id: '3',
-      name: 'Jessica',
-      age: 28,
-      city: 'Williamsburg, NY',
-      distance: '3 mi',
-      archetype: 'spoilt_woman',
-      archetypeEmoji: '👑',
-      photo: '👩',
-      about: 'Entrepreneur with a passion for travel and good conversation.',
-      trustScore: 88,
-      verified: ['ID', 'Photos', 'Spending', 'Q&A']
+  // Load initial profiles
+  async function loadProfiles() {
+    if (isLoadingMore || !hasMoreProfiles) return;
+    
+    isLoadingMore = true;
+    try {
+      const excludeIds = Array.from(passedIds).join(',');
+      const params = new URLSearchParams({
+        limit: limit.toString(),
+        offset: offset.toString(),
+        sortBy,
+        ...(excludeIds && { excludeIds })
+      });
+
+      const response = await fetch(`/api/verified-vibe/discovery-feed?${params}`);
+      if (!response.ok) throw new Error('Failed to load profiles');
+
+      const result = await response.json();
+      const newProfiles = result.data.profiles;
+
+      if (newProfiles.length > 0) {
+        discoveryProfiles.update(profiles => [...profiles, ...newProfiles]);
+        offset += limit;
+        hasMoreProfiles = result.data.hasMore;
+      } else {
+        hasMoreProfiles = false;
+      }
+    } catch (error) {
+      console.error('Error loading profiles:', error);
+    } finally {
+      isLoadingMore = false;
     }
-  ];
+  }
+
+  // Load initial batch on mount
+  $effect.pre(() => {
+    if ($discoveryProfiles.length === 0) {
+      loadProfiles();
+    }
+  });
 
   function handleLike() {
-    if (currentCardIndex < profiles.length - 1) {
-      // Show match overlay
-      matchedProfile = profiles[currentCardIndex];
+    const currentProfile = $discoveryProfiles[$discoveryIndex];
+    if (currentProfile) {
+      // Show match overlay (in production, this would check for mutual likes)
+      matchedProfile = currentProfile;
       showMatchOverlay = true;
-    } else {
-      // No more cards
-      currentCardIndex++;
     }
   }
 
   function handlePass() {
-    if (currentCardIndex < profiles.length - 1) {
-      currentCardIndex++;
+    const currentProfile = $discoveryProfiles[$discoveryIndex];
+    if (currentProfile) {
+      passedIds.add(currentProfile.id);
+    }
+    
+    discoveryIndex.update(i => i + 1);
+
+    // Load more profiles if we're running low
+    if ($discoveryProfiles.length - $discoveryIndex < 3 && hasMoreProfiles) {
+      loadProfiles();
     }
   }
 
@@ -74,19 +85,48 @@
 
   function handleCloseMatch() {
     showMatchOverlay = false;
-    if (currentCardIndex < profiles.length - 1) {
-      currentCardIndex++;
-    }
+    handlePass();
   }
 
-  const currentProfile = profiles[currentCardIndex];
-  const hasMoreCards = currentCardIndex < profiles.length;
+  function handleSortChange(newSort: 'trustScore' | 'compatibility') {
+    sortBy = newSort;
+    // Reset and reload with new sort
+    discoveryProfiles.set([]);
+    discoveryIndex.set(0);
+    offset = 0;
+    passedIds.clear();
+    hasMoreProfiles = true;
+    loadProfiles();
+  }
+
+  const currentProfile = $discoveryProfiles[$discoveryIndex] || null;
+  const hasMoreCards = $discoveryIndex < $discoveryProfiles.length;
 </script>
 
 <div class="discover-screen">
-  <!-- Header -->
+  <!-- Header with sorting -->
   <div class="discover-header" transition:slide={{ duration: 400, delay: 0, axis: 'y' }}>
-    <h1>Discover</h1>
+    <div class="header-top">
+      <h1>Discover</h1>
+      <div class="sort-controls">
+        <button 
+          class="sort-btn" 
+          class:active={sortBy === 'trustScore'}
+          onclick={() => handleSortChange('trustScore')}
+          title="Sort by trust score"
+        >
+          🛡️ Trust
+        </button>
+        <button 
+          class="sort-btn" 
+          class:active={sortBy === 'compatibility'}
+          onclick={() => handleSortChange('compatibility')}
+          title="Sort by compatibility"
+        >
+          💕 Match
+        </button>
+      </div>
+    </div>
     <p class="discover-subtitle">Find your match</p>
   </div>
 
@@ -94,16 +134,18 @@
   <div class="card-stack">
     {#if hasMoreCards && currentProfile}
       <div class="discovery-card" key={currentProfile.id} transition:fade={{ duration: 300 }}>
-        <div class="card-photo">{currentProfile.photo}</div>
+        <div class="card-photo">
+          <div class="photo-placeholder">📸</div>
+        </div>
 
         <div class="card-content">
           <div class="card-header">
             <div class="card-title">
-              <h2>{currentProfile.name}, {currentProfile.age}</h2>
+              <h2>{currentProfile.firstName}, {currentProfile.age}</h2>
               <span class="card-distance">{currentProfile.distance}</span>
             </div>
             <div class="card-archetype">
-              <span class="archetype-emoji">{currentProfile.archetypeEmoji}</span>
+              <span class="archetype-emoji">{currentProfile.archetype === 'spoilt_woman' ? '👑' : '🛡️'}</span>
             </div>
           </div>
 
@@ -115,17 +157,22 @@
             </div>
             <div class="verified-badges">
               {#each currentProfile.verified as badge}
-                <span class="badge">✓</span>
+                <span class="badge" title={badge}>✓</span>
               {/each}
             </div>
           </div>
         </div>
       </div>
-    {:else}
+    {:else if !hasMoreCards && $discoveryProfiles.length > 0}
       <div class="empty-state" transition:fade={{ duration: 300 }}>
         <div class="empty-icon">🎉</div>
         <h2>No more profiles</h2>
         <p>Check back later for more matches!</p>
+      </div>
+    {:else}
+      <div class="loading-state" transition:fade={{ duration: 300 }}>
+        <div class="spinner"></div>
+        <p>Loading profiles...</p>
       </div>
     {/if}
   </div>
@@ -142,6 +189,14 @@
     </button>
   </div>
 
+  <!-- Loading indicator for infinite scroll -->
+  {#if isLoadingMore}
+    <div class="loading-indicator" transition:fade={{ duration: 200 }}>
+      <div class="mini-spinner"></div>
+      <span>Loading more...</span>
+    </div>
+  {/if}
+
   <!-- Match overlay -->
   {#if showMatchOverlay && matchedProfile}
     <div class="match-overlay" transition:fade={{ duration: 300 }}>
@@ -153,12 +208,12 @@
         <div class="match-body">
           <div class="match-icon">💕</div>
           <h2>It's a Match!</h2>
-          <p>You and {matchedProfile.name} liked each other</p>
+          <p>You and {matchedProfile.firstName} liked each other</p>
 
           <div class="match-profile">
-            <div class="match-photo">{matchedProfile.photo}</div>
+            <div class="match-photo">📸</div>
             <div class="match-info">
-              <h3>{matchedProfile.name}, {matchedProfile.age}</h3>
+              <h3>{matchedProfile.firstName}, {matchedProfile.age}</h3>
               <p>{matchedProfile.city}</p>
             </div>
           </div>
@@ -191,10 +246,47 @@
     padding-top: 8px;
   }
 
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
   .discover-header h1 {
     font-size: 28px;
     font-weight: 700;
     margin: 0;
+  }
+
+  .sort-controls {
+    display: flex;
+    gap: 8px;
+  }
+
+  .sort-btn {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border-1);
+    background: var(--bg-2);
+    color: var(--text-2);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 200ms ease;
+    white-space: nowrap;
+  }
+
+  .sort-btn:hover {
+    background: var(--bg-3);
+    border-color: var(--border-2);
+  }
+
+  .sort-btn.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
   }
 
   .discover-subtitle {
@@ -339,10 +431,66 @@
     margin: 0;
   }
 
+  .loading-state {
+    text-align: center;
+    padding: 40px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border-1);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .loading-state p {
+    font-size: 14px;
+    color: var(--text-2);
+    margin: 0;
+  }
+
   .discover-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
+  }
+
+  .loading-indicator {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    border-radius: 8px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .mini-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border-1);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
   }
 
   .action-btn {
@@ -383,6 +531,39 @@
 
   .like-btn:hover:not(:disabled) {
     background: var(--accent-tint);
+  }
+
+  .btn {
+    padding: 12px 16px;
+    border-radius: var(--r-lg);
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 200ms ease;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+  }
+
+  .btn-primary:hover {
+    background: var(--accent-bright);
+  }
+
+  .btn-secondary {
+    background: var(--bg-2);
+    color: var(--text-1);
+    border: 1px solid var(--border-1);
+  }
+
+  .btn-secondary:hover {
+    background: var(--bg-3);
+  }
+
+  .btn.full {
+    width: 100%;
   }
 
   .match-overlay {
@@ -536,10 +717,28 @@
       padding-top: 4px;
     }
 
+    .header-top {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
     .discover-header h1 {
       font-size: 24px;
       font-weight: 700;
       margin: 0;
+    }
+
+    .sort-controls {
+      width: 100%;
+      gap: 6px;
+    }
+
+    .sort-btn {
+      flex: 1;
+      padding: 6px 10px;
+      font-size: 11px;
     }
 
     .discover-subtitle {
@@ -629,6 +828,15 @@
       margin: 0;
     }
 
+    .loading-state {
+      padding: 30px 16px;
+    }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+    }
+
     .discover-actions {
       grid-template-columns: 1fr 1fr;
       gap: 10px;
@@ -644,6 +852,17 @@
 
     .action-btn span:first-child {
       font-size: 20px;
+    }
+
+    .loading-indicator {
+      bottom: 80px;
+      padding: 10px 14px;
+      font-size: 11px;
+    }
+
+    .mini-spinner {
+      width: 14px;
+      height: 14px;
     }
 
     .match-overlay {
