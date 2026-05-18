@@ -3,13 +3,11 @@
 	import { page } from '$app/stores';
 	import { onMount } from 'svelte';
 	import { Heart, MessageCircle, User, Search, ChevronRight, Settings, Sparkles, ShieldCheck } from 'lucide-svelte';
-	import OnboardingModal from '$lib/components/OnboardingModal.svelte';
 	import type { UserProfile } from '$lib/types';
 
 	let { children } = $props();
 
 	let userProfile = $state<UserProfile | null>(null);
-	let showOnboarding = $state(false);
 	let sidebarOpen = $state(true);
 
 	const navItems = [
@@ -25,20 +23,8 @@
 		const stored = localStorage.getItem('pdc_profile');
 		if (stored) {
 			userProfile = JSON.parse(stored);
-		} else {
-			showOnboarding = true;
 		}
 	});
-
-	function handleProfileSave(profile: UserProfile) {
-		userProfile = profile;
-		localStorage.setItem('pdc_profile', JSON.stringify(profile));
-		showOnboarding = false;
-	}
-
-	function openSettings() {
-		showOnboarding = true;
-	}
 </script>
 
 <svelte:head>
@@ -98,7 +84,6 @@
 				</div>
 			{/if}
 			<button
-				onclick={openSettings}
 				class="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-all"
 			>
 				<Settings class="w-5 h-5 flex-shrink-0" />
@@ -120,10 +105,3 @@
 	</main>
 </div>
 
-{#if showOnboarding}
-	<OnboardingModal
-		existing={userProfile}
-		onSave={handleProfileSave}
-		onClose={() => showOnboarding = false}
-	/>
-{/if}
