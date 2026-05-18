@@ -1,24 +1,27 @@
 <script lang="ts">
-  import { Heart, X, MapPin, CheckCircle2 } from 'lucide-svelte';
+  import { Heart, X, MapPin, CheckCircle2, ChevronLeft, ChevronRight, MessageCircle, Flag } from 'lucide-svelte';
   import { fade, scale } from 'svelte/transition';
   import TrustScoreBadge from './TrustScoreBadge.svelte';
   import type { DiscoveryProfile, VerificationStep } from '../types';
   import { ARCHETYPE_COLORS } from '../constants';
 
   /**
-   * DiscoveryCard Component
+   * DiscoveryCard Component - Enhanced
    *
    * Displays a swipeable profile card for the discovery interface. Shows profile
-   * photo, name, age, archetype, distance, about text, trust score, and verified
-   * badges. Supports smooth animations and is fully accessible.
+   * photos with carousel, name, age, archetype, distance, about text, trust score,
+   * and verified badges. Supports smooth animations and is fully accessible.
    *
    * Features:
+   * - Photo carousel with navigation (swipe, arrows, dots)
    * - Full-width, high-quality profile photo display
    * - Name, age, and archetype emoji
    * - Distance display with icon
    * - About/bio text
    * - Trust score badge with color coding
    * - Verified badges (ID, Photos, Spending, Q&A)
+   * - Quick action buttons (Message, Report)
+   * - Photo counter and navigation indicators
    * - Smooth animations and transitions
    * - WCAG 2.1 AA accessibility compliance
    * - Mobile responsive (375px-1024px)
@@ -31,6 +34,8 @@
    *   profile={discoveryProfile}
    *   onLike={() => handleLike()}
    *   onPass={() => handlePass()}
+   *   onMessage={() => handleMessage()}
+   *   onReport={() => handleReport()}
    * />
    * ```
    */
@@ -42,18 +47,41 @@
     onLike?: () => void;
     /** Callback when user passes on the profile */
     onPass?: () => void;
+    /** Callback when user wants to message the profile */
+    onMessage?: () => void;
+    /** Callback when user wants to report the profile */
+    onReport?: () => void;
   }
 
-  let { profile, onLike, onPass }: Props = $props();
+  let { profile, onLike, onPass, onMessage, onReport }: Props = $props();
 
   // State
   let isLoading = $state(false);
   let currentPhotoIndex = $state(0);
+  let showQuickActions = $state(false);
 
   // Derived values
   let accentColor = $derived(ARCHETYPE_COLORS[profile.archetype] || '#10b981');
   let verificationBadges = $derived(getVerificationBadges(profile.verified));
   let archetypeEmoji = $derived(getArchetypeEmoji(profile.archetype));
+  let allPhotos = $derived(getAllPhotos(profile));
+  let currentPhoto = $derived(allPhotos[currentPhotoIndex] || profile.avatar);
+  let photoCount = $derived(allPhotos.length);
+  let hasMultiplePhotos = $derived(photoCount > 1);
+
+  /**
+   * Get all photos (avatar + additional photos)
+   */
+  function getAllPhotos(profile: DiscoveryProfile): string[] {
+    const photos: string[] = [];
+    if (profile.avatar) {
+      photos.push(profile.avatar);
+    }
+    if (profile.photos && profile.photos.length > 0) {
+      photos.push(...profile.photos);
+    }
+    return photos.length > 0 ? photos : [profile.avatar || ''];
+  }
 
   /**
    * Get verification badges from verified array
@@ -92,6 +120,33 @@
   }
 
   /**
+   * Navigate to previous photo
+   */
+  function previousPhoto() {
+    if (hasMultiplePhotos) {
+      currentPhotoIndex = (currentPhotoIndex - 1 + photoCount) % photoCount;
+    }
+  }
+
+  /**
+   * Navigate to next photo
+   */
+  function nextPhoto() {
+    if (hasMultiplePhotos) {
+      currentPhotoIndex = (currentPhotoIndex + 1) % photoCount;
+    }
+  }
+
+  /**
+   * Go to specific photo
+   */
+  function goToPhoto(index: number) {
+    if (index >= 0 && index < photoCount) {
+      currentPhotoIndex = index;
+    }
+  }
+
+  /**
    * Handle like button click
    */
   function handleLike() {
@@ -120,13 +175,53 @@
   }
 
   /**
+   * Handle message button click
+   */
+  function handleMessage() {
+    if (!isLoading) {
+      isLoading = true;
+      onMessage?.();
+      setTimeout(() => {
+        isLoading = false;
+      }, 300);
+    }
+  }
+
+  /**
+   * Handle report button click
+   */
+  function handleReport() {
+    if (!isLoading) {
+      isLoading = true;
+      onReport?.();
+      setTimeout(() => {
+        isLoading = false;
+      }, 300);
+    }
+  }
+
+  /**
    * Handle keyboard navigation
    */
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'ArrowRight' || e.key === 'Enter') {
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      if (hasMultiplePhotos && showQuickActions === false) {
+        nextPhoto();
+      } else {
+        handleLike();
+      }
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      if (hasMultiplePhotos && showQuickActions === false) {
+        previousPhoto();
+      } else {
+        handlePass();
+      }
+    } else if (e.key === 'Enter') {
       e.preventDefault();
       handleLike();
-    } else if (e.key === 'ArrowLeft' || e.key === 'Backspace') {
+    } else if (e.key === 'Backspace') {
       e.preventDefault();
       handlePass();
     }
@@ -141,19 +236,65 @@
   onkeydown={handleKeydown}
 >
   <!-- Photo Section -->
-  <div class="photo-section" role="region" aria-label="Profile photo">
+  <div class="photo-section" role="region" aria-label="Profile photos">
     <div class="photo-container">
-      {#if profile.avatar}
+      {#if currentPhoto}
         <img
-          src={profile.avatar}
-          alt={`${profile.firstName}'s profile photo`}
+          src={currentPhoto}
+          alt={`${profile.firstName}'s profile photo ${currentPhotoIndex + 1} of ${photoCount}`}
           class="profile-photo"
           loading="lazy"
           decoding="async"
+          key={currentPhotoIndex}
+          transition:fade={{ duration: 200 }}
         />
       {:else}
         <div class="photo-placeholder" aria-label="No photo available">
           <span class="placeholder-icon">📸</span>
+        </div>
+      {/if}
+
+      <!-- Photo Navigation (if multiple photos) -->
+      {#if hasMultiplePhotos}
+        <button
+          class="photo-nav-button prev"
+          onclick={previousPhoto}
+          disabled={isLoading}
+          aria-label="Previous photo"
+          title="Previous photo (← arrow)"
+        >
+          <ChevronLeft size={24} aria-hidden="true" />
+        </button>
+
+        <button
+          class="photo-nav-button next"
+          onclick={nextPhoto}
+          disabled={isLoading}
+          aria-label="Next photo"
+          title="Next photo (→ arrow)"
+        >
+          <ChevronRight size={24} aria-hidden="true" />
+        </button>
+
+        <!-- Photo Dots -->
+        <div class="photo-dots" role="tablist" aria-label="Photo navigation">
+          {#each Array.from({ length: photoCount }) as _, i}
+            <button
+              class="photo-dot"
+              class:active={i === currentPhotoIndex}
+              onclick={() => goToPhoto(i)}
+              disabled={isLoading}
+              role="tab"
+              aria-selected={i === currentPhotoIndex}
+              aria-label={`Photo ${i + 1} of ${photoCount}`}
+              title={`Go to photo ${i + 1}`}
+            />
+          {/each}
+        </div>
+
+        <!-- Photo Counter -->
+        <div class="photo-counter" aria-live="polite">
+          <span class="counter-text">{currentPhotoIndex + 1}/{photoCount}</span>
         </div>
       {/if}
 
@@ -183,6 +324,42 @@
           {/each}
         </div>
       {/if}
+
+      <!-- Quick Action Buttons (overlay) -->
+      <div class="quick-actions" class:show={showQuickActions}>
+        <button
+          class="quick-action-button message"
+          onclick={handleMessage}
+          disabled={isLoading}
+          aria-label="Send message"
+          title="Send message"
+        >
+          <MessageCircle size={20} aria-hidden="true" />
+          <span class="action-label">Message</span>
+        </button>
+
+        <button
+          class="quick-action-button report"
+          onclick={handleReport}
+          disabled={isLoading}
+          aria-label="Report profile"
+          title="Report profile"
+        >
+          <Flag size={20} aria-hidden="true" />
+          <span class="action-label">Report</span>
+        </button>
+      </div>
+
+      <!-- Toggle Quick Actions -->
+      <button
+        class="toggle-quick-actions"
+        onclick={() => (showQuickActions = !showQuickActions)}
+        disabled={isLoading}
+        aria-label={showQuickActions ? 'Hide quick actions' : 'Show quick actions'}
+        title="More options"
+      >
+        ⋯
+      </button>
     </div>
   </div>
 
@@ -384,6 +561,217 @@
     .badge-label {
       display: inline;
     }
+  }
+
+  /* Photo Navigation */
+  .photo-nav-button {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-lg);
+    background: rgba(0, 0, 0, 0.4);
+    border: none;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 200ms ease;
+    z-index: 25;
+    padding: 0;
+    min-height: 44px;
+    min-width: 44px;
+    touch-action: manipulation;
+  }
+
+  .photo-nav-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .photo-nav-button:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.6);
+  }
+
+  .photo-nav-button:active:not(:disabled) {
+    transform: translateY(-50%) scale(0.95);
+  }
+
+  .photo-nav-button.prev {
+    left: var(--spacing-md);
+  }
+
+  .photo-nav-button.next {
+    right: var(--spacing-md);
+  }
+
+  /* Photo Dots */
+  .photo-dots {
+    position: absolute;
+    bottom: var(--spacing-lg);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: var(--gap-xs);
+    z-index: 25;
+  }
+
+  .photo-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    border: none;
+    cursor: pointer;
+    transition: all 200ms ease;
+    padding: 0;
+    min-height: 44px;
+    min-width: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
+  }
+
+  .photo-dot:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.7);
+  }
+
+  .photo-dot.active {
+    background: rgba(255, 255, 255, 0.95);
+    width: 12px;
+  }
+
+  .photo-dot:disabled {
+    cursor: not-allowed;
+  }
+
+  /* Photo Counter */
+  .photo-counter {
+    position: absolute;
+    top: var(--spacing-lg);
+    left: var(--spacing-lg);
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    z-index: 25;
+  }
+
+  .counter-text {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-xs);
+  }
+
+  /* Quick Actions */
+  .quick-actions {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--gap-lg);
+    z-index: 30;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease;
+  }
+
+  .quick-actions.show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .quick-action-button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--gap-sm);
+    padding: var(--spacing-lg);
+    border-radius: var(--radius-lg);
+    border: none;
+    background: white;
+    color: var(--color-vibe-text-1);
+    cursor: pointer;
+    font-weight: var(--font-weight-semibold);
+    transition: all 200ms ease;
+    min-height: 44px;
+    min-width: 44px;
+    touch-action: manipulation;
+  }
+
+  .quick-action-button:hover:not(:disabled) {
+    transform: scale(1.05);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .quick-action-button:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+
+  .quick-action-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .quick-action-button.message {
+    background: var(--color-vibe-emerald);
+    color: white;
+  }
+
+  .quick-action-button.report {
+    background: #ef4444;
+    color: white;
+  }
+
+  .action-label {
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* Toggle Quick Actions Button */
+  .toggle-quick-actions {
+    position: absolute;
+    bottom: var(--spacing-lg);
+    right: var(--spacing-lg);
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-lg);
+    background: rgba(0, 0, 0, 0.5);
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 200ms ease;
+    z-index: 26;
+    padding: 0;
+    min-height: 44px;
+    min-width: 44px;
+    touch-action: manipulation;
+  }
+
+  .toggle-quick-actions:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.7);
+  }
+
+  .toggle-quick-actions:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+
+  .toggle-quick-actions:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   /* Profile Info */

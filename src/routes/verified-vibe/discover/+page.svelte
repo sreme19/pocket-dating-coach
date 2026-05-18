@@ -1,25 +1,33 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { currentTab, discoveryProfiles, discoveryIndex, discoveryLoading } from '$lib/verified-vibe/stores';
-  import { fade, slide } from 'svelte/transition';
+  import { 
+    discoveryProfiles, 
+    discoveryIndex,
+    nextDiscoveryProfile,
+    addDiscoveryProfile,
+    setError,
+    clearError
+  } from '$lib/verified-vibe/stores';
+  import { fade, slide, scale } from 'svelte/transition';
+  import DiscoveryCard from '$lib/verified-vibe/components/DiscoveryCard.svelte';
+  import MatchOverlay from '$lib/verified-vibe/components/MatchOverlay.svelte';
+  import { swipe } from '$lib/verified-vibe/utils/swipe';
   import type { DiscoveryProfile } from '$lib/verified-vibe/types';
 
   let showMatchOverlay = $state(false);
   let matchedProfile = $state<DiscoveryProfile | null>(null);
-  let sortBy = $state<'trustScore' | 'compatibility'>('trustScore');
   let isLoadingMore = $state(false);
   let hasMoreProfiles = $state(true);
   let offset = $state(0);
   let error = $state<string | null>(null);
-  let cardElement = $state<HTMLElement | null>(null);
-  let swipeStartX = $state(0);
-  let swipeStartY = $state(0);
-  let swipeOffset = $state(0);
   let isAnimating = $state(false);
+  let cardStackContainer: HTMLElement | undefined = $state();
   
   const limit = 10;
   const passedIds = $state<Set<string>>(new Set());
-  const SWIPE_THRESHOLD = 50; // pixels
+
+  // Get current profile
+  let currentProfile = $derived($discoveryProfiles[$discoveryIndex] || null);
 
   // Load initial profiles
   async function loadProfiles() {
@@ -32,11 +40,11 @@
       const params = new URLSearchParams({
         limit: limit.toString(),
         offset: offset.toString(),
-        sortBy,
+        sortBy: 'trustScore',
         ...(excludeIds && { excludeIds })
       });
 
-      const response = await fetch(`/api/verified-vibe/discovery-feed?${params}`);
+      const response = await fetch(`/api/verified-vibe/discover?${params}`);
       if (!response.ok) {
         throw new Error(`Failed to load profiles: ${response.statusText}`);
       }
@@ -45,7 +53,9 @@
       const newProfiles = result.data.profiles;
 
       if (newProfiles.length > 0) {
-        discoveryProfiles.update(profiles => [...profiles, ...newProfiles]);
+        newProfiles.forEach((profile: DiscoveryProfile) => {
+          addDiscoveryProfile(profile);
+        });
         offset += limit;
         hasMoreProfiles = result.data.hasMore;
       } else {
@@ -54,6 +64,7 @@
     } catch (err) {
       console.error('Error loading profiles:', err);
       error = err instanceof Error ? err.message : 'Failed to load profiles';
+      setError(error);
     } finally {
       isLoadingMore = false;
     }
@@ -66,280 +77,207 @@
     }
   });
 
-  // Handle swipe start (touch and mouse)
-  function handleSwipeStart(e: TouchEvent | MouseEvent) {
-    if (isAnimating) return;
-    
-    const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
-    
-    swipeStartX = clientX;
-    swipeStartY = clientY;
-    swipeOffset = 0;
-  }
+  // Load more profiles when approaching end
+  $effect.pre(() => {
+    if ($discoveryIndex > $discoveryProfiles.length - 3 && hasMoreProfiles && !isLoadingMore) {
+      loadProfiles();
+    }
+  });
 
-  // Handle swipe move (touch and mouse)
-  function handleSwipeMove(e: TouchEvent | MouseEvent) {
-    if (isAnimating || swipeStartX === 0) return;
+  // Handle like action
+  async function handleLike() {
+    if (!currentProfile || isAnimating) return;
     
-    const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
-    const deltaX = clientX - swipeStartX;
-    
-    // Only allow horizontal swipe (ignore vertical movement)
-    swipeOffset = deltaX;
-  }
+    isAnimating = true;
+    error = null;
+    clearError();
 
-  // Handle swipe end (touch and mouse)
-  function handleSwipeEnd() {
-    if (isAnimating || swipeStartX === 0) return;
-    
-    swipeStartX = 0;
-    swipeStartY = 0;
+    try {
+      // Call like API
+      const response = await fetch('/api/verified-vibe/like', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileId: currentProfile.id,
+          userId: 'current-user-id' // TODO: Get from session
+        })
+      });
 
-    // Determine if swipe was significant enough
-    if (Math.abs(swipeOffset) > SWIPE_THRESHOLD) {
-      if (swipeOffset > 0) {
-        // Swiped right = Like
-        handleLike();
-      } else {
-        // Swiped left = Pass
-        handlePass();
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || 'Failed to like profile');
       }
+
+      const result = await response.json();
+
+      // Check if mutual match
+      if (result.matched) {
+        matchedProfile = currentProfile;
+        showMatchOverlay = true;
+      }
+
+      // Move to next profile
+      nextDiscoveryProfile();
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Failed to like profile';
+      setError(error);
+    } finally {
+      isAnimating = false;
     }
+  }
+
+  // Handle pass action
+  async function handlePass() {
+    if (!currentProfile || isAnimating) return;
     
-    swipeOffset = 0;
-  }
+    isAnimating = true;
+    error = null;
+    clearError();
 
-  function handleLike() {
-    const currentProfile = $discoveryProfiles[$discoveryIndex];
-    if (currentProfile && !isAnimating) {
-      // Show match overlay (in production, this would check for mutual likes)
-      matchedProfile = currentProfile;
-      showMatchOverlay = true;
-    }
-  }
+    try {
+      // Call pass API
+      const response = await fetch('/api/verified-vibe/pass', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileId: currentProfile.id,
+          userId: 'current-user-id' // TODO: Get from session
+        })
+      });
 
-  function handlePass() {
-    const currentProfile = $discoveryProfiles[$discoveryIndex];
-    if (currentProfile && !isAnimating) {
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || 'Failed to pass profile');
+      }
+
+      // Add to passed set
       passedIds.add(currentProfile.id);
-      isAnimating = true;
-      
-      // Animate card out
-      setTimeout(() => {
-        discoveryIndex.update(i => i + 1);
-        isAnimating = false;
 
-        // Load more profiles if we're running low
-        if ($discoveryProfiles.length - $discoveryIndex < 3 && hasMoreProfiles) {
-          loadProfiles();
-        }
-      }, 300);
+      // Move to next profile
+      nextDiscoveryProfile();
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Failed to pass profile';
+      setError(error);
+    } finally {
+      isAnimating = false;
     }
   }
 
+  // Handle send message from match overlay
   function handleSendMessage() {
-    showMatchOverlay = false;
-    currentTab.set('chat');
-    goto('/verified-vibe/chat');
+    if (matchedProfile) {
+      showMatchOverlay = false;
+      // TODO: Navigate to chat with matched profile
+      goto(`/verified-vibe/chat/${matchedProfile.id}`);
+    }
   }
 
+  // Handle close match overlay
   function handleCloseMatch() {
     showMatchOverlay = false;
-    handlePass();
+    matchedProfile = null;
   }
 
-  function handleSortChange(newSort: 'trustScore' | 'compatibility') {
-    sortBy = newSort;
-    // Reset and reload with new sort
-    discoveryProfiles.set([]);
-    discoveryIndex.set(0);
-    offset = 0;
-    passedIds.clear();
-    hasMoreProfiles = true;
-    error = null;
-    loadProfiles();
+  // Handle swipe left (pass)
+  function handleSwipeLeft() {
+    if (!isAnimating && currentProfile) {
+      handlePass();
+    }
   }
 
-  const currentProfile = $discoveryProfiles[$discoveryIndex] || null;
-  const hasMoreCards = $discoveryIndex < $discoveryProfiles.length;
+  // Handle swipe right (like)
+  function handleSwipeRight() {
+    if (!isAnimating && currentProfile) {
+      handleLike();
+    }
+  }
+
+  // Attach swipe handlers to card stack container
+  $effect.pre(() => {
+    if (!cardStackContainer) return;
+
+    const cleanup = swipe(cardStackContainer, {
+      minDistance: 50,
+      maxTime: 500,
+      onSwipeLeft: handleSwipeLeft,
+      onSwipeRight: handleSwipeRight
+    });
+
+    return cleanup;
+  });
 </script>
 
 <div class="discover-screen">
-  <!-- Header with sorting -->
-  <div class="discover-header" transition:slide={{ duration: 400, delay: 0, axis: 'y' }}>
-    <div class="header-top">
-      <h1>Discover</h1>
-      <div class="sort-controls">
-        <button 
-          class="sort-btn" 
-          class:active={sortBy === 'trustScore'}
-          onclick={() => handleSortChange('trustScore')}
-          title="Sort by trust score"
-          aria-label="Sort by trust score"
-        >
-          🛡️ Trust
-        </button>
-        <button 
-          class="sort-btn" 
-          class:active={sortBy === 'compatibility'}
-          onclick={() => handleSortChange('compatibility')}
-          title="Sort by compatibility"
-          aria-label="Sort by compatibility"
-        >
-          💕 Match
-        </button>
-      </div>
-    </div>
-    <p class="discover-subtitle">Find your match</p>
+  <!-- Header -->
+  <div class="discover-header" transition:slide={{ duration: 300, axis: 'y' }}>
+    <h1 class="header-title">Discover</h1>
+    <p class="header-subtitle">Find your match</p>
   </div>
 
-  <!-- Error message -->
+  <!-- Error Message -->
   {#if error}
     <div class="error-banner" transition:slide={{ duration: 300, axis: 'y' }}>
       <span class="error-icon">⚠️</span>
       <span class="error-text">{error}</span>
-      <button class="error-close" onclick={() => error = null} aria-label="Close error">✕</button>
+      <button class="error-close" onclick={() => { error = null; clearError(); }}>×</button>
     </div>
   {/if}
 
-  <!-- Card stack -->
-  <div class="card-stack">
-    {#if hasMoreCards && currentProfile}
-      <div 
-        class="discovery-card" 
-        key={currentProfile.id} 
-        transition:fade={{ duration: 300 }}
-        bind:this={cardElement}
-        ontouchstart={handleSwipeStart}
-        ontouchmove={handleSwipeMove}
-        ontouchend={handleSwipeEnd}
-        onmousedown={handleSwipeStart}
-        onmousemove={handleSwipeMove}
-        onmouseup={handleSwipeEnd}
-        onmouseleave={handleSwipeEnd}
-        style="transform: translateX({swipeOffset}px); opacity: {1 - Math.abs(swipeOffset) / 200};"
-        role="button"
-        tabindex="0"
-        aria-label={`Profile of ${currentProfile.firstName}, ${currentProfile.age}`}
-      >
-        <div class="card-photo">
-          <div class="photo-placeholder">📸</div>
-        </div>
-
-        <div class="card-content">
-          <div class="card-header">
-            <div class="card-title">
-              <h2>{currentProfile.firstName}, {currentProfile.age}</h2>
-              <span class="card-distance">{currentProfile.distance}</span>
-            </div>
-            <div class="card-archetype" title={currentProfile.archetype}>
-              <span class="archetype-emoji">{currentProfile.archetype === 'spoilt_woman' ? '👑' : currentProfile.archetype === 'safety_first_woman' ? '🛡️' : currentProfile.archetype === 'casual_man' ? '😎' : '💍'}</span>
-            </div>
-          </div>
-
-          <p class="card-about">{currentProfile.about}</p>
-
-          <div class="card-footer">
-            <div class="trust-badge">
-              <span class="trust-score">🛡️ {currentProfile.trustScore}</span>
-            </div>
-            <div class="verified-badges">
-              {#each currentProfile.verified as badge}
-                <span class="badge" title={badge}>✓</span>
-              {/each}
-            </div>
-          </div>
-        </div>
-
-        <!-- Swipe hint -->
-        <div class="swipe-hint">
-          {#if swipeOffset > SWIPE_THRESHOLD}
-            <div class="swipe-indicator like">❤️ Like</div>
-          {:else if swipeOffset < -SWIPE_THRESHOLD}
-            <div class="swipe-indicator pass">👎 Pass</div>
-          {/if}
-        </div>
+  <!-- Card Stack Container -->
+  <div class="card-stack-container" bind:this={cardStackContainer}>
+    {#if currentProfile}
+      <div class="card-stack" transition:fade={{ duration: 300 }}>
+        <DiscoveryCard 
+          profile={currentProfile}
+          onLike={handleLike}
+          onPass={handlePass}
+        />
       </div>
-    {:else if !hasMoreCards && $discoveryProfiles.length > 0}
+    {:else if $discoveryProfiles.length === 0 && !isLoadingMore}
       <div class="empty-state" transition:fade={{ duration: 300 }}>
-        <div class="empty-icon">🎉</div>
-        <h2>No more profiles</h2>
-        <p>Check back later for more matches!</p>
-        <button class="btn btn-primary" onclick={() => handleSortChange(sortBy === 'trustScore' ? 'compatibility' : 'trustScore')}>
-          Try different sort
-        </button>
+        <div class="empty-icon">🔍</div>
+        <h2 class="empty-title">No profiles yet</h2>
+        <p class="empty-text">Check back soon for new matches</p>
       </div>
     {:else}
       <div class="loading-state" transition:fade={{ duration: 300 }}>
-        <div class="spinner"></div>
-        <p>Loading profiles...</p>
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Loading profiles...</p>
       </div>
     {/if}
   </div>
 
-  <!-- Actions -->
-  <div class="discover-actions" transition:slide={{ duration: 400, delay: 100, axis: 'y' }}>
-    <button 
-      class="action-btn pass-btn" 
-      onclick={handlePass} 
-      disabled={!hasMoreCards || isAnimating}
-      aria-label="Pass on this profile"
-    >
-      <span>👎</span>
-      <span>Pass</span>
-    </button>
-    <button 
-      class="action-btn like-btn" 
-      onclick={handleLike} 
-      disabled={!hasMoreCards || isAnimating}
-      aria-label="Like this profile"
-    >
-      <span>❤️</span>
-      <span>Like</span>
-    </button>
-  </div>
-
-  <!-- Loading indicator for infinite scroll -->
-  {#if isLoadingMore}
-    <div class="loading-indicator" transition:fade={{ duration: 200 }}>
-      <div class="mini-spinner"></div>
-      <span>Loading more...</span>
+  <!-- Action Buttons -->
+  {#if currentProfile}
+    <div class="action-buttons" transition:slide={{ duration: 300, axis: 'y' }}>
+      <button 
+        class="btn btn-pass" 
+        onclick={handlePass}
+        disabled={isAnimating}
+        aria-label="Pass on this profile"
+      >
+        <span class="btn-icon">✕</span>
+        <span class="btn-text">Pass</span>
+      </button>
+      <button 
+        class="btn btn-like" 
+        onclick={handleLike}
+        disabled={isAnimating}
+        aria-label="Like this profile"
+      >
+        <span class="btn-icon">♥</span>
+        <span class="btn-text">Like</span>
+      </button>
     </div>
   {/if}
 
-  <!-- Match overlay -->
+  <!-- Match Overlay -->
   {#if showMatchOverlay && matchedProfile}
-    <div class="match-overlay" transition:fade={{ duration: 300 }}>
-      <div class="match-content" transition:slide={{ duration: 300, axis: 'y' }}>
-        <div class="match-header">
-          <button class="close-btn" onclick={handleCloseMatch} aria-label="Close match overlay">✕</button>
-        </div>
-
-        <div class="match-body">
-          <div class="match-icon">💕</div>
-          <h2>It's a Match!</h2>
-          <p>You and {matchedProfile.firstName} liked each other</p>
-
-          <div class="match-profile">
-            <div class="match-photo">📸</div>
-            <div class="match-info">
-              <h3>{matchedProfile.firstName}, {matchedProfile.age}</h3>
-              <p>{matchedProfile.city}</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="match-actions">
-          <button class="btn btn-secondary full" onclick={handleCloseMatch}>
-            Keep Discovering
-          </button>
-          <button class="btn btn-primary full" onclick={handleSendMessage}>
-            Send Message
-          </button>
-        </div>
-      </div>
-    </div>
+    <MatchOverlay 
+      profile={matchedProfile}
+      onSendMessage={handleSendMessage}
+      onClose={handleCloseMatch}
+    />
   {/if}
 </div>
 
@@ -348,295 +286,127 @@
     display: flex;
     flex-direction: column;
     height: 100%;
-    padding: 20px;
-    gap: 20px;
-    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0));
+    background: var(--bg-1);
+    padding: 0;
   }
 
+  /* Header */
   .discover-header {
-    padding-top: 8px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-1);
+    background: var(--bg-1);
   }
 
-  .header-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 8px;
-  }
-
-  .discover-header h1 {
-    font-size: 28px;
+  .header-title {
+    font-size: 24px;
     font-weight: 700;
+    margin: 0 0 4px;
+    color: var(--text-1);
+  }
+
+  .header-subtitle {
+    font-size: 13px;
+    color: var(--text-3);
     margin: 0;
   }
 
-  .sort-controls {
-    display: flex;
-    gap: 8px;
-  }
-
-  .sort-btn {
-    padding: 8px 12px;
-    border-radius: 8px;
-    border: 1px solid var(--border-1);
-    background: var(--bg-2);
-    color: var(--text-2);
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 200ms ease;
-    white-space: nowrap;
-  }
-
-  .sort-btn:hover {
-    background: var(--bg-3);
-    border-color: var(--border-2);
-  }
-
-  .sort-btn.active {
-    background: var(--accent);
-    color: white;
-    border-color: var(--accent);
-  }
-
-  .discover-subtitle {
-    font-size: 14px;
-    color: var(--text-3);
-    margin: 4px 0 0;
-  }
-
-  /* Error banner */
+  /* Error Banner */
   .error-banner {
     display: flex;
     align-items: center;
     gap: 12px;
     padding: 12px 16px;
-    background: #fee;
-    border: 1px solid #fcc;
+    margin: 12px 16px 0;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
     border-radius: 8px;
-    color: #c33;
-    font-size: 14px;
+    color: #ef4444;
   }
 
   .error-icon {
-    font-size: 18px;
+    font-size: 16px;
     flex-shrink: 0;
   }
 
   .error-text {
+    font-size: 13px;
     flex: 1;
   }
 
   .error-close {
     background: none;
     border: none;
-    color: #c33;
+    color: #ef4444;
+    font-size: 20px;
     cursor: pointer;
-    font-size: 18px;
     padding: 0;
+    width: 24px;
+    height: 24px;
+    display: grid;
+    place-items: center;
     flex-shrink: 0;
   }
 
-  .error-close:hover {
-    opacity: 0.7;
-  }
-
-  .card-stack {
+  /* Card Stack Container */
+  .card-stack-container {
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 300px;
+    padding: 20px;
+    overflow: hidden;
   }
 
-  .discovery-card {
+  .card-stack {
     width: 100%;
     max-width: 400px;
-    background: var(--bg-2);
-    border: 1px solid var(--border-1);
-    border-radius: var(--r-lg);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-    animation: slideIn 300ms ease;
-    transition: transform 100ms ease-out, opacity 100ms ease-out;
-    cursor: grab;
-    user-select: none;
-    touch-action: none;
-    position: relative;
+    height: 100%;
+    max-height: 600px;
   }
 
-  .discovery-card:active {
-    cursor: grabbing;
-  }
-
-  @keyframes slideIn {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  .card-photo {
-    width: 100%;
-    aspect-ratio: 1;
-    background: linear-gradient(135deg, var(--accent-tint), var(--bg-3));
-    display: grid;
-    place-items: center;
-    font-size: 80px;
-  }
-
-  .card-content {
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .card-title h2 {
-    font-size: 20px;
-    font-weight: 600;
-    margin: 0;
-  }
-
-  .card-distance {
-    font-size: 12px;
-    color: var(--text-3);
-  }
-
-  .card-archetype {
-    font-size: 24px;
-  }
-
-  .card-about {
-    font-size: 14px;
-    color: var(--text-2);
-    margin: 0;
-    line-height: 1.5;
-  }
-
-  .card-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-top: 12px;
-    border-top: 1px solid var(--border-1);
-  }
-
-  .trust-badge {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-
-  .trust-score {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--accent);
-  }
-
-  .verified-badges {
-    display: flex;
-    gap: 4px;
-  }
-
-  .badge {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: var(--accent-tint);
-    color: var(--accent-bright);
-    display: grid;
-    place-items: center;
-    font-size: 12px;
-    font-weight: 600;
-  }
-
-  /* Swipe hint */
-  .swipe-hint {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-  }
-
-  .swipe-indicator {
-    font-size: 32px;
-    font-weight: 700;
-    animation: popIn 200ms ease;
-  }
-
-  .swipe-indicator.like {
-    color: #e74c3c;
-  }
-
-  .swipe-indicator.pass {
-    color: #95a5a6;
-  }
-
-  @keyframes popIn {
-    from {
-      opacity: 0;
-      transform: scale(0.5);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
-  }
-
+  /* Empty State */
   .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
     text-align: center;
-    padding: 40px 20px;
   }
 
   .empty-icon {
-    font-size: 64px;
-    margin-bottom: 16px;
+    font-size: 48px;
   }
 
-  .empty-state h2 {
-    font-size: 20px;
+  .empty-title {
+    font-size: 18px;
     font-weight: 600;
-    margin: 0 0 8px;
+    margin: 0;
+    color: var(--text-1);
   }
 
-  .empty-state p {
+  .empty-text {
     font-size: 14px;
-    color: var(--text-3);
-    margin: 0 0 16px;
+    color: var(--text-2);
+    margin: 0;
   }
 
+  /* Loading State */
   .loading-state {
-    text-align: center;
-    padding: 40px 20px;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 16px;
   }
 
-  .spinner {
+  .loading-spinner {
     width: 40px;
     height: 40px;
-    border: 3px solid var(--border-1);
-    border-top-color: var(--accent);
+    border: 3px solid var(--bg-2);
+    border-top-color: var(--accent-bright);
     border-radius: 50%;
-    animation: spin 1s linear infinite;
+    animation: spin 0.8s linear infinite;
   }
 
   @keyframes spin {
@@ -645,493 +415,124 @@
     }
   }
 
-  .loading-state p {
+  .loading-text {
     font-size: 14px;
     color: var(--text-2);
     margin: 0;
   }
 
-  .discover-actions {
+  /* Action Buttons */
+  .action-buttons {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
-  }
-
-  .loading-indicator {
-    position: fixed;
-    bottom: 100px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--bg-2);
-    border: 1px solid var(--border-1);
-    border-radius: 8px;
-    padding: 12px 16px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    color: var(--text-2);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  }
-
-  .mini-spinner {
-    width: 16px;
-    height: 16px;
-    border: 2px solid var(--border-1);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
-
-  .action-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 16px;
-    border-radius: var(--r-lg);
-    border: 1px solid var(--border-1);
-    background: var(--bg-2);
-    cursor: pointer;
-    transition: all 200ms ease;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-1);
-  }
-
-  .action-btn:hover:not(:disabled) {
-    background: var(--bg-3);
-    border-color: var(--border-2);
-    transform: translateY(-2px);
-  }
-
-  .action-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .action-btn span:first-child {
-    font-size: 24px;
-  }
-
-  .like-btn {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-
-  .like-btn:hover:not(:disabled) {
-    background: var(--accent-tint);
+    padding: 16px 20px calc(16px + env(safe-area-inset-bottom, 0));
+    border-top: 1px solid var(--border-1);
+    background: var(--bg-1);
   }
 
   .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     padding: 12px 16px;
-    border-radius: var(--r-lg);
+    border-radius: 8px;
     border: none;
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
     transition: all 200ms ease;
+    min-height: 44px;
   }
 
-  .btn-primary {
-    background: var(--accent);
-    color: white;
-  }
-
-  .btn-primary:hover {
-    background: var(--accent-bright);
-  }
-
-  .btn-secondary {
-    background: var(--bg-2);
-    color: var(--text-1);
-    border: 1px solid var(--border-1);
-  }
-
-  .btn-secondary:hover {
-    background: var(--bg-3);
-  }
-
-  .btn.full {
-    width: 100%;
-  }
-
-  .match-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.7);
-    display: grid;
-    place-items: center;
-    z-index: 100;
-    padding: 20px;
-    animation: fadeIn 300ms ease;
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  .match-content {
-    background: var(--bg-1);
-    border: 1px solid var(--border-1);
-    border-radius: var(--r-lg);
-    width: 100%;
-    max-width: 400px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    animation: slideUp 300ms ease;
-  }
-
-  @keyframes slideUp {
-    from {
-      transform: translateY(40px);
-      opacity: 0;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
-  }
-
-  .match-header {
-    display: flex;
-    justify-content: flex-end;
-    padding: 12px;
-  }
-
-  .close-btn {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    background: var(--bg-2);
-    border: 1px solid var(--border-1);
-    display: grid;
-    place-items: center;
-    cursor: pointer;
-    color: var(--text-1);
+  .btn-icon {
     font-size: 18px;
   }
 
-  .match-body {
-    padding: 20px;
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .match-icon {
-    font-size: 48px;
-    animation: bounce 600ms ease;
-  }
-
-  @keyframes bounce {
-    0%, 100% {
-      transform: scale(1);
-    }
-    50% {
-      transform: scale(1.2);
-    }
-  }
-
-  .match-body h2 {
-    font-size: 24px;
-    font-weight: 700;
-    margin: 0;
-  }
-
-  .match-body p {
-    font-size: 14px;
-    color: var(--text-2);
-    margin: 0;
-  }
-
-  .match-profile {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 16px;
+  .btn-pass {
     background: var(--bg-2);
-    border-radius: var(--r-lg);
-    margin-top: 8px;
+    color: var(--text-1);
+    border: 1px solid var(--border-1);
   }
 
-  .match-photo {
-    width: 56px;
-    height: 56px;
-    border-radius: 12px;
-    background: var(--accent-tint);
-    display: grid;
-    place-items: center;
-    font-size: 28px;
-    flex-shrink: 0;
+  .btn-pass:hover:not(:disabled) {
+    background: var(--bg-3);
+    border-color: var(--border-2);
   }
 
-  .match-info {
-    text-align: left;
+  .btn-like {
+    background: var(--accent-bright);
+    color: var(--bg-1);
   }
 
-  .match-info h3 {
-    font-size: 16px;
-    font-weight: 600;
-    margin: 0;
+  .btn-like:hover:not(:disabled) {
+    background: var(--accent-bright);
+    opacity: 0.9;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
   }
 
-  .match-info p {
-    font-size: 12px;
-    color: var(--text-3);
-    margin: 2px 0 0;
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
-  .match-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 20px;
-    border-top: 1px solid var(--border-1);
-  }
-
+  /* Mobile Responsive */
   @media (max-width: 767px) {
-    .discover-screen {
-      padding: 12px 12px 16px;
-      gap: 16px;
-    }
-
     .discover-header {
-      padding-top: 4px;
+      padding: 12px 16px;
     }
 
-    .header-top {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 8px;
-      margin-bottom: 4px;
+    .header-title {
+      font-size: 20px;
     }
 
-    .discover-header h1 {
-      font-size: 24px;
-      font-weight: 700;
-      margin: 0;
-    }
-
-    .sort-controls {
-      width: 100%;
-      gap: 6px;
-    }
-
-    .sort-btn {
-      flex: 1;
-      padding: 6px 10px;
-      font-size: 11px;
-    }
-
-    .error-banner {
-      padding: 10px 12px;
-      font-size: 13px;
-      gap: 10px;
-    }
-
-    .error-icon {
-      font-size: 16px;
-    }
-
-    .error-close {
-      font-size: 16px;
-    }
-
-    .card-stack {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 280px;
-    }
-
-    .discovery-card {
-      width: 100%;
-      max-width: 100%;
-      border-radius: var(--r-lg);
-    }
-
-    .card-photo {
-      width: 100%;
-      aspect-ratio: 1;
-    }
-
-    .card-content {
-      padding: 16px;
-      gap: 10px;
-    }
-
-    .card-header {
-      gap: 10px;
-    }
-
-    .card-title h2 {
-      font-size: 18px;
-      font-weight: 600;
-    }
-
-    .card-distance {
-      font-size: 11px;
-    }
-
-    .card-archetype {
-      font-size: 22px;
-    }
-
-    .card-about {
-      font-size: 13px;
-      line-height: 1.4;
-    }
-
-    .card-footer {
-      padding-top: 10px;
-      gap: 8px;
-    }
-
-    .trust-score {
+    .header-subtitle {
       font-size: 12px;
     }
 
-    .badge {
-      width: 22px;
-      height: 22px;
-      font-size: 11px;
-    }
-
-    .swipe-indicator {
-      font-size: 28px;
-    }
-
-    .empty-state {
-      text-align: center;
-      padding: 30px 16px;
-    }
-
-    .empty-icon {
-      font-size: 56px;
-      margin-bottom: 12px;
-    }
-
-    .empty-state h2 {
-      font-size: 18px;
-      margin: 0 0 6px;
-    }
-
-    .empty-state p {
-      font-size: 13px;
-      margin: 0 0 12px;
-    }
-
-    .loading-state {
-      padding: 30px 16px;
-    }
-
-    .spinner {
-      width: 36px;
-      height: 36px;
-    }
-
-    .discover-actions {
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-
-    .action-btn {
-      padding: 14px 12px;
-      border-radius: var(--r-lg);
-      font-size: 13px;
-      min-height: 48px;
-      gap: 6px;
-    }
-
-    .action-btn span:first-child {
-      font-size: 20px;
-    }
-
-    .loading-indicator {
-      bottom: 80px;
-      padding: 10px 14px;
-      font-size: 11px;
-    }
-
-    .mini-spinner {
-      width: 14px;
-      height: 14px;
-    }
-
-    .match-overlay {
+    .card-stack-container {
       padding: 16px;
     }
 
-    .match-content {
-      max-width: 100%;
-      border-radius: var(--r-lg);
-    }
-
-    .match-header {
-      padding: 10px;
-    }
-
-    .close-btn {
-      width: 36px;
-      height: 36px;
-      font-size: 16px;
-    }
-
-    .match-body {
-      padding: 16px;
+    .action-buttons {
       gap: 10px;
-    }
-
-    .match-icon {
-      font-size: 40px;
-    }
-
-    .match-body h2 {
-      font-size: 20px;
-    }
-
-    .match-body p {
-      font-size: 13px;
-    }
-
-    .match-profile {
-      gap: 10px;
-      padding: 12px;
-    }
-
-    .match-photo {
-      width: 48px;
-      height: 48px;
-      font-size: 24px;
-    }
-
-    .match-info h3 {
-      font-size: 14px;
-    }
-
-    .match-info p {
-      font-size: 11px;
-    }
-
-    .match-actions {
-      gap: 10px;
-      padding: 16px;
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0));
     }
 
     .btn {
-      min-height: 44px;
-      padding: 12px 16px;
-      font-size: 14px;
-      border-radius: var(--r-lg);
+      padding: 12px 14px;
+      font-size: 13px;
+    }
+  }
+
+  /* Tablet Responsive */
+  @media (min-width: 768px) and (max-width: 1023px) {
+    .card-stack-container {
+      padding: 24px;
+    }
+
+    .card-stack {
+      max-width: 450px;
+      max-height: 650px;
+    }
+  }
+
+  /* Desktop */
+  @media (min-width: 1024px) {
+    .discover-screen {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .card-stack-container {
+      padding: 28px;
+    }
+
+    .card-stack {
+      max-width: 500px;
+      max-height: 700px;
     }
   }
 </style>

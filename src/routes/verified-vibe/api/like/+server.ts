@@ -93,6 +93,29 @@ export const POST: RequestHandler = async ({ request }) => {
       );
     }
 
+    // 2a. Record action in history for undo functionality
+    await supabase
+      .from('verified_vibe_action_history')
+      .insert({
+        user_id: userId,
+        action_type: 'like',
+        profile_id: profileId,
+        created_at: new Date().toISOString()
+      })
+      .catch((err) => console.error('Error recording action history:', err));
+
+    // 2b. Track analytics event
+    await supabase
+      .from('verified_vibe_analytics')
+      .insert({
+        user_id: userId,
+        event_type: 'like',
+        profile_id: profileId,
+        metadata: {},
+        created_at: new Date().toISOString()
+      })
+      .catch((err) => console.error('Error recording analytics:', err));
+
     // 3. Check if mutual match (does the other user like this user?)
     const { data: mutualLike, error: mutualError } = await supabase
       .from('verified_vibe_likes')
