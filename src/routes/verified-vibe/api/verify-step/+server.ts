@@ -280,24 +280,20 @@ async function handlePhotoVerification(data: any) {
       );
     }
 
-    // Photos are consistent - save them to Supabase storage
-    // TODO: Get user ID from session
-    const userId = 'demo-user-id'; // Placeholder
-    const photoUrls: string[] = [];
-
-    // For now, we'll just return the consistency result
+    // Photos are consistent - return success
     // In a full implementation, we would:
     // 1. Upload each photo to Supabase storage
     // 2. Save photo metadata to database
     // 3. Return signed URLs for the photos
-
+    
     const response = {
       status: 'completed',
       data: {
         confidence: consistencyResult.confidence,
         consistent: true,
         photoCount: data.images.length,
-        photoUrls: photoUrls // Would contain actual URLs after upload
+        labels: data.labels,
+        photoUrls: [] // Would contain actual URLs after upload to Supabase
       },
       trustPoints: getTrustPoints('photos'),
       createdAt: new Date().toISOString()
