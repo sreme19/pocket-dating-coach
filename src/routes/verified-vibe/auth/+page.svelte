@@ -199,6 +199,14 @@
           By continuing you agree to our <a href="/verified-vibe/privacy">Privacy Policy</a>.
           New accounts are created automatically.
         </p>
+
+        {#if isDevMode}
+          <div class="dev-hint">
+            <p class="dev-hint-label">⚡ Dev shortcuts (no OTP needed)</p>
+            <button class="dev-pill" onclick={() => { email = 'male@test.vv'; sendOtp(); }}>male@test.vv</button>
+            <button class="dev-pill" onclick={() => { email = 'female@test.vv'; sendOtp(); }}>female@test.vv</button>
+          </div>
+        {/if}
       </div>
 
     {:else if step === 'code'}
@@ -473,5 +481,44 @@
 
   @keyframes spin {
     to { transform: rotate(360deg); }
+  }
+
+  /* Dev shortcuts */
+  .dev-hint {
+    margin-top: 20px;
+    padding: 12px 14px;
+    background: rgba(251, 191, 36, 0.07);
+    border: 1px solid rgba(251, 191, 36, 0.2);
+    border-radius: var(--r-md);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .dev-hint-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #fbbf24;
+    margin: 0;
+    width: 100%;
+    letter-spacing: 0.02em;
+  }
+
+  .dev-pill {
+    background: rgba(251, 191, 36, 0.12);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    color: #fbbf24;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: var(--font-mono);
+    padding: 5px 10px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background 200ms;
+  }
+
+  .dev-pill:hover {
+    background: rgba(251, 191, 36, 0.22);
   }
 </style>
