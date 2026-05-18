@@ -11,9 +11,8 @@
 
   // Login mode state
   let loginMode = $state(false);
-  let loginStep = $state<'phone' | 'otp'>('phone');
-  let loginPhone = $state('');
-  let loginOtp = $state('');
+  let loginStep = $state<'email' | 'sent'>('email');
+  let loginEmail = $state('');
   let loginLoading = $state(false);
   let loginError = $state('');
 
@@ -24,38 +23,20 @@
     goto('/verified-vibe/home');
   }
 
-  async function handleSendOtp() {
+  async function handleSendMagicLink() {
     loginError = '';
-    if (!loginPhone.trim()) { loginError = 'Enter your phone number'; return; }
+    if (!loginEmail.trim()) { loginError = 'Enter your email'; return; }
     loginLoading = true;
     try {
       const supabase = getSupabaseClient();
-      const { error } = await supabase.auth.signInWithOtp({ phone: loginPhone.trim() });
-      if (error) throw error;
-      loginStep = 'otp';
-    } catch (e: any) {
-      loginError = e.message || 'Failed to send code';
-    } finally {
-      loginLoading = false;
-    }
-  }
-
-  async function handleVerifyOtp() {
-    loginError = '';
-    if (!loginOtp.trim()) { loginError = 'Enter the code'; return; }
-    loginLoading = true;
-    try {
-      const supabase = getSupabaseClient();
-      const { data, error } = await supabase.auth.verifyOtp({
-        phone: loginPhone.trim(),
-        token: loginOtp.trim(),
-        type: 'sms'
+      const { error } = await supabase.auth.signInWithOtp({
+        email: loginEmail.trim(),
+        options: { emailRedirectTo: `${window.location.origin}/verified-vibe/discover` }
       });
       if (error) throw error;
-      setPhase('app');
-      goto('/verified-vibe/discover');
+      loginStep = 'sent';
     } catch (e: any) {
-      loginError = e.message || 'Invalid code';
+      loginError = e.message || 'Failed to send link';
     } finally {
       loginLoading = false;
     }
@@ -152,36 +133,23 @@
     <!-- Login panel -->
     {#if loginMode}
       <div class="login-panel" transition:slide={{ duration: 300, axis: 'y' }}>
-        {#if loginStep === 'phone'}
-          <p class="login-hint">Enter your phone number to receive a one-time code.</p>
+        {#if loginStep === 'email'}
+          <p class="login-hint">Enter your email — we'll send a magic link to sign you in.</p>
           <div class="login-field">
             <input
-              type="tel"
+              type="email"
               class="login-input"
-              placeholder="+1 555 000 0001"
-              bind:value={loginPhone}
-              onkeydown={(e) => e.key === 'Enter' && handleSendOtp()}
+              placeholder="you@example.com"
+              bind:value={loginEmail}
+              onkeydown={(e) => e.key === 'Enter' && handleSendMagicLink()}
             />
-            <button class="btn btn-primary login-btn" onclick={handleSendOtp} disabled={loginLoading}>
-              {loginLoading ? 'Sending…' : 'Send code →'}
+            <button class="btn btn-primary login-btn" onclick={handleSendMagicLink} disabled={loginLoading}>
+              {loginLoading ? 'Sending…' : 'Send link →'}
             </button>
           </div>
         {:else}
-          <p class="login-hint">Enter the 6-digit code sent to {loginPhone}.</p>
-          <div class="login-field">
-            <input
-              type="text"
-              class="login-input"
-              placeholder="000000"
-              maxlength="6"
-              bind:value={loginOtp}
-              onkeydown={(e) => e.key === 'Enter' && handleVerifyOtp()}
-            />
-            <button class="btn btn-primary login-btn" onclick={handleVerifyOtp} disabled={loginLoading}>
-              {loginLoading ? 'Verifying…' : 'Sign in →'}
-            </button>
-          </div>
-          <button class="login-back" onclick={() => { loginStep = 'phone'; loginError = ''; }}>← Change number</button>
+          <p class="login-hint">✓ Magic link sent to <strong>{loginEmail}</strong>. Check your inbox and click the link to sign in.</p>
+          <button class="login-back" onclick={() => { loginStep = 'email'; loginError = ''; loginEmail = ''; }}>← Try a different email</button>
         {/if}
         {#if loginError}
           <p class="login-error" transition:fade={{ duration: 200 }}>{loginError}</p>
