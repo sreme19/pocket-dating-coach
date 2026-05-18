@@ -562,7 +562,7 @@
 
   <!-- Actions -->
   <div class="verification-actions" transition:slide={{ duration: 400, delay: 100, axis: 'y' }}>
-    {#if currentStep !== 3 && currentStep !== 4}
+    {#if currentStep !== 4}
       <button class="btn btn-secondary" onclick={handleSkipClick} disabled={loading}>
         Skip
       </button>
