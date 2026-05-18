@@ -446,5 +446,3 @@ function cleanupInactiveConnections(): void {
 if (typeof setInterval !== 'undefined') {
   setInterval(cleanupInactiveConnections, 60000);
 }
-
-export { handleMessage, connections, conversationSubscribers };

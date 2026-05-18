@@ -1,265 +1,324 @@
 /**
  * Online Status Service
- * Manages user online status tracking and presence updates
+ *
+ * Manages user online status tracking and publishing.
+ * Tracks when users come online/offline and updates last seen timestamps.
  */
 
-import { getSupabaseClient } from '$lib/client/supabase';
-import type { VerifiedVibeUser } from '../types';
+import { publishOnlineStatus } from './realtimeService';
+import { updateCurrentUserOnlineStatus, updateUserOnlineStatus } from '../stores';
 
-export interface OnlineStatus {
+const ACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+const HEARTBEAT_INTERVAL = 30 * 1000; // 30 seconds
+
+interface UserOnlineStatus {
   userId: string;
   isOnline: boolean;
-  lastSeen: Date | null;
-  onlineAt?: Date;
+  lastSeen: Date;
+  lastActivity: Date;
 }
 
-export interface PresenceData {
-  user_id: string;
-  online_at: string;
-  last_activity?: string;
-}
-
-// Store active presence channels to manage cleanup
-const activeChannels = new Map<string, ReturnType<typeof getSupabaseClient>['channel']>();
+// Store for tracking online status
+const userStatuses = new Map<string, UserOnlineStatus>();
+let currentUserId: string | null = null;
+let activityTimeout: ReturnType<typeof setTimeout> | null = null;
+let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+let isCurrentlyOnline = true;
 
 /**
- * Track user online status in Supabase presence
- * Call this when user opens the app
+ * Initialize online status service
  */
-export async function trackUserOnline(userId: string): Promise<void> {
-  try {
-    const supabase = getSupabaseClient();
-    
-    // Create a presence channel for the user
-    const channel = supabase.channel(`user:${userId}:presence`, {
-      config: {
-        presence: {
-          key: userId
-        }
+export function initializeOnlineStatusService(userId: string): void {
+  currentUserId = userId;
+  isCurrentlyOnline = true;
+
+  // Initialize current user status
+  userStatuses.set(userId, {
+    userId,
+    isOnline: true,
+    lastSeen: new Date(),
+    lastActivity: new Date()
+  });
+
+  // Publish initial online status
+  publishOnlineStatus(true);
+
+  // Start heartbeat
+  startHeartbeat();
+
+  // Track activity
+  trackActivity();
+
+  console.log('[OnlineStatusService] Initialized for user:', userId);
+}
+
+/**
+ * Track user activity (keyboard, mouse, touch)
+ */
+export function trackActivity(): void {
+  if (!currentUserId) return;
+
+  const status = userStatuses.get(currentUserId);
+  if (!status) return;
+
+  // Update last activity
+  status.lastActivity = new Date();
+
+  // If offline, mark as online
+  if (!status.isOnline) {
+    status.isOnline = true;
+    status.lastSeen = new Date();
+    isCurrentlyOnline = true;
+    updateCurrentUserOnlineStatus(true);
+    publishOnlineStatus(true);
+    console.log('[OnlineStatusService] User came online');
+  }
+
+  // Clear existing timeout
+  if (activityTimeout) {
+    clearTimeout(activityTimeout);
+  }
+
+  // Set timeout to mark as offline
+  activityTimeout = setTimeout(() => {
+    markUserOffline();
+  }, ACTIVITY_TIMEOUT);
+}
+
+/**
+ * Mark current user as offline
+ */
+function markUserOffline(): void {
+  if (!currentUserId) return;
+
+  const status = userStatuses.get(currentUserId);
+  if (!status || !status.isOnline) return;
+
+  status.isOnline = false;
+  status.lastSeen = new Date();
+  isCurrentlyOnline = false;
+  updateCurrentUserOnlineStatus(false);
+  publishOnlineStatus(false);
+
+  console.log('[OnlineStatusService] User went offline');
+}
+
+/**
+ * Start heartbeat to keep user online
+ */
+function startHeartbeat(): void {
+  heartbeatInterval = setInterval(() => {
+    if (currentUserId) {
+      const status = userStatuses.get(currentUserId);
+      if (status && status.isOnline) {
+        // Publish online status periodically
+        publishOnlineStatus(true);
       }
-    });
-
-    // Store channel reference for cleanup
-    activeChannels.set(`user:${userId}:presence`, channel);
-
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        console.log('Presence sync:', channel.presenceState());
-      })
-      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
-        console.log('User joined:', key, newPresences);
-      })
-      .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-        console.log('User left:', key, leftPresences);
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          // Track user as online
-          await channel.track({
-            user_id: userId,
-            online_at: new Date().toISOString(),
-            last_activity: new Date().toISOString()
-          } as PresenceData);
-        }
-      });
-
-    return;
-  } catch (error) {
-    console.error('Error tracking user online:', error);
-    throw error;
-  }
-}
-
-/**
- * Update user's last activity timestamp
- * Call this on user interactions (messages, clicks, etc.)
- */
-export async function updateLastActivity(userId: string): Promise<void> {
-  try {
-    const supabase = getSupabaseClient();
-    
-    // Update the presence data with new last_activity
-    const channel = supabase.channel(`user:${userId}:presence`);
-    
-    await channel.track({
-      user_id: userId,
-      online_at: new Date().toISOString(),
-      last_activity: new Date().toISOString()
-    } as PresenceData);
-  } catch (error) {
-    console.error('Error updating last activity:', error);
-    // Don't throw - this is not critical
-  }
-}
-
-/**
- * Subscribe to online status of a specific user
- * Returns an unsubscribe function
- */
-export function subscribeToUserOnlineStatus(
-  userId: string,
-  onStatusChange: (status: OnlineStatus) => void,
-  onError?: (error: Error) => void
-): () => void {
-  try {
-    const supabase = getSupabaseClient();
-
-    const channel = supabase.channel(`user:${userId}:presence`);
-
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState();
-        const presences = state[userId] || [];
-        
-        if (presences.length > 0) {
-          const presence = presences[0] as PresenceData;
-          onStatusChange({
-            userId,
-            isOnline: true,
-            lastSeen: presence.online_at ? new Date(presence.online_at) : null,
-            onlineAt: presence.online_at ? new Date(presence.online_at) : undefined
-          });
-        } else {
-          onStatusChange({
-            userId,
-            isOnline: false,
-            lastSeen: null
-          });
-        }
-      })
-      .on('presence', { event: 'join' }, ({ newPresences }) => {
-        const presence = newPresences[0] as PresenceData;
-        onStatusChange({
-          userId,
-          isOnline: true,
-          lastSeen: presence.online_at ? new Date(presence.online_at) : null,
-          onlineAt: presence.online_at ? new Date(presence.online_at) : undefined
-        });
-      })
-      .on('presence', { event: 'leave' }, ({ leftPresences }) => {
-        const presence = leftPresences[0] as PresenceData;
-        onStatusChange({
-          userId,
-          isOnline: false,
-          lastSeen: presence.last_activity 
-            ? new Date(presence.last_activity) 
-            : (presence.online_at ? new Date(presence.online_at) : null)
-        });
-      })
-      .on('system', { event: 'error' }, (error) => {
-        console.error('Online status subscription error:', error);
-        if (onError) {
-          onError(new Error(`Online status subscription error: ${error.message}`));
-        }
-      })
-      .subscribe(async (status) => {
-        console.log(`Online status subscription status for user ${userId}:`, status);
-      });
-
-    // Return unsubscribe function
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  } catch (error) {
-    console.error('Failed to subscribe to online status:', error);
-    if (onError) {
-      onError(error as Error);
     }
-    return () => {};
+  }, HEARTBEAT_INTERVAL);
+}
+
+/**
+ * Stop heartbeat
+ */
+function stopHeartbeat(): void {
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
   }
 }
 
 /**
- * Format last seen time for display
+ * Update user online status
  */
-export function formatLastSeen(lastSeen: Date | null): string {
-  if (!lastSeen) {
-    return 'Never';
+export function updateUserStatus(userId: string, isOnline: boolean, lastSeen?: Date): void {
+  const now = new Date();
+
+  if (!userStatuses.has(userId)) {
+    userStatuses.set(userId, {
+      userId,
+      isOnline,
+      lastSeen: lastSeen || now,
+      lastActivity: now
+    });
+  } else {
+    const status = userStatuses.get(userId)!;
+    status.isOnline = isOnline;
+    status.lastSeen = lastSeen || now;
+    status.lastActivity = now;
   }
+
+  // Update store
+  updateUserOnlineStatus(userId, isOnline, lastSeen || now);
+}
+
+/**
+ * Get user online status
+ */
+export function getUserStatus(userId: string): UserOnlineStatus | undefined {
+  return userStatuses.get(userId);
+}
+
+/**
+ * Check if user is online
+ */
+export function isUserOnline(userId: string): boolean {
+  const status = userStatuses.get(userId);
+  return status?.isOnline ?? false;
+}
+
+/**
+ * Get last seen time for user
+ */
+export function getLastSeen(userId: string): Date | null {
+  const status = userStatuses.get(userId);
+  return status?.lastSeen ?? null;
+}
+
+/**
+ * Format last seen time
+ */
+export function formatLastSeen(date: Date | null): string {
+  if (!date) return 'Last seen recently';
 
   const now = new Date();
-  const diff = now.getTime() - lastSeen.getTime();
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
+  const diff = now.getTime() - date.getTime();
 
-  if (seconds < 60) {
-    return 'Just now';
+  // Less than 1 minute
+  if (diff < 60000) {
+    return 'Last seen just now';
   }
-  if (minutes < 60) {
-    return `${minutes}m ago`;
+
+  // Less than 1 hour
+  if (diff < 3600000) {
+    const minutes = Math.floor(diff / 60000);
+    return `Last seen ${minutes}m ago`;
   }
-  if (hours < 24) {
-    return `${hours}h ago`;
+
+  // Less than 1 day
+  if (diff < 86400000) {
+    const hours = Math.floor(diff / 3600000);
+    return `Last seen ${hours}h ago`;
   }
-  if (days < 7) {
-    return `${days}d ago`;
+
+  // Less than 1 week
+  if (diff < 604800000) {
+    const days = Math.floor(diff / 86400000);
+    return `Last seen ${days}d ago`;
   }
 
   // Format as date
-  const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
-  return lastSeen.toLocaleDateString('en-US', options);
+  const options: Intl.DateTimeFormatOptions = {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  };
+
+  return `Last seen ${date.toLocaleDateString('en-US', options)}`;
 }
 
 /**
- * Check if user is considered "recently active"
- * (online or seen within last 5 minutes)
+ * Get current online status
  */
-export function isRecentlyActive(status: OnlineStatus): boolean {
-  if (status.isOnline) {
-    return true;
-  }
-
-  if (!status.lastSeen) {
-    return false;
-  }
-
-  const now = new Date();
-  const diff = now.getTime() - status.lastSeen.getTime();
-  const minutes = Math.floor(diff / 60000);
-
-  return minutes < 5;
+export function getCurrentOnlineStatus(): boolean {
+  return isCurrentlyOnline;
 }
 
 /**
- * Untrack user online status (call on app close/logout)
+ * Clean up online status service
  */
-export async function untrackUserOnline(userId: string): Promise<void> {
-  try {
-    const supabase = getSupabaseClient();
-    const channelKey = `user:${userId}:presence`;
-    const channel = activeChannels.get(channelKey);
-    
-    if (channel) {
-      // Unsubscribe from the channel
-      await supabase.removeChannel(channel);
-      activeChannels.delete(channelKey);
+export function cleanupOnlineStatusService(): void {
+  // Mark as offline
+  if (currentUserId) {
+    const status = userStatuses.get(currentUserId);
+    if (status) {
+      status.isOnline = false;
+      status.lastSeen = new Date();
+      publishOnlineStatus(false);
     }
-  } catch (error) {
-    console.error('Error untracking user online:', error);
-    // Don't throw - this is cleanup
   }
+
+  // Clear timers
+  if (activityTimeout) {
+    clearTimeout(activityTimeout);
+    activityTimeout = null;
+  }
+
+  stopHeartbeat();
+
+  // Clear states
+  userStatuses.clear();
+  currentUserId = null;
+  isCurrentlyOnline = false;
+
+  console.log('[OnlineStatusService] Cleaned up');
 }
 
 /**
- * Clean up all active presence channels
- * Call this on app destroy or logout
+ * Add activity listeners to document
  */
-export async function cleanupAllPresenceChannels(): Promise<void> {
-  try {
-    const supabase = getSupabaseClient();
-    
-    for (const [key, channel] of activeChannels.entries()) {
-      try {
-        await supabase.removeChannel(channel);
-      } catch (error) {
-        console.error(`Error cleaning up channel ${key}:`, error);
-      }
-    }
-    
-    activeChannels.clear();
-  } catch (error) {
-    console.error('Error cleaning up presence channels:', error);
+export function addActivityListeners(): void {
+  if (typeof document === 'undefined') return;
+
+  const events = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+
+  events.forEach((event) => {
+    document.addEventListener(event, trackActivity, { passive: true });
+  });
+}
+
+/**
+ * Remove activity listeners from document
+ */
+export function removeActivityListeners(): void {
+  if (typeof document === 'undefined') return;
+
+  const events = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+
+  events.forEach((event) => {
+    document.removeEventListener(event, trackActivity);
+  });
+}
+
+/**
+ * Track user as online (alias for initializeOnlineStatusService)
+ */
+export function trackUserOnline(userId: string): Promise<void> {
+  return Promise.resolve().then(() => {
+    initializeOnlineStatusService(userId);
+  });
+}
+
+/**
+ * Untrack user as offline (alias for cleanupOnlineStatusService)
+ */
+export function untrackUserOnline(): void {
+  cleanupOnlineStatusService();
+}
+
+/**
+ * Update last activity (alias for trackActivity)
+ */
+export function updateLastActivity(): void {
+  trackActivity();
+}
+
+/**
+ * Subscribe to user online status (for compatibility)
+ */
+export function subscribeToUserOnlineStatus(userId: string, callback: (status: { isOnline: boolean; lastSeen: Date | null }) => void): () => void {
+  // Initial callback with current status
+  const status = userStatuses.get(userId);
+  if (status) {
+    callback({
+      isOnline: status.isOnline,
+      lastSeen: status.lastSeen
+    });
   }
+
+  // Return unsubscribe function
+  return () => {
+    // No-op for now
+  };
 }
