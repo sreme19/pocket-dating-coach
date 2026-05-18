@@ -281,6 +281,7 @@
           class="btn btn-secondary"
           onclick={handleReupload}
           disabled={loading}
+          tabindex="0"
           aria-label="Upload different photos"
         >
           Re-upload
@@ -289,6 +290,7 @@
           class="btn btn-primary"
           onclick={checkConsistency}
           disabled={!isLabelComplete() || loading}
+          tabindex="0"
           aria-label="Check photo consistency"
         >
           {#if loading}

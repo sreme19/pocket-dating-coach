@@ -66,22 +66,44 @@ export const POST: RequestHandler = async ({ request }) => {
 
     // Handle specific error types
     if (error instanceof Error) {
-      if (error.message.includes('unclear') || error.message.includes('not readable')) {
+      const message = error.message.toLowerCase();
+
+      if (message.includes('unclear') || message.includes('not readable') || message.includes('clearer')) {
         return json(
           { error: 'ID photo is unclear. Please upload a clearer photo.' },
           { status: 400 }
         );
       }
-      if (error.message.includes('invalid') || error.message.includes('not found')) {
+      if (message.includes('invalid') || message.includes('not found') || message.includes('not a valid')) {
         return json(
           { error: 'Could not find a valid ID in the photo. Please try again.' },
           { status: 400 }
         );
       }
-      if (error.message.includes('API')) {
+      if (message.includes('timeout') || message.includes('took too long')) {
         return json(
-          { error: 'Service temporarily unavailable. Please try again.' },
+          { error: 'Request took too long. Please try again.' },
+          { status: 408 }
+        );
+      }
+      if (message.includes('busy') || message.includes('rate')) {
+        return json(
+          { error: 'Service is busy. Please wait a moment and try again.' },
+          { status: 429 }
+        );
+      }
+      if (message.includes('authentication') || message.includes('configuration')) {
+        return json(
+          { error: 'Service temporarily unavailable. Please try again later.' },
           { status: 503 }
+        );
+      }
+
+      // Return the error message from the backend function if it's user-friendly
+      if (message.includes('extraction failed') || message.includes('required information')) {
+        return json(
+          { error: error.message },
+          { status: 400 }
         );
       }
     }

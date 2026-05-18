@@ -26,7 +26,9 @@
       case 'message':
         return '💬';
       case 'match':
-        return '❤️';
+        return '💕';
+      case 'verification':
+        return '✓';
       case 'system':
         return 'ℹ️';
       default:
@@ -79,7 +81,7 @@
 
     {#if unreadCount > 0}
       <span class="badge" transition:fade={{ duration: 200 }}>
-        {unreadCount > 99 ? '99+' : unreadCount}
+        {unreadCount > 9 ? '9+' : unreadCount}
       </span>
     {/if}
   </button>
@@ -90,32 +92,43 @@
       <!-- Header -->
       <div class="notification-header">
         <h3>Notifications</h3>
-        {#if notificationList.length > 0}
+        <div class="header-actions">
+          {#if notificationList.some(n => n.status === 'unread')}
+            <button
+              class="clear-all-btn"
+              onclick={markAllNotificationsAsRead}
+              aria-label="Mark all as read"
+              title="Mark all as read"
+            >
+              ✓ All read
+            </button>
+          {/if}
           <button
-            class="clear-all-btn"
-            onclick={markAllNotificationsAsRead}
-            aria-label="Clear all notifications"
-            title="Clear all"
+            class="close-btn"
+            onclick={() => (isOpen = false)}
+            aria-label="Close notifications"
+            title="Close"
           >
             ✕
           </button>
-        {/if}
+        </div>
       </div>
 
       <!-- Notifications List -->
       <div class="notification-list">
         {#if notificationList.length === 0}
           <div class="empty-state">
-            <p>No notifications</p>
+            <p>No notifications yet</p>
           </div>
         {:else}
           {#each notificationList as notification (notification.id)}
-            <button
+            <div
               class="notification-item"
               class:unread={notification.status === 'unread'}
               role="button"
               tabindex="0"
               onclick={() => handleNotificationClick(notification)}
+              onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleNotificationClick(notification)}
               transition:slide={{ duration: 200 }}
             >
               <div class="notification-icon">
@@ -131,11 +144,11 @@
               <button
                 class="notification-close"
                 onclick={(e) => { e.stopPropagation(); deleteNotification(notification.id); }}
-                aria-label="Dismiss notification"
+                aria-label="Delete notification"
               >
                 ✕
               </button>
-            </button>
+            </div>
           {/each}
         {/if}
       </div>
@@ -220,7 +233,33 @@
     color: var(--text-1);
   }
 
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
   .clear-all-btn {
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 4px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-3);
+    font-size: 12px;
+    transition: all 150ms ease;
+    display: grid;
+    place-items: center;
+    white-space: nowrap;
+  }
+
+  .clear-all-btn:hover {
+    background: var(--bg-2);
+    color: var(--text-2);
+  }
+
+  .close-btn {
     width: 24px;
     height: 24px;
     border-radius: 4px;
@@ -234,7 +273,7 @@
     place-items: center;
   }
 
-  .clear-all-btn:hover {
+  .close-btn:hover {
     background: var(--bg-2);
     color: var(--text-2);
   }

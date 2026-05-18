@@ -4,6 +4,13 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
+	server: {
+		fs: {
+			// Allow serving files from the parent node_modules (git worktree setup)
+			// Worktree is 3 levels deep: .claude/worktrees/objective-shaw-f9cdf9
+			allow: ['..', '../..', '../../..']
+		}
+	},
 	build: {
 		// Code splitting configuration
 		rollupOptions: {

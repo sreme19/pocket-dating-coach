@@ -117,6 +117,22 @@ Object.defineProperty(window, 'matchMedia', {
 	})
 });
 
+// Mock FileReader to fire onload synchronously for tests
+const OriginalFileReader = global.FileReader;
+class SyncFileReader extends OriginalFileReader {
+	readAsDataURL(blob: Blob) {
+		const fr = new OriginalFileReader();
+		fr.onload = (e) => {
+			Object.defineProperty(this, 'result', { value: e.target?.result, configurable: true });
+			Object.defineProperty(this, 'readyState', { value: 2, configurable: true });
+			this.onload?.call(this, e);
+			this.dispatchEvent(new Event('load'));
+		};
+		fr.readAsDataURL(blob);
+	}
+}
+(global as any).FileReader = SyncFileReader;
+
 // Ensure ANTHROPIC_API_KEY is undefined (not empty string) when not configured
 if (process.env.ANTHROPIC_API_KEY === '') {
 	delete process.env.ANTHROPIC_API_KEY;

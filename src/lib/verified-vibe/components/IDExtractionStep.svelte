@@ -6,7 +6,6 @@
     onSubmit?: (data: { idImage: string; mimeType: string }) => Promise<void>;
     onCancel?: () => void;
   }
-
   let { onSubmit = async () => {}, onCancel = () => {} }: Props = $props();
 
   let loading = $state(false);
@@ -63,24 +62,60 @@
       // Convert file to base64
       const base64 = await fileToBase64(selectedFile);
 
-      // Call extraction API
-      const response = await fetch('/api/verified-vibe/extract-id', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          image: base64,
-          mimeType: selectedFile.type
-        })
-      });
+      // Create abort controller for timeout (30 seconds)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error || 'Failed to extract ID data');
+      try {
+        // Call extraction API
+        const response = await fetch('/api/verified-vibe/extract-id', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            image: base64,
+            mimeType: selectedFile.type
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          let errorMessage = 'Failed to extract ID data';
+          try {
+            const result = await response.json();
+            errorMessage = result.error || errorMessage;
+          } catch {
+            // If response is not JSON, use status text
+            errorMessage = response.statusText || errorMessage;
+          }
+          throw new Error(errorMessage);
+        }
+
+        let result;
+        try {
+          result = await response.json();
+        } catch (parseError) {
+          console.error('Failed to parse API response:', parseError);
+          throw new Error('Invalid response from server. Please try again.');
+        }
+
+        if (!result.data) {
+          throw new Error('No data returned from server. Please try again.');
+        }
+
+        extractedData = result.data;
+        isConfirming = true;
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+
+        // Handle timeout
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          throw new Error('Request took too long. Please try again.');
+        }
+
+        throw fetchError;
       }
-
-      const result = await response.json();
-      extractedData = result.data;
-      isConfirming = true;
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to extract ID data';
     } finally {
