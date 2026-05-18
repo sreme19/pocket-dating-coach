@@ -3,14 +3,19 @@ import type { RequestHandler } from './$types';
 import { createClient } from '@supabase/supabase-js';
 import type { AIAssistantConversation, AssistantType } from '$lib/types';
 
-const supabaseUrl = process.env.PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl || !supabaseServiceKey) {
-	throw new Error('Missing Supabase environment variables');
+// Lazy-initialised client — avoids top-level throws that break vite build analysis
+let _supabase: ReturnType<typeof createClient> | null = null;
+function getSupabase() {
+	if (!_supabase) {
+		const url = process.env.PUBLIC_SUPABASE_URL;
+		const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+		if (!url || !key) {
+			throw error(500, 'Missing Supabase environment variables');
+		}
+		_supabase = createClient(url, key);
+	}
+	return _supabase;
 }
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // POST: Create a new AI assistant conversation
 export const POST: RequestHandler = async ({ request, locals }) => {
