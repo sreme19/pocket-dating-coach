@@ -23,10 +23,7 @@ export default defineConfig({
 					if (id.includes('@supabase/supabase-js')) {
 						return 'vendor-supabase';
 					}
-					if (id.includes('@xenova/transformers')) {
-						return 'vendor-transformers';
-					}
-					if (id.includes('lucide-svelte')) {
+if (id.includes('lucide-svelte')) {
 						return 'vendor-lucide';
 					}
 					// Split verified-vibe features
