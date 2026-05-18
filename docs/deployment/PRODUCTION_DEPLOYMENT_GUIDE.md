@@ -399,10 +399,10 @@ As user base grows:
 
 ## Documentation
 
-- [Architecture Overview](./VERIFIED_VIBE_IMPLEMENTATION_GUIDE.md)
+- [Architecture Overview](../verified-vibe/VERIFIED_VIBE_IMPLEMENTATION_GUIDE.md)
 - [API Documentation](./API_DOCUMENTATION.md)
 - [Component Documentation](./COMPONENT_DOCUMENTATION.md)
-- [Testing Guide](./TESTING_GUIDE.md)
+- [Testing Summary](../reports/TESTING_SUMMARY.md)
 
 ## Deployment Checklist
 

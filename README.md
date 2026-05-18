@@ -56,6 +56,15 @@ npm run build
 npm run ingest
 ```
 
+## Documentation
+
+Project notes and implementation artifacts live in [`docs/`](docs/README.md):
+
+- [`docs/verified-vibe/`](docs/verified-vibe/) for Verified Vibe guides and summaries.
+- [`docs/deployment/`](docs/deployment/) for deployment and production readiness.
+- [`docs/reports/`](docs/reports/) for testing, accessibility, and verification reports.
+- [`docs/tasks/`](docs/tasks/) for task completion notes.
+
 ## Notes
 
 - `npm run ingest` loads the dating book into Supabase using Voyage AI embeddings.
