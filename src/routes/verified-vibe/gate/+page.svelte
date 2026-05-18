@@ -3,43 +3,23 @@
   import { setPhase, setError } from '$lib/verified-vibe/stores';
   import type { Gender } from '$lib/verified-vibe/types';
   import { fade, slide } from 'svelte/transition';
-  import { getSupabaseClient } from '$lib/client/supabase';
+  import { upsertProfile } from '$lib/verified-vibe/services/profileService';
 
   let gender = $state<Gender | null>(null);
   let over18 = $state(false);
   const ready = $derived(!!gender && over18);
 
-  // Login mode state
-  let loginMode = $state(false);
-  let loginStep = $state<'email' | 'sent'>('email');
-  let loginEmail = $state('');
-  let loginLoading = $state(false);
-  let loginError = $state('');
-
-  function handleContinue() {
+  async function handleContinue() {
     if (!ready) return;
+    // Persist gender to Supabase (best-effort; also keep localStorage as fallback)
+    try {
+      await upsertProfile({ gender: gender! });
+    } catch (e) {
+      console.error('Failed to save gender to Supabase:', e);
+    }
     localStorage.setItem('verified_vibe_gender', gender!);
     setPhase('home');
     goto('/verified-vibe/home');
-  }
-
-  async function handleSendMagicLink() {
-    loginError = '';
-    if (!loginEmail.trim()) { loginError = 'Enter your email'; return; }
-    loginLoading = true;
-    try {
-      const supabase = getSupabaseClient();
-      const { error } = await supabase.auth.signInWithOtp({
-        email: loginEmail.trim(),
-        options: { emailRedirectTo: `${window.location.origin}/verified-vibe/discover` }
-      });
-      if (error) throw error;
-      loginStep = 'sent';
-    } catch (e: any) {
-      loginError = e.message || 'Failed to send link';
-    } finally {
-      loginLoading = false;
-    }
   }
 </script>
 
@@ -52,7 +32,7 @@
       Verified Vibe
     </div>
     <h1 class="gate-title">Two<br/>questions.<br/><em>Then we move.</em></h1>
-    <p class="gate-sub">No accounts yet. No email. Just tell us who's setting up.</p>
+    <p class="gate-sub">Two quick questions to set up your profile.</p>
   </div>
 
   <main id="main-content">
@@ -123,39 +103,6 @@
       </div>
     </div>
 
-    <!-- Login toggle -->
-    <div class="login-toggle-wrap" transition:fade={{ duration: 400, delay: 450 }}>
-      <button class="login-toggle" onclick={() => { loginMode = !loginMode; loginStep = 'phone'; loginError = ''; }}>
-        {loginMode ? 'Cancel sign in' : 'Already verified? Sign in'}
-      </button>
-    </div>
-
-    <!-- Login panel -->
-    {#if loginMode}
-      <div class="login-panel" transition:slide={{ duration: 300, axis: 'y' }}>
-        {#if loginStep === 'email'}
-          <p class="login-hint">Enter your email — we'll send a magic link to sign you in.</p>
-          <div class="login-field">
-            <input
-              type="email"
-              class="login-input"
-              placeholder="you@example.com"
-              bind:value={loginEmail}
-              onkeydown={(e) => e.key === 'Enter' && handleSendMagicLink()}
-            />
-            <button class="btn btn-primary login-btn" onclick={handleSendMagicLink} disabled={loginLoading}>
-              {loginLoading ? 'Sending…' : 'Send link →'}
-            </button>
-          </div>
-        {:else}
-          <p class="login-hint">✓ Magic link sent to <strong>{loginEmail}</strong>. Check your inbox and click the link to sign in.</p>
-          <button class="login-back" onclick={() => { loginStep = 'email'; loginError = ''; loginEmail = ''; }}>← Try a different email</button>
-        {/if}
-        {#if loginError}
-          <p class="login-error" transition:fade={{ duration: 200 }}>{loginError}</p>
-        {/if}
-      </div>
-    {/if}
   </main>
 </div>
 

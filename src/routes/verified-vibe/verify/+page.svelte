@@ -5,18 +5,32 @@
   import type { Archetype } from '$lib/verified-vibe/types';
   import { ChevronLeft, Clock } from 'lucide-svelte';
   import { slide, fade } from 'svelte/transition';
+  import { getProfile } from '$lib/verified-vibe/services/profileService';
 
   let archetype = $state<Archetype | null>(null);
 
-  // Get archetype from localStorage
+  // Load archetype from Supabase (falls back to localStorage)
   $effect(() => {
-    const stored = localStorage.getItem('verified_vibe_archetype');
-    if (stored) {
-      archetype = stored as Archetype;
-    } else {
-      // If no archetype, go back to home
-      goto('/verified-vibe/home');
-    }
+    getProfile().then((profile) => {
+      if (profile?.archetype) {
+        archetype = profile.archetype;
+        localStorage.setItem('verified_vibe_archetype', profile.archetype);
+      } else {
+        const stored = localStorage.getItem('verified_vibe_archetype');
+        if (stored) {
+          archetype = stored as Archetype;
+        } else {
+          goto('/verified-vibe/home');
+        }
+      }
+    }).catch(() => {
+      const stored = localStorage.getItem('verified_vibe_archetype');
+      if (stored) {
+        archetype = stored as Archetype;
+      } else {
+        goto('/verified-vibe/home');
+      }
+    });
   });
 
   const archetypeData = $derived(archetype ? ARCHETYPES[archetype] : null);

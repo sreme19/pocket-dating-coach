@@ -1,10 +1,28 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
   import { currentPhase, currentTab } from '$lib/verified-vibe/stores';
+  import { getSupabaseClient } from '$lib/client/supabase';
   import { MessageCircle, Compass, ShieldCheck } from 'lucide-svelte';
   import { fade, slide } from 'svelte/transition';
 
   let { children } = $props();
+
+  // ── Auth guard ──────────────────────────────────────────────────────────────
+  // On every route change within /verified-vibe, verify the session.
+  // The /auth page is exempt so we don't create a redirect loop.
+  $effect(() => {
+    const pathname = $page.url.pathname;
+    if (pathname.endsWith('/auth')) return; // already on auth page
+
+    getSupabaseClient()
+      .auth.getSession()
+      .then(({ data: { session } }) => {
+        if (!session) {
+          goto('/verified-vibe/auth');
+        }
+      });
+  });
 
   const navItems = [
     { tab: 'discover', icon: Compass, label: 'Discover', description: 'Find matches' },

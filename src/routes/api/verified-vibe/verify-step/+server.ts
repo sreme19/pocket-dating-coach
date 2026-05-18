@@ -1,7 +1,9 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getSupabase } from '$lib/server/supabase';
-import { 
+import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
+import { createClient } from '@supabase/supabase-js';
+import {
   checkPhotoConsistencyWithClaude,
   analyzeSpendingPatternWithClaude,
   evaluateQAResponsesWithClaude
@@ -44,6 +46,40 @@ import {
  *   trustPoints: number
  * }
  */
+/** Resolve the authenticated user ID from the Authorization bearer token */
+async function getUserIdFromRequest(request: Request): Promise<string | null> {
+  const authHeader = request.headers.get('authorization') ?? '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!token) return null;
+
+  // Use a per-request client with the user's JWT so RLS applies correctly
+  const anonClient = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${token}` } }
+  });
+  const { data: { user } } = await anonClient.auth.getUser();
+  return user?.id ?? null;
+}
+
+/** Save a completed step to Supabase (best-effort; does not fail the request) */
+async function persistVerificationStep(
+  userId: string,
+  step: string,
+  trustPoints: number,
+  data?: Record<string, unknown>
+): Promise<void> {
+  try {
+    const supabase = getSupabase();
+    await (supabase as any)
+      .from('verified_vibe_verification_steps')
+      .upsert(
+        { user_id: userId, step, trust_points: trustPoints, data: data ?? null, completed_at: new Date().toISOString() },
+        { onConflict: 'user_id,step' }
+      );
+  } catch (e) {
+    console.error('persistVerificationStep error (non-fatal):', e);
+  }
+}
+
 export const POST: RequestHandler = async ({ request }) => {
   try {
     const body = await request.json();
@@ -66,37 +102,40 @@ export const POST: RequestHandler = async ({ request }) => {
       );
     }
 
-    // TODO: Get user from session
-    // const session = await getSession(request);
-    // if (!session) {
-    //   return json({ error: 'Unauthorized' }, { status: 401 });
-    // }
+    // Resolve authenticated user (optional — not required to process the step)
+    const userId = await getUserIdFromRequest(request);
 
     // Process verification based on step
     if (step === 'photos') {
-      return await handlePhotoVerification(data);
+      return await handlePhotoVerification(data, userId);
     } else if (step === 'spending_or_qa') {
-      return await handleSpendingOrQAVerification(data);
+      return await handleSpendingOrQAVerification(data, userId);
     }
 
-    // For other steps, return mock response
+    // For id/liveness steps, return mock response and persist
+    const trustPoints = getTrustPoints(step);
+    const stepData = {
+      ...(step === 'id' && {
+        idNumber: 'DL123456',
+        idName: 'Alexander Smith',
+        idDOB: '1998-03-15',
+        idExpiration: '2028-03-15'
+      }),
+      ...(step === 'liveness' && {
+        confidence: 92,
+        match: true
+      })
+    };
+
+    if (userId) {
+      await persistVerificationStep(userId, step, trustPoints, stepData);
+    }
+
     const response = {
       status: 'completed',
       step,
-      data: {
-        // Step-specific response data
-        ...(step === 'id' && {
-          idNumber: 'DL123456',
-          idName: 'Alexander Smith',
-          idDOB: '1998-03-15',
-          idExpiration: '2028-03-15'
-        }),
-        ...(step === 'liveness' && {
-          confidence: 92,
-          match: true
-        })
-      },
-      trustPoints: getTrustPoints(step),
+      data: stepData,
+      trustPoints,
       createdAt: new Date().toISOString()
     };
 
@@ -113,7 +152,7 @@ export const POST: RequestHandler = async ({ request }) => {
 /**
  * Handle photo verification step
  */
-async function handlePhotoVerification(data: any) {
+async function handlePhotoVerification(data: any, userId: string | null = null) {
   try {
     // Validate required fields
     if (!data.images || !Array.isArray(data.images) || data.images.length < 5) {
@@ -159,26 +198,21 @@ async function handlePhotoVerification(data: any) {
       );
     }
 
-    // Photos are consistent - save them to Supabase storage
-    // TODO: Get user ID from session
-    const userId = 'demo-user-id'; // Placeholder
-    const photoUrls: string[] = [];
+    const trustPoints = getTrustPoints('photos');
+    const stepData = {
+      confidence: consistencyResult.confidence,
+      consistent: true,
+      photoCount: data.images.length
+    };
 
-    // For now, we'll just return the consistency result
-    // In a full implementation, we would:
-    // 1. Upload each photo to Supabase storage
-    // 2. Save photo metadata to database
-    // 3. Return signed URLs for the photos
+    if (userId) {
+      await persistVerificationStep(userId, 'photos', trustPoints, stepData);
+    }
 
     const response = {
       status: 'completed',
-      data: {
-        confidence: consistencyResult.confidence,
-        consistent: true,
-        photoCount: data.images.length,
-        photoUrls: photoUrls // Would contain actual URLs after upload
-      },
-      trustPoints: getTrustPoints('photos'),
+      data: stepData,
+      trustPoints,
       createdAt: new Date().toISOString()
     };
 
@@ -211,7 +245,7 @@ async function handlePhotoVerification(data: any) {
 /**
  * Handle spending or Q&A verification step
  */
-async function handleSpendingOrQAVerification(data: any) {
+async function handleSpendingOrQAVerification(data: any, userId: string | null = null) {
   try {
     const { spendingImage, responses, gender, mimeType } = data;
 
@@ -243,7 +277,7 @@ async function handleSpendingOrQAVerification(data: any) {
         );
       }
 
-      return await handleSpendingVerification(spendingImage, mimeType);
+      return await handleSpendingVerification(spendingImage, mimeType, userId);
     } else {
       // Q&A verification for women and prefer_not_to_say
       if (!responses || typeof responses !== 'object') {
@@ -253,7 +287,7 @@ async function handleSpendingOrQAVerification(data: any) {
         );
       }
 
-      return await handleQAVerification(responses, gender);
+      return await handleQAVerification(responses, gender, userId);
     }
   } catch (error) {
     console.error('Spending/Q&A verification error:', error);
@@ -277,7 +311,7 @@ async function handleSpendingOrQAVerification(data: any) {
 /**
  * Handle spending verification for men
  */
-async function handleSpendingVerification(spendingImageBase64: string, mimeType: string = 'image/jpeg') {
+async function handleSpendingVerification(spendingImageBase64: string, mimeType: string = 'image/jpeg', userId: string | null = null) {
   try {
     const skipVerification = import.meta.env.VITE_SKIP_VERIFICATION === 'true';
     const analysisResult = skipVerification
@@ -301,19 +335,24 @@ async function handleSpendingVerification(spendingImageBase64: string, mimeType:
     }
 
     // Spending is credible
-    const response = {
-      status: 'completed',
-      data: {
-        type: 'spending',
-        credible: true,
-        confidence: analysisResult.confidence,
-        reasoning: analysisResult.reasoning
-      },
-      trustPoints: getTrustPoints('spending_or_qa'),
-      createdAt: new Date().toISOString()
+    const trustPoints = getTrustPoints('spending_or_qa');
+    const stepData = {
+      type: 'spending',
+      credible: true,
+      confidence: analysisResult.confidence,
+      reasoning: analysisResult.reasoning
     };
 
-    return json(response, { status: 201 });
+    if (userId) {
+      await persistVerificationStep(userId, 'spending_or_qa', trustPoints, stepData);
+    }
+
+    return json({
+      status: 'completed',
+      data: stepData,
+      trustPoints,
+      createdAt: new Date().toISOString()
+    }, { status: 201 });
   } catch (error) {
     console.error('Spending verification error:', error);
 
@@ -336,7 +375,7 @@ async function handleSpendingVerification(spendingImageBase64: string, mimeType:
 /**
  * Handle Q&A verification for women
  */
-async function handleQAVerification(responses: Record<string, string>, gender: string) {
+async function handleQAVerification(responses: Record<string, string>, gender: string, userId: string | null = null) {
   try {
     const skipVerification = import.meta.env.VITE_SKIP_VERIFICATION === 'true';
     const evaluationResult = skipVerification
@@ -360,20 +399,24 @@ async function handleQAVerification(responses: Record<string, string>, gender: s
     }
 
     // Q&A is satisfactory
-    const response = {
-      status: 'completed',
-      data: {
-        type: 'qa',
-        satisfactory: true,
-        confidence: evaluationResult.confidence,
-        reasoning: evaluationResult.reasoning,
-        responses: responses
-      },
-      trustPoints: getTrustPoints('spending_or_qa'),
-      createdAt: new Date().toISOString()
+    const trustPoints = getTrustPoints('spending_or_qa');
+    const stepData = {
+      type: 'qa',
+      satisfactory: true,
+      confidence: evaluationResult.confidence,
+      reasoning: evaluationResult.reasoning
     };
 
-    return json(response, { status: 201 });
+    if (userId) {
+      await persistVerificationStep(userId, 'spending_or_qa', trustPoints, stepData);
+    }
+
+    return json({
+      status: 'completed',
+      data: { ...stepData, responses },
+      trustPoints,
+      createdAt: new Date().toISOString()
+    }, { status: 201 });
   } catch (error) {
     console.error('Q&A verification error:', error);
 
