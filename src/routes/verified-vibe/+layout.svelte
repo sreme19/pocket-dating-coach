@@ -41,13 +41,41 @@
   {/if}
 </div>
 
+<svelte:head>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+</svelte:head>
+
 <style>
   .verified-vibe-container {
+    /* Design tokens scoped to Verified Vibe — overrides root app.css light values */
+    --bg-1: #0b1120;
+    --bg-2: #131a2b;
+    --bg-3: #1a2336;
+    --bg-4: #202b40;
+    --text-1: #f1f5f9;
+    --text-2: #94a3b8;
+    --text-3: #64748b;
+    --text-4: #475569;
+    --border-1: rgba(255,255,255,0.07);
+    --border-2: rgba(255,255,255,0.10);
+    --border-3: rgba(255,255,255,0.16);
+    --accent: #10b981;
+    --accent-bright: #34d399;
+    --accent-dim: #064e3b;
+    --accent-tint: rgba(16,185,129,0.12);
+    --accent-glow: rgba(16,185,129,0.35);
+    --font-serif: 'Instrument Serif', Georgia, serif;
+    --font-mono: 'Menlo', 'Monaco', monospace;
+    --r-lg: 20px;
+
     display: flex;
     flex-direction: column;
     height: 100vh;
     background: var(--bg-1);
     color: var(--text-1);
+    font-family: 'Inter', system-ui, sans-serif;
   }
 
   .verified-vibe-content {
