@@ -2,9 +2,15 @@
 """Push current branch to origin using a GitHub PAT."""
 
 import getpass
+import os
 import subprocess
 import sys
+from pathlib import Path
 from urllib.parse import quote
+
+# Always run git from the repo root, regardless of where the script is called from
+REPO_ROOT = Path(__file__).resolve().parent.parent
+os.chdir(REPO_ROOT)
 
 
 def push(branch: str = "main") -> None:
