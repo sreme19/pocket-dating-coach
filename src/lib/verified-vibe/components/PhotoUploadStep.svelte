@@ -331,9 +331,11 @@
           <div class="result-failure" transition:scale={{ duration: 300 }}>
             <div class="result-icon">✗</div>
             <h3 class="result-title">Photos Inconsistent</h3>
-            <p class="result-description">
-              Photos don't appear to be of the same person (confidence: {consistencyResult.confidence}%)
-            </p>
+            <p class="result-description">Photos don't appear to be of the same person</p>
+            <div class="confidence-badge">
+              <span class="confidence-label">Confidence:</span>
+              <span class="confidence-value">{consistencyResult.confidence}%</span>
+            </div>
             <p class="result-hint">Please upload photos that are all of you</p>
           </div>
         {/if}
