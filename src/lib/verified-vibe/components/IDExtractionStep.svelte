@@ -2,8 +2,12 @@
   import { onMount } from 'svelte';
   import { fade, slide } from 'svelte/transition';
 
-  export let onSubmit: (data: { idImage: string; mimeType: string }) => Promise<void> = async () => {};
-  export let onCancel: () => void = () => {};
+  interface Props {
+    onSubmit?: (data: { idImage: string; mimeType: string }) => Promise<void>;
+    onCancel?: () => void;
+  }
+
+  let { onSubmit = async () => {}, onCancel = () => {} }: Props = $props();
 
   let loading = $state(false);
   let error = $state<string | null>(null);
