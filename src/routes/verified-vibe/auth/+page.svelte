@@ -45,9 +45,9 @@
       });
       if (authError) throw authError;
 
-      // Pre-populate gender so the test user skips the gate page
-      await upsertProfile({ gender: payload.gender });
-
+      // Pre-populate gender so the test user skips the gate page,
+      // then use the same routing logic as normal login
+      localStorage.setItem('verified_vibe_pending_gender', payload.gender);
       await routeAfterAuth();
     } catch (e: any) {
       error = e.message ?? 'Dev login failed';
@@ -86,9 +86,20 @@
   }
 
   async function routeAfterAuth() {
+    // If user came from the gate page, a pending gender is stored locally — save it now
+    const pendingGender = localStorage.getItem('verified_vibe_pending_gender');
+    if (pendingGender) {
+      try {
+        await upsertProfile({ gender: pendingGender as any });
+        localStorage.removeItem('verified_vibe_pending_gender');
+      } catch (e) {
+        console.error('Failed to save pending gender:', e);
+      }
+    }
+
     const completeness = await getProfileCompleteness();
     const destination  = routeForCompleteness(completeness);
-    if (completeness === 'complete')        setPhase('app');
+    if (completeness === 'complete')             setPhase('app');
     else if (completeness === 'no_verification') setPhase('verify');
     else if (completeness === 'no_archetype')    setPhase('home');
     else                                         setPhase('gate');
