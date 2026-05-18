@@ -122,6 +122,16 @@ export const isTyping = writable(false);
  */
 export const unreadCount = writable(0);
 
+/**
+ * WebSocket connection status
+ */
+export const wsConnected = writable(false);
+
+/**
+ * WebSocket connection error
+ */
+export const wsError = writable<string | null>(null);
+
 // ============================================================================
 // NOTIFICATIONS STORE
 // ============================================================================

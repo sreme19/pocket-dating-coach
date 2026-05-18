@@ -91,6 +91,17 @@ export interface Message {
   senderId: string;
   content: string;
   createdAt: Date;
+  imageUrl?: string;
+  isDeleted?: boolean;
+  editedAt?: Date;
+  readAt?: Date;
+  reactions?: MessageReaction[];
+}
+
+export interface MessageReaction {
+  emoji: string;
+  users: string[];
+  count: number;
 }
 
 export interface DiscoveryProfile extends VerifiedVibeUser {
