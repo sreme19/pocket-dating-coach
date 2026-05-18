@@ -1,22 +1,27 @@
 <script lang="ts">
-  import { Heart, X } from 'lucide-svelte';
+  import { Heart, X, CheckCircle2, MessageCircle, Share2 } from 'lucide-svelte';
   import { fade, scale, slide } from 'svelte/transition';
-  import type { VerifiedVibeUser } from '../types';
+  import TrustScoreBadge from './TrustScoreBadge.svelte';
+  import type { VerifiedVibeUser, DiscoveryProfile } from '../types';
 
   /**
-   * MatchOverlay Component
+   * MatchOverlay Component - Enhanced
    *
    * Displays a celebratory overlay when a mutual match occurs. Shows the matched
-   * profile with a larger photo, name, age, and location. Provides "Send Message"
-   * and "Close" buttons for user actions. Includes smooth animations and is fully
-   * responsive (full-screen on mobile).
+   * profile with a larger photo, name, age, location, verification badges, and
+   * trust score details. Provides "Send Message" and "Keep Discovering" buttons
+   * for user actions. Includes smooth animations and is fully responsive.
    *
    * Features:
    * - Displays matched profile with large photo
    * - Shows profile name, age, and location
+   * - Displays verification badges
+   * - Shows detailed trust score with breakdown
+   * - Quick chat preview (optional)
+   * - Share match functionality
    * - Celebratory animation with heart icon
    * - "Send Message" button to navigate to chat
-   * - "Close" button to return to discovery
+   * - "Keep Discovering" button to return to discovery
    * - Smooth fade and slide animations
    * - Full-screen overlay on mobile
    * - Centered modal on desktop
@@ -31,23 +36,60 @@
    *   profile={matchedProfile}
    *   onSendMessage={() => handleSendMessage()}
    *   onClose={() => handleClose()}
+   *   onShare={() => handleShare()}
    * />
    * ```
    */
 
   interface Props {
     /** The matched profile to display */
-    profile: VerifiedVibeUser;
+    profile: VerifiedVibeUser | DiscoveryProfile;
     /** Callback when user clicks "Send Message" */
     onSendMessage?: () => void;
-    /** Callback when user clicks "Close" */
+    /** Callback when user clicks "Keep Discovering" */
     onClose?: () => void;
+    /** Callback when user clicks "Share" */
+    onShare?: () => void;
   }
 
-  let { profile, onSendMessage, onClose }: Props = $props();
+  let { profile, onSendMessage, onClose, onShare }: Props = $props();
 
   // State
   let isAnimating = $state(false);
+  let showChatPreview = $state(false);
+
+  // Derived values
+  let verificationBadges = $derived(getVerificationBadges(profile));
+  let trustScoreColor = $derived(getTrustScoreColor(profile.trustScore));
+
+  /**
+   * Get verification badges from verified array
+   */
+  function getVerificationBadges(profile: VerifiedVibeUser | DiscoveryProfile): Array<{
+    label: string;
+    icon: string;
+  }> {
+    if (!('verified' in profile)) return [];
+
+    const verified = (profile as DiscoveryProfile).verified || [];
+    const badges: Array<{ label: string; icon: string }> = [];
+
+    if (verified.includes('id')) badges.push({ label: 'ID Verified', icon: '✓' });
+    if (verified.includes('liveness')) badges.push({ label: 'Liveness Check', icon: '✓' });
+    if (verified.includes('photos')) badges.push({ label: 'Photos Verified', icon: '✓' });
+    if (verified.includes('spending_or_qa')) badges.push({ label: 'Q&A Verified', icon: '✓' });
+
+    return badges;
+  }
+
+  /**
+   * Get trust score color based on score
+   */
+  function getTrustScoreColor(score: number): string {
+    if (score >= 80) return '#10b981'; // Green
+    if (score >= 60) return '#f59e0b'; // Amber
+    return '#ef4444'; // Red
+  }
 
   /**
    * Handle send message button click
@@ -66,6 +108,16 @@
     if (!isAnimating) {
       isAnimating = true;
       onClose?.();
+    }
+  }
+
+  /**
+   * Handle share button click
+   */
+  function handleShare() {
+    if (!isAnimating) {
+      isAnimating = true;
+      onShare?.();
     }
   }
 
@@ -164,8 +216,55 @@
         {#if profile.about}
           <p class="profile-about">{profile.about}</p>
         {/if}
+
+        <!-- Verification Badges -->
+        {#if verificationBadges.length > 0}
+          <div class="verification-badges" transition:fade={{ duration: 300, delay: 400 }}>
+            {#each verificationBadges as badge}
+              <div class="verification-badge" title={badge.label} aria-label={badge.label}>
+                <CheckCircle2 size={14} aria-hidden="true" />
+                <span class="badge-text">{badge.label}</span>
+              </div>
+            {/each}
+          </div>
+        {/if}
       </div>
     </div>
+
+    <!-- Trust Score Details -->
+    <div class="trust-score-section" transition:slide={{ duration: 400, delay: 350, axis: 'y' }}>
+      <div class="trust-score-header">
+        <span class="trust-label">Trust Score</span>
+        <div class="trust-badge-container">
+          <TrustScoreBadge
+            score={profile.trustScore}
+            size="md"
+            showLabel={false}
+            showPercentage={true}
+          />
+        </div>
+      </div>
+      <p class="trust-description">
+        {#if profile.trustScore >= 80}
+          Highly verified and trusted member
+        {:else if profile.trustScore >= 60}
+          Verified member with good standing
+        {:else}
+          Member with basic verification
+        {/if}
+      </p>
+    </div>
+
+    <!-- Chat Preview (Optional) -->
+    {#if showChatPreview}
+      <div class="chat-preview" transition:slide={{ duration: 300, axis: 'y' }}>
+        <div class="chat-header">
+          <MessageCircle size={16} aria-hidden="true" />
+          <span>Start a conversation</span>
+        </div>
+        <p class="chat-hint">Send a message to break the ice and get to know {profile.firstName} better!</p>
+      </div>
+    {/if}
 
     <!-- Action Buttons -->
     <div class="action-buttons" transition:slide={{ duration: 400, delay: 400, axis: 'y' }}>
@@ -188,12 +287,25 @@
         <Heart size={20} aria-hidden="true" />
         <span class="button-text">Send Message</span>
       </button>
+
+      <button
+        class="button button-tertiary"
+        onclick={handleShare}
+        disabled={isAnimating}
+        aria-label="Share this match"
+        title="Share match"
+      >
+        <Share2 size={20} aria-hidden="true" />
+        <span class="button-text">Share</span>
+      </button>
     </div>
 
     <!-- Trust Score Info (Optional) -->
     {#if profile.trustScore}
       <div class="trust-info" transition:fade={{ duration: 300, delay: 500 }}>
-        <span class="trust-badge">🛡️ Trust Score: {profile.trustScore}/100</span>
+        <span class="trust-badge" style="--trust-color: {trustScoreColor}">
+          🛡️ Trust Score: {profile.trustScore}/100
+        </span>
       </div>
     {/if}
   </div>
@@ -768,6 +880,156 @@
     .profile-photo-container {
       width: 200px;
       height: 200px;
+    }
+  }
+
+  /* Verification Badges */
+  .verification-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gap-sm);
+    margin-top: var(--spacing-md);
+  }
+
+  .verification-badge {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-xs);
+    background: var(--color-vibe-emerald);
+    color: white;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .badge-text {
+    display: none;
+  }
+
+  @media (min-width: 480px) {
+    .badge-text {
+      display: inline;
+    }
+  }
+
+  /* Trust Score Section */
+  .trust-score-section {
+    padding: var(--spacing-md);
+    background: var(--color-vibe-bg-2);
+    border-radius: var(--radius-lg);
+    border-left: 3px solid var(--color-vibe-emerald);
+  }
+
+  .trust-score-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .trust-label {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-vibe-text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .trust-badge-container {
+    display: flex;
+    align-items: center;
+  }
+
+  .trust-description {
+    font-size: var(--font-size-sm);
+    color: var(--color-vibe-text-2);
+    margin: 0;
+    line-height: var(--line-height-relaxed);
+  }
+
+  /* Chat Preview */
+  .chat-preview {
+    padding: var(--spacing-md);
+    background: var(--color-vibe-bg-2);
+    border-radius: var(--radius-lg);
+    border-left: 3px solid var(--color-vibe-emerald);
+  }
+
+  .chat-header {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-vibe-text-1);
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .chat-hint {
+    font-size: var(--font-size-sm);
+    color: var(--color-vibe-text-2);
+    margin: 0;
+    line-height: var(--line-height-relaxed);
+  }
+
+  /* Tertiary Button (Share) */
+  .button-tertiary {
+    background: var(--color-vibe-bg-2);
+    color: var(--color-vibe-text-1);
+    border: 1px solid var(--color-vibe-border);
+  }
+
+  @media (hover: hover) {
+    .button-tertiary:hover:not(:disabled) {
+      background: var(--color-vibe-bg-3);
+      border-color: var(--color-vibe-text-2);
+      transform: translateY(-2px);
+    }
+  }
+
+  .button-tertiary:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  .button-tertiary:focus-visible {
+    outline: 2px solid var(--color-vibe-emerald);
+    outline-offset: 2px;
+  }
+
+  /* Mobile Responsive - Verification Badges */
+  @media (max-width: 767px) {
+    .verification-badge {
+      padding: var(--spacing-xs) var(--spacing-xs);
+    }
+
+    .badge-text {
+      display: none;
+    }
+  }
+
+  /* Mobile Responsive - Trust Score Section */
+  @media (max-width: 767px) {
+    .trust-score-section {
+      padding: var(--spacing-sm);
+    }
+
+    .trust-description {
+      font-size: var(--font-size-xs);
+    }
+  }
+
+  /* Mobile Responsive - Chat Preview */
+  @media (max-width: 767px) {
+    .chat-preview {
+      padding: var(--spacing-sm);
+    }
+
+    .chat-header {
+      font-size: var(--font-size-sm);
+    }
+
+    .chat-hint {
+      font-size: var(--font-size-xs);
     }
   }
 </style>
