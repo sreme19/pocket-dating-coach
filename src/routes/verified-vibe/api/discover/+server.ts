@@ -56,6 +56,10 @@ export const GET: RequestHandler = async ({ url }) => {
         trustScore: 81,
         distance: '2 mi',
         verified: ['id', 'liveness', 'photos'],
+        photos: [
+          'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop',
+          'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop'
+        ],
         createdAt: new Date(),
         updatedAt: new Date()
       },
@@ -72,6 +76,10 @@ export const GET: RequestHandler = async ({ url }) => {
         trustScore: 76,
         distance: '5 mi',
         verified: ['id', 'photos'],
+        photos: [
+          'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop',
+          'https://images.unsplash.com/photo-1517841905240-74386c8b7167?w=400&h=400&fit=crop'
+        ],
         createdAt: new Date(),
         updatedAt: new Date()
       },
@@ -88,6 +96,11 @@ export const GET: RequestHandler = async ({ url }) => {
         trustScore: 88,
         distance: '3 mi',
         verified: ['id', 'liveness', 'photos', 'spending_or_qa'],
+        photos: [
+          'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop',
+          'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop',
+          'https://images.unsplash.com/photo-1516228714154-ef7a2c6b3d7d?w=400&h=400&fit=crop'
+        ],
         createdAt: new Date(),
         updatedAt: new Date()
       },
@@ -104,6 +117,10 @@ export const GET: RequestHandler = async ({ url }) => {
         trustScore: 79,
         distance: '4 mi',
         verified: ['id', 'photos'],
+        photos: [
+          'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop',
+          'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop'
+        ],
         createdAt: new Date(),
         updatedAt: new Date()
       },
@@ -120,6 +137,11 @@ export const GET: RequestHandler = async ({ url }) => {
         trustScore: 85,
         distance: '6 mi',
         verified: ['id', 'liveness', 'photos', 'spending_or_qa'],
+        photos: [
+          'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop',
+          'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop',
+          'https://images.unsplash.com/photo-1517841905240-74386c8b7167?w=400&h=400&fit=crop'
+        ],
         createdAt: new Date(),
         updatedAt: new Date()
       },
@@ -136,6 +158,10 @@ export const GET: RequestHandler = async ({ url }) => {
         trustScore: 72,
         distance: '2 mi',
         verified: ['id', 'photos'],
+        photos: [
+          'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop',
+          'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop'
+        ],
         createdAt: new Date(),
         updatedAt: new Date()
       }
