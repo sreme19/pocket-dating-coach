@@ -3,16 +3,62 @@
   import { setPhase, setError } from '$lib/verified-vibe/stores';
   import type { Gender } from '$lib/verified-vibe/types';
   import { fade, slide } from 'svelte/transition';
+  import { getSupabaseClient } from '$lib/client/supabase';
 
   let gender = $state<Gender | null>(null);
   let over18 = $state(false);
   const ready = $derived(!!gender && over18);
+
+  // Login mode state
+  let loginMode = $state(false);
+  let loginStep = $state<'phone' | 'otp'>('phone');
+  let loginPhone = $state('');
+  let loginOtp = $state('');
+  let loginLoading = $state(false);
+  let loginError = $state('');
 
   function handleContinue() {
     if (!ready) return;
     localStorage.setItem('verified_vibe_gender', gender!);
     setPhase('home');
     goto('/verified-vibe/home');
+  }
+
+  async function handleSendOtp() {
+    loginError = '';
+    if (!loginPhone.trim()) { loginError = 'Enter your phone number'; return; }
+    loginLoading = true;
+    try {
+      const supabase = getSupabaseClient();
+      const { error } = await supabase.auth.signInWithOtp({ phone: loginPhone.trim() });
+      if (error) throw error;
+      loginStep = 'otp';
+    } catch (e: any) {
+      loginError = e.message || 'Failed to send code';
+    } finally {
+      loginLoading = false;
+    }
+  }
+
+  async function handleVerifyOtp() {
+    loginError = '';
+    if (!loginOtp.trim()) { loginError = 'Enter the code'; return; }
+    loginLoading = true;
+    try {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase.auth.verifyOtp({
+        phone: loginPhone.trim(),
+        token: loginOtp.trim(),
+        type: 'sms'
+      });
+      if (error) throw error;
+      setPhase('app');
+      goto('/verified-vibe/discover');
+    } catch (e: any) {
+      loginError = e.message || 'Invalid code';
+    } finally {
+      loginLoading = false;
+    }
   }
 </script>
 
@@ -95,6 +141,53 @@
         By continuing you agree to ID verification, our <a href="/verified-vibe/privacy">Terms</a> and <a href="/verified-vibe/privacy">Privacy</a>.<br/>We never share ID details with matches.
       </div>
     </div>
+
+    <!-- Login toggle -->
+    <div class="login-toggle-wrap" transition:fade={{ duration: 400, delay: 450 }}>
+      <button class="login-toggle" onclick={() => { loginMode = !loginMode; loginStep = 'phone'; loginError = ''; }}>
+        {loginMode ? 'Cancel sign in' : 'Already verified? Sign in'}
+      </button>
+    </div>
+
+    <!-- Login panel -->
+    {#if loginMode}
+      <div class="login-panel" transition:slide={{ duration: 300, axis: 'y' }}>
+        {#if loginStep === 'phone'}
+          <p class="login-hint">Enter your phone number to receive a one-time code.</p>
+          <div class="login-field">
+            <input
+              type="tel"
+              class="login-input"
+              placeholder="+1 555 000 0001"
+              bind:value={loginPhone}
+              onkeydown={(e) => e.key === 'Enter' && handleSendOtp()}
+            />
+            <button class="btn btn-primary login-btn" onclick={handleSendOtp} disabled={loginLoading}>
+              {loginLoading ? 'Sending…' : 'Send code →'}
+            </button>
+          </div>
+        {:else}
+          <p class="login-hint">Enter the 6-digit code sent to {loginPhone}.</p>
+          <div class="login-field">
+            <input
+              type="text"
+              class="login-input"
+              placeholder="000000"
+              maxlength="6"
+              bind:value={loginOtp}
+              onkeydown={(e) => e.key === 'Enter' && handleVerifyOtp()}
+            />
+            <button class="btn btn-primary login-btn" onclick={handleVerifyOtp} disabled={loginLoading}>
+              {loginLoading ? 'Verifying…' : 'Sign in →'}
+            </button>
+          </div>
+          <button class="login-back" onclick={() => { loginStep = 'phone'; loginError = ''; }}>← Change number</button>
+        {/if}
+        {#if loginError}
+          <p class="login-error" transition:fade={{ duration: 200 }}>{loginError}</p>
+        {/if}
+      </div>
+    {/if}
   </main>
 </div>
 
@@ -407,5 +500,97 @@
   @media (prefers-reduced-motion: reduce) {
     .gate-pick-btn, .gate-age, .btn { transition: none; }
     .pulse { animation: none; }
+  }
+
+  /* Login toggle & panel */
+  .login-toggle-wrap {
+    text-align: center;
+    margin-top: 20px;
+    padding-bottom: 8px;
+  }
+
+  .login-toggle {
+    background: none;
+    border: none;
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--accent-bright);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: opacity 150ms ease;
+  }
+
+  .login-toggle:hover { opacity: 0.8; }
+  .login-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .login-panel {
+    margin-top: 4px;
+    padding: 18px 16px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    border-radius: var(--r-lg);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .login-hint {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-2);
+    line-height: 1.5;
+  }
+
+  .login-field {
+    display: flex;
+    gap: 8px;
+  }
+
+  .login-input {
+    flex: 1;
+    min-width: 0;
+    padding: 11px 14px;
+    background: var(--bg-3);
+    border: 1px solid var(--border-2);
+    border-radius: 12px;
+    color: var(--text-1);
+    font-family: inherit;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 150ms ease;
+  }
+
+  .login-input::placeholder { color: var(--text-4); }
+  .login-input:focus { border-color: var(--accent); }
+
+  .login-btn {
+    white-space: nowrap;
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 14px;
+    width: auto;
+  }
+
+  .login-back {
+    background: none;
+    border: none;
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--text-3);
+    cursor: pointer;
+    padding: 0;
+    text-align: left;
+    width: fit-content;
+  }
+
+  .login-back:hover { color: var(--text-2); }
+
+  .login-error {
+    margin: 0;
+    font-size: 12px;
+    color: #f87171;
   }
 </style>
