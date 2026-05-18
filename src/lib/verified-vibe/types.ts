@@ -99,6 +99,47 @@ export interface DiscoveryProfile extends VerifiedVibeUser {
   trustScore: number;
 }
 
+export type NotificationType = 'match' | 'message' | 'verification' | 'system';
+export type NotificationStatus = 'unread' | 'read';
+
+export interface Notification {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  status: NotificationStatus;
+  title: string;
+  body: string;
+  data: {
+    matchId?: string;
+    userId?: string;
+    userPhoto?: string;
+    userName?: string;
+    actionUrl?: string;
+  };
+  createdAt: Date;
+  readAt?: Date;
+}
+
+export type ReportReason = 'inappropriate_content' | 'harassment' | 'fake_profile' | 'scam' | 'other';
+
+export interface BlockedUser {
+  id: string;
+  userId: string;
+  blockedUserId: string;
+  createdAt: Date;
+}
+
+export interface Report {
+  id: string;
+  userId: string;
+  reportedUserId: string;
+  reason: ReportReason;
+  description: string;
+  status: 'pending' | 'reviewed' | 'resolved';
+  createdAt: Date;
+  reviewedAt?: Date;
+}
+
 export interface UIState {
   currentPhase: Phase;
   currentTab: Tab;

@@ -336,3 +336,199 @@ Do not include any other text.`
     throw new Error('Failed to check photo consistency');
   }
 }
+
+/**
+ * Analyze spending pattern from bank statement or screenshot using Claude Vision
+ *
+ * @param spendingImageBase64 - Base64-encoded image of bank statement or spending screenshot
+ * @param mimeType - MIME type of the image
+ * @returns Spending analysis result
+ * @throws Error if analysis fails
+ */
+export async function analyzeSpendingPatternWithClaude(
+  spendingImageBase64: string,
+  mimeType: string = 'image/jpeg'
+): Promise<{ credible: boolean; confidence: number; reasoning: string }> {
+  if (!CLAUDE_API_KEY) {
+    throw new Error('ANTHROPIC_API_KEY environment variable not set');
+  }
+
+  try {
+    const response = await fetch(CLAUDE_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': CLAUDE_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: CLAUDE_MODEL,
+        max_tokens: 512,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Analyze this bank statement or spending screenshot. Assess the credibility of the spending pattern shown.'
+              },
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: mimeType,
+                  data: spendingImageBase64
+                }
+              },
+              {
+                type: 'text',
+                text: `Evaluate the spending pattern for credibility. Consider:
+1. Is this a legitimate bank statement or spending record?
+2. Does the spending pattern appear authentic and consistent?
+3. Are there any red flags or signs of manipulation?
+
+Rate your confidence that this is a credible spending pattern on a scale of 0-100.
+
+Return ONLY a JSON object:
+{
+  "credible": <boolean>,
+  "confidence": <number 0-100>,
+  "reasoning": "<brief explanation of the spending pattern and credibility assessment>"
+}
+
+Do not include any other text.`
+              }
+            ]
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('Claude API error:', error);
+      throw new Error(`Claude API error: ${error.error?.message || 'Unknown error'}`);
+    }
+
+    const data = await response.json();
+    const content = data.content[0]?.text;
+
+    if (!content) {
+      throw new Error('No response from Claude API');
+    }
+
+    let parsedResponse;
+    try {
+      parsedResponse = JSON.parse(content);
+    } catch (e) {
+      console.error('Failed to parse Claude response:', content);
+      throw new Error('Invalid response format from Claude API');
+    }
+
+    return {
+      credible: parsedResponse.credible || parsedResponse.confidence >= 75,
+      confidence: parsedResponse.confidence || 0,
+      reasoning: parsedResponse.reasoning || 'Unable to assess spending pattern'
+    };
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Failed to analyze spending pattern');
+  }
+}
+
+/**
+ * Evaluate Q&A responses for honesty and clarity using Claude
+ *
+ * @param responses - Record of Q&A responses
+ * @param gender - User's gender for context
+ * @returns Q&A evaluation result
+ * @throws Error if evaluation fails
+ */
+export async function evaluateQAResponsesWithClaude(
+  responses: Record<string, string>,
+  gender: 'man' | 'woman' | 'prefer_not_to_say' = 'prefer_not_to_say'
+): Promise<{ satisfactory: boolean; confidence: number; reasoning: string }> {
+  if (!CLAUDE_API_KEY) {
+    throw new Error('ANTHROPIC_API_KEY environment variable not set');
+  }
+
+  try {
+    // Format responses for Claude
+    const formattedResponses = Object.entries(responses)
+      .map(([key, value]) => `Q: ${key}\nA: ${value}`)
+      .join('\n\n');
+
+    const response = await fetch(CLAUDE_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': CLAUDE_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: CLAUDE_MODEL,
+        max_tokens: 512,
+        messages: [
+          {
+            role: 'user',
+            content: `Evaluate these Q&A responses from a ${gender} user on a dating app. Assess the honesty, clarity, and authenticity of their answers.
+
+${formattedResponses}
+
+Consider:
+1. Are the responses genuine and thoughtful?
+2. Do they show self-awareness and clarity about dating intent?
+3. Are there any red flags or signs of dishonesty?
+4. Is the writing clear and coherent?
+5. Do the responses suggest a serious dating intent?
+
+Rate your confidence that these responses are satisfactory (honest, clear, and authentic) on a scale of 0-100.
+
+Return ONLY a JSON object:
+{
+  "satisfactory": <boolean>,
+  "confidence": <number 0-100>,
+  "reasoning": "<brief explanation of the Q&A quality and authenticity>"
+}
+
+Do not include any other text.`
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      console.error('Claude API error:', error);
+      throw new Error(`Claude API error: ${error.error?.message || 'Unknown error'}`);
+    }
+
+    const data = await response.json();
+    const content = data.content[0]?.text;
+
+    if (!content) {
+      throw new Error('No response from Claude API');
+    }
+
+    let parsedResponse;
+    try {
+      parsedResponse = JSON.parse(content);
+    } catch (e) {
+      console.error('Failed to parse Claude response:', content);
+      throw new Error('Invalid response format from Claude API');
+    }
+
+    return {
+      satisfactory: parsedResponse.satisfactory || parsedResponse.confidence >= 70,
+      confidence: parsedResponse.confidence || 0,
+      reasoning: parsedResponse.reasoning || 'Unable to evaluate Q&A responses'
+    };
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Failed to evaluate Q&A responses');
+  }
+}

@@ -22,12 +22,13 @@ interface DiscoveryFeedResponse {
  *
  * Retrieves a paginated list of user profiles for the discovery feed.
  * Profiles are sorted by trust score (highest first) and compatibility.
- * Excludes the current user and any blocked/passed users.
+ * Excludes the current user, any blocked/passed users, and users who have blocked the current user.
  *
  * Query parameters:
  * - limit: number of profiles to return (default: 10, max: 50)
  * - offset: pagination offset (default: 0)
  * - excludeIds: comma-separated list of user IDs to exclude
+ * - blockedIds: comma-separated list of blocked user IDs
  * - sortBy: 'trustScore' (default) or 'compatibility'
  *
  * Response:
@@ -45,10 +46,12 @@ export const GET: RequestHandler = async ({ url }) => {
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '10'), 50);
     const offset = parseInt(url.searchParams.get('offset') || '0');
     const excludeIdsParam = url.searchParams.get('excludeIds');
+    const blockedIdsParam = url.searchParams.get('blockedIds');
     const sortBy = (url.searchParams.get('sortBy') || 'trustScore') as 'trustScore' | 'compatibility';
 
-    // Parse exclude IDs
+    // Parse exclude IDs and blocked IDs
     const excludeIds = excludeIdsParam ? excludeIdsParam.split(',') : [];
+    const blockedIds = blockedIdsParam ? blockedIdsParam.split(',') : [];
 
     // Validate parameters
     if (limit < 1 || limit > 50) {
@@ -231,7 +234,7 @@ export const GET: RequestHandler = async ({ url }) => {
     ];
 
     // Filter out excluded IDs
-    let filtered = mockProfiles.filter(p => !excludeIds.includes(p.id));
+    let filtered = mockProfiles.filter(p => !excludeIds.includes(p.id) && !blockedIds.includes(p.id));
 
     // Sort by selected criteria
     if (sortBy === 'trustScore') {

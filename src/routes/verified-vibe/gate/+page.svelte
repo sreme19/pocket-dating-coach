@@ -6,12 +6,16 @@
 
   let gender = $state<Gender | null>(null);
   let ageConfirmed = $state(false);
+  let errorMessage = $state('');
 
   function handleContinue() {
     if (!gender || !ageConfirmed) {
-      setError('Please select your gender and confirm your age');
+      errorMessage = 'Please select your gender and confirm your age';
+      setError(errorMessage);
       return;
     }
+
+    errorMessage = '';
 
     // Save to localStorage for later
     localStorage.setItem('verified_vibe_gender', gender);
@@ -23,8 +27,20 @@
 
   function handleGenderSelect(selectedGender: Gender) {
     gender = selectedGender;
+    errorMessage = '';
+  }
+
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (e.currentTarget instanceof HTMLButtonElement) {
+        e.currentTarget.click();
+      }
+    }
   }
 </script>
+
+<a href="#main-content" class="skip-link">Skip to main content</a>
 
 <div class="gate-screen">
   <!-- Hero section -->
@@ -35,69 +51,90 @@
     </div>
   </div>
 
-  <!-- Gender selection -->
-  <div class="gate-q" transition:slide={{ duration: 400, delay: 100, axis: 'y' }}>
-    <div class="gate-q-label">
-      <div class="gate-q-num">01</div>
-      <div class="gate-q-title">Who are you?</div>
-    </div>
-    <div class="gate-pick">
-      <button
-        class="gate-pick-btn {gender === 'man' ? 'selected' : ''}"
-        onclick={() => handleGenderSelect('man')}
-      >
-        <div class="pick-ico">👨</div>
-        <div class="pick-name">Man</div>
-      </button>
-      <button
-        class="gate-pick-btn {gender === 'woman' ? 'selected' : ''}"
-        onclick={() => handleGenderSelect('woman')}
-      >
-        <div class="pick-ico">👩</div>
-        <div class="pick-name">Woman</div>
-      </button>
-      <button
-        class="gate-pick-btn {gender === 'prefer_not_to_say' ? 'selected' : ''}"
-        onclick={() => handleGenderSelect('prefer_not_to_say')}
-      >
-        <div class="pick-ico">🤝</div>
-        <div class="pick-name">Prefer not to say</div>
-      </button>
-    </div>
-  </div>
-
-  <!-- Age confirmation -->
-  <div class="gate-q" transition:slide={{ duration: 400, delay: 200, axis: 'y' }}>
-    <div class="gate-q-label">
-      <div class="gate-q-num {ageConfirmed ? 'done' : ''}">02</div>
-      <div class="gate-q-title">Age check</div>
-    </div>
-    <label class="gate-age {ageConfirmed ? 'checked' : ''}">
-      <input
-        type="checkbox"
-        bind:checked={ageConfirmed}
-        style="display: none;"
-      />
-      <div class="box">
-        {#if ageConfirmed}✓{/if}
+  <main id="main-content">
+    <!-- Error message -->
+    {#if errorMessage}
+      <div class="error-message" role="alert" aria-live="polite" transition:slide={{ duration: 200 }}>
+        <span class="error-icon">⚠️</span>
+        <span class="error-text">{errorMessage}</span>
       </div>
-      <div class="copy">
-        <div class="l">I'm 18 or older</div>
-        <div class="s">Required to use Verified Vibe</div>
-      </div>
-    </label>
-  </div>
+    {/if}
 
-  <!-- CTA -->
-  <div class="gate-cta" transition:slide={{ duration: 400, delay: 300, axis: 'y' }}>
-    <button
-      class="btn btn-primary full"
-      disabled={!gender || !ageConfirmed}
-      onclick={handleContinue}
-    >
-      Continue
-    </button>
-  </div>
+    <!-- Gender selection -->
+    <fieldset class="gate-q" transition:slide={{ duration: 400, delay: 100, axis: 'y' }}>
+      <legend class="gate-q-label">
+        <div class="gate-q-num">01</div>
+        <div class="gate-q-title">Who are you?</div>
+      </legend>
+      <div class="gate-pick" role="group" aria-label="Gender selection">
+        <button
+          class="gate-pick-btn {gender === 'man' ? 'selected' : ''}"
+          aria-pressed={gender === 'man'}
+          aria-label="Select Man"
+          onclick={() => handleGenderSelect('man')}
+          onkeydown={handleKeydown}
+        >
+          <div class="pick-ico" aria-hidden="true">👨</div>
+          <div class="pick-name">Man</div>
+        </button>
+        <button
+          class="gate-pick-btn {gender === 'woman' ? 'selected' : ''}"
+          aria-pressed={gender === 'woman'}
+          aria-label="Select Woman"
+          onclick={() => handleGenderSelect('woman')}
+          onkeydown={handleKeydown}
+        >
+          <div class="pick-ico" aria-hidden="true">👩</div>
+          <div class="pick-name">Woman</div>
+        </button>
+        <button
+          class="gate-pick-btn {gender === 'prefer_not_to_say' ? 'selected' : ''}"
+          aria-pressed={gender === 'prefer_not_to_say'}
+          aria-label="Prefer not to say"
+          onclick={() => handleGenderSelect('prefer_not_to_say')}
+          onkeydown={handleKeydown}
+        >
+          <div class="pick-ico" aria-hidden="true">🤝</div>
+          <div class="pick-name">Prefer not to say</div>
+        </button>
+      </div>
+    </fieldset>
+
+    <!-- Age confirmation -->
+    <fieldset class="gate-q" transition:slide={{ duration: 400, delay: 200, axis: 'y' }}>
+      <legend class="gate-q-label">
+        <div class="gate-q-num {ageConfirmed ? 'done' : ''}">02</div>
+        <div class="gate-q-title">Age check</div>
+      </legend>
+      <label class="gate-age {ageConfirmed ? 'checked' : ''}">
+        <input
+          type="checkbox"
+          bind:checked={ageConfirmed}
+          aria-label="I confirm I am 18 or older"
+          onchange={() => (errorMessage = '')}
+        />
+        <div class="box" aria-hidden="true">
+          {#if ageConfirmed}✓{/if}
+        </div>
+        <div class="copy">
+          <div class="l">I'm 18 or older</div>
+          <div class="s">Required to use Verified Vibe</div>
+        </div>
+      </label>
+    </fieldset>
+
+    <!-- CTA -->
+    <div class="gate-cta" transition:slide={{ duration: 400, delay: 300, axis: 'y' }}>
+      <button
+        class="btn btn-primary full"
+        disabled={!gender || !ageConfirmed}
+        onclick={handleContinue}
+        aria-label="Continue to next step"
+      >
+        Continue
+      </button>
+    </div>
+  </main>
 
   <!-- Footer -->
   <div class="gate-foot" transition:fade={{ duration: 400, delay: 400 }}>
@@ -106,6 +143,45 @@
 </div>
 
 <style>
+  .skip-link {
+    position: absolute;
+    top: -40px;
+    left: 0;
+    background: var(--accent);
+    color: white;
+    padding: 8px 16px;
+    text-decoration: none;
+    z-index: 100;
+    border-radius: 0 0 4px 0;
+  }
+
+  .skip-link:focus {
+    top: 0;
+  }
+
+  .error-message {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #fee2e2;
+    border: 1px solid #fca5a5;
+    border-radius: var(--r-lg);
+    color: #991b1b;
+    margin-bottom: 16px;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .error-icon {
+    flex-shrink: 0;
+    font-size: 18px;
+  }
+
+  .error-text {
+    flex: 1;
+  }
+
   .gate-screen {
     padding: 20px 24px 32px;
     flex: 1;
@@ -148,6 +224,10 @@
     max-width: 40ch;
     margin-left: auto;
     margin-right: auto;
+  }
+
+  main {
+    flex: 1;
   }
 
   .gate-eyebrow {
@@ -204,6 +284,8 @@
 
   .gate-q {
     margin-top: 22px;
+    border: none;
+    padding: 0;
   }
 
   .gate-q-label {
@@ -211,6 +293,7 @@
     align-items: center;
     gap: 10px;
     margin-bottom: 12px;
+    font-weight: 600;
   }
 
   .gate-q-num {
@@ -270,6 +353,11 @@
     transform: translateY(-1px);
   }
 
+  .gate-pick-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
   .gate-pick-btn.selected {
     border-color: var(--accent);
     background: radial-gradient(80% 100% at 100% 0%, var(--accent-tint), transparent 70%), var(--bg-2);
@@ -319,9 +407,21 @@
     border-color: var(--border-3);
   }
 
+  .gate-age:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
   .gate-age.checked {
     border-color: var(--accent);
     background: radial-gradient(80% 100% at 100% 0%, var(--accent-tint), transparent 70%), var(--bg-2);
+  }
+
+  .gate-age input[type="checkbox"] {
+    cursor: pointer;
+    width: 20px;
+    height: 20px;
+    accent-color: var(--accent);
   }
 
   .gate-age .box {
@@ -367,6 +467,45 @@
     padding-top: 16px;
   }
 
+  .btn {
+    width: 100%;
+    min-height: 44px;
+    padding: 12px 16px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: var(--r-lg);
+    cursor: pointer;
+    transition: all 220ms ease;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #06281e;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: var(--accent-bright);
+    transform: translateY(-1px);
+  }
+
+  .btn.full {
+    width: 100%;
+  }
+
   .gate-foot {
     font-size: 11px;
     color: var(--text-4);
@@ -379,6 +518,26 @@
     color: var(--text-3);
     text-decoration: underline;
     text-underline-offset: 2px;
+  }
+
+  .gate-foot a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gate-hero,
+    .gate-q,
+    .gate-cta,
+    .gate-foot {
+      transition: none;
+    }
+
+    .gate-pick-btn,
+    .gate-age,
+    .btn {
+      transition: none;
+    }
   }
 
   @media (max-width: 767px) {

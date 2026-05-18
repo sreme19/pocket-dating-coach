@@ -35,7 +35,7 @@ describe('calculateTrustScore', () => {
     expect(score.intent.score).toBe(0);
   });
 
-  it('should calculate identity score correctly', () => {
+  it('should calculate identity score correctly with all three components', () => {
     const records: VerificationRecord[] = [
       {
         id: '1',
@@ -58,10 +58,29 @@ describe('calculateTrustScore', () => {
     ];
 
     const score = calculateTrustScore(records);
-    expect(score.identity.score).toBe(30); // 10 + 10 + 10
+    expect(score.identity.score).toBe(30); // 10 (ID) + 10 (Liveness) + 10 (Face match)
+    expect(score.identity.max).toBe(30);
+    expect(score.identity.items.length).toBe(3);
   });
 
-  it('should calculate lifestyle score correctly', () => {
+  it('should calculate identity score with partial completion', () => {
+    const records: VerificationRecord[] = [
+      {
+        id: '1',
+        userId: 'user1',
+        step: 'id',
+        status: 'completed',
+        data: {},
+        completedAt: new Date(),
+        createdAt: new Date(),
+      },
+    ];
+
+    const score = calculateTrustScore(records);
+    expect(score.identity.score).toBe(10); // Only ID verified
+  });
+
+  it('should calculate lifestyle score correctly with all three components', () => {
     const records: VerificationRecord[] = [
       {
         id: '1',
@@ -75,7 +94,92 @@ describe('calculateTrustScore', () => {
     ];
 
     const score = calculateTrustScore(records);
-    expect(score.lifestyle.score).toBe(45); // 15 + 15 + 15
+    expect(score.lifestyle.score).toBe(45); // 15 (Photos) + 15 (Consistency) + 15 (Grooming)
+    expect(score.lifestyle.max).toBe(45);
+    expect(score.lifestyle.items.length).toBe(3);
+  });
+
+  it('should calculate lifestyle score with partial completion', () => {
+    const records: VerificationRecord[] = [
+      {
+        id: '1',
+        userId: 'user1',
+        step: 'photos',
+        status: 'completed',
+        data: { consistent: false, quality: 'low' },
+        completedAt: new Date(),
+        createdAt: new Date(),
+      },
+    ];
+
+    const score = calculateTrustScore(records);
+    expect(score.lifestyle.score).toBe(15); // Only photos verified
+  });
+
+  it('should calculate intent score correctly with both components', () => {
+    const records: VerificationRecord[] = [
+      {
+        id: '1',
+        userId: 'user1',
+        step: 'spending_or_qa',
+        status: 'completed',
+        data: {},
+        completedAt: new Date(),
+        createdAt: new Date(),
+      },
+    ];
+
+    const score = calculateTrustScore(records);
+    expect(score.intent.score).toBe(20); // 10 (Q&A/Spending) + 10 (Archetype clarity)
+    expect(score.intent.max).toBe(20);
+    expect(score.intent.items.length).toBe(2);
+  });
+
+  it('should calculate full trust score with all steps completed', () => {
+    const records: VerificationRecord[] = [
+      {
+        id: '1',
+        userId: 'user1',
+        step: 'id',
+        status: 'completed',
+        data: {},
+        completedAt: new Date(),
+        createdAt: new Date(),
+      },
+      {
+        id: '2',
+        userId: 'user1',
+        step: 'liveness',
+        status: 'completed',
+        data: { confidence: 85 },
+        completedAt: new Date(),
+        createdAt: new Date(),
+      },
+      {
+        id: '3',
+        userId: 'user1',
+        step: 'photos',
+        status: 'completed',
+        data: { consistent: true, quality: 'high' },
+        completedAt: new Date(),
+        createdAt: new Date(),
+      },
+      {
+        id: '4',
+        userId: 'user1',
+        step: 'spending_or_qa',
+        status: 'completed',
+        data: {},
+        completedAt: new Date(),
+        createdAt: new Date(),
+      },
+    ];
+
+    const score = calculateTrustScore(records);
+    expect(score.total).toBe(95); // 30 + 45 + 20 = 95
+    expect(score.identity.score).toBe(30);
+    expect(score.lifestyle.score).toBe(45);
+    expect(score.intent.score).toBe(20);
   });
 
   it('should cap total score at 100', () => {
@@ -120,6 +224,85 @@ describe('calculateTrustScore', () => {
 
     const score = calculateTrustScore(records);
     expect(score.total).toBeLessThanOrEqual(100);
+  });
+
+  it('should handle failed verification steps', () => {
+    const records: VerificationRecord[] = [
+      {
+        id: '1',
+        userId: 'user1',
+        step: 'id',
+        status: 'completed',
+        data: {},
+        completedAt: new Date(),
+        createdAt: new Date(),
+      },
+      {
+        id: '2',
+        userId: 'user1',
+        step: 'liveness',
+        status: 'failed',
+        data: { confidence: 45 },
+        completedAt: null,
+        createdAt: new Date(),
+      },
+    ];
+
+    const score = calculateTrustScore(records);
+    expect(score.identity.score).toBe(10); // Only ID verified, liveness failed
+  });
+
+  it('should provide correct category breakdown', () => {
+    const records: VerificationRecord[] = [
+      {
+        id: '1',
+        userId: 'user1',
+        step: 'id',
+        status: 'completed',
+        data: {},
+        completedAt: new Date(),
+        createdAt: new Date(),
+      },
+      {
+        id: '2',
+        userId: 'user1',
+        step: 'liveness',
+        status: 'completed',
+        data: { confidence: 85 },
+        completedAt: new Date(),
+        createdAt: new Date(),
+      },
+      {
+        id: '3',
+        userId: 'user1',
+        step: 'photos',
+        status: 'completed',
+        data: { consistent: true, quality: 'high' },
+        completedAt: new Date(),
+        createdAt: new Date(),
+      },
+      {
+        id: '4',
+        userId: 'user1',
+        step: 'spending_or_qa',
+        status: 'completed',
+        data: {},
+        completedAt: new Date(),
+        createdAt: new Date(),
+      },
+    ];
+
+    const score = calculateTrustScore(records);
+    
+    // Verify structure
+    expect(score.identity).toBeDefined();
+    expect(score.lifestyle).toBeDefined();
+    expect(score.intent).toBeDefined();
+    
+    // Verify items are properly labeled
+    expect(score.identity.items.some(item => item.label.includes('ID'))).toBe(true);
+    expect(score.lifestyle.items.some(item => item.label.includes('Photos'))).toBe(true);
+    expect(score.intent.items.some(item => item.label.includes('Intent'))).toBe(true);
   });
 });
 

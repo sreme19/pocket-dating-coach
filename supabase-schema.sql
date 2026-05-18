@@ -126,3 +126,102 @@ create index if not exists female_profile_audit_events_profile_idx on female_pro
 insert into storage.buckets (id, name, public)
 values ('profile-uploads', 'profile-uploads', false)
 on conflict (id) do nothing;
+
+
+-- ============================================================================
+-- VERIFIED VIBE TABLES
+-- ============================================================================
+
+-- Users table
+create table if not exists verified_vibe_users (
+  id uuid primary key default gen_random_uuid(),
+  gender text not null check (gender in ('man', 'woman', 'prefer_not_to_say')),
+  archetype text not null,
+  first_name text not null,
+  age integer not null,
+  city text not null,
+  avatar_url text,
+  about text,
+  looking text,
+  trust_score integer not null default 0,
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now()
+);
+
+-- Verification records table
+create table if not exists verified_vibe_verification (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references verified_vibe_users(id) on delete cascade,
+  step text not null check (step in ('id', 'liveness', 'photos', 'spending_or_qa')),
+  status text not null check (status in ('pending', 'completed', 'failed')),
+  data jsonb,
+  completed_at timestamp with time zone,
+  created_at timestamp with time zone default now()
+);
+
+-- Likes table
+create table if not exists verified_vibe_likes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references verified_vibe_users(id) on delete cascade,
+  liked_user_id uuid not null references verified_vibe_users(id) on delete cascade,
+  created_at timestamp with time zone default now(),
+  unique(user_id, liked_user_id)
+);
+
+-- Passes table
+create table if not exists verified_vibe_passes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references verified_vibe_users(id) on delete cascade,
+  passed_user_id uuid not null references verified_vibe_users(id) on delete cascade,
+  created_at timestamp with time zone default now(),
+  unique(user_id, passed_user_id)
+);
+
+-- Matches table
+create table if not exists verified_vibe_matches (
+  id uuid primary key default gen_random_uuid(),
+  user1_id uuid not null references verified_vibe_users(id) on delete cascade,
+  user2_id uuid not null references verified_vibe_users(id) on delete cascade,
+  status text not null check (status in ('pending', 'mutual', 'rejected')) default 'pending',
+  created_at timestamp with time zone default now()
+);
+
+-- Messages table
+create table if not exists verified_vibe_messages (
+  id uuid primary key default gen_random_uuid(),
+  match_id uuid not null references verified_vibe_matches(id) on delete cascade,
+  sender_id uuid not null references verified_vibe_users(id) on delete cascade,
+  content text not null,
+  created_at timestamp with time zone default now()
+);
+
+-- Typing indicators table (for realtime typing status)
+create table if not exists verified_vibe_typing_indicators (
+  id uuid primary key default gen_random_uuid(),
+  match_id uuid not null references verified_vibe_matches(id) on delete cascade,
+  user_id uuid not null references verified_vibe_users(id) on delete cascade,
+  created_at timestamp with time zone default now(),
+  unique(match_id, user_id)
+);
+
+-- Create indexes for better query performance
+create index if not exists verified_vibe_users_gender_idx on verified_vibe_users(gender);
+create index if not exists verified_vibe_users_archetype_idx on verified_vibe_users(archetype);
+create index if not exists verified_vibe_verification_user_idx on verified_vibe_verification(user_id);
+create index if not exists verified_vibe_verification_step_idx on verified_vibe_verification(step);
+create index if not exists verified_vibe_likes_user_idx on verified_vibe_likes(user_id);
+create index if not exists verified_vibe_likes_liked_user_idx on verified_vibe_likes(liked_user_id);
+create index if not exists verified_vibe_passes_user_idx on verified_vibe_passes(user_id);
+create index if not exists verified_vibe_passes_passed_user_idx on verified_vibe_passes(passed_user_id);
+create index if not exists verified_vibe_matches_user1_idx on verified_vibe_matches(user1_id);
+create index if not exists verified_vibe_matches_user2_idx on verified_vibe_matches(user2_id);
+create index if not exists verified_vibe_matches_status_idx on verified_vibe_matches(status);
+create index if not exists verified_vibe_messages_match_idx on verified_vibe_messages(match_id);
+create index if not exists verified_vibe_messages_sender_idx on verified_vibe_messages(sender_id);
+create index if not exists verified_vibe_messages_created_idx on verified_vibe_messages(created_at);
+create index if not exists verified_vibe_typing_indicators_match_idx on verified_vibe_typing_indicators(match_id);
+create index if not exists verified_vibe_typing_indicators_user_idx on verified_vibe_typing_indicators(user_id);
+
+-- Enable realtime for messages and typing indicators
+alter publication supabase_realtime add table verified_vibe_messages;
+alter publication supabase_realtime add table verified_vibe_typing_indicators;

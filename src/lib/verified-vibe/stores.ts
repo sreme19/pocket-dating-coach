@@ -5,6 +5,7 @@ import type {
   VerifiedVibeUser,
   Match,
   Message,
+  Notification,
   VerificationRecord,
   TrustScore,
   DiscoveryProfile,
@@ -122,6 +123,25 @@ export const isTyping = writable(false);
 export const unreadCount = writable(0);
 
 // ============================================================================
+// NOTIFICATIONS STORE
+// ============================================================================
+
+/**
+ * All notifications for current user
+ */
+export const notifications = writable<Notification[]>([]);
+
+/**
+ * Unread notification count
+ */
+export const unreadNotifications = writable(0);
+
+/**
+ * Whether notifications are enabled
+ */
+export const notificationsEnabled = writable(true);
+
+// ============================================================================
 // DISCOVERY STORE
 // ============================================================================
 
@@ -139,6 +159,11 @@ export const discoveryIndex = writable(0);
  * Whether discovery is loading more profiles
  */
 export const discoveryLoading = writable(false);
+
+/**
+ * Blocked user IDs
+ */
+export const blockedUsers = writable<string[]>([]);
 
 /**
  * Current discovery profile (derived from profiles and index)
@@ -284,9 +309,12 @@ export function clearAllStores() {
   messages.set([]);
   isTyping.set(false);
   unreadCount.set(0);
+  notifications.set([]);
+  unreadNotifications.set(0);
   discoveryProfiles.set([]);
   discoveryIndex.set(0);
   discoveryLoading.set(false);
+  blockedUsers.set([]);
   loading.set(false);
   error.set(null);
   verificationProgress.set(0);
@@ -406,4 +434,145 @@ export function clearCurrentMatch() {
   currentMatchId.set(null);
   currentMatch.set(null);
   messages.set([]);
+}
+
+// ============================================================================
+// NOTIFICATION HELPERS
+// ============================================================================
+
+/**
+ * Add notification
+ */
+export function addNotification(notification: Notification) {
+  notifications.update((notifs) => [notification, ...notifs]);
+  unreadNotifications.update((count) => count + 1);
+}
+
+/**
+ * Mark notification as read
+ */
+export function markNotificationAsRead(notificationId: string) {
+  notifications.update((notifs) =>
+    notifs.map((n) =>
+      n.id === notificationId
+        ? { ...n, status: 'read' as const, readAt: new Date() }
+        : n
+    )
+  );
+  unreadNotifications.update((count) => Math.max(0, count - 1));
+}
+
+/**
+ * Mark all notifications as read
+ */
+export function markAllNotificationsAsRead() {
+  notifications.update((notifs) =>
+    notifs.map((n) => ({
+      ...n,
+      status: 'read' as const,
+      readAt: n.readAt || new Date()
+    }))
+  );
+  unreadNotifications.set(0);
+}
+
+/**
+ * Delete notification
+ */
+export function deleteNotification(notificationId: string) {
+  notifications.update((notifs) => {
+    const notification = notifs.find((n) => n.id === notificationId);
+    if (notification && notification.status === 'unread') {
+      unreadNotifications.update((count) => Math.max(0, count - 1));
+    }
+    return notifs.filter((n) => n.id !== notificationId);
+  });
+}
+
+/**
+ * Clear all notifications
+ */
+export function clearAllNotifications() {
+  notifications.set([]);
+  unreadNotifications.set(0);
+}
+
+// ============================================================================
+// BLOCKED USERS HELPERS
+// ============================================================================
+
+/**
+ * Add user to blocked list
+ */
+export function blockUser(userId: string) {
+  blockedUsers.update((blocked) => {
+    if (!blocked.includes(userId)) {
+      return [...blocked, userId];
+    }
+    return blocked;
+  });
+}
+
+/**
+ * Remove user from blocked list
+ */
+export function unblockUser(userId: string) {
+  blockedUsers.update((blocked) => blocked.filter((id) => id !== userId));
+}
+
+/**
+ * Check if user is blocked
+ */
+export function isUserBlocked(userId: string): boolean {
+  let blocked = false;
+  blockedUsers.subscribe((blockedList) => {
+    blocked = blockedList.includes(userId);
+  })();
+  return blocked;
+}
+
+// ============================================================================
+// ONLINE STATUS STORE
+// ============================================================================
+
+/**
+ * Online status of the current match user
+ */
+export const matchUserOnlineStatus = writable<{
+  isOnline: boolean;
+  lastSeen: Date | null;
+} | null>(null);
+
+/**
+ * Whether the current user is online
+ */
+export const currentUserOnline = writable(true);
+
+/**
+ * Map of user IDs to their online status
+ */
+export const userOnlineStatuses = writable<Record<string, { isOnline: boolean; lastSeen: Date | null }>>({});
+
+/**
+ * Update match user online status
+ */
+export function updateMatchUserOnlineStatus(isOnline: boolean, lastSeen: Date | null) {
+  matchUserOnlineStatus.set({ isOnline, lastSeen });
+}
+
+/**
+ * Update current user online status
+ */
+export function updateCurrentUserOnlineStatus(isOnline: boolean) {
+  currentUserOnline.set(isOnline);
+}
+
+/**
+ * Update a user's online status in the map
+ */
+export function updateUserOnlineStatus(userId: string, isOnline: boolean, lastSeen: Date | null) {
+  userOnlineStatuses.update((statuses) => ({
+    ...statuses,
+    [userId]: { isOnline, lastSeen }
+  }));
 }
