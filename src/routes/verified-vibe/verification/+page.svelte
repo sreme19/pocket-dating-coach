@@ -9,13 +9,16 @@
     clearError,
     user,
     userVerification,
-    updateTrustScore
+    updateTrustScore,
+    loading as globalLoading
   } from '$lib/verified-vibe/stores';
   import { calculateTrustScore } from '$lib/verified-vibe/utils';
   import { getSupabaseClient } from '$lib/client/supabase';
   import PhotoUploadStep from '$lib/verified-vibe/components/PhotoUploadStep.svelte';
   import SpendingQAStep from '$lib/verified-vibe/components/SpendingQAStep.svelte';
   import SpendingUploadStep from '$lib/verified-vibe/components/SpendingUploadStep.svelte';
+  import IDExtractionStep from '$lib/verified-vibe/components/IDExtractionStep.svelte';
+  import LivenessStep from '$lib/verified-vibe/components/LivenessStep.svelte';
   import type { VerificationStep as VerificationStepType } from '$lib/verified-vibe/types';
   import { fade, slide } from 'svelte/transition';
   import { onMount } from 'svelte';
@@ -88,6 +91,134 @@
       }
     });
   });
+
+  async function handleIDSubmit(data: { idImage: string; mimeType: string }) {
+    error = null;
+    clearError();
+    loading = true;
+
+    try {
+      // Submit to API
+      const response = await fetch('/api/verified-vibe/verify-step', {
+        method: 'POST',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({
+          step: 'id',
+          data: {
+            image: data.idImage,
+            mimeType: data.mimeType
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || 'ID verification failed');
+      }
+
+      const result = await response.json();
+
+      // Store verification record
+      addVerificationRecord({
+        id: `${$user?.id}-id`,
+        userId: $user?.id || '',
+        step: 'id',
+        status: 'completed',
+        data: result.data,
+        completedAt: new Date(),
+        createdAt: new Date()
+      });
+
+      // Mark step as completed
+      completedSteps.add(currentStep);
+
+      // Update progress
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+
+      // Update trust score
+      updateTrustScoreAfterVerification();
+
+      // Move to next step
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        // All steps complete
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleLivenessSubmit(data: { selfieImage: string; mimeType: string }) {
+    error = null;
+    clearError();
+    loading = true;
+
+    try {
+      // Submit to API
+      const response = await fetch('/api/verified-vibe/verify-step', {
+        method: 'POST',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({
+          step: 'liveness',
+          data: {
+            image: data.selfieImage,
+            mimeType: data.mimeType
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || 'Liveness check failed');
+      }
+
+      const result = await response.json();
+
+      // Store verification record
+      addVerificationRecord({
+        id: `${$user?.id}-liveness`,
+        userId: $user?.id || '',
+        step: 'liveness',
+        status: 'completed',
+        data: result.data,
+        completedAt: new Date(),
+        createdAt: new Date()
+      });
+
+      // Mark step as completed
+      completedSteps.add(currentStep);
+
+      // Update progress
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+
+      // Update trust score
+      updateTrustScoreAfterVerification();
+
+      // Move to next step
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        // All steps complete
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
 
   async function handlePhotoSubmit(data: { photos: File[]; labels: Record<string, string> }) {
     error = null;
@@ -504,30 +635,15 @@
     <!-- Step-specific content -->
     <div class="step-body" transition:slide={{ duration: 300, axis: 'y' }}>
       {#if currentStep === 1}
-        <div class="upload-area" role="button" tabindex="0">
-          <div class="upload-icon">📄</div>
-          <p class="upload-text">Upload your government ID</p>
-          <p class="upload-hint">Clear photo of front or back</p>
-          <input 
-            type="file" 
-            accept="image/*" 
-            disabled={loading}
-            onchange={(e) => updateStepData(1, e.currentTarget.files?.[0])}
-          />
-        </div>
+        <IDExtractionStep 
+          onSubmit={handleIDSubmit}
+          onCancel={handleBack}
+        />
       {:else if currentStep === 2}
-        <div class="upload-area" role="button" tabindex="0">
-          <div class="upload-icon">📷</div>
-          <p class="upload-text">Take a selfie</p>
-          <p class="upload-hint">Make sure your face is clearly visible</p>
-          <input 
-            type="file" 
-            accept="image/*" 
-            capture="user"
-            disabled={loading}
-            onchange={(e) => updateStepData(2, e.currentTarget.files?.[0])}
-          />
-        </div>
+        <LivenessStep 
+          onSubmit={handleLivenessSubmit}
+          onCancel={handleBack}
+        />
       {:else if currentStep === 3}
         <PhotoUploadStep 
           onSubmit={handlePhotoSubmit}
