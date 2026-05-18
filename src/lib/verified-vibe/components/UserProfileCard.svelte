@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Heart, X, MapPin, Shield, CheckCircle2 } from 'lucide-svelte';
+  import { Heart, X, MapPin, Shield, CheckCircle2, Flag, Ban } from 'lucide-svelte';
   import { fade, scale } from 'svelte/transition';
   import TrustScoreBadge from './TrustScoreBadge.svelte';
   import type { DiscoveryProfile, VerificationStep } from '../types';
@@ -16,6 +16,7 @@
    * - Prominent trust score badge with color coding
    * - Verification badges for completed steps (ID, Liveness, Photos, Q&A)
    * - Like and Pass buttons with accessible interactions
+   * - Block and Report buttons for safety
    * - Photo carousel with navigation
    * - Mobile responsive (375px-1024px)
    * - WCAG 2.1 AA accessibility compliance
@@ -28,6 +29,8 @@
    *   profile={userProfile}
    *   onLike={() => handleLike()}
    *   onPass={() => handlePass()}
+   *   onBlock={() => handleBlock()}
+   *   onReport={() => handleReport()}
    * />
    * ```
    */
@@ -39,15 +42,20 @@
     onLike?: () => void;
     /** Callback when user clicks pass button */
     onPass?: () => void;
+    /** Callback when user clicks block button */
+    onBlock?: () => void;
+    /** Callback when user clicks report button */
+    onReport?: () => void;
     /** Whether to show compact view */
     compact?: boolean;
   }
 
-  let { profile, onLike, onPass, compact = false }: Props = $props();
+  let { profile, onLike, onPass, onBlock, onReport, compact = false }: Props = $props();
 
   // State for photo carousel
   let currentPhotoIndex = $state(0);
   let isLoading = $state(false);
+  let showMoreOptions = $state(false);
 
   // Derived values
   let accentColor = $derived(ARCHETYPE_COLORS[profile.archetype] || '#10b981');
@@ -104,6 +112,32 @@
   }
 
   /**
+   * Handle block button click
+   */
+  function handleBlock() {
+    isLoading = true;
+    onBlock?.();
+    showMoreOptions = false;
+    // Reset loading state after animation
+    setTimeout(() => {
+      isLoading = false;
+    }, 300);
+  }
+
+  /**
+   * Handle report button click
+   */
+  function handleReport() {
+    isLoading = true;
+    onReport?.();
+    showMoreOptions = false;
+    // Reset loading state after animation
+    setTimeout(() => {
+      isLoading = false;
+    }, 300);
+  }
+
+  /**
    * Navigate to next photo
    */
   function nextPhoto() {
@@ -120,6 +154,14 @@
       currentPhotoIndex = (currentPhotoIndex - 1 + totalPhotos) % totalPhotos;
     }
   }
+
+  /**
+   * Toggle more options menu
+   */
+  function toggleMoreOptions() {
+    showMoreOptions = !showMoreOptions;
+  }
+
 </script>
 
 <div class="user-profile-card" class:compact transition:fade={{ duration: 200 }}>
@@ -281,6 +323,43 @@
       <Heart size={20} />
       <span class="button-text">Like</span>
     </button>
+
+    <!-- More Options Menu -->
+    <div class="more-options-container">
+      <button
+        class="button more-button"
+        onclick={toggleMoreOptions}
+        disabled={isLoading}
+        aria-label="More options"
+        aria-expanded={showMoreOptions}
+        title="More options"
+      >
+        ⋮
+      </button>
+
+      {#if showMoreOptions}
+        <div class="more-options-menu" transition:fade={{ duration: 150 }}>
+          <button
+            class="menu-item block-item"
+            onclick={handleBlock}
+            disabled={isLoading}
+            aria-label="Block this user"
+          >
+            <Ban size={16} />
+            <span>Block</span>
+          </button>
+          <button
+            class="menu-item report-item"
+            onclick={handleReport}
+            disabled={isLoading}
+            aria-label="Report this user"
+          >
+            <Flag size={16} />
+            <span>Report</span>
+          </button>
+        </div>
+      {/if}
+    </div>
   </div>
 </div>
 
@@ -730,6 +809,113 @@
   .like-button:focus-visible {
     outline: 2px solid rgba(255, 255, 255, 0.5);
     outline-offset: 2px;
+  }
+
+  /* More Options */
+  .more-options-container {
+    position: relative;
+  }
+
+  .more-button {
+    background: transparent;
+    color: var(--color-vibe-text-2);
+    border-color: var(--color-vibe-border);
+    font-size: var(--font-size-lg);
+    padding: var(--spacing-md) var(--spacing-sm);
+  }
+
+  @media (hover: hover) {
+    .more-button:hover:not(:disabled) {
+      background: var(--color-vibe-bg-3);
+      border-color: var(--color-vibe-text-3);
+      color: var(--color-vibe-text-1);
+    }
+  }
+
+  .more-button:active:not(:disabled) {
+    transform: scale(0.98);
+  }
+
+  .more-button:focus-visible {
+    outline: 2px solid var(--color-vibe-text-2);
+    outline-offset: 2px;
+  }
+
+  /* More Options Menu */
+  .more-options-menu {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    background: var(--color-vibe-bg-2);
+    border: 1px solid var(--color-vibe-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    z-index: 100;
+    min-width: 140px;
+    overflow: hidden;
+    will-change: opacity;
+  }
+
+  .menu-item {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-sm);
+    width: 100%;
+    padding: var(--spacing-md) var(--spacing-lg);
+    background: transparent;
+    border: none;
+    color: var(--color-vibe-text-2);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    transition: all 150ms ease;
+    text-align: left;
+    font-family: inherit;
+    touch-action: manipulation;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .menu-item {
+      transition: none;
+    }
+  }
+
+  .menu-item:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  @media (hover: hover) {
+    .menu-item:hover:not(:disabled) {
+      background: var(--color-vibe-bg-3);
+      color: var(--color-vibe-text-1);
+    }
+  }
+
+  .menu-item:active:not(:disabled) {
+    background: var(--color-vibe-bg-3);
+  }
+
+  .menu-item:focus-visible {
+    outline: 2px solid var(--color-vibe-text-2);
+    outline-offset: -2px;
+  }
+
+  .menu-item.block-item {
+    color: var(--color-vibe-text-2);
+  }
+
+  .menu-item.block-item:hover:not(:disabled) {
+    color: #ef4444;
+  }
+
+  .menu-item.report-item {
+    color: var(--color-vibe-text-2);
+    border-top: 1px solid var(--color-vibe-border);
+  }
+
+  .menu-item.report-item:hover:not(:disabled) {
+    color: #f59e0b;
   }
 
   /* Compact View */

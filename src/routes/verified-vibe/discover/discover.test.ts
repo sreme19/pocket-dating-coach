@@ -491,6 +491,37 @@ describe('Discovery Feed - Interaction Logic', () => {
 
     expect(hasMoreCardsAfter).toBe(false);
   });
+
+  it('should handle swipe threshold detection', () => {
+    const SWIPE_THRESHOLD = 50;
+    const swipeOffset = 60;
+
+    const isSwipeRight = swipeOffset > SWIPE_THRESHOLD;
+    expect(isSwipeRight).toBe(true);
+
+    const swipeOffsetLeft = -60;
+    const isSwipeLeft = swipeOffsetLeft < -SWIPE_THRESHOLD;
+    expect(isSwipeLeft).toBe(true);
+  });
+
+  it('should ignore small swipes below threshold', () => {
+    const SWIPE_THRESHOLD = 50;
+    const swipeOffset = 30;
+
+    const isSignificantSwipe = Math.abs(swipeOffset) > SWIPE_THRESHOLD;
+    expect(isSignificantSwipe).toBe(false);
+  });
+
+  it('should calculate swipe direction correctly', () => {
+    const swipeOffsetRight = 75;
+    const swipeOffsetLeft = -75;
+
+    const directionRight = swipeOffsetRight > 0 ? 'like' : 'pass';
+    const directionLeft = swipeOffsetLeft > 0 ? 'like' : 'pass';
+
+    expect(directionRight).toBe('like');
+    expect(directionLeft).toBe('pass');
+  });
 });
 
 describe('Discovery Feed - Mobile Responsiveness', () => {

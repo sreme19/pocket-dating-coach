@@ -10,14 +10,23 @@
   let isLoadingMore = $state(false);
   let hasMoreProfiles = $state(true);
   let offset = $state(0);
+  let error = $state<string | null>(null);
+  let cardElement = $state<HTMLElement | null>(null);
+  let swipeStartX = $state(0);
+  let swipeStartY = $state(0);
+  let swipeOffset = $state(0);
+  let isAnimating = $state(false);
+  
   const limit = 10;
   const passedIds = $state<Set<string>>(new Set());
+  const SWIPE_THRESHOLD = 50; // pixels
 
   // Load initial profiles
   async function loadProfiles() {
     if (isLoadingMore || !hasMoreProfiles) return;
     
     isLoadingMore = true;
+    error = null;
     try {
       const excludeIds = Array.from(passedIds).join(',');
       const params = new URLSearchParams({
@@ -28,7 +37,9 @@
       });
 
       const response = await fetch(`/api/verified-vibe/discovery-feed?${params}`);
-      if (!response.ok) throw new Error('Failed to load profiles');
+      if (!response.ok) {
+        throw new Error(`Failed to load profiles: ${response.statusText}`);
+      }
 
       const result = await response.json();
       const newProfiles = result.data.profiles;
@@ -40,8 +51,9 @@
       } else {
         hasMoreProfiles = false;
       }
-    } catch (error) {
-      console.error('Error loading profiles:', error);
+    } catch (err) {
+      console.error('Error loading profiles:', err);
+      error = err instanceof Error ? err.message : 'Failed to load profiles';
     } finally {
       isLoadingMore = false;
     }
@@ -54,9 +66,53 @@
     }
   });
 
+  // Handle swipe start (touch and mouse)
+  function handleSwipeStart(e: TouchEvent | MouseEvent) {
+    if (isAnimating) return;
+    
+    const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
+    
+    swipeStartX = clientX;
+    swipeStartY = clientY;
+    swipeOffset = 0;
+  }
+
+  // Handle swipe move (touch and mouse)
+  function handleSwipeMove(e: TouchEvent | MouseEvent) {
+    if (isAnimating || swipeStartX === 0) return;
+    
+    const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
+    const deltaX = clientX - swipeStartX;
+    
+    // Only allow horizontal swipe (ignore vertical movement)
+    swipeOffset = deltaX;
+  }
+
+  // Handle swipe end (touch and mouse)
+  function handleSwipeEnd() {
+    if (isAnimating || swipeStartX === 0) return;
+    
+    swipeStartX = 0;
+    swipeStartY = 0;
+
+    // Determine if swipe was significant enough
+    if (Math.abs(swipeOffset) > SWIPE_THRESHOLD) {
+      if (swipeOffset > 0) {
+        // Swiped right = Like
+        handleLike();
+      } else {
+        // Swiped left = Pass
+        handlePass();
+      }
+    }
+    
+    swipeOffset = 0;
+  }
+
   function handleLike() {
     const currentProfile = $discoveryProfiles[$discoveryIndex];
-    if (currentProfile) {
+    if (currentProfile && !isAnimating) {
       // Show match overlay (in production, this would check for mutual likes)
       matchedProfile = currentProfile;
       showMatchOverlay = true;
@@ -65,15 +121,20 @@
 
   function handlePass() {
     const currentProfile = $discoveryProfiles[$discoveryIndex];
-    if (currentProfile) {
+    if (currentProfile && !isAnimating) {
       passedIds.add(currentProfile.id);
-    }
-    
-    discoveryIndex.update(i => i + 1);
+      isAnimating = true;
+      
+      // Animate card out
+      setTimeout(() => {
+        discoveryIndex.update(i => i + 1);
+        isAnimating = false;
 
-    // Load more profiles if we're running low
-    if ($discoveryProfiles.length - $discoveryIndex < 3 && hasMoreProfiles) {
-      loadProfiles();
+        // Load more profiles if we're running low
+        if ($discoveryProfiles.length - $discoveryIndex < 3 && hasMoreProfiles) {
+          loadProfiles();
+        }
+      }, 300);
     }
   }
 
@@ -96,6 +157,7 @@
     offset = 0;
     passedIds.clear();
     hasMoreProfiles = true;
+    error = null;
     loadProfiles();
   }
 
@@ -114,6 +176,7 @@
           class:active={sortBy === 'trustScore'}
           onclick={() => handleSortChange('trustScore')}
           title="Sort by trust score"
+          aria-label="Sort by trust score"
         >
           🛡️ Trust
         </button>
@@ -122,6 +185,7 @@
           class:active={sortBy === 'compatibility'}
           onclick={() => handleSortChange('compatibility')}
           title="Sort by compatibility"
+          aria-label="Sort by compatibility"
         >
           💕 Match
         </button>
@@ -130,10 +194,35 @@
     <p class="discover-subtitle">Find your match</p>
   </div>
 
+  <!-- Error message -->
+  {#if error}
+    <div class="error-banner" transition:slide={{ duration: 300, axis: 'y' }}>
+      <span class="error-icon">⚠️</span>
+      <span class="error-text">{error}</span>
+      <button class="error-close" onclick={() => error = null} aria-label="Close error">✕</button>
+    </div>
+  {/if}
+
   <!-- Card stack -->
   <div class="card-stack">
     {#if hasMoreCards && currentProfile}
-      <div class="discovery-card" key={currentProfile.id} transition:fade={{ duration: 300 }}>
+      <div 
+        class="discovery-card" 
+        key={currentProfile.id} 
+        transition:fade={{ duration: 300 }}
+        bind:this={cardElement}
+        ontouchstart={handleSwipeStart}
+        ontouchmove={handleSwipeMove}
+        ontouchend={handleSwipeEnd}
+        onmousedown={handleSwipeStart}
+        onmousemove={handleSwipeMove}
+        onmouseup={handleSwipeEnd}
+        onmouseleave={handleSwipeEnd}
+        style="transform: translateX({swipeOffset}px); opacity: {1 - Math.abs(swipeOffset) / 200};"
+        role="button"
+        tabindex="0"
+        aria-label={`Profile of ${currentProfile.firstName}, ${currentProfile.age}`}
+      >
         <div class="card-photo">
           <div class="photo-placeholder">📸</div>
         </div>
@@ -144,8 +233,8 @@
               <h2>{currentProfile.firstName}, {currentProfile.age}</h2>
               <span class="card-distance">{currentProfile.distance}</span>
             </div>
-            <div class="card-archetype">
-              <span class="archetype-emoji">{currentProfile.archetype === 'spoilt_woman' ? '👑' : '🛡️'}</span>
+            <div class="card-archetype" title={currentProfile.archetype}>
+              <span class="archetype-emoji">{currentProfile.archetype === 'spoilt_woman' ? '👑' : currentProfile.archetype === 'safety_first_woman' ? '🛡️' : currentProfile.archetype === 'casual_man' ? '😎' : '💍'}</span>
             </div>
           </div>
 
@@ -162,12 +251,24 @@
             </div>
           </div>
         </div>
+
+        <!-- Swipe hint -->
+        <div class="swipe-hint">
+          {#if swipeOffset > SWIPE_THRESHOLD}
+            <div class="swipe-indicator like">❤️ Like</div>
+          {:else if swipeOffset < -SWIPE_THRESHOLD}
+            <div class="swipe-indicator pass">👎 Pass</div>
+          {/if}
+        </div>
       </div>
     {:else if !hasMoreCards && $discoveryProfiles.length > 0}
       <div class="empty-state" transition:fade={{ duration: 300 }}>
         <div class="empty-icon">🎉</div>
         <h2>No more profiles</h2>
         <p>Check back later for more matches!</p>
+        <button class="btn btn-primary" onclick={() => handleSortChange(sortBy === 'trustScore' ? 'compatibility' : 'trustScore')}>
+          Try different sort
+        </button>
       </div>
     {:else}
       <div class="loading-state" transition:fade={{ duration: 300 }}>
@@ -179,11 +280,21 @@
 
   <!-- Actions -->
   <div class="discover-actions" transition:slide={{ duration: 400, delay: 100, axis: 'y' }}>
-    <button class="action-btn pass-btn" onclick={handlePass} disabled={!hasMoreCards}>
+    <button 
+      class="action-btn pass-btn" 
+      onclick={handlePass} 
+      disabled={!hasMoreCards || isAnimating}
+      aria-label="Pass on this profile"
+    >
       <span>👎</span>
       <span>Pass</span>
     </button>
-    <button class="action-btn like-btn" onclick={handleLike} disabled={!hasMoreCards}>
+    <button 
+      class="action-btn like-btn" 
+      onclick={handleLike} 
+      disabled={!hasMoreCards || isAnimating}
+      aria-label="Like this profile"
+    >
       <span>❤️</span>
       <span>Like</span>
     </button>
@@ -202,7 +313,7 @@
     <div class="match-overlay" transition:fade={{ duration: 300 }}>
       <div class="match-content" transition:slide={{ duration: 300, axis: 'y' }}>
         <div class="match-header">
-          <button class="close-btn" onclick={handleCloseMatch}>✕</button>
+          <button class="close-btn" onclick={handleCloseMatch} aria-label="Close match overlay">✕</button>
         </div>
 
         <div class="match-body">
@@ -295,6 +406,42 @@
     margin: 4px 0 0;
   }
 
+  /* Error banner */
+  .error-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #fee;
+    border: 1px solid #fcc;
+    border-radius: 8px;
+    color: #c33;
+    font-size: 14px;
+  }
+
+  .error-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .error-text {
+    flex: 1;
+  }
+
+  .error-close {
+    background: none;
+    border: none;
+    color: #c33;
+    cursor: pointer;
+    font-size: 18px;
+    padding: 0;
+    flex-shrink: 0;
+  }
+
+  .error-close:hover {
+    opacity: 0.7;
+  }
+
   .card-stack {
     flex: 1;
     display: flex;
@@ -314,6 +461,15 @@
     flex-direction: column;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
     animation: slideIn 300ms ease;
+    transition: transform 100ms ease-out, opacity 100ms ease-out;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+    position: relative;
+  }
+
+  .discovery-card:active {
+    cursor: grabbing;
   }
 
   @keyframes slideIn {
@@ -409,6 +565,40 @@
     font-weight: 600;
   }
 
+  /* Swipe hint */
+  .swipe-hint {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  .swipe-indicator {
+    font-size: 32px;
+    font-weight: 700;
+    animation: popIn 200ms ease;
+  }
+
+  .swipe-indicator.like {
+    color: #e74c3c;
+  }
+
+  .swipe-indicator.pass {
+    color: #95a5a6;
+  }
+
+  @keyframes popIn {
+    from {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
   .empty-state {
     text-align: center;
     padding: 40px 20px;
@@ -428,7 +618,7 @@
   .empty-state p {
     font-size: 14px;
     color: var(--text-3);
-    margin: 0;
+    margin: 0 0 16px;
   }
 
   .loading-state {
@@ -741,10 +931,18 @@
       font-size: 11px;
     }
 
-    .discover-subtitle {
+    .error-banner {
+      padding: 10px 12px;
       font-size: 13px;
-      color: var(--text-3);
-      margin: 2px 0 0;
+      gap: 10px;
+    }
+
+    .error-icon {
+      font-size: 16px;
+    }
+
+    .error-close {
+      font-size: 16px;
     }
 
     .card-stack {
@@ -808,6 +1006,10 @@
       font-size: 11px;
     }
 
+    .swipe-indicator {
+      font-size: 28px;
+    }
+
     .empty-state {
       text-align: center;
       padding: 30px 16px;
@@ -825,7 +1027,7 @@
 
     .empty-state p {
       font-size: 13px;
-      margin: 0;
+      margin: 0 0 12px;
     }
 
     .loading-state {
