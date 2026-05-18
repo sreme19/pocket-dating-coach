@@ -1,25 +1,19 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { setPhase, setError } from '$lib/verified-vibe/stores';
+  import { setPhase } from '$lib/verified-vibe/stores';
   import type { Gender } from '$lib/verified-vibe/types';
   import { fade, slide } from 'svelte/transition';
-  import { upsertProfile } from '$lib/verified-vibe/services/profileService';
 
   let gender = $state<Gender | null>(null);
   let over18 = $state(false);
   const ready = $derived(!!gender && over18);
 
-  async function handleContinue() {
+  function handleContinue() {
     if (!ready) return;
-    // Persist gender to Supabase (best-effort; also keep localStorage as fallback)
-    try {
-      await upsertProfile({ gender: gender! });
-    } catch (e) {
-      console.error('Failed to save gender to Supabase:', e);
-    }
+    // Store gender locally — will be saved to Supabase after auth
     localStorage.setItem('verified_vibe_gender', gender!);
-    setPhase('home');
-    goto('/verified-vibe/home');
+    localStorage.setItem('verified_vibe_pending_gender', gender!);
+    goto('/verified-vibe/auth');
   }
 </script>
 
@@ -103,6 +97,11 @@
       </div>
     </div>
 
+    <!-- Sign-in link for returning members -->
+    <div class="gate-signin" transition:fade={{ duration: 400, delay: 500 }}>
+      Already a member? <a href="/verified-vibe/auth" class="gate-signin-link">Sign in →</a>
+    </div>
+
   </main>
 </div>
 
@@ -119,6 +118,24 @@
     border-radius: 0 0 4px 0;
   }
   .skip-link:focus { top: 0; }
+
+  .gate-signin {
+    margin-top: 28px;
+    text-align: center;
+    font-size: 14px;
+    color: var(--text-3);
+  }
+
+  .gate-signin-link {
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 200ms;
+  }
+
+  .gate-signin-link:hover {
+    color: var(--accent-bright);
+  }
 
   .gate-screen {
     padding: 20px 24px 32px;

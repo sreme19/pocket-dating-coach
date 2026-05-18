@@ -9,11 +9,13 @@
   let { children } = $props();
 
   // ── Auth guard ──────────────────────────────────────────────────────────────
-  // On every route change within /verified-vibe, verify the session.
-  // The /auth page is exempt so we don't create a redirect loop.
+  // Gate and auth pages are public (no session needed).
+  // Everything else redirects to /auth if unauthenticated.
+  const PUBLIC_VV_PATHS = ['/verified-vibe/auth', '/verified-vibe/gate', '/verified-vibe/privacy'];
+
   $effect(() => {
     const pathname = $page.url.pathname;
-    if (pathname.endsWith('/auth')) return; // already on auth page
+    if (PUBLIC_VV_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))) return;
 
     getSupabaseClient()
       .auth.getSession()
