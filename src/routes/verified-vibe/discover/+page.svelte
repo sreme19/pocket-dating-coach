@@ -11,6 +11,7 @@
   import { fade, slide, scale } from 'svelte/transition';
   import DiscoveryCard from '$lib/verified-vibe/components/DiscoveryCard.svelte';
   import MatchOverlay from '$lib/verified-vibe/components/MatchOverlay.svelte';
+  import { swipe } from '$lib/verified-vibe/utils/swipe';
   import type { DiscoveryProfile } from '$lib/verified-vibe/types';
 
   let showMatchOverlay = $state(false);
@@ -20,6 +21,7 @@
   let offset = $state(0);
   let error = $state<string | null>(null);
   let isAnimating = $state(false);
+  let cardStackContainer: HTMLElement | undefined = $state();
   
   const limit = 10;
   const passedIds = $state<Set<string>>(new Set());
@@ -175,6 +177,34 @@
     showMatchOverlay = false;
     matchedProfile = null;
   }
+
+  // Handle swipe left (pass)
+  function handleSwipeLeft() {
+    if (!isAnimating && currentProfile) {
+      handlePass();
+    }
+  }
+
+  // Handle swipe right (like)
+  function handleSwipeRight() {
+    if (!isAnimating && currentProfile) {
+      handleLike();
+    }
+  }
+
+  // Attach swipe handlers to card stack container
+  $effect.pre(() => {
+    if (!cardStackContainer) return;
+
+    const cleanup = swipe(cardStackContainer, {
+      minDistance: 50,
+      maxTime: 500,
+      onSwipeLeft: handleSwipeLeft,
+      onSwipeRight: handleSwipeRight
+    });
+
+    return cleanup;
+  });
 </script>
 
 <div class="discover-screen">
@@ -194,7 +224,7 @@
   {/if}
 
   <!-- Card Stack Container -->
-  <div class="card-stack-container">
+  <div class="card-stack-container" bind:this={cardStackContainer}>
     {#if currentProfile}
       <div class="card-stack" transition:fade={{ duration: 300 }}>
         <DiscoveryCard 
