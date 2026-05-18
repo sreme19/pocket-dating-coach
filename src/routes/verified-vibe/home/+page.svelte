@@ -13,14 +13,13 @@
   let selectedArchetype = $state<Archetype | null>(null);
   let expandedArchetype = $state<Archetype | null>(null);
 
-  // Load gender from Supabase (falls back to localStorage)
+  // Load gender — try Supabase first (logged-in users), fall back to localStorage (pre-auth)
   $effect(() => {
     getProfile().then((profile) => {
       if (profile?.gender) {
         gender = profile.gender;
         localStorage.setItem('verified_vibe_gender', profile.gender);
       } else {
-        // Fallback: localStorage (e.g. if Supabase call fails offline)
         const stored = localStorage.getItem('verified_vibe_gender');
         if (stored) gender = stored as Gender;
       }
@@ -52,17 +51,13 @@
     }
   }
 
-  async function handleLockIn(archetypeId: Archetype) {
+  function handleLockIn(archetypeId: Archetype) {
     selectedArchetype = archetypeId;
-    // Persist archetype to Supabase (best-effort; also keep localStorage)
-    try {
-      await upsertProfile({ archetype: archetypeId });
-    } catch (e) {
-      console.error('Failed to save archetype to Supabase:', e);
-    }
+    // Store archetype locally — will be saved to Supabase after the user signs up/in
     localStorage.setItem('verified_vibe_archetype', archetypeId);
-    setPhase('verify');
-    goto('/verified-vibe/verify');
+    localStorage.setItem('verified_vibe_pending_archetype', archetypeId);
+    // Route to auth — this is the moment we ask for an account (before any sensitive data)
+    goto('/verified-vibe/auth');
   }
 </script>
 

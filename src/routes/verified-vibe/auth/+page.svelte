@@ -7,6 +7,7 @@
     routeForCompleteness,
     upsertProfile
   } from '$lib/verified-vibe/services/profileService';
+  import { page } from '$app/stores';
   import { fade, slide } from 'svelte/transition';
   import { ShieldCheck } from 'lucide-svelte';
 
@@ -21,6 +22,10 @@
   // Dev-only test accounts (only active when VITE_SKIP_VERIFICATION=true)
   const DEV_TEST_EMAILS = ['male@test.vv', 'female@test.vv'];
   const isDevMode = import.meta.env.VITE_SKIP_VERIFICATION === 'true';
+
+  // Detect whether user arrived here mid-onboarding (after archetype selection)
+  const isSignUp = $derived($page.url.searchParams.get('mode') !== 'signin'
+    && !!localStorage?.getItem?.('verified_vibe_pending_archetype'));
 
   // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -86,14 +91,20 @@
   }
 
   async function routeAfterAuth() {
-    // If user came from the gate page, a pending gender is stored locally — save it now
-    const pendingGender = localStorage.getItem('verified_vibe_pending_gender');
-    if (pendingGender) {
+    // Flush any locally-stored preferences collected before sign-up
+    const pendingGender    = localStorage.getItem('verified_vibe_pending_gender');
+    const pendingArchetype = localStorage.getItem('verified_vibe_pending_archetype');
+
+    if (pendingGender || pendingArchetype) {
       try {
-        await upsertProfile({ gender: pendingGender as any });
+        await upsertProfile({
+          ...(pendingGender    ? { gender:    pendingGender    as any } : {}),
+          ...(pendingArchetype ? { archetype: pendingArchetype as any } : {})
+        });
         localStorage.removeItem('verified_vibe_pending_gender');
+        localStorage.removeItem('verified_vibe_pending_archetype');
       } catch (e) {
-        console.error('Failed to save pending gender:', e);
+        console.error('Failed to flush pending profile data:', e);
       }
     }
 
@@ -173,8 +184,14 @@
 
     {:else if step === 'email'}
       <div transition:fade={{ duration: 200 }}>
-        <h1 class="auth-title">Sign in or create account</h1>
-        <p class="auth-sub">We'll email you a 6-digit code. No password needed.</p>
+        <h1 class="auth-title">{isSignUp ? 'Create your account' : 'Welcome back'}</h1>
+        <p class="auth-sub">
+          {#if isSignUp}
+            Almost there — we need an email to keep your profile safe.<br/>We'll send a 6-digit code. No password needed.
+          {:else}
+            We'll email you a 6-digit code. No password needed.
+          {/if}
+        </p>
 
         <div class="auth-field">
           <label class="auth-label" for="email-input">Email address</label>

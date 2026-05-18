@@ -10,10 +10,11 @@
 
   function handleContinue() {
     if (!ready) return;
-    // Store gender locally — will be saved to Supabase after auth
+    // Store gender locally — will be saved to Supabase after auth on the next step
     localStorage.setItem('verified_vibe_gender', gender!);
     localStorage.setItem('verified_vibe_pending_gender', gender!);
-    goto('/verified-vibe/auth');
+    setPhase('home');
+    goto('/verified-vibe/home');
   }
 </script>
 
@@ -99,7 +100,7 @@
 
     <!-- Sign-in link for returning members -->
     <div class="gate-signin" transition:fade={{ duration: 400, delay: 500 }}>
-      Already a member? <a href="/verified-vibe/auth" class="gate-signin-link">Sign in →</a>
+      Already a member? <a href="/verified-vibe/auth?mode=signin" class="gate-signin-link">Sign in →</a>
     </div>
 
   </main>
