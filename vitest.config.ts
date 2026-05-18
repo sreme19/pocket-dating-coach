@@ -11,6 +11,12 @@ export default defineConfig({
 		alias: {
 			$lib: '/src/lib',
 			$app: '/src/app'
+		},
+		pool: 'forks',
+		poolOptions: {
+			forks: {
+				singleFork: true
+			}
 		}
 	}
 });

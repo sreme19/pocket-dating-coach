@@ -88,57 +88,57 @@ Phase-based execution with dependency management. Each phase builds on previous 
 
 - [x] 11. Liveness Check (Claude Vision) - Create VerificationStep component for selfie capture. User can take selfie (camera input or file upload). Send selfie + ID photo to Claude API for comparison. Claude returns confidence score (0-100). If confidence > 80%, mark as passed. If confidence < 80%, ask user to retake. Display result to user. Save to verification record. Handle errors. Mobile responsive.
 
-- [ ] 12. Photo Upload & Consistency Check - Create VerificationStep component for photo upload. User can upload 5+ photos with labels (lead, warmth, lifestyle, conversation, social). Send all photos to Claude API for consistency check. Claude analyzes if all photos are same person. If consistent, mark as passed. If inconsistent, ask user to re-upload. Display result. Save photos to Supabase storage. Save to verification record. Mobile responsive.
+- [x] 12. Photo Upload & Consistency Check - Create VerificationStep component for photo upload. User can upload 5+ photos with labels (lead, warmth, lifestyle, conversation, social). Send all photos to Claude API for consistency check. Claude analyzes if all photos are same person. If consistent, mark as passed. If inconsistent, ask user to re-upload. Display result. Save photos to Supabase storage. Save to verification record. Mobile responsive.
 
-- [ ] 13. Spending/Q&A Step - Create VerificationStep component for spending verification (men) or Q&A (women). For men: upload bank statement or spending screenshot, Claude analyzes spending pattern, mark as passed if credible. For women: display 3-5 Q&A questions, user answers each, Claude evaluates honesty/clarity, mark as passed if satisfactory. Save responses to verification record. Handle errors. Mobile responsive.
+- [x] 13. Spending/Q&A Step - Create VerificationStep component for spending verification (men) or Q&A (women). For men: upload bank statement or spending screenshot, Claude analyzes spending pattern, mark as passed if credible. For women: display 3-5 Q&A questions, user answers each, Claude evaluates honesty/clarity, mark as passed if satisfactory. Save responses to verification record. Handle errors. Mobile responsive.
 
-- [ ] 14. Trust Score Calculation - Create calculateTrustScore() function in utils.ts. Identity category: ID (10 pts) + Liveness (10 pts) + Face match (10 pts) = 30 pts max. Lifestyle category: Photos (15 pts) + Consistency (15 pts) + Grooming (15 pts) = 45 pts max. Intent category: Q&A (10 pts) + Archetype clarity (10 pts) = 20 pts max. Total: 0-100 points. Update user trust score after each step. Display breakdown in trust dashboard. Test calculation logic.
+- [x] 14. Trust Score Calculation - Create calculateTrustScore() function in utils.ts. Identity category: ID (10 pts) + Liveness (10 pts) + Face match (10 pts) = 30 pts max. Lifestyle category: Photos (15 pts) + Consistency (15 pts) + Grooming (15 pts) = 45 pts max. Intent category: Q&A (10 pts) + Archetype clarity (10 pts) = 20 pts max. Total: 0-100 points. Update user trust score after each step. Display breakdown in trust dashboard. Test calculation logic.
 
 ### Phase 4: Discovery & Matching (Week 3)
 
-- [ ] 15. Discovery Screen (Card Stack) - Create src/routes/verified-vibe/discover/+page.svelte implementing card stack discovery interface. Fetch discovery cards from API. Display card stack (one card visible at a time) showing profile photo, name, age, archetype, distance, about, trust score. Implement swipe gestures (left/right). Implement Like/Pass buttons. Handle card transitions smoothly. Load next card after action. Mobile responsive. Handle empty state (no more cards).
+- [x] 15. Discovery Screen (Card Stack) - Create src/routes/verified-vibe/discover/+page.svelte implementing card stack discovery interface. Fetch discovery cards from API. Display card stack (one card visible at a time) showing profile photo, name, age, archetype, distance, about, trust score. Implement swipe gestures (left/right). Implement Like/Pass buttons. Handle card transitions smoothly. Load next card after action. Mobile responsive. Handle empty state (no more cards).
 
-- [ ] 16. DiscoveryCard Component - Create src/lib/verified-vibe/components/DiscoveryCard.svelte accepting profile prop. Display profile photo (full-width, high-quality). Display name, age, archetype emoji. Display distance, about text. Display trust score with badge. Display verified badges (ID, Photos, Spending, Q&A). Smooth animations. Accessible.
+- [x] 16. DiscoveryCard Component - Create src/lib/verified-vibe/components/DiscoveryCard.svelte accepting profile prop. Display profile photo (full-width, high-quality). Display name, age, archetype emoji. Display distance, about text. Display trust score with badge. Display verified badges (ID, Photos, Spending, Q&A). Smooth animations. Accessible.
 
-- [ ] 17. Swipe Gesture Handling - Implement touch and mouse event listeners for swipe detection. Detect swipe left (pass) and swipe right (like). Animate card out on swipe. Load next card smoothly. Support both touch and mouse events. Provide visual feedback during swipe. Handle edge cases (fast swipes, diagonal swipes). Mobile responsive. Accessible with keyboard support.
+- [x] 17. Swipe Gesture Handling - Implement touch and mouse event listeners for swipe detection. Detect swipe left (pass) and swipe right (like). Animate card out on swipe. Load next card smoothly. Support both touch and mouse events. Provide visual feedback during swipe. Handle edge cases (fast swipes, diagonal swipes). Mobile responsive. Accessible with keyboard support.
 
-- [ ] 18. Like/Pass Logic - Create POST /api/verified-vibe/like endpoint. On like, check if mutual match. If mutual match, create match record. If not mutual, store like for future matching. On pass, skip profile. Update discovery queue. Handle errors. Test matching logic.
+- [x] 18. Like/Pass Logic - Create POST /api/verified-vibe/like endpoint. On like, check if mutual match. If mutual match, create match record. If not mutual, store like for future matching. On pass, skip profile. Update discovery queue. Handle errors. Test matching logic.
 
-- [ ] 19. Match Overlay - Create MatchOverlay component displaying when mutual match occurs. Show matched profile with larger photo. Show "Send Message" and "Close" buttons. On "Send Message", navigate to chat. On "Close", return to discovery. Smooth animations. Mobile responsive (full-screen on mobile).
+- [x] 19. Match Overlay - Create MatchOverlay component displaying when mutual match occurs. Show matched profile with larger photo. Show "Send Message" and "Close" buttons. On "Send Message", navigate to chat. On "Close", return to discovery. Smooth animations. Mobile responsive (full-screen on mobile).
 
 ### Phase 5: Chat & Messaging (Week 3-4)
 
-- [ ] 20. Chat Screen - Create src/routes/verified-vibe/chat/+page.svelte implementing chat interface. Display conversation history. Show matched profile at top. Implement message input at bottom. Display messages in chronological order. Show sender/receiver distinction. Show timestamps. Handle empty state (no messages yet). Mobile responsive. Keyboard handling.
+- [x] 20. Chat Screen - Create src/routes/verified-vibe/chat/+page.svelte implementing chat interface. Display conversation history. Show matched profile at top. Implement message input at bottom. Display messages in chronological order. Show sender/receiver distinction. Show timestamps. Handle empty state (no messages yet). Mobile responsive. Keyboard handling.
 
-- [ ] 21. ChatMessage Component - Create src/lib/verified-vibe/components/ChatMessage.svelte accepting message prop. Display sender/receiver distinction (left/right alignment). Display message text. Display timestamp. Show read status (optional). Smooth animations. Accessible.
+- [x] 21. ChatMessage Component - Create src/lib/verified-vibe/components/ChatMessage.svelte accepting message prop. Display sender/receiver distinction (left/right alignment). Display message text. Display timestamp. Show read status (optional). Smooth animations. Accessible.
 
-- [ ] 22. Message Sending - Create POST /api/verified-vibe/message endpoint. User can type message in input. User can send message (button or Enter key). Message appears immediately in UI (optimistic update). Message is saved to Supabase. Handle errors (network, validation). Clear input after send. Disable send button while sending. Mobile responsive.
+- [x] 22. Message Sending - Create POST /api/verified-vibe/message endpoint. User can type message in input. User can send message (button or Enter key). Message appears immediately in UI (optimistic update). Message is saved to Supabase. Handle errors (network, validation). Clear input after send. Disable send button while sending. Mobile responsive.
 
-- [ ] 23. Realtime Messages (Supabase) - Implement Supabase realtime subscription for message changes. Subscribe to current match messages. New messages appear in real-time. Handle connection loss gracefully. Unsubscribe when leaving chat. Show "typing" indicator (optional). Test with multiple clients. Mobile responsive.
+- [x] 23. Realtime Messages (Supabase) - Implement Supabase realtime subscription for message changes. Subscribe to current match messages. New messages appear in real-time. Handle connection loss gracefully. Unsubscribe when leaving chat. Show "typing" indicator (optional). Test with multiple clients. Mobile responsive.
 
-- [ ] 24. Online Status - Implement Supabase presence tracking for user online status. Track user online status in Supabase. Show online indicator in chat. Show "last seen" for offline users. Update status on app open/close. Handle connection loss. Test with multiple clients.
+- [x] 24. Online Status - Implement Supabase presence tracking for user online status. Track user online status in Supabase. Show online indicator in chat. Show "last seen" for offline users. Update status on app open/close. Handle connection loss. Test with multiple clients.
 
 ### Phase 6: Trust Dashboard (Week 4)
 
-- [ ] 25. Trust Dashboard Screen - Create src/routes/verified-vibe/trust/+page.svelte implementing trust dashboard. Display user profile (avatar, name, age, city). Display overall trust score. Display trust breakdown by category. Show completed verification steps. Show "Edit Q&A" button. Mobile responsive. Smooth animations.
+- [x] 25. Trust Dashboard Screen - Create src/routes/verified-vibe/trust/+page.svelte implementing trust dashboard. Display user profile (avatar, name, age, city). Display overall trust score. Display trust breakdown by category. Show completed verification steps. Show "Edit Q&A" button. Mobile responsive. Smooth animations.
 
-- [ ] 26. TrustGauge Component - Create src/lib/verified-vibe/components/TrustGauge.svelte accepting trust score prop. Display radial gauge (default). Support linear gauge variant. Support arc gauge variant. Show score percentage. Show category breakdown. Smooth animations. Accessible with ARIA labels.
+- [x] 26. TrustGauge Component - Create src/lib/verified-vibe/components/TrustGauge.svelte accepting trust score prop. Display radial gauge (default). Support linear gauge variant. Support arc gauge variant. Show score percentage. Show category breakdown. Smooth animations. Accessible with ARIA labels.
 
-- [ ] 27. Profile Card Display - Create ProfileCard component for trust dashboard. Display user profile card. Show archetype emoji and name. Show age, city, distance. Show about/looking text. Show verified badges. Show edit button. Mobile responsive.
+- [x] 27. Profile Card Display - Create ProfileCard component for trust dashboard. Display user profile card. Show archetype emoji and name. Show age, city, distance. Show about/looking text. Show verified badges. Show edit button. Mobile responsive.
 
-- [ ] 28. Edit Q&A Modal - Create modal for editing Q&A responses. Display current Q&A responses. Allow user to edit each response. Save changes to Supabase. Update trust score after save. Handle errors. Mobile responsive.
+- [x] 28. Edit Q&A Modal - Create modal for editing Q&A responses. Display current Q&A responses. Allow user to edit each response. Save changes to Supabase. Update trust score after save. Handle errors. Mobile responsive.
 
 ### Phase 7: Mobile & Polish (Week 4)
 
-- [ ] 29. Mobile Responsiveness - Test all screens on mobile (375px), tablet (768px), desktop (1024px). Ensure all screens adapt to viewport. Verify touch targets are 44x44px minimum. Verify text is readable without zooming. Verify images scale appropriately. Ensure no horizontal scrolling (except carousels). Verify forms are mobile-friendly. Verify modals are full-screen on mobile.
+- [x] 29. Mobile Responsiveness - Test all screens on mobile (375px), tablet (768px), desktop (1024px). Ensure all screens adapt to viewport. Verify touch targets are 44x44px minimum. Verify text is readable without zooming. Verify images scale appropriately. Ensure no horizontal scrolling (except carousels). Verify forms are mobile-friendly. Verify modals are full-screen on mobile.
 
-- [ ] 30. Bottom Navigation - Create BottomNav component showing on mobile only (hidden on desktop). Tabs: Discover, Trust, Chat. Show badge for unread messages. Smooth transitions between tabs. Accessible with keyboard navigation. Mobile responsive.
+- [x] 30. Bottom Navigation - Create BottomNav component showing on mobile only (hidden on desktop). Tabs: Discover, Trust, Chat. Show badge for unread messages. Smooth transitions between tabs. Accessible with keyboard navigation. Mobile responsive.
 
-- [ ] 31. Performance Optimization - Optimize page load time < 2s on 4G. Optimize time to interactive < 3s. Achieve Lighthouse score > 80. Optimize images (WebP, lazy loading). Ensure no layout shift (CLS < 0.1). Implement code splitting. Add service worker for offline support.
+- [x] 31. Performance Optimization - Optimize page load time < 2s on 4G. Optimize time to interactive < 3s. Achieve Lighthouse score > 80. Optimize images (WebP, lazy loading). Ensure no layout shift (CLS < 0.1). Implement code splitting. Add service worker for offline support.
 
-- [ ] 32. Error Handling & Edge Cases - Handle network errors gracefully. Handle API errors with user-friendly messages. Handle file upload errors. Handle Claude API errors. Handle Supabase errors. Implement retry logic. Log errors for debugging. Test error scenarios.
+- [x] 32. Error Handling & Edge Cases - Handle network errors gracefully. Handle API errors with user-friendly messages. Handle file upload errors. Handle Claude API errors. Handle Supabase errors. Implement retry logic. Log errors for debugging. Test error scenarios.
 
-- [ ] 33. Testing & QA - Write unit tests for utility functions. Write integration tests for API endpoints. Write E2E tests for full user flow. Test on mobile devices. Test on different browsers. Run performance tests. Run accessibility audit (WCAG 2.1 AA).
+- [x] 33. Testing & QA - Write unit tests for utility functions. Write integration tests for API endpoints. Write E2E tests for full user flow. Test on mobile devices. Test on different browsers. Run performance tests. Run accessibility audit (WCAG 2.1 AA).
 
 ## Notes
 

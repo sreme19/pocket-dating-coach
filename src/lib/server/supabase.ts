@@ -4,6 +4,122 @@ import { SUPABASE_SERVICE_KEY, SUPABASE_URL } from '$env/static/private';
 export type Database = {
 	public: {
 		Tables: {
+			verified_vibe_users: {
+				Row: {
+					id: string;
+					gender: 'man' | 'woman' | 'prefer_not_to_say';
+					archetype: 'casual_man' | 'marriage_minded_man' | 'spoilt_woman' | 'safety_first_woman';
+					first_name: string;
+					age: number;
+					city: string;
+					avatar_url: string | null;
+					about: string | null;
+					looking: string | null;
+					trust_score: number;
+					created_at: string;
+					updated_at: string;
+				};
+				Insert: {
+					id?: string;
+					gender: 'man' | 'woman' | 'prefer_not_to_say';
+					archetype: 'casual_man' | 'marriage_minded_man' | 'spoilt_woman' | 'safety_first_woman';
+					first_name: string;
+					age: number;
+					city: string;
+					avatar_url?: string | null;
+					about?: string | null;
+					looking?: string | null;
+					trust_score?: number;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['verified_vibe_users']['Insert']>;
+				Relationships: [];
+			};
+			verified_vibe_likes: {
+				Row: {
+					id: string;
+					user_id: string;
+					liked_user_id: string;
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					user_id: string;
+					liked_user_id: string;
+					created_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['verified_vibe_likes']['Insert']>;
+				Relationships: [];
+			};
+			verified_vibe_passes: {
+				Row: {
+					id: string;
+					user_id: string;
+					passed_user_id: string;
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					user_id: string;
+					passed_user_id: string;
+					created_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['verified_vibe_passes']['Insert']>;
+				Relationships: [];
+			};
+			verified_vibe_matches: {
+				Row: {
+					id: string;
+					user1_id: string;
+					user2_id: string;
+					status: 'pending' | 'mutual' | 'rejected';
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					user1_id: string;
+					user2_id: string;
+					status?: 'pending' | 'mutual' | 'rejected';
+					created_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['verified_vibe_matches']['Insert']>;
+				Relationships: [];
+			};
+			verified_vibe_messages: {
+				Row: {
+					id: string;
+					match_id: string;
+					sender_id: string;
+					content: string;
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					match_id: string;
+					sender_id: string;
+					content: string;
+					created_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['verified_vibe_messages']['Insert']>;
+				Relationships: [];
+			};
+			verified_vibe_typing_indicators: {
+				Row: {
+					id: string;
+					match_id: string;
+					user_id: string;
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					match_id: string;
+					user_id: string;
+					created_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['verified_vibe_typing_indicators']['Insert']>;
+				Relationships: [];
+			};
 			book_chunks: {
 				Row: {
 					id: string;

@@ -446,3 +446,11 @@ export function clearVerifiedVibeLocalStorage(): void {
 
   keys.forEach((key) => removeFromLocalStorage(key));
 }
+
+/**
+ * Helper function to calculate trust score from verification records
+ * Can be used in components or stores to update trust score after verification
+ */
+export function calculateTrustScoreFromRecords(verificationRecords: VerificationRecord[]): TrustScore {
+  return calculateTrustScore(verificationRecords);
+}

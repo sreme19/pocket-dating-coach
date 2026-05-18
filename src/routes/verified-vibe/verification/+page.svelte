@@ -7,9 +7,14 @@
     setPhase,
     setError,
     clearError,
-    user
+    user,
+    userVerification,
+    updateTrustScore
   } from '$lib/verified-vibe/stores';
-  import { VERIFICATION_STEPS } from '$lib/verified-vibe/constants';
+  import { calculateTrustScore } from '$lib/verified-vibe/utils';
+  import PhotoUploadStep from '$lib/verified-vibe/components/PhotoUploadStep.svelte';
+  import SpendingQAStep from '$lib/verified-vibe/components/SpendingQAStep.svelte';
+  import SpendingUploadStep from '$lib/verified-vibe/components/SpendingUploadStep.svelte';
   import type { VerificationStep as VerificationStepType } from '$lib/verified-vibe/types';
   import { fade, slide } from 'svelte/transition';
   import { onMount } from 'svelte';
@@ -73,6 +78,216 @@
     });
   });
 
+  async function handlePhotoSubmit(data: { photos: File[]; labels: Record<string, string> }) {
+    error = null;
+    clearError();
+    loading = true;
+
+    try {
+      // Convert photos to base64
+      const base64Images = await Promise.all(
+        data.photos.map(file => {
+          return new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const result = reader.result as string;
+              const base64 = result.split(',')[1];
+              resolve(base64);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        })
+      );
+
+      // Submit to API
+      const response = await fetch('/api/verified-vibe/verify-step', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          step: 'photos',
+          data: {
+            images: base64Images,
+            mimeTypes: data.photos.map(f => f.type),
+            labels: data.labels
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || 'Photo verification failed');
+      }
+
+      const result = await response.json();
+
+      // Store verification record
+      addVerificationRecord({
+        id: `${$user?.id}-photos`,
+        userId: $user?.id || '',
+        step: 'photos',
+        status: 'completed',
+        data: result.data,
+        completedAt: new Date(),
+        createdAt: new Date()
+      });
+
+      // Mark step as completed
+      completedSteps.add(currentStep);
+
+      // Update progress
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+
+      // Update trust score
+      updateTrustScoreAfterVerification();
+
+      // Move to next step
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        // All steps complete
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleSpendingSubmit(data: { spendingImage: string; mimeType: string }) {
+    error = null;
+    clearError();
+    loading = true;
+
+    try {
+      // Submit to API
+      const response = await fetch('/api/verified-vibe/verify-step', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          step: 'spending_or_qa',
+          data: {
+            spendingImage: data.spendingImage,
+            mimeType: data.mimeType,
+            gender: $user?.gender
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || 'Spending verification failed');
+      }
+
+      const result = await response.json();
+
+      // Store verification record
+      addVerificationRecord({
+        id: `${$user?.id}-spending_or_qa`,
+        userId: $user?.id || '',
+        step: 'spending_or_qa',
+        status: 'completed',
+        data: result.data,
+        completedAt: new Date(),
+        createdAt: new Date()
+      });
+
+      // Mark step as completed
+      completedSteps.add(currentStep);
+
+      // Update progress
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+
+      // Update trust score
+      updateTrustScoreAfterVerification();
+
+      // Move to next step or complete
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        // All steps complete
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleQASubmit(data: { responses: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+    loading = true;
+
+    try {
+      // Submit to API
+      const response = await fetch('/api/verified-vibe/verify-step', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          step: 'spending_or_qa',
+          data: {
+            responses: data.responses,
+            gender: $user?.gender
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || 'Q&A verification failed');
+      }
+
+      const result = await response.json();
+
+      // Store verification record
+      addVerificationRecord({
+        id: `${$user?.id}-spending_or_qa`,
+        userId: $user?.id || '',
+        step: 'spending_or_qa',
+        status: 'completed',
+        data: result.data,
+        completedAt: new Date(),
+        createdAt: new Date()
+      });
+
+      // Mark step as completed
+      completedSteps.add(currentStep);
+
+      // Update progress
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+
+      // Update trust score
+      updateTrustScoreAfterVerification();
+
+      // Move to next step or complete
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        // All steps complete
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
   async function handleNext() {
     error = null;
     clearError();
@@ -121,6 +336,9 @@
       // Update progress
       const progress = (completedSteps.size / totalSteps) * 100;
       verificationProgress.set(progress);
+
+      // Update trust score
+      updateTrustScoreAfterVerification();
 
       // Move to next step or complete
       if (currentStep < totalSteps) {
@@ -195,6 +413,19 @@
 
   function isStepSkipped(step: number): boolean {
     return skippedSteps.has(step);
+  }
+
+  /**
+   * Update trust score after verification step is completed
+   */
+  function updateTrustScoreAfterVerification() {
+    let records: any[] = [];
+    userVerification.subscribe((r) => {
+      records = r;
+    })();
+    
+    const trustScore = calculateTrustScore(records);
+    updateTrustScore(trustScore);
   }
 </script>
 
@@ -287,39 +518,23 @@
           />
         </div>
       {:else if currentStep === 3}
-        <div class="upload-area" role="button" tabindex="0">
-          <div class="upload-icon">🖼️</div>
-          <p class="upload-text">Upload 5+ photos</p>
-          <p class="upload-hint">Show different sides of yourself</p>
-          <input 
-            type="file" 
-            accept="image/*" 
-            multiple
-            disabled={loading}
-            onchange={(e) => updateStepData(3, e.currentTarget.files)}
-          />
-        </div>
+        <PhotoUploadStep 
+          onSubmit={handlePhotoSubmit}
+          onCancel={handleBack}
+        />
       {:else if currentStep === 4}
-        <div class="qa-area">
-          <div class="qa-question">
-            <label for="q1">What are you looking for in a partner?</label>
-            <textarea 
-              id="q1"
-              placeholder="Share your thoughts..."
-              disabled={loading}
-              onchange={(e) => updateStepData(4, { q1: e.currentTarget.value })}
-            ></textarea>
-          </div>
-          <div class="qa-question">
-            <label for="q2">What's your ideal first date?</label>
-            <textarea 
-              id="q2"
-              placeholder="Share your thoughts..."
-              disabled={loading}
-              onchange={(e) => updateStepData(4, { q2: e.currentTarget.value })}
-            ></textarea>
-          </div>
-        </div>
+        {#if $user?.gender === 'man'}
+          <SpendingUploadStep 
+            onSubmit={handleSpendingSubmit}
+            onCancel={handleBack}
+          />
+        {:else}
+          <SpendingQAStep 
+            gender={$user?.gender}
+            onSubmit={handleQASubmit}
+            onCancel={handleBack}
+          />
+        {/if}
       {/if}
     </div>
   </div>
@@ -347,17 +562,19 @@
 
   <!-- Actions -->
   <div class="verification-actions" transition:slide={{ duration: 400, delay: 100, axis: 'y' }}>
-    <button class="btn btn-secondary" onclick={handleSkipClick} disabled={loading}>
-      Skip
-    </button>
-    <button class="btn btn-primary" onclick={handleNext} disabled={loading}>
-      {#if loading}
-        <span class="loading-spinner"></span>
-        Processing...
-      {:else}
-        {currentStep === totalSteps ? 'Complete' : 'Next'}
-      {/if}
-    </button>
+    {#if currentStep !== 3 && currentStep !== 4}
+      <button class="btn btn-secondary" onclick={handleSkipClick} disabled={loading}>
+        Skip
+      </button>
+      <button class="btn btn-primary" onclick={handleNext} disabled={loading}>
+        {#if loading}
+          <span class="loading-spinner"></span>
+          Processing...
+        {:else}
+          {currentStep === totalSteps ? 'Complete' : 'Next'}
+        {/if}
+      </button>
+    {/if}
   </div>
 </div>
 
