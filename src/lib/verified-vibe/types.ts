@@ -91,12 +91,24 @@ export interface Message {
   senderId: string;
   content: string;
   createdAt: Date;
+  imageUrl?: string;
+  isDeleted?: boolean;
+  editedAt?: Date;
+  readAt?: Date;
+  reactions?: MessageReaction[];
+}
+
+export interface MessageReaction {
+  emoji: string;
+  users: string[];
+  count: number;
 }
 
 export interface DiscoveryProfile extends VerifiedVibeUser {
   distance: string;
   verified: string[];
   trustScore: number;
+  photos?: string[]; // Additional photos for carousel (avatar is first photo)
 }
 
 export type NotificationType = 'match' | 'message' | 'verification' | 'system';

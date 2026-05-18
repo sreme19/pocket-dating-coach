@@ -1,48 +1,47 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  /**
+   * NotificationCenter Component
+   *
+   * Displays notifications with badge count and notification list.
+   * Allows marking notifications as read and clearing them.
+   *
+   * Props:
+   * - notifications: Notification[] - Array of notifications
+   * - unreadCount: number - Number of unread notifications
+   * - onMarkAsRead: (notificationId: string) => void - Mark as read callback
+   * - onClear: (notificationId: string) => void - Clear callback
+   * - onClearAll: () => void - Clear all callback
+   */
+
   import { fade, slide } from 'svelte/transition';
-  import { notifications, unreadNotifications, markNotificationAsRead, deleteNotification } from '../stores';
-  import type { Notification } from '../types';
 
-  let displayedNotifications = $state<Notification[]>([]);
-  let toastNotifications = $state<Array<{ id: string; title: string; body: string; type: string }>>([]);
-
-  onMount(() => {
-    // Listen for in-app notification events
-    const handleNotification = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const { title, body, type } = customEvent.detail;
-
-      const toastId = `toast_${Date.now()}`;
-      toastNotifications = [...toastNotifications, { id: toastId, title, body, type }];
-
-      // Auto-remove toast after 5 seconds
-      setTimeout(() => {
-        toastNotifications = toastNotifications.filter((n) => n.id !== toastId);
-      }, 5000);
-    };
-
-    window.addEventListener('notification', handleNotification);
-
-    return () => {
-      window.removeEventListener('notification', handleNotification);
-    };
-  });
-
-  function handleNotificationClick(notification: Notification) {
-    if (notification.status === 'unread') {
-      markNotificationAsRead(notification.id);
-    }
-
-    // Navigate to action URL if available
-    if (notification.data?.actionUrl) {
-      window.location.href = notification.data.actionUrl;
-    }
+  interface Notification {
+    id: string;
+    type: 'message' | 'match' | 'system';
+    title: string;
+    message: string;
+    read: boolean;
+    createdAt: Date;
+    actionUrl?: string;
   }
 
-  function handleDeleteNotification(notificationId: string) {
-    deleteNotification(notificationId);
+  interface Props {
+    notifications?: Notification[];
+    unreadCount?: number;
+    onMarkAsRead?: (notificationId: string) => void;
+    onClear?: (notificationId: string) => void;
+    onClearAll?: () => void;
   }
+
+  let {
+    notifications = [],
+    unreadCount = 0,
+    onMarkAsRead = () => {},
+    onClear = () => {},
+    onClearAll = () => {}
+  }: Props = $props();
+
+  let isOpen = $state(false);
 
   function getNotificationIcon(type: string): string {
     switch (type) {
@@ -50,10 +49,10 @@
         return '💬';
       case 'match':
         return '❤️';
-      case 'verification':
-        return '✓';
-      default:
+      case 'system':
         return 'ℹ️';
+      default:
+        return '🔔';
     }
   }
 
@@ -62,158 +61,163 @@
     const diff = now.getTime() - new Date(date).getTime();
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
 
-    if (minutes < 1) return 'now';
+    if (minutes < 1) return 'just now';
     if (minutes < 60) return `${minutes}m ago`;
     if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
 
     return new Date(date).toLocaleDateString();
   }
+
+  function handleNotificationClick(notification: Notification) {
+    if (!notification.read) {
+      onMarkAsRead(notification.id);
+    }
+    if (notification.actionUrl) {
+      window.location.href = notification.actionUrl;
+    }
+  }
 </script>
 
-<!-- Toast Notifications (top-right) -->
-<div class="toast-container">
-  {#each toastNotifications as toast (toast.id)}
-    <div class="toast" class:toast-message={toast.type === 'message'} class:toast-match={toast.type === 'match'} transition:slide={{ duration: 300, axis: 'x' }}>
-      <div class="toast-icon">{getNotificationIcon(toast.type)}</div>
-      <div class="toast-content">
-        <p class="toast-title">{toast.title}</p>
-        <p class="toast-body">{toast.body}</p>
-      </div>
-      <button class="toast-close" onclick={() => (toastNotifications = toastNotifications.filter((n) => n.id !== toast.id))} aria-label="Close notification">
-        ✕
-      </button>
-    </div>
-  {/each}
-</div>
-
-<!-- Notification Center (modal) -->
 <div class="notification-center">
-  <div class="notification-header">
-    <h2>Notifications</h2>
-    {#if $unreadNotifications > 0}
-      <span class="unread-badge">{$unreadNotifications}</span>
+  <!-- Notification Bell Button -->
+  <button
+    class="notification-bell"
+    on:click={() => (isOpen = !isOpen)}
+    aria-label={`Notifications (${unreadCount} unread)`}
+    title={`${unreadCount} unread notifications`}
+  >
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+      <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+    </svg>
+
+    {#if unreadCount > 0}
+      <span class="badge" transition:fade={{ duration: 200 }}>
+        {unreadCount > 99 ? '99+' : unreadCount}
+      </span>
     {/if}
-  </div>
+  </button>
 
-  <div class="notification-list">
-    {#if $notifications.length === 0}
-      <div class="empty-state">
-        <p>No notifications yet</p>
-      </div>
-    {:else}
-      {#each $notifications as notification (notification.id)}
-        <button
-          class="notification-item"
-          class:unread={notification.status === 'unread'}
-          onclick={() => handleNotificationClick(notification)}
-          transition:slide={{ duration: 300 }}
-        >
-          <div class="notification-icon">{getNotificationIcon(notification.type)}</div>
-
-          <div class="notification-content">
-            <p class="notification-title">{notification.title}</p>
-            <p class="notification-body">{notification.body}</p>
-            <span class="notification-time">{formatTime(notification.createdAt)}</span>
-          </div>
-
+  <!-- Notification Dropdown -->
+  {#if isOpen}
+    <div class="notification-dropdown" transition:slide={{ duration: 200 }}>
+      <!-- Header -->
+      <div class="notification-header">
+        <h3>Notifications</h3>
+        {#if notifications.length > 0}
           <button
-            class="notification-delete"
-            onclick={(e) => {
-              e.stopPropagation();
-              handleDeleteNotification(notification.id);
-            }}
-            aria-label="Delete notification"
+            class="clear-all-btn"
+            on:click={onClearAll}
+            aria-label="Clear all notifications"
+            title="Clear all"
           >
             ✕
           </button>
-        </button>
-      {/each}
-    {/if}
-  </div>
+        {/if}
+      </div>
+
+      <!-- Notifications List -->
+      <div class="notification-list">
+        {#if notifications.length === 0}
+          <div class="empty-state">
+            <p>No notifications</p>
+          </div>
+        {:else}
+          {#each notifications as notification (notification.id)}
+            <button
+              class="notification-item"
+              class:unread={!notification.read}
+              on:click={() => handleNotificationClick(notification)}
+              transition:slide={{ duration: 200 }}
+            >
+              <div class="notification-icon">
+                {getNotificationIcon(notification.type)}
+              </div>
+
+              <div class="notification-content">
+                <h4 class="notification-title">{notification.title}</h4>
+                <p class="notification-message">{notification.message}</p>
+                <span class="notification-time">{formatTime(notification.createdAt)}</span>
+              </div>
+
+              <button
+                class="notification-close"
+                on:click|stopPropagation={() => onClear(notification.id)}
+                aria-label="Dismiss notification"
+              >
+                ✕
+              </button>
+            </button>
+          {/each}
+        {/if}
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
-  /* Toast Container */
-  .toast-container {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 9999;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    pointer-events: none;
+  .notification-center {
+    position: relative;
   }
 
-  .toast {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
+  .notification-bell {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
     background: var(--bg-2);
     border: 1px solid var(--border-1);
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    pointer-events: auto;
-    max-width: 400px;
-  }
-
-  .toast-message {
-    border-left: 4px solid var(--accent);
-  }
-
-  .toast-match {
-    border-left: 4px solid #ff6b6b;
-  }
-
-  .toast-icon {
-    font-size: 20px;
-    flex-shrink: 0;
-  }
-
-  .toast-content {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .toast-title {
-    font-size: 14px;
-    font-weight: 600;
-    margin: 0;
-    color: var(--text-1);
-  }
-
-  .toast-body {
-    font-size: 12px;
-    color: var(--text-3);
-    margin: 4px 0 0 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .toast-close {
-    background: none;
-    border: none;
-    color: var(--text-3);
+    display: grid;
+    place-items: center;
     cursor: pointer;
-    font-size: 16px;
-    padding: 0;
-    flex-shrink: 0;
-    transition: color 200ms ease;
-  }
-
-  .toast-close:hover {
     color: var(--text-1);
+    transition: all 200ms ease;
   }
 
-  /* Notification Center */
-  .notification-center {
+  .notification-bell:hover {
+    background: var(--bg-3);
+    border-color: var(--border-2);
+  }
+
+  .notification-bell svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .badge {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #ef4444;
+    color: white;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    border: 2px solid var(--bg-1);
+  }
+
+  .notification-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    width: 360px;
+    max-height: 500px;
+    background: var(--bg-1);
+    border: 1px solid var(--border-1);
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    margin-top: 8px;
+    z-index: 100;
     display: flex;
     flex-direction: column;
-    height: 100%;
-    background: var(--bg-1);
+    overflow: hidden;
   }
 
   .notification-header {
@@ -222,27 +226,32 @@
     justify-content: space-between;
     padding: 16px;
     border-bottom: 1px solid var(--border-1);
-    gap: 12px;
   }
 
-  .notification-header h2 {
-    font-size: 18px;
-    font-weight: 600;
+  .notification-header h3 {
     margin: 0;
+    font-size: 16px;
+    font-weight: 600;
     color: var(--text-1);
   }
 
-  .unread-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+  .clear-all-btn {
     width: 24px;
     height: 24px;
-    background: var(--accent);
-    color: #06281e;
-    border-radius: 50%;
-    font-size: 12px;
-    font-weight: 700;
+    border-radius: 4px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-3);
+    font-size: 16px;
+    transition: all 150ms ease;
+    display: grid;
+    place-items: center;
+  }
+
+  .clear-all-btn:hover {
+    background: var(--bg-2);
+    color: var(--text-2);
   }
 
   .notification-list {
@@ -256,15 +265,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    flex: 1;
     padding: 40px 20px;
-  }
-
-  .empty-state p {
-    font-size: 14px;
     color: var(--text-3);
-    margin: 0;
-    text-align: center;
+    font-size: 14px;
   }
 
   .notification-item {
@@ -272,13 +275,16 @@
     align-items: flex-start;
     gap: 12px;
     padding: 12px 16px;
-    border-bottom: 1px solid var(--border-1);
     background: transparent;
     border: none;
+    border-bottom: 1px solid var(--border-1);
     cursor: pointer;
-    transition: all 200ms ease;
+    transition: all 150ms ease;
     text-align: left;
-    position: relative;
+  }
+
+  .notification-item:last-child {
+    border-bottom: none;
   }
 
   .notification-item:hover {
@@ -286,17 +292,7 @@
   }
 
   .notification-item.unread {
-    background: var(--bg-2);
-  }
-
-  .notification-item.unread::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 3px;
-    background: var(--accent);
+    background: rgba(59, 130, 246, 0.05);
   }
 
   .notification-icon {
@@ -314,74 +310,63 @@
   }
 
   .notification-title {
+    margin: 0;
     font-size: 14px;
     font-weight: 600;
-    margin: 0;
     color: var(--text-1);
-  }
-
-  .notification-body {
-    font-size: 13px;
-    color: var(--text-3);
-    margin: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
+  .notification-message {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-3);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
   .notification-time {
     font-size: 11px;
-    color: var(--text-3);
-    margin-top: 2px;
+    color: var(--text-4);
   }
 
-  .notification-delete {
-    background: none;
+  .notification-close {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    background: transparent;
     border: none;
-    color: var(--text-3);
     cursor: pointer;
-    font-size: 16px;
-    padding: 4px;
+    color: var(--text-3);
+    font-size: 14px;
+    transition: all 150ms ease;
+    display: grid;
+    place-items: center;
     flex-shrink: 0;
-    transition: color 200ms ease;
-    opacity: 0;
   }
 
-  .notification-item:hover .notification-delete {
-    opacity: 1;
+  .notification-close:hover {
+    background: var(--bg-3);
+    color: var(--text-2);
   }
 
-  .notification-delete:hover {
-    color: var(--text-1);
-  }
-
-  /* Mobile Responsive */
+  /* Mobile responsive */
   @media (max-width: 767px) {
-    .toast-container {
-      top: 10px;
-      right: 10px;
-      left: 10px;
-    }
-
-    .toast {
-      max-width: none;
-      padding: 10px 12px;
-    }
-
-    .toast-title {
-      font-size: 13px;
-    }
-
-    .toast-body {
-      font-size: 11px;
+    .notification-dropdown {
+      width: 320px;
+      max-height: 400px;
     }
 
     .notification-header {
       padding: 12px;
     }
 
-    .notification-header h2 {
-      font-size: 16px;
+    .notification-header h3 {
+      font-size: 14px;
     }
 
     .notification-item {
@@ -397,7 +382,7 @@
       font-size: 13px;
     }
 
-    .notification-body {
+    .notification-message {
       font-size: 12px;
     }
 
