@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   /**
    * PrivacySettings Component
    *
@@ -26,14 +27,14 @@
     onCancel = () => {}
   }: Props = $props();
 
-  let formData = $state({
+  let formData = $state(untrack(() => ({
     profileVisibility: privacy.profileVisibility || 'public',
     showOnlineStatus: privacy.showOnlineStatus !== false,
     showLastSeen: privacy.showLastSeen !== false,
     allowMessagesFrom: privacy.allowMessagesFrom || 'anyone',
     dataSharing: privacy.dataSharing || false,
     analyticsTracking: privacy.analyticsTracking !== false
-  });
+  })));
 
   let isDirty = $state(false);
 
@@ -88,10 +89,10 @@
     <p>Control who can see your profile and contact you</p>
   </div>
 
-  <form on:submit|preventDefault={handleSave} class="settings-form">
+  <form onsubmit={(e) => { e.preventDefault(); handleSave(); }} class="settings-form">
     <!-- Profile Visibility -->
     <div class="form-group">
-      <label>Profile Visibility</label>
+      <span class="form-group-label">Profile Visibility</span>
       <div class="radio-group">
         {#each visibilityOptions as option (option.value)}
           <label class="radio-option">
@@ -100,7 +101,7 @@
               name="profileVisibility"
               value={option.value}
               bind:group={formData.profileVisibility}
-              on:change={handleInputChange}
+              onchange={handleInputChange}
             />
             <div class="radio-content">
               <span class="radio-label">{option.label}</span>
@@ -117,7 +118,7 @@
         <input
           type="checkbox"
           bind:checked={formData.showOnlineStatus}
-          on:change={handleInputChange}
+          onchange={handleInputChange}
         />
         <span class="toggle-text">
           <span class="toggle-title">Show Online Status</span>
@@ -132,7 +133,7 @@
         <input
           type="checkbox"
           bind:checked={formData.showLastSeen}
-          on:change={handleInputChange}
+          onchange={handleInputChange}
         />
         <span class="toggle-text">
           <span class="toggle-title">Show Last Seen</span>
@@ -143,7 +144,7 @@
 
     <!-- Message Permissions -->
     <div class="form-group">
-      <label>Who Can Message You</label>
+      <span class="form-group-label">Who Can Message You</span>
       <div class="radio-group">
         {#each messageOptions as option (option.value)}
           <label class="radio-option">
@@ -152,7 +153,7 @@
               name="allowMessagesFrom"
               value={option.value}
               bind:group={formData.allowMessagesFrom}
-              on:change={handleInputChange}
+              onchange={handleInputChange}
             />
             <div class="radio-content">
               <span class="radio-label">{option.label}</span>
@@ -169,7 +170,7 @@
         <input
           type="checkbox"
           bind:checked={formData.dataSharing}
-          on:change={handleInputChange}
+          onchange={handleInputChange}
         />
         <span class="toggle-text">
           <span class="toggle-title">Allow Data Sharing</span>
@@ -184,7 +185,7 @@
         <input
           type="checkbox"
           bind:checked={formData.analyticsTracking}
-          on:change={handleInputChange}
+          onchange={handleInputChange}
         />
         <span class="toggle-text">
           <span class="toggle-title">Analytics Tracking</span>
@@ -210,7 +211,7 @@
       <button
         type="button"
         class="btn-secondary"
-        on:click={handleCancel}
+        onclick={handleCancel}
         disabled={isLoading || !isDirty}
       >
         Cancel
@@ -269,7 +270,8 @@
     gap: 12px;
   }
 
-  .form-group > label:first-child {
+  .form-group > label:first-child,
+  .form-group > .form-group-label:first-child {
     font-size: 14px;
     font-weight: 500;
     color: var(--text-1);

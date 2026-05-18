@@ -54,7 +54,7 @@
 		}
 	];
 
-	const question = questions[currentQuestion];
+	let question = $derived(questions[currentQuestion]);
 	const answered = Object.keys(answers).length;
 	const total = questions.length;
 	const progress = (answered / total) * 100;
@@ -119,7 +119,7 @@
 				<div
 					class="bg-gradient-to-r from-rose-500 to-amber-500 h-full transition-all duration-300"
 					style="width: {progress}%"
-				/>
+				></div>
 			</div>
 		</div>
 	</div>

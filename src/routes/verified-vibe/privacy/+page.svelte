@@ -311,8 +311,8 @@
 
   <!-- Export Modal -->
   {#if showExportModal}
-    <div class="modal-overlay" onclick={closeExportModal} transition:fade={{ duration: 300 }}>
-      <div class="modal" onclick={(e) => e.stopPropagation()} transition:slide={{ duration: 300, axis: 'y' }}>
+    <div class="modal-overlay" onclick={closeExportModal} onkeydown={(e) => e.key === 'Escape' && closeExportModal()} role="button" tabindex="0" transition:fade={{ duration: 300 }}>
+      <div class="modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="button" tabindex="0" transition:slide={{ duration: 300, axis: 'y' }}>
         <div class="modal-header">
           <h3>Export Your Data</h3>
           <button class="close-btn" onclick={closeExportModal}>✕</button>
@@ -361,8 +361,8 @@
 
   <!-- Delete Account Modal -->
   {#if showDeleteModal}
-    <div class="modal-overlay" onclick={closeDeleteModal} transition:fade={{ duration: 300 }}>
-      <div class="modal modal-danger" onclick={(e) => e.stopPropagation()} transition:slide={{ duration: 300, axis: 'y' }}>
+    <div class="modal-overlay" onclick={closeDeleteModal} onkeydown={(e) => e.key === 'Escape' && closeDeleteModal()} role="button" tabindex="0" transition:fade={{ duration: 300 }}>
+      <div class="modal modal-danger" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="button" tabindex="0" transition:slide={{ duration: 300, axis: 'y' }}>
         <div class="modal-header">
           <h3>Delete Account & Data</h3>
           <button class="close-btn" onclick={closeDeleteModal}>✕</button>

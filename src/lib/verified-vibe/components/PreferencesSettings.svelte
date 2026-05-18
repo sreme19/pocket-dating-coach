@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   /**
    * PreferencesSettings Component
    *
@@ -26,11 +27,11 @@
     onCancel = () => {}
   }: Props = $props();
 
-  let formData = $state({
+  let formData = $state(untrack(() => ({
     language: preferences.language || 'en',
     timezone: preferences.timezone || 'UTC',
     theme: preferences.theme || 'light'
-  });
+  })));
 
   let isDirty = $state(false);
 
@@ -99,14 +100,14 @@
     <p>Customize your experience</p>
   </div>
 
-  <form on:submit|preventDefault={handleSave} class="settings-form">
+  <form onsubmit={(e) => { e.preventDefault(); handleSave(); }} class="settings-form">
     <!-- Language -->
     <div class="form-group">
       <label for="language">Language</label>
       <select
         id="language"
         bind:value={formData.language}
-        on:change={handleInputChange}
+        onchange={handleInputChange}
       >
         {#each languages as lang (lang.value)}
           <option value={lang.value}>{lang.label}</option>
@@ -121,7 +122,7 @@
       <select
         id="timezone"
         bind:value={formData.timezone}
-        on:change={handleInputChange}
+        onchange={handleInputChange}
       >
         {#each timezones as tz (tz)}
           <option value={tz}>{tz}</option>
@@ -132,7 +133,7 @@
 
     <!-- Theme -->
     <div class="form-group">
-      <label>Theme</label>
+      <span class="form-group-label">Theme</span>
       <div class="theme-options">
         {#each themes as theme (theme.value)}
           <label class="theme-option">
@@ -141,7 +142,7 @@
               name="theme"
               value={theme.value}
               bind:group={formData.theme}
-              on:change={handleInputChange}
+              onchange={handleInputChange}
             />
             <span class="theme-icon">{theme.icon}</span>
             <span class="theme-label">{theme.label}</span>
@@ -168,7 +169,7 @@
       <button
         type="button"
         class="btn-secondary"
-        on:click={handleCancel}
+        onclick={handleCancel}
         disabled={isLoading || !isDirty}
       >
         Cancel
@@ -227,7 +228,8 @@
     gap: 8px;
   }
 
-  .form-group label {
+  .form-group label,
+  .form-group .form-group-label {
     font-size: 14px;
     font-weight: 500;
     color: var(--text-1);

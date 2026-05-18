@@ -940,88 +940,6 @@
     margin-bottom: 24px;
   }
 
-  /* Upload Area */
-  .upload-area {
-    border: 2px dashed var(--border-2);
-    border-radius: 12px;
-    padding: 32px 20px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 200ms ease;
-    background: var(--bg-2);
-  }
-
-  .upload-area:hover {
-    border-color: var(--accent-bright);
-    background: var(--accent-tint);
-  }
-
-  .upload-icon {
-    font-size: 48px;
-    margin-bottom: 12px;
-    display: block;
-  }
-
-  .upload-text {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-1);
-    margin: 0 0 4px;
-  }
-
-  .upload-hint {
-    font-size: 12px;
-    color: var(--text-3);
-    margin: 0 0 16px;
-  }
-
-  .upload-area input {
-    display: none;
-  }
-
-  /* Q&A Area */
-  .qa-area {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .qa-question {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .qa-question label {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-1);
-  }
-
-  .qa-question textarea {
-    padding: 12px;
-    border: 1px solid var(--border-1);
-    border-radius: 8px;
-    background: var(--bg-2);
-    color: var(--text-1);
-    font-family: inherit;
-    font-size: 14px;
-    resize: vertical;
-    min-height: 80px;
-    transition: all 200ms ease;
-  }
-
-  .qa-question textarea:focus {
-    outline: none;
-    border-color: var(--accent-bright);
-    box-shadow: 0 0 0 3px var(--accent-tint);
-  }
-
-  .qa-question textarea:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
   /* Skip Warning Modal */
   .skip-warning-overlay {
     position: fixed;
@@ -1240,45 +1158,6 @@
       margin-bottom: 16px;
     }
 
-    .upload-area {
-      padding: 24px 16px;
-      border-radius: 10px;
-    }
-
-    .upload-icon {
-      font-size: 40px;
-      margin-bottom: 10px;
-    }
-
-    .upload-text {
-      font-size: 13px;
-      margin: 0 0 3px;
-    }
-
-    .upload-hint {
-      font-size: 11px;
-      margin: 0 0 12px;
-    }
-
-    .qa-area {
-      gap: 12px;
-    }
-
-    .qa-question {
-      gap: 6px;
-    }
-
-    .qa-question label {
-      font-size: 13px;
-    }
-
-    .qa-question textarea {
-      padding: 10px;
-      font-size: 13px;
-      min-height: 70px;
-      border-radius: 8px;
-    }
-
     .skip-warning-modal {
       padding: 20px;
       border-radius: 12px;
@@ -1335,10 +1214,6 @@
       font-size: 22px;
     }
 
-    .upload-area {
-      padding: 28px 24px;
-    }
-
     .verification-actions {
       gap: 14px;
       padding: 18px 24px calc(18px + env(safe-area-inset-bottom, 0));
@@ -1366,10 +1241,6 @@
 
     .step-title {
       font-size: 26px;
-    }
-
-    .upload-area {
-      padding: 36px 28px;
     }
 
     .verification-actions {
