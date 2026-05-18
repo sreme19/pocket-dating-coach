@@ -69,6 +69,55 @@
     --font-serif: 'Instrument Serif', Georgia, serif;
     --font-mono: 'Menlo', 'Monaco', monospace;
     --r-lg: 20px;
+    --r-md: 12px;
+
+    /* Legacy --color-vibe-* tokens used by ArchetypeCard and other components */
+    --color-vibe-bg-1: #0b1120;
+    --color-vibe-bg-2: #131a2b;
+    --color-vibe-bg-3: #1a2336;
+    --color-vibe-bg-4: #202b40;
+    --color-vibe-text-1: #f1f5f9;
+    --color-vibe-text-2: #94a3b8;
+    --color-vibe-text-3: #64748b;
+    --color-vibe-text-4: #475569;
+    --color-vibe-border: rgba(255,255,255,0.07);
+    --color-vibe-border-2: rgba(255,255,255,0.10);
+    --color-vibe-accent: #10b981;
+    --color-vibe-accent-bright: #34d399;
+    --color-vibe-accent-tint: rgba(16,185,129,0.12);
+    --color-vibe-lime: #34d399;
+
+    /* Spacing / gap tokens */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 12px;
+    --spacing-lg: 16px;
+    --spacing-xl: 24px;
+    --gap-xs: 4px;
+    --gap-sm: 8px;
+    --gap-md: 12px;
+    --gap-lg: 16px;
+
+    /* Typography tokens */
+    --font-size-xs: 11px;
+    --font-size-sm: 13px;
+    --font-size-base: 15px;
+    --font-size-lg: 17px;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+    --line-height-relaxed: 1.6;
+
+    /* Radius tokens */
+    --radius-sm: 6px;
+    --radius-md: 12px;
+    --radius-lg: 20px;
+
+    /* Shadow tokens */
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.4);
+
+    /* Transition token */
+    --transition-base: all 200ms ease;
 
     display: flex;
     flex-direction: column;
