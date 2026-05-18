@@ -1,8 +1,8 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { 
-    verificationStep, 
-    verificationProgress, 
+  import {
+    verificationStep,
+    verificationProgress,
     addVerificationRecord,
     setPhase,
     setError,
@@ -12,12 +12,23 @@
     updateTrustScore
   } from '$lib/verified-vibe/stores';
   import { calculateTrustScore } from '$lib/verified-vibe/utils';
+  import { getSupabaseClient } from '$lib/client/supabase';
   import PhotoUploadStep from '$lib/verified-vibe/components/PhotoUploadStep.svelte';
   import SpendingQAStep from '$lib/verified-vibe/components/SpendingQAStep.svelte';
   import SpendingUploadStep from '$lib/verified-vibe/components/SpendingUploadStep.svelte';
   import type { VerificationStep as VerificationStepType } from '$lib/verified-vibe/types';
   import { fade, slide } from 'svelte/transition';
   import { onMount } from 'svelte';
+
+  /** Returns auth headers with the current session token (if available). */
+  async function getAuthHeaders(): Promise<Record<string, string>> {
+    const { data: { session } } = await getSupabaseClient().auth.getSession();
+    if (!session?.access_token) return { 'Content-Type': 'application/json' };
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`
+    };
+  }
 
   const totalSteps = 4;
   let currentStep = $state(1);
@@ -103,7 +114,7 @@
       // Submit to API
       const response = await fetch('/api/verified-vibe/verify-step', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           step: 'photos',
           data: {
@@ -168,7 +179,7 @@
       // Submit to API
       const response = await fetch('/api/verified-vibe/verify-step', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           step: 'spending_or_qa',
           data: {
@@ -233,7 +244,7 @@
       // Submit to API
       const response = await fetch('/api/verified-vibe/verify-step', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           step: 'spending_or_qa',
           data: {
@@ -305,7 +316,7 @@
       const stepType = steps[currentStep - 1].stepType;
       const response = await fetch('/api/verified-vibe/verify-step', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           step: stepType,
           data: stepData[currentStep] || {}

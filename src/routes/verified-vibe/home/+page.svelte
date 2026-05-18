@@ -7,17 +7,27 @@
   import { slide, fade } from 'svelte/transition';
   import ArchetypeCard from '$lib/verified-vibe/components/ArchetypeCard.svelte';
   import LiveNowCarousel from '$lib/verified-vibe/components/LiveNowCarousel.svelte';
+  import { getProfile, upsertProfile } from '$lib/verified-vibe/services/profileService';
 
   let gender = $state<Gender | null>(null);
   let selectedArchetype = $state<Archetype | null>(null);
   let expandedArchetype = $state<Archetype | null>(null);
 
-  // Get gender from localStorage
+  // Load gender from Supabase (falls back to localStorage)
   $effect(() => {
-    const stored = localStorage.getItem('verified_vibe_gender');
-    if (stored) {
-      gender = stored as Gender;
-    }
+    getProfile().then((profile) => {
+      if (profile?.gender) {
+        gender = profile.gender;
+        localStorage.setItem('verified_vibe_gender', profile.gender);
+      } else {
+        // Fallback: localStorage (e.g. if Supabase call fails offline)
+        const stored = localStorage.getItem('verified_vibe_gender');
+        if (stored) gender = stored as Gender;
+      }
+    }).catch(() => {
+      const stored = localStorage.getItem('verified_vibe_gender');
+      if (stored) gender = stored as Gender;
+    });
   });
 
   // Get available archetypes for this gender
@@ -42,8 +52,14 @@
     }
   }
 
-  function handleLockIn(archetypeId: Archetype) {
+  async function handleLockIn(archetypeId: Archetype) {
     selectedArchetype = archetypeId;
+    // Persist archetype to Supabase (best-effort; also keep localStorage)
+    try {
+      await upsertProfile({ archetype: archetypeId });
+    } catch (e) {
+      console.error('Failed to save archetype to Supabase:', e);
+    }
     localStorage.setItem('verified_vibe_archetype', archetypeId);
     setPhase('verify');
     goto('/verified-vibe/verify');
