@@ -23,36 +23,49 @@ export async function extractIDWithClaude(
   base64Image: string,
   mimeType: string
 ): Promise<IDExtractionResult> {
+  // Validate API key
   if (!CLAUDE_API_KEY) {
-    throw new Error('ANTHROPIC_API_KEY environment variable not set');
+    console.error('ANTHROPIC_API_KEY environment variable not set');
+    throw new Error('API configuration error. Please contact support.');
+  }
+
+  // Validate API key format (should start with sk-ant-)
+  if (!CLAUDE_API_KEY.startsWith('sk-ant-')) {
+    console.error('Invalid ANTHROPIC_API_KEY format');
+    throw new Error('API configuration error. Please contact support.');
   }
 
   try {
-    const response = await fetch(CLAUDE_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': CLAUDE_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: CLAUDE_MODEL,
-        max_tokens: 1024,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image',
-                source: {
-                  type: 'base64',
-                  media_type: mimeType,
-                  data: base64Image
-                }
-              },
-              {
-                type: 'text',
-                text: `Extract the following information from this government ID image:
+    // Create abort controller for timeout (30 seconds)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    try {
+      const response = await fetch(CLAUDE_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': CLAUDE_API_KEY,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: CLAUDE_MODEL,
+          max_tokens: 1024,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'image',
+                  source: {
+                    type: 'base64',
+                    media_type: mimeType,
+                    data: base64Image
+                  }
+                },
+                {
+                  type: 'text',
+                  text: `Extract the following information from this government ID image:
 1. ID Number (driver's license number, passport number, etc.)
 2. Full Name (as shown on the ID)
 3. Date of Birth (in MM/DD/YYYY format)
@@ -72,56 +85,101 @@ If the image is not a valid government ID or the information is not clearly read
 }
 
 Do not include any other text or explanation.`
-              }
-            ]
-          }
-        ]
-      })
-    });
+                }
+              ]
+            }
+          ]
+        }),
+        signal: controller.signal
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      console.error('Claude API error:', error);
-      throw new Error(`Claude API error: ${error.error?.message || 'Unknown error'}`);
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        let errorMessage = 'Failed to process ID image';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error?.message || errorData.message || errorMessage;
+        } catch {
+          // If error response is not JSON, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+
+        console.error(`Claude API error (${response.status}):`, errorMessage);
+
+        // Provide user-friendly error messages based on status
+        if (response.status === 401 || response.status === 403) {
+          throw new Error('Authentication error. Please try again later.');
+        } else if (response.status === 429) {
+          throw new Error('Service is busy. Please wait a moment and try again.');
+        } else if (response.status >= 500) {
+          throw new Error('Service temporarily unavailable. Please try again later.');
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      const content = data.content[0]?.text;
+
+      if (!content) {
+        console.error('No text content in Claude response');
+        throw new Error('No response from Claude API');
+      }
+
+      // Parse the JSON response with better error handling
+      let parsedResponse;
+      try {
+        parsedResponse = JSON.parse(content);
+      } catch (parseError) {
+        console.error('Failed to parse Claude response as JSON:', {
+          content: content.substring(0, 200), // Log first 200 chars only
+          error: parseError instanceof Error ? parseError.message : 'Unknown error'
+        });
+        throw new Error('Invalid response format from Claude API');
+      }
+
+      // Check for error in response
+      if (parsedResponse.error) {
+        throw new Error(`ID extraction failed: ${parsedResponse.error}`);
+      }
+
+      // Validate required fields are non-empty strings
+      if (
+        !parsedResponse.idNumber ||
+        typeof parsedResponse.idNumber !== 'string' ||
+        !parsedResponse.idName ||
+        typeof parsedResponse.idName !== 'string' ||
+        !parsedResponse.idDOB ||
+        typeof parsedResponse.idDOB !== 'string'
+      ) {
+        console.error('Missing or invalid required ID fields:', parsedResponse);
+        throw new Error('Could not extract all required information from ID. Please try with a clearer photo.');
+      }
+
+      return {
+        idNumber: parsedResponse.idNumber.trim(),
+        idName: parsedResponse.idName.trim(),
+        idDOB: parsedResponse.idDOB.trim(),
+        expirationDate: parsedResponse.expirationDate ? parsedResponse.expirationDate.trim() : undefined
+      };
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+
+      // Handle timeout
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        console.error('Claude API request timeout');
+        throw new Error('Request took too long. Please try again.');
+      }
+
+      throw fetchError;
     }
-
-    const data = await response.json();
-    const content = data.content[0]?.text;
-
-    if (!content) {
-      throw new Error('No response from Claude API');
-    }
-
-    // Parse the JSON response
-    let parsedResponse;
-    try {
-      parsedResponse = JSON.parse(content);
-    } catch (e) {
-      console.error('Failed to parse Claude response:', content);
-      throw new Error('Invalid response format from Claude API');
-    }
-
-    // Check for error in response
-    if (parsedResponse.error) {
-      throw new Error(`ID extraction failed: ${parsedResponse.error}`);
-    }
-
-    // Validate required fields
-    if (!parsedResponse.idNumber || !parsedResponse.idName || !parsedResponse.idDOB) {
-      throw new Error('Missing required ID information in response');
-    }
-
-    return {
-      idNumber: parsedResponse.idNumber,
-      idName: parsedResponse.idName,
-      idDOB: parsedResponse.idDOB,
-      expirationDate: parsedResponse.expirationDate || undefined
-    };
   } catch (error) {
     if (error instanceof Error) {
       throw error;
     }
-    throw new Error('Failed to extract ID information');
+    console.error('Unexpected error in extractIDWithClaude:', error);
+    throw new Error('Failed to extract ID information. Please try again.');
   }
 }
 

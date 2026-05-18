@@ -16,6 +16,12 @@ function getClientIp(request: Request): string {
 export const handle: Handle = async ({ event, resolve }) => {
 	if (event.url.pathname.startsWith('/api/')) {
 		const ip = getClientIp(event.request);
+
+		// Skip rate limiting for local development
+		if (ip === 'unknown' || ip === '127.0.0.1' || ip === '::1') {
+			return resolve(event);
+		}
+
 		const now = Date.now();
 		const record = ipRequestMap.get(ip);
 
