@@ -185,11 +185,14 @@ async function handleLivenessVerification(data: any) {
       );
     }
 
-    // For now, we'll just return a mock liveness check
-    // In a full implementation, we would compare the selfie to the ID photo
-    // which requires storing the ID photo from the previous step
+    // TODO: In a full implementation, we would:
+    // 1. Retrieve the ID photo from the previous verification step (stored in Supabase)
+    // 2. Compare the selfie to the ID photo using Claude Vision
+    // 3. Return confidence score and match result
     
-    // Mock liveness result
+    // For now, we'll return a mock liveness check with high confidence
+    // This allows the verification flow to proceed while the full implementation is being built
+    
     const livenessResult = {
       confidence: 92,
       match: true
