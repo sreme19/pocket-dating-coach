@@ -14,6 +14,9 @@
       if (err) {
         currentError = err;
         isVisible = true;
+      } else {
+        currentError = null;
+        isVisible = false;
       }
     });
 
@@ -52,13 +55,15 @@
 
   // Determine error severity based on message
   function getSeverity(message: string): 'info' | 'warning' | 'error' {
-    if (message.includes('temporarily') || message.includes('try again')) {
+    const lower = message.toLowerCase();
+    if (lower.includes('temporarily') || lower.includes('unavailable')) {
       return 'warning';
     }
-    if (message.includes('unauthorized') || message.includes('not authorized')) {
+    if (lower.includes('unauthorized') || lower.includes('not authorized') ||
+        lower.includes('failed') || lower.includes('denied') || lower.includes('error')) {
       return 'error';
     }
-    return 'error';
+    return 'info';
   }
 
   const severity = $derived(currentError ? getSeverity(currentError) : 'error');
@@ -67,11 +72,11 @@
 {#if isVisible && currentError}
   <div
     class="fixed bottom-4 right-4 max-w-md z-50 animate-in fade-in slide-in-from-bottom-4 duration-300"
-    role="alert"
-    aria-live="polite"
-    aria-atomic="true"
   >
     <div
+      role="alert"
+      aria-live="polite"
+      aria-atomic="true"
       class={`rounded-lg border p-4 shadow-lg ${
         severity === 'error'
           ? 'border-red-200 bg-red-50 text-red-900'
@@ -95,7 +100,7 @@
           <p class="text-sm font-medium">{currentError}</p>
           {#if retryCallback}
             <button
-              on:click={handleRetry}
+              onclick={handleRetry}
               disabled={isRetrying}
               class={`mt-2 text-sm font-medium underline transition-colors ${
                 severity === 'error'
@@ -112,7 +117,7 @@
         </div>
 
         <button
-          on:click={handleDismiss}
+          onclick={handleDismiss}
           class={`flex-shrink-0 transition-colors ${
             severity === 'error'
               ? 'text-red-600 hover:text-red-700'

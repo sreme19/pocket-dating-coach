@@ -241,7 +241,7 @@
       {#if currentPhoto}
         <img
           src={currentPhoto}
-          alt={`${profile.firstName}'s profile photo ${currentPhotoIndex + 1} of ${photoCount}`}
+          alt={`${profile.firstName}'s profile photo`}
           class="profile-photo"
           loading="lazy"
           decoding="async"
@@ -304,7 +304,7 @@
           score={profile.trustScore}
           size="lg"
           showLabel={false}
-          showPercentage={true}
+          showPercentage={false}
         />
       </div>
 

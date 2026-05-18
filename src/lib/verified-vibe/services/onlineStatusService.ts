@@ -18,6 +18,12 @@ interface UserOnlineStatus {
   lastActivity: Date;
 }
 
+export interface OnlineStatus {
+  userId: string;
+  isOnline: boolean;
+  lastSeen: Date | null;
+}
+
 // Store for tracking online status
 const userStatuses = new Map<string, UserOnlineStatus>();
 let currentUserId: string | null = null;
@@ -179,43 +185,41 @@ export function getLastSeen(userId: string): Date | null {
  * Format last seen time
  */
 export function formatLastSeen(date: Date | null): string {
-  if (!date) return 'Last seen recently';
+  if (!date) return 'Never';
 
   const now = new Date();
   const diff = now.getTime() - date.getTime();
 
   // Less than 1 minute
   if (diff < 60000) {
-    return 'Last seen just now';
+    return 'Just now';
   }
 
   // Less than 1 hour
   if (diff < 3600000) {
     const minutes = Math.floor(diff / 60000);
-    return `Last seen ${minutes}m ago`;
+    return `${minutes}m ago`;
   }
 
   // Less than 1 day
   if (diff < 86400000) {
     const hours = Math.floor(diff / 3600000);
-    return `Last seen ${hours}h ago`;
+    return `${hours}h ago`;
   }
 
   // Less than 1 week
   if (diff < 604800000) {
     const days = Math.floor(diff / 86400000);
-    return `Last seen ${days}d ago`;
+    return `${days}d ago`;
   }
 
   // Format as date
   const options: Intl.DateTimeFormatOptions = {
     month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
+    day: 'numeric'
   };
 
-  return `Last seen ${date.toLocaleDateString('en-US', options)}`;
+  return date.toLocaleDateString('en-US', options);
 }
 
 /**
@@ -223,6 +227,13 @@ export function formatLastSeen(date: Date | null): string {
  */
 export function getCurrentOnlineStatus(): boolean {
   return isCurrentlyOnline;
+}
+
+export function isRecentlyActive(status: OnlineStatus): boolean {
+  if (status.isOnline) return true;
+  if (!status.lastSeen) return false;
+  const diff = Date.now() - status.lastSeen.getTime();
+  return diff < 5 * 60 * 1000; // within last 5 minutes
 }
 
 /**
