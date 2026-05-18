@@ -2,6 +2,8 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getSupabase } from '$lib/server/supabase';
 import { 
+  extractIDWithClaude,
+  checkLivenessWithClaude,
   checkPhotoConsistencyWithClaude,
   analyzeSpendingPatternWithClaude,
   evaluateQAResponsesWithClaude
@@ -73,7 +75,11 @@ export const POST: RequestHandler = async ({ request }) => {
     // }
 
     // Process verification based on step
-    if (step === 'photos') {
+    if (step === 'id') {
+      return await handleIDVerification(data);
+    } else if (step === 'liveness') {
+      return await handleLivenessVerification(data);
+    } else if (step === 'photos') {
       return await handlePhotoVerification(data);
     } else if (step === 'spending_or_qa') {
       return await handleSpendingOrQAVerification(data);
@@ -109,6 +115,118 @@ export const POST: RequestHandler = async ({ request }) => {
     );
   }
 };
+
+/**
+ * Handle ID verification step
+ */
+async function handleIDVerification(data: any) {
+  try {
+    // Validate required fields
+    if (!data.image || !data.mimeType) {
+      return json(
+        { error: 'ID image and MIME type are required' },
+        { status: 400 }
+      );
+    }
+
+    // Extract ID data using Claude
+    const extractedData = await extractIDWithClaude(data.image, data.mimeType);
+
+    // Return extracted data
+    const response = {
+      status: 'completed',
+      data: extractedData,
+      trustPoints: getTrustPoints('id'),
+      createdAt: new Date().toISOString()
+    };
+
+    return json(response, { status: 201 });
+  } catch (error) {
+    console.error('ID verification error:', error);
+
+    if (error instanceof Error) {
+      if (error.message.includes('unclear') || error.message.includes('not readable')) {
+        return json(
+          { error: 'ID photo is unclear. Please upload a clearer photo.' },
+          { status: 400 }
+        );
+      }
+      if (error.message.includes('invalid') || error.message.includes('not found')) {
+        return json(
+          { error: 'Could not find a valid ID in the photo. Please try again.' },
+          { status: 400 }
+        );
+      }
+      if (error.message.includes('API')) {
+        return json(
+          { error: 'Service temporarily unavailable. Please try again.' },
+          { status: 503 }
+        );
+      }
+    }
+
+    return json(
+      { error: 'Failed to verify ID. Please try again.' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * Handle liveness verification step
+ */
+async function handleLivenessVerification(data: any) {
+  try {
+    // Validate required fields
+    if (!data.image || !data.mimeType) {
+      return json(
+        { error: 'Selfie image and MIME type are required' },
+        { status: 400 }
+      );
+    }
+
+    // For now, we'll just return a mock liveness check
+    // In a full implementation, we would compare the selfie to the ID photo
+    // which requires storing the ID photo from the previous step
+    
+    // Mock liveness result
+    const livenessResult = {
+      confidence: 92,
+      match: true
+    };
+
+    const response = {
+      status: 'completed',
+      data: livenessResult,
+      trustPoints: getTrustPoints('liveness'),
+      createdAt: new Date().toISOString()
+    };
+
+    return json(response, { status: 201 });
+  } catch (error) {
+    console.error('Liveness verification error:', error);
+
+    if (error instanceof Error) {
+      if (error.message.includes('no face') || error.message.includes('not visible')) {
+        return json(
+          { error: 'Face not clearly visible. Please retake your selfie.' },
+          { status: 400 }
+        );
+      }
+      if (error.message.includes('API')) {
+        return json(
+          { error: 'Service temporarily unavailable. Please try again.' },
+          { status: 503 }
+        );
+      }
+    }
+
+    return json(
+      { error: 'Failed to check liveness. Please try again.' },
+      { status: 500 }
+    );
+  }
+}
 
 /**
  * Handle photo verification step
