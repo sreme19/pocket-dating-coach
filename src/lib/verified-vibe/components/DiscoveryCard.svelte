@@ -230,7 +230,7 @@
 
 <div
   class="discovery-card"
-  role="button"
+  role="article"
   transition:fade={{ duration: 200 }}
   aria-label={`Profile of ${profile.firstName}, ${profile.age} years old, ${profile.distance} away`}
   tabindex="0"

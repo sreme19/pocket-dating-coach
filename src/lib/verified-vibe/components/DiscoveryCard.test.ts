@@ -195,7 +195,7 @@ describe('DiscoveryCard Component', () => {
     it('should like profile on ArrowRight key', () => {
       const onLike = vi.fn();
       const { container } = render(DiscoveryCard, { props: { profile: mockProfile, onLike } });
-      const card = container.querySelector('article');
+      const card = container.querySelector('[role="article"]');
       fireEvent.keydown(card, { key: 'ArrowRight' });
       expect(onLike).toHaveBeenCalled();
     });
@@ -203,7 +203,7 @@ describe('DiscoveryCard Component', () => {
     it('should like profile on Enter key', () => {
       const onLike = vi.fn();
       const { container } = render(DiscoveryCard, { props: { profile: mockProfile, onLike } });
-      const card = container.querySelector('article');
+      const card = container.querySelector('[role="article"]');
       fireEvent.keydown(card, { key: 'Enter' });
       expect(onLike).toHaveBeenCalled();
     });
@@ -211,7 +211,7 @@ describe('DiscoveryCard Component', () => {
     it('should pass profile on ArrowLeft key', () => {
       const onPass = vi.fn();
       const { container } = render(DiscoveryCard, { props: { profile: mockProfile, onPass } });
-      const card = container.querySelector('article');
+      const card = container.querySelector('[role="article"]');
       fireEvent.keydown(card, { key: 'ArrowLeft' });
       expect(onPass).toHaveBeenCalled();
     });
@@ -219,7 +219,7 @@ describe('DiscoveryCard Component', () => {
     it('should pass profile on Backspace key', () => {
       const onPass = vi.fn();
       const { container } = render(DiscoveryCard, { props: { profile: mockProfile, onPass } });
-      const card = container.querySelector('article');
+      const card = container.querySelector('[role="article"]');
       fireEvent.keydown(card, { key: 'Backspace' });
       expect(onPass).toHaveBeenCalled();
     });
@@ -236,7 +236,7 @@ describe('DiscoveryCard Component', () => {
 
     it('should be keyboard focusable', () => {
       const { container } = render(DiscoveryCard, { props: { profile: mockProfile } });
-      const card = container.querySelector('article');
+      const card = container.querySelector('[role="article"]');
       expect(card?.getAttribute('tabindex')).toBe('0');
     });
 
