@@ -4,7 +4,8 @@
   import { setPhase } from '$lib/verified-vibe/stores';
   import {
     getProfileCompleteness,
-    routeForCompleteness
+    routeForCompleteness,
+    upsertProfile
   } from '$lib/verified-vibe/services/profileService';
   import { fade, slide } from 'svelte/transition';
   import { ShieldCheck } from 'lucide-svelte';
@@ -17,18 +18,62 @@
   let error = $state('');
   let busy  = $state(false);
 
+  // Dev-only test accounts (only active when VITE_SKIP_VERIFICATION=true)
+  const DEV_TEST_EMAILS = ['male@test.vv', 'female@test.vv'];
+  const isDevMode = import.meta.env.VITE_SKIP_VERIFICATION === 'true';
+
   // ── helpers ────────────────────────────────────────────────────────────────
+
+  /** Instantly log in a test account without any OTP email */
+  async function devLogin(testEmail: string) {
+    busy = true;
+    step = 'loading';
+    try {
+      const res = await fetch('/api/verified-vibe/dev-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: testEmail })
+      });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.error ?? 'Dev login failed');
+
+      const supabase = getSupabaseClient();
+      const { error: authError } = await supabase.auth.verifyOtp({
+        email: testEmail,
+        token: payload.otp,
+        type: 'email'
+      });
+      if (authError) throw authError;
+
+      // Pre-populate gender so the test user skips the gate page
+      await upsertProfile({ gender: payload.gender });
+
+      await routeAfterAuth();
+    } catch (e: any) {
+      error = e.message ?? 'Dev login failed';
+      step = 'email';
+    } finally {
+      busy = false;
+    }
+  }
 
   async function sendOtp() {
     error = '';
     if (!email.trim()) { error = 'Enter your email address'; return; }
     if (!/\S+@\S+\.\S+/.test(email.trim())) { error = 'Enter a valid email address'; return; }
 
+    const normalised = email.trim().toLowerCase();
+
+    // Dev shortcut — no OTP email needed
+    if (isDevMode && DEV_TEST_EMAILS.includes(normalised)) {
+      return devLogin(normalised);
+    }
+
     busy = true;
     try {
       const supabase = getSupabaseClient();
       const { error: authError } = await supabase.auth.signInWithOtp({
-        email: email.trim().toLowerCase(),
+        email: normalised,
         options: { shouldCreateUser: true }
       });
       if (authError) throw authError;
@@ -38,6 +83,16 @@
     } finally {
       busy = false;
     }
+  }
+
+  async function routeAfterAuth() {
+    const completeness = await getProfileCompleteness();
+    const destination  = routeForCompleteness(completeness);
+    if (completeness === 'complete')        setPhase('app');
+    else if (completeness === 'no_verification') setPhase('verify');
+    else if (completeness === 'no_archetype')    setPhase('home');
+    else                                         setPhase('gate');
+    goto(destination);
   }
 
   async function verifyCode() {
@@ -56,21 +111,7 @@
       });
       if (authError) throw authError;
 
-      // Route based on how complete the profile is
-      const completeness = await getProfileCompleteness();
-      const destination  = routeForCompleteness(completeness);
-
-      if (completeness === 'complete') {
-        setPhase('app');
-      } else if (completeness === 'no_verification') {
-        setPhase('verify');
-      } else if (completeness === 'no_archetype') {
-        setPhase('home');
-      } else {
-        setPhase('gate');
-      }
-
-      goto(destination);
+      await routeAfterAuth();
     } catch (e: any) {
       error = e.message?.includes('expired')
         ? 'Code expired. Request a new one.'
