@@ -174,7 +174,7 @@
     <!-- Upload Section -->
     <div class="upload-section" transition:fade={{ duration: 300 }}>
       {#if !preview}
-        <label class="upload-area" for="id-input" role="button" tabindex="0">
+        <label class="upload-area" for="id-input">
           <div class="upload-icon">📄</div>
           <p class="upload-text">Upload your government ID</p>
           <p class="upload-hint">Clear photo of front or back</p>
@@ -235,28 +235,28 @@
       <div class="extracted-fields">
         {#if extractedData.idName}
           <div class="field">
-            <label>Name</label>
+            <span class="field-label">Name</span>
             <div class="field-value">{extractedData.idName}</div>
           </div>
         {/if}
 
         {#if extractedData.idDOB}
           <div class="field">
-            <label>Date of Birth</label>
+            <span class="field-label">Date of Birth</span>
             <div class="field-value">{extractedData.idDOB}</div>
           </div>
         {/if}
 
         {#if extractedData.idNumber}
           <div class="field">
-            <label>ID Number</label>
+            <span class="field-label">ID Number</span>
             <div class="field-value">{extractedData.idNumber}</div>
           </div>
         {/if}
 
         {#if extractedData.expirationDate}
           <div class="field">
-            <label>Expiration Date</label>
+            <span class="field-label">Expiration Date</span>
             <div class="field-value">{extractedData.expirationDate}</div>
           </div>
         {/if}
@@ -419,7 +419,7 @@
     gap: 4px;
   }
 
-  .field label {
+  .field .field-label {
     font-size: 12px;
     font-weight: 600;
     color: var(--text-3);
@@ -561,7 +561,7 @@
       padding: 12px;
     }
 
-    .field label {
+    .field .field-label {
       font-size: 11px;
     }
 

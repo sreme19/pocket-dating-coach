@@ -15,12 +15,15 @@
 
   import { fade, slide } from 'svelte/transition';
 
+  import type { Snippet } from 'svelte';
+
   interface Props {
     activeTab?: string;
     onTabChange?: (tab: string) => void;
     isLoading?: boolean;
     error?: string | null;
     onSave?: (settings: any) => void;
+    children?: Snippet;
   }
 
   let {
@@ -28,7 +31,8 @@
     onTabChange = () => {},
     isLoading = false,
     error = null,
-    onSave = () => {}
+    onSave = () => {},
+    children
   }: Props = $props();
 
   const tabs = [
@@ -71,7 +75,7 @@
           <button
             class="nav-item"
             class:active={activeTab === tab.id}
-            on:click={() => handleTabClick(tab.id)}
+            onclick={() => handleTabClick(tab.id)}
             disabled={isLoading}
             aria-label={`Go to ${tab.label} settings`}
             title={tab.label}
@@ -92,7 +96,7 @@
         </div>
       {:else}
         <div class="tab-content" transition:fade={{ duration: 200 }}>
-          <slot />
+          {@render children?.()}
         </div>
       {/if}
     </main>

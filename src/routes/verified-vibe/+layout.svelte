@@ -46,13 +46,14 @@
     <nav class="verified-vibe-bottomnav" transition:slide={{ duration: 300, axis: 'y' }}>
       {#each navItems as item}
         {@const active = $currentTab === item.tab}
+        {@const Icon = item.icon}
         <button
           class="nav-item {active ? 'active' : ''}"
           onclick={() => currentTab.set(item.tab)}
           title={item.label}
         >
           <div class="nav-icon">
-            <svelte:component this={item.icon} size={24} />
+            <Icon size={24} />
           </div>
           <span class="nav-label">{item.label}</span>
         </button>

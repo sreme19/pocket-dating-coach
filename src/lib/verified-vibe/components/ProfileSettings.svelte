@@ -13,6 +13,7 @@
    */
 
   import { fade } from 'svelte/transition';
+  import { untrack } from 'svelte';
 
   interface Props {
     profile?: any;
@@ -28,13 +29,13 @@
     onCancel = () => {}
   }: Props = $props();
 
-  let formData = $state({
+  let formData = $state(untrack(() => ({
     firstName: profile.firstName || '',
     lastName: profile.lastName || '',
     bio: profile.bio || '',
     interests: profile.interests?.join(', ') || '',
     lookingFor: profile.lookingFor || ''
-  });
+  })));
 
   let errors = $state<Record<string, string>>({});
   let isDirty = $state(false);
@@ -103,7 +104,7 @@
     <p>Update your profile details</p>
   </div>
 
-  <form on:submit|preventDefault={handleSave} class="settings-form">
+  <form onsubmit={(e) => { e.preventDefault(); handleSave(); }} class="settings-form">
     <!-- First Name -->
     <div class="form-group">
       <label for="firstName">First Name *</label>
@@ -111,7 +112,7 @@
         type="text"
         id="firstName"
         bind:value={formData.firstName}
-        on:change={handleInputChange}
+        onchange={handleInputChange}
         placeholder="Enter your first name"
         maxlength="50"
         aria-describedby={errors.firstName ? 'firstName-error' : undefined}
@@ -129,7 +130,7 @@
         type="text"
         id="lastName"
         bind:value={formData.lastName}
-        on:change={handleInputChange}
+        onchange={handleInputChange}
         placeholder="Enter your last name"
         maxlength="50"
       />
@@ -142,7 +143,7 @@
       <textarea
         id="bio"
         bind:value={formData.bio}
-        on:change={handleInputChange}
+        onchange={handleInputChange}
         placeholder="Tell us about yourself"
         maxlength="500"
         rows="4"
@@ -161,7 +162,7 @@
         type="text"
         id="interests"
         bind:value={formData.interests}
-        on:change={handleInputChange}
+        onchange={handleInputChange}
         placeholder="Enter interests separated by commas (e.g., hiking, reading, cooking)"
       />
       <span class="help-text">Separate multiple interests with commas</span>
@@ -173,7 +174,7 @@
       <textarea
         id="lookingFor"
         bind:value={formData.lookingFor}
-        on:change={handleInputChange}
+        onchange={handleInputChange}
         placeholder="What are you looking for?"
         maxlength="200"
         rows="3"
@@ -190,7 +191,7 @@
       <button
         type="button"
         class="btn-secondary"
-        on:click={handleCancel}
+        onclick={handleCancel}
         disabled={isLoading || !isDirty}
       >
         Cancel

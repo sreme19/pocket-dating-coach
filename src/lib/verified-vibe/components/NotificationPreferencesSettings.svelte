@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   /**
    * NotificationPreferencesSettings Component
    *
@@ -29,7 +30,7 @@
     onTestNotification = () => {}
   }: Props = $props();
 
-  let formData = $state({
+  let formData = $state(untrack(() => ({
     // Message notifications
     messageNotifications: preferences.messageNotifications !== false,
     messageFrequency: preferences.messageFrequency || 'immediate',
@@ -57,7 +58,7 @@
     dndEnabled: preferences.dndEnabled || false,
     dndStartTime: preferences.dndStartTime || '22:00',
     dndEndTime: preferences.dndEndTime || '08:00'
-  });
+  })));
 
   let isDirty = $state(false);
 
@@ -138,7 +139,7 @@
     <p>Control how and when you receive notifications</p>
   </div>
 
-  <form on:submit|preventDefault={handleSave} class="settings-form">
+  <form onsubmit={(e) => { e.preventDefault(); handleSave(); }} class="settings-form">
     <!-- Message Notifications -->
     <div class="notification-section">
       <div class="section-title">
@@ -147,7 +148,7 @@
           <input
             type="checkbox"
             bind:checked={formData.messageNotifications}
-            on:change={handleInputChange}
+            onchange={handleInputChange}
           />
           <span class="toggle-slider"></span>
         </label>
@@ -156,8 +157,8 @@
       {#if formData.messageNotifications}
         <div class="notification-options">
           <div class="option-group">
-            <label>Frequency</label>
-            <select bind:value={formData.messageFrequency} on:change={handleInputChange}>
+            <label for="msg-frequency">Frequency</label>
+            <select id="msg-frequency" bind:value={formData.messageFrequency} onchange={handleInputChange}>
               {#each frequencies as freq (freq.value)}
                 <option value={freq.value}>{freq.label}</option>
               {/each}
@@ -166,15 +167,15 @@
 
           <div class="delivery-methods">
             <label class="checkbox-option">
-              <input type="checkbox" bind:checked={formData.messageEmail} on:change={handleInputChange} />
+              <input type="checkbox" bind:checked={formData.messageEmail} onchange={handleInputChange} />
               <span>Email</span>
             </label>
             <label class="checkbox-option">
-              <input type="checkbox" bind:checked={formData.messagePush} on:change={handleInputChange} />
+              <input type="checkbox" bind:checked={formData.messagePush} onchange={handleInputChange} />
               <span>Push</span>
             </label>
             <label class="checkbox-option">
-              <input type="checkbox" bind:checked={formData.messageSms} on:change={handleInputChange} />
+              <input type="checkbox" bind:checked={formData.messageSms} onchange={handleInputChange} />
               <span>SMS</span>
             </label>
           </div>
@@ -190,7 +191,7 @@
           <input
             type="checkbox"
             bind:checked={formData.matchNotifications}
-            on:change={handleInputChange}
+            onchange={handleInputChange}
           />
           <span class="toggle-slider"></span>
         </label>
@@ -199,8 +200,8 @@
       {#if formData.matchNotifications}
         <div class="notification-options">
           <div class="option-group">
-            <label>Frequency</label>
-            <select bind:value={formData.matchFrequency} on:change={handleInputChange}>
+            <label for="match-frequency">Frequency</label>
+            <select id="match-frequency" bind:value={formData.matchFrequency} onchange={handleInputChange}>
               {#each frequencies as freq (freq.value)}
                 <option value={freq.value}>{freq.label}</option>
               {/each}
@@ -209,15 +210,15 @@
 
           <div class="delivery-methods">
             <label class="checkbox-option">
-              <input type="checkbox" bind:checked={formData.matchEmail} on:change={handleInputChange} />
+              <input type="checkbox" bind:checked={formData.matchEmail} onchange={handleInputChange} />
               <span>Email</span>
             </label>
             <label class="checkbox-option">
-              <input type="checkbox" bind:checked={formData.matchPush} on:change={handleInputChange} />
+              <input type="checkbox" bind:checked={formData.matchPush} onchange={handleInputChange} />
               <span>Push</span>
             </label>
             <label class="checkbox-option">
-              <input type="checkbox" bind:checked={formData.matchSms} on:change={handleInputChange} />
+              <input type="checkbox" bind:checked={formData.matchSms} onchange={handleInputChange} />
               <span>SMS</span>
             </label>
           </div>
@@ -233,7 +234,7 @@
           <input
             type="checkbox"
             bind:checked={formData.systemNotifications}
-            on:change={handleInputChange}
+            onchange={handleInputChange}
           />
           <span class="toggle-slider"></span>
         </label>
@@ -242,8 +243,8 @@
       {#if formData.systemNotifications}
         <div class="notification-options">
           <div class="option-group">
-            <label>Frequency</label>
-            <select bind:value={formData.systemFrequency} on:change={handleInputChange}>
+            <label for="system-frequency">Frequency</label>
+            <select id="system-frequency" bind:value={formData.systemFrequency} onchange={handleInputChange}>
               {#each frequencies as freq (freq.value)}
                 <option value={freq.value}>{freq.label}</option>
               {/each}
@@ -252,15 +253,15 @@
 
           <div class="delivery-methods">
             <label class="checkbox-option">
-              <input type="checkbox" bind:checked={formData.systemEmail} on:change={handleInputChange} />
+              <input type="checkbox" bind:checked={formData.systemEmail} onchange={handleInputChange} />
               <span>Email</span>
             </label>
             <label class="checkbox-option">
-              <input type="checkbox" bind:checked={formData.systemPush} on:change={handleInputChange} />
+              <input type="checkbox" bind:checked={formData.systemPush} onchange={handleInputChange} />
               <span>Push</span>
             </label>
             <label class="checkbox-option">
-              <input type="checkbox" bind:checked={formData.systemSms} on:change={handleInputChange} />
+              <input type="checkbox" bind:checked={formData.systemSms} onchange={handleInputChange} />
               <span>SMS</span>
             </label>
           </div>
@@ -276,7 +277,7 @@
           <input
             type="checkbox"
             bind:checked={formData.marketingNotifications}
-            on:change={handleInputChange}
+            onchange={handleInputChange}
           />
           <span class="toggle-slider"></span>
         </label>
@@ -285,8 +286,8 @@
       {#if formData.marketingNotifications}
         <div class="notification-options">
           <div class="option-group">
-            <label>Frequency</label>
-            <select bind:value={formData.marketingFrequency} on:change={handleInputChange}>
+            <label for="marketing-frequency">Frequency</label>
+            <select id="marketing-frequency" bind:value={formData.marketingFrequency} onchange={handleInputChange}>
               {#each frequencies as freq (freq.value)}
                 <option value={freq.value}>{freq.label}</option>
               {/each}
@@ -295,11 +296,11 @@
 
           <div class="delivery-methods">
             <label class="checkbox-option">
-              <input type="checkbox" bind:checked={formData.marketingEmail} on:change={handleInputChange} />
+              <input type="checkbox" bind:checked={formData.marketingEmail} onchange={handleInputChange} />
               <span>Email</span>
             </label>
             <label class="checkbox-option">
-              <input type="checkbox" bind:checked={formData.marketingPush} on:change={handleInputChange} />
+              <input type="checkbox" bind:checked={formData.marketingPush} onchange={handleInputChange} />
               <span>Push</span>
             </label>
           </div>
@@ -315,7 +316,7 @@
           <input
             type="checkbox"
             bind:checked={formData.dndEnabled}
-            on:change={handleInputChange}
+            onchange={handleInputChange}
           />
           <span class="toggle-slider"></span>
         </label>
@@ -330,7 +331,7 @@
                 type="time"
                 id="dnd-start"
                 bind:value={formData.dndStartTime}
-                on:change={handleInputChange}
+                onchange={handleInputChange}
               />
             </div>
             <div class="time-input">
@@ -339,7 +340,7 @@
                 type="time"
                 id="dnd-end"
                 bind:value={formData.dndEndTime}
-                on:change={handleInputChange}
+                onchange={handleInputChange}
               />
             </div>
           </div>
@@ -353,7 +354,7 @@
       <button
         type="button"
         class="btn-test"
-        on:click={onTestNotification}
+        onclick={onTestNotification}
         disabled={isLoading}
       >
         📬 Send Test Notification
@@ -365,7 +366,7 @@
       <button
         type="button"
         class="btn-secondary"
-        on:click={handleCancel}
+        onclick={handleCancel}
         disabled={isLoading || !isDirty}
       >
         Cancel

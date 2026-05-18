@@ -145,8 +145,8 @@
 		goto('/profile-review-male');
 	}
 
-	const userQuestionCount = messages.filter((m) => m.role === 'user').length;
-	const exchangeProgress = (userQuestionCount / MAX_EXCHANGES) * 100;
+	let userQuestionCount = $derived(messages.filter((m) => m.role === 'user').length);
+	let exchangeProgress = $derived((userQuestionCount / MAX_EXCHANGES) * 100);
 </script>
 
 <div class="min-h-screen bg-slate-950 text-white flex flex-col">
@@ -161,7 +161,7 @@
 				<div
 					class="bg-gradient-to-r from-rose-500 to-amber-500 h-full transition-all duration-300"
 					style="width: {exchangeProgress}%"
-				/>
+				></div>
 			</div>
 		</div>
 	</div>

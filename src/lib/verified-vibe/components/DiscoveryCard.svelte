@@ -228,8 +228,9 @@
   }
 </script>
 
-<article
+<div
   class="discovery-card"
+  role="button"
   transition:fade={{ duration: 200 }}
   aria-label={`Profile of ${profile.firstName}, ${profile.age} years old, ${profile.distance} away`}
   tabindex="0"
@@ -288,7 +289,7 @@
               aria-selected={i === currentPhotoIndex}
               aria-label={`Photo ${i + 1} of ${photoCount}`}
               title={`Go to photo ${i + 1}`}
-            />
+            ></button>
           {/each}
         </div>
 
@@ -439,7 +440,7 @@
       <span class="button-text">Like</span>
     </button>
   </div>
-</article>
+</div>
 
 <style>
   .discovery-card {
