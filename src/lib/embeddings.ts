@@ -1,4 +1,4 @@
-import { VOYAGE_API_KEY } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 
 const VOYAGE_MODEL = 'voyage-3-lite';
 const VOYAGE_URL = 'https://api.voyageai.com/v1/embeddings';
@@ -7,7 +7,7 @@ async function fetchEmbeddings(inputs: string[]): Promise<number[][]> {
 	const res = await fetch(VOYAGE_URL, {
 		method: 'POST',
 		headers: {
-			'Authorization': `Bearer ${VOYAGE_API_KEY}`,
+			'Authorization': `Bearer ${env.VOYAGE_API_KEY}`,
 			'Content-Type': 'application/json'
 		},
 		body: JSON.stringify({ input: inputs, model: VOYAGE_MODEL })

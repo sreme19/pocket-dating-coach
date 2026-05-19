@@ -21,7 +21,7 @@ export interface ErrorLog {
 }
 
 export interface ErrorRecoveryOptions {
-  retryable: boolean;
+  retryable?: boolean;
   maxRetries?: number;
   retryDelay?: number; // milliseconds
   fallbackAction?: () => Promise<any>;
