@@ -37,9 +37,9 @@ export const POST: RequestHandler = async ({ request }) => {
     const body = (await request.json()) as CheckPhotoConsistencyRequest;
 
     // Validate request
-    if (!body.images || !Array.isArray(body.images) || body.images.length < 5) {
+    if (!body.images || !Array.isArray(body.images) || body.images.length < 1) {
       return json(
-        { error: 'At least 5 images are required' },
+        { error: 'At least 1 image is required' },
         { status: 400 }
       );
     }

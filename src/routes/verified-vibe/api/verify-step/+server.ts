@@ -224,9 +224,9 @@ async function handleLivenessVerification(data: any) {
 async function handlePhotoVerification(data: any) {
   try {
     // Validate required fields
-    if (!data.images || !Array.isArray(data.images) || data.images.length < 5) {
+    if (!data.images || !Array.isArray(data.images) || data.images.length < 1) {
       return json(
-        { error: 'At least 5 images are required' },
+        { error: 'At least 1 image is required' },
         { status: 400 }
       );
     }

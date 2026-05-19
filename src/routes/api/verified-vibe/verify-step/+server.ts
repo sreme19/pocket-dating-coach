@@ -155,9 +155,9 @@ export const POST: RequestHandler = async ({ request }) => {
 async function handlePhotoVerification(data: any, userId: string | null = null) {
   try {
     // Validate required fields
-    if (!data.images || !Array.isArray(data.images) || data.images.length < 5) {
+    if (!data.images || !Array.isArray(data.images) || data.images.length < 1) {
       return json(
-        { error: 'At least 5 images are required' },
+        { error: 'At least 1 image is required' },
         { status: 400 }
       );
     }
