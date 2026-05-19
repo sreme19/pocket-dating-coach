@@ -18,6 +18,7 @@
   let isDragging = $state(false);
   let step = $state<'upload' | 'label' | 'checking' | 'result'>('upload');
   let consistencyResult = $state<PhotoConsistencyResult | null>(null);
+  let fileInputEl = $state<HTMLInputElement | null>(null);
 
   const PHOTO_LABELS = ['lead', 'warmth', 'lifestyle', 'conversation', 'social'];
   const MIN_PHOTOS = 5;
@@ -191,6 +192,7 @@
         ondragover={handleDragOver}
         ondragleave={handleDragLeave}
         ondrop={handleDrop}
+        onclick={() => fileInputEl?.click()}
         role="button"
         tabindex="0"
         aria-label="Upload photos"
@@ -206,6 +208,7 @@
           disabled={loading}
           aria-label="Select photo files"
           class="file-input"
+          bind:this={fileInputEl}
         />
       </div>
 
