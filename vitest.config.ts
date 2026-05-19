@@ -11,6 +11,7 @@ export default defineConfig({
 		globals: true,
 		environment: 'jsdom',
 		setupFiles: ['./vitest.setup.ts'],
+		exclude: ['node_modules', '.claude/**', 'dist', '.svelte-kit'],
 		alias: {
 			$lib: '/src/lib',
 			'$app/navigation': '/src/app/navigation.ts',

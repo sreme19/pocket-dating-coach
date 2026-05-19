@@ -1,39 +1,60 @@
 <script lang="ts">
   import { fade, slide } from 'svelte/transition';
-  import { notifications, unreadNotifications, markNotificationAsRead, deleteNotification, markAllNotificationsAsRead } from '../stores';
+  import { onDestroy } from 'svelte';
   import type { Notification } from '../types';
+  import {
+    notifications as notificationsStore,
+    unreadNotifications as unreadStore,
+    markNotificationAsRead,
+    deleteNotification,
+    markAllNotificationsAsRead
+  } from '../stores';
 
   interface Props {
+    onMarkAsRead?: (notificationId: string) => void;
+    onClear?: (notificationId: string) => void;
+    onClearAll?: () => void;
     onNotificationTap?: (notification: Notification) => void;
   }
 
-  let { onNotificationTap }: Props = $props();
+  let {
+    onMarkAsRead,
+    onClear,
+    onClearAll,
+    onNotificationTap
+  }: Props = $props();
 
   let isOpen = $state(false);
   let notificationList = $state<Notification[]>([]);
   let unreadCount = $state(0);
 
-  const unsubNotifications = notifications.subscribe((value) => {
-    notificationList = value;
-  });
-
-  const unsubUnread = unreadNotifications.subscribe((value) => {
-    unreadCount = value;
-  });
+  const unsubNotifications = notificationsStore.subscribe(v => { notificationList = v; });
+  const unsubUnread = unreadStore.subscribe(v => { unreadCount = v; });
+  onDestroy(() => { unsubNotifications(); unsubUnread(); });
 
   function getNotificationIcon(type: string): string {
     switch (type) {
-      case 'message':
-        return '💬';
-      case 'match':
-        return '💕';
-      case 'verification':
-        return '✓';
-      case 'system':
-        return 'ℹ️';
-      default:
-        return '🔔';
+      case 'message': return '💬';
+      case 'match': return '💕';
+      case 'system': return 'ℹ️';
+      case 'verification': return '✓';
+      default: return '🔔';
     }
+  }
+
+  function handleMarkAsRead(id: string) {
+    if (onMarkAsRead) onMarkAsRead(id);
+    else markNotificationAsRead(id);
+  }
+
+  function handleClear(id: string) {
+    if (onClear) onClear(id);
+    else deleteNotification(id);
+  }
+
+  function handleClearAll() {
+    if (onClearAll) onClearAll();
+    else markAllNotificationsAsRead();
   }
 
   function formatTime(date: Date): string {
@@ -49,10 +70,6 @@
     if (days < 7) return `${days}d ago`;
 
     return new Date(date).toLocaleDateString();
-  }
-
-  function handleMarkAsRead(notificationId: string) {
-    markNotificationAsRead(notificationId);
   }
 
   function handleNotificationClick(notification: Notification) {
@@ -93,14 +110,14 @@
       <div class="notification-header">
         <h3>Notifications</h3>
         <div class="header-actions">
-          {#if notificationList.some(n => n.status === 'unread')}
+          {#if unreadCount > 0}
             <button
               class="clear-all-btn"
-              onclick={markAllNotificationsAsRead}
+              onclick={handleClearAll}
               aria-label="Mark all as read"
               title="Mark all as read"
             >
-              ✓ All read
+              Mark all as read
             </button>
           {/if}
           <button
@@ -143,7 +160,7 @@
 
               <button
                 class="notification-close"
-                onclick={(e) => { e.stopPropagation(); deleteNotification(notification.id); }}
+                onclick={(e) => { e.stopPropagation(); handleClear(notification.id); }}
                 aria-label="Delete notification"
               >
                 ✕

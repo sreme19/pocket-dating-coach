@@ -13,6 +13,7 @@ if (typeof DataTransfer === 'undefined') {
 	function makeFileList(files: File[]): FileList {
 		const fl: any = files.slice();
 		fl.item = (i: number) => fl[i] ?? null;
+		// Make HTMLInputElement accept this via the overridden setter below
 		_fileListStore.set(fl, fl);
 		return fl as FileList;
 	}
@@ -44,6 +45,7 @@ if (typeof DataTransfer === 'undefined') {
 }
 
 // jsdom does not implement the Web Animations API — stub it globally
+// The mock immediately fires 'finish' so Svelte transitions complete synchronously in tests.
 Element.prototype.animate = vi.fn().mockImplementation(function () {
 	const finishListeners: (() => void)[] = [];
 	let _onfinish: (() => void) | null = null;

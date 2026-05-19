@@ -118,6 +118,7 @@
     if (!onBlock) return;
     isLoading = true;
     onBlock();
+    showMoreOptions = false;
     setTimeout(() => {
       isLoading = false;
       showMoreOptions = false;
@@ -131,6 +132,7 @@
     if (!onReport) return;
     isLoading = true;
     onReport();
+    showMoreOptions = false;
     setTimeout(() => {
       isLoading = false;
       showMoreOptions = false;
