@@ -11,6 +11,8 @@ SvelteKit dating coach app powered by Claude, Supabase, pgvector, and Voyage AI 
 - Chat Analyzer: paste or upload a conversation screenshot for next-move guidance.
 - Reply Suggester: generate playful, warm, and direct reply options.
 - For Her: guided female profile journey with photo story intake, preference prompts, a public profile, private matching brief, compatibility signals, and approval controls.
+- Verified Vibe profile generation: a local dev onboarding path from archetype selection into verification, profile intake, Claude profile synthesis, and an editable profile page.
+- AI photo enhancement foundation: fal.ai-backed photo generation module and `/api/photo-enhance/generate` endpoint for creating role-based profile photos from a reference upload.
 
 ## Local Setup
 
@@ -31,7 +33,10 @@ ANTHROPIC_API_KEY=sk-ant-api03-...
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_KEY=your-service-role-key-here
 VOYAGE_API_KEY=pa-...
+FAL_KEY=...
 ```
+
+`FAL_KEY` is required only for AI photo enhancement. Run `npm run setup:fal` for an interactive local setup helper.
 
 ## Supabase Setup
 
@@ -54,6 +59,7 @@ npm run dev
 npm run check
 npm run build
 npm run ingest
+npm run setup:fal
 ```
 
 ## Documentation
@@ -64,9 +70,12 @@ Project notes and implementation artifacts live in [`docs/`](docs/README.md):
 - [`docs/deployment/`](docs/deployment/) for deployment and production readiness.
 - [`docs/reports/`](docs/reports/) for testing, accessibility, and verification reports.
 - [`docs/tasks/`](docs/tasks/) for task completion notes.
+- [`docs/verified-vibe/GITHUB_WIKI.md`](docs/verified-vibe/GITHUB_WIKI.md) for the GitHub Wiki-ready Verified Vibe profile generation guide.
 
 ## Notes
 
 - `npm run ingest` loads the dating book into Supabase using Voyage AI embeddings.
 - The female journey keeps public profile output separate from private matching notes and raw preference inputs.
 - The app currently uses a stable anonymous browser session ID. Full Supabase Auth is a planned next step.
+- The current Verified Vibe male profile path intentionally includes a dev-mode auth bypass and stores profile drafts, generated copy, uploaded photo data URLs, and AI photo results in browser `localStorage`.
+- As of the profile generation commit, `npm run check` and `npm test` are not green. Known failures include pre-existing Svelte/type/test issues and `@fal-ai/client` API typing errors in the new photo enhancement module.
