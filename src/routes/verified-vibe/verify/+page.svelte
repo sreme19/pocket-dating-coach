@@ -130,7 +130,7 @@
     <!-- Footer text -->
     <div class="verify-privacy" transition:fade={{ duration: 400, delay: 400 }}>
       <p>
-        By verifying, you agree to our <a href="#">Verification Policy</a> and <a href="#">Privacy Policy</a>.
+        By verifying, you agree to our <a href="/verified-vibe/privacy">Verification Policy</a> and <a href="/verified-vibe/privacy">Privacy Policy</a>.
       </p>
     </div>
   {/if}
@@ -313,10 +313,6 @@
     font-weight: 700;
   }
 
-  .verify-time .ico {
-    color: var(--accent-bright);
-  }
-
   .verify-privacy-note {
     padding: 12px 16px;
     background: var(--bg-2);
@@ -497,12 +493,6 @@
       margin-bottom: 12px;
       font-size: 12px;
       border-radius: var(--r-md);
-    }
-
-    .verify-time .ico {
-      width: 14px;
-      height: 14px;
-      min-width: 14px;
     }
 
     .verify-privacy-note {

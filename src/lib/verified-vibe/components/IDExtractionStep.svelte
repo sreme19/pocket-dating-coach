@@ -6,7 +6,6 @@
     onSubmit?: (data: { idImage: string; mimeType: string }) => Promise<void>;
     onCancel?: () => void;
   }
-
   let { onSubmit = async () => {}, onCancel = () => {} }: Props = $props();
 
   let loading = $state(false);
@@ -63,24 +62,60 @@
       // Convert file to base64
       const base64 = await fileToBase64(selectedFile);
 
-      // Call extraction API
-      const response = await fetch('/api/verified-vibe/extract-id', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          image: base64,
-          mimeType: selectedFile.type
-        })
-      });
+      // Create abort controller for timeout (30 seconds)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error || 'Failed to extract ID data');
+      try {
+        // Call extraction API
+        const response = await fetch('/api/verified-vibe/extract-id', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            image: base64,
+            mimeType: selectedFile.type
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          let errorMessage = 'Failed to extract ID data';
+          try {
+            const result = await response.json();
+            errorMessage = result.error || errorMessage;
+          } catch {
+            // If response is not JSON, use status text
+            errorMessage = response.statusText || errorMessage;
+          }
+          throw new Error(errorMessage);
+        }
+
+        let result;
+        try {
+          result = await response.json();
+        } catch (parseError) {
+          console.error('Failed to parse API response:', parseError);
+          throw new Error('Invalid response from server. Please try again.');
+        }
+
+        if (!result.data) {
+          throw new Error('No data returned from server. Please try again.');
+        }
+
+        extractedData = result.data;
+        isConfirming = true;
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+
+        // Handle timeout
+        if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+          throw new Error('Request took too long. Please try again.');
+        }
+
+        throw fetchError;
       }
-
-      const result = await response.json();
-      extractedData = result.data;
-      isConfirming = true;
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to extract ID data';
     } finally {
@@ -139,7 +174,7 @@
     <!-- Upload Section -->
     <div class="upload-section" transition:fade={{ duration: 300 }}>
       {#if !preview}
-        <label class="upload-area" for="id-input" role="button" tabindex="0">
+        <label class="upload-area" for="id-input">
           <div class="upload-icon">📄</div>
           <p class="upload-text">Upload your government ID</p>
           <p class="upload-hint">Clear photo of front or back</p>
@@ -200,28 +235,28 @@
       <div class="extracted-fields">
         {#if extractedData.idName}
           <div class="field">
-            <label>Name</label>
+            <span class="field-label">Name</span>
             <div class="field-value">{extractedData.idName}</div>
           </div>
         {/if}
 
         {#if extractedData.idDOB}
           <div class="field">
-            <label>Date of Birth</label>
+            <span class="field-label">Date of Birth</span>
             <div class="field-value">{extractedData.idDOB}</div>
           </div>
         {/if}
 
         {#if extractedData.idNumber}
           <div class="field">
-            <label>ID Number</label>
+            <span class="field-label">ID Number</span>
             <div class="field-value">{extractedData.idNumber}</div>
           </div>
         {/if}
 
         {#if extractedData.expirationDate}
           <div class="field">
-            <label>Expiration Date</label>
+            <span class="field-label">Expiration Date</span>
             <div class="field-value">{extractedData.expirationDate}</div>
           </div>
         {/if}
@@ -384,7 +419,7 @@
     gap: 4px;
   }
 
-  .field label {
+  .field .field-label {
     font-size: 12px;
     font-weight: 600;
     color: var(--text-3);
@@ -526,7 +561,7 @@
       padding: 12px;
     }
 
-    .field label {
+    .field .field-label {
       font-size: 11px;
     }
 

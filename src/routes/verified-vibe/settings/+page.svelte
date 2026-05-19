@@ -6,6 +6,7 @@
    */
 
   import { onMount } from 'svelte';
+  import { fade } from 'svelte/transition';
   import { page } from '$app/stores';
   import SettingsDashboard from '$lib/verified-vibe/components/SettingsDashboard.svelte';
   import ProfileSettings from '$lib/verified-vibe/components/ProfileSettings.svelte';

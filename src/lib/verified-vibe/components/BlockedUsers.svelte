@@ -99,7 +99,7 @@
 
           <button
             class="unblock-btn"
-            on:click={() => handleUnblock(user.blockedUserId)}
+            onclick={() => handleUnblock(user.blockedUserId)}
             disabled={isLoading || unblockingId === user.blockedUserId}
             aria-label={`Unblock ${user.blockedUserName}`}
             title="Unblock user"

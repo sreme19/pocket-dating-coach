@@ -1,54 +1,34 @@
 <script lang="ts">
-  /**
-   * NotificationCenter Component
-   *
-   * Displays notifications with badge count and notification list.
-   * Allows marking notifications as read and clearing them.
-   *
-   * Props:
-   * - notifications: Notification[] - Array of notifications
-   * - unreadCount: number - Number of unread notifications
-   * - onMarkAsRead: (notificationId: string) => void - Mark as read callback
-   * - onClear: (notificationId: string) => void - Clear callback
-   * - onClearAll: () => void - Clear all callback
-   */
-
   import { fade, slide } from 'svelte/transition';
-
-  interface Notification {
-    id: string;
-    type: 'message' | 'match' | 'system';
-    title: string;
-    message: string;
-    read: boolean;
-    createdAt: Date;
-    actionUrl?: string;
-  }
+  import { notifications, unreadNotifications, markNotificationAsRead, deleteNotification, markAllNotificationsAsRead } from '../stores';
+  import type { Notification } from '../types';
 
   interface Props {
-    notifications?: Notification[];
-    unreadCount?: number;
-    onMarkAsRead?: (notificationId: string) => void;
-    onClear?: (notificationId: string) => void;
-    onClearAll?: () => void;
+    onNotificationTap?: (notification: Notification) => void;
   }
 
-  let {
-    notifications = [],
-    unreadCount = 0,
-    onMarkAsRead = () => {},
-    onClear = () => {},
-    onClearAll = () => {}
-  }: Props = $props();
+  let { onNotificationTap }: Props = $props();
 
   let isOpen = $state(false);
+  let notificationList = $state<Notification[]>([]);
+  let unreadCount = $state(0);
+
+  const unsubNotifications = notifications.subscribe((value) => {
+    notificationList = value;
+  });
+
+  const unsubUnread = unreadNotifications.subscribe((value) => {
+    unreadCount = value;
+  });
 
   function getNotificationIcon(type: string): string {
     switch (type) {
       case 'message':
         return '💬';
       case 'match':
-        return '❤️';
+        return '💕';
+      case 'verification':
+        return '✓';
       case 'system':
         return 'ℹ️';
       default:
@@ -71,12 +51,17 @@
     return new Date(date).toLocaleDateString();
   }
 
+  function handleMarkAsRead(notificationId: string) {
+    markNotificationAsRead(notificationId);
+  }
+
   function handleNotificationClick(notification: Notification) {
-    if (!notification.read) {
-      onMarkAsRead(notification.id);
+    if (notification.status === 'unread') {
+      handleMarkAsRead(notification.id);
     }
-    if (notification.actionUrl) {
-      window.location.href = notification.actionUrl;
+    onNotificationTap?.(notification);
+    if (notification.data?.actionUrl) {
+      window.location.href = notification.data.actionUrl;
     }
   }
 </script>
@@ -85,7 +70,7 @@
   <!-- Notification Bell Button -->
   <button
     class="notification-bell"
-    on:click={() => (isOpen = !isOpen)}
+    onclick={() => (isOpen = !isOpen)}
     aria-label={`Notifications (${unreadCount} unread)`}
     title={`${unreadCount} unread notifications`}
   >
@@ -96,7 +81,7 @@
 
     {#if unreadCount > 0}
       <span class="badge" transition:fade={{ duration: 200 }}>
-        {unreadCount > 99 ? '99+' : unreadCount}
+        {unreadCount > 9 ? '9+' : unreadCount}
       </span>
     {/if}
   </button>
@@ -107,30 +92,43 @@
       <!-- Header -->
       <div class="notification-header">
         <h3>Notifications</h3>
-        {#if notifications.length > 0}
+        <div class="header-actions">
+          {#if notificationList.some(n => n.status === 'unread')}
+            <button
+              class="clear-all-btn"
+              onclick={markAllNotificationsAsRead}
+              aria-label="Mark all as read"
+              title="Mark all as read"
+            >
+              ✓ All read
+            </button>
+          {/if}
           <button
-            class="clear-all-btn"
-            on:click={onClearAll}
-            aria-label="Clear all notifications"
-            title="Clear all"
+            class="close-btn"
+            onclick={() => (isOpen = false)}
+            aria-label="Close notifications"
+            title="Close"
           >
             ✕
           </button>
-        {/if}
+        </div>
       </div>
 
       <!-- Notifications List -->
       <div class="notification-list">
-        {#if notifications.length === 0}
+        {#if notificationList.length === 0}
           <div class="empty-state">
-            <p>No notifications</p>
+            <p>No notifications yet</p>
           </div>
         {:else}
-          {#each notifications as notification (notification.id)}
-            <button
+          {#each notificationList as notification (notification.id)}
+            <div
               class="notification-item"
-              class:unread={!notification.read}
-              on:click={() => handleNotificationClick(notification)}
+              class:unread={notification.status === 'unread'}
+              role="button"
+              tabindex="0"
+              onclick={() => handleNotificationClick(notification)}
+              onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleNotificationClick(notification)}
               transition:slide={{ duration: 200 }}
             >
               <div class="notification-icon">
@@ -139,18 +137,18 @@
 
               <div class="notification-content">
                 <h4 class="notification-title">{notification.title}</h4>
-                <p class="notification-message">{notification.message}</p>
+                <p class="notification-message">{notification.body}</p>
                 <span class="notification-time">{formatTime(notification.createdAt)}</span>
               </div>
 
               <button
                 class="notification-close"
-                on:click|stopPropagation={() => onClear(notification.id)}
-                aria-label="Dismiss notification"
+                onclick={(e) => { e.stopPropagation(); deleteNotification(notification.id); }}
+                aria-label="Delete notification"
               >
                 ✕
               </button>
-            </button>
+            </div>
           {/each}
         {/if}
       </div>
@@ -235,7 +233,33 @@
     color: var(--text-1);
   }
 
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
   .clear-all-btn {
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 4px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-3);
+    font-size: 12px;
+    transition: all 150ms ease;
+    display: grid;
+    place-items: center;
+    white-space: nowrap;
+  }
+
+  .clear-all-btn:hover {
+    background: var(--bg-2);
+    color: var(--text-2);
+  }
+
+  .close-btn {
     width: 24px;
     height: 24px;
     border-radius: 4px;
@@ -249,7 +273,7 @@
     place-items: center;
   }
 
-  .clear-all-btn:hover {
+  .close-btn:hover {
     background: var(--bg-2);
     color: var(--text-2);
   }
@@ -281,6 +305,7 @@
     cursor: pointer;
     transition: all 150ms ease;
     text-align: left;
+    width: 100%;
   }
 
   .notification-item:last-child {
@@ -354,7 +379,6 @@
     color: var(--text-2);
   }
 
-  /* Mobile responsive */
   @media (max-width: 767px) {
     .notification-dropdown {
       width: 320px;

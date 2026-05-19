@@ -88,7 +88,7 @@
   });
 </script>
 
-<div class="trust-gauge" class:style-{style} class:size-{size} role="region" aria-label="Trust score gauge">
+<div class="trust-gauge size-{size} style-{style}" role="region" aria-label="Trust score gauge">
   <!-- Radial Gauge -->
   {#if style === 'radial'}
     <div class="gauge-container">

@@ -2,6 +2,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { currentPhase, currentTab } from '$lib/verified-vibe/stores';
+  import type { Tab } from '$lib/verified-vibe/types';
   import { getSupabaseClient } from '$lib/client/supabase';
   import { MessageCircle, Compass, ShieldCheck } from 'lucide-svelte';
   import { fade, slide } from 'svelte/transition';
@@ -26,7 +27,7 @@
       });
   });
 
-  const navItems = [
+  const navItems: Array<{ tab: Tab; icon: typeof Compass; label: string; description: string }> = [
     { tab: 'discover', icon: Compass, label: 'Discover', description: 'Find matches' },
     { tab: 'trust', icon: ShieldCheck, label: 'Trust', description: 'Your score' },
     { tab: 'chat', icon: MessageCircle, label: 'Chat', description: 'Messages' }
@@ -35,24 +36,27 @@
 
 <div class="verified-vibe-container">
   <!-- Main content with transitions -->
-  <div class="verified-vibe-content" key={$page.url.pathname}>
+  {#key $page.url.pathname}
+  <div class="verified-vibe-content">
     <div in:fade={{ duration: 300 }} out:fade={{ duration: 200 }}>
       {@render children()}
     </div>
   </div>
+  {/key}
 
   <!-- Bottom navigation (only show in app phase) -->
   {#if $currentPhase === 'app'}
     <nav class="verified-vibe-bottomnav" transition:slide={{ duration: 300, axis: 'y' }}>
       {#each navItems as item}
         {@const active = $currentTab === item.tab}
+        {@const Icon = item.icon}
         <button
           class="nav-item {active ? 'active' : ''}"
           onclick={() => currentTab.set(item.tab)}
           title={item.label}
         >
           <div class="nav-icon">
-            <svelte:component this={item.icon} size={24} />
+            <Icon size={24} />
           </div>
           <span class="nav-label">{item.label}</span>
         </button>

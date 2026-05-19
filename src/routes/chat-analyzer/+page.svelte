@@ -90,8 +90,9 @@
 
 			{#if inputMode === 'text'}
 				<div class="mb-6">
-					<label class="block text-sm font-medium text-gray-300 mb-2">Paste your last 4–6 messages</label>
+					<label class="block text-sm font-medium text-gray-300 mb-2" for="conversation-text">Paste your last 4–6 messages</label>
 					<textarea
+						id="conversation-text"
 						bind:value={conversationText}
 						placeholder="Format like:&#10;You: Hey! Loved your photo at the beach 🏖️&#10;Them: Haha thanks! I go there every summer&#10;You: That's cool, where is it?&#10;Them: Goa! You been?&#10;You: Not yet but it's on my list..."
 						rows="10"

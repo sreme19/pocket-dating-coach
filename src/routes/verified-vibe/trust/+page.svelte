@@ -127,8 +127,8 @@
 
   <!-- Edit modal -->
   {#if showEditModal}
-    <div class="modal-overlay" onclick={() => (showEditModal = false)} transition:fade={{ duration: 300 }}>
-      <div class="modal" onclick={(e) => e.stopPropagation()} transition:slide={{ duration: 300, axis: 'y' }}>
+    <div class="modal-overlay" onclick={() => (showEditModal = false)} onkeydown={(e) => e.key === 'Escape' && (showEditModal = false)} role="button" tabindex="0" transition:fade={{ duration: 300 }}>
+      <div class="modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="button" tabindex="0" transition:slide={{ duration: 300, axis: 'y' }}>
         <div class="modal-header">
           <h3>Edit Q&A</h3>
           <button class="close-btn" onclick={() => (showEditModal = false)}>✕</button>
@@ -136,12 +136,12 @@
 
         <div class="modal-content">
           <div class="qa-field">
-            <label>What are you looking for?</label>
-            <textarea placeholder="Share your thoughts..."></textarea>
+            <label for="qa-looking-for">What are you looking for?</label>
+            <textarea id="qa-looking-for" placeholder="Share your thoughts..."></textarea>
           </div>
           <div class="qa-field">
-            <label>What's your ideal first date?</label>
-            <textarea placeholder="Share your thoughts..."></textarea>
+            <label for="qa-first-date">What's your ideal first date?</label>
+            <textarea id="qa-first-date" placeholder="Share your thoughts..."></textarea>
           </div>
         </div>
 

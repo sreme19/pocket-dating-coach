@@ -203,7 +203,6 @@
             bind:value={email}
             onkeydown={(e) => e.key === 'Enter' && sendOtp()}
             autocomplete="email"
-            autofocus
           />
         </div>
 
@@ -258,7 +257,6 @@
             onkeydown={(e) => e.key === 'Enter' && verifyCode()}
             maxlength="6"
             autocomplete="one-time-code"
-            autofocus
           />
         </div>
 

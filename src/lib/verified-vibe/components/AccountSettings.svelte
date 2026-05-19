@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   /**
    * AccountSettings Component
    *
@@ -26,11 +27,11 @@
     onCancel = () => {}
   }: Props = $props();
 
-  let formData = $state({
+  let formData = $state(untrack(() => ({
     email: account.email || '',
     phone: account.phone || '',
     username: account.username || ''
-  });
+  })));
 
   let errors = $state<Record<string, string>>({});
   let isDirty = $state(false);
@@ -107,7 +108,7 @@
     <p>Update your account details</p>
   </div>
 
-  <form on:submit|preventDefault={handleSave} class="settings-form">
+  <form onsubmit={(e) => { e.preventDefault(); handleSave(); }} class="settings-form">
     <!-- Email -->
     <div class="form-group">
       <label for="email">Email Address *</label>
@@ -115,7 +116,7 @@
         type="email"
         id="email"
         bind:value={formData.email}
-        on:change={handleInputChange}
+        onchange={handleInputChange}
         placeholder="Enter your email address"
         aria-describedby={errors.email ? 'email-error' : undefined}
       />
@@ -132,7 +133,7 @@
         type="tel"
         id="phone"
         bind:value={formData.phone}
-        on:change={handleInputChange}
+        onchange={handleInputChange}
         placeholder="Enter your phone number (optional)"
         aria-describedby={errors.phone ? 'phone-error' : undefined}
       />
@@ -149,7 +150,7 @@
         type="text"
         id="username"
         bind:value={formData.username}
-        on:change={handleInputChange}
+        onchange={handleInputChange}
         placeholder="Choose a unique username"
         maxlength="30"
         aria-describedby={errors.username ? 'username-error' : undefined}
@@ -178,7 +179,7 @@
       <button
         type="button"
         class="btn-secondary"
-        on:click={handleCancel}
+        onclick={handleCancel}
         disabled={isLoading || !isDirty}
       >
         Cancel
