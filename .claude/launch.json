@@ -6,7 +6,7 @@
       "description": "Vite dev server with HMR — use for active development and functional testing",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "cwd": "${workspaceRoot}/.claude/worktrees/objective-shaw-f9cdf9",
+      "cwd": "${workspaceRoot}",
       "port": 5173,
       "url": "http://localhost:5173",
       "env": {}
@@ -16,7 +16,7 @@
       "description": "Serves the production build locally — run 'npm run build' first",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "preview"],
-      "cwd": "${workspaceRoot}/.claude/worktrees/objective-shaw-f9cdf9",
+      "cwd": "${workspaceRoot}",
       "port": 4173,
       "url": "http://localhost:4173",
       "env": {}
