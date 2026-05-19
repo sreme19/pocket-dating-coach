@@ -272,7 +272,7 @@ Do not include any other text.`
 
     let parsedResponse;
     try {
-      parsedResponse = JSON.parse(content);
+      parsedResponse = JSON.parse(content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim());
     } catch (e) {
       console.error('Failed to parse Claude response:', content);
       throw new Error('Invalid response format from Claude API');
@@ -379,7 +379,7 @@ Do not include any other text.`
 
     let parsedResponse;
     try {
-      parsedResponse = JSON.parse(content);
+      parsedResponse = JSON.parse(content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim());
     } catch (e) {
       console.error('Failed to parse Claude response:', content);
       throw new Error('Invalid response format from Claude API');
@@ -479,7 +479,7 @@ Do not include any other text.`
 
     let parsedResponse;
     try {
-      parsedResponse = JSON.parse(content);
+      parsedResponse = JSON.parse(content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim());
     } catch (e) {
       console.error('Failed to parse Claude response:', content);
       throw new Error('Invalid response format from Claude API');
@@ -574,7 +574,7 @@ Do not include any other text.`
 
     let parsedResponse;
     try {
-      parsedResponse = JSON.parse(content);
+      parsedResponse = JSON.parse(content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim());
     } catch (e) {
       console.error('Failed to parse Claude response:', content);
       throw new Error('Invalid response format from Claude API');
