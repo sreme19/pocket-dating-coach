@@ -12,7 +12,7 @@
   // ── Auth guard ──────────────────────────────────────────────────────────────
   // Gate and auth pages are public (no session needed).
   // Everything else redirects to /auth if unauthenticated.
-  const PUBLIC_VV_PATHS = ['/verified-vibe/auth', '/verified-vibe/gate', '/verified-vibe/home', '/verified-vibe/privacy'];
+  const PUBLIC_VV_PATHS = ['/verified-vibe/auth', '/verified-vibe/gate', '/verified-vibe/home', '/verified-vibe/privacy', '/verified-vibe/verify', '/verified-vibe/verification', '/verified-vibe/profile'];
 
   $effect(() => {
     const pathname = $page.url.pathname;

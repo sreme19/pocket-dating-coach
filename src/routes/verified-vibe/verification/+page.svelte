@@ -19,6 +19,8 @@
   import SpendingUploadStep from '$lib/verified-vibe/components/SpendingUploadStep.svelte';
   import IDExtractionStep from '$lib/verified-vibe/components/IDExtractionStep.svelte';
   import LivenessStep from '$lib/verified-vibe/components/LivenessStep.svelte';
+  import ProfileIntakeStep from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
+  import type { ProfileIntakeData } from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
   import type { VerificationStep as VerificationStepType, LivenessCheckResult } from '$lib/verified-vibe/types';
   import { fade, slide } from 'svelte/transition';
   import { onMount } from 'svelte';
@@ -33,7 +35,7 @@
     };
   }
 
-  const totalSteps = 4;
+  const totalSteps = 5;
   let currentStep = $state(1);
   let loading = $state(false);
   let error = $state<string | null>(null);
@@ -42,6 +44,9 @@
   let showSkipWarning = $state(false);
   let stepData = $state<Record<number, any>>({});
   let idPhotoBase64 = $state('');
+  // Extracted from ID step — pre-fills profile intake
+  let extractedName = $state('');
+  let extractedAge = $state(0);
 
   const steps = [
     {
@@ -75,6 +80,14 @@
       icon: '💰',
       stepType: 'spending_or_qa' as VerificationStepType,
       time: '4 min'
+    },
+    {
+      number: 5,
+      name: 'Your Profile',
+      description: 'Tell us about yourself',
+      icon: '✨',
+      stepType: 'id' as VerificationStepType, // placeholder type, step 5 is local-only
+      time: '2 min'
     }
   ];
 
@@ -120,6 +133,10 @@
       }
 
       const result = await response.json();
+
+      // Pull name/age from ID extraction to pre-fill profile intake
+      if (result.data?.firstName) extractedName = result.data.firstName;
+      if (result.data?.age) extractedAge = result.data.age;
 
       // Store verification record
       addVerificationRecord({
@@ -209,21 +226,28 @@
     loading = true;
 
     try {
-      // Convert photos to base64
-      const base64Images = await Promise.all(
+      // Convert photos to base64 + preserve data URLs for local profile display
+      const photoResults = await Promise.all(
         data.photos.map(file => {
-          return new Promise<string>((resolve, reject) => {
+          return new Promise<{ base64: string; dataUrl: string }>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => {
-              const result = reader.result as string;
-              const base64 = result.split(',')[1];
-              resolve(base64);
+              const dataUrl = reader.result as string;
+              resolve({ base64: dataUrl.split(',')[1], dataUrl });
             };
             reader.onerror = reject;
             reader.readAsDataURL(file);
           });
         })
       );
+      const base64Images = photoResults.map(r => r.base64);
+
+      // Persist photos to localStorage immediately so the profile page can use them
+      const photoStore = photoResults.map((r, i) => ({
+        dataUrl: r.dataUrl,
+        label: data.labels[i] ?? 'unlabeled'
+      }));
+      localStorage.setItem('vv_photos', JSON.stringify(photoStore));
 
       // Submit to API
       const response = await fetch('/api/verified-vibe/verify-step', {
@@ -411,6 +435,56 @@
     } finally {
       loading = false;
     }
+  }
+
+  async function handleProfileIntakeSubmit(data: ProfileIntakeData) {
+    loading = true;
+    error = null;
+
+    // Save draft immediately
+    localStorage.setItem('vv_profile_draft', JSON.stringify(data));
+
+    // Update the user store with basic identity fields
+    if ($user) {
+      user.update(u => u ? {
+        ...u,
+        firstName: data.firstName,
+        age: data.age,
+        city: data.city,
+        about: data.about,
+        looking: data.lookingFor,
+        updatedAt: new Date()
+      } : u);
+    }
+
+    try {
+      const photos = JSON.parse(localStorage.getItem('vv_photos') ?? '[]') as { dataUrl: string; label: string }[];
+      const photoLabels = photos.map(p => p.label);
+
+      const response = await fetch('/api/verified-vibe/generate-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          intake: data,
+          photoLabels,
+          archetype: $user?.archetype,
+          trustScore: $user?.trustScore ?? 0
+        })
+      });
+
+      if (response.ok) {
+        const generated = await response.json();
+        localStorage.setItem('vv_profile', JSON.stringify(generated));
+      }
+      // If API fails, profile page falls back to raw draft — not a blocker
+    } catch {
+      // Non-fatal — profile page reads draft directly
+    } finally {
+      loading = false;
+    }
+
+    setPhase('app');
+    goto('/verified-vibe/profile');
   }
 
   async function handleNext() {
@@ -647,6 +721,14 @@
             onCancel={handleBack}
           />
         {/if}
+      {:else if currentStep === 5}
+        <ProfileIntakeStep
+          onSubmit={handleProfileIntakeSubmit}
+          onCancel={handleBack}
+          initialName={extractedName}
+          initialAge={extractedAge}
+          archetype={$user?.archetype}
+        />
       {/if}
     </div>
   </div>
@@ -673,22 +755,28 @@
     </div>
   {/if}
 
-  <!-- Actions -->
+  <!-- Actions — steps 4 and 5 have their own submit buttons inside the component -->
+  {#if currentStep !== 4 && currentStep !== 5}
   <div class="verification-actions" transition:slide={{ duration: 400, delay: 100, axis: 'y' }}>
-    {#if currentStep !== 4}
-      <button class="btn btn-secondary" onclick={handleSkipClick} disabled={loading}>
-        Skip
-      </button>
-      <button class="btn btn-primary" onclick={handleNext} disabled={loading}>
-        {#if loading}
-          <span class="loading-spinner"></span>
-          Processing...
-        {:else}
-          {currentStep === totalSteps ? 'Complete' : 'Next'}
-        {/if}
-      </button>
-    {/if}
+    <button class="btn btn-secondary" onclick={handleSkipClick} disabled={loading}>
+      Skip
+    </button>
+    <button class="btn btn-primary" onclick={handleNext} disabled={loading}>
+      {#if loading}
+        <span class="loading-spinner"></span>
+        Processing...
+      {:else}
+        Next
+      {/if}
+    </button>
   </div>
+  {:else if currentStep === 4}
+  <div class="verification-actions single" transition:slide={{ duration: 400, delay: 100, axis: 'y' }}>
+    <button class="btn btn-secondary" onclick={handleSkipClick} disabled={loading}>
+      Skip this step
+    </button>
+  </div>
+  {/if}
 </div>
 
 <style>
@@ -983,6 +1071,10 @@
     padding: 16px 20px calc(16px + env(safe-area-inset-bottom, 0));
     border-top: 1px solid var(--border-1);
     background: var(--bg-1);
+  }
+
+  .verification-actions.single {
+    grid-template-columns: 1fr;
   }
 
   /* Button Styles */
