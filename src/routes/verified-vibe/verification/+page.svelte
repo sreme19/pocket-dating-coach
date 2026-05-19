@@ -63,7 +63,7 @@
     {
       number: 3,
       name: 'Photo Story',
-      description: 'Upload 5+ photos that tell your story',
+      description: 'Upload photos that tell your story',
       icon: '🖼️',
       stepType: 'photos' as VerificationStepType,
       time: '3 min'

@@ -21,7 +21,7 @@
   let fileInputEl = $state<HTMLInputElement | null>(null);
 
   const PHOTO_LABELS = ['lead', 'warmth', 'lifestyle', 'conversation', 'social'];
-  const MIN_PHOTOS = 5;
+  const MIN_PHOTOS = 1;
   const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 
   function handleFileSelect(event: Event) {
@@ -182,7 +182,7 @@
     <div class="step-content" transition:slide={{ duration: 300, axis: 'y' }}>
       <div class="step-header">
         <h3 class="step-title">Photo Story</h3>
-        <p class="step-description">Upload 5+ photos that tell your story</p>
+        <p class="step-description">Upload photos that tell your story</p>
       </div>
 
       <!-- Upload Area -->
@@ -216,7 +216,7 @@
       <div class="requirements">
         <h4 class="requirements-title">Requirements:</h4>
         <ul class="requirements-list">
-          <li>Minimum 5 photos</li>
+          <li>At least 1 photo</li>
           <li>Clear, well-lit photos</li>
           <li>Show different sides of yourself</li>
           <li>JPG, PNG, or WebP format</li>
