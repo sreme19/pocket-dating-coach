@@ -44,9 +44,9 @@ import type {
   Match,
   Message,
   VerificationRecord,
-  TrustScore,
   DiscoveryProfile
 } from './types';
+import type { TrustScoreBreakdown } from './server/trustScore';
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -86,31 +86,17 @@ const mockUser: VerifiedVibeUser = {
   updatedAt: new Date('2026-05-17')
 };
 
-const mockTrustScore: TrustScore = {
+const mockTrustScore: TrustScoreBreakdown = {
   total: 50,
-  identity: {
-    score: 20,
-    max: 30,
-    items: [
-      { label: 'ID verified', ok: true },
-      { label: 'Face match', ok: false }
-    ]
-  },
-  lifestyle: {
-    score: 20,
-    max: 45,
-    items: [
-      { label: 'Photos verified', ok: true },
-      { label: 'Consistency check', ok: false }
-    ]
-  },
-  intent: {
-    score: 10,
-    max: 20,
-    items: [
-      { label: 'Q&A complete', ok: true },
-      { label: 'Archetype clarity', ok: false }
-    ]
+  idScore: 50,
+  livenessScore: 50,
+  photoScore: 50,
+  qaScore: 50,
+  details: {
+    id: { score: 50, weight: 0.25, contribution: 12.5, status: 'completed' },
+    liveness: { score: 50, weight: 0.25, contribution: 12.5, status: 'completed' },
+    photos: { score: 50, weight: 0.25, contribution: 12.5, status: 'completed' },
+    qa: { score: 50, weight: 0.25, contribution: 12.5, status: 'completed' }
   }
 };
 

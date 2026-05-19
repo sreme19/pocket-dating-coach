@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { SUPABASE_SERVICE_KEY, SUPABASE_URL } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 
 export type Database = {
 	public: {
@@ -283,7 +283,7 @@ let client: ReturnType<typeof createClient<Database>> | null = null;
 
 export function getSupabase() {
 	if (!client) {
-		client = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+		client = createClient<Database>(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
 	}
 	return client;
 }

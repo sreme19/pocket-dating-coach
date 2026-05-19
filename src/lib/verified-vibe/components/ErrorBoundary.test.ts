@@ -112,7 +112,7 @@ describe('ErrorBoundary', () => {
     const { component } = render(ErrorBoundary);
 
     const retryCallback = vi.fn(
-      () => new Promise((resolve) => setTimeout(resolve, 100))
+      (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 100))
     );
     component.setRetryCallback(retryCallback);
 

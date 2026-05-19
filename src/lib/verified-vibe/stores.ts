@@ -7,15 +7,16 @@ import type {
   Message,
   Notification,
   VerificationRecord,
-  TrustScore,
   DiscoveryProfile,
   Phase,
   Tab,
   UIState
 } from './types';
 import { getProfile, getVerificationSteps } from './services/profileService';
+import type { VVVerificationStep } from './services/profileService';
 import { getSupabaseClient } from '$lib/client/supabase';
 import { calculateTrustScore } from './server/trustScore';
+import type { TrustScoreBreakdown } from './server/trustScore';
 
 // ============================================================================
 // USER STORE
@@ -80,7 +81,7 @@ export const user = createUserStore();
 /**
  * User's trust score breakdown
  */
-export const userTrust = writable<TrustScore | null>(null);
+export const userTrust = writable<TrustScoreBreakdown | null>(null);
 
 /**
  * User's verification records (one per step)
@@ -312,6 +313,18 @@ export async function hydrateStores() {
   currentTab.hydrate();
 }
 
+function mapStepsToRecords(steps: VVVerificationStep[]): VerificationRecord[] {
+  return steps.map((s) => ({
+    id: s.id,
+    userId: s.user_id,
+    step: s.step,
+    status: 'completed' as const,
+    data: s.data ?? {},
+    completedAt: s.completed_at ? new Date(s.completed_at) : null,
+    createdAt: s.completed_at ? new Date(s.completed_at) : new Date()
+  }));
+}
+
 /**
  * Hydrate user and verification data from Supabase
  * Graceful fallback to localStorage if Supabase is unavailable
@@ -357,17 +370,12 @@ export async function hydrateUserFromSupabase() {
 
     // Fetch verification steps
     const steps = await getVerificationSteps();
-    userVerification.set(steps);
+    const records = mapStepsToRecords(steps);
+    userVerification.set(records);
 
     // Calculate and set trust score
-    const trustBreakdown = calculateTrustScore(steps);
-    userTrust.set({
-      total: trustBreakdown.total,
-      idScore: trustBreakdown.idScore,
-      livenessScore: trustBreakdown.livenessScore,
-      photoScore: trustBreakdown.photoScore,
-      qaScore: trustBreakdown.qaScore
-    });
+    const trustBreakdown = calculateTrustScore(records);
+    userTrust.set(trustBreakdown);
 
     // Calculate phase based on completeness
     const hasId = steps.some(s => s.step === 'id');
@@ -469,7 +477,7 @@ export function updateUser(updates: Partial<VerifiedVibeUser>) {
 /**
  * Update trust score
  */
-export function updateTrustScore(trust: TrustScore) {
+export function updateTrustScore(trust: TrustScoreBreakdown) {
   userTrust.set(trust);
 }
 
@@ -486,14 +494,7 @@ export function addVerificationRecord(record: VerificationRecord) {
     }
 
     // Calculate and update trust score
-    const trustBreakdown = calculateTrustScore(records);
-    userTrust.set({
-      total: trustBreakdown.total,
-      idScore: trustBreakdown.idScore,
-      livenessScore: trustBreakdown.livenessScore,
-      photoScore: trustBreakdown.photoScore,
-      qaScore: trustBreakdown.qaScore
-    });
+    userTrust.set(calculateTrustScore(records));
 
     return records;
   });

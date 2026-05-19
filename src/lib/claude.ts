@@ -1,11 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { ANTHROPIC_API_KEY } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 
 let _client: Anthropic | null = null;
 
 export function getClaudeClient(): Anthropic {
 	if (!_client) {
-		_client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+		_client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 	}
 	return _client;
 }
