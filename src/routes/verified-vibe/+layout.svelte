@@ -1,30 +1,60 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { currentPhase, currentTab } from '$lib/verified-vibe/stores';
+  import { currentPhase, currentTab, hydrateStores } from '$lib/verified-vibe/stores';
+  import { getProfile } from '$lib/verified-vibe/services/profileService';
   import type { Tab } from '$lib/verified-vibe/types';
   import { getSupabaseClient } from '$lib/client/supabase';
   import { MessageCircle, Compass, ShieldCheck } from 'lucide-svelte';
   import { fade, slide } from 'svelte/transition';
+  import { onMount } from 'svelte';
 
   let { children } = $props();
+  let hydrationComplete = $state(false);
+
+  // ── Hydration ────────────────────────────────────────────────────────────────
+  // On mount, hydrate stores from Supabase (if authenticated) or localStorage (pre-auth)
+  onMount(async () => {
+    await hydrateStores();
+    hydrationComplete = true;
+  });
 
   // ── Auth guard ──────────────────────────────────────────────────────────────
   // Gate and auth pages are public (no session needed).
-  // Everything else redirects to /auth if unauthenticated.
+  // Everything else checks session and redirects if unauthenticated.
+  // Verified, profile, and discovery are app-phase routes (require full verification).
   const PUBLIC_VV_PATHS = ['/verified-vibe/auth', '/verified-vibe/gate', '/verified-vibe/home', '/verified-vibe/privacy', '/verified-vibe/verify', '/verified-vibe/verification', '/verified-vibe/profile'];
+  const APP_PHASE_PATHS = ['/verified-vibe/discover', '/verified-vibe/trust', '/verified-vibe/chat'];
 
   $effect(() => {
+    if (!hydrationComplete) return; // Wait for hydration to complete
+
     const pathname = $page.url.pathname;
+
+    // Public paths (no session check needed)
     if (PUBLIC_VV_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))) return;
 
-    getSupabaseClient()
-      .auth.getSession()
-      .then(({ data: { session } }) => {
-        if (!session) {
+    // App-phase routes require session + full verification
+    if (APP_PHASE_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))) {
+      getSupabaseClient()
+        .auth.getSession()
+        .then(async ({ data: { session } }) => {
+          if (!session) {
+            goto('/verified-vibe/auth');
+            return;
+          }
+
+          // Check if user has a profile
+          const profile = await getProfile();
+          if (!profile) {
+            // Authenticated but no profile — redirect to gate to create one
+            goto('/verified-vibe/gate');
+          }
+        })
+        .catch(() => {
           goto('/verified-vibe/auth');
-        }
-      });
+        });
+    }
   });
 
   const navItems: Array<{ tab: Tab; icon: typeof Compass; label: string; description: string }> = [

@@ -13,6 +13,9 @@ import type {
   Tab,
   UIState
 } from './types';
+import { getProfile, getVerificationSteps } from './services/profileService';
+import { getSupabaseClient } from '$lib/client/supabase';
+import { calculateTrustScore } from './server/trustScore';
 
 // ============================================================================
 // USER STORE
@@ -297,13 +300,106 @@ export const totalUnreadMessages = derived(unreadCount, ($count) => $count);
 // ============================================================================
 
 /**
- * Initialize stores from localStorage
+ * Initialize stores from Supabase (if authenticated) or localStorage (fallback for pre-auth state)
  * Call this on app mount
  */
-export function hydrateStores() {
-  user.hydrate();
+export async function hydrateStores() {
+  // Try to hydrate from Supabase if authenticated
+  await hydrateUserFromSupabase();
+
+  // Restore UI state (phase/tab) from localStorage
   currentPhase.hydrate();
   currentTab.hydrate();
+}
+
+/**
+ * Hydrate user and verification data from Supabase
+ * Graceful fallback to localStorage if Supabase is unavailable
+ * If authenticated: fetch profile + verification steps from DB
+ * If not authenticated: do nothing (stores remain null)
+ */
+export async function hydrateUserFromSupabase() {
+  try {
+    const supabase = getSupabaseClient();
+    const { data: sessionData } = await supabase.auth.getSession();
+    const session = sessionData?.session;
+
+    if (!session) {
+      // Not authenticated — try localStorage fallback for pre-auth state
+      tryLocalStorageFallback();
+      return;
+    }
+
+    // Fetch profile from Supabase
+    const profile = await getProfile();
+    if (!profile) {
+      // Authenticated but no profile — leave stores empty, will redirect to gate
+      return;
+    }
+
+    // Convert DB profile to store user object
+    const userData: VerifiedVibeUser = {
+      id: profile.id,
+      gender: profile.gender || 'man',
+      archetype: profile.archetype || 'casual_man',
+      firstName: profile.first_name || '',
+      age: profile.age || 0,
+      city: profile.city || '',
+      avatar: null,
+      about: null,
+      looking: null,
+      trustScore: 0,
+      createdAt: new Date(profile.created_at),
+      updatedAt: new Date(profile.updated_at)
+    };
+
+    user.set(userData);
+
+    // Fetch verification steps
+    const steps = await getVerificationSteps();
+    userVerification.set(steps);
+
+    // Calculate and set trust score
+    const trustBreakdown = calculateTrustScore(steps);
+    userTrust.set({
+      total: trustBreakdown.total,
+      idScore: trustBreakdown.idScore,
+      livenessScore: trustBreakdown.livenessScore,
+      photoScore: trustBreakdown.photoScore,
+      qaScore: trustBreakdown.qaScore
+    });
+
+    // Calculate phase based on completeness
+    const hasId = steps.some(s => s.step === 'id');
+    const hasLiveness = steps.some(s => s.step === 'liveness');
+    const hasPhotos = steps.some(s => s.step === 'photos');
+    const hasSpending = steps.some(s => s.step === 'spending_or_qa');
+    const allComplete = hasId && hasLiveness && hasPhotos && hasSpending;
+
+    currentPhase.set(allComplete ? 'app' : 'verify');
+  } catch (err) {
+    console.error('hydrateUserFromSupabase error:', err);
+    // Graceful fallback: try localStorage if Supabase fails
+    tryLocalStorageFallback();
+  }
+}
+
+/**
+ * Fallback hydration from localStorage when Supabase is unavailable
+ */
+function tryLocalStorageFallback() {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const storedUser = localStorage.getItem('vv_user');
+    if (storedUser) {
+      const userData = JSON.parse(storedUser);
+      user.set(userData);
+      console.warn('[Verified Vibe] Using cached user data from localStorage (Supabase unavailable)');
+    }
+  } catch (err) {
+    console.error('localStorage fallback error:', err);
+  }
 }
 
 /**
@@ -388,6 +484,17 @@ export function addVerificationRecord(record: VerificationRecord) {
     } else {
       records.push(record);
     }
+
+    // Calculate and update trust score
+    const trustBreakdown = calculateTrustScore(records);
+    userTrust.set({
+      total: trustBreakdown.total,
+      idScore: trustBreakdown.idScore,
+      livenessScore: trustBreakdown.livenessScore,
+      photoScore: trustBreakdown.photoScore,
+      qaScore: trustBreakdown.qaScore
+    });
+
     return records;
   });
 }

@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import type { DiscoveryProfile } from '$lib/verified-vibe/types';
+import { getSupabaseClient } from '$lib/client/supabase';
 
 interface DiscoveryFeedRequest {
   limit?: number;
@@ -40,7 +41,7 @@ interface DiscoveryFeedResponse {
  *   }
  * }
  */
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, locals }) => {
   try {
     // Parse query parameters
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '10'), 50);
@@ -68,195 +69,106 @@ export const GET: RequestHandler = async ({ url }) => {
       );
     }
 
-    // Mock data for discovery feed
-    // In production, this would query the database
-    const mockProfiles: DiscoveryProfile[] = [
-      {
-        id: '1',
-        gender: 'woman',
-        archetype: 'spoilt_woman',
-        firstName: 'Sarah',
-        age: 26,
-        city: 'Brooklyn, NY',
-        avatar: null,
-        about: 'Looking for someone genuine and ambitious. Love trying new restaurants and weekend trips.',
-        looking: 'Long-term relationship',
-        trustScore: 88,
-        createdAt: new Date('2024-01-15'),
-        updatedAt: new Date('2024-01-15'),
-        distance: '2 mi',
-        verified: ['ID', 'Liveness', 'Photos', 'Q&A']
-      },
-      {
-        id: '2',
-        gender: 'woman',
-        archetype: 'spoilt_woman',
-        firstName: 'Emma',
-        age: 24,
-        city: 'Manhattan, NY',
-        avatar: null,
-        about: 'Creative professional seeking meaningful connections. Coffee enthusiast.',
-        looking: 'Casual dating',
-        trustScore: 76,
-        createdAt: new Date('2024-01-10'),
-        updatedAt: new Date('2024-01-10'),
-        distance: '5 mi',
-        verified: ['ID', 'Liveness', 'Photos']
-      },
-      {
-        id: '3',
-        gender: 'woman',
-        archetype: 'safety_first_woman',
-        firstName: 'Jessica',
-        age: 28,
-        city: 'Williamsburg, NY',
-        avatar: null,
-        about: 'Entrepreneur with a passion for travel and good conversation.',
-        looking: 'Long-term relationship',
-        trustScore: 92,
-        createdAt: new Date('2024-01-20'),
-        updatedAt: new Date('2024-01-20'),
-        distance: '3 mi',
-        verified: ['ID', 'Liveness', 'Photos', 'Q&A']
-      },
-      {
-        id: '4',
-        gender: 'woman',
-        archetype: 'spoilt_woman',
-        firstName: 'Amanda',
-        age: 25,
-        city: 'Park Slope, NY',
-        avatar: null,
-        about: 'Artist and yoga instructor. Looking for someone who appreciates the finer things.',
-        looking: 'Long-term relationship',
-        trustScore: 81,
-        createdAt: new Date('2024-01-18'),
-        updatedAt: new Date('2024-01-18'),
-        distance: '4 mi',
-        verified: ['ID', 'Liveness', 'Photos']
-      },
-      {
-        id: '5',
-        gender: 'woman',
-        archetype: 'safety_first_woman',
-        firstName: 'Rachel',
-        age: 27,
-        city: 'Upper West Side, NY',
-        avatar: null,
-        about: 'Lawyer by day, foodie by night. Seeking genuine connection.',
-        looking: 'Long-term relationship',
-        trustScore: 85,
-        createdAt: new Date('2024-01-12'),
-        updatedAt: new Date('2024-01-12'),
-        distance: '6 mi',
-        verified: ['ID', 'Liveness', 'Photos', 'Q&A']
-      },
-      {
-        id: '6',
-        gender: 'woman',
-        archetype: 'spoilt_woman',
-        firstName: 'Nicole',
-        age: 23,
-        city: 'Astoria, NY',
-        avatar: null,
-        about: 'Marketing manager with a love for travel and adventure.',
-        looking: 'Casual dating',
-        trustScore: 72,
-        createdAt: new Date('2024-01-08'),
-        updatedAt: new Date('2024-01-08'),
-        distance: '8 mi',
-        verified: ['ID', 'Liveness']
-      },
-      {
-        id: '7',
-        gender: 'woman',
-        archetype: 'safety_first_woman',
-        firstName: 'Lauren',
-        age: 29,
-        city: 'Chelsea, NY',
-        avatar: null,
-        about: 'Consultant seeking someone ambitious and kind.',
-        looking: 'Long-term relationship',
-        trustScore: 89,
-        createdAt: new Date('2024-01-22'),
-        updatedAt: new Date('2024-01-22'),
-        distance: '7 mi',
-        verified: ['ID', 'Liveness', 'Photos', 'Q&A']
-      },
-      {
-        id: '8',
-        gender: 'woman',
-        archetype: 'spoilt_woman',
-        firstName: 'Sophia',
-        age: 26,
-        city: 'Tribeca, NY',
-        avatar: null,
-        about: 'Fashion designer looking for someone who gets me.',
-        looking: 'Long-term relationship',
-        trustScore: 87,
-        createdAt: new Date('2024-01-19'),
-        updatedAt: new Date('2024-01-19'),
-        distance: '2 mi',
-        verified: ['ID', 'Liveness', 'Photos', 'Q&A']
-      },
-      {
-        id: '9',
-        gender: 'woman',
-        archetype: 'safety_first_woman',
-        firstName: 'Victoria',
-        age: 30,
-        city: 'SoHo, NY',
-        avatar: null,
-        about: 'Executive seeking genuine connection with someone special.',
-        looking: 'Long-term relationship',
-        trustScore: 91,
-        createdAt: new Date('2024-01-21'),
-        updatedAt: new Date('2024-01-21'),
-        distance: '1 mi',
-        verified: ['ID', 'Liveness', 'Photos', 'Q&A']
-      },
-      {
-        id: '10',
-        gender: 'woman',
-        archetype: 'spoilt_woman',
-        firstName: 'Olivia',
-        age: 25,
-        city: 'Nolita, NY',
-        avatar: null,
-        about: 'Photographer and adventurer. Love spontaneous trips.',
-        looking: 'Casual dating',
-        trustScore: 78,
-        createdAt: new Date('2024-01-14'),
-        updatedAt: new Date('2024-01-14'),
-        distance: '3 mi',
-        verified: ['ID', 'Liveness', 'Photos']
-      }
-    ];
+    // Get current user from session
+    const supabase = getSupabaseClient();
+    const { data: { session } } = await supabase.auth.getSession();
 
-    // Filter out excluded IDs
-    let filtered = mockProfiles.filter(p => !excludeIds.includes(p.id) && !blockedIds.includes(p.id));
+    if (!session) {
+      return json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const currentUserId = session.user.id;
+
+    // Fetch all verified profiles from database
+    const { data: profiles, error: profileError } = await (supabase as any)
+      .from('verified_vibe_profiles')
+      .select('*')
+      .neq('id', currentUserId);
+
+    if (profileError) {
+      console.error('Database error:', profileError);
+      return json(
+        { error: 'Failed to fetch profiles' },
+        { status: 500 }
+      );
+    }
+
+    // Fetch verification steps for all profiles to calculate trust scores
+    const { data: verificationSteps } = await (supabase as any)
+      .from('verified_vibe_verification_steps')
+      .select('user_id, step, trust_points');
+
+    const trustScoreMap = new Map<string, number>();
+    const verificationMap = new Map<string, Set<string>>();
+
+    if (verificationSteps) {
+      verificationSteps.forEach((step: any) => {
+        const current = trustScoreMap.get(step.user_id) || 0;
+        trustScoreMap.set(step.user_id, current + (step.trust_points || 0));
+
+        if (!verificationMap.has(step.user_id)) {
+          verificationMap.set(step.user_id, new Set());
+        }
+        verificationMap.get(step.user_id)!.add(step.step);
+      });
+    }
+
+    // Convert database profiles to DiscoveryProfile format
+    const discoveryProfiles: DiscoveryProfile[] = (profiles || [])
+      .filter((p: any) => !excludeIds.includes(p.id) && !blockedIds.includes(p.id))
+      .map((p: any) => {
+        const trustScore = trustScoreMap.get(p.id) || 0;
+        const verifiedSteps = Array.from(verificationMap.get(p.id) || new Set()).map(s => {
+          const stepNames: Record<string, string> = {
+            id: 'ID',
+            liveness: 'Liveness',
+            photos: 'Photos',
+            spending_or_qa: 'Q&A'
+          };
+          return stepNames[s] || s;
+        });
+
+        return {
+          id: p.id,
+          gender: p.gender || 'man',
+          archetype: p.archetype || 'casual_man',
+          firstName: p.first_name || 'User',
+          age: p.age || 25,
+          city: p.city || 'Unknown',
+          avatar: null,
+          about: 'Profile being reviewed',
+          looking: 'Looking for connection',
+          trustScore,
+          createdAt: new Date(p.created_at),
+          updatedAt: new Date(p.updated_at),
+          distance: Math.floor(Math.random() * 20) + 1 + ' mi',
+          verified: verifiedSteps.length > 0 ? verifiedSteps : []
+        };
+      });
 
     // Sort by selected criteria
     if (sortBy === 'trustScore') {
-      filtered.sort((a, b) => b.trustScore - a.trustScore);
+      discoveryProfiles.sort((a, b) => b.trustScore - a.trustScore);
     } else if (sortBy === 'compatibility') {
-      // In production, this would calculate compatibility based on archetype and answers
-      // For now, we'll use a mock compatibility score
-      filtered.sort((a, b) => {
-        const compatA = Math.random() * 100;
-        const compatB = Math.random() * 100;
-        return compatB - compatA;
+      // Compatibility scoring (could be improved with archetype matching)
+      discoveryProfiles.sort((a, b) => {
+        const scoreA = (b.verified.length * 20) + (b.trustScore / 5);
+        const scoreB = (a.verified.length * 20) + (a.trustScore / 5);
+        return scoreB - scoreA;
       });
     }
 
     // Apply pagination
-    const total = filtered.length;
-    const profiles = filtered.slice(offset, offset + limit);
+    const total = discoveryProfiles.length;
+    const paginatedProfiles = discoveryProfiles.slice(offset, offset + limit);
     const hasMore = offset + limit < total;
 
     const response: DiscoveryFeedResponse = {
       data: {
-        profiles,
+        profiles: paginatedProfiles,
         hasMore,
         total
       }
