@@ -7,7 +7,7 @@
  * Designed to be framework-agnostic and reusable across projects.
  */
 
-import * as fal from '@fal-ai/client';
+import { fal } from '@fal-ai/client';
 import { getScenesForArchetype } from './scenes';
 import type {
   PhotoEnhanceInput,
@@ -48,38 +48,59 @@ async function uploadReferencePhoto(dataUrl: string, apiKey: string): Promise<st
 
 /**
  * Generate a single AI-enhanced photo of a person in a given scene.
+ * Includes retry logic for robustness.
  *
  * @param input.referenceDataUrl — base64 data URL of the reference photo
  * @param input.scenePrompt      — description of the scene/setting to place the person in
  * @param apiKey                 — fal.ai API key
+ * @param retries                — number of retries on failure (default 1)
  */
 export async function generateEnhancedPhoto(
   input: PhotoEnhanceInput,
-  apiKey: string
+  apiKey: string,
+  retries: number = 1
 ): Promise<string> {
   fal.config({ credentials: apiKey });
 
-  const referenceUrl = await uploadReferencePhoto(input.referenceDataUrl, apiKey);
+  let lastError: Error | null = null;
 
-  const result = await fal.run(FAL_MODEL, {
-    input: {
-      main_face_image: referenceUrl,
-      prompt: `photorealistic portrait, ${input.scenePrompt}, professional photography, high quality, sharp focus`,
-      negative_prompt: input.negativePrompt ?? 'blurry, low quality, distorted face, ugly, bad anatomy, watermark',
-      num_inference_steps: 20,
-      guidance_scale: 4,
-      true_cfg: 1,
-      id_weight: input.idWeight ?? 1.0,
-      num_images: 1
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const referenceUrl = await uploadReferencePhoto(input.referenceDataUrl, apiKey);
+
+      const result = await fal.run(FAL_MODEL, {
+        input: {
+          reference_image_url: referenceUrl,
+          prompt: `photorealistic portrait, ${input.scenePrompt}, professional photography, high quality, sharp focus`,
+          negative_prompt: input.negativePrompt ?? 'blurry, low quality, distorted face, ugly, bad anatomy, watermark',
+          num_inference_steps: 20,
+          guidance_scale: 4,
+          true_cfg: 1,
+          id_weight: input.idWeight ?? 1.0,
+          num_images: 1
+        }
+      }) as { data: { images: { url: string }[] } };
+
+      return result.data.images[0].url;
+    } catch (err) {
+      const errMsg = err && typeof err === 'object' && 'body' in err
+        ? JSON.stringify((err as any).body)
+        : (err instanceof Error ? err.message : String(err));
+      lastError = new Error(errMsg);
+      if (attempt < retries) {
+        // Wait before retrying (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+      }
     }
-  }) as { images: { url: string }[] };
+  }
 
-  return result.images[0].url;
+  throw lastError || new Error('Failed to generate photo');
 }
 
 /**
  * Generate a full set of profile photos for a user.
  * Runs all generations in parallel for speed (~25s total vs 25s × N).
+ * Includes retry logic for failed photos.
  *
  * @param input.referenceDataUrl — best reference photo of the user
  * @param input.archetype        — user's dating archetype (drives scene selection)
@@ -96,7 +117,8 @@ export async function generateProfilePhotos(
     scenes.map(async (scene): Promise<PhotoEnhanceResult> => {
       const url = await generateEnhancedPhoto(
         { referenceDataUrl: input.referenceDataUrl, scenePrompt: scene.prompt },
-        apiKey
+        apiKey,
+        1 // Retry once on failure
       );
       return { url, scene: scene.label, role: scene.role };
     })

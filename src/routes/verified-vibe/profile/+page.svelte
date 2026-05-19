@@ -33,6 +33,7 @@
   let aiPhotos = $state<PhotoEnhanceResult[]>([]);
   let enhancing = $state(false);
   let enhanceError = $state<string | null>(null);
+  let generationProgress = $state(0); // 0-5 for number of photos generated
 
   // Edit state — populated from generated/draft on entering enhance mode
   let editAbout = $state('');
@@ -56,6 +57,7 @@
     if (photos.length === 0) return;
     enhancing = true;
     enhanceError = null;
+    generationProgress = 0;
 
     try {
       // Use the first uploaded photo (lead or index 0) as the reference
@@ -67,7 +69,7 @@
         body: JSON.stringify({
           referenceDataUrl: reference.dataUrl,
           archetype: $user?.archetype ?? 'casual_man',
-          count: 5
+          count: 2 // dev: limit to 2 to conserve credits
         })
       });
 
@@ -78,6 +80,7 @@
 
       const result = await response.json() as { photos: PhotoEnhanceResult[]; errors: { role: string; error: string }[] };
       aiPhotos = result.photos;
+      generationProgress = result.photos.length;
       localStorage.setItem('vv_ai_photos', JSON.stringify(aiPhotos));
 
       if (result.errors.length > 0) {
@@ -273,6 +276,16 @@
             <span class="ai-tag" style="margin-left: auto">AI-enhanced</span>
           {/if}
         </div>
+        
+        {#if enhancing}
+          <div class="generation-progress">
+            <div class="progress-text">Generating photos: {generationProgress}/5</div>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: {(generationProgress / 5) * 100}%"></div>
+            </div>
+          </div>
+        {/if}
+        
         <div class="photo-grid">
           {#each PHOTO_SLOTS as slot, i}
             {@const photo = resolveSlotPhoto(slot)}
@@ -283,6 +296,17 @@
                 {#if aiPhotosByRole[slot]}
                   <span class="ai-photo-badge">✨</span>
                 {/if}
+              </div>
+            {:else if enhancing && i < generationProgress}
+              <div class="photo-cell loading">
+                <div class="skeleton-pulse"></div>
+              </div>
+            {:else if enhancing}
+              <div class="photo-cell placeholder">
+                <div class="placeholder-inner">
+                  <span class="placeholder-icon">⏳</span>
+                  <span class="placeholder-text">Generating...</span>
+                </div>
               </div>
             {:else}
               <div class="photo-cell placeholder">
@@ -692,6 +716,63 @@
     text-transform: capitalize;
     letter-spacing: 0.03em;
     text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+  }
+
+  /* Generation progress */
+  .generation-progress {
+    margin-bottom: 16px;
+    padding: 12px;
+    border-radius: 10px;
+    background: var(--bg-2);
+  }
+
+  .progress-text {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-2);
+    margin-bottom: 8px;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--bg-3);
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #7c3aed, #a855f7);
+    transition: width 300ms ease;
+  }
+
+  /* Loading skeleton */
+  .photo-cell.loading {
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+  }
+
+  .skeleton-pulse {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      var(--bg-3) 0%,
+      var(--bg-2) 50%,
+      var(--bg-3) 100%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s infinite;
+  }
+
+  @keyframes skeleton-loading {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
   }
 
   .photo-cell.placeholder {
