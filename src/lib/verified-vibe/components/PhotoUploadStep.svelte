@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { fade, slide, scale } from 'svelte/transition';
-  import type { PhotoConsistencyResult } from '../types';
+  import { fade, slide } from 'svelte/transition';
+  // PhotoConsistencyResult import archived with consistency check feature
 
   interface Props {
     onSubmit?: (data: { photos: File[]; labels: Record<string, string> }) => Promise<void>;
@@ -16,8 +16,7 @@
   let loading = $state(false);
   let error = $state<string | null>(null);
   let isDragging = $state(false);
-  let step = $state<'upload' | 'label' | 'checking' | 'result'>('upload');
-  let consistencyResult = $state<PhotoConsistencyResult | null>(null);
+  let step = $state<'upload' | 'label'>('upload');
   let fileInputEl = $state<HTMLInputElement | null>(null);
 
   const PHOTO_LABELS = ['lead', 'warmth', 'lifestyle', 'conversation', 'social'];
@@ -95,51 +94,9 @@
     return uploadedFiles.length > 0 && uploadedFiles.every((_, i) => photoLabels[i]);
   }
 
-  async function checkConsistency() {
+  async function handleSubmit() {
     if (!isLabelComplete()) {
       error = 'Please label all photos';
-      return;
-    }
-
-    loading = true;
-    error = null;
-    step = 'checking';
-
-    try {
-      // Convert images to base64
-      const base64Images = await Promise.all(
-        previewUrls.map(url => Promise.resolve(url.split(',')[1]))
-      );
-
-      // Call API endpoint
-      const response = await fetch('/api/verified-vibe/check-photo-consistency', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          images: base64Images,
-          mimeTypes: uploadedFiles.map(f => f.type)
-        })
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to check photo consistency');
-      }
-
-      const result = await response.json();
-      consistencyResult = result.data;
-      step = 'result';
-    } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to check photo consistency';
-      step = 'label';
-    } finally {
-      loading = false;
-    }
-  }
-
-  async function handleConfirm() {
-    if (!consistencyResult || !consistencyResult.consistent) {
-      error = 'Photos must be consistent (confidence >= 80%)';
       return;
     }
 
@@ -164,10 +121,15 @@
     uploadedFiles = [];
     previewUrls = [];
     photoLabels = {};
-    consistencyResult = null;
     error = null;
     step = 'upload';
   }
+
+  /* ARCHIVED: photo consistency check (re-enable when needed)
+  async function checkConsistency() { ... calls /api/verified-vibe/check-photo-consistency ... }
+  async function handleConfirm() { ... requires consistencyResult.consistent ... }
+  See git history for full implementation.
+  */
 
   function handleCancel() {
     if (onCancel) {
@@ -291,99 +253,23 @@
         </button>
         <button
           class="btn btn-primary"
-          onclick={checkConsistency}
+          onclick={handleSubmit}
           disabled={!isLabelComplete() || loading}
           tabindex="0"
-          aria-label="Check photo consistency"
+          aria-label="Save photos"
         >
           {#if loading}
             <span class="loading-spinner"></span>
-            Checking...
+            Saving...
           {:else}
-            Check Consistency
+            Save Photos
           {/if}
         </button>
       </div>
     </div>
   {/if}
 
-  <!-- Checking Step -->
-  {#if step === 'checking'}
-    <div class="step-content" transition:slide={{ duration: 300, axis: 'y' }}>
-      <div class="checking-state">
-        <div class="checking-spinner"></div>
-        <h3 class="checking-title">Analyzing Photos</h3>
-        <p class="checking-description">Checking if all photos are of the same person...</p>
-      </div>
-    </div>
-  {/if}
-
-  <!-- Result Step -->
-  {#if step === 'result' && consistencyResult}
-    <div class="step-content" transition:slide={{ duration: 300, axis: 'y' }}>
-      <div class="result-container">
-        {#if consistencyResult.consistent}
-          <div class="result-success" transition:scale={{ duration: 300 }}>
-            <div class="result-icon">✓</div>
-            <h3 class="result-title">Photos Verified</h3>
-            <p class="result-description">All photos are consistent</p>
-            <div class="confidence-badge">
-              <span class="confidence-label">Confidence:</span>
-              <span class="confidence-value">{consistencyResult.confidence}%</span>
-            </div>
-          </div>
-        {:else}
-          <div class="result-failure" transition:scale={{ duration: 300 }}>
-            <div class="result-icon">✗</div>
-            <h3 class="result-title">Photos Inconsistent</h3>
-            <p class="result-description">Photos don't appear to be of the same person</p>
-            <div class="confidence-badge">
-              <span class="confidence-label">Confidence:</span>
-              <span class="confidence-value">{consistencyResult.confidence}%</span>
-            </div>
-            <p class="result-hint">Please upload photos that are all of you</p>
-          </div>
-        {/if}
-
-        <!-- Error Message -->
-        {#if error}
-          <div class="error-message" transition:slide={{ duration: 300, axis: 'y' }} role="alert">
-            <span class="error-icon">⚠️</span>
-            <span class="error-text">{error}</span>
-          </div>
-        {/if}
-
-        <!-- Actions -->
-        <div class="actions">
-          {#if !consistencyResult.consistent}
-            <button
-              class="btn btn-secondary"
-              onclick={handleReupload}
-              disabled={loading}
-              aria-label="Upload different photos"
-            >
-              Re-upload
-            </button>
-          {/if}
-          {#if consistencyResult.consistent}
-            <button
-              class="btn btn-primary"
-              onclick={handleConfirm}
-              disabled={loading}
-              aria-label="Confirm and save photos"
-            >
-              {#if loading}
-                <span class="loading-spinner"></span>
-                Saving...
-              {:else}
-                Confirm & Save
-              {/if}
-            </button>
-          {/if}
-        </div>
-      </div>
-    </div>
-  {/if}
+  <!-- ARCHIVED: Checking and Result steps removed. See git history to restore. -->
 </div>
 
 <style>
