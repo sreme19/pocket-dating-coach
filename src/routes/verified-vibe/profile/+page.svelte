@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { user } from '$lib/verified-vibe/stores';
+  import { upsertProfile } from '$lib/verified-vibe/services/profileService';
   import { ShieldCheck, Pencil, Check, X, MapPin, Sparkles, Wand2 } from 'lucide-svelte';
   import type { ProfileIntakeData } from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
   import type { PhotoEnhanceResult } from '$lib/photo-enhance/types';
@@ -132,15 +133,34 @@
     mode = 'enhance';
   }
 
-  function saveEnhance() {
+  async function saveEnhance() {
     const updatedGenerated: GeneratedProfile = {
       about: editAbout,
       personalityDescriptors: editTags,
       intentStatement: editIntent,
       lifestyleTags: editLifestyle
     };
+
+    // Save to localStorage for immediate persistence
     localStorage.setItem('vv_profile', JSON.stringify(updatedGenerated));
     generated = updatedGenerated;
+
+    // Also persist basic profile fields to Supabase if available
+    if ($user) {
+      try {
+        await upsertProfile({
+          gender: $user.gender,
+          archetype: $user.archetype,
+          first_name: $user.firstName,
+          age: $user.age,
+          city: $user.city
+        });
+      } catch (err) {
+        console.error('Failed to sync profile to Supabase:', err);
+        // Continue anyway — localStorage has the data, will sync on next opportunity
+      }
+    }
+
     mode = 'public';
   }
 

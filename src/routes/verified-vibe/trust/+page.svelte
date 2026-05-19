@@ -1,26 +1,55 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { currentTab } from '$lib/verified-vibe/stores';
+  import { currentTab, user, userVerification } from '$lib/verified-vibe/stores';
+  import { calculateTrustScore, getTrustScoreLabel } from '$lib/verified-vibe/server/trustScore';
   import { fade, slide } from 'svelte/transition';
 
-  let trustScore = $state(81);
   let showEditModal = $state(false);
 
-  const trustBreakdown = [
-    { category: 'Identity', score: 30, max: 30, items: ['ID Verified', 'Face Match', 'Liveness'] },
-    { category: 'Lifestyle', score: 28, max: 45, items: ['Photos', 'Consistency'] },
-    { category: 'Intent', score: 23, max: 25, items: ['Q&A Complete', 'Archetype Clear'] }
-  ];
+  let trustScoreBreakdown = $derived(calculateTrustScore($userVerification || []));
+  let trustScore = $derived(trustScoreBreakdown.total);
+  let trustLabel = $derived(getTrustScoreLabel(trustScore));
 
-  const userProfile = {
-    name: 'Alex',
-    age: 28,
-    city: 'Brooklyn, NY',
-    archetype: 'casual_man',
+  let trustBreakdown = $derived([
+    {
+      category: 'Identity',
+      score: trustScoreBreakdown.idScore,
+      max: 100,
+      items: ['ID Verified', 'Face Match', 'Liveness']
+    },
+    {
+      category: 'Lifestyle',
+      score: trustScoreBreakdown.photoScore,
+      max: 100,
+      items: ['Photo Consistency', 'Self-Presentation']
+    },
+    {
+      category: 'Intent',
+      score: trustScoreBreakdown.qaScore,
+      max: 100,
+      items: ['Q&A Complete', 'Authentic Responses']
+    }
+  ]);
+
+  let userProfile = $derived({
+    name: $user?.firstName || 'User',
+    age: $user?.age || 0,
+    city: $user?.city || 'Unknown',
+    archetype: $user?.archetype || 'unknown',
     archetypeEmoji: '🎯',
-    about: 'Looking for genuine connections with someone who knows what they want.',
-    verified: ['ID', 'Photos', 'Spending']
-  };
+    about: $user?.about || 'Creating genuine connections...',
+    verified: ($userVerification || [])
+      .filter((v) => v.status === 'completed')
+      .map((v) => {
+        const names: Record<string, string> = {
+          id: 'ID',
+          liveness: 'Liveness',
+          photos: 'Photos',
+          spending_or_qa: 'Q&A'
+        };
+        return names[v.step] || v.step;
+      })
+  });
 
   function handleEditQA() {
     showEditModal = true;
@@ -94,13 +123,18 @@
       </svg>
     </div>
 
+    <!-- Status -->
+    <div class="trust-status" transition:slide={{ duration: 300, delay: 150 }}>
+      <p class="status-label">{trustLabel}</p>
+    </div>
+
     <!-- Breakdown -->
     <div class="breakdown">
       {#each trustBreakdown as item, index}
         <div class="breakdown-item" transition:fade={{ duration: 300, delay: 200 + index * 50 }}>
           <div class="breakdown-header">
             <span class="breakdown-name">{item.category}</span>
-            <span class="breakdown-score">{item.score}/{item.max}</span>
+            <span class="breakdown-score">{Math.round(item.score)}/{item.max}</span>
           </div>
           <div class="breakdown-bar">
             <div class="breakdown-fill" style="width: {(item.score / item.max) * 100}%"></div>
@@ -297,6 +331,18 @@
   .gauge-label {
     font-size: 14px;
     fill: var(--text-3);
+  }
+
+  .trust-status {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  .status-label {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--accent);
+    margin: 0;
   }
 
   .breakdown {

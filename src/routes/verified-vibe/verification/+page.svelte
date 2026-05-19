@@ -14,6 +14,7 @@
   } from '$lib/verified-vibe/stores';
   import { calculateTrustScore } from '$lib/verified-vibe/utils';
   import { getSupabaseClient } from '$lib/client/supabase';
+  import { upsertProfile } from '$lib/verified-vibe/services/profileService';
   import PhotoUploadStep from '$lib/verified-vibe/components/PhotoUploadStep.svelte';
   import SpendingQAStep from '$lib/verified-vibe/components/SpendingQAStep.svelte';
   import SpendingUploadStep from '$lib/verified-vibe/components/SpendingUploadStep.svelte';
@@ -458,6 +459,15 @@
     }
 
     try {
+      // Persist profile to Supabase
+      await upsertProfile({
+        gender: $user?.gender ?? null,
+        archetype: $user?.archetype ?? null,
+        first_name: data.firstName,
+        age: data.age,
+        city: data.city
+      });
+
       const photos = JSON.parse(localStorage.getItem('vv_photos') ?? '[]') as { dataUrl: string; label: string }[];
       const photoLabels = photos.map(p => p.label);
 
@@ -477,8 +487,9 @@
         localStorage.setItem('vv_profile', JSON.stringify(generated));
       }
       // If API fails, profile page falls back to raw draft — not a blocker
-    } catch {
-      // Non-fatal — profile page reads draft directly
+    } catch (err) {
+      console.error('Profile intake error:', err);
+      // Non-fatal — profile page reads draft directly even if Supabase upsert fails
     } finally {
       loading = false;
     }
