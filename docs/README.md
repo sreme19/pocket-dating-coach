@@ -16,6 +16,7 @@ This folder keeps project notes, implementation records, reports, and planning a
 
 - [Verified Vibe quick start](verified-vibe/VERIFIED_VIBE_QUICK_START.md)
 - [Verified Vibe implementation guide](verified-vibe/VERIFIED_VIBE_IMPLEMENTATION_GUIDE.md)
+- [Verified Vibe GitHub Wiki page](verified-vibe/GITHUB_WIKI.md)
 - [Deployment guide](deployment/DEPLOYMENT_GUIDE.md)
 - [Production readiness](deployment/PRODUCTION_READINESS.md)
 - [Testing summary](reports/TESTING_SUMMARY.md)
