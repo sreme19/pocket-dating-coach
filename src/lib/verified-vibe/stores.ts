@@ -15,6 +15,7 @@ import type {
 } from './types';
 import { getProfile, getVerificationSteps } from './services/profileService';
 import { getSupabaseClient } from '$lib/client/supabase';
+import { calculateTrustScore } from './server/trustScore';
 
 // ============================================================================
 // USER STORE
@@ -358,6 +359,16 @@ export async function hydrateUserFromSupabase() {
     const steps = await getVerificationSteps();
     userVerification.set(steps);
 
+    // Calculate and set trust score
+    const trustBreakdown = calculateTrustScore(steps);
+    userTrust.set({
+      total: trustBreakdown.total,
+      idScore: trustBreakdown.idScore,
+      livenessScore: trustBreakdown.livenessScore,
+      photoScore: trustBreakdown.photoScore,
+      qaScore: trustBreakdown.qaScore
+    });
+
     // Calculate phase based on completeness
     const hasId = steps.some(s => s.step === 'id');
     const hasLiveness = steps.some(s => s.step === 'liveness');
@@ -473,6 +484,17 @@ export function addVerificationRecord(record: VerificationRecord) {
     } else {
       records.push(record);
     }
+
+    // Calculate and update trust score
+    const trustBreakdown = calculateTrustScore(records);
+    userTrust.set({
+      total: trustBreakdown.total,
+      idScore: trustBreakdown.idScore,
+      livenessScore: trustBreakdown.livenessScore,
+      photoScore: trustBreakdown.photoScore,
+      qaScore: trustBreakdown.qaScore
+    });
+
     return records;
   });
 }
