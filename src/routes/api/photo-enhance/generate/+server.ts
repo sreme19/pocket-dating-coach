@@ -1,6 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { FAL_KEY } from '$env/static/private';
+import { env } from '$env/dynamic/private';
 import { generateProfilePhotos } from '$lib/photo-enhance';
 
 // Allow up to 90s — parallel fal.ai generations take ~25-35s
@@ -9,7 +9,7 @@ export const config = {
 };
 
 export const POST: RequestHandler = async ({ request }) => {
-  if (!FAL_KEY) {
+  if (!env.FAL_KEY) {
     throw error(500, 'FAL_KEY is not configured. Add it to your .env.local file.');
   }
 
@@ -29,7 +29,7 @@ export const POST: RequestHandler = async ({ request }) => {
       archetype: archetype ?? 'casual_man',
       count: Math.min(count ?? 5, 5)
     },
-    FAL_KEY
+    env.FAL_KEY
   );
 
   return json(result);
