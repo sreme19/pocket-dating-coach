@@ -9,7 +9,7 @@ import type { IDExtractionResult, LivenessCheckResult, PhotoConsistencyResult } 
 import { ANTHROPIC_API_KEY as CLAUDE_API_KEY } from '$env/static/private';
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
-const CLAUDE_MODEL = 'claude-3-5-sonnet-20241022';
+const CLAUDE_MODEL = 'claude-sonnet-4-6';
 
 /**
  * Extract ID information from an image using Claude Vision
@@ -128,12 +128,14 @@ Do not include any other text or explanation.`
       }
 
       // Parse the JSON response with better error handling
+      // Claude 4.x wraps JSON in markdown code blocks — strip them first
+      const stripped = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
       let parsedResponse;
       try {
-        parsedResponse = JSON.parse(content);
+        parsedResponse = JSON.parse(stripped);
       } catch (parseError) {
         console.error('Failed to parse Claude response as JSON:', {
-          content: content.substring(0, 200), // Log first 200 chars only
+          content: content.substring(0, 200),
           error: parseError instanceof Error ? parseError.message : 'Unknown error'
         });
         throw new Error('Invalid response format from Claude API');
