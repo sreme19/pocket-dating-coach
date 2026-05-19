@@ -28,6 +28,7 @@
   let cameraActive = $state(false);
   let videoElement = $state<HTMLVideoElement | null>(null);
   let canvasElement = $state<HTMLCanvasElement | null>(null);
+  let fileInputEl = $state<HTMLInputElement | null>(null);
 
   /**
    * Handle file selection from input
@@ -250,6 +251,7 @@
           class:active={!cameraActive}
           onclick={() => {
             stopCamera();
+            error = null;
           }}
           aria-label="Upload photo"
         >
@@ -305,6 +307,7 @@
           ondragover={handleDragOver}
           ondragleave={handleDragLeave}
           ondrop={handleDrop}
+          onclick={() => fileInputEl?.click()}
           role="button"
           tabindex="0"
           aria-label="Upload selfie photo"
@@ -315,11 +318,11 @@
           <input
             type="file"
             accept="image/*"
-            capture="environment"
             onchange={handleFileSelect}
             disabled={loading}
             aria-label="Select selfie photo file"
             class="file-input"
+            bind:this={fileInputEl}
           />
         </div>
 
