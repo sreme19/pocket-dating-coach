@@ -6,8 +6,8 @@
  */
 
 import type { IDExtractionResult, LivenessCheckResult, PhotoConsistencyResult } from '../types';
+import { ANTHROPIC_API_KEY as CLAUDE_API_KEY } from '$env/static/private';
 
-const CLAUDE_API_KEY = process.env.ANTHROPIC_API_KEY;
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_MODEL = 'claude-3-5-sonnet-20241022';
 

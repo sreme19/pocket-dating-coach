@@ -139,7 +139,7 @@
         <h4 class="section-title">Traits to Avoid</h4>
         <div class="avoid-list">
           {#each archetype.avoidTraits as trait (trait.label)}
-            <div class="avoid-item" transition:fade={{ duration: 150 }}>
+            <div class="avoid-item" style="text-decoration: line-through" transition:fade={{ duration: 150 }}>
               <span class="bullet">✕</span>
               <span>{trait.label}</span>
             </div>

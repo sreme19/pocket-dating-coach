@@ -40,6 +40,13 @@
   </div>
 
   <main id="main-content">
+    <!-- Error alert region -->
+    <div aria-live="polite">
+      {#if errorMessage}
+        <div role="alert" class="gate-error">{errorMessage}</div>
+      {/if}
+    </div>
+
     <!-- Question 1: Gender -->
     <fieldset class="gate-q" transition:slide={{ duration: 400, delay: 100, axis: 'y' }}>
       <legend class="gate-q-label">
@@ -275,7 +282,7 @@
   /* Gender pick */
   .gate-pick {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 10px;
   }
 
@@ -358,6 +365,23 @@
   }
 
   /* Age toggle */
+  .gate-checkbox {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+
+  .gate-error {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 14px;
+    color: #ef4444;
+    margin-bottom: 12px;
+  }
+
   .gate-age {
     width: 100%;
     display: flex;

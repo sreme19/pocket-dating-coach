@@ -17,6 +17,8 @@ const mockSupabaseClient = {
   from: vi.fn()
 };
 
+const defaultTableMock = () => ({ insert: vi.fn().mockResolvedValue({ error: null }) });
+
 // Mock getSupabase function
 vi.mock('$lib/server/supabase', () => ({
   getSupabase: () => mockSupabaseClient
@@ -90,7 +92,7 @@ describe('Pass Endpoint', () => {
               insert: vi.fn().mockResolvedValue({ error: null })
             };
           }
-          return {};
+          return defaultTableMock();
         });
 
         const request = new Request('http://localhost/api/verified-vibe/pass', {
@@ -120,7 +122,7 @@ describe('Pass Endpoint', () => {
               select: mockSelect
             };
           }
-          return {};
+          return defaultTableMock();
         });
 
         const request = new Request('http://localhost/api/verified-vibe/pass', {
@@ -153,7 +155,7 @@ describe('Pass Endpoint', () => {
               })
             };
           }
-          return {};
+          return defaultTableMock();
         });
 
         const request = new Request('http://localhost/api/verified-vibe/pass', {
@@ -199,7 +201,7 @@ describe('Pass Endpoint', () => {
               })
             };
           }
-          return {};
+          return defaultTableMock();
         });
 
         const request = new Request('http://localhost/api/verified-vibe/pass', {
@@ -234,7 +236,7 @@ describe('Pass Endpoint', () => {
               insert: vi.fn().mockResolvedValue({ error: null })
             };
           }
-          return {};
+          return defaultTableMock();
         });
 
         const request = new Request('http://localhost/api/verified-vibe/pass', {
