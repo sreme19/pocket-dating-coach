@@ -31,7 +31,7 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 	}
 
 	try {
-		const { data, error: dbError } = await supabase
+		const { data, error: dbError } = await getSupabase()
 			.from('ai_assistant_conversations')
 			.select('*')
 			.eq('id', conversationId)
@@ -83,7 +83,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 
 	try {
 		// Fetch current conversation
-		const { data: current, error: fetchError } = await supabase
+		const { data: current, error: fetchError } = await getSupabase()
 			.from('ai_assistant_conversations')
 			.select('messages')
 			.eq('id', conversationId)
@@ -99,7 +99,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 		const updatedMessages = [...existingMessages, ...messages];
 
 		// Update conversation
-		const { data, error: updateError } = await supabase
+		const { data, error: updateError } = await getSupabase()
 			.from('ai_assistant_conversations')
 			.update({
 				messages: updatedMessages,
@@ -139,7 +139,7 @@ export const DELETE: RequestHandler = async ({ params, locals }) => {
 	}
 
 	try {
-		const { error: dbError } = await supabase
+		const { error: dbError } = await getSupabase()
 			.from('ai_assistant_conversations')
 			.delete()
 			.eq('id', conversationId)

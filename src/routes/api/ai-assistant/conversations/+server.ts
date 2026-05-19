@@ -47,7 +47,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	try {
 		// Check if conversation already exists
-		const { data: existing } = await supabase
+		const { data: existing } = await getSupabase()
 			.from('ai_assistant_conversations')
 			.select('id')
 			.eq('user_id', session.user.id)
@@ -60,7 +60,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 
 		// Create new conversation
-		const { data, error: dbError } = await supabase
+		const { data, error: dbError } = await getSupabase()
 			.from('ai_assistant_conversations')
 			.insert({
 				user_id: session.user.id,
@@ -91,7 +91,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 	}
 
 	try {
-		const { data, error: dbError } = await supabase
+		const { data, error: dbError } = await getSupabase()
 			.from('ai_assistant_conversations')
 			.select('*')
 			.eq('user_id', session.user.id)

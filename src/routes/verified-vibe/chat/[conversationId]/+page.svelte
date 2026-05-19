@@ -111,7 +111,7 @@
 
     // Untrack user online status
     if ($user) {
-      untrackUserOnline($user.id);
+      untrackUserOnline();
     }
 
     // Clear current match
@@ -129,10 +129,6 @@
           updateMatchUserOnlineStatus(status.isOnline, status.lastSeen);
           connectionError = false;
           reconnectAttempts = 0;
-        },
-        (err) => {
-          console.error('Online status subscription error:', err);
-          // Don't treat online status errors as critical
         }
       );
     } catch (err) {
@@ -263,7 +259,7 @@
 
     // Update last activity
     if ($user) {
-      updateLastActivity($user.id);
+      updateLastActivity();
     }
 
     // Show typing indicator
@@ -312,7 +308,7 @@
       isTypingLocal = false;
 
       // Update last activity
-      await updateLastActivity($user.id);
+      await updateLastActivity();
 
       // Clear typing timeout and notify
       if (typingTimeout) {
