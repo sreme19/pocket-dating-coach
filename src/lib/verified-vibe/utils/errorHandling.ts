@@ -174,19 +174,20 @@ export function handleAPIError(error: Error | Response, statusCode?: number): Ap
  */
 export function handleFileUploadError(error: Error, fileName?: string): AppError {
   const message = error.message || 'File upload error occurred';
+  const messageLower = message.toLowerCase();
   let userMessage = 'File upload failed. Please try again.';
   let retryable = true;
 
-  if (message.includes('too large')) {
+  if (messageLower.includes('too large')) {
     userMessage = 'File is too large. Please upload a smaller file.';
     retryable = false;
-  } else if (message.includes('invalid type')) {
+  } else if (messageLower.includes('invalid')) {
     userMessage = 'Invalid file type. Please upload a supported file format.';
     retryable = false;
-  } else if (message.includes('timeout')) {
+  } else if (messageLower.includes('timeout')) {
     userMessage = 'Upload timed out. Please try again.';
     retryable = true;
-  } else if (message.includes('quota')) {
+  } else if (messageLower.includes('quota')) {
     userMessage = 'Storage quota exceeded. Please delete some files and try again.';
     retryable = false;
   }
@@ -209,19 +210,20 @@ export function handleFileUploadError(error: Error, fileName?: string): AppError
  */
 export function handleClaudeAPIError(error: Error, statusCode?: number): AppError {
   const message = error.message || 'Claude API error occurred';
+  const messageLower = message.toLowerCase();
   let userMessage = 'AI processing failed. Please try again.';
   let retryable = true;
 
-  if (message.includes('rate limit')) {
+  if (messageLower.includes('rate limit')) {
     userMessage = 'Too many requests. Please wait a moment and try again.';
     retryable = true;
-  } else if (message.includes('invalid request')) {
+  } else if (messageLower.includes('invalid request')) {
     userMessage = 'Invalid request. Please check your input and try again.';
     retryable = false;
-  } else if (message.includes('timeout')) {
+  } else if (messageLower.includes('timeout')) {
     userMessage = 'Request timed out. Please try again.';
     retryable = true;
-  } else if (message.includes('overloaded')) {
+  } else if (messageLower.includes('overloaded')) {
     userMessage = 'Service is busy. Please try again later.';
     retryable = true;
   }
@@ -245,22 +247,23 @@ export function handleClaudeAPIError(error: Error, statusCode?: number): AppErro
  */
 export function handleSupabaseError(error: Error, operation?: string): AppError {
   const message = error.message || 'Database error occurred';
+  const messageLower = message.toLowerCase();
   let userMessage = 'Database error. Please try again.';
   let retryable = true;
 
-  if (message.includes('connection')) {
+  if (messageLower.includes('connection')) {
     userMessage = 'Connection error. Please check your internet connection.';
     retryable = true;
-  } else if (message.includes('authentication')) {
+  } else if (messageLower.includes('authentication')) {
     userMessage = 'Authentication failed. Please log in again.';
     retryable = false;
-  } else if (message.includes('permission')) {
+  } else if (messageLower.includes('permission')) {
     userMessage = 'You do not have permission to perform this action.';
     retryable = false;
-  } else if (message.includes('constraint')) {
+  } else if (messageLower.includes('constraint')) {
     userMessage = 'Invalid data. Please check your input and try again.';
     retryable = false;
-  } else if (message.includes('timeout')) {
+  } else if (messageLower.includes('timeout')) {
     userMessage = 'Request timed out. Please try again.';
     retryable = true;
   }

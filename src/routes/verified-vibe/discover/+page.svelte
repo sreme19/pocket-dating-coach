@@ -44,7 +44,7 @@
         ...(excludeIds && { excludeIds })
       });
 
-      const response = await fetch(`/api/verified-vibe/discover?${params}`);
+      const response = await fetch(`/api/verified-vibe/discovery-feed?${params}`);
       if (!response.ok) {
         throw new Error(`Failed to load profiles: ${response.statusText}`);
       }
@@ -94,7 +94,7 @@
 
     try {
       // Call like API
-      const response = await fetch('/api/verified-vibe/like', {
+      const response = await fetch('/verified-vibe/api/like', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -136,7 +136,7 @@
 
     try {
       // Call pass API
-      const response = await fetch('/api/verified-vibe/pass', {
+      const response = await fetch('/verified-vibe/api/pass', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -196,14 +196,14 @@
   $effect.pre(() => {
     if (!cardStackContainer) return;
 
-    const cleanup = swipe(cardStackContainer, {
+    const swipeHandler = swipe(cardStackContainer, {
       minDistance: 50,
       maxTime: 500,
       onSwipeLeft: handleSwipeLeft,
       onSwipeRight: handleSwipeRight
     });
 
-    return cleanup;
+    return () => swipeHandler.destroy();
   });
 </script>
 

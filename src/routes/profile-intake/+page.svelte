@@ -142,7 +142,7 @@
 				<div
 					class="bg-gradient-to-r from-rose-500 to-amber-500 h-full transition-all duration-300"
 					style="width: {progress}%"
-				/>
+				></div>
 			</div>
 
 			<!-- Stage indicators -->
@@ -208,8 +208,9 @@
 
 							<div class="space-y-4 mb-6">
 								<div>
-									<label class="block text-sm font-medium mb-2">What's in this photo?</label>
+									<label class="block text-sm font-medium mb-2" for="photo-role">What's in this photo?</label>
 									<select
+										id="photo-role"
 										bind:value={photoRole}
 										class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:border-rose-500 outline-none"
 									>
@@ -220,8 +221,9 @@
 								</div>
 
 								<div>
-									<label class="block text-sm font-medium mb-2">Caption (optional)</label>
+									<label class="block text-sm font-medium mb-2" for="photo-caption">Caption (optional)</label>
 									<input
+										id="photo-caption"
 										type="text"
 										bind:value={photoCaption}
 										placeholder="e.g., Hiking in Tahoe"
@@ -288,35 +290,38 @@
 
 					<div class="space-y-6">
 						<div>
-							<label class="block font-medium mb-3">What do you want your match to know about you?</label>
+							<label class="block font-medium mb-3" for="about-you">What do you want your match to know about you?</label>
 							<textarea
+								id="about-you"
 								bind:value={aboutYou}
 								placeholder="Share what makes you unique... hobbies, passions, what you're proud of"
 								class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:border-rose-500 outline-none resize-none"
 								rows="5"
-							/>
+							></textarea>
 							<p class="text-xs text-slate-500 mt-2">{aboutYou.length}/500 characters</p>
 						</div>
 
 						<div>
-							<label class="block font-medium mb-3">What are you looking for?</label>
+							<label class="block font-medium mb-3" for="looking-for">What are you looking for?</label>
 							<textarea
+								id="looking-for"
 								bind:value={lookingFor}
 								placeholder="Describe your ideal match... personality traits, interests, values"
 								class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:border-rose-500 outline-none resize-none"
 								rows="5"
-							/>
+							></textarea>
 							<p class="text-xs text-slate-500 mt-2">{lookingFor.length}/500 characters</p>
 						</div>
 
 						<div>
-							<label class="block font-medium mb-3">Any deal-breakers? (optional)</label>
+							<label class="block font-medium mb-3" for="dealbreakers">Any deal-breakers? (optional)</label>
 							<textarea
+								id="dealbreakers"
 								bind:value={dealbreakers}
 								placeholder="Be honest about what won't work for you"
 								class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:border-rose-500 outline-none resize-none"
 								rows="3"
-							/>
+							></textarea>
 							<p class="text-xs text-slate-500 mt-2">{dealbreakers.length}/500 characters</p>
 						</div>
 					</div>
@@ -330,8 +335,9 @@
 					<div class="space-y-6">
 						<div class="grid grid-cols-2 gap-4">
 							<div>
-								<label class="block text-sm font-medium mb-2">Height (optional)</label>
+								<label class="block text-sm font-medium mb-2" for="height">Height (optional)</label>
 								<input
+									id="height"
 									type="text"
 									bind:value={height}
 									placeholder="e.g., 6 ft 1 in"
@@ -339,8 +345,9 @@
 								/>
 							</div>
 							<div>
-								<label class="block text-sm font-medium mb-2">Age range (optional)</label>
+								<label class="block text-sm font-medium mb-2" for="age-range">Age range (optional)</label>
 								<input
+									id="age-range"
 									type="text"
 									bind:value={ageRange}
 									placeholder="e.g., 26-32"
@@ -350,8 +357,9 @@
 						</div>
 
 						<div>
-							<label class="block text-sm font-medium mb-2">Where do you live?</label>
+							<label class="block text-sm font-medium mb-2" for="location-vibe">Where do you live?</label>
 							<select
+								id="location-vibe"
 								bind:value={locationVibe}
 								class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:border-rose-500 outline-none"
 							>
@@ -362,8 +370,9 @@
 						</div>
 
 						<div>
-							<label class="block text-sm font-medium mb-2">Education level</label>
+							<label class="block text-sm font-medium mb-2" for="education-level">Education level</label>
 							<select
+								id="education-level"
 								bind:value={educationLevel}
 								class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:border-rose-500 outline-none"
 							>

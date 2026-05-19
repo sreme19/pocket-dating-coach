@@ -250,7 +250,7 @@
 					{#if profile}
 						<div class="bg-slate-800 border border-slate-700 rounded-xl p-6">
 							<h3 class="font-bold mb-4 flex items-center gap-2">
-								<span class="w-3 h-3 rounded-full bg-rose-500" />
+								<span class="w-3 h-3 rounded-full bg-rose-500"></span>
 								Preview
 							</h3>
 							<div class="space-y-3 mb-6 text-sm">
@@ -330,7 +330,7 @@
 						placeholder="Enter items separated by new lines..."
 						class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:border-rose-500 outline-none resize-none"
 						rows="6"
-					/>
+					></textarea>
 				{:else}
 					<!-- For string fields -->
 					<textarea
@@ -338,7 +338,7 @@
 						placeholder="Edit text..."
 						class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:border-rose-500 outline-none resize-none"
 						rows="6"
-					/>
+					></textarea>
 				{/if}
 
 				<div class="flex gap-3 mt-6">

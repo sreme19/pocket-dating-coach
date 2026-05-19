@@ -228,8 +228,9 @@
   }
 </script>
 
-<article
+<div
   class="discovery-card"
+  role="article"
   transition:fade={{ duration: 200 }}
   aria-label={`Profile of ${profile.firstName}, ${profile.age} years old, ${profile.distance} away`}
   tabindex="0"
@@ -241,7 +242,7 @@
       {#if currentPhoto}
         <img
           src={currentPhoto}
-          alt={`${profile.firstName}'s profile photo ${currentPhotoIndex + 1} of ${photoCount}`}
+          alt={`${profile.firstName}'s profile photo`}
           class="profile-photo"
           loading="lazy"
           decoding="async"
@@ -288,7 +289,7 @@
               aria-selected={i === currentPhotoIndex}
               aria-label={`Photo ${i + 1} of ${photoCount}`}
               title={`Go to photo ${i + 1}`}
-            />
+            ></button>
           {/each}
         </div>
 
@@ -304,7 +305,7 @@
           score={profile.trustScore}
           size="lg"
           showLabel={false}
-          showPercentage={true}
+          showPercentage={false}
         />
       </div>
 
@@ -439,7 +440,7 @@
       <span class="button-text">Like</span>
     </button>
   </div>
-</article>
+</div>
 
 <style>
   .discovery-card {

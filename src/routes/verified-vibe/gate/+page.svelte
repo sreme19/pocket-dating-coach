@@ -6,10 +6,19 @@
 
   let gender = $state<Gender | null>(null);
   let over18 = $state(false);
+  let errorMessage = $state<string | null>(null);
   const ready = $derived(!!gender && over18);
 
   function handleContinue() {
-    if (!ready) return;
+    if (!gender) {
+      errorMessage = 'Please select your gender to continue.';
+      return;
+    }
+    if (!over18) {
+      errorMessage = 'Please confirm you are 18 or older to continue.';
+      return;
+    }
+    errorMessage = null;
     // Store gender locally — will be saved to Supabase after auth on the next step
     localStorage.setItem('verified_vibe_gender', gender!);
     localStorage.setItem('verified_vibe_pending_gender', gender!);
@@ -26,7 +35,7 @@
       <span class="pulse" aria-hidden="true"></span>
       Verified Vibe
     </div>
-    <h1 class="gate-title">Two<br/>questions.<br/><em>Then we move.</em></h1>
+    <h1 class="gate-title">Verified Vibe — Two questions. <em>Then we move.</em></h1>
     <p class="gate-sub">Two quick questions to set up your profile.</p>
   </div>
 
@@ -39,10 +48,11 @@
         </span>
         <span class="gate-q-title">I'm a…</span>
       </legend>
-      <div class="gate-pick">
+      <div class="gate-pick" role="group" aria-label="Gender selection">
         <button
           class="gate-pick-btn {gender === 'man' ? 'selected' : ''}"
           aria-pressed={gender === 'man'}
+          aria-label="Select Man"
           onclick={() => { gender = 'man'; }}
         >
           <span class="pick-ico" aria-hidden="true">♂</span>
@@ -52,11 +62,22 @@
         <button
           class="gate-pick-btn {gender === 'woman' ? 'selected' : ''}"
           aria-pressed={gender === 'woman'}
+          aria-label="Select Woman"
           onclick={() => { gender = 'woman'; }}
         >
           <span class="pick-ico" aria-hidden="true">♀</span>
           <span class="pick-name">Woman</span>
           <span class="pick-sub">See Spoilt &amp; Safety-First</span>
+        </button>
+        <button
+          class="gate-pick-btn {gender === 'prefer_not_to_say' ? 'selected' : ''}"
+          aria-pressed={gender === 'prefer_not_to_say'}
+          aria-label="Prefer not to say"
+          onclick={() => { gender = 'prefer_not_to_say' as Gender; }}
+        >
+          <span class="pick-ico" aria-hidden="true">⚬</span>
+          <span class="pick-name">Other</span>
+          <span class="pick-sub">Prefer not to say</span>
         </button>
       </div>
     </fieldset>
@@ -69,27 +90,33 @@
         </span>
         <span class="gate-q-title">I'm 18 or older</span>
       </legend>
-      <button
-        type="button"
-        class="gate-age {over18 ? 'checked' : ''}"
-        aria-pressed={over18}
-        onclick={() => { over18 = !over18; }}
-      >
+      <label class="gate-age {over18 ? 'checked' : ''}">
+        <input
+          type="checkbox"
+          class="gate-checkbox"
+          aria-label="I confirm I am 18 or older"
+          checked={over18}
+          onchange={() => { over18 = !over18; }}
+        />
         <span class="box" aria-hidden="true">{#if over18}✓{/if}</span>
         <span class="copy">
           <span class="l">Yes, I'm 18+</span>
           <span class="s">Required — we ID-verify everyone, no exceptions.</span>
         </span>
-      </button>
+      </label>
     </fieldset>
 
     <!-- CTA -->
     <div class="gate-cta" transition:slide={{ duration: 400, delay: 300, axis: 'y' }}>
+      <div aria-live="polite">
+        {#if errorMessage}
+          <div role="alert" class="gate-error">{errorMessage}</div>
+        {/if}
+      </div>
       <button
         class="btn btn-primary"
-        disabled={!ready}
         onclick={handleContinue}
-        aria-label="Continue to Verified Vibe"
+        aria-label="Continue to next step"
       >
         {ready ? "Let's go →" : "Pick both to continue"}
       </button>
@@ -309,6 +336,27 @@
     line-height: 1.4;
   }
 
+  .gate-checkbox {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .gate-error {
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    color: #dc2626;
+    font-size: 14px;
+  }
+
   /* Age toggle */
   .gate-age {
     width: 100%;
@@ -435,95 +483,4 @@
     .pulse { animation: none; }
   }
 
-  /* Login toggle & panel */
-  .login-toggle-wrap {
-    text-align: center;
-    margin-top: 20px;
-    padding-bottom: 8px;
-  }
-
-  .login-toggle {
-    background: none;
-    border: none;
-    font-family: inherit;
-    font-size: 13px;
-    color: var(--accent-bright);
-    cursor: pointer;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-    padding: 4px 8px;
-    border-radius: 6px;
-    transition: opacity 150ms ease;
-  }
-
-  .login-toggle:hover { opacity: 0.8; }
-  .login-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-  .login-panel {
-    margin-top: 4px;
-    padding: 18px 16px;
-    background: var(--bg-2);
-    border: 1px solid var(--border-2);
-    border-radius: var(--r-lg);
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .login-hint {
-    margin: 0;
-    font-size: 13px;
-    color: var(--text-2);
-    line-height: 1.5;
-  }
-
-  .login-field {
-    display: flex;
-    gap: 8px;
-  }
-
-  .login-input {
-    flex: 1;
-    min-width: 0;
-    padding: 11px 14px;
-    background: var(--bg-3);
-    border: 1px solid var(--border-2);
-    border-radius: 12px;
-    color: var(--text-1);
-    font-family: inherit;
-    font-size: 14px;
-    outline: none;
-    transition: border-color 150ms ease;
-  }
-
-  .login-input::placeholder { color: var(--text-4); }
-  .login-input:focus { border-color: var(--accent); }
-
-  .login-btn {
-    white-space: nowrap;
-    min-height: 44px;
-    padding: 10px 14px;
-    font-size: 14px;
-    width: auto;
-  }
-
-  .login-back {
-    background: none;
-    border: none;
-    font-family: inherit;
-    font-size: 12px;
-    color: var(--text-3);
-    cursor: pointer;
-    padding: 0;
-    text-align: left;
-    width: fit-content;
-  }
-
-  .login-back:hover { color: var(--text-2); }
-
-  .login-error {
-    margin: 0;
-    font-size: 12px;
-    color: #f87171;
-  }
 </style>

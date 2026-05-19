@@ -4,6 +4,13 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
+	server: {
+		fs: {
+			// Allow serving files from the parent node_modules (git worktree setup)
+			// Worktree is 3 levels deep: .claude/worktrees/objective-shaw-f9cdf9
+			allow: ['..', '../..', '../../..']
+		}
+	},
 	build: {
 		// Code splitting configuration
 		rollupOptions: {
@@ -16,10 +23,7 @@ export default defineConfig({
 					if (id.includes('@supabase/supabase-js')) {
 						return 'vendor-supabase';
 					}
-					if (id.includes('@xenova/transformers')) {
-						return 'vendor-transformers';
-					}
-					if (id.includes('lucide-svelte')) {
+if (id.includes('lucide-svelte')) {
 						return 'vendor-lucide';
 					}
 					// Split verified-vibe features

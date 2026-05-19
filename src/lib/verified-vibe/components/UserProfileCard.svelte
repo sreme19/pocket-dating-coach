@@ -115,12 +115,12 @@
    * Handle block button click
    */
   function handleBlock() {
+    if (!onBlock) return;
     isLoading = true;
-    onBlock?.();
-    showMoreOptions = false;
-    // Reset loading state after animation
+    onBlock();
     setTimeout(() => {
       isLoading = false;
+      showMoreOptions = false;
     }, 300);
   }
 
@@ -128,12 +128,12 @@
    * Handle report button click
    */
   function handleReport() {
+    if (!onReport) return;
     isLoading = true;
-    onReport?.();
-    showMoreOptions = false;
-    // Reset loading state after animation
+    onReport();
     setTimeout(() => {
       isLoading = false;
+      showMoreOptions = false;
     }, 300);
   }
 
@@ -329,6 +329,7 @@
       <button
         class="button more-button"
         onclick={toggleMoreOptions}
+        onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && toggleMoreOptions()}
         disabled={isLoading}
         aria-label="More options"
         aria-expanded={showMoreOptions}

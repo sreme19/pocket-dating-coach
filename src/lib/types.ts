@@ -154,3 +154,39 @@ export interface ProfileChatMessage {
 export interface ApiError {
 	error: string;
 }
+
+export type AssistantType = 'bestie' | 'wingman';
+
+export interface AIAssistantMessage {
+	id: string;
+	role: 'user' | 'assistant';
+	content: string;
+	timestamp: number;
+	citations?: string[];
+}
+
+export interface AIAssistantConversation {
+	id: string;
+	userId: string;
+	matchConversationId: string;
+	assistantType: AssistantType;
+	messages: AIAssistantMessage[];
+	createdAt: number;
+	updatedAt: number;
+}
+
+export interface AIAssistantRequest {
+	conversationId: string;
+	assistantType: AssistantType;
+	messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+	matchContext?: {
+		matchedUserProfile?: Partial<UserProfile>;
+		recentMessages?: ChatMessage[];
+	};
+}
+
+export interface AIAssistantResponse {
+	reply: string;
+	citations: string[];
+	suggestions?: string[];
+}

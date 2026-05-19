@@ -19,7 +19,7 @@
   import SpendingUploadStep from '$lib/verified-vibe/components/SpendingUploadStep.svelte';
   import IDExtractionStep from '$lib/verified-vibe/components/IDExtractionStep.svelte';
   import LivenessStep from '$lib/verified-vibe/components/LivenessStep.svelte';
-  import type { VerificationStep as VerificationStepType } from '$lib/verified-vibe/types';
+  import type { VerificationStep as VerificationStepType, LivenessCheckResult } from '$lib/verified-vibe/types';
   import { fade, slide } from 'svelte/transition';
   import { onMount } from 'svelte';
 
@@ -41,6 +41,7 @@
   let skippedSteps = $state<Set<number>>(new Set());
   let showSkipWarning = $state(false);
   let stepData = $state<Record<number, any>>({});
+  let idPhotoBase64 = $state('');
 
   const steps = [
     {
@@ -96,6 +97,8 @@
     error = null;
     clearError();
     loading = true;
+    // Store base64 ID photo for use in liveness step
+    idPhotoBase64 = data.idImage;
 
     try {
       // Submit to API
@@ -156,39 +159,19 @@
     }
   }
 
-  async function handleLivenessSubmit(data: { selfieImage: string; mimeType: string }) {
+  async function handleLivenessSubmit(data: LivenessCheckResult) {
     error = null;
     clearError();
     loading = true;
 
     try {
-      // Submit to API
-      const response = await fetch('/api/verified-vibe/verify-step', {
-        method: 'POST',
-        headers: await getAuthHeaders(),
-        body: JSON.stringify({
-          step: 'liveness',
-          data: {
-            image: data.selfieImage,
-            mimeType: data.mimeType
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error || 'Liveness check failed');
-      }
-
-      const result = await response.json();
-
-      // Store verification record
+      // Store verification record (liveness check already completed in LivenessStep)
       addVerificationRecord({
         id: `${$user?.id}-liveness`,
         userId: $user?.id || '',
         step: 'liveness',
         status: 'completed',
-        data: result.data,
+        data,
         completedAt: new Date(),
         createdAt: new Date()
       });
@@ -624,7 +607,8 @@
   {/if}
 
   <!-- Step content -->
-  <div class="verification-content" key={currentStep}>
+  {#key currentStep}
+  <div class="verification-content">
     <div class="step-header" transition:fade={{ duration: 300 }}>
       <div class="step-icon">{steps[currentStep - 1].icon}</div>
       <h2 class="step-title">{steps[currentStep - 1].name}</h2>
@@ -635,28 +619,29 @@
     <!-- Step-specific content -->
     <div class="step-body" transition:slide={{ duration: 300, axis: 'y' }}>
       {#if currentStep === 1}
-        <IDExtractionStep 
+        <IDExtractionStep
           onSubmit={handleIDSubmit}
           onCancel={handleBack}
         />
       {:else if currentStep === 2}
-        <LivenessStep 
+        <LivenessStep
+          {idPhotoBase64}
           onSubmit={handleLivenessSubmit}
           onCancel={handleBack}
         />
       {:else if currentStep === 3}
-        <PhotoUploadStep 
+        <PhotoUploadStep
           onSubmit={handlePhotoSubmit}
           onCancel={handleBack}
         />
       {:else if currentStep === 4}
         {#if $user?.gender === 'man'}
-          <SpendingUploadStep 
+          <SpendingUploadStep
             onSubmit={handleSpendingSubmit}
             onCancel={handleBack}
           />
         {:else}
-          <SpendingQAStep 
+          <SpendingQAStep
             gender={$user?.gender}
             onSubmit={handleQASubmit}
             onCancel={handleBack}
@@ -665,6 +650,7 @@
       {/if}
     </div>
   </div>
+  {/key}
 
   <!-- Skip Warning Modal -->
   {#if showSkipWarning}
@@ -940,88 +926,6 @@
     margin-bottom: 24px;
   }
 
-  /* Upload Area */
-  .upload-area {
-    border: 2px dashed var(--border-2);
-    border-radius: 12px;
-    padding: 32px 20px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 200ms ease;
-    background: var(--bg-2);
-  }
-
-  .upload-area:hover {
-    border-color: var(--accent-bright);
-    background: var(--accent-tint);
-  }
-
-  .upload-icon {
-    font-size: 48px;
-    margin-bottom: 12px;
-    display: block;
-  }
-
-  .upload-text {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-1);
-    margin: 0 0 4px;
-  }
-
-  .upload-hint {
-    font-size: 12px;
-    color: var(--text-3);
-    margin: 0 0 16px;
-  }
-
-  .upload-area input {
-    display: none;
-  }
-
-  /* Q&A Area */
-  .qa-area {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .qa-question {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .qa-question label {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-1);
-  }
-
-  .qa-question textarea {
-    padding: 12px;
-    border: 1px solid var(--border-1);
-    border-radius: 8px;
-    background: var(--bg-2);
-    color: var(--text-1);
-    font-family: inherit;
-    font-size: 14px;
-    resize: vertical;
-    min-height: 80px;
-    transition: all 200ms ease;
-  }
-
-  .qa-question textarea:focus {
-    outline: none;
-    border-color: var(--accent-bright);
-    box-shadow: 0 0 0 3px var(--accent-tint);
-  }
-
-  .qa-question textarea:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
   /* Skip Warning Modal */
   .skip-warning-overlay {
     position: fixed;
@@ -1240,45 +1144,6 @@
       margin-bottom: 16px;
     }
 
-    .upload-area {
-      padding: 24px 16px;
-      border-radius: 10px;
-    }
-
-    .upload-icon {
-      font-size: 40px;
-      margin-bottom: 10px;
-    }
-
-    .upload-text {
-      font-size: 13px;
-      margin: 0 0 3px;
-    }
-
-    .upload-hint {
-      font-size: 11px;
-      margin: 0 0 12px;
-    }
-
-    .qa-area {
-      gap: 12px;
-    }
-
-    .qa-question {
-      gap: 6px;
-    }
-
-    .qa-question label {
-      font-size: 13px;
-    }
-
-    .qa-question textarea {
-      padding: 10px;
-      font-size: 13px;
-      min-height: 70px;
-      border-radius: 8px;
-    }
-
     .skip-warning-modal {
       padding: 20px;
       border-radius: 12px;
@@ -1335,10 +1200,6 @@
       font-size: 22px;
     }
 
-    .upload-area {
-      padding: 28px 24px;
-    }
-
     .verification-actions {
       gap: 14px;
       padding: 18px 24px calc(18px + env(safe-area-inset-bottom, 0));
@@ -1366,10 +1227,6 @@
 
     .step-title {
       font-size: 26px;
-    }
-
-    .upload-area {
-      padding: 36px 28px;
     }
 
     .verification-actions {
