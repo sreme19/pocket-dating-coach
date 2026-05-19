@@ -5,10 +5,10 @@
       "name": "SvelteKit Dev Server",
       "description": "Vite dev server with HMR — use for active development and functional testing",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": ["run", "dev", "--", "--port", "5174"],
       "cwd": "${workspaceRoot}",
-      "port": 5173,
-      "url": "http://localhost:5173",
+      "port": 5174,
+      "url": "http://localhost:5174",
       "env": {}
     },
     {

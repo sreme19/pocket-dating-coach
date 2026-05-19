@@ -1,8 +1,8 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { setPhase, setError } from '$lib/verified-vibe/stores';
+  import { user, setPhase, setError } from '$lib/verified-vibe/stores';
   import { ARCHETYPES, ARCHETYPES_BY_GENDER } from '$lib/verified-vibe/constants';
-  import type { Archetype, Gender } from '$lib/verified-vibe/types';
+  import type { Archetype, Gender, VerifiedVibeUser } from '$lib/verified-vibe/types';
   import { ChevronRight } from 'lucide-svelte';
   import { slide, fade } from 'svelte/transition';
   import ArchetypeCard from '$lib/verified-vibe/components/ArchetypeCard.svelte';
@@ -53,11 +53,27 @@
 
   function handleLockIn(archetypeId: Archetype) {
     selectedArchetype = archetypeId;
-    // Store archetype locally — will be saved to Supabase after the user signs up/in
     localStorage.setItem('verified_vibe_archetype', archetypeId);
     localStorage.setItem('verified_vibe_pending_archetype', archetypeId);
-    // Route to auth — this is the moment we ask for an account (before any sensitive data)
-    goto('/verified-vibe/auth');
+
+    // Dev mode: create a local user directly, skip auth
+    const devUser: VerifiedVibeUser = {
+      id: crypto.randomUUID(),
+      gender: gender!,
+      archetype: archetypeId,
+      firstName: '',
+      age: 0,
+      city: '',
+      avatar: null,
+      about: null,
+      looking: null,
+      trustScore: 0,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    user.set(devUser);
+    setPhase('verification');
+    goto('/verified-vibe/verification');
   }
 </script>
 

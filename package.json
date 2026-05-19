@@ -12,7 +12,8 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"test": "vitest --run",
 		"test:watch": "vitest",
-		"ingest": "npx tsx --env-file=.env.local scripts/ingest.ts"
+		"ingest": "npx tsx --env-file=.env.local scripts/ingest.ts",
+		"setup:fal": "node scripts/setup-fal-key.js"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-auto": "^7.0.1",
@@ -43,6 +44,7 @@
 	},
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.92.0",
+		"@fal-ai/client": "^1.10.1",
 		"@supabase/supabase-js": "^2.105.1",
 		"lucide-svelte": "^1.0.1",
 		"pdf-parse": "^1.1.1",
