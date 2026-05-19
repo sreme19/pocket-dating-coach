@@ -10,7 +10,7 @@ export const config = {
 
 export const POST: RequestHandler = async ({ request }) => {
   if (!env.FAL_KEY) {
-    throw error(500, 'FAL_KEY is not configured. Add it to your .env.local file.');
+    throw error(500, 'Photo enhancement is not available at this time.');
   }
 
   const { referenceDataUrl, archetype, count } = await request.json();
