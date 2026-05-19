@@ -196,14 +196,14 @@
   $effect.pre(() => {
     if (!cardStackContainer) return;
 
-    const cleanup = swipe(cardStackContainer, {
+    const swipeHandler = swipe(cardStackContainer, {
       minDistance: 50,
       maxTime: 500,
       onSwipeLeft: handleSwipeLeft,
       onSwipeRight: handleSwipeRight
     });
 
-    return cleanup;
+    return () => swipeHandler.destroy();
   });
 </script>
 

@@ -19,7 +19,7 @@
   import SpendingUploadStep from '$lib/verified-vibe/components/SpendingUploadStep.svelte';
   import IDExtractionStep from '$lib/verified-vibe/components/IDExtractionStep.svelte';
   import LivenessStep from '$lib/verified-vibe/components/LivenessStep.svelte';
-  import type { VerificationStep as VerificationStepType } from '$lib/verified-vibe/types';
+  import type { VerificationStep as VerificationStepType, LivenessCheckResult } from '$lib/verified-vibe/types';
   import { fade, slide } from 'svelte/transition';
   import { onMount } from 'svelte';
 
@@ -41,6 +41,7 @@
   let skippedSteps = $state<Set<number>>(new Set());
   let showSkipWarning = $state(false);
   let stepData = $state<Record<number, any>>({});
+  let idPhotoBase64 = $state('');
 
   const steps = [
     {
@@ -96,6 +97,8 @@
     error = null;
     clearError();
     loading = true;
+    // Store base64 ID photo for use in liveness step
+    idPhotoBase64 = data.idImage;
 
     try {
       // Submit to API
@@ -156,39 +159,19 @@
     }
   }
 
-  async function handleLivenessSubmit(data: { selfieImage: string; mimeType: string }) {
+  async function handleLivenessSubmit(data: LivenessCheckResult) {
     error = null;
     clearError();
     loading = true;
 
     try {
-      // Submit to API
-      const response = await fetch('/api/verified-vibe/verify-step', {
-        method: 'POST',
-        headers: await getAuthHeaders(),
-        body: JSON.stringify({
-          step: 'liveness',
-          data: {
-            image: data.selfieImage,
-            mimeType: data.mimeType
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error || 'Liveness check failed');
-      }
-
-      const result = await response.json();
-
-      // Store verification record
+      // Store verification record (liveness check already completed in LivenessStep)
       addVerificationRecord({
         id: `${$user?.id}-liveness`,
         userId: $user?.id || '',
         step: 'liveness',
         status: 'completed',
-        data: result.data,
+        data,
         completedAt: new Date(),
         createdAt: new Date()
       });
@@ -624,7 +607,8 @@
   {/if}
 
   <!-- Step content -->
-  <div class="verification-content" key={currentStep}>
+  {#key currentStep}
+  <div class="verification-content">
     <div class="step-header" transition:fade={{ duration: 300 }}>
       <div class="step-icon">{steps[currentStep - 1].icon}</div>
       <h2 class="step-title">{steps[currentStep - 1].name}</h2>
@@ -635,28 +619,29 @@
     <!-- Step-specific content -->
     <div class="step-body" transition:slide={{ duration: 300, axis: 'y' }}>
       {#if currentStep === 1}
-        <IDExtractionStep 
+        <IDExtractionStep
           onSubmit={handleIDSubmit}
           onCancel={handleBack}
         />
       {:else if currentStep === 2}
-        <LivenessStep 
+        <LivenessStep
+          {idPhotoBase64}
           onSubmit={handleLivenessSubmit}
           onCancel={handleBack}
         />
       {:else if currentStep === 3}
-        <PhotoUploadStep 
+        <PhotoUploadStep
           onSubmit={handlePhotoSubmit}
           onCancel={handleBack}
         />
       {:else if currentStep === 4}
         {#if $user?.gender === 'man'}
-          <SpendingUploadStep 
+          <SpendingUploadStep
             onSubmit={handleSpendingSubmit}
             onCancel={handleBack}
           />
         {:else}
-          <SpendingQAStep 
+          <SpendingQAStep
             gender={$user?.gender}
             onSubmit={handleQASubmit}
             onCancel={handleBack}
@@ -665,6 +650,7 @@
       {/if}
     </div>
   </div>
+  {/key}
 
   <!-- Skip Warning Modal -->
   {#if showSkipWarning}
