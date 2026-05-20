@@ -2,6 +2,8 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { SEED_ACCOUNT_PASSWORD } from '$env/static/private';
 import { getSupabase } from '$lib/server/supabase';
+import { createClient } from '@supabase/supabase-js';
+import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 
 /**
  * POST /api/verified-vibe/seed-login
