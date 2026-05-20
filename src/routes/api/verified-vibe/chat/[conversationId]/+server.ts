@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
+import { getSupabase } from '$lib/server/supabase';
 import type { Message, VerifiedVibeUser } from '$lib/verified-vibe/types';
 
 interface ConversationResponse {
@@ -34,7 +35,7 @@ interface ConversationResponse {
  * - 404: Conversation not found
  * - 500: Internal server error
  */
-export const GET: RequestHandler = async ({ params }) => {
+export const GET: RequestHandler = async ({ params, request }) => {
   try {
     const conversationId = params.conversationId;
 
@@ -45,106 +46,120 @@ export const GET: RequestHandler = async ({ params }) => {
       );
     }
 
-    // In production, this would:
-    // 1. Verify user is authenticated
-    // 2. Verify user is part of the conversation
-    // 3. Fetch matched user info
-    // 4. Fetch message history from database
-    // 5. Mark messages as read
+    // Get auth token from header
+    const authHeader = request.headers.get('authorization') ?? '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
 
-    // Mock data for conversation
-    const mockMatchedUser: VerifiedVibeUser = {
-      id: 'user_1',
-      gender: 'woman',
-      archetype: 'spoilt_woman',
-      firstName: 'Sarah',
-      age: 26,
-      city: 'Brooklyn, NY',
-      avatar: null,
-      about: 'Looking for someone genuine and ambitious.',
-      looking: 'Long-term relationship',
-      trustScore: 88,
-      createdAt: new Date('2024-01-15'),
-      updatedAt: new Date('2024-01-15')
-    };
+    if (!token) {
+      console.error('No auth token provided');
+      return json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
 
-    const mockMessages: Message[] = [
-      {
-        id: 'msg_1',
-        matchId: conversationId,
-        senderId: 'user_1',
-        content: 'Hey! How are you doing?',
-        createdAt: new Date(Date.now() - 3600000)
-      },
-      {
-        id: 'msg_2',
-        matchId: conversationId,
-        senderId: 'current_user_id',
-        content: 'Hi Sarah! I\'m doing great, thanks for asking!',
-        createdAt: new Date(Date.now() - 3500000)
-      },
-      {
-        id: 'msg_3',
-        matchId: conversationId,
-        senderId: 'user_1',
-        content: 'That\'s awesome! What have you been up to?',
-        createdAt: new Date(Date.now() - 3400000)
-      },
-      {
-        id: 'msg_4',
-        matchId: conversationId,
-        senderId: 'current_user_id',
-        content: 'Just finished a project at work. Feeling pretty accomplished!',
-        createdAt: new Date(Date.now() - 3300000)
-      },
-      {
-        id: 'msg_5',
-        matchId: conversationId,
-        senderId: 'user_1',
-        content: 'That sounds amazing! I love ambitious people.',
-        createdAt: new Date(Date.now() - 3200000)
-      },
-      {
-        id: 'msg_6',
-        matchId: conversationId,
-        senderId: 'current_user_id',
-        content: 'Thanks! What about you? What do you do?',
-        createdAt: new Date(Date.now() - 3100000)
-      },
-      {
-        id: 'msg_7',
-        matchId: conversationId,
-        senderId: 'user_1',
-        content: 'I\'m a marketing manager at a tech startup. It\'s been a wild ride!',
-        createdAt: new Date(Date.now() - 3000000)
-      },
-      {
-        id: 'msg_8',
-        matchId: conversationId,
-        senderId: 'current_user_id',
-        content: 'That\'s so cool! I\'d love to hear more about it.',
-        createdAt: new Date(Date.now() - 2900000)
-      },
-      {
-        id: 'msg_9',
-        matchId: conversationId,
-        senderId: 'user_1',
-        content: 'For sure! Maybe we could grab coffee and chat about it?',
-        createdAt: new Date(Date.now() - 2800000)
-      },
-      {
-        id: 'msg_10',
-        matchId: conversationId,
-        senderId: 'current_user_id',
-        content: 'I\'d love that! When are you free?',
-        createdAt: new Date(Date.now() - 2700000)
-      }
-    ];
+    // Create a client with the user's token to get their ID
+    const { createClient } = await import('@supabase/supabase-js');
+    const { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } = await import('$env/static/public');
+    const userClient = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+
+    const { data: { user }, error: userError } = await userClient.auth.getUser();
+
+    if (userError || !user?.id) {
+      console.error('Auth error:', userError);
+      return json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const supabase = getSupabase();
+
+    // Get the match
+    const { data: match, error: matchError } = await supabase
+      .from('verified_vibe_matches')
+      .select('*')
+      .eq('id', conversationId)
+      .single();
+
+    if (matchError || !match) {
+      console.error('Match error:', matchError);
+      return json(
+        { error: 'Conversation not found' },
+        { status: 404 }
+      );
+    }
+
+    // Verify user is part of this match
+    if (match.user1_id !== user.id && match.user2_id !== user.id) {
+      console.error('User not part of match');
+      return json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Determine the other user ID
+    const otherUserId = match.user1_id === user.id ? match.user2_id : match.user1_id;
+
+    // Get the other user's profile
+    const { data: matchedUser, error: userProfileError } = await supabase
+      .from('verified_vibe_users')
+      .select('*')
+      .eq('id', otherUserId)
+      .single();
+
+    if (userProfileError || !matchedUser) {
+      console.error('User profile error:', userProfileError);
+      return json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    // Get messages for this conversation
+    const { data: dbMessages, error: messagesError } = await supabase
+      .from('verified_vibe_messages')
+      .select('*')
+      .eq('match_id', conversationId)
+      .order('created_at', { ascending: true });
+
+    if (messagesError) {
+      console.error('Error fetching messages:', messagesError);
+      return json(
+        { error: 'Failed to fetch messages' },
+        { status: 500 }
+      );
+    }
+
+    // Transform messages to match the Message type
+    const messages: Message[] = (dbMessages || []).map(msg => ({
+      id: msg.id,
+      matchId: msg.match_id,
+      senderId: msg.sender_id,
+      content: msg.content,
+      createdAt: new Date(msg.created_at)
+    }));
 
     const response: ConversationResponse = {
       data: {
-        matchedUser: mockMatchedUser,
-        messages: mockMessages
+        matchedUser: {
+          id: matchedUser.id,
+          gender: matchedUser.gender,
+          archetype: matchedUser.archetype,
+          firstName: matchedUser.first_name,
+          age: matchedUser.age,
+          city: matchedUser.city,
+          avatar: matchedUser.avatar_url,
+          about: matchedUser.about,
+          looking: matchedUser.looking,
+          trustScore: matchedUser.trust_score,
+          createdAt: new Date(matchedUser.created_at),
+          updatedAt: new Date(matchedUser.updated_at)
+        },
+        messages
       }
     };
 
@@ -152,7 +167,7 @@ export const GET: RequestHandler = async ({ params }) => {
   } catch (error) {
     console.error('Conversation fetch error:', error);
     return json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }
