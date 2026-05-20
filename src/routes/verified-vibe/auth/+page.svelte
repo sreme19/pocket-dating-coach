@@ -12,16 +12,20 @@
   import { ShieldCheck } from 'lucide-svelte';
 
   // ── state ──────────────────────────────────────────────────────────────────
-  type Step = 'email' | 'code' | 'loading';
-  let step  = $state<Step>('email');
-  let email = $state('');
-  let code  = $state('');
-  let error = $state('');
-  let busy  = $state(false);
+  type Step = 'email' | 'password' | 'code' | 'loading';
+  let step     = $state<Step>('email');
+  let email    = $state('');
+  let password = $state('');
+  let code     = $state('');
+  let error    = $state('');
+  let busy     = $state(false);
 
   // Dev-only test accounts (only active when VITE_SKIP_VERIFICATION=true)
   const DEV_TEST_EMAILS = ['male@test.vv', 'female@test.vv'];
   const isDevMode = import.meta.env.VITE_SKIP_VERIFICATION === 'true';
+
+  // Check if email is a seed account
+  const isSeedAccount = $derived(email.trim().toLowerCase().endsWith('@seed.vv'));
 
   // Detect whether user arrived here mid-onboarding (after archetype selection)
   const isSignUp = $derived($page.url.searchParams.get('mode') !== 'signin'
@@ -62,12 +66,54 @@
     }
   }
 
+  /** Log in a seed account with email + password */
+  async function loginWithPassword() {
+    error = '';
+    if (!password.trim()) { error = 'Enter your password'; return; }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    busy = true;
+    step = 'loading';
+    try {
+      const res = await fetch('/api/verified-vibe/seed-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: normalizedEmail, password })
+      });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.error ?? 'Login failed');
+
+      // The seed-login endpoint returns an OTP that we need to verify
+      const supabase = getSupabaseClient();
+      const { error: authError } = await supabase.auth.verifyOtp({
+        email: normalizedEmail,
+        token: payload.otp,
+        type: 'email'
+      });
+      if (authError) throw authError;
+
+      await routeAfterAuth();
+    } catch (e: any) {
+      error = e.message ?? 'Login failed. Check your password and try again.';
+      step = 'password';
+    } finally {
+      busy = false;
+    }
+  }
+
   async function sendOtp() {
     error = '';
     if (!email.trim()) { error = 'Enter your email address'; return; }
     if (!/\S+@\S+\.\S+/.test(email.trim())) { error = 'Enter a valid email address'; return; }
 
     const normalised = email.trim().toLowerCase();
+
+    // Seed account — show password field
+    if (normalised.endsWith('@seed.vv')) {
+      password = '';
+      step = 'password';
+      return;
+    }
 
     // Dev shortcut — no OTP email needed
     if (isDevMode && DEV_TEST_EMAILS.includes(normalised)) {
@@ -234,6 +280,48 @@
             <button class="dev-pill" onclick={() => { email = 'female@test.vv'; sendOtp(); }}>female@test.vv</button>
           </div>
         {/if}
+      </div>
+
+    {:else if step === 'password'}
+      <div transition:fade={{ duration: 200 }}>
+        <h1 class="auth-title">Enter your password</h1>
+        <p class="auth-sub">
+          Welcome back! <strong>{email}</strong> is a seed account.<br/>
+          Enter your password to continue.
+        </p>
+
+        <div class="auth-field">
+          <label class="auth-label" for="password-input">Password</label>
+          <input
+            id="password-input"
+            type="password"
+            class="auth-input"
+            placeholder="Enter password"
+            bind:value={password}
+            onkeydown={(e) => e.key === 'Enter' && loginWithPassword()}
+            autocomplete="current-password"
+          />
+        </div>
+
+        {#if error}
+          <p class="auth-error" transition:fade={{ duration: 150 }}>{error}</p>
+        {/if}
+
+        <button
+          class="auth-btn primary"
+          onclick={loginWithPassword}
+          disabled={busy}
+        >
+          {#if busy}
+            <span class="btn-spinner"></span>
+          {:else}
+            Sign in →
+          {/if}
+        </button>
+
+        <button class="auth-btn ghost" onclick={() => { password = ''; step = 'email'; error = ''; }}>
+          Wrong account? Use a different email
+        </button>
       </div>
 
     {:else if step === 'code'}
