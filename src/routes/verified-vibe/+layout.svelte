@@ -5,7 +5,7 @@
   import { getProfile } from '$lib/verified-vibe/services/profileService';
   import type { Tab } from '$lib/verified-vibe/types';
   import { getSupabaseClient } from '$lib/client/supabase';
-  import { MessageCircle, Compass, ShieldCheck } from 'lucide-svelte';
+  import { MessageCircle, Compass, ShieldCheck, User } from 'lucide-svelte';
   import { fade, slide } from 'svelte/transition';
   import { onMount } from 'svelte';
 
@@ -60,7 +60,8 @@
   const navItems: Array<{ tab: Tab; icon: typeof Compass; label: string; description: string }> = [
     { tab: 'discover', icon: Compass, label: 'Discover', description: 'Find matches' },
     { tab: 'trust', icon: ShieldCheck, label: 'Trust', description: 'Your score' },
-    { tab: 'chat', icon: MessageCircle, label: 'Chat', description: 'Messages' }
+    { tab: 'chat', icon: MessageCircle, label: 'Chat', description: 'Messages' },
+    { tab: 'profile', icon: User, label: 'Profile', description: 'Your profile' }
   ];
 </script>
 
@@ -92,7 +93,7 @@
         {@const Icon = item.icon}
         <button
           class="nav-item {active ? 'active' : ''}"
-          onclick={() => currentTab.set(item.tab)}
+          onclick={async () => { currentTab.set(item.tab); await goto(`/verified-vibe/${item.tab}`); }}
           title={item.label}
         >
           <div class="nav-icon">
@@ -241,7 +242,7 @@
 
   .verified-vibe-bottomnav {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 0;
     background: linear-gradient(to top, var(--bg-1), rgba(11, 17, 32, 0.85));
     backdrop-filter: blur(20px);

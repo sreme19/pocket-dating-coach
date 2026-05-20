@@ -26,6 +26,12 @@
   const RECONNECT_DELAY = 3000; // 3 seconds
   let activityTimeout: ReturnType<typeof setTimeout> | null = null;
 
+  // Utility function to validate UUID format
+  function isValidUUID(id: string): boolean {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(id);
+  }
+
   // Get conversation ID from route
   $effect(() => {
     conversationId = $page.params.conversationId || '';
@@ -60,12 +66,16 @@
         messages.set(initialMessages);
       }
 
-      // Subscribe to realtime message updates
-      subscribeToRealtimeMessages();
+      // Subscribe to realtime message updates (only if conversationId is a valid UUID)
+      if (isValidUUID(conversationId)) {
+        subscribeToRealtimeMessages();
 
-      // Subscribe to typing indicators
-      if ($user) {
-        subscribeToRealtimeTyping();
+        // Subscribe to typing indicators
+        if ($user) {
+          subscribeToRealtimeTyping();
+        }
+      } else {
+        console.warn('Invalid conversation ID format, skipping realtime subscriptions:', conversationId);
       }
 
       // Subscribe to match user's online status

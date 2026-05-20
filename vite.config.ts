@@ -9,7 +9,12 @@ export default defineConfig({
 			// Allow serving files from the parent node_modules (git worktree setup)
 			// Worktree is 3 levels deep: .claude/worktrees/objective-shaw-f9cdf9
 			allow: ['..', '../..', '../../..']
-		}
+		},
+		allowedHosts: [
+			'localhost',
+			'127.0.0.1',
+			'pocket-dating-coach-demo.loca.lt'
+		]
 	},
 	build: {
 		// Code splitting configuration

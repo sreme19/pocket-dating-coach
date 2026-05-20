@@ -24,3 +24,6 @@ vite.config.ts.timestamp-*
 
 # Book data (private)
 /data/*.pdf
+
+# Claude worktrees (local development)
+.claude/worktrees/

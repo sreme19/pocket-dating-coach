@@ -6,7 +6,7 @@ export type VerificationStep = 'id' | 'liveness' | 'photos' | 'spending_or_qa';
 export type VerificationStatus = 'pending' | 'completed' | 'failed';
 export type MatchStatus = 'pending' | 'mutual' | 'rejected';
 export type Phase = 'gate' | 'home' | 'verify' | 'verification' | 'app';
-export type Tab = 'discover' | 'trust' | 'chat';
+export type Tab = 'discover' | 'trust' | 'chat' | 'profile';
 
 export interface VerifiedVibeUser {
   id: string;
