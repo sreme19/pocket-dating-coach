@@ -38,6 +38,22 @@
   let enhanceError = $state<string | null>(null);
   let generationProgress = $state(0); // 0-5 for number of photos generated
 
+  // Personality reads data
+  interface PersonalityRead {
+    name: string;
+    level: 'Very high' | 'High' | 'Solid' | 'Moderate' | 'Low';
+    description: string;
+    percentage: number;
+  }
+
+  const personalityReads = $state<PersonalityRead[]>([
+    { name: 'Decisiveness', level: 'Very high', description: 'Picks a place, picks a time, follows through.', percentage: 95 },
+    { name: 'Warmth', level: 'High', description: 'Generous without being a pushover.', percentage: 80 },
+    { name: 'Openness', level: 'High', description: 'Reads, travels, asks better questions than most.', percentage: 75 },
+    { name: 'Pace', level: 'Solid', description: 'Moves at a comfortable, intentional clip.', percentage: 65 },
+    { name: 'Stability', level: 'High', description: 'Grounded, reliable, shows up consistently.', percentage: 78 }
+  ]);
+
   // Edit state — populated from generated/draft on entering enhance mode
   let editAbout = $state('');
   let editTags = $state<string[]>([]);
@@ -332,7 +348,30 @@
         {/if}
       </section>
 
-      <!-- Personality -->
+      <!-- Personality Reads -->
+      <section class="section">
+        <div class="section-label">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/>
+          </svg>
+          Personality Reads
+          <span class="section-hint">inferred from Q&A + lifestyle</span>
+        </div>
+        <div class="personality-reads">
+          {#each personalityReads as read}
+            <div class="read-item">
+              <div class="read-header">
+                <span class="read-name">{read.name}</span>
+                <span class="read-level">{read.level}</span>
+              </div>
+              <div class="read-bar">
+                <div class="read-fill" style="width: {read.percentage}%"></div>
+              </div>
+              <p class="read-desc">{read.description}</p>
+            </div>
+          {/each}
+        </div>
+      </section>
       {#if personalityTags.length > 0 || mode === 'enhance'}
         <section class="section">
           <div class="section-label">Personality</div>
@@ -867,6 +906,15 @@
     color: var(--text-4);
   }
 
+  .section-hint {
+    margin-left: auto;
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--text-4);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
   .ai-tag {
     font-size: 10px;
     font-weight: 600;
@@ -916,7 +964,57 @@
     color: var(--accent-bright);
   }
 
-  /* Photo grid */
+  /* Personality Reads */
+  .personality-reads {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .read-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .read-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .read-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-1);
+  }
+
+  .read-level {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-bright);
+  }
+
+  .read-bar {
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--bg-3);
+    overflow: hidden;
+  }
+
+  .read-fill {
+    height: 100%;
+    background: var(--accent-bright);
+    transition: width 300ms ease;
+  }
+
+  .read-desc {
+    font-size: 12px;
+    color: var(--text-3);
+    margin: 0;
+    line-height: 1.4;
+  }
   .photo-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
