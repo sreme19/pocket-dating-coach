@@ -21,10 +21,12 @@
   import IDExtractionStep from '$lib/verified-vibe/components/IDExtractionStep.svelte';
   import LivenessStep from '$lib/verified-vibe/components/LivenessStep.svelte';
   import ProfileIntakeStep from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
+  import TrustPointsBadge from '$lib/verified-vibe/components/TrustPointsBadge.svelte';
   import type { ProfileIntakeData } from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
   import type { VerificationStep as VerificationStepType, LivenessCheckResult } from '$lib/verified-vibe/types';
   import { fade, slide } from 'svelte/transition';
   import { onMount } from 'svelte';
+  import { X } from 'lucide-svelte';
 
   /** Returns auth headers with the current session token (if available). */
   async function getAuthHeaders(): Promise<Record<string, string>> {
@@ -53,42 +55,47 @@
     {
       number: 1,
       name: 'Government ID',
-      description: 'Upload a clear photo of your government ID',
+      description: 'Prove you\'re actually you.',
       icon: '🆔',
       stepType: 'id' as VerificationStepType,
-      time: '2 min'
+      time: '~30 sec',
+      points: 30
     },
     {
       number: 2,
-      name: 'Liveness Check',
-      description: 'Take a selfie to prove it\'s really you',
+      name: 'Photo verification',
+      description: 'Five photos. One face.',
       icon: '📸',
       stepType: 'liveness' as VerificationStepType,
-      time: '1 min'
+      time: '~60 sec',
+      points: 35
     },
     {
       number: 3,
-      name: 'Photo Story',
-      description: 'Upload photos that tell your story',
-      icon: '🖼️',
+      name: 'Spending pattern',
+      description: 'Where the money lands.',
+      icon: '💰',
       stepType: 'photos' as VerificationStepType,
-      time: '3 min'
+      time: '~45 sec',
+      points: 55
     },
     {
       number: 4,
-      name: 'Spending/Q&A',
-      description: 'Complete spending or Q&A verification',
-      icon: '💰',
+      name: 'Q&A intent check',
+      description: 'Tell us the truth.',
+      icon: '💬',
       stepType: 'spending_or_qa' as VerificationStepType,
-      time: '4 min'
+      time: '~2 min',
+      points: 80
     },
     {
       number: 5,
       name: 'Your Profile',
-      description: 'Tell us about yourself',
+      description: 'Earn your profile.',
       icon: '✨',
       stepType: 'id' as VerificationStepType, // placeholder type, step 5 is local-only
-      time: '2 min'
+      time: '~10 min',
+      points: 0
     }
   ];
 
@@ -695,9 +702,15 @@
   {#key currentStep}
   <div class="verification-content">
     <div class="step-header" transition:fade={{ duration: 300 }}>
-      <div class="step-icon">{steps[currentStep - 1].icon}</div>
-      <h2 class="step-title">{steps[currentStep - 1].name}</h2>
-      <p class="step-description">{steps[currentStep - 1].description}</p>
+      <div class="step-header-top">
+        <div class="step-meta">
+          <span class="step-label">STEP {currentStep} OF {totalSteps}</span>
+          <span class="step-label-divider">·</span>
+          <span class="step-name">{steps[currentStep - 1].name}</span>
+        </div>
+        <TrustPointsBadge points={steps[currentStep - 1].points} size="md" variant="badge" />
+      </div>
+      <h2 class="step-title">{steps[currentStep - 1].description}</h2>
       <p class="step-time">⏱️ {steps[currentStep - 1].time}</p>
     </div>
 
@@ -996,23 +1009,49 @@
     margin-bottom: 32px;
   }
 
-  .step-icon {
-    font-size: 48px;
+  .step-header-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     margin-bottom: 16px;
-    display: block;
+    gap: 12px;
+  }
+
+  .step-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .step-label {
+    color: var(--text-3);
+  }
+
+  .step-label-divider {
+    color: var(--text-4);
+  }
+
+  .step-name {
+    color: var(--text-2);
   }
 
   .step-title {
-    font-size: 24px;
+    font-family: var(--font-serif, 'Georgia', serif);
+    font-size: 32px;
+    font-style: italic;
     font-weight: 600;
-    margin: 0 0 8px;
+    margin: 0 0 12px;
     color: var(--text-1);
+    line-height: 1.2;
   }
 
-  .step-description {
-    font-size: 14px;
-    color: var(--text-2);
-    margin: 0 0 8px;
+  .step-title::first-line {
+    color: var(--accent-bright);
   }
 
   .step-time {
