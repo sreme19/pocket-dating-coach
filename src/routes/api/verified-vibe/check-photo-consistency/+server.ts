@@ -33,11 +33,25 @@ interface PhotoConsistencyResult {
  * }
  */
 export const POST: RequestHandler = async ({ request }) => {
+  // Create abort controller for timeout (30 seconds)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
   try {
-    const body = (await request.json()) as CheckPhotoConsistencyRequest;
+    let body: CheckPhotoConsistencyRequest;
+    try {
+      body = (await request.json()) as CheckPhotoConsistencyRequest;
+    } catch {
+      clearTimeout(timeoutId);
+      return json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      );
+    }
 
     // Validate request
     if (!body.images || !Array.isArray(body.images) || body.images.length < 1) {
+      clearTimeout(timeoutId);
       return json(
         { error: 'At least 1 image is required' },
         { status: 400 }
@@ -45,10 +59,22 @@ export const POST: RequestHandler = async ({ request }) => {
     }
 
     if (!body.mimeTypes || body.mimeTypes.length !== body.images.length) {
+      clearTimeout(timeoutId);
       return json(
         { error: 'MIME types must match number of images' },
         { status: 400 }
       );
+    }
+
+    // Validate base64 images
+    for (let i = 0; i < body.images.length; i++) {
+      if (typeof body.images[i] !== 'string' || !body.images[i].match(/^[A-Za-z0-9+/=]+$/)) {
+        clearTimeout(timeoutId);
+        return json(
+          { error: `Invalid base64 data for image ${i + 1}` },
+          { status: 400 }
+        );
+      }
     }
 
     // Build Claude message with images
@@ -88,7 +114,7 @@ Be strict: if there's any doubt, lower the confidence. Only mark as consistent i
       }
     ];
 
-    // Call Claude API
+    // Call Claude API with timeout
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -105,39 +131,70 @@ Be strict: if there's any doubt, lower the confidence. Only mark as consistent i
             content: content
           }
         ]
-      })
+      }),
+      signal: controller.signal
     });
 
+    clearTimeout(timeoutId);
+
     if (!response.ok) {
-      const error = await response.text();
-      console.error('Claude API error:', error);
+      let errorMessage = 'Failed to analyze photos';
+      try {
+        const error = await response.json();
+        errorMessage = error.error?.message || errorMessage;
+      } catch {
+        // If response is not JSON, use generic message
+        errorMessage = `Server error (${response.status}). Please try again.`;
+      }
+      console.error('Claude API error:', errorMessage);
       return json(
-        { error: 'Failed to analyze photos' },
+        { error: errorMessage },
+        { status: response.status >= 500 ? 503 : 500 }
+      );
+    }
+
+    let claudeResponse;
+    try {
+      claudeResponse = await response.json();
+    } catch {
+      return json(
+        { error: 'Invalid response from verification service' },
         { status: 500 }
       );
     }
 
-    const claudeResponse = await response.json();
-    const textContent = claudeResponse.content.find(
+    const textContent = claudeResponse.content?.find(
       (block: any) => block.type === 'text'
     );
 
-    if (!textContent) {
+    if (!textContent || !textContent.text) {
       return json(
-        { error: 'No response from Claude' },
+        { error: 'No response from verification service' },
         { status: 500 }
       );
     }
 
-    // Parse Claude's response
+    // Parse Claude's response with safer JSON extraction
     let result: PhotoConsistencyResult;
     try {
       // Extract JSON from response (Claude might include extra text)
-      const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+      // Use a more specific regex to avoid greedy matching
+      const jsonMatch = textContent.text.match(/\{[\s\S]*?"confidence"[\s\S]*?"consistent"[\s\S]*?\}/);
       if (!jsonMatch) {
-        throw new Error('No JSON found in response');
+        throw new Error('No valid JSON found in response');
       }
       const parsed = JSON.parse(jsonMatch[0]);
+
+      // Validate parsed response structure
+      if (typeof parsed.confidence !== 'number' || typeof parsed.consistent !== 'boolean') {
+        throw new Error('Invalid response structure');
+      }
+
+      // Validate confidence score range (0-100)
+      if (parsed.confidence < 0 || parsed.confidence > 100) {
+        throw new Error('Invalid confidence score');
+      }
+
       result = {
         confidence: Math.round(parsed.confidence),
         consistent: parsed.confidence >= 80
@@ -154,7 +211,17 @@ Be strict: if there's any doubt, lower the confidence. Only mark as consistent i
       data: result
     });
   } catch (error) {
+    clearTimeout(timeoutId);
     console.error('Photo consistency check error:', error);
+
+    // Handle timeout
+    if (error instanceof Error && error.name === 'AbortError') {
+      return json(
+        { error: 'Request took too long. Please check your connection and try again.' },
+        { status: 504 }
+      );
+    }
+
     return json(
       { error: 'Internal server error' },
       { status: 500 }

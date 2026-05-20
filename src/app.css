@@ -1,32 +1,5 @@
 @import "tailwindcss";
 
-@theme {
-	--color-rose-primary: #e11d48;
-	--color-rose-secondary: #fb7185;
-	--font-sans: 'Inter', system-ui, sans-serif;
-
-	/* Verified Vibe Primary Accent Colors */
-	--color-vibe-emerald: #10b981;
-	--color-vibe-mint: #14b8a6;
-	--color-vibe-lime: #84cc16;
-	--color-vibe-amber: #f59e0b;
-
-	/* Verified Vibe Background Colors */
-	--color-vibe-bg-1: #ffffff;
-	--color-vibe-bg-2: #f9fafb;
-	--color-vibe-bg-3: #f3f4f6;
-
-	/* Verified Vibe Text Colors */
-	--color-vibe-text-1: #111827;
-	--color-vibe-text-2: #374151;
-	--color-vibe-text-3: #6b7280;
-	--color-vibe-text-4: #9ca3af;
-
-	/* Verified Vibe Border Colors */
-	--color-vibe-border: #e5e7eb;
-	--color-vibe-border-light: #f3f4f6;
-}
-
 :root {
 	/* ============================================
 	   COLOR TOKENS

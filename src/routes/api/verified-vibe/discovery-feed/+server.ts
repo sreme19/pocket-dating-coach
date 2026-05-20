@@ -84,7 +84,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
     // Fetch all verified profiles from database
     const { data: profiles, error: profileError } = await (supabase as any)
-      .from('verified_vibe_profiles')
+      .from('verified_vibe_users')
       .select('*')
       .neq('id', currentUserId);
 
@@ -98,16 +98,18 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 
     // Fetch verification steps for all profiles to calculate trust scores
     const { data: verificationSteps } = await (supabase as any)
-      .from('verified_vibe_verification_steps')
-      .select('user_id, step, trust_points');
+      .from('verified_vibe_verification')
+      .select('user_id, step, status');
 
     const trustScoreMap = new Map<string, number>();
     const verificationMap = new Map<string, Set<string>>();
 
     if (verificationSteps) {
       verificationSteps.forEach((step: any) => {
+        // Calculate trust points: 25 per completed step
+        const trustPoints = step.status === 'completed' ? 25 : 0;
         const current = trustScoreMap.get(step.user_id) || 0;
-        trustScoreMap.set(step.user_id, current + (step.trust_points || 0));
+        trustScoreMap.set(step.user_id, current + trustPoints);
 
         if (!verificationMap.has(step.user_id)) {
           verificationMap.set(step.user_id, new Set());

@@ -153,11 +153,15 @@
     loading = true;
     error = null;
 
+    // Create abort controller for timeout (30 seconds)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
     try {
       // Convert image to base64
       const base64Image = previewUrl.split(',')[1];
 
-      // Call API endpoint
+      // Call API endpoint with timeout
       const response = await fetch('/api/verified-vibe/check-liveness', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -165,19 +169,52 @@
           selfie: base64Image,
           idPhoto: idPhotoBase64,
           mimeType: uploadedFile.type
-        })
+        }),
+        signal: controller.signal
       });
 
+      clearTimeout(timeoutId);
+
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to check liveness');
+        let errorMessage = 'Failed to check liveness';
+        try {
+          const data = await response.json();
+          errorMessage = data.error || errorMessage;
+        } catch {
+          // If response is not JSON, use generic message
+          errorMessage = `Server error (${response.status}). Please try again.`;
+        }
+        throw new Error(errorMessage);
       }
 
-      const result = await response.json();
+      let result;
+      try {
+        result = await response.json();
+      } catch {
+        throw new Error('Invalid response from server. Please try again.');
+      }
+
+      // Validate response structure
+      if (!result.data || typeof result.data.confidence !== 'number' || typeof result.data.match !== 'boolean') {
+        throw new Error('Invalid response format. Please try again.');
+      }
+
+      // Validate confidence score range (0-100)
+      if (result.data.confidence < 0 || result.data.confidence > 100) {
+        throw new Error('Invalid confidence score. Please try again.');
+      }
+
       livenessResult = result.data;
       step = 'result';
     } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to check liveness. Please try again.';
+      clearTimeout(timeoutId);
+      
+      // Handle timeout
+      if (err instanceof Error && err.name === 'AbortError') {
+        error = 'Request took too long. Please check your connection and try again.';
+      } else {
+        error = err instanceof Error ? err.message : 'Failed to check liveness. Please try again.';
+      }
     } finally {
       loading = false;
     }
