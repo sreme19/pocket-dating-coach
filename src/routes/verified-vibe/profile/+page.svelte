@@ -4,7 +4,7 @@
   import { user } from '$lib/verified-vibe/stores';
   import { upsertProfile } from '$lib/verified-vibe/services/profileService';
   import { getSupabaseClient } from '$lib/client/supabase';
-  import { ShieldCheck, Pencil, Check, X, MapPin, Sparkles, Wand2, LogOut } from 'lucide-svelte';
+  import { ShieldCheck, Pencil, Check, X, MapPin, Sparkles, Wand2, LogOut, Heart, Zap } from 'lucide-svelte';
   import type { ProfileIntakeData } from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
   import type { PhotoEnhanceResult } from '$lib/photo-enhance/types';
 
@@ -29,6 +29,7 @@
   };
 
   let mode = $state<'public' | 'enhance'>('public');
+  let activeTab = $state<'public' | 'boost'>('public');
   let draft = $state<ProfileIntakeData | null>(null);
   let generated = $state<GeneratedProfile | null>(null);
   let photos = $state<PhotoEntry[]>([]);
@@ -251,6 +252,25 @@
     {/if}
   </div>
 
+  <!-- Tab Navigation -->
+  <div class="tab-navigation">
+    <button 
+      class="tab-btn {activeTab === 'public' ? 'active' : ''}"
+      onclick={() => activeTab = 'public'}
+    >
+      <Heart size={16} />
+      The Public read
+    </button>
+    <button 
+      class="tab-btn {activeTab === 'boost' ? 'active' : ''}"
+      onclick={() => activeTab = 'boost'}
+    >
+      <Zap size={16} />
+      Trust & boost
+      <span class="boost-badge">+21</span>
+    </button>
+  </div>
+
   <div class="profile-body">
     <!-- Hero photo -->
     <div class="hero-wrap">
@@ -288,7 +308,9 @@
       </div>
     </div>
 
-    <div class="profile-sections">
+    <!-- Tab Content -->
+    {#if activeTab === 'public'}
+      <div class="profile-sections">
       <!-- About -->
       <section class="section">
         <div class="section-label">
@@ -477,7 +499,73 @@
         <LogOut size={16} />
         Sign out
       </button>
-    </div>
+      </div>
+    {:else if activeTab === 'boost'}
+      <!-- Trust & Boost Tab Content -->
+      <div class="profile-sections">
+        <section class="section">
+          <div class="section-label">
+            <Zap size={13} />
+            What Each Tier Unlocks
+          </div>
+          <div class="tier-list">
+            <div class="tier-item unlocked">
+              <div class="tier-check">✓</div>
+              <div class="tier-content">
+                <div class="tier-title">60 · Visible</div>
+                <div class="tier-desc">You start showing up in pools.</div>
+              </div>
+            </div>
+            <div class="tier-item unlocked">
+              <div class="tier-check">✓</div>
+              <div class="tier-content">
+                <div class="tier-title">70 · Featured</div>
+                <div class="tier-desc">Spoilt Women see you in their "Live now" ← you're here</div>
+              </div>
+            </div>
+            <div class="tier-item locked">
+              <div class="tier-number">85</div>
+              <div class="tier-content">
+                <div class="tier-title">85 · Priority</div>
+                <div class="tier-desc">You appear first. Marriage-Minded matches open up.</div>
+              </div>
+            </div>
+            <div class="tier-item locked">
+              <div class="tier-number">95</div>
+              <div class="tier-content">
+                <div class="tier-title">95 · Elite</div>
+                <div class="tier-desc">Safety-First Women can see you. Their pool is exclusive.</div>
+              </div>
+            </div>
+          </div>
+          <p class="tier-note">🔒 Everything here stays private. Matches only</p>
+        </section>
+
+        <section class="section">
+          <div class="section-label">
+            <Heart size={13} />
+            Connect a habit tracker
+          </div>
+          <div class="habit-tracker-cta">
+            <div class="habit-icon">+<br/>2</div>
+            <div class="habit-content">
+              <div class="habit-title">Connect a habit tracker</div>
+              <div class="habit-desc">Sleep, gym, reading — proves the lifestyle isn't fiction.</div>
+              <div class="habit-time">1 min</div>
+            </div>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 5l7 7-7 7"/>
+            </svg>
+          </div>
+        </section>
+
+        <!-- Sign Out Button -->
+        <button class="sign-out-btn" onclick={handleSignOut} title="Sign out">
+          <LogOut size={16} />
+          Sign out
+        </button>
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -553,6 +641,65 @@
   .edit-actions {
     display: flex;
     gap: 8px;
+  }
+
+  /* Tab Navigation */
+  .tab-navigation {
+    display: flex;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-1);
+    background: var(--bg-1);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-radius: 999px;
+    background: transparent;
+    border: 1.5px solid var(--border-2);
+    color: var(--text-3);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 150ms ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .tab-btn:hover {
+    border-color: var(--accent-bright);
+    color: var(--accent-bright);
+  }
+
+  .tab-btn.active {
+    background: var(--accent-tint);
+    border-color: var(--accent-bright);
+    color: var(--accent-bright);
+  }
+
+  .boost-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--accent-bright);
+    color: var(--bg-1);
+    font-size: 11px;
+    font-weight: 700;
+    margin-left: 4px;
+  }
+
+  .tab-btn.active .boost-badge {
+    background: var(--accent-bright);
   }
 
   .icon-btn {
@@ -1084,6 +1231,143 @@
 
   .sign-out-btn:active {
     transform: translateY(1px);
+  }
+
+  /* Tier List */
+  .tier-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .tier-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    transition: all 150ms ease;
+  }
+
+  .tier-item.unlocked {
+    background: rgba(52, 211, 153, 0.08);
+    border-color: rgba(52, 211, 153, 0.2);
+  }
+
+  .tier-item.locked {
+    opacity: 0.6;
+  }
+
+  .tier-check {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--accent-bright);
+    color: var(--bg-1);
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .tier-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: var(--bg-3);
+    color: var(--text-3);
+    font-size: 14px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .tier-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .tier-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-1);
+    margin-bottom: 4px;
+  }
+
+  .tier-desc {
+    font-size: 13px;
+    color: var(--text-3);
+    line-height: 1.4;
+  }
+
+  .tier-note {
+    font-size: 12px;
+    color: var(--text-4);
+    margin: 12px 0 0;
+    text-align: center;
+  }
+
+  /* Habit Tracker CTA */
+  .habit-tracker-cta {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px;
+    border-radius: 12px;
+    background: var(--bg-2);
+    border: 1.5px solid var(--border-2);
+    cursor: pointer;
+    transition: all 150ms ease;
+  }
+
+  .habit-tracker-cta:hover {
+    border-color: var(--accent-bright);
+    background: rgba(52, 211, 153, 0.05);
+  }
+
+  .habit-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: var(--accent-bright);
+    color: var(--bg-1);
+    font-size: 18px;
+    font-weight: 700;
+    flex-shrink: 0;
+    line-height: 1.2;
+  }
+
+  .habit-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .habit-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-1);
+    margin-bottom: 4px;
+  }
+
+  .habit-desc {
+    font-size: 13px;
+    color: var(--text-3);
+    margin-bottom: 6px;
+  }
+
+  .habit-time {
+    font-size: 11px;
+    color: var(--accent-bright);
+    font-weight: 600;
   }
 
   @media (max-width: 767px) {
