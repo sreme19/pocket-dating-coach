@@ -28,7 +28,7 @@
     lg: '16px'
   };
 
-  const dotSize = sizeMap[size];
+  const dotSize = $derived(sizeMap[size]);
 </script>
 
 <div class="online-indicator {size}">

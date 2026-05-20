@@ -11,7 +11,7 @@
 
   let { archetype, onClose } = $props();
 
-  const archetypeData = ARCHETYPES[archetype];
+  const archetypeData = $derived(ARCHETYPES[archetype]);
 
   // Extract match traits (those with lead: true first)
   const leadTraits = archetypeData.matchTraits.filter(t => t.lead).map(t => t.label);
