@@ -58,6 +58,15 @@
   const vibeTags = ['Calm', 'Decisive', 'Generous', 'Curious', 'Direct'];
   const highlightedVibeTag = 'Calm';
 
+  // What He Brings
+  const whatBrings = [
+    'Financial stability',
+    'Generosity on dates',
+    'Time he actually gives you',
+    'Privacy & discretion',
+    'Real opinions, gently held'
+  ];
+
   // Edit state — populated from generated/draft on entering enhance mode
   let editAbout = $state('');
   let editTags = $state<string[]>([]);
@@ -414,6 +423,22 @@
           {/if}
         </section>
       {/if}
+
+      <!-- What He Brings -->
+      <section class="section">
+        <div class="section-label">
+          <Heart size={13} />
+          What He Brings
+        </div>
+        <div class="brings-list">
+          {#each whatBrings as item}
+            <div class="brings-item">
+              <span class="brings-check">✓</span>
+              <span class="brings-text">{item}</span>
+            </div>
+          {/each}
+        </div>
+      </section>
 
       <!-- Photo grid -->
       <section class="section">
@@ -1061,7 +1086,45 @@
     margin: 0;
     line-height: 1.4;
   }
-  .photo-grid {
+
+  /* What He Brings */
+  .brings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .brings-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+  }
+
+  .brings-check {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--accent-bright);
+    color: var(--bg-1);
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .brings-text {
+    font-size: 14px;
+    color: var(--text-1);
+    line-height: 1.4;
+  }
+
+  /* Photo grid */
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 6px;
