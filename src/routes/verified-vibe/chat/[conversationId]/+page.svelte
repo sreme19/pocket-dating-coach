@@ -48,8 +48,21 @@
         await trackUserOnline($user.id);
       }
 
+      // Get the auth token from Supabase
+      const { getSupabaseClient } = await import('$lib/client/supabase');
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
+      }
+
       // Fetch conversation data
-      const response = await fetch(`/api/verified-vibe/chat/${conversationId}`);
+      const response = await fetch(`/api/verified-vibe/chat/${conversationId}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
 
       if (!response.ok) {
         throw new Error('Failed to load conversation');
@@ -68,20 +81,21 @@
 
       // Subscribe to realtime message updates (only if conversationId is a valid UUID)
       if (isValidUUID(conversationId)) {
-        subscribeToRealtimeMessages();
+        // TODO: Fix realtime subscriptions
+        // subscribeToRealtimeMessages();
 
         // Subscribe to typing indicators
-        if ($user) {
-          subscribeToRealtimeTyping();
-        }
+        // if ($user) {
+        //   subscribeToRealtimeTyping();
+        // }
       } else {
         console.warn('Invalid conversation ID format, skipping realtime subscriptions:', conversationId);
       }
 
       // Subscribe to match user's online status
-      if (matchedUser) {
-        subscribeToRealtimeOnlineStatus(matchedUser.id);
-      }
+      // if (matchedUser) {
+      //   subscribeToRealtimeOnlineStatus(matchedUser.id);
+      // }
 
       // Scroll to bottom
       setTimeout(() => {
@@ -342,13 +356,19 @@
       scrollToBottom();
 
       // Send message to server
-      const response = await fetch('/api/verified-vibe/message', {
+      const { getSupabaseClient } = await import('$lib/client/supabase');
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const response = await fetch('/api/verified-vibe/chat/send', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
         body: JSON.stringify({
-          matchId: conversationId,
-          content,
-          senderId: $user.id
+          conversationId: conversationId,
+          content
         })
       });
 

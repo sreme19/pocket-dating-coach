@@ -1,11 +1,11 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
+import { getSupabase } from '$lib/server/supabase';
 import type { Message } from '$lib/verified-vibe/types';
 
 interface SendMessageRequest {
   conversationId: string;
   content: string;
-  mediaUrls?: string[];
 }
 
 interface SendMessageResponse {
@@ -23,7 +23,6 @@ interface SendMessageResponse {
  * {
  *   conversationId: string (match ID)
  *   content: string (message text)
- *   mediaUrls?: string[] (optional media URLs)
  * }
  *
  * Response:
@@ -47,11 +46,30 @@ interface SendMessageResponse {
  */
 export const POST: RequestHandler = async ({ request }) => {
   try {
-    // Validate request method
-    if (request.method !== 'POST') {
+    // Get auth token from header
+    const authHeader = request.headers.get('authorization') ?? '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+    if (!token) {
       return json(
-        { error: 'Method not allowed' },
-        { status: 405 }
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Create a client with the user's token to get their ID
+    const { createClient } = await import('@supabase/supabase-js');
+    const { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } = await import('$env/static/public');
+    const userClient = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+
+    const { data: { user }, error: userError } = await userClient.auth.getUser();
+
+    if (userError || !user?.id) {
+      return json(
+        { error: 'Unauthorized' },
+        { status: 401 }
       );
     }
 
@@ -82,20 +100,55 @@ export const POST: RequestHandler = async ({ request }) => {
       );
     }
 
-    // In production, this would:
-    // 1. Verify user is authenticated
-    // 2. Verify user is part of the conversation
-    // 3. Save message to database
-    // 4. Trigger real-time update via WebSocket
-    // 5. Create notification for recipient
+    const supabase = getSupabase();
 
-    // Mock message creation
+    // Verify user is part of the conversation
+    const { data: match, error: matchError } = await supabase
+      .from('verified_vibe_matches')
+      .select('*')
+      .eq('id', body.conversationId)
+      .single();
+
+    if (matchError || !match) {
+      return json(
+        { error: 'Conversation not found' },
+        { status: 404 }
+      );
+    }
+
+    if (match.user1_id !== user.id && match.user2_id !== user.id) {
+      return json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    // Save message to database
+    const { data: savedMessage, error: saveError } = await supabase
+      .from('verified_vibe_messages')
+      .insert({
+        match_id: body.conversationId,
+        sender_id: user.id,
+        content: body.content.trim()
+      })
+      .select()
+      .single();
+
+    if (saveError || !savedMessage) {
+      console.error('Error saving message:', saveError);
+      return json(
+        { error: 'Failed to save message' },
+        { status: 500 }
+      );
+    }
+
+    // Transform to Message type
     const message: Message = {
-      id: `msg_${Date.now()}`,
-      matchId: body.conversationId,
-      senderId: 'current_user_id', // In production, get from auth
-      content: body.content.trim(),
-      createdAt: new Date()
+      id: savedMessage.id,
+      matchId: savedMessage.match_id,
+      senderId: savedMessage.sender_id,
+      content: savedMessage.content,
+      createdAt: new Date(savedMessage.created_at)
     };
 
     const response: SendMessageResponse = {
@@ -108,7 +161,7 @@ export const POST: RequestHandler = async ({ request }) => {
   } catch (error) {
     console.error('Send message error:', error);
     return json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

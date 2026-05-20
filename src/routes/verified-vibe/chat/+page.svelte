@@ -13,7 +13,20 @@
       isLoading = true;
       error = null;
 
-      const response = await fetch('/api/verified-vibe/chat/conversations');
+      // Get the auth token from Supabase
+      const { getSupabaseClient } = await import('$lib/client/supabase');
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
+      }
+
+      const response = await fetch('/api/verified-vibe/chat/conversations', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
 
       if (!response.ok) {
         throw new Error('Failed to fetch conversations');
