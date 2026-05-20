@@ -67,6 +67,19 @@
     'Real opinions, gently held'
   ];
 
+  // Here For
+  const hereFor = {
+    archetype: 'Spoilt Women',
+    description: 'Wants effort, taste, and a calendar that respects yours.'
+  };
+
+  // Hard Nos
+  const hardNos = [
+    'Dishonesty about what someone wants',
+    'Game-playing',
+    'Flake energy'
+  ];
+
   // Edit state — populated from generated/draft on entering enhance mode
   let editAbout = $state('');
   let editTags = $state<string[]>([]);
@@ -440,7 +453,36 @@
         </div>
       </section>
 
-      <!-- Photo grid -->
+      <!-- Here For -->
+      <section class="section">
+        <div class="section-label">
+          <Heart size={13} />
+          Here For
+        </div>
+        <div class="here-for-card">
+          <div class="here-for-icon">💎</div>
+          <div class="here-for-content">
+            <h3 class="here-for-title">{hereFor.archetype}</h3>
+            <p class="here-for-desc">{hereFor.description}</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Hard Nos -->
+      <section class="section">
+        <div class="section-label">
+          <X size={13} />
+          Hard Nos
+        </div>
+        <div class="hard-nos-list">
+          {#each hardNos as item}
+            <div class="hard-no-item">
+              <span class="hard-no-x">✕</span>
+              <span class="hard-no-text">{item}</span>
+            </div>
+          {/each}
+        </div>
+      </section>
       <section class="section">
         <div class="section-label">
           Photo Story
@@ -1124,7 +1166,69 @@
     line-height: 1.4;
   }
 
-  /* Photo grid */
+  /* Here For */
+  .here-for-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px;
+    border-radius: 12px;
+    background: var(--accent-tint);
+    border: 1.5px solid var(--accent-bright);
+  }
+
+  .here-for-icon {
+    font-size: 28px;
+    flex-shrink: 0;
+  }
+
+  .here-for-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .here-for-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent-bright);
+    margin: 0 0 6px;
+  }
+
+  .here-for-desc {
+    font-size: 13px;
+    color: var(--text-2);
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  /* Hard Nos */
+  .hard-nos-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .hard-no-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+  }
+
+  .hard-no-x {
+    font-size: 14px;
+    font-weight: 700;
+    color: #ef4444;
+  }
+
+  .hard-no-text {
+    font-size: 13px;
+    color: #ef4444;
+    font-weight: 500;
+  }
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 6px;
