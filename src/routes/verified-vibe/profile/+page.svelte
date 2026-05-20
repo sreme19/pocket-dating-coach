@@ -3,7 +3,8 @@
   import { goto } from '$app/navigation';
   import { user } from '$lib/verified-vibe/stores';
   import { upsertProfile } from '$lib/verified-vibe/services/profileService';
-  import { ShieldCheck, Pencil, Check, X, MapPin, Sparkles, Wand2 } from 'lucide-svelte';
+  import { getSupabaseClient } from '$lib/client/supabase';
+  import { ShieldCheck, Pencil, Check, X, MapPin, Sparkles, Wand2, LogOut } from 'lucide-svelte';
   import type { ProfileIntakeData } from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
   import type { PhotoEnhanceResult } from '$lib/photo-enhance/types';
 
@@ -41,6 +42,51 @@
   let editTags = $state<string[]>([]);
   let editIntent = $state('');
   let editLifestyle = $state<string[]>([]);
+
+  // Photo upload
+  let fileInput = $state<HTMLInputElement | null>(null);
+
+  function handlePhotoClick() {
+    fileInput?.click();
+  }
+
+  function handleFileSelect(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files.length > 0) {
+      const file = input.files[0];
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        if (e.target?.result && typeof e.target.result === 'string') {
+          const dataUrl = e.target.result;
+
+          // Add photo if we haven't reached max
+          if (photos.length < 5) {
+            photos = [...photos, { dataUrl, label: `photo-${photos.length + 1}` }];
+            localStorage.setItem('vv_photos', JSON.stringify(photos));
+          } else {
+            alert('Maximum 5 photos allowed');
+          }
+        }
+      };
+
+      reader.readAsDataURL(file);
+    }
+  }
+
+  async function handleSignOut() {
+    try {
+      const supabase = getSupabaseClient();
+      await supabase.auth.signOut();
+      // Clear local storage
+      localStorage.clear();
+      // Redirect to auth page
+      await goto('/verified-vibe/auth');
+    } catch (err) {
+      console.error('Sign out error:', err);
+      alert('Failed to sign out');
+    }
+  }
 
   onMount(() => {
     const rawDraft = localStorage.getItem('vv_profile_draft');
@@ -329,12 +375,16 @@
                 </div>
               </div>
             {:else}
-              <div class="photo-cell placeholder">
+              <button
+                class="photo-cell placeholder"
+                onclick={handlePhotoClick}
+                aria-label="Add photo"
+              >
                 <div class="placeholder-inner">
                   <span class="placeholder-icon">+</span>
                   <span class="placeholder-text">Add photo<br/><em>AI will enhance</em></span>
                 </div>
-              </div>
+              </button>
             {/if}
           {/each}
         </div>
@@ -421,9 +471,24 @@
           </svg>
         </button>
       {/if}
+
+      <!-- Sign Out Button -->
+      <button class="sign-out-btn" onclick={handleSignOut} title="Sign out">
+        <LogOut size={16} />
+        Sign out
+      </button>
     </div>
   </div>
 </div>
+
+<!-- Hidden file input for photo upload -->
+<input
+  type="file"
+  accept="image/*"
+  bind:this={fileInput}
+  onchange={handleFileSelect}
+  style="display: none;"
+/>
 
 <style>
   .profile-page {
@@ -989,6 +1054,36 @@
     opacity: 0.9;
     transform: translateY(-1px);
     box-shadow: 0 4px 16px var(--accent-glow);
+  }
+
+  /* Sign Out Button */
+  .sign-out-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px;
+    margin-top: 12px;
+    border-radius: 10px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 150ms ease;
+    font-family: inherit;
+    width: 100%;
+  }
+
+  .sign-out-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.5);
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
+  }
+
+  .sign-out-btn:active {
+    transform: translateY(1px);
   }
 
   @media (max-width: 767px) {
