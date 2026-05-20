@@ -6,12 +6,14 @@
   import { ChevronRight } from 'lucide-svelte';
   import { slide, fade } from 'svelte/transition';
   import ArchetypeCard from '$lib/verified-vibe/components/ArchetypeCard.svelte';
-  import LiveNowCarousel from '$lib/verified-vibe/components/LiveNowCarousel.svelte';
+  import ProfileSummaryCard from '$lib/verified-vibe/components/ProfileSummaryCard.svelte';
+  import LiveWomenCarousel from '$lib/verified-vibe/components/LiveWomenCarousel.svelte';
   import { getProfile, upsertProfile } from '$lib/verified-vibe/services/profileService';
 
   let gender = $state<Gender | null>(null);
   let selectedArchetype = $state<Archetype | null>(null);
   let expandedArchetype = $state<Archetype | null>(null);
+  let showProfileSummary = $state(false);
 
   // Load gender — try Supabase first (logged-in users), fall back to localStorage (pre-auth)
   $effect(() => {
@@ -43,10 +45,12 @@
     if (isExpanded) {
       // Collapse any previously expanded card
       expandedArchetype = archetypeId;
+      showProfileSummary = true;
     } else {
       // Only collapse if it's the currently expanded card
       if (expandedArchetype === archetypeId) {
         expandedArchetype = null;
+        showProfileSummary = false;
       }
     }
   }
@@ -82,22 +86,19 @@
   <div class="home-hero" transition:slide={{ duration: 400, delay: 0, axis: 'y' }}>
     <div class="home-mark">
       <span class="shield">🛡️</span>
-      Verified dating
+      Verified Vibe
     </div>
-    <h1 class="home-title">Find your <em>match</em></h1>
+    <h1 class="home-title">Pick your <em>lane.</em></h1>
     <p class="home-tag">
-      Choose your dating archetype. We'll match you with people who align with your values.
+      Stop swiping blind. Earn your profile, verify your intent, and start speaking to people who actually want what you want.
     </p>
   </div>
 
   <!-- Archetype selection -->
   <div class="home-content">
-    <!-- Live Now Carousel -->
-    <LiveNowCarousel />
-
     <div class="archetype-prompt" transition:slide={{ duration: 400, delay: 100, axis: 'y' }}>
-      <p class="home-prompt">What's your dating vibe?</p>
-      <p class="home-prompt-sub">Select one to see who you'll match with</p>
+      <p class="home-prompt">What are you here for?</p>
+      <p class="home-prompt-sub">Pick one. You can switch later – but switching means re-verifying.</p>
     </div>
 
     <div class="archetype-grid">
@@ -113,6 +114,35 @@
         </div>
       {/each}
     </div>
+
+    <!-- Profile Summary Card -->
+    {#if showProfileSummary && expandedArchetype}
+      <div class="profile-summary-wrapper" transition:slide={{ duration: 300, axis: 'y' }}>
+        <ProfileSummaryCard
+          archetype={expandedArchetype}
+          onClose={() => { showProfileSummary = false; expandedArchetype = null; }}
+        />
+      </div>
+    {/if}
+
+    <!-- Live Women Carousel -->
+    {#if expandedArchetype}
+      <div class="live-carousel-wrapper" transition:slide={{ duration: 300, axis: 'y' }}>
+        <LiveWomenCarousel />
+      </div>
+    {/if}
+
+    <!-- CTA -->
+    {#if expandedArchetype}
+      <div class="cta-section" transition:slide={{ duration: 300, axis: 'y' }}>
+        <button class="cta-button" onclick={() => handleLockIn(expandedArchetype)}>
+          Start with {ARCHETYPES[expandedArchetype].name} →
+        </button>
+        <p class="cta-note">
+          We verify ID, photos, spending pattern & intent. No one sees the raw files — only the signals you allow.
+        </p>
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -197,6 +227,48 @@
 
   .archetype-wrapper {
     position: relative;
+  }
+
+  .profile-summary-wrapper {
+    margin-top: 24px;
+  }
+
+  .live-carousel-wrapper {
+    margin-top: 24px;
+  }
+
+  .cta-section {
+    margin-top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .cta-button {
+    padding: 16px 20px;
+    border-radius: 12px;
+    background: var(--accent-bright);
+    color: var(--bg-1);
+    font-size: 15px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: all 200ms ease;
+    font-family: inherit;
+  }
+
+  .cta-button:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(52, 211, 153, 0.3);
+  }
+
+  .cta-note {
+    font-size: 12px;
+    color: var(--text-4);
+    text-align: center;
+    margin: 0;
+    line-height: 1.5;
   }
 
   @media (max-width: 767px) {
