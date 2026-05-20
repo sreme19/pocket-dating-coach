@@ -148,27 +148,29 @@
 
 <style>
   .home-screen {
-    padding: 8px 24px 32px;
+    padding: 16px 16px 32px;
     flex: 1;
     display: flex;
     flex-direction: column;
     min-height: 100%;
+    width: 100%;
+    max-width: 100%;
   }
 
   .home-hero {
-    padding: 28px 0 24px;
+    padding: 20px 0 16px;
   }
 
   .home-mark {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    font-size: 13px;
+    font-size: 12px;
     color: var(--text-2);
     letter-spacing: 0.04em;
     text-transform: uppercase;
     font-weight: 600;
-    margin-bottom: 18px;
+    margin-bottom: 16px;
   }
 
   .home-mark .shield {
@@ -178,7 +180,7 @@
   .home-title {
     font-family: var(--font-serif);
     font-style: italic;
-    font-size: 56px;
+    font-size: 36px;
     line-height: 0.95;
     letter-spacing: -0.02em;
     color: var(--text-1);
@@ -191,10 +193,11 @@
   }
 
   .home-tag {
-    font-size: 15px;
+    font-size: 14px;
     color: var(--text-2);
-    margin: 14px 0 24px;
-    max-width: 30ch;
+    margin: 12px 0 20px;
+    max-width: 100%;
+    line-height: 1.5;
   }
 
   .home-content {
@@ -202,11 +205,11 @@
   }
 
   .archetype-prompt {
-    margin-bottom: 20px;
+    margin-bottom: 16px;
   }
 
   .home-prompt {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 600;
     letter-spacing: -0.01em;
     color: var(--text-1);
@@ -214,15 +217,16 @@
   }
 
   .home-prompt-sub {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--text-3);
-    margin: 2px 0 0;
+    margin: 4px 0 0;
+    line-height: 1.4;
   }
 
   .archetype-grid {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
   }
 
   .archetype-wrapper {
@@ -230,83 +234,116 @@
   }
 
   .profile-summary-wrapper {
-    margin-top: 24px;
+    margin-top: 16px;
   }
 
   .live-carousel-wrapper {
-    margin-top: 24px;
+    margin-top: 16px;
   }
 
   .cta-section {
-    margin-top: 24px;
+    margin-top: 16px;
     display: flex;
     flex-direction: column;
     gap: 12px;
   }
 
   .cta-button {
-    padding: 16px 20px;
-    border-radius: 12px;
+    padding: 14px 16px;
+    border-radius: 10px;
     background: var(--accent-bright);
     color: var(--bg-1);
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     border: none;
     cursor: pointer;
     transition: all 200ms ease;
     font-family: inherit;
+    width: 100%;
   }
 
-  .cta-button:hover {
-    opacity: 0.9;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 16px rgba(52, 211, 153, 0.3);
+  .cta-button:active {
+    opacity: 0.85;
+    transform: scale(0.98);
   }
 
   .cta-note {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-4);
     text-align: center;
     margin: 0;
     line-height: 1.5;
   }
 
-  @media (max-width: 767px) {
+  @media (min-width: 768px) {
     .home-screen {
-      padding: 16px 16px 24px;
+      padding: 24px 20px 40px;
     }
 
     .home-hero {
-      padding: 24px 0 20px;
+      padding: 28px 0 24px;
     }
 
     .home-title {
-      font-size: 40px;
-      line-height: 1;
+      font-size: 48px;
+      line-height: 0.95;
       margin-bottom: 8px;
     }
 
     .home-tag {
-      font-size: 14px;
-      margin: 12px 0 20px;
+      font-size: 15px;
+      margin: 14px 0 24px;
+      max-width: 30ch;
     }
 
     .archetype-prompt {
-      margin-bottom: 16px;
+      margin-bottom: 20px;
     }
 
     .home-prompt {
-      font-size: 16px;
-      margin: 0;
+      font-size: 18px;
     }
 
     .home-prompt-sub {
-      font-size: 12px;
-      margin: 4px 0 0;
+      font-size: 13px;
+      margin: 2px 0 0;
     }
 
     .archetype-grid {
-      gap: 8px;
+      gap: 10px;
+    }
+
+    .profile-summary-wrapper {
+      margin-top: 24px;
+    }
+
+    .live-carousel-wrapper {
+      margin-top: 24px;
+    }
+
+    .cta-section {
+      margin-top: 24px;
+    }
+
+    .cta-button {
+      padding: 16px 20px;
+      border-radius: 12px;
+      font-size: 15px;
+    }
+
+    .cta-button:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(52, 211, 153, 0.3);
+    }
+
+    .cta-button:active {
+      opacity: 0.85;
+      transform: scale(1);
+    }
+
+    .cta-note {
+      font-size: 12px;
     }
   }
 </style>

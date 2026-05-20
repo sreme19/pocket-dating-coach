@@ -817,15 +817,16 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px 20px;
+    padding: 12px 16px;
     border-bottom: 1px solid var(--border-1);
     background: var(--bg-1);
+    gap: 8px;
   }
 
   .back-btn {
-    width: 40px;
-    height: 40px;
-    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
     background: var(--bg-2);
     border: 1px solid var(--border-1);
     display: grid;
@@ -836,7 +837,7 @@
     flex-shrink: 0;
   }
 
-  .back-btn:hover:not(:disabled) {
+  .back-btn:active:not(:disabled) {
     background: var(--bg-3);
     border-color: var(--border-2);
   }
@@ -847,19 +848,21 @@
   }
 
   .header-title {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--text-1);
+    flex: 1;
+    text-align: center;
   }
 
   .header-spacer {
-    width: 40px;
+    width: 32px;
     flex-shrink: 0;
   }
 
   /* Step Navigation */
   .step-navigation {
-    padding: 12px 20px;
+    padding: 10px 12px;
     border-bottom: 1px solid var(--border-1);
     background: var(--bg-1);
   }
@@ -867,28 +870,28 @@
   .step-indicators {
     display: flex;
     justify-content: space-between;
-    gap: 8px;
+    gap: 6px;
   }
 
   .step-indicator {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
     flex: 1;
     cursor: pointer;
     transition: all 200ms ease;
   }
 
   .step-number {
-    width: 36px;
-    height: 36px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     background: var(--bg-2);
     border: 2px solid var(--border-1);
     display: grid;
     place-items: center;
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 600;
     color: var(--text-2);
     transition: all 200ms ease;
@@ -898,7 +901,7 @@
     background: var(--accent-bright);
     border-color: var(--accent-bright);
     color: var(--bg-1);
-    box-shadow: 0 0 0 3px var(--accent-tint);
+    box-shadow: 0 0 0 2px var(--accent-tint);
   }
 
   .step-indicator.completed .step-number {
@@ -914,34 +917,100 @@
   }
 
   .checkmark {
-    font-size: 18px;
+    font-size: 14px;
   }
 
   .skip-mark {
-    font-size: 16px;
+    font-size: 13px;
   }
 
   .step-label {
-    font-size: 10px;
+    font-size: 8px;
     font-weight: 600;
     color: var(--text-3);
     text-align: center;
   }
 
+  @media (min-width: 768px) {
+    .verification-header {
+      padding: 16px 20px;
+      gap: 12px;
+    }
+
+    .back-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+    }
+
+    .back-btn:hover:not(:disabled) {
+      background: var(--bg-3);
+      border-color: var(--border-2);
+    }
+
+    .back-btn:active:not(:disabled) {
+      background: var(--bg-3);
+      border-color: var(--border-2);
+    }
+
+    .header-title {
+      font-size: 16px;
+    }
+
+    .header-spacer {
+      width: 40px;
+    }
+
+    .step-navigation {
+      padding: 12px 20px;
+    }
+
+    .step-indicators {
+      gap: 8px;
+    }
+
+    .step-indicator {
+      gap: 4px;
+    }
+
+    .step-number {
+      width: 36px;
+      height: 36px;
+      border: 2px solid var(--border-1);
+      font-size: 14px;
+    }
+
+    .step-indicator.active .step-number {
+      box-shadow: 0 0 0 3px var(--accent-tint);
+    }
+
+    .checkmark {
+      font-size: 18px;
+    }
+
+    .skip-mark {
+      font-size: 16px;
+    }
+
+    .step-label {
+      font-size: 10px;
+    }
+  }
+
   /* Progress Container */
   .progress-container {
-    padding: 12px 20px;
+    padding: 10px 12px;
     border-bottom: 1px solid var(--border-1);
     background: var(--bg-1);
   }
 
   .progress-bar {
     width: 100%;
-    height: 4px;
+    height: 3px;
     background: var(--bg-3);
     border-radius: 2px;
     overflow: hidden;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
 
   .progress-fill {
@@ -952,76 +1021,39 @@
   }
 
   .progress-text {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-3);
     text-align: center;
     font-weight: 500;
-  }
-
-  /* Error Banner */
-  .error-banner {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    margin: 12px 16px 0;
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    border-radius: 8px;
-    color: #ef4444;
-  }
-
-  .error-icon {
-    font-size: 18px;
-    flex-shrink: 0;
-  }
-
-  .error-message {
-    font-size: 13px;
-    flex: 1;
-  }
-
-  .error-close {
-    background: none;
-    border: none;
-    color: #ef4444;
-    font-size: 20px;
-    cursor: pointer;
-    padding: 0;
-    width: 24px;
-    height: 24px;
-    display: grid;
-    place-items: center;
-    flex-shrink: 0;
   }
 
   /* Content */
   .verification-content {
     flex: 1;
     overflow-y: auto;
-    padding: 24px 20px;
+    padding: 16px 14px;
     display: flex;
     flex-direction: column;
   }
 
   .step-header {
     text-align: center;
-    margin-bottom: 32px;
+    margin-bottom: 20px;
   }
 
   .step-header-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 16px;
-    gap: 12px;
+    margin-bottom: 12px;
+    gap: 8px;
   }
 
   .step-meta {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 11px;
+    gap: 4px;
+    font-size: 10px;
     font-weight: 700;
     color: var(--text-3);
     text-transform: uppercase;
@@ -1042,10 +1074,10 @@
 
   .step-title {
     font-family: var(--font-serif, 'Georgia', serif);
-    font-size: 32px;
+    font-size: 24px;
     font-style: italic;
     font-weight: 600;
-    margin: 0 0 12px;
+    margin: 0 0 8px;
     color: var(--text-1);
     line-height: 1.2;
   }
@@ -1055,13 +1087,59 @@
   }
 
   .step-time {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-3);
     margin: 0;
   }
 
   .step-body {
-    margin-bottom: 24px;
+    margin-bottom: 16px;
+  }
+
+  @media (min-width: 768px) {
+    .progress-container {
+      padding: 12px 20px;
+    }
+
+    .progress-bar {
+      height: 4px;
+      margin-bottom: 8px;
+    }
+
+    .progress-text {
+      font-size: 12px;
+    }
+
+    .verification-content {
+      padding: 24px 20px;
+    }
+
+    .step-header {
+      margin-bottom: 32px;
+    }
+
+    .step-header-top {
+      margin-bottom: 16px;
+      gap: 12px;
+    }
+
+    .step-meta {
+      gap: 6px;
+      font-size: 11px;
+    }
+
+    .step-title {
+      font-size: 32px;
+      margin: 0 0 12px;
+    }
+
+    .step-time {
+      font-size: 12px;
+    }
+
+    .step-body {
+      margin-bottom: 24px;
+    }
   }
 
   /* Skip Warning Modal */

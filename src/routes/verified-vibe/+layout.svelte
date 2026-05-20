@@ -214,12 +214,27 @@
     /* Transition token */
     --transition-base: all 200ms ease;
 
+    /* Mobile-first: constrain to mobile viewport */
     display: flex;
     flex-direction: column;
     height: 100vh;
+    width: 100%;
+    max-width: 100%;
     background: var(--bg-1);
     color: var(--text-1);
     font-family: 'Inter', system-ui, sans-serif;
+    margin: 0 auto;
+  }
+
+  /* Mobile viewport constraint - ensure content fits mobile screens */
+  @media (min-width: 768px) {
+    .verified-vibe-container {
+      max-width: 430px;
+      height: 100vh;
+      margin: 0 auto;
+      border-left: 1px solid var(--border-1);
+      border-right: 1px solid var(--border-1);
+    }
   }
 
   .verified-vibe-content {
