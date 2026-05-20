@@ -457,6 +457,15 @@
   }
 
   /**
+   * Handle profile click to view matched user's profile
+   */
+  function handleProfileClick() {
+    if ($currentMatch) {
+      goto(`/verified-vibe/discover?profile=${$currentMatch.id}`);
+    }
+  }
+
+  /**
    * Dismiss error message
    */
   function dismissError() {
@@ -475,21 +484,32 @@
 
     <div class="chat-header-content">
       {#if $currentMatch}
-        <h1 class="chat-title">
-          {$currentMatch.firstName}, {$currentMatch.age}
-        </h1>
-        <p class="chat-subtitle">
-          {#if $matchUserOnlineStatus?.isOnline}
-            <span class="online-indicator"></span>
-            Online
-          {:else if $matchUserOnlineStatus?.lastSeen}
-            <span class="offline-indicator"></span>
-            Last seen {formatLastSeen($matchUserOnlineStatus.lastSeen)}
+        <button class="match-info" onclick={handleProfileClick} aria-label="View profile">
+          {#if $currentMatch.avatar}
+            <img src={$currentMatch.avatar} alt={$currentMatch.firstName} class="match-avatar" />
           {:else}
-            <span class="offline-indicator"></span>
-            Offline
+            <div class="match-avatar-placeholder">
+              {$currentMatch.firstName.charAt(0).toUpperCase()}
+            </div>
           {/if}
-        </p>
+          <div class="match-details">
+            <h1 class="chat-title">
+              {$currentMatch.firstName}, {$currentMatch.age}
+            </h1>
+            <p class="chat-subtitle">
+              {#if $matchUserOnlineStatus?.isOnline}
+                <span class="online-indicator"></span>
+                Online
+              {:else if $matchUserOnlineStatus?.lastSeen}
+                <span class="offline-indicator"></span>
+                Last seen {formatLastSeen($matchUserOnlineStatus.lastSeen)}
+              {:else}
+                <span class="offline-indicator"></span>
+                Offline
+              {/if}
+            </p>
+          </div>
+        </button>
       {/if}
     </div>
 
@@ -573,7 +593,7 @@
         class="message-input"
         placeholder="Type a message..."
         bind:value={messageInput}
-        onchange={handleInputChange}
+        oninput={handleInputChange}
         onkeypress={handleKeyPress}
         disabled={isSending || isLoading}
         aria-label="Message input"
@@ -645,6 +665,52 @@
   }
 
   .chat-header-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .match-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: opacity 200ms ease;
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: inherit;
+  }
+
+  .match-info:hover {
+    opacity: 0.8;
+  }
+
+  .match-info:active {
+    opacity: 0.6;
+  }
+
+  .match-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+
+  .match-avatar-placeholder {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--accent-tint);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+
+  .match-details {
     flex: 1;
     min-width: 0;
   }
