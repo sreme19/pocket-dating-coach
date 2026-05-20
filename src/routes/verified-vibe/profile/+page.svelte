@@ -54,6 +54,10 @@
     { name: 'Stability', level: 'High', description: 'Grounded, reliable, shows up consistently.', percentage: 78 }
   ]);
 
+  // Vibe tags
+  const vibeTags = ['Calm', 'Decisive', 'Generous', 'Curious', 'Direct'];
+  const highlightedVibeTag = 'Calm';
+
   // Edit state — populated from generated/draft on entering enhance mode
   let editAbout = $state('');
   let editTags = $state<string[]>([]);
@@ -327,6 +331,23 @@
     <!-- Tab Content -->
     {#if activeTab === 'public'}
       <div class="profile-sections">
+      <!-- The Vibe in Three Words -->
+      <section class="section">
+        <div class="section-label">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
+          </svg>
+          The Vibe in Three Words (or Five)
+        </div>
+        <div class="vibe-tags">
+          {#each vibeTags as tag}
+            <span class="vibe-tag {tag === highlightedVibeTag ? 'highlighted' : ''}">
+              {tag}
+            </span>
+          {/each}
+        </div>
+      </section>
+
       <!-- About -->
       <section class="section">
         <div class="section-label">
@@ -913,6 +934,31 @@
     color: var(--text-4);
     text-transform: none;
     letter-spacing: 0;
+  }
+
+  /* Vibe Tags */
+  .vibe-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .vibe-tag {
+    padding: 8px 16px;
+    border-radius: 999px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    color: var(--text-2);
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 150ms ease;
+  }
+
+  .vibe-tag.highlighted {
+    background: var(--accent-bright);
+    border-color: var(--accent-bright);
+    color: var(--bg-1);
+    font-weight: 600;
   }
 
   .ai-tag {
