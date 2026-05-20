@@ -65,6 +65,16 @@
 </script>
 
 <div class="verified-vibe-container">
+  <!-- Tools strip -->
+  <div class="tools-strip">
+    <span class="tools-label">Tools</span>
+    <a href="/chat" class="tool-link">Ask Coach</a>
+    <a href="/profile-review" class="tool-link">Analyze Profile</a>
+    <a href="/female-profile" class="tool-link">For Her</a>
+    <a href="/chat-analyzer" class="tool-link">Chat Analyzer</a>
+    <a href="/reply-suggester" class="tool-link">Reply Suggester</a>
+  </div>
+
   <!-- Main content with transitions -->
   {#key $page.url.pathname}
   <div class="verified-vibe-content">
@@ -102,6 +112,36 @@
 </svelte:head>
 
 <style>
+  .tools-strip {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 6px 16px;
+    background: #080e1b;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    flex-shrink: 0;
+  }
+
+  .tools-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #334155;
+    margin-right: 4px;
+  }
+
+  .tool-link {
+    font-size: 12px;
+    color: #475569;
+    text-decoration: none;
+    transition: color 150ms ease;
+  }
+
+  .tool-link:hover {
+    color: #94a3b8;
+  }
+
   .verified-vibe-container {
     /* Design tokens scoped to Verified Vibe — overrides root app.css light values */
     --bg-1: #0b1120;
