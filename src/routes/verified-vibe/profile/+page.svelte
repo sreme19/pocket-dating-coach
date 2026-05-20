@@ -1229,6 +1229,9 @@
     color: #ef4444;
     font-weight: 500;
   }
+
+  /* Photo grid */
+  .photo-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 6px;

@@ -69,7 +69,7 @@
     }
   ];
 
-  const displayWomen = women.length > 0 ? women : mockWomen;
+  const displayWomen = $derived(women.length > 0 ? women : mockWomen);
 </script>
 
 <div class="carousel-container">
