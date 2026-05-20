@@ -941,14 +941,16 @@
   }
 
   .message-group.sent .message-bubble {
-    background: var(--accent);
+    background: var(--accent-bright);
     color: #06281e;
     border-bottom-right-radius: 4px;
+    box-shadow: 0 2px 8px rgba(52, 211, 153, 0.2);
   }
 
   .message-group.received .message-bubble {
-    background: var(--bg-2);
+    background: rgba(52, 211, 153, 0.12);
     color: var(--text-1);
+    border: 1px solid rgba(52, 211, 153, 0.25);
     border-bottom-left-radius: 4px;
   }
 
