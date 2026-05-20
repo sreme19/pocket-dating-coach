@@ -24,7 +24,16 @@ import { checkLivenessWithClaude } from '$lib/verified-vibe/server/verification'
  */
 export const POST: RequestHandler = async ({ request }) => {
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      );
+    }
+
     const { selfie, idPhoto, mimeType } = body;
 
     // Validate required fields
@@ -61,6 +70,22 @@ export const POST: RequestHandler = async ({ request }) => {
     // Check liveness using Claude Vision
     const livenessResult = await checkLivenessWithClaude(selfie, idPhoto, mimeType);
 
+    // Validate response structure
+    if (typeof livenessResult.confidence !== 'number' || typeof livenessResult.match !== 'boolean') {
+      return json(
+        { error: 'Invalid response from verification service' },
+        { status: 500 }
+      );
+    }
+
+    // Validate confidence score range (0-100)
+    if (livenessResult.confidence < 0 || livenessResult.confidence > 100) {
+      return json(
+        { error: 'Invalid confidence score from verification service' },
+        { status: 500 }
+      );
+    }
+
     return json(
       {
         data: livenessResult
@@ -78,10 +103,22 @@ export const POST: RequestHandler = async ({ request }) => {
           { status: 400 }
         );
       }
-      if (error.message.includes('API')) {
+      if (error.message.includes('timeout') || error.message.includes('AbortError')) {
         return json(
-          { error: 'Service temporarily unavailable. Please try again.' },
+          { error: 'Request took too long. Please check your connection and try again.' },
+          { status: 504 }
+        );
+      }
+      if (error.message.includes('API') || error.message.includes('429')) {
+        return json(
+          { error: 'Service temporarily unavailable. Please try again in a moment.' },
           { status: 503 }
+        );
+      }
+      if (error.message.includes('401') || error.message.includes('403')) {
+        return json(
+          { error: 'Authentication error. Please contact support.' },
+          { status: 500 }
         );
       }
     }

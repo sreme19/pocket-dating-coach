@@ -1,7 +1,7 @@
 /**
  * profileService.ts
  *
- * Client-side CRUD for verified_vibe_profiles and verified_vibe_verification_steps.
+ * Client-side CRUD for verified_vibe_users and verified_vibe_verification.
  * All calls use the anon-key client — RLS ensures users can only touch their own rows.
  */
 
@@ -28,9 +28,10 @@ export interface VVVerificationStep {
   id: string;
   user_id: string;
   step: 'id' | 'liveness' | 'photos' | 'spending_or_qa';
-  trust_points: number;
+  status: 'pending' | 'completed' | 'failed';
   data: Record<string, unknown> | null;
-  completed_at: string;
+  completed_at: string | null;
+  created_at: string;
 }
 
 export type ProfileCompleteness =
@@ -51,7 +52,7 @@ const REQUIRED_STEPS = ['id', 'liveness', 'photos', 'spending_or_qa'] as const;
 export async function getProfile(): Promise<VVProfile | null> {
   const supabase = getSupabaseClient();
   const { data, error } = await (supabase as any)
-    .from('verified_vibe_profiles')
+    .from('verified_vibe_users')
     .select('*')
     .single();
 
@@ -83,7 +84,7 @@ export async function upsertProfile(
   };
 
   const { data, error } = await (supabase as any)
-    .from('verified_vibe_profiles')
+    .from('verified_vibe_users')
     .upsert(row, { onConflict: 'id' })
     .select()
     .single();
@@ -105,7 +106,7 @@ export async function upsertProfile(
 export async function getVerificationSteps(): Promise<VVVerificationStep[]> {
   const supabase = getSupabaseClient();
   const { data, error } = await (supabase as any)
-    .from('verified_vibe_verification_steps')
+    .from('verified_vibe_verification')
     .select('*')
     .order('completed_at', { ascending: true });
 
@@ -131,7 +132,7 @@ export async function saveVerificationStep(
   if (!session) throw new Error('Not authenticated');
 
   const { error } = await (supabase as any)
-    .from('verified_vibe_verification_steps')
+    .from('verified_vibe_verification')
     .upsert(
       {
         user_id: session.user.id,

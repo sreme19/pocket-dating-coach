@@ -70,9 +70,9 @@ async function persistVerificationStep(
   try {
     const supabase = getSupabase();
     await (supabase as any)
-      .from('verified_vibe_verification_steps')
+      .from('verified_vibe_verification')
       .upsert(
-        { user_id: userId, step, trust_points: trustPoints, data: data ?? null, completed_at: new Date().toISOString() },
+        { user_id: userId, step, status: 'completed', data: data ?? null, completed_at: new Date().toISOString() },
         { onConflict: 'user_id,step' }
       );
   } catch (e) {
