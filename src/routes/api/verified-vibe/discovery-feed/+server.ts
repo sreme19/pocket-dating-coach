@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import type { DiscoveryProfile } from '$lib/verified-vibe/types';
-import { getSupabaseClient } from '$lib/client/supabase';
+import { getSupabase } from '$lib/server/supabase';
 
 interface DiscoveryFeedRequest {
   limit?: number;
@@ -41,7 +41,7 @@ interface DiscoveryFeedResponse {
  *   }
  * }
  */
-export const GET: RequestHandler = async ({ url, locals }) => {
+export const GET: RequestHandler = async ({ url, locals, request }) => {
   try {
     // Parse query parameters
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '10'), 50);
@@ -69,24 +69,64 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       );
     }
 
-    // Get current user from session
-    const supabase = getSupabaseClient();
-    const { data: { session } } = await supabase.auth.getSession();
+    // Get current user from Authorization header
+    const authHeader = request.headers.get('authorization') ?? '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
 
-    if (!session) {
+    if (!token) {
       return json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    const currentUserId = session.user.id;
+    // Create a client with the user's token to get their ID
+    const { createClient } = await import('@supabase/supabase-js');
+    const { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } = await import('$env/static/public');
+    const userClient = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
 
-    // Fetch all verified profiles from database
+    const { data: { user } } = await userClient.auth.getUser();
+
+    if (!user) {
+      return json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const currentUserId = user.id;
+
+    // Use server-side client with service role to bypass RLS and fetch all profiles
+    const supabase = getSupabase();
+
+    // Fetch current user's profile to get their gender
+    const { data: currentUserProfile, error: currentUserError } = await (supabase as any)
+      .from('verified_vibe_users')
+      .select('gender')
+      .eq('id', currentUserId)
+      .single();
+
+    if (currentUserError || !currentUserProfile) {
+      console.error('Error fetching current user profile:', currentUserError);
+      return json(
+        { error: 'Failed to fetch your profile' },
+        { status: 500 }
+      );
+    }
+
+    const currentUserGender = currentUserProfile.gender || 'man';
+
+    // Determine opposite gender
+    const targetGender = currentUserGender === 'man' ? 'woman' : 'man';
+
+    // Fetch all verified profiles from database (opposite gender only)
     const { data: profiles, error: profileError } = await (supabase as any)
       .from('verified_vibe_users')
       .select('*')
-      .neq('id', currentUserId);
+      .neq('id', currentUserId)
+      .eq('gender', targetGender);
 
     if (profileError) {
       console.error('Database error:', profileError);
@@ -118,9 +158,32 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       });
     }
 
+    // Fetch user's already-liked profiles from database
+    const { data: likedProfiles } = await (supabase as any)
+      .from('verified_vibe_likes')
+      .select('liked_user_id')
+      .eq('user_id', currentUserId);
+
+    const likedProfileIds = (likedProfiles || []).map((like: any) => like.liked_user_id);
+
+    // Fetch user's already-passed profiles from database
+    const { data: passedProfiles } = await (supabase as any)
+      .from('verified_vibe_passes')
+      .select('passed_user_id')
+      .eq('user_id', currentUserId);
+
+    const passedProfileIds = (passedProfiles || []).map((pass: any) => pass.passed_user_id);
+
+    // Combine all exclude IDs (from query params + database history)
+    const allExcludeIds = new Set([
+      ...excludeIds,
+      ...likedProfileIds,
+      ...passedProfileIds
+    ]);
+
     // Convert database profiles to DiscoveryProfile format
     const discoveryProfiles: DiscoveryProfile[] = (profiles || [])
-      .filter((p: any) => !excludeIds.includes(p.id) && !blockedIds.includes(p.id))
+      .filter((p: any) => !allExcludeIds.has(p.id) && !blockedIds.includes(p.id))
       .map((p: any) => {
         const trustScore = trustScoreMap.get(p.id) || 0;
         const verifiedSteps = Array.from(verificationMap.get(p.id) || new Set()).map(s => {
@@ -140,7 +203,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
           firstName: p.first_name || 'User',
           age: p.age || 25,
           city: p.city || 'Unknown',
-          avatar: null,
+          avatar: p.avatar_url || null,
           about: 'Profile being reviewed',
           looking: 'Looking for connection',
           trustScore,

@@ -414,32 +414,6 @@
       {/if}
     </div>
   </div>
-
-  <!-- Action Buttons -->
-  <div class="action-buttons">
-    <button
-      class="button pass-button"
-      onclick={handlePass}
-      disabled={isLoading}
-      aria-label="Pass on this profile"
-      title="Pass (← or Backspace)"
-    >
-      <X size={20} aria-hidden="true" />
-      <span class="button-text">Pass</span>
-    </button>
-
-    <button
-      class="button like-button"
-      onclick={handleLike}
-      disabled={isLoading}
-      aria-label="Like this profile"
-      title="Like (→ or Enter)"
-      style="--accent-color: {accentColor}"
-    >
-      <Heart size={20} aria-hidden="true" />
-      <span class="button-text">Like</span>
-    </button>
-  </div>
 </div>
 
 <style>
@@ -925,101 +899,6 @@
   }
 
   /* Action Buttons */
-  .action-buttons {
-    display: flex;
-    gap: var(--gap-md);
-    padding: var(--spacing-lg);
-    background: var(--color-vibe-bg-1);
-    border-top: 1px solid var(--color-vibe-border);
-  }
-
-  .button {
-    flex: 1;
-    padding: var(--spacing-md) var(--spacing-lg);
-    border: 2px solid var(--color-vibe-border);
-    border-radius: var(--radius-lg);
-    font-size: var(--font-size-base);
-    font-weight: var(--font-weight-semibold);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--gap-sm);
-    transition: all 200ms ease;
-    font-family: inherit;
-    min-height: 44px;
-    touch-action: manipulation;
-    will-change: background-color, border-color, transform;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .button {
-      transition: none;
-      will-change: auto;
-    }
-  }
-
-  .button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .button-text {
-    display: none;
-  }
-
-  @media (min-width: 480px) {
-    .button-text {
-      display: inline;
-    }
-  }
-
-  /* Pass Button */
-  .pass-button {
-    background: transparent;
-    color: var(--color-vibe-text-2);
-  }
-
-  @media (hover: hover) {
-    .pass-button:hover:not(:disabled) {
-      background: var(--color-vibe-bg-3);
-      border-color: var(--color-vibe-text-3);
-      color: var(--color-vibe-text-1);
-    }
-  }
-
-  .pass-button:active:not(:disabled) {
-    transform: scale(0.98);
-  }
-
-  .pass-button:focus-visible {
-    outline: 2px solid var(--color-vibe-text-2);
-    outline-offset: 2px;
-  }
-
-  /* Like Button */
-  .like-button {
-    background: var(--accent-color);
-    color: white;
-    border-color: var(--accent-color);
-  }
-
-  @media (hover: hover) {
-    .like-button:hover:not(:disabled) {
-      opacity: 0.9;
-      box-shadow: var(--shadow-md);
-    }
-  }
-
-  .like-button:active:not(:disabled) {
-    transform: scale(0.98);
-  }
-
-  .like-button:focus-visible {
-    outline: 2px solid rgba(255, 255, 255, 0.5);
-    outline-offset: 2px;
-  }
-
   /* Mobile Responsive */
   @media (max-width: 767px) {
     .photo-section {

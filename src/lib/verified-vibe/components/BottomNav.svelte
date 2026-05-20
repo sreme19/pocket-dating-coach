@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Heart, MessageCircle, Shield } from 'lucide-svelte';
+  import { Heart, MessageCircle, Shield, User } from 'lucide-svelte';
   import { currentTab } from '../stores';
   import { goto } from '$app/navigation';
   import type { Tab } from '../types';
@@ -8,11 +8,11 @@
    * BottomNav Component
    *
    * Mobile navigation component showing on mobile only (hidden on desktop).
-   * Displays tabs for Discover, Trust, and Chat with badge for unread messages.
+   * Displays tabs for Discover, Trust, Chat, and Profile with badge for unread messages.
    *
    * Features:
    * - Mobile-only display (hidden on desktop)
-   * - Three main tabs: Discover, Trust, Chat
+   * - Four main tabs: Discover, Trust, Chat, Profile
    * - Badge for unread messages
    * - Smooth transitions between tabs
    * - Accessible with keyboard navigation
@@ -38,7 +38,8 @@
   const tabs: Array<{ id: Tab; label: string; icon: typeof Heart }> = [
     { id: 'discover', label: 'Discover', icon: Heart },
     { id: 'trust', label: 'Trust', icon: Shield },
-    { id: 'chat', label: 'Chat', icon: MessageCircle }
+    { id: 'chat', label: 'Chat', icon: MessageCircle },
+    { id: 'profile', label: 'Profile', icon: User }
   ];
 
   /**
@@ -96,7 +97,7 @@
 
   .nav-container {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     height: 60px;
     gap: 0;
   }

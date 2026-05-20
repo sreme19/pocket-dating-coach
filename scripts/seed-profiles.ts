@@ -321,7 +321,7 @@ async function uploadPhotos(
     if (avatarUrl) {
       try {
         const { error } = await supabaseAdmin
-          .from('verified_vibe_profiles')
+          .from('verified_vibe_users')
           .update({ avatar_url: avatarUrl })
           .eq('id', userId);
 

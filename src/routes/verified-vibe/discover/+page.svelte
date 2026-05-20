@@ -22,9 +22,10 @@
   let error = $state<string | null>(null);
   let isAnimating = $state(false);
   let cardStackContainer: HTMLElement | undefined = $state();
-  
+
   const limit = 10;
   const passedIds = $state<Set<string>>(new Set());
+  const likedIds = $state<Set<string>>(new Set());
 
   // Get current profile
   let currentProfile = $derived($discoveryProfiles[$discoveryIndex] || null);
@@ -32,11 +33,21 @@
   // Load initial profiles
   async function loadProfiles() {
     if (isLoadingMore || !hasMoreProfiles) return;
-    
+
     isLoadingMore = true;
     error = null;
     try {
-      const excludeIds = Array.from(passedIds).join(',');
+      // Get the access token from Supabase session
+      const { getSupabaseClient } = await import('$lib/client/supabase');
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error('No session token available');
+      }
+
+      const allExcludeIds = new Set([...passedIds, ...likedIds]);
+      const excludeIds = Array.from(allExcludeIds).join(',');
       const params = new URLSearchParams({
         limit: limit.toString(),
         offset: offset.toString(),
@@ -44,7 +55,11 @@
         ...(excludeIds && { excludeIds })
       });
 
-      const response = await fetch(`/api/verified-vibe/discovery-feed?${params}`);
+      const response = await fetch(`/api/verified-vibe/discovery-feed?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
       if (!response.ok) {
         throw new Error(`Failed to load profiles: ${response.statusText}`);
       }
@@ -87,19 +102,30 @@
   // Handle like action
   async function handleLike() {
     if (!currentProfile || isAnimating) return;
-    
+
     isAnimating = true;
     error = null;
     clearError();
 
     try {
+      console.log('Liking profile:', currentProfile.id);
+
+      // Get user ID from session
+      const { getSupabaseClient } = await import('$lib/client/supabase');
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session?.user?.id) {
+        throw new Error('User not authenticated');
+      }
+
       // Call like API
-      const response = await fetch('/verified-vibe/api/like', {
+      const response = await fetch('/api/verified-vibe/like', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           profileId: currentProfile.id,
-          userId: 'current-user-id' // TODO: Get from session
+          userId: session.user.id
         })
       });
 
@@ -109,16 +135,25 @@
       }
 
       const result = await response.json();
+      console.log('Like response:', result);
 
       // Check if mutual match
       if (result.matched) {
+        console.log('Mutual match!');
         matchedProfile = currentProfile;
         showMatchOverlay = true;
       }
 
+      // Add to liked set to prevent duplicate likes
+      likedIds.add(currentProfile.id);
+      console.log('Current discovery index before:', $discoveryIndex);
+
       // Move to next profile
       nextDiscoveryProfile();
+      console.log('Current discovery index after:', $discoveryIndex);
+      console.log('Next profile:', $discoveryProfiles[$discoveryIndex]);
     } catch (err) {
+      console.error('Like error:', err);
       error = err instanceof Error ? err.message : 'Failed to like profile';
       setError(error);
     } finally {
@@ -129,19 +164,28 @@
   // Handle pass action
   async function handlePass() {
     if (!currentProfile || isAnimating) return;
-    
+
     isAnimating = true;
     error = null;
     clearError();
 
     try {
+      // Get user ID from session
+      const { getSupabaseClient } = await import('$lib/client/supabase');
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session?.user?.id) {
+        throw new Error('User not authenticated');
+      }
+
       // Call pass API
-      const response = await fetch('/verified-vibe/api/pass', {
+      const response = await fetch('/api/verified-vibe/pass', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           profileId: currentProfile.id,
-          userId: 'current-user-id' // TODO: Get from session
+          userId: session.user.id
         })
       });
 
@@ -152,10 +196,15 @@
 
       // Add to passed set
       passedIds.add(currentProfile.id);
+      console.log('Passed on profile:', currentProfile.id);
+      console.log('Current discovery index before:', $discoveryIndex);
 
       // Move to next profile
       nextDiscoveryProfile();
+      console.log('Current discovery index after:', $discoveryIndex);
+      console.log('Total profiles loaded:', $discoveryProfiles.length);
     } catch (err) {
+      console.error('Pass error:', err);
       error = err instanceof Error ? err.message : 'Failed to pass profile';
       setError(error);
     } finally {
@@ -226,8 +275,8 @@
   <!-- Card Stack Container -->
   <div class="card-stack-container" bind:this={cardStackContainer}>
     {#if currentProfile}
-      <div class="card-stack" transition:fade={{ duration: 300 }}>
-        <DiscoveryCard 
+      <div class="card-stack" transition:fade={{ duration: 300 }} key={currentProfile.id}>
+        <DiscoveryCard
           profile={currentProfile}
           onLike={handleLike}
           onPass={handlePass}
@@ -238,6 +287,12 @@
         <div class="empty-icon">🔍</div>
         <h2 class="empty-title">No profiles yet</h2>
         <p class="empty-text">Check back soon for new matches</p>
+      </div>
+    {:else if !hasMoreProfiles && $discoveryIndex >= $discoveryProfiles.length}
+      <div class="empty-state" transition:fade={{ duration: 300 }}>
+        <div class="empty-icon">✨</div>
+        <h2 class="empty-title">You've seen all profiles!</h2>
+        <p class="empty-text">Check back later for new matches</p>
       </div>
     {:else}
       <div class="loading-state" transition:fade={{ duration: 300 }}>
@@ -354,14 +409,17 @@
     align-items: center;
     justify-content: center;
     padding: 20px;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   .card-stack {
     width: 100%;
     max-width: 400px;
-    height: 100%;
-    max-height: 600px;
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
   }
 
   /* Empty State */
