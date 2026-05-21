@@ -7,6 +7,7 @@
   import { subscribeToMessages, subscribeToTypingIndicator, publishTypingIndicator } from '$lib/client/supabase';
   import { subscribeToUserOnlineStatus, formatLastSeen, trackUserOnline, untrackUserOnline, updateLastActivity } from '$lib/verified-vibe/services/onlineStatusService';
   import type { Message, VerifiedVibeUser } from '$lib/verified-vibe/types';
+  import type { AssistantType } from '$lib/types';
 
   let conversationId = $state('');
   let messageInput = $state('');
@@ -25,6 +26,10 @@
   const MAX_RECONNECT_ATTEMPTS = 5;
   const RECONNECT_DELAY = 3000; // 3 seconds
   let activityTimeout: ReturnType<typeof setTimeout> | null = null;
+  let activeAssistant = $state<AssistantType | null>(null);
+  let lastMessageId = $state<string | null>(null);
+  let pollInterval: ReturnType<typeof setInterval> | null = null;
+  let respondedToMessageIds = $state<Set<string>>(new Set());
 
   // Utility function to validate UUID format
   function isValidUUID(id: string): boolean {
@@ -42,6 +47,12 @@
       isLoading = true;
       error = null;
       connectionError = false;
+
+      // Check if AI Bestie was previously active
+      const savedActiveAssistant = localStorage.getItem(`ai-bestie-active-${conversationId}`);
+      if (savedActiveAssistant === 'true') {
+        activeAssistant = 'bestie';
+      }
 
       // Track current user as online
       if ($user) {
@@ -81,7 +92,7 @@
 
       // Subscribe to realtime message updates (only if conversationId is a valid UUID)
       if (isValidUUID(conversationId)) {
-        // TODO: Fix realtime subscriptions
+        // TODO: Fix realtime subscriptions - polling disabled for now
         // subscribeToRealtimeMessages();
 
         // Subscribe to typing indicators
@@ -121,6 +132,11 @@
 
     if (unsubscribeOnlineStatus) {
       unsubscribeOnlineStatus();
+    }
+
+    // Clear polling interval
+    if (pollInterval) {
+      clearInterval(pollInterval);
     }
 
     // Clear typing timeout
@@ -186,6 +202,14 @@
             }
             return msgs;
           });
+
+          // If AI Bestie is active and this is a message from Adrian (not from us), auto-respond
+          if (activeAssistant === 'bestie' && message.senderId !== $user?.id) {
+            console.log('AI Bestie auto-responding to message from Adrian');
+            setTimeout(() => {
+              generateAndSendAIBestieResponse(message.content);
+            }, 1000); // Delay 1 second to feel more natural
+          }
 
           scrollToBottom();
           connectionError = false;
@@ -466,10 +490,160 @@
   }
 
   /**
+   * Poll for new messages when AI Bestie is active
+   * DISABLED - causing too many messages
+   */
+  // async function pollForNewMessages() {
+  //   ...
+  // }
+
+  /**
    * Dismiss error message
    */
   function dismissError() {
     error = null;
+  }
+
+  /**
+   * Handle activate assistant
+   */
+  async function handleActivateAssistant(assistantType: AssistantType) {
+    try {
+      console.log('Activating assistant:', assistantType);
+      activeAssistant = assistantType;
+      
+      // Save active state to localStorage
+      localStorage.setItem(`ai-bestie-active-${conversationId}`, 'true');
+      
+      // Send opening message from AI Bestie (impersonating the female user)
+      await sendAIBestieOpeningMessage();
+      console.log('Assistant activated successfully');
+    } catch (err) {
+      console.error('Failed to activate assistant:', err);
+    }
+  }
+
+  /**
+   * Poll for new messages when AI Bestie is active
+   * DISABLED - causing too many messages
+   */
+  // async function pollForNewMessages() {
+  //   ...
+  // }
+
+  /**
+   * Generate and send AI Bestie response to Adrian's message
+   * DISABLED - causing too many messages
+   */
+  // async function generateAndSendAIBestieResponse(adrianMessage: string) {
+  //   ...
+  // }
+  async function sendAIBestieOpeningMessage() {
+    try {
+      if (!$user || !$currentMatch) {
+        console.error('Missing user or currentMatch');
+        return;
+      }
+
+      isSending = true;
+      console.log('Sending AI Bestie opening message to:', $currentMatch.firstName);
+
+      // Generate opening message from AI Bestie impersonating the female user
+      const { getSupabaseClient } = await import('$lib/client/supabase');
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      console.log('Calling API with conversationId:', conversationId);
+
+      const response = await fetch('/api/verified-vibe/ai-bestie/opening-message', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
+        body: JSON.stringify({
+          conversationId: conversationId,
+          matchName: $currentMatch.firstName
+        })
+      });
+
+      console.log('API response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('API error:', errorData);
+        throw new Error(errorData.error || 'Failed to generate opening message');
+      }
+
+      const data = await response.json();
+      console.log('Generated message:', data.message);
+      
+      const messageContent = data.message;
+
+      // Send the message through the chat API to actually deliver it to Adrian
+      const sendResponse = await fetch('/api/verified-vibe/chat/send', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
+        body: JSON.stringify({
+          conversationId: conversationId,
+          content: messageContent
+        })
+      });
+
+      if (!sendResponse.ok) {
+        const errorData = await sendResponse.json();
+        console.error('Send error:', errorData);
+        throw new Error(errorData.error || 'Failed to send message');
+      }
+
+      const sentData = await sendResponse.json();
+      console.log('Message sent successfully:', sentData);
+
+      // The message will be added to the UI through the realtime subscription
+      // But we can also add it optimistically
+      const aiMessage: Message = {
+        id: sentData.data.message.id,
+        matchId: conversationId,
+        senderId: $user.id,
+        content: messageContent,
+        createdAt: new Date(sentData.data.message.createdAt)
+      };
+
+      console.log('Adding message to chat:', aiMessage);
+      addMessage(aiMessage);
+      scrollToBottom();
+    } catch (err) {
+      console.error('Failed to send AI Bestie message:', err);
+      error = err instanceof Error ? err.message : 'Failed to send AI Bestie message';
+    } finally {
+      isSending = false;
+    }
+  }
+
+  /**
+   * Handle deactivate assistant
+   */
+  async function handleDeactivateAssistant() {
+    try {
+      console.log('Deactivating assistant');
+      activeAssistant = null;
+      
+      // Remove active state from localStorage
+      localStorage.removeItem(`ai-bestie-active-${conversationId}`);
+      
+      // Stop polling if active
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+      }
+      
+      console.log('Assistant deactivated successfully');
+    } catch (err) {
+      console.error('Failed to deactivate assistant:', err);
+    }
   }
 </script>
 
@@ -599,6 +773,28 @@
         aria-label="Message input"
         rows="1"
       ></textarea>
+
+      <!-- AI Bestie Toggle Button -->
+      {#if $user}
+        <button
+          class="toggle-btn"
+          class:active={activeAssistant}
+          onclick={async () => {
+            if (activeAssistant) {
+              await handleDeactivateAssistant();
+            } else {
+              await handleActivateAssistant('bestie');
+            }
+          }}
+          disabled={isSending || isLoading}
+          title={activeAssistant ? 'Deactivate AI Assistant' : 'Activate AI Assistant'}
+          aria-label={activeAssistant ? 'Deactivate AI Assistant' : 'Activate AI Assistant'}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/>
+          </svg>
+        </button>
+      {/if}
 
       <button
         class="send-btn"
@@ -1068,6 +1264,47 @@
   }
 
   .send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Toggle Button */
+  .toggle-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    color: var(--text-3);
+    transition: all 200ms ease;
+    flex-shrink: 0;
+  }
+
+  .toggle-btn:hover:not(:disabled) {
+    background: var(--bg-3);
+    border-color: var(--border-2);
+    color: var(--text-1);
+  }
+
+  .toggle-btn.active {
+    background: var(--accent);
+    color: #06281e;
+    border-color: var(--accent);
+  }
+
+  .toggle-btn.active:hover:not(:disabled) {
+    background: var(--accent);
+    opacity: 0.9;
+  }
+
+  .toggle-btn:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+
+  .toggle-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }

@@ -3,19 +3,37 @@
 	import { Send, Loader2, ChevronRight, Sparkles } from 'lucide-svelte';
 	import { onMount, tick } from 'svelte';
 	import { getProfileChatHistory, addProfileChatMessage } from '$lib/male-profile';
-	import type { ProfileChatMessage, UserProfile } from '$lib/types';
+	import type { ProfileChatMessage, UserProfile, AssistantType } from '$lib/types';
+	import { createSessionStore } from '$lib/client/session-store';
 
 	let messages = $state<ProfileChatMessage[]>([]);
 	let input = $state('');
 	let loading = $state(false);
 	let userProfile = $state<UserProfile | null>(null);
 	let messagesEl: HTMLDivElement;
+	let activeAssistant = $state<AssistantType | null>(null);
+	let sessionStore: ReturnType<typeof createSessionStore> | null = null;
+	let userId = $state<string>('');
+	let sessionLoading = $state(true);
 
 	const MAX_EXCHANGES = 8;
 
 	onMount(() => {
 		const stored = localStorage.getItem('pdc_profile');
 		if (stored) userProfile = JSON.parse(stored);
+
+		// Get user ID from localStorage or auth
+		const storedUserId = localStorage.getItem('pdc_user_id');
+		userId = storedUserId || 'anonymous-user';
+
+		// Initialize session store for profile chat
+		sessionStore = createSessionStore(userId, 'profile-chat');
+		sessionStore.load().then(() => {
+			sessionStore?.subscribe((state) => {
+				activeAssistant = state.activeAssistant;
+			});
+			sessionLoading = false;
+		});
 
 		const history = getProfileChatHistory();
 		messages = history;
@@ -147,6 +165,26 @@
 
 	let userQuestionCount = $derived(messages.filter((m) => m.role === 'user').length);
 	let exchangeProgress = $derived((userQuestionCount / MAX_EXCHANGES) * 100);
+
+	async function handleActivateAssistant(assistantType: AssistantType) {
+		try {
+			if (sessionStore) {
+				await sessionStore.activateAssistant(assistantType);
+			}
+		} catch (error) {
+			console.error('Failed to activate assistant:', error);
+		}
+	}
+
+	async function handleDeactivateAssistant() {
+		try {
+			if (sessionStore) {
+				await sessionStore.deactivateAssistant();
+			}
+		} catch (error) {
+			console.error('Failed to deactivate assistant:', error);
+		}
+	}
 </script>
 
 <div class="min-h-screen bg-slate-950 text-white flex flex-col">
@@ -218,6 +256,27 @@
 					disabled={loading || userQuestionCount >= MAX_EXCHANGES}
 					class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:border-rose-500 outline-none disabled:opacity-50"
 				/>
+				<!-- AI Bestie Toggle Button -->
+				{#if userProfile}
+					<button
+						onclick={() => {
+							if (activeAssistant) {
+								handleDeactivateAssistant();
+							} else {
+								handleActivateAssistant(userProfile?.gender === 'woman' ? 'bestie' : 'wingman');
+							}
+						}}
+						disabled={loading || sessionLoading}
+						title={activeAssistant ? 'Deactivate AI Assistant' : 'Activate AI Assistant'}
+						class={`px-3 py-3 rounded-lg transition-all flex-shrink-0 ${
+							activeAssistant
+								? 'bg-rose-600 hover:bg-rose-700 text-white'
+								: 'bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-slate-300'
+						} disabled:opacity-40 disabled:cursor-not-allowed`}
+					>
+						<Sparkles class="w-4 h-4" />
+					</button>
+				{/if}
 				<button
 					onclick={sendMessage}
 					disabled={loading || !input.trim() || userQuestionCount >= MAX_EXCHANGES}
