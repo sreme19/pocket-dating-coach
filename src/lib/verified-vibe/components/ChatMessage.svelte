@@ -1,6 +1,6 @@
 <script lang="ts">
   import { fade, slide } from 'svelte/transition';
-  import { Check, CheckCheck } from 'lucide-svelte';
+  import { Check, CheckCheck, Heart, Shield, BookOpen, ChevronDown } from 'lucide-svelte';
   import type { Message } from '../types';
 
   /**
@@ -8,13 +8,18 @@
    *
    * Displays a single message in the chat interface. Shows sender/receiver distinction
    * with left/right alignment, message text, timestamp, and optional read status indicator.
-   * Includes smooth animations and is fully accessible (WCAG 2.1 AA).
+   * Supports AI assistant messages (Bestie, Wingman, Coach) with distinct visual indicators,
+   * badges, and citations. Includes smooth animations and is fully accessible (WCAG 2.1 AA).
    *
    * Features:
    * - Sender/receiver distinction with left/right alignment
+   * - AI assistant type detection (Bestie, Wingman, Coach)
+   * - Distinct visual indicators and badges for each assistant type
+   * - Different styling for Bestie (pink) vs Wingman (blue)
    * - Message text content with word wrapping
    * - Timestamp display (relative or absolute)
    * - Read status indicator (optional)
+   * - Citations display (inline or expandable)
    * - Smooth animations and transitions
    * - WCAG 2.1 AA accessibility compliance
    * - Mobile responsive (375px-1024px)
@@ -54,14 +59,40 @@
     isRead = false
   }: Props = $props();
 
+  // State for expandable citations
+  let showCitations = $state(false);
+
   // Derived values
   let formattedTime = $derived(formatTime(message.createdAt));
   let messageAlignment = $derived(isCurrentUser ? 'flex-end' : 'flex-start');
+  let isAIMessage = $derived(!!message.assistantType && !isCurrentUser);
   let messageBubbleClass = $derived(
-    isCurrentUser ? 'message-bubble-sent' : 'message-bubble-received'
+    isAIMessage
+      ? `message-bubble-ai message-bubble-${message.assistantType}`
+      : isCurrentUser
+        ? 'message-bubble-sent'
+        : 'message-bubble-received'
+  );
+  let assistantLabel = $derived(
+    message.assistantType === 'bestie'
+      ? 'AI Bestie'
+      : message.assistantType === 'wingman'
+        ? 'AI Wingman'
+        : message.assistantType === 'coach'
+          ? 'Ask Your Coach'
+          : null
+  );
+  let assistantIcon = $derived(
+    message.assistantType === 'bestie'
+      ? 'heart'
+      : message.assistantType === 'wingman'
+        ? 'shield'
+        : message.assistantType === 'coach'
+          ? 'book'
+          : null
   );
   let ariaLabel = $derived(
-    `${isCurrentUser ? 'You sent' : 'They sent'}: ${message.content}${showTimestamp ? ` at ${formattedTime}` : ''}`
+    `${isAIMessage ? assistantLabel : isCurrentUser ? 'You sent' : 'They sent'}: ${message.content}${showTimestamp ? ` at ${formattedTime}` : ''}`
   );
 
   /**
@@ -104,12 +135,20 @@
       // Could trigger actions like copy, react, etc.
     }
   }
+
+  /**
+   * Toggle citations visibility
+   */
+  function toggleCitations() {
+    showCitations = !showCitations;
+  }
 </script>
 
 <div
   class="message-container"
   class:sent={isCurrentUser}
   class:received={!isCurrentUser}
+  class:ai-message={isAIMessage}
   transition:slide={{ duration: 300, axis: 'y' }}
 >
   <!-- Message Bubble -->
@@ -119,6 +158,20 @@
     role="article"
     aria-label={ariaLabel}
   >
+    <!-- AI Assistant Badge (for AI messages) -->
+    {#if isAIMessage}
+      <div class="assistant-badge" class:bestie={message.assistantType === 'bestie'} class:wingman={message.assistantType === 'wingman'} class:coach={message.assistantType === 'coach'}>
+        {#if assistantIcon === 'heart'}
+          <Heart size={14} aria-hidden="true" />
+        {:else if assistantIcon === 'shield'}
+          <Shield size={14} aria-hidden="true" />
+        {:else if assistantIcon === 'book'}
+          <BookOpen size={14} aria-hidden="true" />
+        {/if}
+        <span class="badge-text">{assistantLabel}</span>
+      </div>
+    {/if}
+
     <div
       class="message-bubble {messageBubbleClass}"
       role="button"
@@ -129,6 +182,38 @@
       <p class="message-text">
         {message.content}
       </p>
+
+      <!-- Citations Section (for AI messages) -->
+      {#if isAIMessage && message.citations && message.citations.length > 0}
+        <div class="citations-section">
+          {#if message.citations.length === 1}
+            <!-- Single citation: show inline -->
+            <p class="citation-inline">
+              <em>{message.citations[0]}</em>
+            </p>
+          {:else}
+            <!-- Multiple citations: show expandable -->
+            <button
+              class="citations-toggle"
+              onclick={toggleCitations}
+              aria-expanded={showCitations}
+              aria-label={showCitations ? 'Hide citations' : 'Show citations'}
+            >
+              <ChevronDown size={14} class:rotated={showCitations} aria-hidden="true" />
+              <span>{message.citations.length} citation{message.citations.length !== 1 ? 's' : ''}</span>
+            </button>
+            {#if showCitations}
+              <div class="citations-list" transition:slide={{ duration: 200 }}>
+                {#each message.citations as citation}
+                  <p class="citation-item">
+                    <em>{citation}</em>
+                  </p>
+                {/each}
+              </div>
+            {/if}
+          {/if}
+        </div>
+      {/if}
 
       <!-- Timestamp and Read Status -->
       <div class="message-footer">
@@ -189,9 +274,15 @@
     justify-content: flex-start;
   }
 
+  .message-container.ai-message {
+    justify-content: flex-start;
+  }
+
   /* Message Wrapper */
   .message-wrapper {
     display: flex;
+    flex-direction: column;
+    gap: var(--gap-xs);
     max-width: 85%;
     width: fit-content;
   }
@@ -206,6 +297,41 @@
     .message-wrapper {
       max-width: 50%;
     }
+  }
+
+  /* Assistant Badge */
+  .assistant-badge {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    width: fit-content;
+    margin-bottom: var(--spacing-xs);
+  }
+
+  .assistant-badge.bestie {
+    background: rgba(236, 72, 153, 0.1);
+    color: #ec4899;
+    border: 1px solid rgba(236, 72, 153, 0.3);
+  }
+
+  .assistant-badge.wingman {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+  }
+
+  .assistant-badge.coach {
+    background: rgba(168, 85, 247, 0.1);
+    color: #a855f7;
+    border: 1px solid rgba(168, 85, 247, 0.3);
+  }
+
+  .badge-text {
+    font-size: var(--font-size-xs);
   }
 
   /* Message Bubble */
@@ -266,6 +392,54 @@
     }
   }
 
+  /* AI Message Bubbles */
+  .message-bubble-ai {
+    border-radius: var(--radius-md) var(--radius-lg) var(--radius-lg) var(--radius-md);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .message-bubble-bestie {
+    background: rgba(236, 72, 153, 0.08);
+    color: var(--color-vibe-text-1);
+    border: 1px solid rgba(236, 72, 153, 0.3);
+  }
+
+  @media (hover: hover) {
+    .message-bubble-bestie:hover {
+      background: rgba(236, 72, 153, 0.12);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+  }
+
+  .message-bubble-wingman {
+    background: rgba(59, 130, 246, 0.08);
+    color: var(--color-vibe-text-1);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+  }
+
+  @media (hover: hover) {
+    .message-bubble-wingman:hover {
+      background: rgba(59, 130, 246, 0.12);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+  }
+
+  .message-bubble-coach {
+    background: rgba(168, 85, 247, 0.08);
+    color: var(--color-vibe-text-1);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+  }
+
+  @media (hover: hover) {
+    .message-bubble-coach:hover {
+      background: rgba(168, 85, 247, 0.12);
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+  }
+
   /* Message Text */
   .message-text {
     margin: 0;
@@ -273,6 +447,89 @@
     line-height: var(--line-height-relaxed);
     word-break: break-word;
     white-space: pre-wrap;
+  }
+
+  /* Citations Section */
+  .citations-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-xs);
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid currentColor;
+    opacity: 0.85;
+  }
+
+  .message-bubble-sent .citations-section {
+    border-top-color: rgba(255, 255, 255, 0.3);
+  }
+
+  .message-bubble-received .citations-section {
+    border-top-color: var(--color-vibe-border);
+  }
+
+  .message-bubble-ai .citations-section {
+    border-top-color: currentColor;
+    opacity: 0.8;
+  }
+
+  /* Citation Inline */
+  .citation-inline {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    font-style: italic;
+    line-height: var(--line-height-tight);
+  }
+
+  /* Citations Toggle Button */
+  .citations-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--gap-xs);
+    padding: var(--spacing-xs) 0;
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 200ms ease;
+  }
+
+  .citations-toggle:hover {
+    opacity: 0.8;
+  }
+
+  .citations-toggle:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  .citations-toggle :global(svg) {
+    transition: transform 200ms ease;
+  }
+
+  .citations-toggle :global(svg.rotated) {
+    transform: rotate(180deg);
+  }
+
+  /* Citations List */
+  .citations-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gap-xs);
+    padding: var(--spacing-sm) 0;
+  }
+
+  .citation-item {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    font-style: italic;
+    line-height: var(--line-height-tight);
+    padding-left: var(--spacing-sm);
+    border-left: 2px solid currentColor;
+    opacity: 0.9;
   }
 
   /* Message Footer */
@@ -295,6 +552,10 @@
   }
 
   .message-bubble-received .message-time {
+    color: var(--color-vibe-text-3);
+  }
+
+  .message-bubble-ai .message-time {
     color: var(--color-vibe-text-3);
   }
 
@@ -330,6 +591,11 @@
     .message-time {
       font-size: var(--font-size-xs);
     }
+
+    .assistant-badge {
+      padding: var(--spacing-xs) var(--spacing-xs);
+      font-size: var(--font-size-xs);
+    }
   }
 
   /* Tablet Responsive */
@@ -348,6 +614,21 @@
     .message-bubble-received {
       background: var(--color-vibe-bg-2);
       border-color: var(--color-vibe-border);
+    }
+
+    .message-bubble-bestie {
+      background: rgba(236, 72, 153, 0.12);
+      border-color: rgba(236, 72, 153, 0.4);
+    }
+
+    .message-bubble-wingman {
+      background: rgba(59, 130, 246, 0.12);
+      border-color: rgba(59, 130, 246, 0.4);
+    }
+
+    .message-bubble-coach {
+      background: rgba(168, 85, 247, 0.12);
+      border-color: rgba(168, 85, 247, 0.4);
     }
   }
 </style>

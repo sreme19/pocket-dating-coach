@@ -1,0 +1,79 @@
+{
+  "timestamp": "2026-05-21T12:20:55.634Z",
+  "summary": {
+    "total": 12,
+    "passed": 12,
+    "warnings": 0,
+    "failed": 0
+  },
+  "results": [
+    {
+      "name": "SUPABASE_URL",
+      "status": "pass",
+      "message": "Environment variable SUPABASE_URL is set",
+      "details": "Value: https://st...se.co"
+    },
+    {
+      "name": "SUPABASE_SERVICE_KEY",
+      "status": "pass",
+      "message": "Environment variable SUPABASE_SERVICE_KEY is set",
+      "details": "Value: eyJhbGciOi...NbnGA"
+    },
+    {
+      "name": "ANTHROPIC_API_KEY",
+      "status": "pass",
+      "message": "Environment variable ANTHROPIC_API_KEY is set",
+      "details": "Value: sk-ant-api...cygAA"
+    },
+    {
+      "name": "PUBLIC_SUPABASE_URL",
+      "status": "pass",
+      "message": "Environment variable PUBLIC_SUPABASE_URL is set",
+      "details": "Value: https://st...se.co"
+    },
+    {
+      "name": "PUBLIC_SUPABASE_ANON_KEY",
+      "status": "pass",
+      "message": "Environment variable PUBLIC_SUPABASE_ANON_KEY is set",
+      "details": "Value: eyJhbGciOi...NtIKQ"
+    },
+    {
+      "name": "VOYAGE_API_KEY",
+      "status": "pass",
+      "message": "Optional environment variable VOYAGE_API_KEY is set",
+      "details": "Value: pa-nY-fINg...i8kfE"
+    },
+    {
+      "name": "Supabase Connection",
+      "status": "pass",
+      "message": "Successfully connected to Supabase",
+      "details": "Found 50 users in database"
+    },
+    {
+      "name": "Table: ai_assistant_profiles",
+      "status": "pass",
+      "message": "Table ai_assistant_profiles exists and is accessible"
+    },
+    {
+      "name": "Table: ai_assistant_conversations",
+      "status": "pass",
+      "message": "Table ai_assistant_conversations exists and is accessible"
+    },
+    {
+      "name": "Table: ai_assistant_summaries",
+      "status": "pass",
+      "message": "Table ai_assistant_summaries exists and is accessible"
+    },
+    {
+      "name": "Table: ai_assistant_configs",
+      "status": "pass",
+      "message": "Table ai_assistant_configs exists and is accessible"
+    },
+    {
+      "name": "Claude API Connection",
+      "status": "pass",
+      "message": "Successfully connected to Claude API",
+      "details": "Model: claude-opus-4-1-20250805, Stop reason: end_turn"
+    }
+  ]
+}
