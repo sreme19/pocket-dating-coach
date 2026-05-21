@@ -42,14 +42,11 @@ export function subscribeToMessages(
         }
       }
     )
-    .on('system', { event: 'error' }, (error) => {
-      console.error('Realtime subscription error:', error);
-      if (onError) {
-        onError(new Error(`Realtime subscription error: ${error.message}`));
+    .subscribe((status, err) => {
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        console.error(`Realtime subscription error for match ${matchId}:`, err);
+        if (onError) onError(new Error(`Realtime subscription failed: ${status}`));
       }
-    })
-    .subscribe((status) => {
-      console.log(`Realtime subscription status for match ${matchId}:`, status);
     });
 
   // Return unsubscribe function
@@ -100,14 +97,11 @@ export function subscribeToTypingIndicator(
         }
       }
     )
-    .on('system', { event: 'error' }, (error) => {
-      console.error('Typing indicator subscription error:', error);
-      if (onError) {
-        onError(new Error(`Typing indicator subscription error: ${error.message}`));
+    .subscribe((status, err) => {
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        console.error(`Typing indicator subscription error for match ${matchId}:`, err);
+        if (onError) onError(new Error(`Typing indicator subscription failed: ${status}`));
       }
-    })
-    .subscribe((status) => {
-      console.log(`Typing indicator subscription status for match ${matchId}:`, status);
     });
 
   // Return unsubscribe function

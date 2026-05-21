@@ -7,6 +7,7 @@ interface ConversationResponse {
   data: {
     matchedUser: VerifiedVibeUser;
     messages: Message[];
+    aiBestieActive: boolean;
   };
 }
 
@@ -159,7 +160,8 @@ export const GET: RequestHandler = async ({ params, request }) => {
           createdAt: new Date(matchedUser.created_at),
           updatedAt: new Date(matchedUser.updated_at)
         },
-        messages
+        messages,
+        aiBestieActive: match.ai_bestie_active ?? false
       }
     };
 
