@@ -62,6 +62,8 @@
       console.error('Error loading profile:', err);
       error = err instanceof Error ? err.message : 'Failed to load profile';
       setError(error);
+      // Still mark as viewing selected even on error, to hide action buttons
+      isViewingSelected = true;
     }
   }
 
