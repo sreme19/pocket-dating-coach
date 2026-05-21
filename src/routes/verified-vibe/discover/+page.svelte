@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import {
@@ -125,17 +126,14 @@
     }
   }
 
-  // Check for profile query parameter on page load
-  $effect.pre(() => {
+  // Check for profile query parameter on mount
+  onMount(() => {
     const profileId = $page.url.searchParams.get('profile');
     if (profileId) {
+      console.log('Loading profile:', profileId);
       loadSpecificProfile(profileId);
-    }
-  });
-
-  // Load initial batch on mount
-  $effect.pre(() => {
-    if (!isViewingSelected && $discoveryProfiles.length === 0) {
+    } else if ($discoveryProfiles.length === 0) {
+      // Load initial batch if no profile is selected
       loadProfiles();
     }
   });
