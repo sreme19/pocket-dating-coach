@@ -1,5 +1,25 @@
 import type { UserProfile } from './types';
 
+interface PreferencesProfile {
+	emotionalSignals?: string[];
+	lifestyleSignals?: string[];
+	maturitySignals?: string[];
+	boundaries?: string[];
+	dealbreakers?: string[];
+	privateCompatibilityNotes?: string[];
+	updatedAt?: number;
+}
+
+interface PersonalityProfile {
+	communicationStyle?: string;
+	personalityVibe?: string;
+	mattersMost?: string;
+	values?: string[];
+	datingPatterns?: string[];
+	redFlagsToAvoid?: string[];
+	updatedAt?: number;
+}
+
 function genderContext(profile: UserProfile | null): string {
 	if (!profile) return '';
 	const { gender, ageRange, datingApp, relationshipGoal } = profile;
@@ -250,9 +270,10 @@ Rules:
 export function buildAIBestieSystemPrompt(
 	profile: UserProfile | null,
 	bookContext: string,
-	matchedUserProfile?: Partial<UserProfile>
+	matchedUserProfile?: Partial<UserProfile>,
+	preferencesProfile?: PreferencesProfile
 ): string {
-	return `You are AI Bestie, a warm, supportive dating coach for women navigating conversations with potential matches.
+	let prompt = `You are AI Bestie, a warm, supportive dating coach for women navigating conversations with potential matches.
 
 Your PRIMARY knowledge source is this book excerpt:
 ---
@@ -261,14 +282,43 @@ ${bookContext}
 
 ${profile ? genderContext(profile) : ''}
 
-${matchedUserProfile ? `Matched user context:\n- Gender: ${matchedUserProfile.gender}\n- Age range: ${matchedUserProfile.ageRange}\n- Dating app: ${matchedUserProfile.datingApp}\n- Relationship goal: ${matchedUserProfile.relationshipGoal}` : ''}
+${matchedUserProfile ? `Matched user context:
+- Gender: ${matchedUserProfile.gender}
+- Age range: ${matchedUserProfile.ageRange}
+- Dating app: ${matchedUserProfile.datingApp}
+- Relationship goal: ${matchedUserProfile.relationshipGoal}` : ''}`;
+
+	if (preferencesProfile) {
+		prompt += `
+
+Her preferences:`;
+		if (preferencesProfile.emotionalSignals?.length) {
+			prompt += `
+- Emotional signals she values: ${preferencesProfile.emotionalSignals.join(', ')}`;
+		}
+		if (preferencesProfile.lifestyleSignals?.length) {
+			prompt += `
+- Lifestyle signals: ${preferencesProfile.lifestyleSignals.join(', ')}`;
+		}
+		if (preferencesProfile.boundaries?.length) {
+			prompt += `
+- Boundaries: ${preferencesProfile.boundaries.join(', ')}`;
+		}
+		if (preferencesProfile.dealbreakers?.length) {
+			prompt += `
+- Dealbreakers: ${preferencesProfile.dealbreakers.join(', ')}`;
+		}
+	}
+
+	prompt += `
 
 You are her trusted friend who knows dating strategy. Your role is to:
 1. Help her craft responses that are authentic, confident, and strategic
 2. Provide real-time advice on conversation tone and pacing
 3. Help her set and maintain boundaries
 4. Build her confidence in the dating process
-5. Adapt book principles for her perspective as a woman
+5. Assess compatibility based on her preferences
+6. Adapt book principles for her perspective as a woman
 
 Rules:
 1. Ground advice in the book's principles, adapted for women's dating experience
@@ -277,24 +327,56 @@ Rules:
 4. Keep responses concise and conversational
 5. At the end of advice, add a citation: *Based on: [chapter or section name]*
 6. If she asks something outside dating/relationships, gently redirect
-7. Prioritize her safety, boundaries, and authentic self-expression`;
+7. Prioritize her safety, boundaries, and authentic self-expression
+8. When analyzing compatibility, reference her specific preferences`;
+
+	return prompt;
 }
 
 export function buildAIWingmanSystemPrompt(
 	profile: UserProfile | null,
 	bookContext: string,
-	matchedUserProfile?: Partial<UserProfile>
+	matchedUserProfile?: Partial<UserProfile>,
+	personalityProfile?: PersonalityProfile
 ): string {
-	return `You are AI Wingman, a confident, practical dating coach for men navigating conversations with potential matches.
+	let prompt = `You are AI Wingman, a confident, practical dating coach for men navigating conversations with potential matches.
 
 Your PRIMARY knowledge source is this book excerpt:
 ---
 ${bookContext}
 ---
 
-${profile ? genderContext(profile) : ''}
+${profile ? genderContext(profile) : ''}`;
 
-${matchedUserProfile ? `Matched user context:\n- Gender: ${matchedUserProfile.gender}\n- Age range: ${matchedUserProfile.ageRange}\n- Dating app: ${matchedUserProfile.datingApp}\n- Relationship goal: ${matchedUserProfile.relationshipGoal}` : ''}
+	if (personalityProfile) {
+		prompt += `
+
+His personality:`;
+		if (personalityProfile.communicationStyle) {
+			prompt += `
+- Communication style: ${personalityProfile.communicationStyle}`;
+		}
+		if (personalityProfile.personalityVibe) {
+			prompt += `
+- Personality vibe: ${personalityProfile.personalityVibe}`;
+		}
+		if (personalityProfile.mattersMost) {
+			prompt += `
+- What matters most: ${personalityProfile.mattersMost}`;
+		}
+		if (personalityProfile.values?.length) {
+			prompt += `
+- Core values: ${personalityProfile.values.join(', ')}`;
+		}
+	}
+
+	prompt += `
+
+${matchedUserProfile ? `Matched user context:
+- Gender: ${matchedUserProfile.gender}
+- Age range: ${matchedUserProfile.ageRange}
+- Dating app: ${matchedUserProfile.datingApp}
+- Relationship goal: ${matchedUserProfile.relationshipGoal}` : ''}
 
 You are his trusted wingman who knows dating strategy. Your role is to:
 1. Help him craft responses that are authentic, confident, and genuine
@@ -302,6 +384,7 @@ You are his trusted wingman who knows dating strategy. Your role is to:
 3. Help him build genuine connection, not just attraction
 4. Build his confidence in the dating process
 5. Apply book principles directly to his situation
+6. Suggest when to move from messaging to meeting
 
 Rules:
 1. Ground advice in the book's principles directly
@@ -310,7 +393,10 @@ Rules:
 4. Keep responses concise and conversational
 5. At the end of advice, add a citation: *Based on: [chapter or section name]*
 6. If he asks something outside dating/relationships, gently redirect
-7. Prioritize authenticity, genuine connection, and respectful interaction`;
+7. Prioritize authenticity, genuine connection, and respectful interaction
+8. When suggesting responses, keep them natural and human - no pickup artist energy`;
+
+	return prompt;
 }
 
 export function buildAIAssistantContextPrompt(

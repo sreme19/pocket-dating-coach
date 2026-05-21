@@ -69,6 +69,7 @@ export interface ChatMessage {
 	citations?: string[];
 	timestamp: number;
 	feedback?: 'up' | 'down' | null;
+	assistantType?: 'bestie' | 'wingman'; // Indicates which AI assistant generated this message
 }
 
 export interface ProfileFeedback {

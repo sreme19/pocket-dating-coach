@@ -96,6 +96,8 @@ export interface Message {
   editedAt?: Date;
   readAt?: Date;
   reactions?: MessageReaction[];
+  assistantType?: 'bestie' | 'wingman' | 'coach';
+  citations?: string[];
 }
 
 export interface MessageReaction {

@@ -2,13 +2,22 @@
 	import { onMount, tick } from 'svelte';
 	import { Send, Loader2, Sparkles } from 'lucide-svelte';
 	import FeedbackButtons from '$lib/components/FeedbackButtons.svelte';
-	import type { ChatMessage, UserProfile } from '$lib/types';
+	import AIAssistantControls from '$lib/components/AIAssistantControls.svelte';
+	import AssistantBadge from '$lib/components/AssistantBadge.svelte';
+	import type { ChatMessage, UserProfile, AssistantType } from '$lib/types';
+	import { createSessionStore } from '$lib/client/session-store';
 
 	let messages = $state<ChatMessage[]>([]);
 	let input = $state('');
 	let loading = $state(false);
 	let userProfile = $state<UserProfile | null>(null);
+	let activeAssistant = $state<AssistantType | null>(null);
+	let exchangeCount = $state(0);
 	let messagesEl: HTMLDivElement;
+	let sessionStore: ReturnType<typeof createSessionStore> | null = null;
+	let matchId = $state<string>('default-match');
+	let userId = $state<string>('');
+	let sessionLoading = $state(true);
 
 	const suggestions = [
 		'How do I write a good Hinge bio?',
@@ -18,9 +27,32 @@
 		'How do I ask someone out without being weird?'
 	];
 
-	onMount(() => {
+	onMount(async () => {
 		const stored = localStorage.getItem('pdc_profile');
 		if (stored) userProfile = JSON.parse(stored);
+
+		// Get user ID from localStorage or auth
+		const storedUserId = localStorage.getItem('pdc_user_id');
+		userId = storedUserId || 'anonymous-user';
+
+		// Get match ID from URL params or use default
+		const params = new URLSearchParams(window.location.search);
+		matchId = params.get('matchId') || 'default-match';
+
+		// Initialize session store
+		sessionStore = createSessionStore(userId, matchId);
+
+		// Load session state from server
+		await sessionStore.load();
+
+		// Subscribe to session state changes
+		sessionStore.subscribe((state) => {
+			activeAssistant = state.activeAssistant;
+			exchangeCount = state.assistantConfig?.exchangeCount ?? 0;
+			messages = state.conversationHistory;
+		});
+
+		sessionLoading = false;
 	});
 
 	async function sendMessage(text?: string) {
@@ -45,7 +77,9 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
 					messages: messages.filter(m => m.role !== 'assistant' || messages.indexOf(m) > messages.length - 10).map(m => ({ role: m.role, content: m.content })),
-					userProfile
+					userProfile,
+					matchId,
+					activeAssistant
 				})
 			});
 
@@ -58,9 +92,16 @@
 				content: data.reply,
 				citations: data.citations,
 				timestamp: Date.now(),
-				feedback: null
+				feedback: null,
+				assistantType: data.assistantType
 			};
 			messages = [...messages, assistantMsg];
+
+			// Persist to session store
+			if (sessionStore && activeAssistant) {
+				await sessionStore.addMessage(userMsg);
+				await sessionStore.addMessage(assistantMsg);
+			}
 		} catch {
 			messages = [...messages, {
 				id: crypto.randomUUID(),
@@ -89,16 +130,67 @@
 			sendMessage();
 		}
 	}
+
+	async function handleActivateAssistant(assistantType: AssistantType) {
+		try {
+			if (sessionStore) {
+				await sessionStore.activateAssistant(assistantType);
+			}
+		} catch (error) {
+			console.error('Failed to activate assistant:', error);
+		}
+	}
+
+	async function handleDeactivateAssistant() {
+		try {
+			if (sessionStore) {
+				await sessionStore.deactivateAssistant();
+			}
+		} catch (error) {
+			console.error('Failed to deactivate assistant:', error);
+		}
+	}
+
+	function handleConfigureAssistant() {
+		// Navigate to configuration page
+		window.location.href = '/ai-assistant-config';
+	}
 </script>
 
 <div class="flex flex-col h-full">
 	<!-- Header -->
-	<div class="px-6 py-4 border-b border-gray-800 flex items-center gap-3">
-		<Sparkles class="w-5 h-5 text-rose-400" />
-		<div>
-			<h1 class="font-semibold text-white">Ask Your Coach</h1>
-			<p class="text-xs text-gray-500">Powered by your dating book</p>
+	<div class="px-6 py-4 border-b border-gray-800">
+		<div class="flex items-center justify-between gap-3 mb-3">
+			<div class="flex items-center gap-3">
+				<Sparkles class="w-5 h-5 text-rose-400" />
+				<div>
+					<h1 class="font-semibold text-white">Ask Your Coach</h1>
+					<p class="text-xs text-gray-500">Powered by your dating book</p>
+				</div>
+			</div>
+			<!-- Active Assistant Badge in Header -->
+			{#if activeAssistant && !sessionLoading}
+				<AssistantBadge
+					assistantType={activeAssistant}
+					status="active"
+					exchangeCount={exchangeCount}
+					showTooltip={true}
+					size="md"
+					variant="pill"
+				/>
+			{/if}
 		</div>
+		<!-- AI Assistant Controls -->
+		{#if userProfile && !sessionLoading}
+			<AIAssistantControls
+				bind:userProfile
+				bind:activeAssistant
+				{exchangeCount}
+				onActivate={handleActivateAssistant}
+				onDeactivate={handleDeactivateAssistant}
+				onConfigure={handleConfigureAssistant}
+			/>
+		{/if}
 	</div>
 
 	<!-- Messages -->
@@ -125,7 +217,27 @@
 
 		{#each messages as msg (msg.id)}
 			<div class={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-				<div class={`max-w-[75%] ${msg.role === 'user' ? 'bg-rose-600 text-white rounded-2xl rounded-tr-sm' : 'bg-gray-800 text-gray-100 rounded-2xl rounded-tl-sm'} px-4 py-3`}>
+				<div class={`max-w-[75%] px-4 py-3 rounded-2xl ${
+					msg.role === 'user'
+						? 'bg-rose-600 text-white rounded-tr-sm'
+						: msg.assistantType === 'bestie'
+							? 'bg-rose-500/20 text-rose-100 rounded-tl-sm border border-rose-500/30'
+							: msg.assistantType === 'wingman'
+								? 'bg-blue-500/20 text-blue-100 rounded-tl-sm border border-blue-500/30'
+								: 'bg-gray-800 text-gray-100 rounded-tl-sm'
+				}`}>
+					<!-- Assistant type badge for AI messages -->
+					{#if msg.role === 'assistant' && msg.assistantType}
+						<div class="mb-2 flex items-center gap-1.5">
+							<AssistantBadge
+								assistantType={msg.assistantType}
+								status="active"
+								size="sm"
+								variant="compact"
+								showTooltip={false}
+							/>
+						</div>
+					{/if}
 					<p class="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
 					{#if msg.citations && msg.citations.length > 0}
 						<div class="mt-2 pt-2 border-t border-white/10">
