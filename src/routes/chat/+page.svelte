@@ -6,6 +6,7 @@
 	import AssistantBadge from '$lib/components/AssistantBadge.svelte';
 	import type { ChatMessage, UserProfile, AssistantType } from '$lib/types';
 	import { createSessionStore } from '$lib/client/session-store';
+	import { user } from '$lib/verified-vibe/stores';
 
 	let messages = $state<ChatMessage[]>([]);
 	let input = $state('');
@@ -28,8 +29,53 @@
 	];
 
 	onMount(async () => {
-		const stored = localStorage.getItem('pdc_profile');
-		if (stored) userProfile = JSON.parse(stored);
+		// Try to load user profile from multiple sources
+		let stored = localStorage.getItem('pdc_profile');
+		
+		// If not found, try Verified Vibe user
+		if (!stored) {
+			const vvUser = localStorage.getItem('vv_user');
+			if (vvUser) {
+				stored = vvUser;
+			}
+		}
+		
+		// If not found, try Verified Vibe profile
+		if (!stored) {
+			stored = localStorage.getItem('vv_profile');
+		}
+		
+		// If still not found, try draft profile
+		if (!stored) {
+			stored = localStorage.getItem('vv_profile_draft');
+		}
+		
+		// If still not found, try to get from user store (Verified Vibe)
+		if (!stored && $user) {
+			userProfile = {
+				gender: $user.gender || 'prefer_not_to_say',
+				ageRange: $user.ageRange || '',
+				datingApp: $user.datingApp || '',
+				relationshipGoal: $user.relationshipGoal || ''
+			};
+		}
+		
+		if (stored && !userProfile) {
+			try {
+				const profile = JSON.parse(stored);
+				// Ensure gender is set
+				if (profile.gender) {
+					userProfile = profile;
+				}
+			} catch (e) {
+				console.error('Failed to parse profile:', e);
+			}
+		}
+
+		// Debug logging
+		console.log('Chat page - userProfile:', userProfile);
+		console.log('Chat page - user store:', $user);
+		console.log('Chat page - localStorage keys:', Object.keys(localStorage));
 
 		// Get user ID from localStorage or auth
 		const storedUserId = localStorage.getItem('pdc_user_id');
@@ -273,6 +319,28 @@
 				rows="1"
 				class="flex-1 bg-transparent text-sm text-white placeholder-gray-500 resize-none outline-none leading-relaxed max-h-32"
 			></textarea>
+			<!-- AI Bestie Toggle Button -->
+			{#if userProfile}
+				<button
+					onclick={() => {
+						if (activeAssistant) {
+							handleDeactivateAssistant();
+						} else {
+							handleActivateAssistant(userProfile?.gender === 'woman' ? 'bestie' : 'wingman');
+						}
+					}}
+					disabled={loading || sessionLoading}
+					title={activeAssistant ? 'Deactivate AI Assistant' : 'Activate AI Assistant'}
+					class={`p-2 rounded-xl transition-all flex-shrink-0 ${
+						activeAssistant
+							? 'bg-rose-600 hover:bg-rose-700 text-white'
+							: 'bg-gray-700 hover:bg-gray-600 text-gray-400 hover:text-gray-300'
+					} disabled:opacity-40 disabled:cursor-not-allowed`}
+				>
+					<Sparkles class="w-4 h-4" />
+				</button>
+			{/if}
+			<!-- Send Button -->
 			<button
 				onclick={() => sendMessage()}
 				disabled={!input.trim() || loading}
