@@ -1,7 +1,8 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { 
-    discoveryProfiles, 
+  import { page } from '$app/stores';
+  import {
+    discoveryProfiles,
     discoveryIndex,
     nextDiscoveryProfile,
     addDiscoveryProfile,
@@ -22,13 +23,52 @@
   let error = $state<string | null>(null);
   let isAnimating = $state(false);
   let cardStackContainer: HTMLElement | undefined = $state();
+  let selectedProfile = $state<DiscoveryProfile | null>(null);
+  let isViewingSelected = $state(false);
 
   const limit = 10;
   const passedIds = $state<Set<string>>(new Set());
   const likedIds = $state<Set<string>>(new Set());
 
   // Get current profile
-  let currentProfile = $derived($discoveryProfiles[$discoveryIndex] || null);
+  let currentProfile = $derived(isViewingSelected ? selectedProfile : ($discoveryProfiles[$discoveryIndex] || null));
+
+  // Load a specific profile by ID
+  async function loadSpecificProfile(profileId: string) {
+    try {
+      const { getSupabaseClient } = await import('$lib/client/supabase');
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
+      }
+
+      const response = await fetch(`/api/verified-vibe/profile/${profileId}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Profile not found');
+      }
+
+      const result = await response.json();
+      selectedProfile = result.data;
+      isViewingSelected = true;
+    } catch (err) {
+      console.error('Error loading profile:', err);
+      error = err instanceof Error ? err.message : 'Failed to load profile';
+      setError(error);
+    }
+  }
+
+  // Handle back from selected profile view
+  function handleBackFromSelected() {
+    isViewingSelected = false;
+    selectedProfile = null;
+  }
 
   // Load initial profiles
   async function loadProfiles() {
@@ -85,9 +125,17 @@
     }
   }
 
+  // Check for profile query parameter on page load
+  $effect.pre(() => {
+    const profileId = $page.url.searchParams.get('profile');
+    if (profileId) {
+      loadSpecificProfile(profileId);
+    }
+  });
+
   // Load initial batch on mount
   $effect.pre(() => {
-    if ($discoveryProfiles.length === 0) {
+    if (!isViewingSelected && $discoveryProfiles.length === 0) {
       loadProfiles();
     }
   });
@@ -259,8 +307,17 @@
 <div class="discover-screen">
   <!-- Header -->
   <div class="discover-header" transition:slide={{ duration: 300, axis: 'y' }}>
-    <h1 class="header-title">Discover</h1>
-    <p class="header-subtitle">Find your match</p>
+    {#if isViewingSelected}
+      <button class="back-btn" onclick={handleBackFromSelected} aria-label="Go back">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+      </button>
+    {/if}
+    <div class="header-content">
+      <h1 class="header-title">Discover</h1>
+      <p class="header-subtitle">Find your match</p>
+    </div>
   </div>
 
   <!-- Error Message -->
@@ -347,9 +404,39 @@
 
   /* Header */
   .discover-header {
-    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
     border-bottom: 1px solid var(--border-1);
     background: var(--bg-1);
+  }
+
+  .back-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    color: var(--text-1);
+    transition: all 200ms ease;
+    flex-shrink: 0;
+  }
+
+  .back-btn:hover {
+    background: var(--bg-3);
+    border-color: var(--border-2);
+  }
+
+  .back-btn:active {
+    transform: scale(0.95);
+  }
+
+  .header-content {
+    flex: 1;
   }
 
   .header-title {
