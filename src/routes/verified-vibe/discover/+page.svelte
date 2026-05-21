@@ -359,11 +359,11 @@
     {/if}
   </div>
 
-  <!-- Action Buttons -->
-  {#if currentProfile}
+  <!-- Action Buttons (only show for discovery feed, not for selected profiles) -->
+  {#if currentProfile && !isViewingSelected}
     <div class="action-buttons" transition:slide={{ duration: 300, axis: 'y' }}>
-      <button 
-        class="btn btn-pass" 
+      <button
+        class="btn btn-pass"
         onclick={handlePass}
         disabled={isAnimating}
         aria-label="Pass on this profile"
@@ -371,8 +371,8 @@
         <span class="btn-icon">✕</span>
         <span class="btn-text">Pass</span>
       </button>
-      <button 
-        class="btn btn-like" 
+      <button
+        class="btn btn-like"
         onclick={handleLike}
         disabled={isAnimating}
         aria-label="Like this profile"
