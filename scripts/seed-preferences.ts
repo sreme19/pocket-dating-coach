@@ -92,13 +92,13 @@ function parsePreferencesMarkdown(markdown: string): PreferencesJSON {
   return prefs;
 }
 
-function getProfileIdFromFolder(
+async function getUserIdFromFolder(
   folderName: string,
   staticDir: string,
-  gender: 'man' | 'woman'
-): string | null {
-  const genderDir = gender === 'man' ? 'male_profiles' : 'female_profiles';
-  const profileJsonPath = path.join(staticDir, genderDir, folderName, 'profile.json');
+  supabase: any
+): Promise<string | null> {
+  // Read the profile.json to get the name
+  const profileJsonPath = path.join(staticDir, 'female_profiles', folderName, 'profile.json');
 
   if (!fs.existsSync(profileJsonPath)) {
     return null;
@@ -106,7 +106,21 @@ function getProfileIdFromFolder(
 
   try {
     const profileJson = JSON.parse(fs.readFileSync(profileJsonPath, 'utf-8'));
-    return profileJson.id || null;
+    const firstName = profileJson.name;
+
+    // Search verified_vibe_users by first_name (set during profile seeding)
+    const { data, error } = await supabase
+      .from('verified_vibe_users')
+      .select('id')
+      .eq('first_name', firstName)
+      .eq('gender', 'woman')
+      .single();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return data.id;
   } catch {
     return null;
   }
@@ -145,10 +159,10 @@ async function seedPreferences() {
       continue;
     }
 
-    // Get profile ID from profile.json
-    const profileId = getProfileIdFromFolder(folder, staticDir, 'woman');
-    if (!profileId) {
-      console.warn(`⚠ Could not find profile ID for ${folder}`);
+    // Get user ID from verified_vibe_users by matching first_name
+    const userId = await getUserIdFromFolder(folder, staticDir, supabase);
+    if (!userId) {
+      console.warn(`⚠ Could not find user ID for ${folder}`);
       skipCount++;
       continue;
     }
@@ -162,7 +176,7 @@ async function seedPreferences() {
       const { error } = await supabase
         .from('verified_vibe_users')
         .update({ preferences })
-        .eq('id', profileId);
+        .eq('id', userId);
 
       if (error) {
         console.error(`✗ Failed to update preferences for ${folder}:`, error.message);
