@@ -16,6 +16,7 @@ export type Database = {
 					about: string | null;
 					looking: string | null;
 					trust_score: number;
+					preferences: Record<string, unknown> | null;
 					created_at: string;
 					updated_at: string;
 				};
@@ -30,6 +31,7 @@ export type Database = {
 					about?: string | null;
 					looking?: string | null;
 					trust_score?: number;
+					preferences?: Record<string, unknown> | null;
 					created_at?: string;
 					updated_at?: string;
 				};
@@ -74,6 +76,7 @@ export type Database = {
 					user1_id: string;
 					user2_id: string;
 					status: 'pending' | 'mutual' | 'rejected';
+					ai_bestie_active: boolean;
 					created_at: string;
 				};
 				Insert: {
@@ -81,6 +84,7 @@ export type Database = {
 					user1_id: string;
 					user2_id: string;
 					status?: 'pending' | 'mutual' | 'rejected';
+					ai_bestie_active?: boolean;
 					created_at?: string;
 				};
 				Update: Partial<Database['public']['Tables']['verified_vibe_matches']['Insert']>;

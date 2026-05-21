@@ -30,6 +30,11 @@
   let lastMessageId = $state<string | null>(null);
   let pollInterval: ReturnType<typeof setInterval> | null = null;
   let respondedToMessageIds = $state<Set<string>>(new Set());
+  let isActivating = false;
+  let aiBestieActive = $state(false);
+
+  interface CoachingCard { signal: string; read: string; }
+  let coachingCards = $state<Map<string, CoachingCard>>(new Map());
 
   // Utility function to validate UUID format
   function isValidUUID(id: string): boolean {
@@ -37,9 +42,16 @@
     return uuidRegex.test(id);
   }
 
-  // Get conversation ID from route
+  // Get conversation ID from route and restore Bestie state + poller
   $effect(() => {
     conversationId = $page.params.conversationId || '';
+    if (conversationId) {
+      const saved = localStorage.getItem(`ai-bestie-active-${conversationId}`);
+      if (saved === 'true' && !activeAssistant) {
+        activeAssistant = 'bestie';
+        startBestiePoller();
+      }
+    }
   });
 
   onMount(async () => {
@@ -80,7 +92,9 @@
       }
 
       const data = await response.json();
-      const { matchedUser, messages: initialMessages } = data.data;
+      const { matchedUser, messages: initialMessages, aiBestieActive: bestieActive } = data.data;
+
+      aiBestieActive = bestieActive ?? false;
 
       // Set current match in store
       setCurrentMatch(conversationId, matchedUser);
@@ -90,18 +104,8 @@
         messages.set(initialMessages);
       }
 
-      // Subscribe to realtime message updates (only if conversationId is a valid UUID)
-      if (isValidUUID(conversationId)) {
-        // TODO: Fix realtime subscriptions - polling disabled for now
-        // subscribeToRealtimeMessages();
-
-        // Subscribe to typing indicators
-        // if ($user) {
-        //   subscribeToRealtimeTyping();
-        // }
-      } else {
-        console.warn('Invalid conversation ID format, skipping realtime subscriptions:', conversationId);
-      }
+      // Realtime disabled: anon key can't subscribe to RLS-protected tables
+      // Auto-response uses polling instead (startBestiePoller)
 
       // Subscribe to match user's online status
       // if (matchedUser) {
@@ -119,6 +123,7 @@
       isLoading = false;
     }
   });
+
 
   onDestroy(() => {
     // Unsubscribe from realtime updates
@@ -203,12 +208,11 @@
             return msgs;
           });
 
-          // If AI Bestie is active and this is a message from Adrian (not from us), auto-respond
+          // If AI Bestie is active and this is a message from Adrian, auto-respond
           if (activeAssistant === 'bestie' && message.senderId !== $user?.id) {
-            console.log('AI Bestie auto-responding to message from Adrian');
             setTimeout(() => {
-              generateAndSendAIBestieResponse(message.content);
-            }, 1000); // Delay 1 second to feel more natural
+              generateAndSendAIBestieResponse(message.content, message.id);
+            }, 1500);
           }
 
           scrollToBottom();
@@ -508,36 +512,135 @@
    * Handle activate assistant
    */
   async function handleActivateAssistant(assistantType: AssistantType) {
+    if (isActivating || activeAssistant) return;
+    isActivating = true;
     try {
-      console.log('Activating assistant:', assistantType);
       activeAssistant = assistantType;
-      
-      // Save active state to localStorage
       localStorage.setItem(`ai-bestie-active-${conversationId}`, 'true');
-      
-      // Send opening message from AI Bestie (impersonating the female user)
+
+      // Persist AI Bestie active status to Supabase so Adrian's UI can show the intro card
+      const { getSupabaseClient } = await import('$lib/client/supabase');
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      await fetch('/api/verified-vibe/ai-bestie/activate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
+        body: JSON.stringify({ conversationId })
+      });
+      aiBestieActive = true;
+
       await sendAIBestieOpeningMessage();
-      console.log('Assistant activated successfully');
+      startBestiePoller();
     } catch (err) {
       console.error('Failed to activate assistant:', err);
+      activeAssistant = null;
+      localStorage.removeItem(`ai-bestie-active-${conversationId}`);
+    } finally {
+      isActivating = false;
     }
   }
 
-  /**
-   * Poll for new messages when AI Bestie is active
-   * DISABLED - causing too many messages
-   */
-  // async function pollForNewMessages() {
-  //   ...
-  // }
+  function startBestiePoller() {
+    if (pollInterval) clearInterval(pollInterval);
+    pollInterval = setInterval(async () => {
+      if (!activeAssistant || !$user || !conversationId) return;
+      try {
+        const { getSupabaseClient } = await import('$lib/client/supabase');
+        const supabase = getSupabaseClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(`/api/verified-vibe/chat/${conversationId}`, {
+          headers: { 'Authorization': `Bearer ${session?.access_token || ''}` }
+        });
+        if (!res.ok) return;
+        const { data } = await res.json();
+        const fetched: Message[] = (data.messages || []).map((m: any) => ({
+          id: m.id,
+          matchId: m.matchId || conversationId,
+          senderId: m.senderId,
+          content: m.content,
+          createdAt: new Date(m.createdAt)
+        }));
+        // Merge any new messages into the store
+        messages.update(existing => {
+          const existingIds = new Set(existing.map(m => m.id));
+          const newMsgs = fetched.filter(m => !existingIds.has(m.id));
+          if (newMsgs.length > 0) scrollToBottom();
+          return [...existing, ...newMsgs];
+        });
+        // Auto-respond to the latest unresponded message from Adrian
+        const latest = fetched.filter(m => m.senderId !== $user?.id).at(-1);
+        if (latest && !respondedToMessageIds.has(latest.id)) {
+          await generateAndSendAIBestieResponse(latest.content, latest.id);
+        }
+      } catch (err) {
+        console.error('Bestie poller error:', err);
+      }
+    }, 5000);
+  }
 
-  /**
-   * Generate and send AI Bestie response to Adrian's message
-   * DISABLED - causing too many messages
-   */
-  // async function generateAndSendAIBestieResponse(adrianMessage: string) {
-  //   ...
-  // }
+  async function generateAndSendAIBestieResponse(adrianMessage: string, messageId: string) {
+    if (!$user || !$currentMatch) return;
+    if (respondedToMessageIds.has(messageId)) return;
+
+    respondedToMessageIds = new Set([...respondedToMessageIds, messageId]);
+
+    try {
+      const { getSupabaseClient } = await import('$lib/client/supabase');
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      // Get signal + read + suggestedQuestion from AI Bestie
+      const response = await fetch('/api/verified-vibe/ai-bestie/generate-response', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
+        body: JSON.stringify({
+          conversationId,
+          adrianMessage,
+          matchName: $currentMatch.firstName,
+          userId: $user?.id
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to generate AI Bestie response');
+
+      const { signal, read, suggestedQuestion } = await response.json();
+
+      // Store coaching card — only visible to Neha, never sent to Adrian
+      coachingCards = new Map(coachingCards.set(messageId, { signal, read }));
+
+      // Auto-send the suggested question to Adrian
+      const sendResponse = await fetch('/api/verified-vibe/chat/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`
+        },
+        body: JSON.stringify({ conversationId, content: suggestedQuestion })
+      });
+
+      if (!sendResponse.ok) throw new Error('Failed to send AI Bestie question');
+
+      const sentData = await sendResponse.json();
+      addMessage({
+        id: sentData.data.message.id,
+        matchId: conversationId,
+        senderId: $user.id,
+        content: suggestedQuestion,
+        createdAt: new Date(sentData.data.message.createdAt)
+      });
+      scrollToBottom();
+    } catch (err) {
+      console.error('AI Bestie auto-response failed:', err);
+      respondedToMessageIds.delete(messageId);
+    }
+  }
+
   async function sendAIBestieOpeningMessage() {
     try {
       if (!$user || !$currentMatch) {
@@ -716,6 +819,45 @@
     </div>
   {/if}
 
+  <!-- AI Bestie Intro Card — visible to Adrian (male) only when AI Bestie is active -->
+  {#if aiBestieActive && $currentMatch?.gender === 'woman'}
+    {@const cleared = Math.min($messages.filter(m => m.senderId === $user?.id).length, 5)}
+    {@const total = 5}
+    <div class="bestie-intro-card" transition:slide={{ duration: 300, axis: 'y' }}>
+      <div class="bestie-intro-header">
+        <div class="bestie-intro-icon">✨</div>
+        <div class="bestie-intro-title">
+          <span class="bestie-intro-name">AI Bestie</span>
+          <span class="bestie-intro-subtitle">{$currentMatch.firstName.toUpperCase()}'S AI BESTIE</span>
+        </div>
+      </div>
+      <p class="bestie-intro-body">
+        <strong>{$currentMatch.firstName}</strong> asked AI Bestie to get to know you first.
+        Anything you share here, <strong>{$currentMatch.firstName}</strong> sees — directly,
+        or summarised by AI Bestie. Bring your best.
+      </p>
+      <div class="bestie-intro-divider"></div>
+      <div class="bestie-intro-progress-section">
+        <div class="bestie-intro-progress-header">
+          <span class="bestie-intro-joins"><strong>{$currentMatch.firstName}</strong> joins in</span>
+          <span class="bestie-intro-cleared">{cleared}/{total} cleared</span>
+        </div>
+        <div class="bestie-intro-progress-bar">
+          <div class="bestie-intro-progress-star">★</div>
+          <div class="bestie-intro-bar-track">
+            <div class="bestie-intro-bar-fill" style="width: {(cleared / total) * 100}%"></div>
+          </div>
+        </div>
+        <p class="bestie-intro-drop-in">She can also drop in herself, any time.</p>
+      </div>
+      <div class="bestie-intro-divider"></div>
+      <p class="bestie-intro-footer">
+        Not a fit? AI Bestie will let {$currentMatch.firstName} know kindly.
+        Your replies still go toward strengthening <em>your</em> profile.
+      </p>
+    </div>
+  {/if}
+
   <!-- Messages Container -->
   <div class="messages-container" bind:this={messagesContainer}>
     {#if isLoading}
@@ -744,6 +886,16 @@
               <span class="message-time">{formatTime(message.createdAt)}</span>
             </div>
           </div>
+          {#if !isSentMessage(message) && activeAssistant === 'bestie' && coachingCards.get(message.id)}
+            {@const card = coachingCards.get(message.id)!}
+            <div class="bestie-coaching-card" transition:slide={{ duration: 300 }}>
+              <div class="bestie-card-header">
+                <span class="bestie-label">✨ AI Bestie</span>
+                <span class="bestie-signal">{card.signal}</span>
+              </div>
+              <p class="bestie-read">{card.read}</p>
+            </div>
+          {/if}
         {/each}
 
         <!-- Typing Indicator -->
@@ -1307,6 +1459,190 @@
   .toggle-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  /* AI Bestie Intro Card (shown to Adrian) */
+  .bestie-intro-card {
+    margin: 12px 16px 0;
+    padding: 16px;
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    border-top: 3px solid #a855f7;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .bestie-intro-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .bestie-intro-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #a855f7, #7c3aed);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+
+  .bestie-intro-title {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .bestie-intro-name {
+    font-size: 18px;
+    font-weight: 700;
+    color: #c084fc;
+    font-style: italic;
+  }
+
+  .bestie-intro-subtitle {
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(168, 85, 247, 0.7);
+    letter-spacing: 1px;
+  }
+
+  .bestie-intro-body {
+    font-size: 13px;
+    color: var(--text-1);
+    margin: 0;
+    line-height: 1.6;
+  }
+
+  .bestie-intro-body strong {
+    color: #c084fc;
+  }
+
+  .bestie-intro-divider {
+    border: none;
+    border-top: 1px dashed rgba(168, 85, 247, 0.25);
+  }
+
+  .bestie-intro-progress-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .bestie-intro-progress-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .bestie-intro-joins {
+    font-size: 13px;
+    color: var(--text-1);
+  }
+
+  .bestie-intro-joins strong {
+    color: var(--text-1);
+  }
+
+  .bestie-intro-cleared {
+    font-size: 12px;
+    color: var(--text-3);
+    font-family: monospace;
+  }
+
+  .bestie-intro-progress-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .bestie-intro-progress-star {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #7c3aed;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: white;
+    flex-shrink: 0;
+  }
+
+  .bestie-intro-bar-track {
+    flex: 1;
+    height: 8px;
+    background: rgba(168, 85, 247, 0.2);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .bestie-intro-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #7c3aed, #a855f7);
+    border-radius: 4px;
+    transition: width 600ms ease;
+    min-width: 4px;
+  }
+
+  .bestie-intro-drop-in {
+    font-size: 12px;
+    color: var(--text-3);
+    margin: 0;
+  }
+
+  .bestie-intro-footer {
+    font-size: 12px;
+    color: var(--text-3);
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  /* AI Bestie Coaching Card */
+  .bestie-coaching-card {
+    align-self: flex-start;
+    max-width: 80%;
+    margin-left: 4px;
+    padding: 10px 14px;
+    background: rgba(168, 85, 247, 0.08);
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    border-left: 3px solid #a855f7;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .bestie-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .bestie-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #a855f7;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .bestie-signal {
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .bestie-read {
+    font-size: 12px;
+    color: var(--text-2);
+    margin: 0;
+    line-height: 1.5;
+    font-style: italic;
   }
 
   /* Mobile Responsive */

@@ -1,8 +1,8 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { getClaudeClient, CLAUDE_MODEL, MAX_TOKENS } from '$lib/claude';
+import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
 
-export const POST: RequestHandler = async ({ request, locals }) => {
+export const POST: RequestHandler = async ({ request }) => {
 	try {
 		const { conversationId, matchName } = await request.json();
 
@@ -12,14 +12,20 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		const client = getClaudeClient();
 
-		// Generate opening message from AI Bestie impersonating the female user
 		const message = await client.messages.create({
 			model: CLAUDE_MODEL,
 			max_tokens: 150,
 			messages: [
 				{
 					role: 'user',
-					content: `You are an AI Bestie helping a woman continue a dating conversation. Generate a natural, engaging opening message to send to ${matchName}. The message should be from the woman's perspective, friendly and flirty but not too forward. Keep it short (1-2 sentences). Just provide the message, nothing else.`
+					content: `You are AI Bestie — a sharp dating coach helping a woman open an interview-style conversation with a male match named ${matchName}.
+
+Generate a single opening question to kick off the conversation. It should:
+- Be warm but purposeful — this is an evaluation, not small talk
+- Invite him to reveal something about his values, goals, or lifestyle
+- Be one sentence, written in the woman's voice, ready to send
+
+Return only the question. No extra text.`
 				}
 			]
 		});
@@ -29,9 +35,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			throw new Error('Unexpected response type from Claude');
 		}
 
-		return json({
-			message: content.text
-		});
+		return json({ message: content.text.trim() });
 	} catch (error) {
 		console.error('Error generating opening message:', error);
 		return json(
