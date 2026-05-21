@@ -15,6 +15,7 @@
 		"ingest": "npx tsx --env-file=.env.local scripts/ingest.ts",
 		"seed:profiles": "tsx --env-file=.env.local scripts/seed-profiles.ts",
 		"seed:preferences": "tsx --env-file=.env.local scripts/seed-preferences.ts",
+		"verify:preferences": "tsx --env-file=.env.local scripts/verify-preferences-migration.ts",
 		"setup:fal": "node scripts/setup-fal-key.js",
 		"configure:rls": "tsx --env-file=.env.local scripts/configure-rls.ts",
 		"apply:rls": "tsx --env-file=.env.local scripts/apply-rls-policies.ts",
