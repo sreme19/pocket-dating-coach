@@ -5,6 +5,7 @@
   import { calculateTrustScore, getTrustScoreLabel } from '$lib/verified-vibe/server/trustScore';
   import { upsertProfile } from '$lib/verified-vibe/services/profileService';
   import { getSupabaseClient } from '$lib/client/supabase';
+  import { unregisterPushNotifications } from '$lib/push-notifications';
   import { ShieldCheck, Pencil, Check, X, MapPin, Sparkles, Wand2, LogOut, Heart, Zap } from 'lucide-svelte';
   import type { ProfileIntakeData } from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
   import type { PhotoEnhanceResult } from '$lib/photo-enhance/types';
@@ -121,10 +122,12 @@
 
   async function handleSignOut() {
     try {
+      // Unregister push notifications first (needs active session for backend call)
+      // This also clears WebView cookies, localStorage, and sessionStorage
+      await unregisterPushNotifications();
+
       const supabase = getSupabaseClient();
       await supabase.auth.signOut();
-      // Clear local storage
-      localStorage.clear();
       // Redirect to auth page
       await goto('/verified-vibe/auth');
     } catch (err) {
