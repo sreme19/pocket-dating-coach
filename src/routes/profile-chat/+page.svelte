@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { Send, Loader2, ChevronRight, Sparkles } from 'lucide-svelte';
 	import { onMount, tick } from 'svelte';
+	import VoiceDictation from '$lib/components/VoiceDictation.svelte';
 	import { getProfileChatHistory, addProfileChatMessage } from '$lib/male-profile';
 	import type { ProfileChatMessage, UserProfile, AssistantType } from '$lib/types';
 	import { createSessionStore } from '$lib/client/session-store';
@@ -247,7 +248,7 @@
 				</div>
 			{/if}
 
-			<div class="flex gap-3">
+			<div class="flex gap-3 items-end">
 				<input
 					type="text"
 					bind:value={input}
@@ -256,6 +257,8 @@
 					disabled={loading || userQuestionCount >= MAX_EXCHANGES}
 					class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white placeholder-slate-500 focus:border-rose-500 outline-none disabled:opacity-50"
 				/>
+				<!-- Voice Dictation -->
+				<VoiceDictation onUse={(text) => { input = text; }} disabled={loading || userQuestionCount >= MAX_EXCHANGES} />
 				<!-- AI Bestie Toggle Button -->
 				{#if userProfile}
 					<button

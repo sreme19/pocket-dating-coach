@@ -30,7 +30,7 @@
 	});
 
 	function startEdit(field: keyof MaleProfile) {
-		if (field === 'citations' || field === 'generatedAt' || field === 'feedback') return;
+		if (field === 'citations' || field === 'generatedAt' || field === 'feedback' || field === 'updatedAt') return;
 		editingField = field;
 		editValue = String(profile?.[field] ?? '');
 	}
@@ -103,6 +103,8 @@
 	const fieldLabels: Record<string, string> = {
 		headline: 'Headline',
 		elevatorPitch: 'About You',
+		coreStrengths: 'Core Strengths',
+		growthEdges: 'Growth Edges',
 		firstDateVibe: 'First Date Vibe',
 		redFlagsAvoided: 'What You Avoid',
 		compatibilitySignals: 'Compatibility Signals',
@@ -165,6 +167,62 @@
 						<p class="text-lg leading-relaxed mb-3">{profile.elevatorPitch}</p>
 						<p class="text-xs text-slate-500">Your story in a nutshell</p>
 					</div>
+
+					<!-- Core Strengths -->
+					{#if profile.coreStrengths?.length}
+						<div
+							class="bg-slate-800/50 border border-slate-700 rounded-xl p-6 group hover:border-rose-500/30 transition-colors"
+						>
+							<div class="flex items-start justify-between mb-3">
+								<p class="text-xs uppercase tracking-wider text-slate-500">Core Strengths</p>
+								<button
+									onclick={() => startEdit('coreStrengths')}
+									class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-400 transition-all"
+									title="Edit"
+								>
+									<Edit2 class="w-4 h-4" />
+								</button>
+							</div>
+							<ul class="space-y-2 mb-3">
+								{#each profile.coreStrengths as strength}
+									<li class="flex items-start gap-3">
+										<span class="text-amber-400 mt-1 flex-shrink-0">✦</span>
+										<span>{strength}</span>
+									</li>
+								{/each}
+							</ul>
+							<p class="text-xs text-slate-500">What makes you genuinely stand out</p>
+						</div>
+					{/if}
+
+					<!-- Growth Edges -->
+					{#if profile.growthEdges?.length}
+						<div
+							class="bg-slate-800/30 border border-slate-700/60 rounded-xl p-6 group hover:border-slate-600 transition-colors"
+						>
+							<div class="flex items-start justify-between mb-3">
+								<div>
+									<p class="text-xs uppercase tracking-wider text-slate-500">Growth Edges</p>
+									<p class="text-xs text-slate-600 mt-0.5">Honest self-awareness — a strength in itself</p>
+								</div>
+								<button
+									onclick={() => startEdit('growthEdges')}
+									class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-300 transition-all"
+									title="Edit"
+								>
+									<Edit2 class="w-4 h-4" />
+								</button>
+							</div>
+							<ul class="space-y-2 mb-3">
+								{#each profile.growthEdges as edge}
+									<li class="flex items-start gap-3 text-slate-400">
+										<span class="text-slate-500 mt-1 flex-shrink-0">◦</span>
+										<span class="italic">{edge}</span>
+									</li>
+								{/each}
+							</ul>
+						</div>
+					{/if}
 
 					<!-- First Date Vibe -->
 					<div

@@ -134,6 +134,8 @@ export interface MaleProfileIntake {
 export interface MaleProfile {
 	headline: string;
 	elevatorPitch: string;
+	coreStrengths: string[];
+	growthEdges: string[];
 	firstDateVibe: string;
 	redFlagsAvoided: string[];
 	compatibilitySignals: string[];
