@@ -124,6 +124,36 @@ export type Database = {
 				Update: Partial<Database['public']['Tables']['verified_vibe_typing_indicators']['Insert']>;
 				Relationships: [];
 			};
+			ai_assistant_profiles: {
+				Row: {
+					id: string;
+					user_id: string;
+					profile_type: 'preferences' | 'personality';
+					data: Record<string, unknown>;
+					version: number;
+					reason: string;
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					user_id: string;
+					profile_type: 'preferences' | 'personality';
+					data: Record<string, unknown>;
+					version: number;
+					reason?: string;
+					created_at?: string;
+				};
+				Update: Partial<{
+					id?: string;
+					user_id: string;
+					profile_type: 'preferences' | 'personality';
+					data: Record<string, unknown>;
+					version: number;
+					reason?: string;
+					created_at?: string;
+				}>;
+				Relationships: [];
+			};
 			book_chunks: {
 				Row: {
 					id: string;

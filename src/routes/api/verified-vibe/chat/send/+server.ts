@@ -14,6 +14,72 @@ interface SendMessageResponse {
   };
 }
 
+async function extractAndUpdatePreferences(
+  senderId: string,
+  messageContent: string
+): Promise<void> {
+  // 1. Look up sender's gender/archetype from verified_vibe_users
+  const supabase = getSupabase();
+  const { data: sender } = await supabase
+    .from('verified_vibe_users')
+    .select('archetype, about, looking')
+    .eq('id', senderId)
+    .single();
+
+  // Only process female archetypes
+  const femaleArchetypes = ['spoilt_woman', 'safety_first_woman'];
+  if (!sender || !femaleArchetypes.includes(sender.archetype)) return;
+
+  // 2. Ask Claude to extract any preference signals from her message
+  const { getClaudeClient, CLAUDE_MODEL } = await import('$lib/claude');
+  const client = getClaudeClient();
+
+  const response = await client.messages.create({
+    model: CLAUDE_MODEL,
+    max_tokens: 200,
+    messages: [{
+      role: 'user',
+      content: `A woman sent this message to a potential match: "${messageContent}"
+
+Does this message reveal any new preferences, boundaries, dealbreakers, or what she values? Extract only what is explicitly stated — do not infer.
+
+Return JSON only:
+{
+  "newDealbreakers": [],
+  "newBoundaries": [],
+  "newEmotionalSignals": [],
+  "newPrivateNotes": []
+}
+Return empty arrays if nothing new is expressed. Never invent signals.`
+    }]
+  });
+
+  const block = response.content[0];
+  if (block.type !== 'text') return;
+
+  // 3. Parse and merge into preferences (strip markdown fences — Claude 4.x wraps JSON)
+  const raw = block.text.trim().replace(/^```json\s*/i, '').replace(/```$/, '');
+  const extracted = JSON.parse(raw);
+
+  // Only update if there's actually something new
+  const hasNew = extracted.newDealbreakers.length > 0 ||
+    extracted.newBoundaries.length > 0 ||
+    extracted.newEmotionalSignals.length > 0 ||
+    extracted.newPrivateNotes.length > 0;
+
+  if (!hasNew) return;
+
+  const { loadPreferences, updatePreferences } = await import('$lib/server/profile-service');
+  const current = await loadPreferences(senderId);
+
+  await updatePreferences(senderId, {
+    dealbreakers: [...new Set([...current.dealbreakers, ...extracted.newDealbreakers])],
+    boundaries: [...new Set([...current.boundaries, ...extracted.newBoundaries])],
+    emotionalSignals: [...new Set([...current.emotionalSignals, ...extracted.newEmotionalSignals])],
+    privateCompatibilityNotes: [...new Set([...current.privateCompatibilityNotes, ...extracted.newPrivateNotes])]
+  }, `Updated from message: "${messageContent.slice(0, 60)}..."`);
+}
+
 /**
  * POST /api/verified-vibe/chat/send
  *
@@ -156,6 +222,10 @@ export const POST: RequestHandler = async ({ request }) => {
         message
       }
     };
+
+    // Fire-and-forget insight extraction (non-blocking)
+    extractAndUpdatePreferences(user.id, body.content.trim())
+      .catch(err => console.error('[preferences] insight extraction failed (non-critical):', err));
 
     return json(response, { status: 201 });
   } catch (error) {

@@ -93,6 +93,28 @@ export async function upsertProfile(
     console.error('upsertProfile error:', error);
     throw error;
   }
+
+  // Fire-and-forget: initialize preferences for female archetypes
+  if (
+    updates.archetype === 'spoilt_woman' ||
+    updates.archetype === 'safety_first_woman'
+  ) {
+    const sessionToken = session.access_token;
+    fetch('/api/verified-vibe/preferences/initialize', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${sessionToken}`
+      },
+      body: JSON.stringify({
+        userId: session.user.id,
+        archetype: updates.archetype,
+        about: (data as any).about ?? null,
+        looking: (data as any).looking ?? null
+      })
+    }).catch(err => console.error('[preferences] init failed (non-critical):', err));
+  }
+
   return data as VVProfile;
 }
 
