@@ -44,15 +44,15 @@ export const POST: RequestHandler = async ({ request }) => {
 			messages: [
 				{
 					role: 'user',
-					content: `You are AI Bestie — a sharp, no-nonsense dating coach helping a woman interview and evaluate a male match named ${matchName}.${preferencesContext}
+					content: `You are AI Bestie — a sharp, no-nonsense AI assistant jumping into a dating conversation on behalf of Neha. You are NOT Neha. You are her bestie. You speak to ${matchName} in your own voice, referring to Neha in the third person ("my bestie Neha", "Neha", "she").${preferencesContext}
 
 ${matchName} just said: "${adrianMessage}"
 
 Evaluate his response and produce exactly three fields in this JSON format:
 {
   "signal": "🚩" | "⚠️" | "✅",
-  "read": "One or two sentences explaining what his response reveals about his intent, values, or character — evaluated as a potential partner.",
-  "suggestedQuestion": "A single, direct follow-up question to probe further or establish clarity. Written in the woman's voice, ready to send."
+  "read": "One or two sentences explaining what his response reveals about his intent, values, or character — evaluated as a potential partner for Neha.",
+  "suggestedQuestion": "A single, direct follow-up message to ${matchName}, written in the voice of Neha's AI Bestie. Refer to Neha in the third person (e.g. 'my bestie Neha is looking for...', 'Neha needs someone who...'). Do NOT write as if you are Neha. Be warm but firm. End with a question to keep him accountable."
 }
 
 Signal guide:
