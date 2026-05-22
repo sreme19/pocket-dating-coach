@@ -40,6 +40,7 @@
   let enhancing = $state(false);
   let enhanceError = $state<string | null>(null);
   let generationProgress = $state(0); // 0-5 for number of photos generated
+  let generatingField = $state<'personality' | 'looking' | 'lifestyle' | null>(null);
 
   // Personality reads data
   interface PersonalityRead {
@@ -86,7 +87,7 @@
   // Edit state — populated from generated/draft on entering enhance mode
   let editAbout = $state('');
   let editTags = $state<string[]>([]);
-  let editIntent = $state('');
+  let editIntent = $state<string[]>([]);   // "Looking for" — stored as chips
   let editLifestyle = $state<string[]>([]);
 
   // Photo upload
@@ -209,7 +210,14 @@
 
   const about = $derived(generated?.about ?? draft?.about ?? $user?.about ?? '');
   const personalityTags = $derived(generated?.personalityDescriptors ?? draft?.personalityTags ?? []);
-  const intentStatement = $derived(generated?.intentStatement ?? draft?.lookingFor ?? '');
+  // intentStatement stored as comma-separated string in GeneratedProfile; we split to array here
+  const intentTags = $derived(
+    (() => {
+      const raw = generated?.intentStatement ?? draft?.lookingFor ?? $user?.looking ?? '';
+      if (!raw) return [];
+      return raw.split(',').map((s: string) => s.trim()).filter(Boolean);
+    })()
+  );
   const lifestyleTags = $derived(generated?.lifestyleTags ?? draft?.interests ?? []);
 
   // AI photos take priority; fall back to uploaded real photos
@@ -235,7 +243,7 @@
   function enterEnhance() {
     editAbout = about;
     editTags = [...personalityTags];
-    editIntent = intentStatement;
+    editIntent = [...intentTags];
     editLifestyle = [...lifestyleTags];
     mode = 'enhance';
   }
@@ -244,7 +252,7 @@
     const updatedGenerated: GeneratedProfile = {
       about: editAbout,
       personalityDescriptors: editTags,
-      intentStatement: editIntent,
+      intentStatement: editIntent.join(', '),
       lifestyleTags: editLifestyle
     };
 
@@ -280,9 +288,49 @@
     editTags = val.split(',').map(t => t.trim()).filter(Boolean);
   }
 
+  function handleLookingEdit(e: Event) {
+    const val = (e.target as HTMLInputElement).value;
+    editIntent = val.split(',').map(t => t.trim()).filter(Boolean);
+  }
+
   function handleLifestyleEdit(e: Event) {
     const val = (e.target as HTMLInputElement).value;
     editLifestyle = val.split(',').map(t => t.trim()).filter(Boolean);
+  }
+
+  // ── Auto-fill ──────────────────────────────────────────────────────────────
+  async function autoFill(field: 'personality' | 'looking' | 'lifestyle') {
+    if (generatingField) return;
+    generatingField = field;
+
+    try {
+      const { getSupabaseClient } = await import('$lib/client/supabase');
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? '';
+
+      const res = await fetch('/api/verified-vibe/profile/auto-fill', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ field })
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error ?? 'Failed');
+
+      const items = (data.value as string).split(',').map((s: string) => s.trim()).filter(Boolean);
+
+      if (field === 'personality') editTags = items.slice(0, 3);
+      else if (field === 'looking')  editIntent = items.slice(0, 6);
+      else                           editLifestyle = items.slice(0, 6);
+    } catch (err) {
+      console.warn('[auto-fill]', err);
+    } finally {
+      generatingField = null;
+    }
   }
 </script>
 
@@ -439,7 +487,19 @@
       {/if}
       {#if personalityTags.length > 0 || mode === 'enhance'}
         <section class="section">
-          <div class="section-label">Personality</div>
+          <div class="section-label">
+            Personality
+            {#if mode === 'enhance'}
+              <button class="autofill-btn" onclick={() => autoFill('personality')} disabled={!!generatingField} title="Auto-generate from your profile">
+                {#if generatingField === 'personality'}
+                  <span class="autofill-spinner"></span>
+                {:else}
+                  ✨
+                {/if}
+                Auto-fill
+              </button>
+            {/if}
+          </div>
           {#if mode === 'enhance'}
             <input
               class="edit-input"
@@ -601,25 +661,57 @@
         {/if}
       </section>
 
-      <!-- Looking for / Intent -->
-      <section class="section">
-        <div class="section-label">Looking for</div>
-        {#if mode === 'enhance'}
-          <input
-            class="edit-input"
-            type="text"
-            bind:value={editIntent}
-            placeholder="What are you looking for?"
-          />
-        {:else}
-          <p class="intent-text">{intentStatement || '—'}</p>
-        {/if}
-      </section>
+      <!-- Looking for / Intent — chip-based (5-6 points) -->
+      {#if intentTags.length > 0 || mode === 'enhance'}
+        <section class="section">
+          <div class="section-label">
+            Looking for
+            {#if mode === 'enhance'}
+              <button class="autofill-btn" onclick={() => autoFill('looking')} disabled={!!generatingField} title="Auto-generate from your profile">
+                {#if generatingField === 'looking'}
+                  <span class="autofill-spinner"></span>
+                {:else}
+                  ✨
+                {/if}
+                Auto-fill
+              </button>
+            {/if}
+          </div>
+          {#if mode === 'enhance'}
+            <input
+              class="edit-input"
+              type="text"
+              value={editIntent.join(', ')}
+              onchange={handleLookingEdit}
+              placeholder="Serious long-term, Culturally aligned, ..."
+            />
+            <p class="edit-hint">Comma-separated, up to 6 points</p>
+          {:else}
+            <div class="tag-row">
+              {#each intentTags as tag}
+                <span class="tag looking">{tag}</span>
+              {/each}
+            </div>
+          {/if}
+        </section>
+      {/if}
 
       <!-- Lifestyle tags -->
       {#if lifestyleTags.length > 0 || mode === 'enhance'}
         <section class="section">
-          <div class="section-label">Lifestyle</div>
+          <div class="section-label">
+            Lifestyle
+            {#if mode === 'enhance'}
+              <button class="autofill-btn" onclick={() => autoFill('lifestyle')} disabled={!!generatingField} title="Auto-generate from your profile">
+                {#if generatingField === 'lifestyle'}
+                  <span class="autofill-spinner"></span>
+                {:else}
+                  ✨
+                {/if}
+                Auto-fill
+              </button>
+            {/if}
+          </div>
           {#if mode === 'enhance'}
             <input
               class="edit-input"
@@ -628,7 +720,7 @@
               onchange={handleLifestyleEdit}
               placeholder="Travel, Fitness, Food & Dining"
             />
-            <p class="edit-hint">Comma-separated</p>
+            <p class="edit-hint">Comma-separated, up to 6 tags</p>
           {:else}
             <div class="tag-row">
               {#each lifestyleTags as tag}
@@ -1512,6 +1604,50 @@
     background: var(--accent-tint);
     border-color: rgba(52,211,153,0.25);
     color: var(--accent-bright);
+  }
+
+  .tag.looking {
+    background: rgba(168,85,247,0.1);
+    border-color: rgba(168,85,247,0.25);
+    color: #a855f7;
+  }
+
+  /* ── Auto-fill button ── */
+  .autofill-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: rgba(168,85,247,0.1);
+    border: 1px solid rgba(168,85,247,0.3);
+    color: #a855f7;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 150ms ease;
+    text-transform: none;
+    letter-spacing: 0;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .autofill-btn:hover:not(:disabled) {
+    background: rgba(168,85,247,0.18);
+  }
+  .autofill-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .autofill-spinner {
+    width: 9px;
+    height: 9px;
+    border: 1.5px solid rgba(168,85,247,0.3);
+    border-top-color: #a855f7;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
   }
 
   /* Personality Reads */
