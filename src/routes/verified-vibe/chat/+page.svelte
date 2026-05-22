@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { fade, slide } from 'svelte/transition';
   import { user } from '$lib/verified-vibe/stores';
+  import BestieAvatar from '$lib/components/BestieAvatar.svelte';
   import type { Conversation } from '../api/verified-vibe/chat/conversations/+server';
 
   let conversations = $state<Conversation[]>([]);
@@ -99,7 +100,7 @@
         onclick={() => goto('/verified-vibe/chat/ai-bestie')}
         transition:slide={{ duration: 300 }}
       >
-        <div class="bestie-pinned-avatar">✨</div>
+        <BestieAvatar size={48} />
         <div class="conversation-content">
           <div class="conversation-header">
             <h3 class="conversation-name bestie-pinned-name">AI Bestie</h3>

@@ -8,6 +8,7 @@
   import { ShieldCheck, Pencil, Check, X, MapPin, Sparkles, Wand2, LogOut, Heart, Zap } from 'lucide-svelte';
   import type { ProfileIntakeData } from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
   import type { PhotoEnhanceResult } from '$lib/photo-enhance/types';
+  import BestieAvatar from '$lib/components/BestieAvatar.svelte';
 
   interface GeneratedProfile {
     about: string;
@@ -766,7 +767,7 @@
               AI Bestie
             </div>
             <div class="ai-bestie-card">
-              <div class="ai-bestie-icon">✨</div>
+              <BestieAvatar size={52} />
               <div class="ai-bestie-body">
                 <h3 class="ai-bestie-title">Your personal match advisor</h3>
                 <p class="ai-bestie-desc">AI Bestie screens your matches and gives you insights. Tell her exactly what to look for.</p>
