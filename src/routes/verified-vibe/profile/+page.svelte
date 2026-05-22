@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { user } from '$lib/verified-vibe/stores';
+  import { user, userVerification } from '$lib/verified-vibe/stores';
+  import { calculateTrustScore, getTrustScoreLabel } from '$lib/verified-vibe/server/trustScore';
   import { upsertProfile } from '$lib/verified-vibe/services/profileService';
   import { getSupabaseClient } from '$lib/client/supabase';
   import { ShieldCheck, Pencil, Check, X, MapPin, Sparkles, Wand2, LogOut, Heart, Zap } from 'lucide-svelte';
@@ -141,6 +142,11 @@
     if (rawGenerated) generated = JSON.parse(rawGenerated);
     if (rawPhotos) photos = JSON.parse(rawPhotos);
     if (rawAiPhotos) aiPhotos = JSON.parse(rawAiPhotos);
+
+    // If no local photos but user has an avatar from Supabase, use it as hero
+    if (photos.length === 0 && $user?.avatar) {
+      photos = [{ dataUrl: $user.avatar, label: 'lead' }];
+    }
   });
 
   async function handleEnhancePhotos() {
@@ -188,6 +194,14 @@
   const displayCity = $derived($user?.city || draft?.city || null);
   const displayArchetype = $derived(ARCHETYPE_LABELS[$user?.archetype ?? ''] ?? '');
   const trustScore = $derived($user?.trustScore ?? 0);
+  const trustScoreBreakdown = $derived(calculateTrustScore($userVerification || []));
+  const trustLabel = $derived(getTrustScoreLabel(trustScore));
+  const trustBreakdown = $derived([
+    { category: 'Identity', score: trustScoreBreakdown.idScore, max: 100, items: ['ID Verified', 'Face Match', 'Liveness'] },
+    { category: 'Lifestyle', score: trustScoreBreakdown.photoScore, max: 100, items: ['Photo Consistency', 'Self-Presentation'] },
+    { category: 'Intent', score: trustScoreBreakdown.qaScore, max: 100, items: ['Q&A Complete', 'Authentic Responses'] }
+  ]);
+  let showEditQAModal = $state(false);
 
   const about = $derived(generated?.about ?? draft?.about ?? '');
   const personalityTags = $derived(generated?.personalityDescriptors ?? draft?.personalityTags ?? []);
@@ -303,12 +317,12 @@
       <Heart size={16} />
       The Public read
     </button>
-    <button 
+    <button
       class="tab-btn {activeTab === 'boost' ? 'active' : ''}"
       onclick={() => activeTab = 'boost'}
     >
       <Zap size={16} />
-      Trust & boost
+      Trust & Boost
       <span class="boost-badge">+21</span>
     </button>
   </div>
@@ -354,6 +368,7 @@
     {#if activeTab === 'public'}
       <div class="profile-sections">
       <!-- The Vibe in Three Words -->
+      {#if $user?.gender === 'man' || $user?.gender === null}
       <section class="section">
         <div class="section-label">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -369,6 +384,7 @@
           {/each}
         </div>
       </section>
+      {/if}
 
       <!-- About -->
       <section class="section">
@@ -392,6 +408,7 @@
       </section>
 
       <!-- Personality Reads -->
+      {#if $user?.gender === 'man' || $user?.gender === null}
       <section class="section">
         <div class="section-label">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -415,6 +432,7 @@
           {/each}
         </div>
       </section>
+      {/if}
       {#if personalityTags.length > 0 || mode === 'enhance'}
         <section class="section">
           <div class="section-label">Personality</div>
@@ -438,6 +456,7 @@
       {/if}
 
       <!-- What He Brings -->
+      {#if $user?.gender === 'man' || $user?.gender === null}
       <section class="section">
         <div class="section-label">
           <Heart size={13} />
@@ -452,8 +471,10 @@
           {/each}
         </div>
       </section>
+      {/if}
 
       <!-- Here For -->
+      {#if $user?.gender === 'man' || $user?.gender === null}
       <section class="section">
         <div class="section-label">
           <Heart size={13} />
@@ -467,8 +488,10 @@
           </div>
         </div>
       </section>
+      {/if}
 
       <!-- Hard Nos -->
+      {#if $user?.gender === 'man' || $user?.gender === null}
       <section class="section">
         <div class="section-label">
           <X size={13} />
@@ -483,6 +506,7 @@
           {/each}
         </div>
       </section>
+      {/if}
       <section class="section">
         <div class="section-label">
           Photo Story
@@ -630,6 +654,54 @@
     {:else if activeTab === 'boost'}
       <!-- Trust & Boost Tab Content -->
       <div class="profile-sections">
+
+        <!-- Trust Score Section -->
+        <section class="section">
+          <div class="section-label">
+            <ShieldCheck size={13} />
+            Your Trust Score
+          </div>
+          <div class="trust-gauge-container">
+            <div class="gauge-visual">
+              <svg viewBox="0 0 200 200" class="radial-gauge">
+                <circle cx="100" cy="100" r="90" fill="none" stroke="var(--bg-3)" stroke-width="12" />
+                <circle
+                  cx="100"
+                  cy="100"
+                  r="90"
+                  fill="none"
+                  stroke="var(--accent)"
+                  stroke-width="12"
+                  stroke-dasharray="{(trustScore / 100) * 565} 565"
+                  stroke-linecap="round"
+                  transform="rotate(-90 100 100)"
+                />
+                <text x="100" y="100" text-anchor="middle" dy="0.3em" class="gauge-text">
+                  <tspan class="gauge-number">{trustScore}</tspan>
+                  <tspan x="100" dy="1.2em" class="gauge-label-small">/ 100</tspan>
+                </text>
+              </svg>
+            </div>
+            <p class="trust-label-text">{trustLabel}</p>
+            <div class="breakdown">
+              {#each trustBreakdown as item}
+                <div class="breakdown-item">
+                  <div class="breakdown-header">
+                    <span class="breakdown-name">{item.category}</span>
+                    <span class="breakdown-score">{Math.round(item.score)}/{item.max}</span>
+                  </div>
+                  <div class="breakdown-bar">
+                    <div class="breakdown-fill" style="width: {(item.score / item.max) * 100}%"></div>
+                  </div>
+                </div>
+              {/each}
+            </div>
+            <button class="btn btn-secondary full edit-qa-btn" onclick={() => showEditQAModal = true}>
+              Edit Q&A to boost score
+            </button>
+          </div>
+        </section>
+
         <section class="section">
           <div class="section-label">
             <Zap size={13} />
@@ -695,6 +767,32 @@
     {/if}
   </div>
 </div>
+
+<!-- Edit Q&A Modal -->
+{#if showEditQAModal}
+  <div class="modal-overlay" onclick={() => (showEditQAModal = false)} onkeydown={(e) => e.key === 'Escape' && (showEditQAModal = false)} role="button" tabindex="0">
+    <div class="modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()} role="button" tabindex="0">
+      <div class="modal-header">
+        <h3>Boost your Trust Score</h3>
+        <button class="close-btn" onclick={() => (showEditQAModal = false)}>✕</button>
+      </div>
+      <div class="modal-content">
+        <div class="qa-field">
+          <label for="qa-looking-for">What are you looking for?</label>
+          <textarea id="qa-looking-for" placeholder="Share your thoughts..."></textarea>
+        </div>
+        <div class="qa-field">
+          <label for="qa-first-date">What's your ideal first date?</label>
+          <textarea id="qa-first-date" placeholder="Share your thoughts..."></textarea>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick={() => (showEditQAModal = false)}>Cancel</button>
+        <button class="btn btn-primary" onclick={() => (showEditQAModal = false)}>Save</button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <!-- Hidden file input for photo upload -->
 <input
@@ -879,6 +977,190 @@
 
   .tab-btn.active .boost-badge {
     background: var(--accent-bright);
+  }
+
+  /* Trust score within Trust & Boost tab */
+  .trust-gauge-container {
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    border-radius: var(--r-lg);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .gauge-visual {
+    display: flex;
+    justify-content: center;
+  }
+
+  .radial-gauge {
+    width: 140px;
+    height: 140px;
+  }
+
+  .gauge-text {
+    font-family: var(--font-mono);
+  }
+
+  .gauge-number {
+    font-size: 44px;
+    font-weight: 700;
+    fill: var(--text-1);
+  }
+
+  .gauge-label-small {
+    font-size: 13px;
+    fill: var(--text-3);
+  }
+
+  .trust-label-text {
+    text-align: center;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+    margin: 0;
+  }
+
+  .breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .breakdown-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .breakdown-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .breakdown-name {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .breakdown-score {
+    font-size: 12px;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+  }
+
+  .breakdown-bar {
+    width: 100%;
+    height: 6px;
+    background: var(--bg-3);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .breakdown-fill {
+    height: 100%;
+    background: var(--accent);
+    transition: width 300ms ease;
+  }
+
+  .edit-qa-btn {
+    margin-top: 4px;
+  }
+
+  .full {
+    width: 100%;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: grid;
+    place-items: center;
+    z-index: 100;
+    padding: 20px;
+  }
+
+  .modal {
+    background: var(--bg-1);
+    border: 1px solid var(--border-1);
+    border-radius: var(--r-lg);
+    width: 100%;
+    max-width: 500px;
+    max-height: 80vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid var(--border-1);
+  }
+
+  .modal-header h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .close-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    color: var(--text-1);
+    font-size: 18px;
+  }
+
+  .modal-content {
+    flex: 1;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .qa-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .qa-field label {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .qa-field textarea {
+    padding: 12px;
+    border: 1px solid var(--border-1);
+    border-radius: var(--r-lg);
+    background: var(--bg-2);
+    color: var(--text-1);
+    font-family: inherit;
+    font-size: 14px;
+    resize: vertical;
+    min-height: 80px;
+  }
+
+  .modal-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 20px;
+    border-top: 1px solid var(--border-1);
   }
 
   .icon-btn {

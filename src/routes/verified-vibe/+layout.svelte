@@ -5,7 +5,7 @@
   import { getProfile } from '$lib/verified-vibe/services/profileService';
   import type { Tab } from '$lib/verified-vibe/types';
   import { getSupabaseClient } from '$lib/client/supabase';
-  import { MessageCircle, Compass, ShieldCheck, User } from 'lucide-svelte';
+  import { MessageCircle, Compass, User } from 'lucide-svelte';
   import { fade, slide } from 'svelte/transition';
   import { onMount } from 'svelte';
 
@@ -24,7 +24,7 @@
   // Everything else checks session and redirects if unauthenticated.
   // Verified, profile, and discovery are app-phase routes (require full verification).
   const PUBLIC_VV_PATHS = ['/verified-vibe/auth', '/verified-vibe/gate', '/verified-vibe/home', '/verified-vibe/privacy', '/verified-vibe/verify', '/verified-vibe/verification', '/verified-vibe/profile'];
-  const APP_PHASE_PATHS = ['/verified-vibe/discover', '/verified-vibe/trust', '/verified-vibe/chat'];
+  const APP_PHASE_PATHS = ['/verified-vibe/discover', '/verified-vibe/chat'];
 
   $effect(() => {
     if (!hydrationComplete) return; // Wait for hydration to complete
@@ -59,23 +59,12 @@
 
   const navItems: Array<{ tab: Tab; icon: typeof Compass; label: string; description: string }> = [
     { tab: 'discover', icon: Compass, label: 'Discover', description: 'Find matches' },
-    { tab: 'trust', icon: ShieldCheck, label: 'Trust', description: 'Your score' },
     { tab: 'chat', icon: MessageCircle, label: 'Chat', description: 'Messages' },
     { tab: 'profile', icon: User, label: 'Profile', description: 'Your profile' }
   ];
 </script>
 
 <div class="verified-vibe-container">
-  <!-- Tools strip -->
-  <div class="tools-strip">
-    <span class="tools-label">Tools</span>
-    <a href="/chat" class="tool-link">Ask Coach</a>
-    <a href="/profile-review" class="tool-link">Analyze Profile</a>
-    <a href="/female-profile" class="tool-link">For Her</a>
-    <a href="/chat-analyzer" class="tool-link">Chat Analyzer</a>
-    <a href="/reply-suggester" class="tool-link">Reply Suggester</a>
-  </div>
-
   <!-- Main content with transitions -->
   {#key $page.url.pathname}
   <div class="verified-vibe-content">
@@ -113,36 +102,6 @@
 </svelte:head>
 
 <style>
-  .tools-strip {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 6px 16px;
-    background: #080e1b;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
-    flex-shrink: 0;
-  }
-
-  .tools-label {
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #334155;
-    margin-right: 4px;
-  }
-
-  .tool-link {
-    font-size: 12px;
-    color: #475569;
-    text-decoration: none;
-    transition: color 150ms ease;
-  }
-
-  .tool-link:hover {
-    color: #94a3b8;
-  }
-
   .verified-vibe-container {
     /* Design tokens scoped to Verified Vibe — overrides root app.css light values */
     --bg-1: #0b1120;
