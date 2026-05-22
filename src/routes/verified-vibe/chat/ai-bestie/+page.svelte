@@ -14,12 +14,49 @@
     pending?: boolean;
   }
 
+  // ── Persistence ────────────────────────────────────────────────────────────
+  const STORAGE_KEY = 'vv_bestie_messages';
+  const MAX_AGE_MS = 15 * 24 * 60 * 60 * 1000; // 15 days
+
+  function loadPersistedMessages(): ChatMessage[] {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return [];
+      const cutoff = Date.now() - MAX_AGE_MS;
+      const parsed = JSON.parse(raw) as Array<{ role: string; content: string; timestamp: string }>;
+      return parsed
+        .filter(m => new Date(m.timestamp).getTime() > cutoff)
+        .map(m => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+          timestamp: new Date(m.timestamp)
+        }));
+    } catch {
+      return [];
+    }
+  }
+
+  function persistMessages(msgs: ChatMessage[]) {
+    try {
+      // Never persist pending / typing-indicator bubbles
+      const toSave = msgs.filter(m => !m.pending);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    } catch {
+      // localStorage quota exceeded — fail silently
+    }
+  }
+
   // ── State ──────────────────────────────────────────────────────────────────
   let messages = $state<ChatMessage[]>([]);
   let input = $state('');
   let sending = $state(false);
   let messagesEnd: HTMLDivElement | undefined;
   let feedback = $state<Map<number, 'up' | 'down'>>(new Map());
+
+  // Auto-save whenever messages change (skips pending bubbles)
+  $effect(() => {
+    if (messages.length > 0) persistMessages(messages);
+  });
 
   // ── Markdown renderer ──────────────────────────────────────────────────────
   function renderMarkdown(text: string): string {
@@ -78,12 +115,21 @@
   onMount(async () => {
     user.hydrate();
 
-    // Opening greeting from Bestie
-    messages = [{
-      role: 'assistant',
-      content: "Hey! 👋 I'm your AI Bestie — I've got eyes on all your matches so you don't have to juggle it alone. Ask me anything, or use the chips below to get a summary or fresh insights.",
-      timestamp: new Date()
-    }];
+    // Restore persisted history (pruned to last 15 days)
+    const persisted = loadPersistedMessages();
+
+    if (persisted.length > 0) {
+      messages = persisted;
+    } else {
+      // First visit — show opening greeting
+      messages = [{
+        role: 'assistant',
+        content: "Hey! 👋 I'm your AI Bestie — I've got eyes on all your matches so you don't have to juggle it alone. Ask me anything, or use the chips below to get a summary or fresh insights.",
+        timestamp: new Date()
+      }];
+    }
+
+    await scrollToBottom();
   });
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -166,7 +212,21 @@
   }
 
   function formatTime(d: Date) {
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    if (isToday) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const isThisYear = d.getFullYear() === now.getFullYear();
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric', ...(isThisYear ? {} : { year: 'numeric' }) });
+  }
+
+  function clearHistory() {
+    localStorage.removeItem(STORAGE_KEY);
+    messages = [{
+      role: 'assistant',
+      content: "Hey! 👋 I'm your AI Bestie — I've got eyes on all your matches so you don't have to juggle it alone. Ask me anything, or use the chips below to get a summary or fresh insights.",
+      timestamp: new Date()
+    }];
+    feedback = new Map();
   }
 </script>
 
@@ -187,12 +247,24 @@
       </div>
     </div>
 
-    <button class="config-btn" onclick={() => goto('/verified-vibe/chat/ai-bestie/configure')} title="Configure AI Bestie">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="3"/>
-        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-      </svg>
-    </button>
+    <div class="header-actions">
+      <button
+        class="config-btn"
+        onclick={() => { if (confirm('Clear chat history?')) clearHistory(); }}
+        title="Clear chat history"
+        aria-label="Clear chat history"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+        </svg>
+      </button>
+      <button class="config-btn" onclick={() => goto('/verified-vibe/chat/ai-bestie/configure')} title="Configure AI Bestie">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+        </svg>
+      </button>
+    </div>
   </div>
 
   <!-- Messages -->
@@ -299,6 +371,13 @@
     border-bottom: 1px solid var(--border-1);
     background: var(--bg-1);
     flex-shrink: 0;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
   }
 
   .back-btn {

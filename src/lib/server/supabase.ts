@@ -293,6 +293,24 @@ export type Database = {
 				Update: Partial<Database['public']['Tables']['female_profile_audit_events']['Insert']>;
 				Relationships: [];
 			};
+			device_tokens: {
+				Row: {
+					id: string;
+					user_id: string;
+					token: string;
+					platform: 'android' | 'ios';
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					user_id: string;
+					token: string;
+					platform: 'android' | 'ios';
+					created_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['device_tokens']['Insert']>;
+				Relationships: [];
+			};
 		};
 		Functions: {
 			match_book_chunks: {
