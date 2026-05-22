@@ -2,13 +2,6 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getSupabase } from '$lib/server/supabase';
 import type { PushPlatform } from '$lib/push-notifications';
-import {
-	throwAuthenticationError,
-	throwValidationError,
-	throwDatabaseError,
-	logError,
-	ErrorType
-} from '$lib/server/error-handler';
 
 /**
  * DELETE /api/push/unregister
@@ -16,71 +9,61 @@ import {
  * Used during logout to disassociate push notifications from the user.
  *
  * Request body: { platform: 'android' | 'ios' }
- *
- * Requirements: 4.10, 5.2
  */
-export const DELETE: RequestHandler = async ({ request, locals }) => {
-	// Validate authentication
-	const session = await locals.auth.getSession();
-	if (!session?.user?.id) {
-		throwAuthenticationError('User authentication required');
+export const DELETE: RequestHandler = async ({ request }) => {
+	// Validate authentication via Bearer token
+	const authHeader = request.headers.get('authorization') ?? '';
+	const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+	if (!bearerToken) {
+		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
-	const userId = session.user.id;
+	const { createClient } = await import('@supabase/supabase-js');
+	const { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } = await import('$env/static/public');
+	const userClient = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
+		global: { headers: { Authorization: `Bearer ${bearerToken}` } }
+	});
 
-	// Parse and validate request body
+	const { data: { user }, error: authErr } = await userClient.auth.getUser();
+	if (authErr || !user?.id) {
+		return json({ error: 'Unauthorized' }, { status: 401 });
+	}
+
+	const userId = user.id;
+
+	// Parse request body
 	let body: { platform?: string };
-
 	try {
 		body = await request.json();
-	} catch (err) {
-		logError('DELETE /api/push/unregister', err, ErrorType.VALIDATION_ERROR);
-		throwValidationError('Invalid JSON in request body');
+	} catch {
+		return json({ error: 'Invalid JSON in request body' }, { status: 400 });
 	}
 
-	// Validate platform field — accepts both 'android' and 'ios' (Req 10.3)
 	const { platform } = body;
-
 	if (!platform || typeof platform !== 'string') {
-		throwValidationError('platform is required and must be a string');
+		return json({ error: 'platform is required and must be a string' }, { status: 400 });
 	}
 
 	const validPlatforms: PushPlatform[] = ['android', 'ios'];
 	if (!validPlatforms.includes(platform as PushPlatform)) {
-		throwValidationError('platform must be either "android" or "ios"');
+		return json({ error: 'platform must be either "android" or "ios"' }, { status: 400 });
 	}
 
 	try {
-		// Delete the device token for this user and platform
 		const { error: dbError } = await getSupabase()
 			.from('device_tokens')
 			.delete()
 			.eq('user_id', userId)
-			.eq('platform', platform);
+			.eq('platform', platform as PushPlatform);
 
 		if (dbError) {
-			throwDatabaseError(
-				'DELETE /api/push/unregister',
-				dbError,
-				'Failed to remove device token'
-			);
+			console.error('DELETE /api/push/unregister DB error:', dbError);
+			return json({ error: 'Failed to remove device token' }, { status: 500 });
 		}
 
-		return json({
-			success: true,
-			message: 'Device token removed'
-		});
+		return json({ success: true, message: 'Device token removed' });
 	} catch (err) {
-		// Re-throw SvelteKit errors (from throwDatabaseError etc.)
-		if (err && typeof err === 'object' && 'status' in err) {
-			throw err;
-		}
-
-		logError('DELETE /api/push/unregister', err, ErrorType.INTERNAL_ERROR, { userId, platform });
-		throwDatabaseError(
-			'DELETE /api/push/unregister',
-			err,
-			'Failed to remove device token'
-		);
+		console.error('DELETE /api/push/unregister:', err);
+		return json({ error: 'Internal server error' }, { status: 500 });
 	}
 };
