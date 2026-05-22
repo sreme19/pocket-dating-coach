@@ -12,19 +12,20 @@
     gender: 'woman' | 'non-binary' | 'man';
   }
 
+  interface ProbeTopic {
+    category: string;
+    emoji: string;
+    heading: string;
+    color: 'green' | 'red' | 'amber' | 'purple' | 'blue';
+    items: string[];
+  }
+
   const PERSONA_KEY = 'ai_bestie_persona';
   const DEFAULTS: Persona = { name: 'Bestie', age: 25, gender: 'woman' };
 
   // ── State ──────────────────────────────────────────────────────────────────
   let interviewTopics = $state<string[]>([]);
-  let preferences = $state<{
-    emotionalSignals: string[];
-    dealbreakers: string[];
-    boundaries: string[];
-    maturitySignals: string[];
-    lifestyleSignals: string[];
-    privateCompatibilityNotes: string[];
-  } | null>(null);
+  let probeTopics = $state<ProbeTopic[]>([]);
 
   let topicsLoading = $state(true);
   let customPrompt = $state('');
@@ -32,6 +33,7 @@
   let submitError = $state<string | null>(null);
   let newProbeAdded = $state<string | null>(null);   // shown as new bullet
   let insightsAdded = $state<string[]>([]);
+  let deletingKey = $state<string | null>(null); // "category::item" being deleted
 
   // Persona
   let persona = $state<Persona>({ ...DEFAULTS });
@@ -63,7 +65,7 @@
       if (res.ok) {
         const data = await res.json();
         interviewTopics = data.interviewTopics ?? [];
-        preferences = data.preferences ?? null;
+        probeTopics = data.probeTopics ?? [];
       }
     } catch {
       // non-fatal
@@ -94,6 +96,7 @@
 
       const data = await res.json();
       interviewTopics = data.interviewTopics ?? interviewTopics;
+      probeTopics = data.probeTopics ?? probeTopics;
       insightsAdded = data.insightsAdded ?? [];
       newProbeAdded = data.newProbe ?? customPrompt.trim().slice(0, 60);
       customPrompt = '';
@@ -128,18 +131,36 @@
     }, 300);
   }
 
+  // ── Delete probe item ──────────────────────────────────────────────────────
+  async function deleteProbeItem(category: string, item: string) {
+    const uid = $user?.id ?? '';
+    if (!uid || deletingKey) return;
+    const key = `${category}::${item}`;
+    deletingKey = key;
+
+    try {
+      const res = await fetch('/api/ai-bestie/configure', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: uid, category, item })
+      });
+      if (!res.ok) throw new Error('Delete failed');
+      const data = await res.json();
+      probeTopics = data.probeTopics ?? probeTopics;
+      interviewTopics = data.interviewTopics ?? interviewTopics;
+      // Refresh preferences pills too
+      loadTopics();
+    } catch {
+      // non-fatal — item will reappear on next load
+    } finally {
+      deletingKey = null;
+    }
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit();
   }
 
-  // Preference pill sections
-  const PREF_SECTIONS = [
-    { key: 'emotionalSignals', label: 'Green flags',        color: 'green'  },
-    { key: 'dealbreakers',     label: 'Dealbreakers',       color: 'red'    },
-    { key: 'boundaries',       label: 'Hard boundaries',    color: 'amber'  },
-    { key: 'maturitySignals',  label: 'Maturity signals',   color: 'purple' },
-    { key: 'lifestyleSignals', label: 'Lifestyle',          color: 'blue'   }
-  ] as const;
 </script>
 
 <div class="configure-screen">
@@ -234,24 +255,53 @@
           <span class="dot-pulse"></span>
           Loading focus areas…
         </div>
-      {:else if interviewTopics.length === 0 && !newProbeAdded}
+      {:else if probeTopics.length === 0 && !newProbeAdded}
         <p class="empty-hint">No focus areas set yet. Use the box below to tell Bestie what to look for.</p>
       {:else}
-        <ul class="topic-list">
-          {#each interviewTopics as topic}
-            <li class="topic-item" transition:fade={{ duration: 150 }}>
-              <span class="topic-text">{topic}</span>
-            </li>
+        <div class="probe-groups">
+          {#each probeTopics as group (group.category)}
+            <div class="probe-group probe-group-{group.color}" transition:fade={{ duration: 150 }}>
+              <div class="probe-group-header">
+                <span class="probe-emoji">{group.emoji}</span>
+                <span class="probe-heading probe-heading-{group.color}">{group.heading}</span>
+              </div>
+              <ul class="probe-items">
+                {#each group.items as item (item)}
+                  {@const deleteKey = `${group.category}::${item}`}
+                  <li class="probe-item" transition:fade={{ duration: 120 }}>
+                    <span class="probe-bullet probe-bullet-{group.color}"></span>
+                    <span class="probe-item-text">{item}</span>
+                    <button
+                      class="probe-delete-btn"
+                      onclick={() => deleteProbeItem(group.category, item)}
+                      disabled={deletingKey === deleteKey}
+                      aria-label="Remove this item"
+                      title="Remove"
+                    >
+                      {#if deletingKey === deleteKey}
+                        <span class="delete-spinner"></span>
+                      {:else}
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                          <path d="M18 6L6 18M6 6l12 12"/>
+                        </svg>
+                      {/if}
+                    </button>
+                  </li>
+                {/each}
+              </ul>
+            </div>
           {/each}
 
-          <!-- Newly added probe — shown immediately after submit -->
+          <!-- Newly added probe label — shown immediately after submit -->
           {#if newProbeAdded}
-            <li class="topic-item topic-new" transition:fly={{ y: 6, duration: 250 }}>
-              <span class="new-badge">✓ Added</span>
-              <span class="topic-text">{newProbeAdded}</span>
-            </li>
+            <div class="probe-new-badge" transition:fly={{ y: 6, duration: 250 }}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+              Added: {newProbeAdded}
+            </div>
           {/if}
-        </ul>
+        </div>
 
         {#if insightsAdded.length > 0}
           <div class="insights-saved" transition:fade={{ duration: 200 }}>
@@ -264,31 +314,6 @@
       {/if}
     </section>
 
-    <!-- ── Saved preferences pills ────────────────────────────────────── -->
-    {#if preferences}
-      {@const hasAny = PREF_SECTIONS.some(s => (preferences?.[s.key]?.length ?? 0) > 0)}
-      {#if hasAny}
-        <section class="cfg-section" transition:fade={{ duration: 200 }}>
-          <div class="cfg-section-label">Saved from your profile</div>
-          <div class="pref-sections">
-            {#each PREF_SECTIONS as sec}
-              {@const items = preferences?.[sec.key] ?? []}
-              {#if items.length > 0}
-                <div class="pref-group">
-                  <span class="pref-label pref-label-{sec.color}">{sec.label}</span>
-                  <div class="pref-pills">
-                    {#each items as item}
-                      <span class="pref-pill pref-pill-{sec.color}">{item}</span>
-                    {/each}
-                  </div>
-                </div>
-              {/if}
-            {/each}
-          </div>
-          <p class="pref-note">AI Bestie automatically uses these when interviewing your matches.</p>
-        </section>
-      {/if}
-    {/if}
 
     <!-- ── Add new instructions ───────────────────────────────────────── -->
     <section class="cfg-section">
@@ -535,7 +560,7 @@
     animation: spin 0.7s linear infinite;
   }
 
-  /* ── Topics list ── */
+  /* ── Probes loading / empty ── */
   .loading-row {
     display: flex;
     align-items: center;
@@ -560,44 +585,127 @@
     margin: 0;
   }
 
-  .topic-list {
+  /* ── Probe groups ── */
+  .probe-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .probe-group {
+    border-radius: 10px;
+    padding: 10px 12px;
+    border: 1px solid;
+  }
+
+  .probe-group-green  { background: rgba(52,211,153,0.06);  border-color: rgba(52,211,153,0.2);  }
+  .probe-group-red    { background: rgba(248,113,113,0.06); border-color: rgba(248,113,113,0.2); }
+  .probe-group-amber  { background: rgba(251,191,36,0.06);  border-color: rgba(251,191,36,0.2);  }
+  .probe-group-purple { background: rgba(167,139,250,0.06); border-color: rgba(167,139,250,0.2); }
+  .probe-group-blue   { background: rgba(96,165,250,0.06);  border-color: rgba(96,165,250,0.2);  }
+
+  .probe-group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .probe-emoji {
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .probe-heading {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+  .probe-heading-green  { color: #34d399; }
+  .probe-heading-red    { color: #f87171; }
+  .probe-heading-amber  { color: #fbbf24; }
+  .probe-heading-purple { color: #a78bfa; }
+  .probe-heading-blue   { color: #60a5fa; }
+
+  /* Per-item rows */
+  .probe-items {
     list-style: none;
     padding: 0;
     margin: 0;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 1px;
   }
 
-  .topic-item {
+  .probe-item {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 8px;
-    font-size: 13px;
-    color: var(--text-2);
-    line-height: 1.55;
-    padding: 8px 10px;
-    background: var(--bg-3);
-    border-radius: 8px;
-    border: 1px solid var(--border-1);
+    padding: 5px 2px;
+    border-radius: 6px;
+    transition: background 120ms;
   }
+  .probe-item:hover { background: rgba(255,255,255,0.03); }
+  .probe-item:hover .probe-delete-btn { opacity: 1; }
 
-  .topic-text {
-    flex: 1;
-  }
-
-  .topic-new {
-    border-color: rgba(52, 211, 153, 0.35);
-    background: rgba(52, 211, 153, 0.07);
-  }
-
-  .new-badge {
-    font-size: 11px;
-    font-weight: 700;
-    color: #34d399;
-    white-space: nowrap;
+  .probe-bullet {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
     flex-shrink: 0;
     margin-top: 1px;
+  }
+  .probe-bullet-green  { background: #34d399; }
+  .probe-bullet-red    { background: #f87171; }
+  .probe-bullet-amber  { background: #fbbf24; }
+  .probe-bullet-purple { background: #a78bfa; }
+  .probe-bullet-blue   { background: #60a5fa; }
+
+  .probe-item-text {
+    flex: 1;
+    font-size: 13px;
+    color: var(--text-2);
+    line-height: 1.45;
+  }
+
+  .probe-delete-btn {
+    opacity: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(239,68,68,0.1);
+    color: #f87171;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: opacity 120ms, background 120ms;
+  }
+  .probe-delete-btn:hover { background: rgba(239,68,68,0.22); }
+  .probe-delete-btn:disabled { cursor: default; }
+
+  .delete-spinner {
+    width: 10px;
+    height: 10px;
+    border: 1.5px solid rgba(248,113,113,0.35);
+    border-top-color: #f87171;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  .probe-new-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #34d399;
+    padding: 6px 8px;
+    border-radius: 8px;
+    background: rgba(52,211,153,0.08);
+    border: 1px solid rgba(52,211,153,0.2);
   }
 
   .insights-saved {
@@ -607,56 +715,6 @@
     font-size: 12px;
     color: #34d399;
     margin-top: 10px;
-  }
-
-  /* ── Preferences pills ── */
-  .pref-sections {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .pref-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .pref-label {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-  .pref-label-green  { color: #34d399; }
-  .pref-label-red    { color: #f87171; }
-  .pref-label-amber  { color: #fbbf24; }
-  .pref-label-purple { color: #a78bfa; }
-  .pref-label-blue   { color: #60a5fa; }
-
-  .pref-pills {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .pref-pill {
-    padding: 3px 10px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 500;
-  }
-  .pref-pill-green  { background: rgba(52,211,153,0.12); color: #34d399; border: 1px solid rgba(52,211,153,0.25); }
-  .pref-pill-red    { background: rgba(248,113,113,0.12); color: #f87171; border: 1px solid rgba(248,113,113,0.25); }
-  .pref-pill-amber  { background: rgba(251,191,36,0.12);  color: #fbbf24; border: 1px solid rgba(251,191,36,0.25); }
-  .pref-pill-purple { background: rgba(167,139,250,0.12); color: #a78bfa; border: 1px solid rgba(167,139,250,0.25); }
-  .pref-pill-blue   { background: rgba(96,165,250,0.12);  color: #60a5fa; border: 1px solid rgba(96,165,250,0.25); }
-
-  .pref-note {
-    font-size: 12px;
-    color: var(--text-3);
-    margin: 10px 0 0;
-    font-style: italic;
   }
 
   /* ── Input area ── */

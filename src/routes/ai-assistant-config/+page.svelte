@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Settings, Heart, Shield, AlertCircle, CheckCircle } from 'lucide-svelte';
+	import { Settings, Heart, Shield, AlertCircle, CheckCircle, Sparkles, Loader2 } from 'lucide-svelte';
 	import type { UserProfile, AssistantType } from '$lib/types';
 
 	let userProfile = $state<UserProfile | null>(null);
@@ -12,6 +12,15 @@
 	let bestieConfig = $state<any>(null);
 	let wingmanConfig = $state<any>(null);
 
+	// AI Bestie configure state (female users only)
+	let interviewTopics = $state<string[]>([]);
+	let customPrompt = $state('');
+	let configuring = $state(false);
+	let configureError = $state<string | null>(null);
+	let configureSuccess = $state<string | null>(null);
+	let insightsAdded = $state<string[]>([]);
+	let topicsLoading = $state(false);
+
 	onMount(async () => {
 		// Load user profile from localStorage
 		const stored = localStorage.getItem('pdc_profile');
@@ -21,6 +30,11 @@
 
 		// Load current configuration
 		await loadConfiguration();
+
+		// Load AI Bestie interview topics for female users
+		if (userProfile?.gender === 'woman') {
+			await loadInterviewTopics();
+		}
 	});
 
 	async function loadConfiguration() {
@@ -91,6 +105,53 @@
 			error = err instanceof Error ? err.message : 'Failed to update configuration';
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function loadInterviewTopics() {
+		topicsLoading = true;
+		try {
+			const res = await fetch('/api/ai-bestie/configure');
+			if (res.ok) {
+				const data = await res.json();
+				interviewTopics = data.interviewTopics ?? [];
+			}
+		} catch {
+			// Non-fatal — topics stay empty
+		} finally {
+			topicsLoading = false;
+		}
+	}
+
+	async function submitConfigure() {
+		if (!customPrompt.trim() || configuring) return;
+		configuring = true;
+		configureError = null;
+		configureSuccess = null;
+		insightsAdded = [];
+
+		try {
+			const res = await fetch('/api/ai-bestie/configure', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ customPrompt: customPrompt.trim() })
+			});
+
+			if (!res.ok) throw new Error('Configure request failed');
+
+			const data = await res.json();
+			interviewTopics = data.interviewTopics ?? interviewTopics;
+			insightsAdded = data.insightsAdded ?? [];
+			customPrompt = '';
+			configureSuccess = insightsAdded.length > 0
+				? `Updated — ${insightsAdded.length} new insight${insightsAdded.length > 1 ? 's' : ''} saved to your preferences`
+				: 'AI Bestie interview focus updated';
+
+			setTimeout(() => { configureSuccess = null; insightsAdded = []; }, 5000);
+		} catch {
+			configureError = 'Failed to update. Please try again.';
+		} finally {
+			configuring = false;
 		}
 	}
 
@@ -262,6 +323,94 @@
 				</div>
 			</div>
 		</div>
+
+		<!-- AI Bestie Configure Section — female users only -->
+		{#if userProfile?.gender === 'woman'}
+			<div class="mt-8 bg-white rounded-lg shadow-md overflow-hidden">
+				<div class="bg-gradient-to-r from-pink-500 to-rose-500 p-6 text-white">
+					<div class="flex items-center gap-3 mb-1">
+						<Sparkles class="w-5 h-5" />
+						<h2 class="text-xl font-bold">Configure AI Bestie's Interview Focus</h2>
+					</div>
+					<p class="text-pink-100 text-sm">AI Bestie automatically reads your preferences and probes male matches on what matters to you. Tell her what else to focus on.</p>
+				</div>
+
+				<div class="p-6">
+					<!-- Current topics -->
+					<div class="mb-6">
+						<h3 class="font-semibold text-slate-900 mb-3">What AI Bestie currently probes:</h3>
+						{#if topicsLoading}
+							<div class="flex items-center gap-2 text-slate-400 text-sm">
+								<Loader2 class="w-4 h-4 animate-spin" />
+								Loading your focus areas...
+							</div>
+						{:else if interviewTopics.length === 0}
+							<p class="text-slate-500 text-sm italic">No preferences set yet. Use the box below to tell AI Bestie what to look for.</p>
+						{:else}
+							<ul class="space-y-2">
+								{#each interviewTopics as topic}
+									<li class="flex items-start gap-2 text-slate-700 text-sm">
+										<span class="text-pink-500 mt-1 flex-shrink-0">→</span>
+										<span>{topic}</span>
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					</div>
+
+					<!-- Custom prompt input -->
+					<div class="space-y-3">
+						<label for="bestie-prompt" class="block text-sm font-medium text-slate-700">
+							Tell AI Bestie what else to focus on:
+						</label>
+						<textarea
+							id="bestie-prompt"
+							bind:value={customPrompt}
+							placeholder="e.g. I want to know if he has figured out where he wants to live in 5 years. Also ask whether his family is involved in his dating decisions..."
+							rows="4"
+							class="w-full border border-slate-300 rounded-lg px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:border-pink-500 focus:ring-1 focus:ring-pink-500 outline-none resize-none transition-colors"
+						></textarea>
+
+						{#if configureError}
+							<div class="flex items-center gap-2 text-red-600 text-sm">
+								<AlertCircle class="w-4 h-4 flex-shrink-0" />
+								{configureError}
+							</div>
+						{/if}
+
+						{#if configureSuccess}
+							<div class="flex items-start gap-2 text-emerald-700 text-sm bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+								<CheckCircle class="w-4 h-4 flex-shrink-0 mt-0.5" />
+								<div>
+									<p>{configureSuccess}</p>
+									{#if insightsAdded.length > 0}
+										<ul class="mt-1 space-y-0.5">
+											{#each insightsAdded as insight}
+												<li class="text-emerald-600 text-xs">+ {insight}</li>
+											{/each}
+										</ul>
+									{/if}
+								</div>
+							</div>
+						{/if}
+
+						<button
+							onclick={submitConfigure}
+							disabled={!customPrompt.trim() || configuring}
+							class="flex items-center gap-2 px-5 py-2.5 bg-pink-500 hover:bg-pink-600 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg transition-colors"
+						>
+							{#if configuring}
+								<Loader2 class="w-4 h-4 animate-spin" />
+								Updating AI Bestie...
+							{:else}
+								<Sparkles class="w-4 h-4" />
+								Update AI Bestie
+							{/if}
+						</button>
+					</div>
+				</div>
+			</div>
+		{/if}
 
 		<!-- Privacy Notice -->
 		<div class="mt-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">

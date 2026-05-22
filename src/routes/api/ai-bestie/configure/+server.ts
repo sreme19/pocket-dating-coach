@@ -171,13 +171,127 @@ export const GET: RequestHandler = async ({ url }) => {
 				.then(({ data }) => data)
 		]);
 		const userName: string = (userRow as any)?.first_name ?? 'her';
-		const interviewTopics = deriveInterviewTopics(prefs, userName);
-		return json({ interviewTopics, preferences: prefs });
+		const interviewTopics = deriveInterviewTopics(prefs, userName); // kept for legacy callers
+		const probeTopics = deriveProbeTopics(prefs, userName);          // structured format for VV UI
+		return json({ interviewTopics, probeTopics, preferences: prefs });
 	} catch (err) {
 		logError('GET /api/ai-bestie/configure', err, ErrorType.DATABASE_ERROR, { userId });
 		throw err;
 	}
 };
+
+/**
+ * DELETE /api/ai-bestie/configure
+ *
+ * Removes a single item from a preferences category.
+ * Body: { userId, category, item }
+ */
+export const DELETE: RequestHandler = async ({ request }) => {
+	const body = await request.json() as { userId?: string; category?: string; item?: string };
+	const userId = (body.userId ?? '').trim();
+	const category = (body.category ?? '').trim();
+	const item = (body.item ?? '').trim();
+
+	if (!userId || !category || !item) {
+		return json({ error: 'userId, category and item are required' }, { status: 400 });
+	}
+
+	const allowed = ['emotionalSignals', 'dealbreakers', 'maturitySignals', 'boundaries', 'lifestyleSignals'];
+	if (!allowed.includes(category)) {
+		return json({ error: 'Invalid category' }, { status: 400 });
+	}
+
+	try {
+		const prefs = await loadPreferences(userId);
+		const current = (prefs as any)[category] as string[];
+		const updated = current.filter((v: string) => v !== item);
+		await updatePreferences(userId, { [category]: updated } as any, `Removed probe item: "${item.slice(0, 60)}"`);
+
+		// Re-derive topics after deletion
+		const supabase = getSupabase();
+		const { data: userRow } = await supabase
+			.from('verified_vibe_users')
+			.select('first_name')
+			.eq('id', userId)
+			.maybeSingle();
+		const userName: string = (userRow as any)?.first_name ?? 'her';
+		const newPrefs = await loadPreferences(userId);
+		const probeTopics = deriveProbeTopics(newPrefs, userName);
+		const interviewTopics = deriveInterviewTopics(newPrefs, userName);
+
+		return json({ ok: true, probeTopics, interviewTopics });
+	} catch (err) {
+		logError('DELETE /api/ai-bestie/configure', err, ErrorType.DATABASE_ERROR, { userId });
+		throw err;
+	}
+};
+
+/**
+ * Structured probe topics for the VV configure UI — one object per category,
+ * with individual items so the UI can render crisp bullets + delete buttons.
+ */
+export interface ProbeTopic {
+	category: 'emotionalSignals' | 'dealbreakers' | 'maturitySignals' | 'boundaries' | 'lifestyleSignals';
+	emoji: string;
+	heading: string;
+	color: 'green' | 'red' | 'amber' | 'purple' | 'blue';
+	items: string[];
+}
+
+function deriveProbeTopics(
+	prefs: Awaited<ReturnType<typeof loadPreferences>>,
+	userName = 'her'
+): ProbeTopic[] {
+	const poss = userName === 'her' ? 'Her' : `${userName}'s`;
+	const topics: ProbeTopic[] = [];
+
+	if (prefs.emotionalSignals.length) {
+		topics.push({
+			category: 'emotionalSignals',
+			emoji: '🟢',
+			heading: `${poss} green flags`,
+			color: 'green',
+			items: prefs.emotionalSignals,
+		});
+	}
+	if (prefs.dealbreakers.length) {
+		topics.push({
+			category: 'dealbreakers',
+			emoji: '🔴',
+			heading: 'Hard dealbreakers',
+			color: 'red',
+			items: prefs.dealbreakers,
+		});
+	}
+	if (prefs.maturitySignals.length) {
+		topics.push({
+			category: 'maturitySignals',
+			emoji: '⚡',
+			heading: 'Maturity & stability',
+			color: 'purple',
+			items: prefs.maturitySignals,
+		});
+	}
+	if (prefs.boundaries.length) {
+		topics.push({
+			category: 'boundaries',
+			emoji: '🚫',
+			heading: `${poss} firm boundaries`,
+			color: 'amber',
+			items: prefs.boundaries,
+		});
+	}
+	if (prefs.lifestyleSignals.length) {
+		topics.push({
+			category: 'lifestyleSignals',
+			emoji: '🏠',
+			heading: 'Lifestyle compatibility',
+			color: 'blue',
+			items: prefs.lifestyleSignals,
+		});
+	}
+	return topics;
+}
 
 /**
  * Derive 5 comprehensive, readable probe topics from the user's structured preferences.

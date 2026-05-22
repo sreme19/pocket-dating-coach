@@ -552,7 +552,7 @@
    */
   function handleProfileClick() {
     if ($currentMatch) {
-      goto(`/verified-vibe/discover?profile=${$currentMatch.id}`);
+      goto(`/verified-vibe/match-profile/${$currentMatch.id}?from=/verified-vibe/chat/${conversationId}`);
     }
   }
 
