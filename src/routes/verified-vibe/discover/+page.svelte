@@ -10,11 +10,33 @@
     setError,
     clearError
   } from '$lib/verified-vibe/stores';
-  import { fade, slide, scale } from 'svelte/transition';
-  import DiscoveryCard from '$lib/verified-vibe/components/DiscoveryCard.svelte';
+  import { fade, slide } from 'svelte/transition';
   import MatchOverlay from '$lib/verified-vibe/components/MatchOverlay.svelte';
+  import TrustScoreBadge from '$lib/verified-vibe/components/TrustScoreBadge.svelte';
   import { swipe } from '$lib/verified-vibe/utils/swipe';
   import type { DiscoveryProfile } from '$lib/verified-vibe/types';
+  import { ARCHETYPES } from '$lib/verified-vibe/constants';
+
+  interface RichProfile {
+    id: string;
+    firstName: string;
+    age: number;
+    city: string;
+    avatar: string | null;
+    about: string | null;
+    looking: string | null;
+    trustScore: number;
+    archetype: string;
+    archetypeName: string;
+    archetypeEmoji: string;
+    gender: string;
+    vibeWords: string[];
+    traitScores: { decisiveness: number; warmth: number; openness: number; pace: number };
+    brings: string[];
+    hereFor: string;
+    communicationStyle: string | null;
+    mattersMost: string | null;
+  }
 
   let showMatchOverlay = $state(false);
   let matchedProfile = $state<DiscoveryProfile | null>(null);
@@ -30,6 +52,8 @@
   const limit = 10;
   const passedIds = $state<Set<string>>(new Set());
   const likedIds = $state<Set<string>>(new Set());
+  let richProfile = $state<RichProfile | null>(null);
+  let richProfileLoading = $state(false);
 
   // Get current profile
   let currentProfile = $derived(isViewingSelected ? selectedProfile : ($discoveryProfiles[$discoveryIndex] || null));
@@ -275,6 +299,84 @@
     matchedProfile = null;
   }
 
+  // Skip to next profile without recording a pass/like
+  function handleSkip() {
+    if (isAnimating) return;
+    if (isViewingSelected) {
+      handleBackFromSelected();
+    } else {
+      nextDiscoveryProfile();
+    }
+  }
+
+  function buildFallbackProfile(p: DiscoveryProfile): RichProfile {
+    const archetypeDef = ARCHETYPES[p.archetype];
+    return {
+      id: p.id,
+      firstName: p.firstName,
+      age: p.age,
+      city: p.city,
+      avatar: p.avatar,
+      about: p.about,
+      looking: p.looking,
+      trustScore: p.trustScore,
+      archetype: p.archetype,
+      archetypeName: archetypeDef?.name ?? p.archetype.replace(/_/g, ' '),
+      archetypeEmoji: archetypeDef?.emoji ?? '✨',
+      gender: p.gender,
+      vibeWords: [],
+      traitScores: { decisiveness: 60, warmth: 60, openness: 60, pace: 60 },
+      brings: archetypeDef?.brings ?? [],
+      hereFor: p.looking ?? archetypeDef?.tag ?? 'A real connection',
+      communicationStyle: null,
+      mattersMost: null
+    };
+  }
+
+  // Load full rich profile data for the current profile
+  async function loadRichProfile(profile: DiscoveryProfile) {
+    richProfileLoading = true;
+    richProfile = null;
+    try {
+      const { getSupabaseClient } = await import('$lib/client/supabase');
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? '';
+      const res = await fetch(`/api/verified-vibe/match-profile/${profile.id}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      const json = await res.json();
+      if (res.ok && !json.error) {
+        richProfile = json.data;
+      } else {
+        richProfile = buildFallbackProfile(profile);
+      }
+    } catch (err) {
+      console.error('Failed to load rich profile:', err);
+      richProfile = buildFallbackProfile(profile);
+    } finally {
+      richProfileLoading = false;
+    }
+  }
+
+  $effect(() => {
+    if (currentProfile) {
+      loadRichProfile(currentProfile);
+    } else {
+      richProfile = null;
+    }
+  });
+
+  function barWidth(score: number): string {
+    return `${Math.max(4, Math.min(100, score))}%`;
+  }
+
+  function traitLabel(score: number, low: string, high: string): string {
+    if (score >= 75) return high;
+    if (score <= 35) return low;
+    return '';
+  }
+
   // Handle swipe left (pass)
   function handleSwipeLeft() {
     if (!isAnimating && currentProfile) {
@@ -329,16 +431,148 @@
     </div>
   {/if}
 
-  <!-- Card Stack Container -->
-  <div class="card-stack-container" bind:this={cardStackContainer}>
-    {#if currentProfile}
-      <div class="card-stack" transition:fade={{ duration: 300 }} key={currentProfile.id}>
-        <DiscoveryCard
-          profile={currentProfile}
-          onLike={handleLike}
-          onPass={handlePass}
-        />
+  <!-- Profile scroll area -->
+  <div class="profile-scroll" bind:this={cardStackContainer}>
+    {#if richProfileLoading}
+      <div class="loading-state" transition:fade={{ duration: 200 }}>
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Loading profile…</p>
       </div>
+
+    {:else if currentProfile && richProfile}
+      <div transition:fade={{ duration: 250 }} key={currentProfile.id}>
+
+        <!-- Photo -->
+        <div class="photo-block">
+          {#if richProfile.avatar}
+            <img src={richProfile.avatar} alt={richProfile.firstName} class="profile-photo" />
+          {:else}
+            <div class="photo-placeholder">
+              <span class="photo-initial">{richProfile.firstName.charAt(0)}</span>
+            </div>
+          {/if}
+          <div class="trust-badge-wrap">
+            <TrustScoreBadge score={richProfile.trustScore} size="md" />
+          </div>
+        </div>
+
+        <!-- Identity -->
+        <div class="identity-block">
+          <h1 class="profile-name">{richProfile.firstName}, {richProfile.age}</h1>
+          {#if richProfile.city}
+            <p class="profile-location">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline-block;vertical-align:-1px">
+                <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
+              </svg>
+              {richProfile.city}
+            </p>
+          {/if}
+          {#if richProfile.archetypeEmoji || richProfile.archetypeName}
+            <div class="archetype-chip">
+              <span>{richProfile.archetypeEmoji}</span>
+              <span>{richProfile.archetypeName}</span>
+            </div>
+          {/if}
+        </div>
+
+        <!-- Here For -->
+        {#if richProfile.hereFor}
+          <section class="profile-section">
+            <h2 class="section-title"><span class="section-icon">💫</span> Here For</h2>
+            <p class="section-body">{richProfile.hereFor}</p>
+          </section>
+        {/if}
+
+        <!-- Vibe Words -->
+        {#if richProfile.vibeWords.length > 0}
+          <section class="profile-section">
+            <h2 class="section-title"><span class="section-icon">✨</span> The Vibe in Three Words</h2>
+            <div class="vibe-pills">
+              {#each richProfile.vibeWords as word}
+                <span class="vibe-pill">{word}</span>
+              {/each}
+            </div>
+          </section>
+        {/if}
+
+        <!-- Personality Reads -->
+        <section class="profile-section">
+          <h2 class="section-title"><span class="section-icon">🧠</span> Personality Reads</h2>
+          <div class="trait-bars">
+            {#each [
+              { label: 'Decisiveness', score: richProfile.traitScores.decisiveness, low: 'Goes with the flow', high: 'Takes the lead' },
+              { label: 'Warmth',       score: richProfile.traitScores.warmth,       low: 'Reserved',          high: 'Openly caring' },
+              { label: 'Openness',     score: richProfile.traitScores.openness,     low: 'Traditional',       high: 'Adventurous' },
+              { label: 'Pace',         score: richProfile.traitScores.pace,         low: 'Patient & slow',    high: 'Fast-paced' },
+            ] as trait}
+              <div class="trait-row">
+                <div class="trait-meta">
+                  <span class="trait-label">{trait.label}</span>
+                  {#if traitLabel(trait.score, trait.low, trait.high)}
+                    <span class="trait-hint">{traitLabel(trait.score, trait.low, trait.high)}</span>
+                  {/if}
+                </div>
+                <div class="bar-track">
+                  <div class="bar-fill" style="width:{barWidth(trait.score)}"></div>
+                </div>
+              </div>
+            {/each}
+          </div>
+        </section>
+
+        <!-- What He Brings -->
+        {#if richProfile.brings.length > 0}
+          <section class="profile-section">
+            <h2 class="section-title"><span class="section-icon">🎁</span> What He Brings</h2>
+            <ul class="brings-list">
+              {#each richProfile.brings.slice(0, 6) as item}
+                <li class="brings-item"><span class="brings-check">✓</span><span>{item}</span></li>
+              {/each}
+            </ul>
+          </section>
+        {/if}
+
+        <!-- About -->
+        {#if richProfile.about}
+          <section class="profile-section">
+            <h2 class="section-title"><span class="section-icon">📝</span> About</h2>
+            <p class="section-body">{richProfile.about}</p>
+          </section>
+        {/if}
+
+        <!-- Communication Style -->
+        {#if richProfile.communicationStyle}
+          <section class="profile-section">
+            <h2 class="section-title"><span class="section-icon">💬</span> Communication Style</h2>
+            <p class="section-body">{richProfile.communicationStyle}</p>
+          </section>
+        {/if}
+
+        <!-- Matters Most -->
+        {#if richProfile.mattersMost}
+          <section class="profile-section">
+            <h2 class="section-title"><span class="section-icon">❤️</span> What Matters Most</h2>
+            <p class="section-body">{richProfile.mattersMost}</p>
+          </section>
+        {/if}
+
+        <!-- Next button -->
+        {#if !isViewingSelected}
+          <div class="next-wrap">
+            <button class="next-btn" onclick={handleSkip} disabled={isAnimating}>Next →</button>
+          </div>
+        {/if}
+
+        <div style="height: 32px"></div>
+      </div>
+
+    {:else if currentProfile && !richProfileLoading}
+      <!-- Rich profile failed to load but basic profile exists — show fallback -->
+      <div class="loading-state" transition:fade={{ duration: 200 }}>
+        <div class="loading-spinner"></div>
+        <p class="loading-text">Loading profile…</p>
+      </div>
+
     {:else if $discoveryProfiles.length === 0 && !isLoadingMore}
       <div class="empty-state" transition:fade={{ duration: 300 }}>
         <div class="empty-icon">🔍</div>
@@ -354,34 +588,10 @@
     {:else}
       <div class="loading-state" transition:fade={{ duration: 300 }}>
         <div class="loading-spinner"></div>
-        <p class="loading-text">Loading profiles...</p>
+        <p class="loading-text">Loading profiles…</p>
       </div>
     {/if}
   </div>
-
-  <!-- Action Buttons (only show for discovery feed, not for selected profiles) -->
-  {#if currentProfile && !isViewingSelected}
-    <div class="action-buttons" transition:slide={{ duration: 300, axis: 'y' }}>
-      <button
-        class="btn btn-pass"
-        onclick={handlePass}
-        disabled={isAnimating}
-        aria-label="Pass on this profile"
-      >
-        <span class="btn-icon">✕</span>
-        <span class="btn-text">Pass</span>
-      </button>
-      <button
-        class="btn btn-like"
-        onclick={handleLike}
-        disabled={isAnimating}
-        aria-label="Like this profile"
-      >
-        <span class="btn-icon">♥</span>
-        <span class="btn-text">Like</span>
-      </button>
-    </div>
-  {/if}
 
   <!-- Match Overlay -->
   {#if showMatchOverlay && matchedProfile}
@@ -489,27 +699,181 @@
     flex-shrink: 0;
   }
 
-  /* Card Stack Container */
-  .card-stack-container {
+  /* Profile scroll area */
+  .profile-scroll {
     flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Photo block */
+  .photo-block {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    max-height: 55vh;
+    overflow: hidden;
+    background: var(--bg-2);
+  }
+
+  .profile-photo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: top center;
+    display: block;
+  }
+
+  .photo-placeholder {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #1a1a2e, #2d1b4e);
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 20px;
-    overflow-y: auto;
-    overflow-x: hidden;
   }
 
-  .card-stack {
-    width: 100%;
-    max-width: 400px;
-    max-height: 100%;
+  .photo-initial {
+    font-size: 80px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.2);
+  }
+
+  .trust-badge-wrap {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));
+  }
+
+  /* Identity */
+  .identity-block { padding: 16px 20px 8px; }
+
+  .profile-name {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--text-1);
+    margin: 0 0 4px;
+  }
+
+  .profile-location {
+    font-size: 13px;
+    color: var(--text-3);
+    margin: 0 0 10px;
     display: flex;
-    flex-direction: column;
-    flex-shrink: 0;
+    align-items: center;
+    gap: 3px;
   }
 
-  /* Empty State */
+  .archetype-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    background: rgba(168,85,247,0.12);
+    border: 1px solid rgba(168,85,247,0.25);
+    color: #c084fc;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  /* Sections */
+  .profile-section {
+    padding: 14px 20px;
+    border-top: 1px solid var(--border-1);
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin: 0 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .section-icon { font-size: 13px; }
+
+  .section-body {
+    font-size: 14px;
+    color: var(--text-2);
+    line-height: 1.55;
+    margin: 0;
+  }
+
+  /* Vibe pills */
+  .vibe-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .vibe-pill {
+    padding: 5px 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(168,85,247,0.3);
+    background: rgba(168,85,247,0.08);
+    color: #c084fc;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  /* Trait bars */
+  .trait-bars { display: flex; flex-direction: column; gap: 10px; }
+
+  .trait-row { display: flex; flex-direction: column; gap: 4px; }
+
+  .trait-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .trait-label { font-size: 13px; font-weight: 600; color: var(--text-1); }
+
+  .trait-hint { font-size: 11px; color: var(--text-3); }
+
+  .bar-track {
+    height: 5px;
+    background: var(--bg-3);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ec4899, #a855f7);
+    border-radius: 3px;
+    transition: width 400ms ease;
+  }
+
+  /* Brings list */
+  .brings-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 7px; }
+
+  .brings-item { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; color: var(--text-2); }
+
+  .brings-check { color: #34d399; font-weight: 700; flex-shrink: 0; }
+
+  /* Next button */
+  .next-wrap { padding: 20px 20px 0; }
+
+  .next-btn {
+    width: 100%;
+    padding: 13px;
+    border-radius: 12px;
+    border: 1px solid var(--border-2);
+    background: var(--bg-2);
+    color: var(--text-2);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 150ms;
+  }
+
+  .next-btn:hover:not(:disabled) { background: var(--bg-3); color: var(--text-1); }
+  .next-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Empty / Loading states */
   .empty-state {
     display: flex;
     flex-direction: column;
@@ -517,32 +881,20 @@
     justify-content: center;
     gap: 16px;
     text-align: center;
+    padding: 60px 20px;
   }
 
-  .empty-icon {
-    font-size: 48px;
-  }
+  .empty-icon { font-size: 48px; }
+  .empty-title { font-size: 18px; font-weight: 600; margin: 0; color: var(--text-1); }
+  .empty-text { font-size: 14px; color: var(--text-2); margin: 0; }
 
-  .empty-title {
-    font-size: 18px;
-    font-weight: 600;
-    margin: 0;
-    color: var(--text-1);
-  }
-
-  .empty-text {
-    font-size: 14px;
-    color: var(--text-2);
-    margin: 0;
-  }
-
-  /* Loading State */
   .loading-state {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 16px;
+    padding: 60px 20px;
   }
 
   .loading-spinner {
@@ -554,130 +906,7 @@
     animation: spin 0.8s linear infinite;
   }
 
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
-  .loading-text {
-    font-size: 14px;
-    color: var(--text-2);
-    margin: 0;
-  }
-
-  /* Action Buttons */
-  .action-buttons {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    padding: 16px 20px calc(16px + env(safe-area-inset-bottom, 0));
-    border-top: 1px solid var(--border-1);
-    background: var(--bg-1);
-  }
-
-  .btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 12px 16px;
-    border-radius: 8px;
-    border: none;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 200ms ease;
-    min-height: 44px;
-  }
-
-  .btn-icon {
-    font-size: 18px;
-  }
-
-  .btn-pass {
-    background: var(--bg-2);
-    color: var(--text-1);
-    border: 1px solid var(--border-1);
-  }
-
-  .btn-pass:hover:not(:disabled) {
-    background: var(--bg-3);
-    border-color: var(--border-2);
-  }
-
-  .btn-like {
-    background: var(--accent-bright);
-    color: var(--bg-1);
-  }
-
-  .btn-like:hover:not(:disabled) {
-    background: var(--accent-bright);
-    opacity: 0.9;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-  }
-
-  .btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  /* Mobile Responsive */
-  @media (max-width: 767px) {
-    .discover-header {
-      padding: 12px 16px;
-    }
-
-    .header-title {
-      font-size: 20px;
-    }
-
-    .header-subtitle {
-      font-size: 12px;
-    }
-
-    .card-stack-container {
-      padding: 16px;
-    }
-
-    .action-buttons {
-      gap: 10px;
-      padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0));
-    }
-
-    .btn {
-      padding: 12px 14px;
-      font-size: 13px;
-    }
-  }
-
-  /* Tablet Responsive */
-  @media (min-width: 768px) and (max-width: 1023px) {
-    .card-stack-container {
-      padding: 24px;
-    }
-
-    .card-stack {
-      max-width: 450px;
-      max-height: 650px;
-    }
-  }
-
-  /* Desktop */
-  @media (min-width: 1024px) {
-    .discover-screen {
-      max-width: 600px;
-      margin: 0 auto;
-    }
-
-    .card-stack-container {
-      padding: 28px;
-    }
-
-    .card-stack {
-      max-width: 500px;
-      max-height: 700px;
-    }
-  }
+  .loading-text { font-size: 14px; color: var(--text-2); margin: 0; }
 </style>
