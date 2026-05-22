@@ -359,9 +359,9 @@ export async function hydrateUserFromSupabase() {
       age: profile.age || 0,
       city: profile.city || '',
       avatar: profile.avatar_url || null,
-      about: null,
-      looking: null,
-      trustScore: 0,
+      about: profile.about || null,
+      looking: profile.looking || null,
+      trustScore: profile.trust_score || 0,
       createdAt: new Date(profile.created_at),
       updatedAt: new Date(profile.updated_at)
     };
