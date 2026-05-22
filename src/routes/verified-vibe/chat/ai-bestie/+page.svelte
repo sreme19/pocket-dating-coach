@@ -19,6 +19,53 @@
   let input = $state('');
   let sending = $state(false);
   let messagesEnd: HTMLDivElement | undefined;
+  let feedback = $state<Map<number, 'up' | 'down'>>(new Map());
+
+  // ── Markdown renderer ──────────────────────────────────────────────────────
+  function renderMarkdown(text: string): string {
+    return text
+      // **bold**
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      // bullet lines starting with - or •
+      .replace(/^[-•]\s+(.+)$/gm, '<li>$1</li>')
+      // wrap consecutive <li> in <ul>
+      .replace(/(<li>.*<\/li>\n?)+/gs, (m) => `<ul>${m}</ul>`)
+      // double line breaks → paragraph gap
+      .replace(/\n{2,}/g, '\n\n')
+      // single line break inside a paragraph
+      .replace(/([^\n])\n([^\n<])/g, '$1<br>$2');
+  }
+
+  async function toggleFeedback(i: number, val: 'up' | 'down', messageContent: string) {
+    const prev = feedback.get(i);
+    const next = new Map(feedback);
+
+    // Toggle off if same button clicked again
+    if (prev === val) {
+      next.delete(i);
+    } else {
+      next.set(i, val);
+    }
+    feedback = next;
+
+    // Only persist when setting (not toggling off)
+    if (prev !== val) {
+      try {
+        await fetch('/api/verified-vibe/ai-bestie/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: $user?.id ?? '',
+            feedbackType: val === 'up' ? 'positive' : 'negative',
+            messageContent
+          })
+        });
+      } catch (err) {
+        console.warn('[AI Bestie feedback] failed to save:', err);
+        // Non-blocking — don't revert UI state on network errors
+      }
+    }
+  }
 
   // Quick-action chips
   const CHIPS: { label: string; icon: string; intent: 'summary' | 'insights' | 'configure' }[] = [
@@ -157,14 +204,36 @@
       >
         {#if msg.role === 'assistant'}
           <BestieAvatar size={32} />
-        {/if}
-        <div class="bubble {msg.role} {msg.pending ? 'pending' : ''}">
-          {#if msg.pending}
-            <span class="typing-dots"><span></span><span></span><span></span></span>
-          {:else}
+          <div class="assistant-col">
+            <div class="bubble assistant {msg.pending ? 'pending' : ''}">
+              {#if msg.pending}
+                <span class="typing-dots"><span></span><span></span><span></span></span>
+              {:else}
+                {@html renderMarkdown(msg.content)}
+              {/if}
+            </div>
+            {#if !msg.pending}
+              <div class="feedback-row">
+                <button
+                  class="thumb-btn {feedback.get(i) === 'up' ? 'active up' : ''}"
+                  onclick={() => toggleFeedback(i, 'up', msg.content)}
+                  aria-label="Positive feedback"
+                  data-tooltip="Positive feedback"
+                >👍</button>
+                <button
+                  class="thumb-btn {feedback.get(i) === 'down' ? 'active down' : ''}"
+                  onclick={() => toggleFeedback(i, 'down', msg.content)}
+                  aria-label="Negative feedback"
+                  data-tooltip="Negative feedback"
+                >👎</button>
+              </div>
+            {/if}
+          </div>
+        {:else}
+          <div class="bubble user">
             {msg.content}
-          {/if}
-        </div>
+          </div>
+        {/if}
       </div>
     {/each}
     <div bind:this={messagesEnd}></div>
@@ -313,16 +382,15 @@
   /* .bestie-avatar-bubble replaced by <BestieAvatar size={32} /> */
 
   .bubble {
-    max-width: 76%;
     padding: 10px 14px;
     border-radius: 16px;
     font-size: 14px;
     line-height: 1.55;
-    white-space: pre-wrap;
     word-break: break-word;
   }
 
   .bubble.assistant {
+    /* max-width delegated to .assistant-col */
     background: var(--bg-2);
     border: 1px solid var(--border-1);
     color: var(--text-1);
@@ -330,9 +398,121 @@
   }
 
   .bubble.user {
+    max-width: 76%;
+    white-space: pre-wrap;
     background: linear-gradient(135deg, #ec4899, #a855f7);
     color: #fff;
     border-bottom-right-radius: 4px;
+  }
+
+  /* ── Assistant column (bubble + feedback) ── */
+  .assistant-col {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    max-width: 76%;
+    min-width: 0;
+  }
+
+  /* ── Feedback row ── */
+  .feedback-row {
+    display: flex;
+    gap: 4px;
+    padding-left: 2px;
+    opacity: 0;
+    transition: opacity 200ms;
+  }
+  .msg-row.assistant:hover .feedback-row,
+  .feedback-row:has(.thumb-btn.active) {
+    opacity: 1;
+  }
+
+  .thumb-btn {
+    font-size: 13px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    border: 1px solid var(--border-1);
+    background: var(--bg-2);
+    cursor: pointer;
+    line-height: 1;
+    transition: all 150ms;
+    opacity: 0.65;
+    position: relative;
+  }
+  .thumb-btn:hover {
+    opacity: 1;
+    background: var(--bg-3);
+  }
+
+  /* ── Tooltip ── */
+  .thumb-btn::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 7px);
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    background: rgba(15, 15, 25, 0.92);
+    color: #e2e8f0;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 9px;
+    border-radius: 6px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 150ms, transform 150ms;
+    transform: translateX(-50%) translateY(4px);
+    z-index: 10;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .thumb-btn:hover::after {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  /* small caret */
+  .thumb-btn::before {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 3px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 4px solid transparent;
+    border-top-color: rgba(15, 15, 25, 0.92);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 150ms;
+    z-index: 10;
+  }
+  .thumb-btn:hover::before { opacity: 1; }
+  .thumb-btn.active.up {
+    background: rgba(34, 197, 94, 0.15);
+    border-color: rgba(34, 197, 94, 0.5);
+    opacity: 1;
+  }
+  .thumb-btn.active.down {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.5);
+    opacity: 1;
+  }
+
+  /* ── Markdown inside assistant bubbles ── */
+  .bubble.assistant :global(strong) {
+    font-weight: 700;
+    color: var(--text-1);
+  }
+  .bubble.assistant :global(ul) {
+    margin: 6px 0;
+    padding-left: 18px;
+  }
+  .bubble.assistant :global(li) {
+    margin: 3px 0;
+    line-height: 1.5;
+  }
+  .bubble.assistant :global(br) {
+    display: block;
+    content: '';
+    margin-top: 4px;
   }
 
   .bubble.pending {
