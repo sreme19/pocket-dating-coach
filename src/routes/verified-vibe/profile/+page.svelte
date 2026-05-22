@@ -207,7 +207,7 @@
   ]);
   let showEditQAModal = $state(false);
 
-  const about = $derived(generated?.about ?? draft?.about ?? '');
+  const about = $derived(generated?.about ?? draft?.about ?? $user?.about ?? '');
   const personalityTags = $derived(generated?.personalityDescriptors ?? draft?.personalityTags ?? []);
   const intentStatement = $derived(generated?.intentStatement ?? draft?.lookingFor ?? '');
   const lifestyleTags = $derived(generated?.lifestyleTags ?? draft?.interests ?? []);
