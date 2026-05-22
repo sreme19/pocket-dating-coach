@@ -42,16 +42,36 @@
   interface CoachingCard { signal: string; read: string; }
   let coachingCards = $state<Map<string, CoachingCard>>(new Map());
 
+  function persistCoachingCards() {
+    if (typeof localStorage === 'undefined' || !conversationId) return;
+    const obj: Record<string, CoachingCard> = {};
+    coachingCards.forEach((card, msgId) => { obj[msgId] = card; });
+    localStorage.setItem(`bestie-cards-${conversationId}`, JSON.stringify(obj));
+  }
+
+  function loadCoachingCards() {
+    if (typeof localStorage === 'undefined' || !conversationId) return;
+    try {
+      const raw = localStorage.getItem(`bestie-cards-${conversationId}`);
+      if (raw) {
+        const obj = JSON.parse(raw) as Record<string, CoachingCard>;
+        coachingCards = new Map(Object.entries(obj));
+      }
+    } catch { /* ignore */ }
+  }
+
   // Utility function to validate UUID format
   function isValidUUID(id: string): boolean {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     return uuidRegex.test(id);
   }
 
-  // Get conversation ID from route and restore Bestie state + poller
+  // Get conversation ID from route and restore Bestie state + poller + coaching cards
   $effect(() => {
     conversationId = $page.params.conversationId || '';
     if (conversationId) {
+      // Always restore coaching cards — they're visible regardless of active/inactive state
+      loadCoachingCards();
       const saved = localStorage.getItem(`ai-bestie-active-${conversationId}`);
       if (saved === 'true' && !activeAssistant) {
         activeAssistant = 'bestie';
@@ -725,8 +745,9 @@
 
       const { signal, read, suggestedQuestion } = await response.json();
 
-      // Store coaching card — only visible to Neha (local state, never in Supabase)
+      // Store coaching card — persisted to localStorage so it survives navigation
       coachingCards = new Map(coachingCards.set(messageId, { signal, read }));
+      persistCoachingCards();
 
       // Auto-send the suggested question to Adrian as a real message
       if (suggestedQuestion) {
@@ -1018,7 +1039,7 @@
               <span class="message-time">{formatTime(message.createdAt)}</span>
             </div>
           </div>
-          {#if !isSentMessage(message) && activeAssistant === 'bestie' && coachingCards.get(message.id)}
+          {#if !isSentMessage(message) && coachingCards.get(message.id)}
             {@const card = coachingCards.get(message.id)!}
             <div class="bestie-coaching-card" transition:slide={{ duration: 300 }}>
               <div class="bestie-card-header">
