@@ -27,3 +27,13 @@ vite.config.ts.timestamp-*
 
 # Claude worktrees (local development)
 .claude/worktrees/
+
+# Android release signing (keystore files must never be committed)
+*.jks
+*.keystore
+android/keystore.properties
+android/app/release.keystore
+
+# Firebase config (contains project-specific keys, should not be committed)
+google-services.json
+android/app/google-services.json

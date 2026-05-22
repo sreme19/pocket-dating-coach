@@ -3,6 +3,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { ShieldCheck } from 'lucide-svelte';
+  import { Toaster } from 'svelte-sonner';
 
   let { children } = $props();
 
@@ -55,3 +56,5 @@
 {:else}
   {@render children()}
 {/if}
+
+<Toaster position="top-center" richColors />

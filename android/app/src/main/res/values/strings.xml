@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Pocket Dating Coach</string>
+    <string name="title_activity_main">Pocket Dating Coach</string>
+    <string name="package_name">com.pocketdatingcoach.app</string>
+    <string name="custom_url_scheme">com.pocketdatingcoach.app</string>
+
+    <!-- Offline state strings -->
+    <string name="offline_title">No Internet Connection</string>
+    <string name="offline_message">Please check your connection and try again.</string>
+    <string name="offline_retry">Retry</string>
+    <string name="offline_inline_message">Connection lost. Tap to retry.</string>
+</resources>

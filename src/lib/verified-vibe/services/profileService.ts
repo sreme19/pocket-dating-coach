@@ -21,6 +21,9 @@ export interface VVProfile {
   age: number | null;
   city: string | null;
   avatar_url: string | null;
+  about: string | null;
+  looking: string | null;
+  trust_score: number | null;
   created_at: string;
   updated_at: string;
 }
