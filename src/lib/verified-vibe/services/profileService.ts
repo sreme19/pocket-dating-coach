@@ -20,6 +20,7 @@ export interface VVProfile {
   first_name: string | null;
   age: number | null;
   city: string | null;
+  avatar_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -94,11 +95,20 @@ export async function upsertProfile(
     throw error;
   }
 
-  // Fire-and-forget: initialize preferences for female archetypes
-  if (
-    updates.archetype === 'spoilt_woman' ||
-    updates.archetype === 'safety_first_woman'
-  ) {
+  // Fire-and-forget: initialize preferences for female users.
+  // Trigger on gender='woman' (covers all descriptive archetypes from seed data,
+  // not just the enum values 'spoilt_woman'/'safety_first_woman').
+  const savedGender = (data as any).gender ?? updates.gender;
+  const savedArchetype = (data as any).archetype ?? updates.archetype ?? '';
+  if (savedGender === 'woman' || savedArchetype) {
+    // Only fire if we know the user is female (either by gender field or by archetype being set)
+    const isWoman = savedGender === 'woman' ||
+      ['spoilt_woman', 'safety_first_woman'].includes(savedArchetype) ||
+      // descriptive female archetypes from seed data always contain 'woman' or 'Woman'
+      String(savedArchetype).toLowerCase().includes('woman');
+    if (!isWoman) {
+      return data as VVProfile;
+    }
     const sessionToken = session.access_token;
     fetch('/api/verified-vibe/preferences/initialize', {
       method: 'POST',

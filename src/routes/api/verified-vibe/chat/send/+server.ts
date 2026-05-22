@@ -22,13 +22,19 @@ async function extractAndUpdatePreferences(
   const supabase = getSupabase();
   const { data: sender } = await supabase
     .from('verified_vibe_users')
-    .select('archetype, about, looking')
+    .select('gender, archetype, about, looking')
     .eq('id', senderId)
     .single();
 
-  // Only process female archetypes
-  const femaleArchetypes = ['spoilt_woman', 'safety_first_woman'];
-  if (!sender || !femaleArchetypes.includes(sender.archetype)) return;
+  // Only process female users. Check gender field first (most reliable),
+  // then fall back to archetype string (covers both enum values and descriptive labels).
+  if (!sender) return;
+  const isFemale =
+    sender.gender === 'woman' ||
+    sender.archetype === 'spoilt_woman' ||
+    sender.archetype === 'safety_first_woman' ||
+    String(sender.archetype ?? '').toLowerCase().includes('woman');
+  if (!isFemale) return;
 
   // 2. Ask Claude to extract any preference signals from her message
   const { getClaudeClient, CLAUDE_MODEL } = await import('$lib/claude');

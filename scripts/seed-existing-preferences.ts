@@ -14,6 +14,18 @@ import { createClient } from '@supabase/supabase-js';
 
 type FemaleArchetype = 'spoilt_woman' | 'safety_first_woman';
 
+/** Map any archetype string → our two seed categories */
+function resolveFemaleArchetype(archetype: string): FemaleArchetype {
+  const lower = archetype.toLowerCase();
+  const safetyKeywords = [
+    'safety', 'independent', 'feminist', 'traditional', 'family-first',
+    'divorced', 'spiritual', 'therapy', 'bdsm', 'ethically', 'polyamorous',
+    'awakened', 'monogamish', 'swinger', 'serial dater', 'time pressure'
+  ];
+  if (safetyKeywords.some(kw => lower.includes(kw))) return 'safety_first_woman';
+  return 'spoilt_woman';
+}
+
 interface PreferencesProfile {
   emotionalSignals: string[];
   lifestyleSignals: string[];
@@ -112,11 +124,12 @@ const ARCHETYPE_SEED_PREFERENCES: Record<
 // ─── Build initial preferences ────────────────────────────────────────────────
 
 function buildInitialPreferences(
-  archetype: FemaleArchetype,
+  archetype: string,   // accepts enum or descriptive label
   about?: string | null,
   looking?: string | null
 ): PreferencesProfile {
-  const seed = ARCHETYPE_SEED_PREFERENCES[archetype];
+  const resolved = resolveFemaleArchetype(archetype);
+  const seed = ARCHETYPE_SEED_PREFERENCES[resolved];
 
   const profile: PreferencesProfile = {
     ...seed,
@@ -148,11 +161,13 @@ async function seedExistingPreferences() {
 
   const supabase = createClient(supabaseUrl, serviceKey);
 
-  // 1. Fetch all female users with a supported archetype
+  // 1. Fetch all female users — query by gender='woman' to capture both
+  //    enum archetypes ('spoilt_woman') AND descriptive labels from seed data
+  //    ('The NRI / Diaspora-Bridging Woman', etc.)
   const { data: users, error: fetchError } = await supabase
     .from('verified_vibe_users')
     .select('id, gender, archetype, first_name, about, looking')
-    .in('archetype', ['spoilt_woman', 'safety_first_woman']);
+    .eq('gender', 'woman');
 
   if (fetchError) {
     console.error('Failed to fetch users:', fetchError.message);

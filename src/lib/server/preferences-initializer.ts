@@ -14,9 +14,29 @@
 import type { PreferencesProfile } from './profile-service';
 import { updatePreferences, loadPreferences } from './profile-service';
 
-// ─── Archetype type ──────────────────────────────────────────────────────────
+// ─── Archetype resolution ─────────────────────────────────────────────────────
 
+// The DB can store either the enum values ('spoilt_woman', 'safety_first_woman')
+// OR the rich descriptive labels used in seed data ('The NRI / Diaspora-Bridging Woman', etc.)
+// We normalise both to our two seed categories.
 type FemaleArchetype = 'spoilt_woman' | 'safety_first_woman';
+
+/**
+ * Map any archetype string → one of our two female seed categories.
+ * Safety-first keywords → safety_first_woman.
+ * Everything else → spoilt_woman (high-effort, quality expectations).
+ * This covers both enum values AND the descriptive labels in seed data.
+ */
+export function resolveFemaleArchetype(archetype: string): FemaleArchetype {
+  const lower = archetype.toLowerCase();
+  const safetyKeywords = [
+    'safety', 'independent', 'feminist', 'traditional', 'family-first',
+    'divorced', 'spiritual', 'therapy', 'bdsm', 'ethically', 'polyamorous',
+    'awakened', 'monogamish', 'swinger', 'serial dater', 'time pressure'
+  ];
+  if (safetyKeywords.some(kw => lower.includes(kw))) return 'safety_first_woman';
+  return 'spoilt_woman';
+}
 
 // ─── Archetype seed map ──────────────────────────────────────────────────────
 
@@ -114,11 +134,12 @@ export const ARCHETYPE_SEED_PREFERENCES: Record<FemaleArchetype, Omit<Preference
  * @param looking    Optional: her "what I'm looking for" text
  */
 export function buildInitialPreferences(
-  archetype: FemaleArchetype,
+  archetype: string,   // accepts both enum values and descriptive labels
   about?: string | null,
   looking?: string | null
 ): PreferencesProfile {
-  const seed = ARCHETYPE_SEED_PREFERENCES[archetype];
+  const resolved = resolveFemaleArchetype(archetype);
+  const seed = ARCHETYPE_SEED_PREFERENCES[resolved];
 
   // Carry over all seed fields verbatim
   const profile: PreferencesProfile = {
@@ -176,7 +197,7 @@ function isDefaultEmptyProfile(profile: PreferencesProfile): boolean {
  */
 export async function initializeUserPreferences(
   userId: string,
-  archetype: FemaleArchetype,
+  archetype: string,   // accepts both enum values and descriptive labels
   about?: string | null,
   looking?: string | null
 ): Promise<void> {

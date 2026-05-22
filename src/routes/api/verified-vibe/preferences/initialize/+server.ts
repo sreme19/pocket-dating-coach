@@ -4,8 +4,20 @@ import { createClient } from '@supabase/supabase-js';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { initializeUserPreferences } from '$lib/server/preferences-initializer';
 
-const FEMALE_ARCHETYPES = ['spoilt_woman', 'safety_first_woman'] as const;
-type FemaleArchetype = (typeof FEMALE_ARCHETYPES)[number];
+/**
+ * Determine if an archetype string represents a female user.
+ * Accepts both enum values ('spoilt_woman', 'safety_first_woman') and
+ * rich descriptive labels from seed data ('The NRI / Diaspora-Bridging Woman', etc.)
+ */
+function isFemaleArchetype(archetype: string): boolean {
+  const lower = archetype.toLowerCase();
+  return (
+    lower === 'spoilt_woman' ||
+    lower === 'safety_first_woman' ||
+    lower.includes('woman') ||
+    lower.includes('female')
+  );
+}
 
 export const POST: RequestHandler = async ({ request }) => {
   try {
@@ -23,9 +35,9 @@ export const POST: RequestHandler = async ({ request }) => {
     }
 
     // Only female archetypes get a preferences profile
-    if (!(FEMALE_ARCHETYPES as readonly string[]).includes(archetype)) {
+    if (!isFemaleArchetype(archetype)) {
       return json(
-        { success: false, error: `Invalid archetype: must be one of ${FEMALE_ARCHETYPES.join(', ')}` },
+        { success: false, error: 'Only female archetypes receive a preferences profile' },
         { status: 400 }
       );
     }
@@ -52,7 +64,7 @@ export const POST: RequestHandler = async ({ request }) => {
       return json({ success: false, error: 'Forbidden: cannot initialize preferences for another user' }, { status: 403 });
     }
 
-    await initializeUserPreferences(userId, archetype as FemaleArchetype, about, looking);
+    await initializeUserPreferences(userId, archetype, about, looking);
 
     return json({ success: true });
   } catch (error) {
