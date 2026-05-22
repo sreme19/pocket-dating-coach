@@ -10,7 +10,9 @@
   import type { AssistantType } from '$lib/types';
   import VoiceDictation from '$lib/components/VoiceDictation.svelte';
 
-  let conversationId = $state('');
+  // Initialise from route params immediately — the $effect fires AFTER onMount,
+  // so reading $page.params here ensures localStorage keys are correct from mount.
+  let conversationId = $state($page.params.conversationId || '');
   let messageInput = $state('');
   let isLoading = $state(true);
   let error = $state<string | null>(null);
@@ -153,6 +155,11 @@
       if (initialMessages && Array.isArray(initialMessages)) {
         messages.set(initialMessages);
       }
+
+      // Restore any coaching cards from localStorage now that messages are loaded.
+      // (loadCoachingCards is also called in the $effect, but $effect runs after
+      //  onMount so we call it here too to guarantee cards are visible immediately.)
+      loadCoachingCards();
 
       // Realtime disabled: anon key can't subscribe to RLS-protected tables
       // Auto-response uses polling instead (startBestiePoller)
