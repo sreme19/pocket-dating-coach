@@ -106,14 +106,26 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
       .from('verified_vibe_users')
       .select('gender')
       .eq('id', currentUserId)
-      .single();
+      .maybeSingle();
 
-    if (currentUserError || !currentUserProfile) {
+    if (currentUserError) {
       console.error('Error fetching current user profile:', currentUserError);
       return json(
         { error: 'Failed to fetch your profile' },
         { status: 500 }
       );
+    }
+
+    // If user doesn't have a profile yet, return empty list
+    if (!currentUserProfile) {
+      console.warn('User profile not found for:', currentUserId);
+      return json({
+        data: {
+          profiles: [],
+          hasMore: false,
+          total: 0
+        }
+      });
     }
 
     const currentUserGender = currentUserProfile.gender || 'man';
