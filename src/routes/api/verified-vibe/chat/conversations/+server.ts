@@ -10,6 +10,8 @@ export interface Conversation {
   lastMessage: string;
   lastMessageTime: Date;
   unreadCount: number;
+  hasMessages: boolean;
+  matchedAt: Date;
 }
 
 interface ConversationsResponse {
@@ -88,7 +90,7 @@ export const GET: RequestHandler = async ({ request }) => {
     // Get all matches for the current user
     const { data: matches, error: matchesError } = await supabase
       .from('verified_vibe_matches')
-      .select('id, user1_id, user2_id, status')
+      .select('id, user1_id, user2_id, status, created_at')
       .eq('status', 'mutual')
       .or(`user1_id.eq.${userId},user2_id.eq.${userId}`);
 
@@ -144,6 +146,34 @@ export const GET: RequestHandler = async ({ request }) => {
       const lastMessageTime = lastMessage?.created_at ? new Date(lastMessage.created_at) : new Date();
       const lastMessageContent = lastMessage?.content || 'No messages yet';
 
+      // Count unread messages — gracefully falls back to 0 if the
+      // last_read columns haven't been migrated yet.
+      let unreadCount = 0;
+      try {
+        const isUser1 = match.user1_id === userId;
+        const colAlias = isUser1 ? 'user1_last_read_at' : 'user2_last_read_at';
+
+        const { data: readRow } = await supabase
+          .from('verified_vibe_matches')
+          .select(colAlias)
+          .eq('id', match.id)
+          .single();
+
+        const myLastReadAt: string | null = readRow ? (readRow as Record<string, string | null>)[colAlias] ?? null : null;
+
+        if (myLastReadAt) {
+          const { count } = await supabase
+            .from('verified_vibe_messages')
+            .select('id', { count: 'exact', head: true })
+            .eq('match_id', match.id)
+            .neq('sender_id', userId)
+            .gt('created_at', myLastReadAt);
+          unreadCount = count ?? 0;
+        }
+      } catch {
+        // Column not yet migrated — treat as 0 unread
+      }
+
       conversations.push({
         id: match.id,
         matchId: match.id,
@@ -163,7 +193,9 @@ export const GET: RequestHandler = async ({ request }) => {
         },
         lastMessage: lastMessageContent,
         lastMessageTime,
-        unreadCount: 0 // TODO: Implement unread count tracking
+        unreadCount,
+        hasMessages: !!lastMessage,
+        matchedAt: new Date(match.created_at)
       });
     }
 
