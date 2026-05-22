@@ -94,6 +94,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			.limit(10);
 
 		let matchContext = '';
+		const nameToMatchId: Record<string, string> = {};
 
 		if (!matches || matches.length === 0) {
 			matchContext = '\n\nNeha has no matches yet.';
@@ -111,6 +112,9 @@ export const POST: RequestHandler = async ({ request }) => {
 					.single();
 
 				if (!otherUser) continue;
+
+				// Track name → match ID for draft resolution
+				nameToMatchId[otherUser.first_name.toLowerCase()] = match.id;
 
 				const { data: recentMsgs } = await supabase
 					.from('verified_vibe_messages')
@@ -165,6 +169,12 @@ PREFERENCE DETECTION: If Neha explicitly states a preference, rule, or boundary 
 - [PREF:signal:description] for green/red flags she values or watches for
 - [PREF:note:description] for private compatibility notes
 Keep values concise (max 80 chars). Multiple markers are fine. Only add a marker when she explicitly states a preference — never when you're inferring. Place all markers on a new line after your reply, with no explanation.
+
+DRAFT MESSAGES: When Neha explicitly asks you to draft a message to send to a specific match, or when she approves a suggested message and says she wants to send it — wrap the final send-ready message text in:
+[DRAFT:MatchFirstName]
+message text here
+[/DRAFT]
+Use this ONLY for finalized messages Neha has confirmed she wants to send — not for examples, suggestions, or openers you're proposing. One [DRAFT] block per match. Place draft blocks after your reply text, each on its own line. Use the exact first name as shown in the match list above.
 ${prefsContext}${matchContext}`;
 
 		// ── Call Claude ───────────────────────────────────────────────────────
@@ -193,7 +203,22 @@ ${prefsContext}${matchContext}`;
 			detectedPrefs.push({ type: m[1], value: m[2].trim() });
 		}
 
-		const reply = rawReply.replace(/\[PREF:[^\]]+\]/g, '').trim();
+		// ── Parse DRAFT markers ───────────────────────────────────────────────
+		const DRAFT_REGEX = /\[DRAFT:([^\]]+)\]([\s\S]*?)\[\/DRAFT\]/g;
+		const drafts: { matchName: string; matchId: string; content: string }[] = [];
+		let dm: RegExpExecArray | null;
+		while ((dm = DRAFT_REGEX.exec(rawReply)) !== null) {
+			const matchName = dm[1].trim();
+			const content = dm[2].trim();
+			const matchId = nameToMatchId[matchName.toLowerCase()];
+			if (matchId && content) drafts.push({ matchName, matchId, content });
+		}
+
+		// Strip both marker types from the visible reply
+		const reply = rawReply
+			.replace(/\[PREF:[^\]]+\]/g, '')
+			.replace(/\[DRAFT:[^\]]+\][\s\S]*?\[\/DRAFT\]/g, '')
+			.trim();
 
 		if (detectedPrefs.length > 0) {
 			try {
@@ -222,7 +247,7 @@ ${prefsContext}${matchContext}`;
 			}
 		}
 
-		return json({ reply, userMessage, prefsUpdated: detectedPrefs.length > 0 });
+		return json({ reply, userMessage, prefsUpdated: detectedPrefs.length > 0, drafts });
 	} catch (err) {
 		console.error('[AI Bestie chat]', err);
 		return json(
