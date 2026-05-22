@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { loadPreferences, updatePreferences } from '$lib/server/profile-service';
 import { getClaudeClient } from '$lib/claude';
 import { logError, ErrorType } from '$lib/server/error-handler';
+import { getSupabase } from '$lib/server/supabase';
 
 /**
  * POST /api/ai-bestie/configure
@@ -159,8 +160,18 @@ export const GET: RequestHandler = async ({ url }) => {
 	}
 
 	try {
-		const prefs = await loadPreferences(userId);
-		const interviewTopics = deriveInterviewTopics(prefs);
+		const supabase = getSupabase();
+		const [prefs, userRow] = await Promise.all([
+			loadPreferences(userId),
+			supabase
+				.from('verified_vibe_users')
+				.select('first_name')
+				.eq('id', userId)
+				.maybeSingle()
+				.then(({ data }) => data)
+		]);
+		const userName: string = (userRow as any)?.first_name ?? 'her';
+		const interviewTopics = deriveInterviewTopics(prefs, userName);
 		return json({ interviewTopics, preferences: prefs });
 	} catch (err) {
 		logError('GET /api/ai-bestie/configure', err, ErrorType.DATABASE_ERROR, { userId });
@@ -169,15 +180,21 @@ export const GET: RequestHandler = async ({ url }) => {
 };
 
 /**
- * Derive 5-6 comprehensive, readable probe topics from the user's structured preferences.
- * Each category gets one bullet that lists ALL its items (not just the first 2).
+ * Derive 5 comprehensive, readable probe topics from the user's structured preferences.
+ * Each category gets one bullet listing ALL its items. Uses the user's real name.
  */
-function deriveInterviewTopics(prefs: Awaited<ReturnType<typeof loadPreferences>>): string[] {
+function deriveInterviewTopics(
+	prefs: Awaited<ReturnType<typeof loadPreferences>>,
+	userName = 'her'
+): string[] {
+	// Build possessive: "Neha's" or fall back to "her"
+	const poss = userName === 'her' ? 'Her' : `${userName}'s`;
+
 	const topics: string[] = [];
 
 	if (prefs.emotionalSignals.length) {
 		topics.push(
-			`🟢 Emotional availability — she needs to see: ${prefs.emotionalSignals.join(', ')}`
+			`🟢 Emotional availability — ${poss.toLowerCase()} green flags: ${prefs.emotionalSignals.join(', ')}`
 		);
 	}
 
@@ -189,13 +206,13 @@ function deriveInterviewTopics(prefs: Awaited<ReturnType<typeof loadPreferences>
 
 	if (prefs.maturitySignals.length) {
 		topics.push(
-			`⚡ Maturity & stability markers — looking for: ${prefs.maturitySignals.join(', ')}`
+			`⚡ Maturity & stability markers — ${poss.toLowerCase()} expectations: ${prefs.maturitySignals.join(', ')}`
 		);
 	}
 
 	if (prefs.boundaries.length) {
 		topics.push(
-			`🚫 Her firm boundaries — probes for respect of: ${prefs.boundaries.join(', ')}`
+			`🚫 ${poss} firm boundaries — probes for respect of: ${prefs.boundaries.join(', ')}`
 		);
 	}
 
@@ -203,12 +220,6 @@ function deriveInterviewTopics(prefs: Awaited<ReturnType<typeof loadPreferences>
 		topics.push(
 			`🏠 Lifestyle compatibility — checks for: ${prefs.lifestyleSignals.join(', ')}`
 		);
-	}
-
-	if (prefs.privateCompatibilityNotes.length) {
-		for (const note of prefs.privateCompatibilityNotes) {
-			topics.push(`📝 ${note}`);
-		}
 	}
 
 	return topics.filter(Boolean);
