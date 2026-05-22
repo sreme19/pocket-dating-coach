@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { fade, slide } from 'svelte/transition';
+  import { user } from '$lib/verified-vibe/stores';
+  import BestieAvatar from '$lib/components/BestieAvatar.svelte';
   import type { Conversation } from '../api/verified-vibe/chat/conversations/+server';
 
   let conversations = $state<Conversation[]>([]);
@@ -9,6 +11,8 @@
   let error = $state<string | null>(null);
 
   onMount(async () => {
+    user.hydrate();
+
     try {
       isLoading = true;
       error = null;
@@ -89,6 +93,25 @@
 
   <!-- Content -->
   <div class="chat-list-content">
+    <!-- AI Bestie pinned entry — female users only -->
+    {#if $user?.gender === 'woman'}
+      <button
+        class="conversation-item bestie-pinned-item"
+        onclick={() => goto('/verified-vibe/chat/ai-bestie')}
+        transition:slide={{ duration: 300 }}
+      >
+        <BestieAvatar size={48} />
+        <div class="conversation-content">
+          <div class="conversation-header">
+            <h3 class="conversation-name bestie-pinned-name">AI Bestie</h3>
+            <span class="bestie-badge">Advisor</span>
+          </div>
+          <p class="conversation-message">Tips, match summaries & fresh insights</p>
+        </div>
+      </button>
+      <div class="bestie-divider"></div>
+    {/if}
+
     {#if isLoading}
       <div class="loading-state" transition:fade={{ duration: 300 }}>
         <div class="spinner"></div>
@@ -430,6 +453,52 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  /* AI Bestie pinned row */
+  .bestie-pinned-item {
+    background: linear-gradient(90deg, rgba(236,72,153,0.06) 0%, rgba(168,85,247,0.06) 100%);
+    border-bottom: 1px solid rgba(236,72,153,0.15);
+  }
+  .bestie-pinned-item:hover {
+    background: linear-gradient(90deg, rgba(236,72,153,0.12) 0%, rgba(168,85,247,0.12) 100%);
+  }
+
+  .bestie-pinned-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #ec4899, #a855f7);
+    display: grid;
+    place-items: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+
+  .bestie-pinned-name {
+    background: linear-gradient(90deg, #ec4899, #a855f7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .bestie-badge {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 2px 7px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #ec4899, #a855f7);
+    color: #fff;
+    flex-shrink: 0;
+    text-transform: uppercase;
+  }
+
+  .bestie-divider {
+    height: 6px;
+    background: var(--bg-2);
+    border-top: 1px solid var(--border-1);
+    border-bottom: 1px solid var(--border-1);
   }
 
   /* Unread Badge */
