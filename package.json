@@ -21,6 +21,7 @@
 		"apply:rls": "tsx --env-file=.env.local scripts/apply-rls-policies.ts",
 		"verify:prod-env": "tsx --env-file=.env.production scripts/verify-production-env.ts",
 		"verify:local-env": "tsx --env-file=.env.local scripts/verify-production-env.ts",
+		"generate:bios": "tsx --env-file=.env.local scripts/generate-about-bios.ts",
 		"cap:sync": "cap sync",
 		"cap:open": "cap open android",
 		"cap:build": "vite build && cap sync"
