@@ -1,13 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '$env/dynamic/private';
 
-let _client: Anthropic | null = null;
-
 export function getClaudeClient(): Anthropic {
-	if (!_client) {
-		_client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+	const apiKey = env.ANTHROPIC_API_KEY;
+	if (!apiKey) {
+		throw new Error('ANTHROPIC_API_KEY is not configured. Check your .env.local file.');
 	}
-	return _client;
+	return new Anthropic({ apiKey });
 }
 
 export const CLAUDE_MODEL = 'claude-sonnet-4-5-20250929';

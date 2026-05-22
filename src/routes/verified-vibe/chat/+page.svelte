@@ -29,7 +29,8 @@
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch conversations');
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.error || `Failed to fetch conversations (${response.status})`);
       }
 
       const data = await response.json();

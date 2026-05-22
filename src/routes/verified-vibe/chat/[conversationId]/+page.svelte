@@ -32,6 +32,7 @@
   let respondedToMessageIds = $state<Set<string>>(new Set());
   let isActivating = false;
   let aiBestieActive = $state(false);
+  let userIsSeed = $state(false);
 
   interface CoachingCard { signal: string; read: string; }
   let coachingCards = $state<Map<string, CoachingCard>>(new Map());
@@ -49,6 +50,7 @@
       const saved = localStorage.getItem(`ai-bestie-active-${conversationId}`);
       if (saved === 'true' && !activeAssistant) {
         activeAssistant = 'bestie';
+        loadRespondedIds();
         startBestiePoller();
       }
     }
@@ -60,11 +62,17 @@
       error = null;
       connectionError = false;
 
+      // Check if user is a seed user
+      userIsSeed = await isSeedUser();
+
       // Check if AI Bestie was previously active
       const savedActiveAssistant = localStorage.getItem(`ai-bestie-active-${conversationId}`);
       if (savedActiveAssistant === 'true') {
         activeAssistant = 'bestie';
       }
+
+      // Restore which messages AI Bestie already responded to (prevents flooding on page reload)
+      loadRespondedIds();
 
       // Track current user as online
       if ($user) {
@@ -494,6 +502,63 @@
   }
 
   /**
+   * Check if current user is a seed user (for testing/demo purposes)
+   */
+  async function isSeedUser(): Promise<boolean> {
+    try {
+      const { getSupabaseClient } = await import('$lib/client/supabase');
+      const supabase = getSupabaseClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      return user?.email?.endsWith('@seed.vv') ?? false;
+    } catch (err) {
+      console.error('Failed to check seed user status:', err);
+      return false;
+    }
+  }
+
+  /**
+   * Clear all chat messages for current conversation (seed users only)
+   */
+  async function handleClearChat() {
+    try {
+      const confirmed = window.confirm(
+        'Are you sure you want to clear all chat messages? This action cannot be undone.'
+      );
+      if (!confirmed) return;
+
+      const { getSupabaseClient } = await import('$lib/client/supabase');
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
+      }
+
+      const response = await fetch(`/api/verified-vibe/chat/${conversationId}/clear`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to clear chat');
+      }
+
+      const data = await response.json();
+      console.log(`Cleared ${data.data.deletedCount} messages`);
+
+      // Clear messages from store
+      messages.set([]);
+      error = null;
+    } catch (err) {
+      console.error('Error clearing chat:', err);
+      error = err instanceof Error ? err.message : 'Failed to clear chat messages';
+    }
+  }
+
+  /**
    * Poll for new messages when AI Bestie is active
    * DISABLED - causing too many messages
    */
@@ -532,7 +597,8 @@
       });
       aiBestieActive = true;
 
-      await sendAIBestieOpeningMessage();
+      // Don't send opening message - only generate coaching cards for Adrian's messages
+      // await sendAIBestieOpeningMessage();
       startBestiePoller();
     } catch (err) {
       console.error('Failed to activate assistant:', err);
@@ -581,11 +647,31 @@
     }, 5000);
   }
 
+  function persistRespondedIds() {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(
+        `bestie-responded-${conversationId}`,
+        JSON.stringify([...respondedToMessageIds])
+      );
+    }
+  }
+
+  function loadRespondedIds() {
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const saved = localStorage.getItem(`bestie-responded-${conversationId}`);
+        if (saved) respondedToMessageIds = new Set(JSON.parse(saved));
+      } catch { /* ignore */ }
+    }
+  }
+
   async function generateAndSendAIBestieResponse(adrianMessage: string, messageId: string) {
     if (!$user || !$currentMatch) return;
     if (respondedToMessageIds.has(messageId)) return;
 
+    // Mark as responded immediately to prevent duplicate calls
     respondedToMessageIds = new Set([...respondedToMessageIds, messageId]);
+    persistRespondedIds();
 
     try {
       const { getSupabaseClient } = await import('$lib/client/supabase');
@@ -611,33 +697,38 @@
 
       const { signal, read, suggestedQuestion } = await response.json();
 
-      // Store coaching card — only visible to Neha, never sent to Adrian
+      // Store coaching card — only visible to Neha (local state, never in Supabase)
       coachingCards = new Map(coachingCards.set(messageId, { signal, read }));
 
-      // Auto-send the suggested question to Adrian
-      const sendResponse = await fetch('/api/verified-vibe/chat/send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`
-        },
-        body: JSON.stringify({ conversationId, content: suggestedQuestion })
-      });
+      // Auto-send the suggested question to Adrian as a real message
+      if (suggestedQuestion) {
+        const sendResponse = await fetch('/api/verified-vibe/chat/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token || ''}`
+          },
+          body: JSON.stringify({ conversationId, content: suggestedQuestion })
+        });
 
-      if (!sendResponse.ok) throw new Error('Failed to send AI Bestie question');
+        if (sendResponse.ok) {
+          const sentData = await sendResponse.json();
+          addMessage({
+            id: sentData.data.message.id,
+            matchId: conversationId,
+            senderId: $user.id,
+            content: suggestedQuestion,
+            createdAt: new Date(sentData.data.message.createdAt)
+          });
+        }
+      }
 
-      const sentData = await sendResponse.json();
-      addMessage({
-        id: sentData.data.message.id,
-        matchId: conversationId,
-        senderId: $user.id,
-        content: suggestedQuestion,
-        createdAt: new Date(sentData.data.message.createdAt)
-      });
       scrollToBottom();
     } catch (err) {
-      console.error('AI Bestie auto-response failed:', err);
+      console.error('AI Bestie response failed:', err);
+      // Remove from responded set so it can retry
       respondedToMessageIds.delete(messageId);
+      persistRespondedIds();
     }
   }
 
@@ -787,6 +878,19 @@
             </p>
           </div>
         </button>
+
+        {#if userIsSeed}
+          <button
+            class="clear-chat-btn"
+            onclick={handleClearChat}
+            title="Clear all chat messages (seed users only)"
+            aria-label="Clear chat messages"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6h14zM10 11v6M14 11v6"/>
+            </svg>
+          </button>
+        {/if}
       {/if}
     </div>
 
@@ -1015,6 +1119,9 @@
   .chat-header-content {
     flex: 1;
     min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   .match-info {
@@ -1027,6 +1134,8 @@
     border: none;
     padding: 0;
     font-family: inherit;
+    flex: 1;
+    min-width: 0;
   }
 
   .match-info:hover {
@@ -1061,6 +1170,7 @@
   .match-details {
     flex: 1;
     min-width: 0;
+    overflow: hidden;
   }
 
   .chat-title {
@@ -1093,6 +1203,29 @@
     border-radius: 50%;
     background: var(--text-3);
     display: inline-block;
+  }
+
+  .clear-chat-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    color: #ef4444;
+    transition: all 200ms ease;
+    flex-shrink: 0;
+  }
+
+  .clear-chat-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: #ef4444;
+  }
+
+  .clear-chat-btn:active {
+    transform: scale(0.95);
   }
 
   .header-spacer {
