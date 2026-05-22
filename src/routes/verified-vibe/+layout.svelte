@@ -11,6 +11,7 @@
 
   let { children } = $props();
   let hydrationComplete = $state(false);
+  let pathname = $derived($page.url.pathname);
 
   // ── Hydration ────────────────────────────────────────────────────────────────
   // On mount, hydrate stores from Supabase (if authenticated) or localStorage (pre-auth)
@@ -78,7 +79,7 @@
   {#if $currentPhase === 'app' && !$page.url.pathname.match(/^\/verified-vibe\/chat\/.+/)}
     <nav class="verified-vibe-bottomnav" transition:slide={{ duration: 300, axis: 'y' }}>
       {#each navItems as item}
-        {@const active = $currentTab === item.tab}
+        {@const active = pathname.startsWith(`/verified-vibe/${item.tab}`)}
         {@const Icon = item.icon}
         <button
           class="nav-item {active ? 'active' : ''}"
