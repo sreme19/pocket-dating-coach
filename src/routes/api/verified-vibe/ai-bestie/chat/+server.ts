@@ -2,7 +2,8 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
 import { getSupabase } from '$lib/server/supabase';
-import { loadPreferences } from '$lib/server/profile-service';
+import { loadPreferences, updatePreferences } from '$lib/server/profile-service';
+import type { PreferencesProfile } from '$lib/server/profile-service';
 
 /**
  * POST /api/verified-vibe/ai-bestie/chat
@@ -157,6 +158,13 @@ Your role:
 
 Tone: like texting your warmest, most grounded girlfriend. Encouraging and real. Short paragraphs. Occasional light humour. Never preachy. Never paranoid. Never generic.
 Format: use **bold** for names and key points. Use bullet lists (- item) for multi-point info. Use emoji sparingly but meaningfully — e.g. 🟢 good sign, 🔴 concern, 💡 tip, 💬 on their messages, ✨ highlight, 💛 warm note. Keep it mobile-friendly and easy to scan.
+
+PREFERENCE DETECTION: If Neha explicitly states a preference, rule, or boundary in her message — e.g. "block guys who…", "I don't want men who…", "that's a dealbreaker for me", "I prefer someone who…" — embed a structured marker at the very end of your reply:
+- [PREF:dealbreaker:description] for dealbreakers (things that disqualify a match)
+- [PREF:boundary:description] for hard limits or personal rules
+- [PREF:signal:description] for green/red flags she values or watches for
+- [PREF:note:description] for private compatibility notes
+Keep values concise (max 80 chars). Multiple markers are fine. Only add a marker when she explicitly states a preference — never when you're inferring. Place all markers on a new line after your reply, with no explanation.
 ${prefsContext}${matchContext}`;
 
 		// ── Call Claude ───────────────────────────────────────────────────────
@@ -175,9 +183,46 @@ ${prefsContext}${matchContext}`;
 		});
 
 		const block = response.content[0];
-		const reply = block.type === 'text' ? block.text.trim() : '';
+		const rawReply = block.type === 'text' ? block.text.trim() : '';
 
-		return json({ reply, userMessage });
+		// ── Parse and save preference markers ────────────────────────────────
+		const PREF_REGEX = /\[PREF:(dealbreaker|boundary|signal|note):([^\]]+)\]/g;
+		const detectedPrefs: { type: string; value: string }[] = [];
+		let m: RegExpExecArray | null;
+		while ((m = PREF_REGEX.exec(rawReply)) !== null) {
+			detectedPrefs.push({ type: m[1], value: m[2].trim() });
+		}
+
+		const reply = rawReply.replace(/\[PREF:[^\]]+\]/g, '').trim();
+
+		if (detectedPrefs.length > 0) {
+			try {
+				const currentPrefs = await loadPreferences(userId);
+				const updates: Partial<PreferencesProfile> = {};
+				for (const { type, value } of detectedPrefs) {
+					if (type === 'dealbreaker') {
+						updates.dealbreakers = [...new Set([...currentPrefs.dealbreakers, value])];
+					} else if (type === 'boundary') {
+						updates.boundaries = [...new Set([...currentPrefs.boundaries, value])];
+					} else if (type === 'signal') {
+						updates.emotionalSignals = [...new Set([...currentPrefs.emotionalSignals, value])];
+					} else if (type === 'note') {
+						updates.privateCompatibilityNotes = [
+							...new Set([...currentPrefs.privateCompatibilityNotes, value])
+						];
+					}
+				}
+				await updatePreferences(
+					userId,
+					updates,
+					`AI Bestie chat detected ${detectedPrefs.length} preference(s)`
+				);
+			} catch (err) {
+				console.warn('[AI Bestie] failed to save preferences:', err);
+			}
+		}
+
+		return json({ reply, userMessage, prefsUpdated: detectedPrefs.length > 0 });
 	} catch (err) {
 		console.error('[AI Bestie chat]', err);
 		return json(
