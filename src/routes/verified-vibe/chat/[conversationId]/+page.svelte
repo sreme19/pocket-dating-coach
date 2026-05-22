@@ -33,6 +33,10 @@
   let isActivating = false;
   let aiBestieActive = $state(false);
   let userIsSeed = $state(false);
+  // Populated from Supabase session in onMount — used instead of $user to avoid
+  // hydration race conditions where the Svelte store may still be null.
+  let currentUserId = $state<string | null>(null);
+  let currentUserGender = $state<string | null>(null);
 
   interface CoachingCard { signal: string; read: string; }
   let coachingCards = $state<Map<string, CoachingCard>>(new Map());
@@ -86,6 +90,23 @@
 
       if (!session?.access_token) {
         throw new Error('Not authenticated');
+      }
+
+      // Store authenticated user ID directly from session — avoids race conditions
+      // with the Svelte $user store (hydrateStores runs in the layout's onMount,
+      // which fires after this child onMount finishes).
+      currentUserId = session.user.id;
+
+      // Fetch current user's gender so we can gate female-only UI elements (AI Bestie toggle)
+      try {
+        const { data: userProfile } = await supabase
+          .from('verified_vibe_users')
+          .select('gender')
+          .eq('id', session.user.id)
+          .maybeSingle();
+        currentUserGender = (userProfile as any)?.gender ?? null;
+      } catch {
+        // Non-critical — worst case is the toggle is shown to all users
       }
 
       // Fetch conversation data
@@ -359,7 +380,12 @@
    * Handle send message with optimistic update
    */
   async function handleSendMessage() {
-    if (!messageInput.trim() || !$user) return;
+    if (!messageInput.trim()) return;
+
+    // Resolve the current user ID — prefer the session-populated local var over
+    // the Svelte store so sends work even before hydrateStores() completes.
+    const userId = currentUserId ?? $user?.id ?? null;
+    if (!userId) return;
 
     try {
       isSending = true;
@@ -381,7 +407,7 @@
       const optimisticMessage: Message = {
         id: optimisticId,
         matchId: conversationId,
-        senderId: $user.id,
+        senderId: userId,
         content,
         createdAt: new Date()
       };
@@ -482,7 +508,8 @@
    * Check if message is sent by current user
    */
   function isSentMessage(message: Message): boolean {
-    return message.senderId === $user?.id;
+    const myId = currentUserId ?? $user?.id ?? null;
+    return myId !== null && message.senderId === myId;
   }
 
   /**
@@ -1030,8 +1057,8 @@
         rows="1"
       ></textarea>
 
-      <!-- AI Bestie Toggle Button -->
-      {#if $user}
+      <!-- AI Bestie Toggle Button — only shown to female users (it's their feature) -->
+      {#if currentUserGender === 'woman' || $user?.gender === 'woman'}
         <button
           class="toggle-btn"
           class:active={activeAssistant}

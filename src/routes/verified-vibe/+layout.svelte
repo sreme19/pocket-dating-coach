@@ -74,8 +74,8 @@
   </div>
   {/key}
 
-  <!-- Bottom navigation (only show in app phase) -->
-  {#if $currentPhase === 'app'}
+  <!-- Bottom navigation (only in app phase, never on individual conversation pages) -->
+  {#if $currentPhase === 'app' && !$page.url.pathname.match(/^\/verified-vibe\/chat\/.+/)}
     <nav class="verified-vibe-bottomnav" transition:slide={{ duration: 300, axis: 'y' }}>
       {#each navItems as item}
         {@const active = $currentTab === item.tab}
@@ -216,7 +216,7 @@
 
   .verified-vibe-bottomnav {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 0;
     background: linear-gradient(to top, var(--bg-1), rgba(11, 17, 32, 0.85));
     backdrop-filter: blur(20px);
