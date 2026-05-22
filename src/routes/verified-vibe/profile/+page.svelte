@@ -758,6 +758,34 @@
           </div>
         </section>
 
+        <!-- AI Bestie — female users only, in Trust & Boost tab -->
+        {#if $user?.gender === 'woman'}
+          <section class="section ai-bestie-section">
+            <div class="section-label">
+              <Sparkles size={13} />
+              AI Bestie
+            </div>
+            <div class="ai-bestie-card">
+              <div class="ai-bestie-icon">✨</div>
+              <div class="ai-bestie-body">
+                <h3 class="ai-bestie-title">Your personal match advisor</h3>
+                <p class="ai-bestie-desc">AI Bestie screens your matches and gives you insights. Tell her exactly what to look for.</p>
+              </div>
+            </div>
+            <div class="ai-bestie-actions">
+              <button class="ai-bestie-btn-secondary" onclick={() => goto('/verified-vibe/chat/ai-bestie')}>
+                Open chat
+              </button>
+              <button class="ai-bestie-btn" onclick={() => goto('/verified-vibe/chat/ai-bestie/configure')}>
+                Configure
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+              </button>
+            </div>
+          </section>
+        {/if}
+
         <!-- Sign Out Button -->
         <button class="sign-out-btn" onclick={handleSignOut} title="Sign out">
           <LogOut size={16} />
@@ -2118,6 +2146,86 @@
     color: var(--accent-bright);
     font-weight: 600;
   }
+
+  /* ── AI Bestie section ── */
+  .ai-bestie-section {
+    border: 1px solid rgba(236, 72, 153, 0.25);
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(236, 72, 153, 0.06) 0%, rgba(168, 85, 247, 0.06) 100%);
+    padding: 16px;
+  }
+
+  .ai-bestie-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-top: 10px;
+  }
+
+  .ai-bestie-icon {
+    font-size: 28px;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+
+  .ai-bestie-body {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .ai-bestie-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-1);
+    margin: 0 0 4px;
+  }
+
+  .ai-bestie-desc {
+    font-size: 13px;
+    color: var(--text-3);
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  .ai-bestie-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .ai-bestie-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 14px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #ec4899, #a855f7);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity 0.15s;
+  }
+  .ai-bestie-btn:hover { opacity: 0.88; }
+
+  .ai-bestie-btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 14px;
+    border-radius: 20px;
+    background: transparent;
+    color: #ec4899;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid rgba(236, 72, 153, 0.4);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s;
+  }
+  .ai-bestie-btn-secondary:hover { background: rgba(236, 72, 153, 0.1); }
 
   @media (max-width: 767px) {
     .hero-name {

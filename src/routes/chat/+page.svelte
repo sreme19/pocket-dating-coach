@@ -4,9 +4,9 @@
 	import FeedbackButtons from '$lib/components/FeedbackButtons.svelte';
 	import AIAssistantControls from '$lib/components/AIAssistantControls.svelte';
 	import AssistantBadge from '$lib/components/AssistantBadge.svelte';
+	import VoiceDictation from '$lib/components/VoiceDictation.svelte';
 	import type { ChatMessage, UserProfile, AssistantType } from '$lib/types';
 	import { createSessionStore } from '$lib/client/session-store';
-	import { user } from '$lib/verified-vibe/stores';
 
 	let messages = $state<ChatMessage[]>([]);
 	let input = $state('');
@@ -29,53 +29,23 @@
 	];
 
 	onMount(async () => {
-		// Try to load user profile from multiple sources
-		let stored = localStorage.getItem('pdc_profile');
-		
-		// If not found, try Verified Vibe user
-		if (!stored) {
-			const vvUser = localStorage.getItem('vv_user');
-			if (vvUser) {
-				stored = vvUser;
-			}
-		}
-		
-		// If not found, try Verified Vibe profile
-		if (!stored) {
-			stored = localStorage.getItem('vv_profile');
-		}
-		
-		// If still not found, try draft profile
-		if (!stored) {
-			stored = localStorage.getItem('vv_profile_draft');
-		}
-		
-		// If still not found, try to get from user store (Verified Vibe)
-		if (!stored && $user) {
-			userProfile = {
-				gender: $user.gender || 'prefer_not_to_say',
-				ageRange: $user.ageRange || '',
-				datingApp: $user.datingApp || '',
-				relationshipGoal: $user.relationshipGoal || ''
-			};
-		}
-		
-		if (stored && !userProfile) {
+		// Load user profile from main app storage only.
+		// NOTE: Verified Vibe (vv_user / vv_profile) is a separate product —
+		// do NOT read from those keys here. Each product manages its own AI
+		// assistants. Mixing them causes AI Bestie to appear in "Ask your coach"
+		// when the user is on the Verified Vibe flow.
+		const stored = localStorage.getItem('pdc_profile');
+
+		if (stored) {
 			try {
 				const profile = JSON.parse(stored);
-				// Ensure gender is set
 				if (profile.gender) {
 					userProfile = profile;
 				}
 			} catch (e) {
-				console.error('Failed to parse profile:', e);
+				console.error('Failed to parse pdc_profile:', e);
 			}
 		}
-
-		// Debug logging
-		console.log('Chat page - userProfile:', userProfile);
-		console.log('Chat page - user store:', $user);
-		console.log('Chat page - localStorage keys:', Object.keys(localStorage));
 
 		// Get user ID from localStorage or auth
 		const storedUserId = localStorage.getItem('pdc_user_id');
@@ -319,6 +289,8 @@
 				rows="1"
 				class="flex-1 bg-transparent text-sm text-white placeholder-gray-500 resize-none outline-none leading-relaxed max-h-32"
 			></textarea>
+			<!-- Voice Dictation -->
+			<VoiceDictation onUse={(text) => { input = text; }} disabled={loading} />
 			<!-- AI Bestie Toggle Button -->
 			{#if userProfile}
 				<button

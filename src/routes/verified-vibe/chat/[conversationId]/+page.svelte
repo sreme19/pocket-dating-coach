@@ -8,6 +8,7 @@
   import { subscribeToUserOnlineStatus, formatLastSeen, trackUserOnline, untrackUserOnline, updateLastActivity } from '$lib/verified-vibe/services/onlineStatusService';
   import type { Message, VerifiedVibeUser } from '$lib/verified-vibe/types';
   import type { AssistantType } from '$lib/types';
+  import VoiceDictation from '$lib/components/VoiceDictation.svelte';
 
   let conversationId = $state('');
   let messageInput = $state('');
@@ -1056,6 +1057,12 @@
         aria-label="Message input"
         rows="1"
       ></textarea>
+
+      <!-- Voice dictation — available for both Neha and Adrian -->
+      <VoiceDictation
+        onUse={(text) => { messageInput = text; }}
+        disabled={isSending || isLoading}
+      />
 
       <!-- AI Bestie Toggle Button — only shown to female users (it's their feature) -->
       {#if currentUserGender === 'woman' || $user?.gender === 'woman'}
