@@ -8,8 +8,11 @@
   import { subscribeToUserOnlineStatus, formatLastSeen, trackUserOnline, untrackUserOnline, updateLastActivity } from '$lib/verified-vibe/services/onlineStatusService';
   import type { Message, VerifiedVibeUser } from '$lib/verified-vibe/types';
   import type { AssistantType } from '$lib/types';
+  import VoiceDictation from '$lib/components/VoiceDictation.svelte';
 
-  let conversationId = $state('');
+  // Initialise from route params immediately — the $effect fires AFTER onMount,
+  // so reading $page.params here ensures localStorage keys are correct from mount.
+  let conversationId = $state($page.params.conversationId || '');
   let messageInput = $state('');
   let isLoading = $state(true);
   let error = $state<string | null>(null);
@@ -41,16 +44,36 @@
   interface CoachingCard { signal: string; read: string; }
   let coachingCards = $state<Map<string, CoachingCard>>(new Map());
 
+  function persistCoachingCards() {
+    if (typeof localStorage === 'undefined' || !conversationId) return;
+    const obj: Record<string, CoachingCard> = {};
+    coachingCards.forEach((card, msgId) => { obj[msgId] = card; });
+    localStorage.setItem(`bestie-cards-${conversationId}`, JSON.stringify(obj));
+  }
+
+  function loadCoachingCards() {
+    if (typeof localStorage === 'undefined' || !conversationId) return;
+    try {
+      const raw = localStorage.getItem(`bestie-cards-${conversationId}`);
+      if (raw) {
+        const obj = JSON.parse(raw) as Record<string, CoachingCard>;
+        coachingCards = new Map(Object.entries(obj));
+      }
+    } catch { /* ignore */ }
+  }
+
   // Utility function to validate UUID format
   function isValidUUID(id: string): boolean {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     return uuidRegex.test(id);
   }
 
-  // Get conversation ID from route and restore Bestie state + poller
+  // Get conversation ID from route and restore Bestie state + poller + coaching cards
   $effect(() => {
     conversationId = $page.params.conversationId || '';
     if (conversationId) {
+      // Always restore coaching cards — they're visible regardless of active/inactive state
+      loadCoachingCards();
       const saved = localStorage.getItem(`ai-bestie-active-${conversationId}`);
       if (saved === 'true' && !activeAssistant) {
         activeAssistant = 'bestie';
@@ -132,6 +155,11 @@
       if (initialMessages && Array.isArray(initialMessages)) {
         messages.set(initialMessages);
       }
+
+      // Restore any coaching cards from localStorage now that messages are loaded.
+      // (loadCoachingCards is also called in the $effect, but $effect runs after
+      //  onMount so we call it here too to guarantee cards are visible immediately.)
+      loadCoachingCards();
 
       // Realtime disabled: anon key can't subscribe to RLS-protected tables
       // Auto-response uses polling instead (startBestiePoller)
@@ -524,7 +552,7 @@
    */
   function handleProfileClick() {
     if ($currentMatch) {
-      goto(`/verified-vibe/discover?profile=${$currentMatch.id}`);
+      goto(`/verified-vibe/match-profile/${$currentMatch.id}?from=/verified-vibe/chat/${conversationId}`);
     }
   }
 
@@ -724,8 +752,9 @@
 
       const { signal, read, suggestedQuestion } = await response.json();
 
-      // Store coaching card — only visible to Neha (local state, never in Supabase)
+      // Store coaching card — persisted to localStorage so it survives navigation
       coachingCards = new Map(coachingCards.set(messageId, { signal, read }));
+      persistCoachingCards();
 
       // Auto-send the suggested question to Adrian as a real message
       if (suggestedQuestion) {
@@ -1017,7 +1046,7 @@
               <span class="message-time">{formatTime(message.createdAt)}</span>
             </div>
           </div>
-          {#if !isSentMessage(message) && activeAssistant === 'bestie' && coachingCards.get(message.id)}
+          {#if !isSentMessage(message) && coachingCards.get(message.id)}
             {@const card = coachingCards.get(message.id)!}
             <div class="bestie-coaching-card" transition:slide={{ duration: 300 }}>
               <div class="bestie-card-header">
@@ -1056,6 +1085,12 @@
         aria-label="Message input"
         rows="1"
       ></textarea>
+
+      <!-- Voice dictation — available for both Neha and Adrian -->
+      <VoiceDictation
+        onUse={(text) => { messageInput = text; }}
+        disabled={isSending || isLoading}
+      />
 
       <!-- AI Bestie Toggle Button — only shown to female users (it's their feature) -->
       {#if currentUserGender === 'woman' || $user?.gender === 'woman'}
