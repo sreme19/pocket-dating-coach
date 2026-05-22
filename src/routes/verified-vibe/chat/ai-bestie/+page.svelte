@@ -16,7 +16,7 @@
 
   // ── Persistence ────────────────────────────────────────────────────────────
   const STORAGE_KEY = 'vv_bestie_messages';
-  const MAX_AGE_MS = 15 * 24 * 60 * 60 * 1000; // 15 days
+  const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
   function loadPersistedMessages(): ChatMessage[] {
     try {
@@ -52,6 +52,7 @@
   let sending = $state(false);
   let messagesEnd: HTMLDivElement | undefined;
   let feedback = $state<Map<number, 'up' | 'down'>>(new Map());
+  let bestieName = $state('AI Bestie');
 
   // Auto-save whenever messages change (skips pending bubbles)
   $effect(() => {
@@ -60,17 +61,21 @@
 
   // ── Markdown renderer ──────────────────────────────────────────────────────
   function renderMarkdown(text: string): string {
-    return text
-      // **bold**
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      // bullet lines starting with - or •
-      .replace(/^[-•]\s+(.+)$/gm, '<li>$1</li>')
-      // wrap consecutive <li> in <ul>
-      .replace(/(<li>.*<\/li>\n?)+/gs, (m) => `<ul>${m}</ul>`)
-      // double line breaks → paragraph gap
-      .replace(/\n{2,}/g, '\n\n')
-      // single line break inside a paragraph
-      .replace(/([^\n])\n([^\n<])/g, '$1<br>$2');
+    // Bold first so markers are present when we split into blocks
+    text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    const blocks = text.split(/\n{2,}/);
+    return blocks.map(block => {
+      const trimmed = block.trim();
+      if (!trimmed) return '';
+      if (/^[-•]\s+/m.test(trimmed)) {
+        const items = trimmed.split('\n')
+          .filter(l => l.trim())
+          .map(l => `<li>${l.replace(/^[-•]\s+/, '')}</li>`)
+          .join('');
+        return `<ul>${items}</ul>`;
+      }
+      return `<p>${trimmed.replace(/([^\n])\n([^\n])/g, '$1<br>$2')}</p>`;
+    }).filter(b => b).join('');
   }
 
   async function toggleFeedback(i: number, val: 'up' | 'down', messageContent: string) {
@@ -115,7 +120,16 @@
   onMount(async () => {
     user.hydrate();
 
-    // Restore persisted history (pruned to last 15 days)
+    // Load configured bestie name
+    try {
+      const raw = localStorage.getItem('ai_bestie_persona');
+      if (raw) {
+        const persona = JSON.parse(raw);
+        if (persona?.name) bestieName = persona.name;
+      }
+    } catch { /* ignore */ }
+
+    // Restore persisted history (pruned to last 7 days)
     const persisted = loadPersistedMessages();
 
     if (persisted.length > 0) {
@@ -242,7 +256,7 @@
     <div class="bestie-identity">
       <BestieAvatar size={36} />
       <div>
-        <div class="bestie-name">AI Bestie</div>
+        <div class="bestie-name">{bestieName}</div>
         <div class="bestie-status">Your match advisor</div>
       </div>
     </div>
@@ -576,6 +590,13 @@
   }
 
   /* ── Markdown inside assistant bubbles ── */
+  .bubble.assistant :global(p) {
+    margin: 0 0 8px;
+    line-height: 1.6;
+  }
+  .bubble.assistant :global(p:last-child) {
+    margin-bottom: 0;
+  }
   .bubble.assistant :global(strong) {
     font-weight: 700;
     color: var(--text-1);

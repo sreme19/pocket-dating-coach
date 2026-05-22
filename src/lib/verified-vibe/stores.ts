@@ -305,12 +305,13 @@ export const totalUnreadMessages = derived(unreadCount, ($count) => $count);
  * Call this on app mount
  */
 export async function hydrateStores() {
-  // Try to hydrate from Supabase if authenticated
-  await hydrateUserFromSupabase();
-
-  // Restore UI state (phase/tab) from localStorage
+  // Hydrate from localStorage first so the UI renders immediately with cached state.
+  // hydrateUserFromSupabase() then overwrites with authoritative Supabase data.
+  user.hydrate();
   currentPhase.hydrate();
   currentTab.hydrate();
+
+  await hydrateUserFromSupabase();
 }
 
 function mapStepsToRecords(steps: VVVerificationStep[]): VerificationRecord[] {
@@ -384,7 +385,12 @@ export async function hydrateUserFromSupabase() {
     const hasSpending = steps.some(s => s.step === 'spending_or_qa');
     const allComplete = hasId && hasLiveness && hasPhotos && hasSpending;
 
-    currentPhase.set(allComplete ? 'app' : 'verify');
+    // In dev mode (VITE_SKIP_VERIFICATION=true), treat any user with a
+    // complete profile (gender + archetype set) as 'app' phase so seed
+    // accounts don't get stuck on the verification flow.
+    const skipVerification = import.meta.env.VITE_SKIP_VERIFICATION === 'true';
+    const hasCompleteProfile = !!(profile.gender && profile.archetype && profile.first_name);
+    currentPhase.set((allComplete || (skipVerification && hasCompleteProfile)) ? 'app' : 'verify');
   } catch (err) {
     console.error('hydrateUserFromSupabase error:', err);
     // Graceful fallback: try localStorage if Supabase fails

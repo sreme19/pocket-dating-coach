@@ -1,3 +1,7 @@
+<script module>
+	export const prerender = true;
+</script>
+
 <script>
 	const lastUpdated = 'May 22, 2025';
 	const appName = 'Pocket Dating Coach';

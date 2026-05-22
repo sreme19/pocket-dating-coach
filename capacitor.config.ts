@@ -14,7 +14,7 @@ const config: CapacitorConfig = {
   appName: 'Pocket Dating Coach',
   webDir: 'build',
   server: {
-    url: 'https://verified-vibe.vercel.app',
+    url: 'https://pocket-dating-coach.vercel.app',
     cleartext: false
   },
   android: {
