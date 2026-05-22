@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { fade, fly } from 'svelte/transition';
   import { user } from '$lib/verified-vibe/stores';
+  import { getSupabaseClient } from '$lib/client/supabase';
   import VoiceDictation from '$lib/components/VoiceDictation.svelte';
   import BestieAvatar from '$lib/components/BestieAvatar.svelte';
 
@@ -12,6 +13,12 @@
     content: string;
     timestamp: Date;
     pending?: boolean;
+  }
+
+  interface Draft {
+    matchName: string;
+    matchId: string;
+    content: string;
   }
 
   // ── Persistence ────────────────────────────────────────────────────────────
@@ -50,6 +57,8 @@
   let messages = $state<ChatMessage[]>([]);
   let input = $state('');
   let sending = $state(false);
+  let sendingDraftId = $state<string | null>(null);
+  let pendingDrafts = $state<Draft[]>([]);
   let messagesEnd: HTMLDivElement | undefined;
   let feedback = $state<Map<number, 'up' | 'down'>>(new Map());
   let bestieName = $state('AI Bestie');
@@ -199,6 +208,11 @@
         ...messages.filter(m => !m.pending),
         { role: 'assistant', content: reply, timestamp: new Date() }
       ];
+
+      // Surface any drafts AI Bestie prepared
+      if (data.drafts?.length > 0) {
+        pendingDrafts = data.drafts as Draft[];
+      }
     } catch {
       messages = [
         ...messages.filter(m => !m.pending),
@@ -208,6 +222,53 @@
       sending = false;
       await scrollToBottom();
     }
+  }
+
+  async function sendDraft(draft: Draft) {
+    sendingDraftId = draft.matchId;
+    try {
+      const { data: { session } } = await getSupabaseClient().auth.getSession();
+      if (!session?.access_token) throw new Error('Not authenticated');
+
+      const res = await fetch('/api/verified-vibe/chat/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ conversationId: draft.matchId, content: draft.content })
+      });
+
+      pendingDrafts = pendingDrafts.filter(d => d.matchId !== draft.matchId);
+
+      if (res.ok) {
+        messages = [...messages, {
+          role: 'assistant',
+          content: `✅ Sent to **${draft.matchName}**!`,
+          timestamp: new Date()
+        }];
+      } else {
+        const err = await res.json().catch(() => ({}));
+        messages = [...messages, {
+          role: 'assistant',
+          content: `⚠️ Couldn't send to ${draft.matchName}: ${err.error ?? 'Unknown error'}`,
+          timestamp: new Date()
+        }];
+      }
+    } catch (err) {
+      messages = [...messages, {
+        role: 'assistant',
+        content: `⚠️ Failed to send to ${draft.matchName}. Try again?`,
+        timestamp: new Date()
+      }];
+    } finally {
+      sendingDraftId = null;
+      await scrollToBottom();
+    }
+  }
+
+  function dismissDraft(matchId: string) {
+    pendingDrafts = pendingDrafts.filter(d => d.matchId !== matchId);
   }
 
   function handleKeydown(e: KeyboardEvent) {
@@ -325,6 +386,33 @@
     <div bind:this={messagesEnd}></div>
   </div>
 
+  <!-- Draft action cards -->
+  {#if pendingDrafts.length > 0}
+    <div class="drafts-panel" transition:fly={{ y: 12, duration: 200 }}>
+      <div class="drafts-label">📤 Ready to send</div>
+      {#each pendingDrafts as draft (draft.matchId)}
+        <div class="draft-card" transition:fly={{ y: 8, duration: 150 }}>
+          <div class="draft-header">
+            <span class="draft-to">To <strong>{draft.matchName}</strong></span>
+            <button class="draft-dismiss" onclick={() => dismissDraft(draft.matchId)} aria-label="Dismiss">✕</button>
+          </div>
+          <div class="draft-preview">"{draft.content}"</div>
+          <button
+            class="draft-send-btn"
+            onclick={() => sendDraft(draft)}
+            disabled={sendingDraftId === draft.matchId}
+          >
+            {#if sendingDraftId === draft.matchId}
+              <span class="send-spinner small"></span> Sending…
+            {:else}
+              Send to {draft.matchName} →
+            {/if}
+          </button>
+        </div>
+      {/each}
+    </div>
+  {/if}
+
   <!-- Quick-action chips -->
   <div class="chips-row">
     {#each CHIPS as chip}
@@ -342,10 +430,11 @@
   <div class="input-bar">
     <textarea
       class="chat-input"
-      rows="1"
+      rows="2"
       placeholder="Ask AI Bestie anything…"
       bind:value={input}
       onkeydown={handleKeydown}
+      oninput={(e) => { const t = e.currentTarget; t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 180) + 'px'; }}
       disabled={sending}
     ></textarea>
     <VoiceDictation onUse={(text) => { input = text; }} disabled={sending} />
@@ -707,11 +796,12 @@
     background: var(--bg-2);
     border: 1px solid var(--border-1);
     border-radius: 12px;
-    padding: 10px 14px;
-    font-size: 14px;
+    padding: 12px 14px;
+    font-size: 15px;
     color: var(--text-1);
-    line-height: 1.4;
-    max-height: 120px;
+    line-height: 1.5;
+    min-height: 52px;
+    max-height: 180px;
     overflow-y: auto;
     outline: none;
     transition: border-color 150ms;
@@ -749,6 +839,99 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* ── Draft panel ── */
+  .drafts-panel {
+    flex-shrink: 0;
+    padding: 8px 16px 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-top: 1px solid rgba(16, 185, 129, 0.2);
+    background: rgba(16, 185, 129, 0.04);
+  }
+
+  .drafts-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--accent-bright);
+    opacity: 0.8;
+  }
+
+  .draft-card {
+    background: var(--bg-2);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    border-radius: 12px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .draft-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .draft-to {
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .draft-to strong {
+    color: var(--text-1);
+  }
+
+  .draft-dismiss {
+    background: none;
+    border: none;
+    color: var(--text-3);
+    font-size: 13px;
+    cursor: pointer;
+    padding: 2px 4px;
+    line-height: 1;
+    transition: color 150ms;
+  }
+  .draft-dismiss:hover { color: var(--text-1); }
+
+  .draft-preview {
+    font-size: 13px;
+    color: var(--text-2);
+    line-height: 1.5;
+    font-style: italic;
+    word-break: break-word;
+  }
+
+  .draft-send-btn {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 20px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: opacity 150ms, background 150ms;
+  }
+  .draft-send-btn:hover:not(:disabled) {
+    background: var(--accent-bright);
+  }
+  .draft-send-btn:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+
+  .send-spinner.small {
+    width: 12px;
+    height: 12px;
+    border-width: 2px;
+  }
+
   /* ── Mobile ── */
   @media (max-width: 767px) {
     .bestie-header { padding: 10px 12px; }
@@ -756,5 +939,6 @@
     .chips-row { padding: 6px 12px; }
     .input-bar { padding: 8px 12px 12px; }
     .bubble { max-width: 85%; font-size: 13px; }
+    .drafts-panel { padding: 8px 12px 4px; }
   }
 </style>

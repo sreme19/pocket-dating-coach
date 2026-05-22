@@ -482,3 +482,247 @@ To find the correct email for a seed user, check the seed data folder name and a
 | `src/routes/verified-vibe/api/message/+server.ts` | Corrected column names: user1_id / user2_id |
 | `src/lib/claude.ts` | Removed singleton, added explicit API key validation |
 | `vite.config.ts` | Added forceLoadEnvLocal() to fix empty ANTHROPIC_API_KEY |
+
+---
+
+## 8. AI Bestie Conversation Page (v2.4 – v2.5)
+
+> Added in v2.4, extended with actionable drafts in v2.5.
+
+This is a **separate dedicated chat interface** at `/verified-vibe/chat/ai-bestie`. It is distinct from the per-match coaching described above. While the per-match AI Bestie reacts passively to incoming messages, the conversation page gives Neha a free-form advisor she can ask anything.
+
+---
+
+### 8.1 What It Does
+
+| Capability | Description |
+|---|---|
+| **Match digest** | On demand: crisp summary of all mutual matches — energy, worth pursuing, any concerns |
+| **Fresh insights** | Flags matches with meaningful activity in the last 48 h; ignores matches with no new signals |
+| **General advice** | Free-form Q&A about any match, situation, or strategy |
+| **Preference saving** | Detects when Neha explicitly states a preference and silently saves it to her profile |
+| **Draft messages** | When Neha confirms a message to send, AI Bestie wraps it in a draft block; a one-tap action card appears so she can push it to the match directly |
+| **Persona name** | Displayed name loads from the configure page (stored in `localStorage` as `ai_bestie_persona`) |
+| **7-day history** | Conversation is persisted to `localStorage`; messages older than 7 days are pruned on load |
+| **Feedback** | Thumbs up / down on any assistant message; sent to `/api/verified-vibe/ai-bestie/feedback` |
+
+---
+
+### 8.2 Quick-Action Chips
+
+Three chips always visible above the input bar:
+
+| Chip | Intent | Behaviour |
+|---|---|---|
+| 📋 Summarize my matches | `summary` | Sends a fixed prompt asking for a digest of all current matches |
+| ✨ Fresh insights | `insights` | Sends a fixed prompt asking what's new; scoped to last-48h activity |
+| ⚙️ Configure Bestie | `configure` | Navigates to `/verified-vibe/chat/ai-bestie/configure` |
+
+---
+
+### 8.3 Context Injected into Every Request
+
+The API endpoint (`POST /api/verified-vibe/ai-bestie/chat`) assembles full context before calling Claude:
+
+**Preferences context** (loaded via `loadPreferences(userId)`):
+- Dealbreakers
+- Green/emotional signals she values
+- Hard boundaries
+- Maturity signals
+- Private compatibility notes
+
+**Match context** (up to 6 most recent mutual matches):
+- First name, age
+- Bio (first 120 chars)
+- Last 6 messages (both sides), with `🆕 (active in last 48h)` tag for insights intent
+
+If the user has no matches yet, the context states "Neha has no matches yet" so AI Bestie responds appropriately instead of hallucinating.
+
+---
+
+### 8.4 Preference Detection
+
+When Neha explicitly states a preference in her message (e.g. "that's a dealbreaker for me", "I don't want guys who smoke"), Claude embeds a structured marker at the end of its reply:
+
+```
+[PREF:dealbreaker:description]
+[PREF:boundary:description]
+[PREF:signal:description]
+[PREF:note:description]
+```
+
+The server:
+1. Extracts all `[PREF:...]` markers via regex
+2. Strips them from the visible reply before sending it to the client
+3. Merges them into Neha's preferences via `updatePreferences()`
+4. Returns `prefsUpdated: true` in the response body
+
+**Critical rule:** Markers are added only when Neha explicitly states a preference — never when Claude is inferring. This prevents spurious preference drift over time.
+
+The markers are not shown to the user at all. She just sees the reply. The preferences appear in her profile under Settings → AI Bestie → Configure.
+
+---
+
+### 8.5 Actionable Draft Messages (v2.5)
+
+When Neha asks AI Bestie to draft a message to a specific match — or approves a suggested message and says she wants to send it — AI Bestie wraps the send-ready text in a `[DRAFT]` block:
+
+```
+[DRAFT:MatchFirstName]
+message text here
+[/DRAFT]
+```
+
+**Server-side (API):**
+1. During match context assembly, builds `nameToMatchId: Record<string, string>` mapping each match's first name (lowercase) to their match row ID
+2. After Claude responds, parses all `[DRAFT:Name]...[/DRAFT]` blocks via regex
+3. Looks up the match ID for each name (case-insensitive)
+4. Strips draft blocks from the visible reply
+5. Returns `drafts: [{ matchName, matchId, content }]` alongside the reply
+
+**Client-side (page):**
+1. When the API response includes `drafts`, they're stored in `pendingDrafts` state
+2. A **draft panel** appears between the messages area and the chips row
+3. Each draft card shows:
+   - "To **[Name]**" header
+   - The draft message in italic
+   - A green "Send to [Name] →" button
+   - A ✕ dismiss button
+4. Tapping "Send to [Name] →":
+   - Gets the current Supabase session token via `getSupabaseClient().auth.getSession()`
+   - POSTs to `/api/verified-vibe/chat/send` with `{ conversationId: matchId, content }` and `Authorization: Bearer <token>`
+   - Removes the card from the panel
+   - Appends "✅ Sent to **[Name]**!" as an assistant message if successful, or an error message if not
+5. Tapping ✕ removes the card without sending
+
+**Guards:**
+- Draft markers are only emitted when Neha has confirmed she wants to send — not for suggestions or examples
+- If the match name in the draft block doesn't match any known match (case-insensitive), the draft is silently dropped (no orphaned cards)
+- The panel disappears automatically when all pending drafts are handled
+
+---
+
+### 8.6 Message Persistence
+
+Chat history is stored in `localStorage` under key `vv_bestie_messages`.
+
+- **Format:** JSON array of `{ role, content, timestamp }` objects
+- **Retention:** 7 days. On load, any message older than 7 days is pruned
+- **Exclusion:** `pending: true` bubbles (the typing indicator) are never persisted
+- **Auto-save:** A Svelte `$effect` watches `messages` and calls `persistMessages()` whenever it changes
+
+Clearing history:
+- The trash icon in the header asks for confirmation then calls `localStorage.removeItem(STORAGE_KEY)` and resets `messages` to the default greeting
+
+---
+
+### 8.7 Auto-Grow Textarea
+
+The chat input is a `<textarea>` (not `<input type="text">`), allowing multi-line input.
+
+- `rows="2"` sets the initial height
+- An `oninput` handler sets `height: auto` then `height = Math.min(scrollHeight, 180)px` to grow with content
+- `min-height: 52px`, `max-height: 180px` — hard limits
+- `font-size: 15px` — comfortable on mobile
+
+Enter sends; Shift+Enter inserts a newline.
+
+---
+
+### 8.8 System Prompt (v2.5)
+
+```
+You are AI Bestie — Neha's warm, perceptive personal dating advisor on Verified Vibe.
+
+You are NOT a chatbot. You are her trusted girlfriend who happens to be great at reading people.
+You have full context on her matches and preferences.
+
+Your role:
+- Give Neha honest, balanced, actionable advice about her matches
+- Lead with what is going well before flagging concerns — most people are normal and decent
+- When asked for a summary: produce a crisp digest — who has good energy, who's worth more time, any genuine concerns
+- When asked for insights: only flag things that are meaningfully new or worth acting on (no generic filler)
+- For general chat: answer directly, warmly, with zero fluff
+- Save real concern for real red flags — do not manufacture drama where there is none
+- If she asks to configure or update your focus: tell her she can do that from Settings → AI Bestie, or by going to her Profile page and tapping "Configure"
+
+Tone: like texting your warmest, most grounded girlfriend. Encouraging and real. Short paragraphs.
+Occasional light humour. Never preachy. Never paranoid. Never generic.
+
+Format: use **bold** for names and key points. Use bullet lists (- item) for multi-point info.
+Use emoji sparingly but meaningfully — 🟢 good sign, 🔴 concern, 💡 tip, 💬 on messages,
+✨ highlight, 💛 warm note. Keep it mobile-friendly and easy to scan.
+
+PREFERENCE DETECTION: If Neha explicitly states a preference, rule, or boundary in her message,
+embed a structured marker at the very end of your reply:
+- [PREF:dealbreaker:description]
+- [PREF:boundary:description]
+- [PREF:signal:description]
+- [PREF:note:description]
+Keep values concise (max 80 chars). Only add a marker when she explicitly states a preference.
+
+DRAFT MESSAGES: When Neha explicitly asks you to draft a message to send to a specific match,
+or approves a suggested message and says she wants to send it — wrap the final send-ready
+message in:
+[DRAFT:MatchFirstName]
+message text here
+[/DRAFT]
+One draft block per match. Only for finalized messages Neha has confirmed. Not for examples.
+
+[Neha's preferences appended here]
+[Match context appended here]
+```
+
+---
+
+### 8.9 API Response Shape
+
+```typescript
+// POST /api/verified-vibe/ai-bestie/chat
+// Request:
+{
+  userId: string,
+  message: string,              // empty string if using intent
+  intent?: 'chat' | 'summary' | 'insights',
+  history?: { role: 'user' | 'assistant', content: string }[]
+}
+
+// Response:
+{
+  reply: string,                // Claude's response, markers stripped
+  userMessage: string,          // the resolved user message (after intent substitution)
+  prefsUpdated: boolean,        // true if any [PREF:...] markers were found and saved
+  drafts: Array<{
+    matchName: string,          // first name of the match
+    matchId: string,            // UUID of the verified_vibe_matches row
+    content: string             // the ready-to-send message text
+  }>
+}
+```
+
+---
+
+### 8.10 Files for the Conversation Page
+
+| File | Role |
+|---|---|
+| `src/routes/verified-vibe/chat/ai-bestie/+page.svelte` | Full UI — messages, chips, input, feedback, draft panel |
+| `src/routes/api/verified-vibe/ai-bestie/chat/+server.ts` | Context assembly, Claude call, PREF + DRAFT parsing, preference saving |
+| `src/routes/api/verified-vibe/ai-bestie/feedback/+server.ts` | Saves thumbs up/down feedback |
+| `src/routes/verified-vibe/chat/ai-bestie/configure/+page.svelte` | Persona name + preference configuration UI |
+
+---
+
+## 9. What AI Bestie Does NOT Do (Updated)
+
+| Behaviour | Status |
+|---|---|
+| Sends an opening message when per-match mode is activated | ❌ Removed (was causing confusion) |
+| Writes coaching cards to Supabase | ❌ Never — local state only |
+| Adrian sees the coaching card | ❌ Never — only Neha sees it |
+| Re-responds to the same message on page reload | ❌ Prevented by localStorage persistence |
+| Emits `[PREF]` markers when inferring preferences (not explicit) | ❌ Only when Neha explicitly states one |
+| Shows `[PREF]` or `[DRAFT]` markers in the chat UI | ❌ Stripped server-side before sending to client |
+| Emits `[DRAFT]` blocks for suggestions or examples | ❌ Only for messages Neha has explicitly confirmed |
+| Shows draft cards for unrecognised match names | ❌ Silently dropped if name can't be resolved |
+| Sends a draft message without Neha's tap | ❌ Always requires explicit "Send to [Name] →" tap |
