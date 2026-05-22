@@ -4,6 +4,7 @@
   import { fade, fly } from 'svelte/transition';
   import { user } from '$lib/verified-vibe/stores';
   import VoiceDictation from '$lib/components/VoiceDictation.svelte';
+  import BestieAvatar from '$lib/components/BestieAvatar.svelte';
 
   // ── Types ──────────────────────────────────────────────────────────────────
   interface ChatMessage {
@@ -132,7 +133,7 @@
     </button>
 
     <div class="bestie-identity">
-      <div class="bestie-avatar-sm">✨</div>
+      <BestieAvatar size={36} />
       <div>
         <div class="bestie-name">AI Bestie</div>
         <div class="bestie-status">Your match advisor</div>
@@ -155,7 +156,7 @@
         transition:fly={{ y: 8, duration: 200 }}
       >
         {#if msg.role === 'assistant'}
-          <div class="bestie-avatar-bubble">✨</div>
+          <BestieAvatar size={32} />
         {/if}
         <div class="bubble {msg.role} {msg.pending ? 'pending' : ''}">
           {#if msg.pending}
@@ -254,16 +255,7 @@
     min-width: 0;
   }
 
-  .bestie-avatar-sm {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #ec4899, #a855f7);
-    display: grid;
-    place-items: center;
-    font-size: 18px;
-    flex-shrink: 0;
-  }
+  /* .bestie-avatar-sm replaced by <BestieAvatar size={36} /> */
 
   .bestie-name {
     font-size: 15px;
@@ -318,17 +310,7 @@
     flex-direction: row-reverse;
   }
 
-  .bestie-avatar-bubble {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #ec4899, #a855f7);
-    display: grid;
-    place-items: center;
-    font-size: 14px;
-    flex-shrink: 0;
-    margin-bottom: 2px;
-  }
+  /* .bestie-avatar-bubble replaced by <BestieAvatar size={32} /> */
 
   .bubble {
     max-width: 76%;

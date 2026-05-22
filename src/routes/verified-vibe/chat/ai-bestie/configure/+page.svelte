@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { fly, fade } from 'svelte/transition';
   import { user } from '$lib/verified-vibe/stores';
+  import BestieAvatar from '$lib/components/BestieAvatar.svelte';
 
   // ── Types ──────────────────────────────────────────────────────────────────
   interface Persona {
@@ -150,7 +151,7 @@
       </svg>
     </button>
     <div class="cfg-title-area">
-      <div class="cfg-avatar">✨</div>
+      <BestieAvatar size={36} />
       <div>
         <div class="cfg-title">Configure AI Bestie</div>
         <div class="cfg-subtitle">Tell her exactly what to screen for</div>
@@ -389,16 +390,7 @@
     gap: 10px;
   }
 
-  .cfg-avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #ec4899, #a855f7);
-    display: grid;
-    place-items: center;
-    font-size: 17px;
-    flex-shrink: 0;
-  }
+  /* .cfg-avatar replaced by <BestieAvatar size={36} /> */
 
   .cfg-title {
     font-size: 16px;
