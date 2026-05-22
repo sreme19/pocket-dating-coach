@@ -161,6 +161,22 @@
       //  onMount so we call it here too to guarantee cards are visible immediately.)
       loadCoachingCards();
 
+      // Mark this conversation as read — clears the unread badge on the chat list.
+      // Fire-and-forget: non-blocking, doesn't affect UX if it fails.
+      if (currentUserId && conversationId) {
+        fetch('/api/verified-vibe/chat/mark-read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchId: conversationId, userId: currentUserId })
+        }).catch(() => { /* non-critical */ });
+      }
+
+      // Restore any in-progress draft (survives HMR reloads)
+      try {
+        const draft = sessionStorage.getItem(`draft-${conversationId}`);
+        if (draft) messageInput = draft;
+      } catch { /* ignore */ }
+
       // Realtime disabled: anon key can't subscribe to RLS-protected tables
       // Auto-response uses polling instead (startBestiePoller)
 
@@ -366,6 +382,15 @@
     const target = e.target as HTMLTextAreaElement;
     messageInput = target.value;
 
+    // Auto-grow the textarea
+    target.style.height = 'auto';
+    target.style.height = Math.min(target.scrollHeight, 160) + 'px';
+
+    // Persist draft so HMR reloads don't wipe it
+    if (conversationId) {
+      try { sessionStorage.setItem(`draft-${conversationId}`, target.value); } catch { /* ignore */ }
+    }
+
     // Update last activity
     if ($user) {
       updateLastActivity();
@@ -420,6 +445,7 @@
       const content = messageInput.trim();
       messageInput = '';
       isTypingLocal = false;
+      try { sessionStorage.removeItem(`draft-${conversationId}`); } catch { /* ignore */ }
 
       // Update last activity
       await updateLastActivity();
@@ -1095,8 +1121,8 @@
       <!-- AI Bestie Toggle Button — only shown to female users (it's their feature) -->
       {#if currentUserGender === 'woman' || $user?.gender === 'woman'}
         <button
-          class="toggle-btn"
-          class:active={activeAssistant}
+          class="bestie-toggle-btn"
+          class:bestie-on={activeAssistant}
           onclick={async () => {
             if (activeAssistant) {
               await handleDeactivateAssistant();
@@ -1105,12 +1131,21 @@
             }
           }}
           disabled={isSending || isLoading}
-          title={activeAssistant ? 'Deactivate AI Assistant' : 'Activate AI Assistant'}
-          aria-label={activeAssistant ? 'Deactivate AI Assistant' : 'Activate AI Assistant'}
+          title={activeAssistant ? 'Pause AI Bestie' : 'Ask AI Bestie'}
+          aria-label={activeAssistant ? 'Pause AI Bestie' : 'Ask AI Bestie'}
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/>
-          </svg>
+          {#if activeAssistant}
+            <!-- Active: glowing double-sparkle -->
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2c0 0 1 4.5 2.5 6S22 12 22 12s-5.5 1.5-7.5 4S12 22 12 22s-1-4.5-2.5-6S2 12 2 12s5.5-1.5 7.5-4S12 2 12 2z"/>
+            </svg>
+          {:else}
+            <!-- Inactive: subtle single sparkle -->
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3c0 0 .9 3.6 2 5s5 4 5 4-3.6.9-5 2-2 5-2 5-.9-3.6-2-5-5-2-5-2 3.6-.9 5-2 2-5 2-5z"/>
+              <path d="M5 5l.5 1.5L7 7l-1.5.5L5 9l-.5-1.5L3 7l1.5-.5z" opacity="0.5"/>
+            </svg>
+          {/if}
         </button>
       {/if}
 
@@ -1565,16 +1600,19 @@
 
   .message-input {
     flex: 1;
-    padding: 10px 12px;
+    padding: 12px 14px;
     border: 1px solid var(--border-1);
-    border-radius: 8px;
+    border-radius: 12px;
     background: var(--bg-2);
     color: var(--text-1);
-    font-size: 14px;
+    font-size: 15px;
     font-family: inherit;
     resize: none;
-    max-height: 100px;
-    transition: all 200ms ease;
+    min-height: 48px;
+    max-height: 160px;
+    line-height: 1.5;
+    overflow-y: auto;
+    transition: border-color 200ms ease;
   }
 
   .message-input:focus {
@@ -1616,44 +1654,54 @@
   }
 
   /* Toggle Button */
-  .toggle-btn {
+  /* ── AI Bestie toggle button ── */
+  .bestie-toggle-btn {
     width: 40px;
     height: 40px;
-    border-radius: 8px;
-    background: var(--bg-2);
-    border: 1px solid var(--border-1);
+    border-radius: 12px;
+    background: rgba(168, 85, 247, 0.08);
+    border: 1.5px solid rgba(168, 85, 247, 0.3);
     display: grid;
     place-items: center;
     cursor: pointer;
-    color: var(--text-3);
+    color: #a855f7;
     transition: all 200ms ease;
     flex-shrink: 0;
+    position: relative;
   }
 
-  .toggle-btn:hover:not(:disabled) {
-    background: var(--bg-3);
-    border-color: var(--border-2);
-    color: var(--text-1);
+  .bestie-toggle-btn:hover:not(:disabled) {
+    background: rgba(168, 85, 247, 0.16);
+    border-color: rgba(168, 85, 247, 0.55);
+    transform: scale(1.05);
   }
 
-  .toggle-btn.active {
-    background: var(--accent);
-    color: #06281e;
-    border-color: var(--accent);
+  /* Active state — full gradient, glow, pulsing ring */
+  .bestie-toggle-btn.bestie-on {
+    background: linear-gradient(135deg, #ec4899, #a855f7);
+    border-color: transparent;
+    color: #fff;
+    box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.25), 0 4px 12px rgba(168, 85, 247, 0.35);
+    animation: bestie-pulse 2.4s ease-in-out infinite;
   }
 
-  .toggle-btn.active:hover:not(:disabled) {
-    background: var(--accent);
-    opacity: 0.9;
+  .bestie-toggle-btn.bestie-on:hover:not(:disabled) {
+    box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.35), 0 6px 16px rgba(168, 85, 247, 0.45);
+    transform: scale(1.06);
   }
 
-  .toggle-btn:active:not(:disabled) {
-    transform: scale(0.95);
+  .bestie-toggle-btn:active:not(:disabled) {
+    transform: scale(0.94);
   }
 
-  .toggle-btn:disabled {
-    opacity: 0.5;
+  .bestie-toggle-btn:disabled {
+    opacity: 0.4;
     cursor: not-allowed;
+  }
+
+  @keyframes bestie-pulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(168,85,247,0.25), 0 4px 12px rgba(168,85,247,0.35); }
+    50%       { box-shadow: 0 0 0 5px rgba(236,72,153,0.2),  0 4px 16px rgba(168,85,247,0.5);  }
   }
 
   /* AI Bestie Intro Card (shown to Adrian) */
@@ -1908,8 +1956,9 @@
     }
 
     .message-input {
-      padding: 8px 10px;
-      font-size: 13px;
+      padding: 10px 12px;
+      font-size: 15px;
+      min-height: 44px;
     }
 
     .send-btn {
