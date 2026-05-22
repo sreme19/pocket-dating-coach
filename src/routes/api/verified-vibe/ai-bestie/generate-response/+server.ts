@@ -1,6 +1,33 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
+import { loadPreferences } from '$lib/server/profile-service';
+import type { PreferencesProfile } from '$lib/server/profile-service';
+
+function formatStructuredPreferences(prefs: PreferencesProfile): string {
+	const lines: string[] = ['\nHer known preferences:'];
+
+	if (prefs.emotionalSignals.length > 0) {
+		lines.push(`- Emotional signals she values: ${prefs.emotionalSignals.join(', ')}`);
+	}
+	if (prefs.lifestyleSignals.length > 0) {
+		lines.push(`- Lifestyle signals she values: ${prefs.lifestyleSignals.join(', ')}`);
+	}
+	if (prefs.maturitySignals.length > 0) {
+		lines.push(`- Maturity signals she values: ${prefs.maturitySignals.join(', ')}`);
+	}
+	if (prefs.boundaries.length > 0) {
+		lines.push(`- Her firm boundaries: ${prefs.boundaries.join(', ')}`);
+	}
+	if (prefs.dealbreakers.length > 0) {
+		lines.push(`- Her dealbreakers (absolute no-gos): ${prefs.dealbreakers.join(', ')}`);
+	}
+	if (prefs.privateCompatibilityNotes.length > 0) {
+		lines.push(`- Private notes: ${prefs.privateCompatibilityNotes.join(', ')}`);
+	}
+
+	return lines.join('\n');
+}
 
 export const POST: RequestHandler = async ({ request }) => {
 	try {
@@ -36,6 +63,21 @@ export const POST: RequestHandler = async ({ request }) => {
 			preferencesContext = aboutText + lookingText + prefsText;
 		}
 
+		// Load structured preferences and append to context if non-empty
+		let structuredPreferencesContext = '';
+		try {
+			const structuredPrefs = await loadPreferences(userId);
+			if (
+				structuredPrefs.emotionalSignals.length > 0 ||
+				structuredPrefs.dealbreakers.length > 0 ||
+				structuredPrefs.boundaries.length > 0
+			) {
+				structuredPreferencesContext = formatStructuredPreferences(structuredPrefs);
+			}
+		} catch (err) {
+			console.error('Failed to load structured preferences, falling back to raw context:', err);
+		}
+
 		const client = getClaudeClient();
 
 		const message = await client.messages.create({
@@ -44,7 +86,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			messages: [
 				{
 					role: 'user',
-					content: `You are AI Bestie — a sharp, no-nonsense AI assistant jumping into a dating conversation on behalf of Neha. You are NOT Neha. You are her bestie. You speak to ${matchName} in your own voice, referring to Neha in the third person ("my bestie Neha", "Neha", "she").${preferencesContext}
+					content: `You are AI Bestie — a sharp, no-nonsense AI assistant jumping into a dating conversation on behalf of Neha. You are NOT Neha. You are her bestie. You speak to ${matchName} in your own voice, referring to Neha in the third person ("my bestie Neha", "Neha", "she").${preferencesContext}${structuredPreferencesContext}
 
 ${matchName} just said: "${adrianMessage}"
 
