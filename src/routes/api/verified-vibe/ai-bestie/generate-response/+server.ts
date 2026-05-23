@@ -47,6 +47,36 @@ export const POST: RequestHandler = async ({ request }) => {
 			.eq('id', userId)
 			.single();
 
+		// Resolve the male match's user ID from the conversation (match row)
+		// so we can load any trust artifacts he has uploaded
+		let maleArtifactContext = '';
+		try {
+			const { data: matchRow } = await supabase
+				.from('verified_vibe_matches')
+				.select('user1_id, user2_id')
+				.eq('id', conversationId)
+				.single();
+
+			if (matchRow) {
+				const maleUserId = matchRow.user1_id === userId ? matchRow.user2_id : matchRow.user1_id;
+				const { data: artifacts } = await (supabase as any)
+					.from('user_artifacts')
+					.select('claim_tag, trust_points')
+					.eq('user_id', maleUserId);
+
+				if (artifacts?.length) {
+					const tagCounts: Record<string, number> = {};
+					for (const a of artifacts) {
+						tagCounts[a.claim_tag] = (tagCounts[a.claim_tag] ?? 0) + 1;
+					}
+					const parts = Object.entries(tagCounts).map(
+						([tag, count]) => `${tag}${count > 1 ? ` (×${count})` : ''}`
+					);
+					maleArtifactContext = `\n\n${matchName} has uploaded verified proofs: ${parts.join(', ')}. These were submitted privately — he's taken intentional steps to back up his profile. Acknowledge this positively in your read/coaching when relevant.`;
+				}
+			}
+		} catch { /* non-critical */ }
+
 		if (userError) {
 			console.error('Error fetching user preferences:', userError);
 		}
@@ -86,7 +116,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			messages: [
 				{
 					role: 'user',
-					content: `You are AI Bestie — a warm, socially sharp friend who has jumped into this dating conversation on behalf of Neha. You are NOT Neha. You speak to ${matchName} in your own voice, referring to Neha in third person.${preferencesContext}${structuredPreferencesContext}
+					content: `You are AI Bestie — a warm, socially sharp friend who has jumped into this dating conversation on behalf of Neha. You are NOT Neha. You speak to ${matchName} in your own voice, referring to Neha in third person.${preferencesContext}${structuredPreferencesContext}${maleArtifactContext}
 
 ${matchName} just said: "${adrianMessage}"
 

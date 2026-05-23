@@ -212,7 +212,7 @@ async function createProfiles(
       continue;
     }
 
-    const archetype = profile.profileJson.archetype || 'Unknown';
+    const archetype = (profile.profileJson as any).vv_archetype || profile.profileJson.archetype || 'casual_generous_man';
 
     try {
       // Use verified_vibe_users table (the actual table in supabase-schema.sql)

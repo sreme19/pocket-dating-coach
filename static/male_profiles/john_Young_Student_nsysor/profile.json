@@ -3,5 +3,6 @@
   "name": "John",
   "info": "Age: 20\nOccupation: student\nInterests: partying",
   "createdAt": "2026-05-19T12:50:39.997Z",
-  "updatedAt": "2026-05-19T12:50:39.998Z"
+  "updatedAt": "2026-05-19T12:50:39.998Z",
+  "vv_archetype": "untouched_heart_man"
 }

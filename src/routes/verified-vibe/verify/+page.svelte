@@ -1,15 +1,14 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { setPhase } from '$lib/verified-vibe/stores';
-  import { ARCHETYPES, VERIFICATION_STEPS } from '$lib/verified-vibe/constants';
+  import { ARCHETYPES } from '$lib/verified-vibe/constants';
   import type { Archetype } from '$lib/verified-vibe/types';
-  import { ChevronLeft, Clock } from 'lucide-svelte';
-  import { slide, fade } from 'svelte/transition';
+  import { ChevronLeft } from 'lucide-svelte';
+  import LiveWomenCarousel from '$lib/verified-vibe/components/LiveWomenCarousel.svelte';
   import { getProfile } from '$lib/verified-vibe/services/profileService';
 
   let archetype = $state<Archetype | null>(null);
 
-  // Load archetype from Supabase (falls back to localStorage)
   $effect(() => {
     getProfile().then((profile) => {
       if (profile?.archetype) {
@@ -17,513 +16,267 @@
         localStorage.setItem('verified_vibe_archetype', profile.archetype);
       } else {
         const stored = localStorage.getItem('verified_vibe_archetype');
-        if (stored) {
-          archetype = stored as Archetype;
-        } else {
-          goto('/verified-vibe/home');
-        }
+        if (stored) archetype = stored as Archetype;
+        else goto('/verified-vibe/home');
       }
     }).catch(() => {
       const stored = localStorage.getItem('verified_vibe_archetype');
-      if (stored) {
-        archetype = stored as Archetype;
-      } else {
-        goto('/verified-vibe/home');
-      }
+      if (stored) archetype = stored as Archetype;
+      else goto('/verified-vibe/home');
     });
   });
 
   const archetypeData = $derived(archetype ? ARCHETYPES[archetype] : null);
+
+  const steps = [
+    { num: '01', name: 'Government ID',    sub: 'prove you\'re real',         time: '~30 sec' },
+    { num: '02', name: '5+ photos',        sub: 'prove it\'s really you',     time: '~60 sec' },
+    { num: '03', name: 'Spending pattern', sub: 'prove you\'re solid',        time: '~45 sec' },
+    { num: '04', name: 'Q&A responses',    sub: 'prove your intent',          time: '~2 min'  }
+  ];
 
   function handleBack() {
     setPhase('home');
     goto('/verified-vibe/home');
   }
 
-  function handleStartVerification() {
+  function handleStart() {
     setPhase('verification');
     goto('/verified-vibe/verification');
   }
-
-  const totalTime = $derived(
-    VERIFICATION_STEPS.reduce((sum, step) => {
-      const minutes = parseInt(step.time);
-      return sum + (isNaN(minutes) ? 0 : minutes);
-    }, 0)
-  );
 </script>
 
-<div class="verify-screen">
-  <!-- Header -->
-  <div class="verify-top" transition:slide={{ duration: 400, delay: 0, axis: 'y' }}>
-    <button class="verify-back" onclick={handleBack} title="Go back">
-      <ChevronLeft size={20} />
-    </button>
+<div class="screen">
+  <button class="back-btn" onclick={handleBack} aria-label="Go back">
+    <ChevronLeft size={20} />
+  </button>
+
+  <div class="hero">
+    <h1 class="title">Earn your<br /><em>profile.</em></h1>
+    <p class="subtitle">Four steps. Each one takes under a minute.<br />We verify, you control what's visible.</p>
   </div>
 
-  <!-- Archetype Hero Section -->
-  {#if archetypeData}
-    <div class="archetype-hero" transition:slide={{ duration: 400, delay: 50, axis: 'y' }}>
-      <div class="archetype-emoji" transition:fade={{ duration: 300, delay: 100 }}>
-        {archetypeData.emoji}
-      </div>
-      <h1 class="archetype-name" transition:fade={{ duration: 300, delay: 150 }}>
-        {archetypeData.name}
-      </h1>
-      <p class="archetype-tag" transition:fade={{ duration: 300, delay: 200 }}>
-        {archetypeData.tag}
-      </p>
-      <p class="archetype-description" transition:fade={{ duration: 300, delay: 250 }}>
-        {archetypeData.longTag}
-      </p>
-    </div>
-  {/if}
-
-  <!-- Hero -->
-  {#if archetypeData}
-    <div class="verify-hero" transition:slide={{ duration: 400, delay: 100, axis: 'y' }}>
-      <h2>
-        Get <em>verified</em>
-      </h2>
-      <p>
-        Complete a quick verification process to unlock matches. We keep your data private and secure.
-      </p>
-    </div>
-
-    <!-- Verification steps -->
-    <div class="verify-list" transition:slide={{ duration: 400, delay: 150, axis: 'y' }}>
-      {#each VERIFICATION_STEPS as step, index}
-        <div class="verify-item" transition:fade={{ duration: 300, delay: 200 + index * 50 }}>
-          <div class="step">{index + 1}</div>
-          <div class="label">
-            <div class="n">{step.label}</div>
-            <div class="d">{step.description}</div>
-          </div>
-          <div class="t">{step.time}</div>
+  <div class="steps-list">
+    {#each steps as step}
+      <div class="step-row">
+        <div class="step-num">{step.num}</div>
+        <div class="step-info">
+          <span class="step-name">{step.name}</span>
+          <span class="step-sub">{step.sub}</span>
         </div>
-      {/each}
-    </div>
+        <div class="step-time">{step.time}</div>
+      </div>
+    {/each}
 
-    <!-- Time estimate -->
-    <div class="verify-time" transition:slide={{ duration: 400, delay: 250, axis: 'y' }}>
-      <Clock size={16} class="ico" />
-      <span>Takes about <span class="em">~{totalTime} minutes</span> total</span>
+    <div class="step-total">
+      <span class="total-icon">⚡</span>
+      <span class="total-label">Total time · <strong>~10 min</strong></span>
+      <span class="total-pause">Pause anytime</span>
     </div>
+  </div>
 
-    <!-- Privacy note -->
-    <div class="verify-privacy-note" transition:slide={{ duration: 400, delay: 300, axis: 'y' }}>
-      <p>
-        Your verification data is encrypted and stored securely. We never share your information with third parties.
-      </p>
-    </div>
+  <div class="carousel-section">
+    <LiveWomenCarousel />
+  </div>
 
-    <!-- CTA -->
-    <div class="verify-foot" transition:slide={{ duration: 400, delay: 350, axis: 'y' }}>
-      <button class="btn btn-primary full" onclick={handleStartVerification}>
-        Start Verification
-      </button>
-      <button class="btn btn-secondary full" onclick={handleBack}>
-        Back
-      </button>
-    </div>
-
-    <!-- Footer text -->
-    <div class="verify-privacy" transition:fade={{ duration: 400, delay: 400 }}>
-      <p>
-        By verifying, you agree to our <a href="/verified-vibe/privacy">Verification Policy</a> and <a href="/verified-vibe/privacy">Privacy Policy</a>.
-      </p>
-    </div>
-  {/if}
+  <div class="cta-section">
+    <button class="cta-btn" onclick={handleStart}>
+      Start with Government ID →
+    </button>
+    <p class="privacy-note">
+      We verify ID, photos, spending pattern &amp; intent.<br />
+      No one sees the raw files — only the signals you allow.
+    </p>
+  </div>
 </div>
 
 <style>
-  .verify-screen {
-    padding: 16px 24px 24px;
-    flex: 1;
+  .screen {
+    padding: 16px 16px calc(32px + env(safe-area-inset-bottom, 0));
     display: flex;
     flex-direction: column;
+    gap: 28px;
     min-height: 100%;
   }
 
-  .verify-top {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 22px;
-  }
-
-  .verify-back {
+  .back-btn {
     width: 36px;
     height: 36px;
     border-radius: 10px;
-    display: grid;
-    place-items: center;
     background: var(--bg-2);
     border: 1px solid var(--border-1);
-    color: var(--text-2);
+    display: grid;
+    place-items: center;
     cursor: pointer;
-    transition: all 200ms ease;
-    font-family: inherit;
-  }
-
-  .verify-back:hover {
-    color: var(--text-1);
-    border-color: var(--border-2);
-  }
-
-  /* Archetype Hero Section */
-  .archetype-hero {
-    text-align: center;
-    margin-bottom: 32px;
-    padding: 24px 0;
-    border-bottom: 1px solid var(--border-1);
-  }
-
-  .archetype-emoji {
-    font-size: 64px;
-    line-height: 1;
-    margin-bottom: 16px;
-    display: inline-block;
-  }
-
-  .archetype-name {
-    font-size: 32px;
-    font-weight: 700;
-    line-height: 1.2;
-    margin: 0 0 8px;
-    color: var(--text-1);
-    letter-spacing: -0.01em;
-  }
-
-  .archetype-tag {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--accent-bright);
-    margin: 0 0 12px;
-    letter-spacing: 0.02em;
-  }
-
-  .archetype-description {
-    font-size: 14px;
-    font-style: italic;
     color: var(--text-2);
-    margin: 0;
-    line-height: 1.5;
-    max-width: 40ch;
-    margin-left: auto;
-    margin-right: auto;
+    align-self: flex-start;
+    transition: background 200ms;
+    flex-shrink: 0;
   }
 
-  .verify-hero {
-    margin-bottom: 22px;
-  }
+  .back-btn:active { background: var(--bg-3); }
 
-  .verify-hero h2 {
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-size: 44px;
-    line-height: 1;
-    letter-spacing: -0.02em;
-    margin: 0 0 12px;
-    color: var(--text-1);
-  }
-
-  .verify-hero h2 em {
-    color: var(--accent-bright);
-    font-style: italic;
-  }
-
-  .verify-hero p {
-    margin: 0;
-    font-size: 14px;
-    color: var(--text-2);
-    max-width: 32ch;
-    line-height: 1.5;
-  }
-
-  .verify-list {
+  .hero {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    margin-bottom: 22px;
   }
 
-  .verify-item {
+  .title {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: clamp(48px, 13vw, 64px);
+    line-height: 0.92;
+    letter-spacing: -0.02em;
+    color: var(--text-1);
+    margin: 0;
+  }
+
+  .title em {
+    color: var(--accent-bright);
+    font-style: italic;
+  }
+
+  .subtitle {
+    font-size: 14px;
+    color: var(--text-2);
+    line-height: 1.55;
+    margin: 0;
+  }
+
+  .steps-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .step-row {
     display: grid;
-    grid-template-columns: 32px 1fr auto;
-    gap: 14px;
+    grid-template-columns: 40px 1fr auto;
     align-items: center;
+    gap: 14px;
     padding: 14px 16px;
     background: var(--bg-2);
     border: 1px solid var(--border-1);
-    border-radius: var(--r-md);
+    border-radius: 14px;
   }
 
-  .verify-item .step {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
+  .step-num {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
     background: var(--accent-tint);
     color: var(--accent-bright);
-    font-family: var(--font-mono);
     font-size: 13px;
     font-weight: 700;
+    font-family: var(--font-mono, monospace);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
   }
 
-  .verify-item .label {
+  .step-info {
     display: flex;
     flex-direction: column;
     gap: 2px;
     min-width: 0;
   }
 
-  .verify-item .label .n {
-    font-size: 14px;
+  .step-name {
+    font-size: 15px;
     font-weight: 600;
+    color: var(--text-1);
+    line-height: 1.2;
   }
 
-  .verify-item .label .d {
+  .step-sub {
     font-size: 12px;
     color: var(--text-3);
   }
 
-  .verify-item .t {
-    font-size: 11px;
+  .step-time {
+    font-size: 12px;
     color: var(--text-3);
-    font-family: var(--font-mono);
+    font-family: var(--font-mono, monospace);
+    white-space: nowrap;
   }
 
-  .verify-time {
+  .step-total {
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 12px 16px;
     background: var(--accent-tint);
-    border: 1px solid rgba(16, 185, 129, 0.25);
-    border-radius: var(--r-md);
-    margin-bottom: 16px;
-    font-size: 13px;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 14px;
+    font-size: 14px;
     color: var(--text-1);
   }
 
-  .verify-time .em {
+  .total-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .total-label {
+    flex: 1;
+  }
+
+  .total-label strong {
     color: var(--accent-bright);
     font-weight: 700;
   }
 
-  .verify-privacy-note {
-    padding: 12px 16px;
-    background: var(--bg-2);
-    border: 1px solid var(--border-1);
-    border-radius: var(--r-md);
-    margin-bottom: 16px;
+  .total-pause {
     font-size: 12px;
-    color: var(--text-2);
-    line-height: 1.5;
+    color: var(--text-3);
   }
 
-  .verify-privacy-note p {
-    margin: 0;
+  .carousel-section {
+    /* gap from parent handles spacing */
   }
 
-  .verify-foot {
-    margin-top: auto;
-    padding-top: 12px;
+  .cta-section {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 12px;
+    margin-top: auto;
+    padding-top: 4px;
   }
 
-  .btn {
+  .cta-btn {
     width: 100%;
-    min-height: 48px;
-    padding: 13px 16px;
-    font-size: 15px;
-    font-weight: 600;
-    border-radius: var(--r-lg);
-    cursor: pointer;
-    transition: all 200ms ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: inherit;
-    border: none;
-  }
-
-  .btn-primary {
-    background: var(--accent);
-    color: #06281e;
-  }
-
-  .btn-primary:hover {
+    min-height: 56px;
+    padding: 16px;
     background: var(--accent-bright);
-    box-shadow: 0 8px 24px -8px var(--accent-glow);
-    transform: translateY(-1px);
+    color: #06281e;
+    border: none;
+    border-radius: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: opacity 200ms, transform 200ms;
   }
 
-  .btn-secondary {
-    background: var(--bg-3);
-    color: var(--text-2);
-    border: 1px solid var(--border-2);
+  .cta-btn:active {
+    opacity: 0.85;
+    transform: scale(0.98);
   }
 
-  .btn-secondary:hover {
-    background: var(--bg-4);
-    color: var(--text-1);
-    border-color: var(--border-3);
+  @media (hover: hover) {
+    .cta-btn:hover {
+      opacity: 0.9;
+      box-shadow: 0 8px 24px -8px rgba(52, 211, 153, 0.5);
+      transform: translateY(-1px);
+    }
   }
 
-  .btn.full {
-    width: 100%;
-  }
-
-  .verify-privacy {
+  .privacy-note {
     font-size: 11px;
     color: var(--text-4);
     text-align: center;
-    margin-top: 14px;
-    line-height: 1.55;
-  }
-
-  .verify-privacy a {
-    color: var(--text-3);
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
-
-  @media (max-width: 767px) {
-    .verify-screen {
-      padding: 12px 16px 20px;
-    }
-
-    .verify-top {
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-
-    .verify-back {
-      width: 40px;
-      height: 40px;
-      min-width: 40px;
-      min-height: 40px;
-      border-radius: 8px;
-    }
-
-    /* Archetype Hero Mobile */
-    .archetype-hero {
-      margin-bottom: 24px;
-      padding: 16px 0;
-      border-bottom: 1px solid var(--border-1);
-    }
-
-    .archetype-emoji {
-      font-size: 56px;
-      margin-bottom: 12px;
-    }
-
-    .archetype-name {
-      font-size: 24px;
-      margin: 0 0 6px;
-    }
-
-    .archetype-tag {
-      font-size: 13px;
-      margin: 0 0 10px;
-    }
-
-    .archetype-description {
-      font-size: 13px;
-      line-height: 1.4;
-      max-width: 100%;
-    }
-
-    .verify-hero {
-      margin-bottom: 18px;
-    }
-
-    .verify-hero h2 {
-      font-size: 32px;
-      line-height: 1;
-      margin: 0 0 10px;
-    }
-
-    .verify-hero p {
-      font-size: 13px;
-      max-width: 100%;
-      line-height: 1.5;
-    }
-
-    .verify-list {
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-
-    .verify-item {
-      grid-template-columns: 28px 1fr auto;
-      padding: 12px 12px;
-      gap: 10px;
-      border-radius: var(--r-md);
-    }
-
-    .verify-item .step {
-      width: 28px;
-      height: 28px;
-      min-width: 28px;
-      min-height: 28px;
-      font-size: 11px;
-    }
-
-    .verify-item .label .n {
-      font-size: 13px;
-    }
-
-    .verify-item .label .d {
-      font-size: 11px;
-    }
-
-    .verify-item .t {
-      font-size: 10px;
-    }
-
-    .verify-time {
-      gap: 6px;
-      padding: 10px 12px;
-      margin-bottom: 12px;
-      font-size: 12px;
-      border-radius: var(--r-md);
-    }
-
-    .verify-privacy-note {
-      padding: 10px 12px;
-      margin-bottom: 12px;
-      font-size: 11px;
-      border-radius: var(--r-md);
-      line-height: 1.4;
-    }
-
-    .verify-privacy-note p {
-      margin: 0;
-    }
-
-    .verify-foot {
-      margin-top: auto;
-      padding-top: 12px;
-      gap: 8px;
-    }
-
-    .btn {
-      min-height: 44px;
-      padding: 12px 16px;
-      font-size: 14px;
-      border-radius: var(--r-lg);
-    }
-
-    .verify-privacy {
-      font-size: 10px;
-      margin-top: 12px;
-      line-height: 1.5;
-    }
+    line-height: 1.6;
+    margin: 0;
   }
 </style>
