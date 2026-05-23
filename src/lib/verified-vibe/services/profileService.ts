@@ -24,6 +24,9 @@ export interface VVProfile {
   about: string | null;
   looking: string | null;
   trust_score: number | null;
+  here_for_title: string | null;
+  here_for_desc: string | null;
+  hard_nos: string[] | null;
   created_at: string;
   updated_at: string;
 }

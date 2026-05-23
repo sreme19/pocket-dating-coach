@@ -8,17 +8,51 @@
 
   // ── Archetype display metadata ─────────────────────────────────────────────
   const ARCHETYPE_META: Record<string, { emoji: string; label: string; color: string; bg: string }> = {
+    // Legacy (keep for any existing records)
     casual_man:          { emoji: '🎯', label: 'Casual',          color: '#f59e0b', bg: 'rgba(245,158,11,0.13)'  },
     marriage_minded_man: { emoji: '💍', label: 'Marriage-Minded', color: '#818cf8', bg: 'rgba(99,102,241,0.13)'  },
     spoilt_woman:        { emoji: '💎', label: 'Spoilt Woman',     color: '#ec4899', bg: 'rgba(236,72,153,0.13)'  },
     safety_first_woman:  { emoji: '🛡️', label: 'Safety-First',    color: '#34d399', bg: 'rgba(16,185,129,0.13)'  },
+    // New archetypes (PDC-48)
+    casual_generous_man:       { emoji: '💸', label: 'Casual-Generous',    color: '#34d399', bg: 'rgba(16,185,129,0.13)' },
+    hopeless_romantic_man:     { emoji: '💞', label: 'Hopeless-Romantic',  color: '#818cf8', bg: 'rgba(99,102,241,0.13)' },
+    rebound_healing_man:       { emoji: '🌱', label: 'Rebound-Healing',    color: '#84cc16', bg: 'rgba(132,204,22,0.13)'  },
+    untouched_heart_man:       { emoji: '🕊️', label: 'Untouched-Heart',   color: '#3b82f6', bg: 'rgba(59,130,246,0.13)'  },
+    forever_focused_man:       { emoji: '🎯', label: 'Forever-Focused',    color: '#14b8a6', bg: 'rgba(20,184,166,0.13)'  },
+    traditional_matrimony_man: { emoji: '🏛️', label: 'Traditional',       color: '#f59e0b', bg: 'rgba(245,158,11,0.13)'  },
+    spoiled_casual_woman:        { emoji: '✨', label: 'Spoiled-Casual',     color: '#f59e0b', bg: 'rgba(245,158,11,0.13)'  },
+    hopeless_romantic_woman:     { emoji: '🌹', label: 'Hopeless-Romantic', color: '#ec4899', bg: 'rgba(236,72,153,0.13)'  },
+    rebound_healing_woman:       { emoji: '🌿', label: 'Rebound-Healing',   color: '#84cc16', bg: 'rgba(132,204,22,0.13)'  },
+    untouched_heart_woman:       { emoji: '🌸', label: 'Untouched-Heart',   color: '#3b82f6', bg: 'rgba(59,130,246,0.13)'  },
+    forever_focused_woman:       { emoji: '💍', label: 'Forever-Focused',   color: '#34d399', bg: 'rgba(16,185,129,0.13)'  },
+    traditional_matrimony_woman: { emoji: '🏛️', label: 'Traditional',      color: '#f59e0b', bg: 'rgba(245,158,11,0.13)'  },
   };
 
+  // ── Attention message type ─────────────────────────────────────────────────
+  interface AttentionMessage {
+    id: string;
+    senderId: string;
+    senderName: string;
+    senderAge: number | null;
+    senderAvatar: string | null;
+    senderArchetype: string | null;
+    messageType: 'secret_admirer' | 'craving_attention';
+    content: string;
+    replyContent: string | null;
+    replySentAt: string | null;
+    isRead: boolean;
+    createdAt: string;
+  }
+
   // ── State ──────────────────────────────────────────────────────────────────
-  let conversations = $state<Conversation[]>([]);
-  let isLoading     = $state(true);
-  let error         = $state<string | null>(null);
-  let activeFilter  = $state<'all' | 'unread'>('all');
+  let conversations    = $state<Conversation[]>([]);
+  let attentionMsgs    = $state<AttentionMessage[]>([]);
+  let isLoading        = $state(true);
+  let error            = $state<string | null>(null);
+  let activeFilter     = $state<'all' | 'unread'>('all');
+  let replyingToId     = $state<string | null>(null);
+  let replyContent     = $state('');
+  let isReplying       = $state(false);
 
   // ── Derived ────────────────────────────────────────────────────────────────
   let newMatches     = $derived(conversations.filter(c => !c.hasMessages));
@@ -55,6 +89,16 @@
 
       const data = await response.json();
       conversations = data.data.conversations;
+
+      // Load attention inbox (non-blocking — failures are silent)
+      try {
+        const attnRes = await fetch(`/api/verified-vibe/attention?recipientId=${session.user.id}`);
+        if (attnRes.ok) {
+          const attnData = await attnRes.json();
+          attentionMsgs = attnData.messages ?? [];
+        }
+      } catch { /* non-blocking */ }
+
     } catch (err) {
       console.error('Error fetching conversations:', err);
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -62,6 +106,31 @@
       isLoading = false;
     }
   });
+
+  // ── Reply to attention message ─────────────────────────────────────────────
+  async function submitAttentionReply(messageId: string) {
+    if (!replyContent.trim() || isReplying) return;
+    isReplying = true;
+    try {
+      const res = await fetch('/api/verified-vibe/attention/reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId, replyContent: replyContent.trim() }),
+      });
+      if (res.ok) {
+        const snapshot = replyContent.trim();
+        attentionMsgs = attentionMsgs.map(m =>
+          m.id === messageId
+            ? { ...m, replyContent: snapshot, replySentAt: new Date().toISOString() }
+            : m
+        );
+        replyingToId = null;
+        replyContent = '';
+      }
+    } finally {
+      isReplying = false;
+    }
+  }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   function formatTime(date: Date | string): string {
@@ -129,6 +198,21 @@
       <div class="band-divider"></div>
     {/if}
 
+    <!-- AI Wingman pinned row — male users only -->
+    {#if $user?.gender === 'man'}
+      <button class="bestie-row wingman-row" onclick={() => goto('/verified-vibe/chat/ai-wingman')}>
+        <div class="wingman-avatar">🛡️</div>
+        <div class="bestie-text">
+          <div class="bestie-name-row">
+            <span class="bestie-name">AI Wingman</span>
+            <span class="bestie-badge wingman-badge">ADVISOR</span>
+          </div>
+          <p class="bestie-sub">Match reads, approach tips &amp; fresh insights</p>
+        </div>
+      </button>
+      <div class="band-divider"></div>
+    {/if}
+
     <!-- ── Loading ── -->
     {#if isLoading}
       <div class="loading-state" transition:fade={{ duration: 200 }}>
@@ -153,6 +237,75 @@
       </div>
 
     {:else}
+
+      <!-- ── Attention inbox (Secret Admirers / Craving Attention) ── -->
+      {#if attentionMsgs.length > 0}
+        {@const attnLabel = $user?.gender === 'man' ? '🌹 SECRET ADMIRERS' : '👀 CRAVING ATTENTION'}
+        <section class="attention-section" transition:fade={{ duration: 200 }}>
+          <div class="section-hdr">
+            <span class="section-dot pink-dot"></span>
+            <span class="section-label">{attnLabel}</span>
+            <span class="section-hint">{attentionMsgs.length} message{attentionMsgs.length > 1 ? 's' : ''}</span>
+          </div>
+
+          {#each attentionMsgs as msg (msg.id)}
+            {@const meta = ARCHETYPE_META[msg.senderArchetype ?? '']}
+            <div class="attn-row {!msg.isRead ? 'attn-row-unread' : ''}">
+              <div class="attn-avatar">
+                {#if msg.senderAvatar}
+                  <img class="attn-avatar-img" src={msg.senderAvatar} alt={msg.senderName} />
+                {:else}
+                  <div class="attn-avatar-letter">{msg.senderName.charAt(0).toUpperCase()}</div>
+                {/if}
+              </div>
+              <div class="attn-body">
+                <div class="attn-line1">
+                  <div class="attn-name-group">
+                    <span class="attn-name">{msg.senderName}</span>
+                    {#if msg.senderAge}<span class="attn-age">, {msg.senderAge}</span>{/if}
+                    {#if meta}
+                      <span class="archetype-chip" style="color:{meta.color};background:{meta.bg};border-color:{meta.color}55;">{meta.emoji} {meta.label}</span>
+                    {/if}
+                  </div>
+                  <span class="attn-time">{formatTime(msg.createdAt)}</span>
+                </div>
+                <p class="attn-content">{msg.content}</p>
+
+                {#if msg.replyContent}
+                  <div class="attn-replied">
+                    <span class="replied-label">You replied:</span>
+                    <p class="replied-text">{msg.replyContent}</p>
+                  </div>
+                {:else if replyingToId === msg.id}
+                  <div class="attn-reply-form">
+                    <textarea
+                      class="reply-input"
+                      placeholder="Write a reply… (max 500 chars)"
+                      maxlength="500"
+                      rows="2"
+                      bind:value={replyContent}
+                    ></textarea>
+                    <div class="reply-actions">
+                      <button class="reply-cancel" onclick={() => { replyingToId = null; replyContent = ''; }}>Cancel</button>
+                      <button
+                        class="reply-submit"
+                        onclick={() => submitAttentionReply(msg.id)}
+                        disabled={!replyContent.trim() || isReplying}
+                      >{isReplying ? 'Sending…' : 'Reply'}</button>
+                    </div>
+                  </div>
+                {:else}
+                  <button
+                    class="reply-btn"
+                    onclick={() => { replyingToId = msg.id; replyContent = ''; }}
+                  >Reply</button>
+                {/if}
+              </div>
+            </div>
+          {/each}
+        </section>
+        <div class="band-divider"></div>
+      {/if}
 
       <!-- ── NEW MATCHES strip ── -->
       {#if newMatches.length > 0}
@@ -391,6 +544,27 @@
     font-size: 13px;
     color: var(--text-3);
     margin: 0;
+  }
+
+  .wingman-row {
+    background: linear-gradient(135deg, rgba(16,185,129,0.04), var(--bg-2));
+    border: 1px solid rgba(16,185,129,0.15);
+  }
+
+  .wingman-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background: var(--accent-tint);
+    border: 1.5px solid var(--accent-bright);
+    display: grid;
+    place-items: center;
+    font-size: 24px;
+    flex-shrink: 0;
+  }
+
+  .wingman-badge {
+    background: linear-gradient(135deg, #10b981, #14b8a6);
   }
 
   /* ── Loading / Error / Empty ── */
@@ -732,6 +906,202 @@
     text-align: center;
     color: var(--text-3);
     font-size: 14px;
+  }
+
+  /* ── Attention inbox section ── */
+  .attention-section {
+    padding: 10px 0 0;
+    flex-shrink: 0;
+  }
+
+  .pink-dot { background: #ec4899; }
+
+  .attn-row {
+    display: flex;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-1);
+    transition: background 120ms;
+  }
+
+  .attn-row-unread {
+    background: rgba(236, 72, 153, 0.04);
+  }
+
+  .attn-avatar {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--bg-3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .attn-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .attn-avatar-letter {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-2);
+  }
+
+  .attn-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .attn-line1 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .attn-name-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  .attn-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-1);
+  }
+
+  .attn-age {
+    font-size: 13px;
+    color: var(--text-3);
+  }
+
+  .attn-time {
+    font-size: 11px;
+    color: var(--text-3);
+    flex-shrink: 0;
+  }
+
+  .attn-content {
+    font-size: 13px;
+    color: var(--text-2);
+    line-height: 1.5;
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .attn-replied {
+    background: var(--bg-2);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-top: 4px;
+  }
+
+  .replied-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .replied-text {
+    font-size: 12px;
+    color: var(--text-2);
+    margin: 2px 0 0;
+    line-height: 1.4;
+  }
+
+  .reply-btn {
+    align-self: flex-start;
+    margin-top: 4px;
+    padding: 5px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border-2);
+    background: var(--bg-2);
+    color: var(--text-2);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 130ms, color 130ms;
+  }
+
+  .reply-btn:hover {
+    border-color: #ec4899;
+    color: #ec4899;
+  }
+
+  .attn-reply-form {
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .reply-input {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 13px;
+    color: var(--text-1);
+    font-family: inherit;
+    resize: none;
+    line-height: 1.5;
+  }
+
+  .reply-input:focus {
+    outline: none;
+    border-color: #ec4899;
+  }
+
+  .reply-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
+  .reply-cancel {
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border-1);
+    background: transparent;
+    color: var(--text-3);
+    font-size: 13px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .reply-submit {
+    padding: 6px 18px;
+    border-radius: 8px;
+    border: none;
+    background: #ec4899;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: opacity 130ms;
+  }
+
+  .reply-submit:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
   }
 
   /* ── Mobile ── */

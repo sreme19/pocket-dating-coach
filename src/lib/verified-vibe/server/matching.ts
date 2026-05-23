@@ -47,29 +47,77 @@ export interface UserAnswers {
  * Higher values indicate better compatibility
  */
 const ARCHETYPE_COMPATIBILITY: Record<Archetype, Record<Archetype, number>> = {
-  casual_man: {
-    casual_man: 50,
-    marriage_minded_man: 30,
-    spoilt_woman: 70,
-    safety_first_woman: 40
+  casual_generous_man: {
+    casual_generous_man: 45, hopeless_romantic_man: 30, rebound_healing_man: 35,
+    untouched_heart_man: 30, forever_focused_man: 25, traditional_matrimony_man: 20,
+    spoiled_casual_woman: 85, hopeless_romantic_woman: 65, rebound_healing_woman: 65,
+    untouched_heart_woman: 45, forever_focused_woman: 35, traditional_matrimony_woman: 25
   },
-  marriage_minded_man: {
-    casual_man: 30,
-    marriage_minded_man: 60,
-    spoilt_woman: 50,
-    safety_first_woman: 80
+  hopeless_romantic_man: {
+    casual_generous_man: 30, hopeless_romantic_man: 50, rebound_healing_man: 40,
+    untouched_heart_man: 40, forever_focused_man: 45, traditional_matrimony_man: 50,
+    spoiled_casual_woman: 45, hopeless_romantic_woman: 85, rebound_healing_woman: 55,
+    untouched_heart_woman: 65, forever_focused_woman: 65, traditional_matrimony_woman: 65
   },
-  spoilt_woman: {
-    casual_man: 70,
-    marriage_minded_man: 50,
-    spoilt_woman: 60,
-    safety_first_woman: 40
+  rebound_healing_man: {
+    casual_generous_man: 35, hopeless_romantic_man: 40, rebound_healing_man: 55,
+    untouched_heart_man: 35, forever_focused_man: 30, traditional_matrimony_man: 25,
+    spoiled_casual_woman: 65, hopeless_romantic_woman: 50, rebound_healing_woman: 85,
+    untouched_heart_woman: 65, forever_focused_woman: 40, traditional_matrimony_woman: 35
   },
-  safety_first_woman: {
-    casual_man: 40,
-    marriage_minded_man: 80,
-    spoilt_woman: 40,
-    safety_first_woman: 70
+  untouched_heart_man: {
+    casual_generous_man: 30, hopeless_romantic_man: 40, rebound_healing_man: 35,
+    untouched_heart_man: 55, forever_focused_man: 50, traditional_matrimony_man: 45,
+    spoiled_casual_woman: 35, hopeless_romantic_woman: 65, rebound_healing_woman: 55,
+    untouched_heart_woman: 85, forever_focused_woman: 65, traditional_matrimony_woman: 55
+  },
+  forever_focused_man: {
+    casual_generous_man: 25, hopeless_romantic_man: 45, rebound_healing_man: 30,
+    untouched_heart_man: 50, forever_focused_man: 60, traditional_matrimony_man: 60,
+    spoiled_casual_woman: 30, hopeless_romantic_woman: 65, rebound_healing_woman: 40,
+    untouched_heart_woman: 65, forever_focused_woman: 85, traditional_matrimony_woman: 85
+  },
+  traditional_matrimony_man: {
+    casual_generous_man: 20, hopeless_romantic_man: 50, rebound_healing_man: 25,
+    untouched_heart_man: 45, forever_focused_man: 60, traditional_matrimony_man: 65,
+    spoiled_casual_woman: 25, hopeless_romantic_woman: 65, rebound_healing_woman: 35,
+    untouched_heart_woman: 55, forever_focused_woman: 85, traditional_matrimony_woman: 85
+  },
+  spoiled_casual_woman: {
+    casual_generous_man: 85, hopeless_romantic_man: 45, rebound_healing_man: 65,
+    untouched_heart_man: 35, forever_focused_man: 30, traditional_matrimony_man: 25,
+    spoiled_casual_woman: 55, hopeless_romantic_woman: 45, rebound_healing_woman: 50,
+    untouched_heart_woman: 40, forever_focused_woman: 30, traditional_matrimony_woman: 25
+  },
+  hopeless_romantic_woman: {
+    casual_generous_man: 65, hopeless_romantic_man: 85, rebound_healing_man: 50,
+    untouched_heart_man: 65, forever_focused_man: 65, traditional_matrimony_man: 65,
+    spoiled_casual_woman: 45, hopeless_romantic_woman: 60, rebound_healing_woman: 55,
+    untouched_heart_woman: 55, forever_focused_woman: 50, traditional_matrimony_woman: 50
+  },
+  rebound_healing_woman: {
+    casual_generous_man: 65, hopeless_romantic_man: 55, rebound_healing_man: 85,
+    untouched_heart_man: 55, forever_focused_man: 40, traditional_matrimony_man: 35,
+    spoiled_casual_woman: 50, hopeless_romantic_woman: 55, rebound_healing_woman: 60,
+    untouched_heart_woman: 50, forever_focused_woman: 40, traditional_matrimony_woman: 35
+  },
+  untouched_heart_woman: {
+    casual_generous_man: 45, hopeless_romantic_man: 65, rebound_healing_man: 65,
+    untouched_heart_man: 85, forever_focused_man: 65, traditional_matrimony_man: 55,
+    spoiled_casual_woman: 40, hopeless_romantic_woman: 55, rebound_healing_woman: 50,
+    untouched_heart_woman: 60, forever_focused_woman: 55, traditional_matrimony_woman: 50
+  },
+  forever_focused_woman: {
+    casual_generous_man: 35, hopeless_romantic_man: 65, rebound_healing_man: 40,
+    untouched_heart_man: 65, forever_focused_man: 85, traditional_matrimony_man: 85,
+    spoiled_casual_woman: 30, hopeless_romantic_woman: 50, rebound_healing_woman: 40,
+    untouched_heart_woman: 55, forever_focused_woman: 65, traditional_matrimony_woman: 65
+  },
+  traditional_matrimony_woman: {
+    casual_generous_man: 25, hopeless_romantic_man: 65, rebound_healing_man: 35,
+    untouched_heart_man: 55, forever_focused_man: 85, traditional_matrimony_man: 85,
+    spoiled_casual_woman: 25, hopeless_romantic_woman: 50, rebound_healing_woman: 35,
+    untouched_heart_woman: 50, forever_focused_woman: 65, traditional_matrimony_woman: 70
   }
 };
 
@@ -265,38 +313,32 @@ function calculateTrustFactor(trustScore1: number, trustScore2: number): number 
 function getMatchingTraits(archetype1: Archetype, archetype2: Archetype): string[] {
   const traits: string[] = [];
 
-  // Define trait mappings for each archetype
   const traitMappings: Record<Archetype, string[]> = {
-    casual_man: ['spontaneous', 'adventurous', 'independent', 'fun-loving'],
-    marriage_minded_man: ['committed', 'stable', 'family-oriented', 'responsible'],
-    spoilt_woman: ['confident', 'ambitious', 'social', 'enjoys luxury'],
-    safety_first_woman: ['cautious', 'thoughtful', 'values security', 'seeks stability']
+    casual_generous_man: ['spontaneous', 'adventurous', 'generous', 'fun-loving'],
+    hopeless_romantic_man: ['romantic', 'emotional', 'expressive', 'committed'],
+    rebound_healing_man: ['open', 'self-aware', 'growing', 'present'],
+    untouched_heart_man: ['genuine', 'careful', 'sincere', 'loyal'],
+    forever_focused_man: ['ambitious', 'stable', 'dependable', 'goal-oriented'],
+    traditional_matrimony_man: ['family-oriented', 'stable', 'principled', 'responsible'],
+    spoiled_casual_woman: ['confident', 'social', 'enjoys luxury', 'fun-loving'],
+    hopeless_romantic_woman: ['romantic', 'expressive', 'emotional', 'committed'],
+    rebound_healing_woman: ['open', 'resilient', 'self-aware', 'growing'],
+    untouched_heart_woman: ['sincere', 'careful', 'genuine', 'loyal'],
+    forever_focused_woman: ['ambitious', 'stable', 'goal-oriented', 'dependable'],
+    traditional_matrimony_woman: ['family-oriented', 'principled', 'stable', 'responsible']
   };
 
   const traits1 = traitMappings[archetype1] || [];
   const traits2 = traitMappings[archetype2] || [];
-
-  // Find common traits
   const commonTraits = traits1.filter((t) => traits2.includes(t));
 
   if (commonTraits.length > 0) {
-    traits.push(`Both ${commonTraits.join(' and ')}`);
+    traits.push(`Both value being ${commonTraits.join(' and ')}`);
   }
 
-  // Add complementary traits
-  if (
-    (archetype1 === 'casual_man' && archetype2 === 'spoilt_woman') ||
-    (archetype1 === 'spoilt_woman' && archetype2 === 'casual_man')
-  ) {
-    traits.push('Complementary energy and interests');
-  }
-
-  if (
-    (archetype1 === 'marriage_minded_man' && archetype2 === 'safety_first_woman') ||
-    (archetype1 === 'safety_first_woman' && archetype2 === 'marriage_minded_man')
-  ) {
-    traits.push('Aligned life goals and values');
-  }
+  const score = ARCHETYPE_COMPATIBILITY[archetype1]?.[archetype2] ?? 45;
+  if (score >= 80) traits.push('Highly complementary energy');
+  else if (score >= 65) traits.push('Good potential for connection');
 
   return traits.length > 0 ? traits : ['Potential for connection'];
 }
@@ -311,26 +353,21 @@ function getMatchingTraits(archetype1: Archetype, archetype2: Archetype): string
 function getPotentialIssues(archetype1: Archetype, archetype2: Archetype): string[] {
   const issues: string[] = [];
 
-  // Check for conflicting archetypes
-  if (
-    (archetype1 === 'casual_man' && archetype2 === 'safety_first_woman') ||
-    (archetype1 === 'safety_first_woman' && archetype2 === 'casual_man')
-  ) {
-    issues.push('Different relationship expectations');
+  const score = ARCHETYPE_COMPATIBILITY[archetype1]?.[archetype2] ?? 45;
+
+  if (score < 35) {
+    issues.push('Very different relationship expectations');
+  } else if (score < 50) {
+    issues.push('May need to align on relationship goals early');
   }
 
   if (
-    (archetype1 === 'marriage_minded_man' && archetype2 === 'spoilt_woman') ||
-    (archetype1 === 'spoilt_woman' && archetype2 === 'marriage_minded_man')
+    (archetype1 === 'casual_generous_man' && archetype2 === 'traditional_matrimony_woman') ||
+    (archetype1 === 'traditional_matrimony_woman' && archetype2 === 'casual_generous_man') ||
+    (archetype1 === 'traditional_matrimony_man' && archetype2 === 'spoiled_casual_woman') ||
+    (archetype1 === 'spoiled_casual_woman' && archetype2 === 'traditional_matrimony_man')
   ) {
-    issues.push('Potential lifestyle differences');
-  }
-
-  // Check for same archetype (can be good or challenging)
-  if (archetype1 === archetype2) {
-    if (archetype1 === 'casual_man' || archetype1 === 'spoilt_woman') {
-      issues.push('May need to establish commitment expectations');
-    }
+    issues.push('Significant lifestyle differences to navigate');
   }
 
   return issues;

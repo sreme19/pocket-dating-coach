@@ -3,5 +3,6 @@
   "name": "Tim",
   "info": "Age: 30\nOccupation: VC\nInterests: traveling",
   "createdAt": "2026-05-19T12:50:55.261Z",
-  "updatedAt": "2026-05-19T12:50:55.261Z"
+  "updatedAt": "2026-05-19T12:50:55.261Z",
+  "vv_archetype": "casual_generous_man"
 }

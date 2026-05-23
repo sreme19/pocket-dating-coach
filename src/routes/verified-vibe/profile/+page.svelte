@@ -71,18 +71,63 @@
     'Real opinions, gently held'
   ];
 
-  // Here For
-  const hereFor = {
-    archetype: 'Spoilt Women',
-    description: 'Wants effort, taste, and a calendar that respects yours.'
-  };
+  // Here For + Hard Nos — loaded from DB, editable
+  let hereForTitle    = $state('Spoilt Women');
+  let hereForDesc     = $state('Wants effort, taste, and a calendar that respects yours.');
+  let hardNos         = $state<string[]>(['Dishonesty about what someone wants', 'Game-playing', 'Flake energy']);
 
-  // Hard Nos
-  const hardNos = [
-    'Dishonesty about what someone wants',
-    'Game-playing',
-    'Flake energy'
-  ];
+  let editingHereFor  = $state(false);
+  let editHFTitle     = $state('');
+  let editHFDesc      = $state('');
+  let savingHF        = $state(false);
+
+  let editingHardNos  = $state(false);
+  let editHardNos     = $state<string[]>([]);
+  let newHardNo       = $state('');
+  let savingHardNos   = $state(false);
+
+  function startEditHereFor() {
+    editHFTitle = hereForTitle;
+    editHFDesc  = hereForDesc;
+    editingHereFor = true;
+  }
+
+  async function saveHereFor() {
+    savingHF = true;
+    try {
+      await upsertProfile({ here_for_title: editHFTitle, here_for_desc: editHFDesc } as any);
+      hereForTitle = editHFTitle;
+      hereForDesc  = editHFDesc;
+      editingHereFor = false;
+    } catch { /* silent */ }
+    finally { savingHF = false; }
+  }
+
+  function startEditHardNos() {
+    editHardNos = [...hardNos];
+    newHardNo = '';
+    editingHardNos = true;
+  }
+
+  function addHardNo() {
+    const v = newHardNo.trim();
+    if (v && !editHardNos.includes(v)) editHardNos = [...editHardNos, v];
+    newHardNo = '';
+  }
+
+  function removeHardNo(i: number) {
+    editHardNos = editHardNos.filter((_, idx) => idx !== i);
+  }
+
+  async function saveHardNos() {
+    savingHardNos = true;
+    try {
+      await upsertProfile({ hard_nos: editHardNos } as any);
+      hardNos = [...editHardNos];
+      editingHardNos = false;
+    } catch { /* silent */ }
+    finally { savingHardNos = false; }
+  }
 
   // Edit state — populated from generated/draft on entering enhance mode
   let editAbout = $state('');
@@ -137,7 +182,7 @@
     }
   }
 
-  onMount(() => {
+  onMount(async () => {
     const rawDraft = localStorage.getItem('vv_profile_draft');
     const rawGenerated = localStorage.getItem('vv_profile');
     const rawPhotos = localStorage.getItem('vv_photos');
@@ -152,6 +197,24 @@
     if (photos.length === 0 && $user?.avatar) {
       photos = [{ dataUrl: $user.avatar, label: 'lead' }];
     }
+
+    // Load here_for / hard_nos from DB
+    try {
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data } = await supabase
+          .from('verified_vibe_users')
+          .select('here_for_title, here_for_desc, hard_nos')
+          .eq('id', session.user.id)
+          .single();
+        if (data) {
+          if (data.here_for_title) hereForTitle = data.here_for_title;
+          if (data.here_for_desc)  hereForDesc  = data.here_for_desc;
+          if (Array.isArray(data.hard_nos) && data.hard_nos.length) hardNos = data.hard_nos;
+        }
+      }
+    } catch { /* non-critical — keep defaults */ }
   });
 
   async function handleEnhancePhotos() {
@@ -543,14 +606,40 @@
         <div class="section-label">
           <Heart size={13} />
           Here For
+          <button class="section-edit-btn" onclick={startEditHereFor} aria-label="Edit Here For">
+            <Pencil size={11} />
+          </button>
         </div>
-        <div class="here-for-card">
-          <div class="here-for-icon">💎</div>
-          <div class="here-for-content">
-            <h3 class="here-for-title">{hereFor.archetype}</h3>
-            <p class="here-for-desc">{hereFor.description}</p>
+
+        {#if editingHereFor}
+          <div class="inline-edit-card">
+            <input
+              class="inline-edit-input"
+              placeholder="Who you're here for (e.g. Spoilt Women)"
+              bind:value={editHFTitle}
+            />
+            <textarea
+              class="inline-edit-textarea"
+              placeholder="What she's like / what you're looking for..."
+              rows="2"
+              bind:value={editHFDesc}
+            ></textarea>
+            <div class="inline-edit-actions">
+              <button class="inline-save-btn" onclick={saveHereFor} disabled={savingHF}>
+                {savingHF ? 'Saving…' : 'Save'}
+              </button>
+              <button class="inline-cancel-btn" onclick={() => editingHereFor = false}>Cancel</button>
+            </div>
           </div>
-        </div>
+        {:else}
+          <div class="here-for-card">
+            <div class="here-for-icon">💎</div>
+            <div class="here-for-content">
+              <h3 class="here-for-title">{hereForTitle}</h3>
+              <p class="here-for-desc">{hereForDesc}</p>
+            </div>
+          </div>
+        {/if}
       </section>
       {/if}
 
@@ -560,15 +649,47 @@
         <div class="section-label">
           <X size={13} />
           Hard Nos
+          <button class="section-edit-btn" onclick={startEditHardNos} aria-label="Edit Hard Nos">
+            <Pencil size={11} />
+          </button>
         </div>
-        <div class="hard-nos-list">
-          {#each hardNos as item}
-            <div class="hard-no-item">
-              <span class="hard-no-x">✕</span>
-              <span class="hard-no-text">{item}</span>
+
+        {#if editingHardNos}
+          <div class="inline-edit-card">
+            <div class="hard-nos-edit-list">
+              {#each editHardNos as item, i}
+                <div class="hard-no-edit-item">
+                  <span class="hard-no-text">{item}</span>
+                  <button class="hard-no-remove" onclick={() => removeHardNo(i)} aria-label="Remove">✕</button>
+                </div>
+              {/each}
             </div>
-          {/each}
-        </div>
+            <div class="hard-no-add-row">
+              <input
+                class="inline-edit-input"
+                placeholder="Add a dealbreaker…"
+                bind:value={newHardNo}
+                onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addHardNo(); } }}
+              />
+              <button class="hard-no-add-btn" onclick={addHardNo} type="button">+ Add</button>
+            </div>
+            <div class="inline-edit-actions">
+              <button class="inline-save-btn" onclick={saveHardNos} disabled={savingHardNos}>
+                {savingHardNos ? 'Saving…' : 'Save'}
+              </button>
+              <button class="inline-cancel-btn" onclick={() => editingHardNos = false}>Cancel</button>
+            </div>
+          </div>
+        {:else}
+          <div class="hard-nos-list">
+            {#each hardNos as item}
+              <div class="hard-no-item">
+                <span class="hard-no-x">✕</span>
+                <span class="hard-no-text">{item}</span>
+              </div>
+            {/each}
+          </div>
+        {/if}
       </section>
       {/if}
       <section class="section">
@@ -1801,6 +1922,145 @@
     font-size: 13px;
     color: #ef4444;
     font-weight: 500;
+  }
+
+  /* Section edit button */
+  .section-edit-btn {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    padding: 4px;
+    background: none;
+    border: none;
+    color: var(--text-4);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: color 130ms;
+  }
+  .section-edit-btn:hover { color: var(--accent-bright); }
+
+  /* Inline edit card */
+  .inline-edit-card {
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .inline-edit-input {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--bg-1);
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 13px;
+    color: var(--text-1);
+    font-family: inherit;
+    transition: border-color 150ms;
+  }
+  .inline-edit-input:focus {
+    outline: none;
+    border-color: var(--accent-bright);
+  }
+
+  .inline-edit-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--bg-1);
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 13px;
+    color: var(--text-1);
+    font-family: inherit;
+    resize: none;
+    line-height: 1.5;
+    transition: border-color 150ms;
+  }
+  .inline-edit-textarea:focus {
+    outline: none;
+    border-color: var(--accent-bright);
+  }
+
+  .inline-edit-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .inline-save-btn {
+    padding: 7px 16px;
+    background: var(--accent-bright);
+    color: #06281e;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: opacity 150ms;
+  }
+  .inline-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .inline-cancel-btn {
+    padding: 7px 14px;
+    background: none;
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--text-3);
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  /* Hard nos edit */
+  .hard-nos-edit-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .hard-no-edit-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 10px;
+    border-radius: 8px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+  }
+
+  .hard-no-remove {
+    background: none;
+    border: none;
+    color: #ef4444;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0 4px;
+    flex-shrink: 0;
+  }
+
+  .hard-no-add-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .hard-no-add-row .inline-edit-input { flex: 1; }
+
+  .hard-no-add-btn {
+    padding: 7px 12px;
+    background: none;
+    border: 1px solid var(--accent-bright);
+    border-radius: 8px;
+    color: var(--accent-bright);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
   }
 
   /* Photo grid */

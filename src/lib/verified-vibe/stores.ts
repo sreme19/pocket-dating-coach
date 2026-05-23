@@ -3,6 +3,7 @@
 import { writable, derived } from 'svelte/store';
 import type {
   VerifiedVibeUser,
+  Archetype,
   Match,
   Message,
   Notification,
@@ -355,7 +356,7 @@ export async function hydrateUserFromSupabase() {
     const userData: VerifiedVibeUser = {
       id: profile.id,
       gender: profile.gender || 'man',
-      archetype: profile.archetype || 'casual_man',
+      archetype: (profile.archetype as Archetype) || 'casual_generous_man',
       firstName: profile.first_name || '',
       age: profile.age || 0,
       city: profile.city || '',

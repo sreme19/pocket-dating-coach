@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
-import type { VerifiedVibeUser } from '$lib/verified-vibe/types';
+import type { Archetype, VerifiedVibeUser } from '$lib/verified-vibe/types';
 
 export interface Conversation {
   id: string;
@@ -159,7 +159,7 @@ export const GET: RequestHandler = async ({ request }) => {
           .eq('id', match.id)
           .single();
 
-        const myLastReadAt: string | null = readRow ? (readRow as Record<string, string | null>)[colAlias] ?? null : null;
+        const myLastReadAt: string | null = readRow ? (readRow as unknown as Record<string, string | null>)[colAlias] ?? null : null;
 
         if (myLastReadAt) {
           const { count } = await supabase
@@ -180,7 +180,7 @@ export const GET: RequestHandler = async ({ request }) => {
         matchedUser: {
           id: otherUser.id,
           gender: otherUser.gender,
-          archetype: otherUser.archetype,
+          archetype: otherUser.archetype as Archetype,
           firstName: otherUser.first_name,
           age: otherUser.age,
           city: otherUser.city,

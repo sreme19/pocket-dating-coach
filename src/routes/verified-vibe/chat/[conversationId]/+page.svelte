@@ -15,6 +15,8 @@
   let conversationId = $state($page.params.conversationId || '');
   let messageInput = $state('');
   let isLoading = $state(true);
+  let uploadingImage = $state(false);
+  let fileInputEl: HTMLInputElement | undefined;
   let error = $state<string | null>(null);
   let isSending = $state(false);
   let messagesContainer: HTMLElement | undefined;
@@ -43,6 +45,66 @@
 
   interface CoachingCard { signal: string; read: string; }
   let coachingCards = $state<Map<string, CoachingCard>>(new Map());
+
+  interface ArtifactNotice { id: string; text: string; }
+  let artifactNotices = $state<ArtifactNotice[]>([]);
+
+  // ── Chat upload panel (male in female chat) ────────────────────────────────
+  const CHAT_UPLOAD_CATEGORIES = [
+    { tag: 'wealthy',       icon: '💰', label: 'Wealth & Success',  pts: 10, examples: 'salary slip, bank balance, car, business proof' },
+    { tag: 'well_traveled', icon: '✈️', label: 'Travel',            pts:  8, examples: 'passport stamps, travel photos, hotel, booking' },
+    { tag: 'fitness',       icon: '💪', label: 'Fitness & Health',  pts:  5, examples: 'gym selfie, sport, workout, outdoor activity' },
+    { tag: 'general',       icon: '🏆', label: 'Lifestyle',         pts:  3, examples: 'apartment, watch, nice dinner, hobby' },
+    { tag: 'general',       icon: '📄', label: 'Other',             pts:  3, examples: 'anything else that shows what you\'re about' },
+  ] as const;
+
+  // Which tags to highlight as "recommended" per female archetype
+  const ARCHETYPE_TOP_CATS: Record<string, string[]> = {
+    spoiled_casual_woman:        ['wealthy', 'well_traveled'],
+    hopeless_romantic_woman:     ['general', 'fitness'],
+    rebound_healing_woman:       ['fitness', 'general'],
+    untouched_heart_woman:       ['general', 'fitness'],
+    forever_focused_woman:       ['wealthy', 'general'],
+    traditional_matrimony_woman: ['wealthy', 'general'],
+  };
+
+  let showUploadPanel     = $state(false);
+  let uploadPanelTag      = $state<string>('general');
+  let matchArchetype      = $state<string | null>(null);
+  let loadingMatchProfile = $state(false);
+
+  const topCats = $derived(matchArchetype ? (ARCHETYPE_TOP_CATS[matchArchetype] ?? ['wealthy', 'general']) : ['wealthy', 'general']);
+
+  async function openAttachPanel() {
+    const isMaleInFemaleChat = currentUserGender === 'man' && $currentMatch?.gender === 'woman';
+    if (!isMaleInFemaleChat) {
+      fileInputEl?.click();
+      return;
+    }
+    // Lazy-load match archetype once
+    if (!matchArchetype && $currentMatch?.id && !loadingMatchProfile) {
+      loadingMatchProfile = true;
+      try {
+        const { getSupabaseClient } = await import('$lib/client/supabase');
+        const supabase = getSupabaseClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(`/api/verified-vibe/match-profile/${$currentMatch.id}`, {
+          headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+        });
+        if (res.ok) {
+          const j = await res.json();
+          matchArchetype = j.data?.archetype ?? null;
+        }
+      } catch { /* non-critical */ }
+      finally { loadingMatchProfile = false; }
+    }
+    showUploadPanel = true;
+  }
+
+  function selectUploadCategory(tag: string) {
+    uploadPanelTag = tag;
+    fileInputEl?.click();
+  }
 
   function persistCoachingCards() {
     if (typeof localStorage === 'undefined' || !conversationId) return;
@@ -426,6 +488,46 @@
     } catch (err) {
       console.error('Error notifying typing:', err);
       // Don't show error to user for typing indicator failures
+    }
+  }
+
+  async function handleFileUpload(e: Event) {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    const userId = currentUserId ?? $user?.id;
+    if (!file || !userId) return;
+
+    const isMaleInFemaleChat = currentUserGender === 'man' && $currentMatch?.gender === 'woman';
+    // Close the panel immediately so the user sees the upload in progress
+    showUploadPanel = false;
+
+    uploadingImage = true;
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('userId', userId);
+      fd.append('claimTag', isMaleInFemaleChat ? uploadPanelTag : 'general');
+      fd.append('description', file.name);
+      const res = await fetch('/api/verified-vibe/artifacts', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (res.ok) {
+        if (isMaleInFemaleChat) {
+          const matchName = $currentMatch?.firstName ?? 'your match';
+          const pts = data.trustPoints ?? 3;
+          artifactNotices = [...artifactNotices, {
+            id: 'artifact-' + Date.now(),
+            text: `🔒 Stored as your trust proof — ${matchName} can't see this. +${pts} trust pts`
+          }];
+          scrollToBottom();
+        } else if (data.url) {
+          messageInput = (messageInput ? messageInput + '\n' : '') + data.url;
+        }
+      }
+    } catch (err) {
+      console.error('Upload failed:', err);
+    } finally {
+      uploadPanelTag = 'general';
+      uploadingImage = false;
+      if (fileInputEl) fileInputEl.value = '';
     }
   }
 
@@ -1094,9 +1196,87 @@
             </div>
           </div>
         {/if}
+
+        <!-- Private artifact notices (visible only to male user, not sent as messages) -->
+        {#each artifactNotices as notice (notice.id)}
+          <div class="artifact-notice-row" transition:slide={{ duration: 300 }}>
+            <div class="artifact-notice-bubble">{notice.text}</div>
+          </div>
+        {/each}
       </div>
     {/if}
   </div>
+
+  <!-- Upload Panel — male-only, shown instead of direct file picker -->
+  {#if showUploadPanel && currentUserGender === 'man'}
+    <!-- Backdrop -->
+    <div
+      class="up-backdrop"
+      onclick={() => showUploadPanel = false}
+      aria-hidden="true"
+      transition:fade={{ duration: 180 }}
+    ></div>
+
+    <!-- Sheet -->
+    <div
+      class="up-sheet"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Upload proof"
+      transition:slide={{ axis: 'y', duration: 320 }}
+    >
+      <div class="up-handle"></div>
+
+      <div class="up-header">
+        <span class="up-title">🛡️ Upload proof, build trust</span>
+        <button class="up-close" onclick={() => showUploadPanel = false} aria-label="Close">✕</button>
+      </div>
+
+      <!-- Benefits callout -->
+      <div class="up-benefits">
+        <p class="up-benefit">📈 <strong>Trust score goes up</strong> — verified profiles rank higher in Discover</p>
+        <p class="up-benefit">✨ <strong>{$currentMatch?.firstName ?? 'Your match'}'s AI Bestie sees this</strong> — she coaches them to see you in the best light</p>
+        <p class="up-benefit">🔒 <strong>Stays private</strong> — never visible in your chats with them, only here</p>
+      </div>
+
+      <!-- Face requirement note -->
+      <div class="up-face-note">
+        <span class="up-face-icon">🤳</span>
+        <p>Your face must be visible in the photo — that's what makes it <strong>verifiable</strong>, not just a screenshot.</p>
+      </div>
+
+      <p class="up-section-label">
+        WHAT WOULD IMPRESS {($currentMatch?.firstName ?? 'HER').toUpperCase()}?
+      </p>
+
+      <div class="up-categories">
+        {#each CHAT_UPLOAD_CATEGORIES as cat, i}
+          {@const shownTagsBefore = new Set(CHAT_UPLOAD_CATEGORIES.slice(0, i).map(c => c.tag))}
+          {@const isTop = topCats.includes(cat.tag) && !shownTagsBefore.has(cat.tag)}
+          <button
+            class="up-cat"
+            class:up-cat-top={isTop}
+            onclick={() => selectUploadCategory(cat.tag)}
+            type="button"
+          >
+            <span class="up-cat-icon">{cat.icon}</span>
+            <div class="up-cat-body">
+              <div class="up-cat-row">
+                <span class="up-cat-label">{cat.label}</span>
+                <span class="up-cat-pts">+{cat.pts} pts</span>
+                {#if isTop}
+                  <span class="up-cat-rec">✨ Recommended</span>
+                {/if}
+              </div>
+              <span class="up-cat-examples">{cat.examples}</span>
+            </div>
+          </button>
+        {/each}
+      </div>
+
+      <div class="up-footer-pad"></div>
+    </div>
+  {/if}
 
   <!-- Input Area -->
   <div class="input-area" transition:slide={{ duration: 400, delay: 0, axis: 'y' }}>
@@ -1117,6 +1297,31 @@
         onUse={(text) => { messageInput = text; }}
         disabled={isSending || isLoading}
       />
+
+      <!-- Image / document upload (PDC-50) -->
+      <input
+        bind:this={fileInputEl}
+        type="file"
+        accept="image/*"
+        style="display:none"
+        onchange={handleFileUpload}
+      />
+      <button
+        class="attach-btn {uploadingImage ? 'uploading' : ''}"
+        type="button"
+        onclick={openAttachPanel}
+        disabled={isSending || isLoading || uploadingImage}
+        title="Upload image or document"
+        aria-label="Attach image"
+      >
+        {#if uploadingImage}
+          <span class="upload-spin"></span>
+        {:else}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+          </svg>
+        {/if}
+      </button>
 
       <!-- AI Bestie Toggle Button — only shown to female users (it's their feature) -->
       {#if currentUserGender === 'woman' || $user?.gender === 'woman'}
@@ -1653,6 +1858,38 @@
     cursor: not-allowed;
   }
 
+  /* ── Attach button ── */
+  .attach-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    color: var(--text-3);
+    flex-shrink: 0;
+    transition: color 150ms, border-color 150ms;
+  }
+
+  .attach-btn:hover:not(:disabled) {
+    color: var(--accent-bright);
+    border-color: var(--accent-bright);
+  }
+
+  .attach-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .upload-spin {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border-2);
+    border-top-color: var(--accent-bright);
+    border-radius: 50%;
+    animation: uspin 0.6s linear infinite;
+  }
+  @keyframes uspin { to { transform: rotate(360deg); } }
+
   /* Toggle Button */
   /* ── AI Bestie toggle button ── */
   .bestie-toggle-btn {
@@ -1886,6 +2123,238 @@
     margin: 0;
     line-height: 1.5;
     font-style: italic;
+  }
+
+  /* Private artifact notice — visible to sender only, never stored as a message */
+  .artifact-notice-row {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .artifact-notice-bubble {
+    max-width: 78%;
+    padding: 8px 12px;
+    background: rgba(100, 116, 139, 0.12);
+    border: 1px dashed rgba(100, 116, 139, 0.35);
+    border-radius: 10px;
+    font-size: 12px;
+    color: var(--text-3);
+    font-style: italic;
+    line-height: 1.4;
+  }
+
+  /* ── Chat upload panel ── */
+  .up-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 50;
+  }
+
+  .up-sheet {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 430px;
+    background: var(--bg-1);
+    border-radius: 20px 20px 0 0;
+    z-index: 51;
+    max-height: 85vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .up-handle {
+    width: 40px;
+    height: 4px;
+    background: var(--border-2);
+    border-radius: 2px;
+    margin: 12px auto 0;
+    flex-shrink: 0;
+  }
+
+  .up-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px 4px;
+    flex-shrink: 0;
+  }
+
+  .up-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-1);
+  }
+
+  .up-close {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    color: var(--text-3);
+    font-size: 12px;
+  }
+
+  .up-benefits {
+    margin: 12px 20px;
+    background: rgba(16, 185, 129, 0.07);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    flex-shrink: 0;
+  }
+
+  .up-benefit {
+    font-size: 12px;
+    color: var(--text-2);
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  .up-benefit strong {
+    color: #34d399;
+  }
+
+  .up-face-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0 20px;
+    padding: 10px 12px;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    border-radius: 10px;
+  }
+
+  .up-face-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    line-height: 1.4;
+  }
+
+  .up-face-note p {
+    font-size: 12px;
+    color: var(--text-2);
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  .up-face-note strong {
+    color: #f59e0b;
+  }
+
+  .up-section-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--text-4);
+    margin: 4px 20px 8px;
+  }
+
+  .up-categories {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 0 16px;
+  }
+
+  .up-cat {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border-1);
+    background: var(--bg-2);
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    transition: border-color 130ms, background 130ms;
+    margin-bottom: 6px;
+  }
+
+  .up-cat:hover {
+    border-color: var(--accent-bright);
+    background: var(--bg-3);
+  }
+
+  .up-cat-top {
+    border-color: rgba(52, 211, 153, 0.4);
+    background: rgba(52, 211, 153, 0.05);
+  }
+
+  .up-cat-top:hover {
+    border-color: var(--accent-bright);
+    background: rgba(52, 211, 153, 0.1);
+  }
+
+  .up-cat-icon {
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+
+  .up-cat-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .up-cat-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .up-cat-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-1);
+  }
+
+  .up-cat-pts {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent-bright);
+    background: rgba(52, 211, 153, 0.12);
+    border-radius: 999px;
+    padding: 2px 8px;
+  }
+
+  .up-cat-rec {
+    font-size: 10px;
+    font-weight: 600;
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.1);
+    border-radius: 999px;
+    padding: 2px 8px;
+  }
+
+  .up-cat-examples {
+    font-size: 11px;
+    color: var(--text-4);
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .up-footer-pad {
+    height: calc(16px + env(safe-area-inset-bottom, 0));
+    flex-shrink: 0;
   }
 
   /* Mobile Responsive */
