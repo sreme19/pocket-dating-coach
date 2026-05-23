@@ -41,9 +41,89 @@
   let profile = $state<MatchProfileData | null>(null);
   let loading = $state(true);
   let error = $state<string | null>(null);
+  let currentUserGender = $state<string | null>(null);
 
   // Where to go back — carry 'from' query param so we can return to the right chat
   let backUrl = $derived($page.url.searchParams.get('from') || '/verified-vibe/chat');
+
+  // ── Tip state ──────────────────────────────────────────────────────────────
+  const TIP_TAGS: Record<string, { id: string; label: string }[]> = {
+    man: [
+      { id: 'stunning',         label: '✨ Stunning' },
+      { id: 'elegant',          label: '👑 Elegant' },
+      { id: 'approachable',     label: '🤗 Approachable' },
+      { id: 'warm',             label: '🌸 Warm' },
+      { id: 'authentic',        label: '💎 Authentic' },
+      { id: 'interesting-vibe', label: '💫 Interesting vibe' },
+      { id: 'intimidating',     label: '😤 Intimidating' },
+      { id: 'guarded',          label: '🛡️ Guarded' },
+      { id: 'great-photos',     label: '📸 Great photos' },
+      { id: 'improve-photos',   label: '📷 Better photos needed' },
+    ],
+    woman: [
+      { id: 'handsome',          label: '😍 Handsome' },
+      { id: 'successful-vibes',  label: '💼 Successful vibes' },
+      { id: 'trustworthy',       label: '🤝 Trustworthy' },
+      { id: 'charming',          label: '✨ Charming' },
+      { id: 'well-spoken',       label: '🗣️ Well-spoken' },
+      { id: 'mysterious',        label: '🌙 Mysterious' },
+      { id: 'red-flag-energy',   label: '🚩 Red flag energy' },
+      { id: 'not-my-type',       label: '🙅 Not my type' },
+      { id: 'great-photos',      label: '📸 Great photos' },
+      { id: 'improve-photos',    label: '📷 Better photos needed' },
+    ],
+  };
+
+  let showTipForm    = $state(false);
+  let selectedTags   = $state(new Set<string>());
+  let tipText        = $state('');
+  let tipSubmitting  = $state(false);
+  let tipSubmitted   = $state(false);
+  let tipError       = $state('');
+
+  const availableTags = $derived(currentUserGender ? (TIP_TAGS[currentUserGender] ?? []) : []);
+  const canSubmitTip  = $derived(selectedTags.size > 0 || tipText.trim().length > 0);
+
+  function toggleTag(id: string) {
+    const next = new Set(selectedTags);
+    next.has(id) ? next.delete(id) : next.add(id);
+    selectedTags = next;
+  }
+
+  async function submitTip() {
+    if (!canSubmitTip || tipSubmitting || !profile) return;
+    // Guard: submitterGender must be a valid value
+    const gender = currentUserGender ?? $user?.gender ?? null;
+    if (!gender || !['man', 'woman', 'prefer_not_to_say'].includes(gender)) {
+      tipError = 'Could not determine your gender — please refresh and try again.';
+      return;
+    }
+    tipSubmitting = true;
+    tipError = '';
+    try {
+      const res = await fetch('/api/verified-vibe/tips', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetUserId: profile.id,
+          submitterGender: gender,
+          tags: [...selectedTags],
+          text: tipText.trim() || null,
+        }),
+      });
+      let data: { error?: string; ok?: boolean } = {};
+      try { data = await res.json(); } catch { /* non-JSON response */ }
+      if (res.ok) {
+        tipSubmitted = true;
+      } else {
+        tipError = data.error ?? `Submission failed (${res.status}) — please try again.`;
+      }
+    } catch {
+      tipError = 'Network error — please try again.';
+    } finally {
+      tipSubmitting = false;
+    }
+  }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
   onMount(async () => {
@@ -58,6 +138,18 @@
     const supabase = getSupabaseClient();
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token ?? '';
+
+    // Load current user's gender for tip tag selection
+    if (session?.user?.id) {
+      try {
+        const { data: me } = await supabase
+          .from('verified_vibe_users')
+          .select('gender')
+          .eq('id', session.user.id)
+          .maybeSingle();
+        currentUserGender = (me as any)?.gender ?? $user?.gender ?? null;
+      } catch { currentUserGender = $user?.gender ?? null; }
+    }
 
     try {
       const res = await fetch(`/api/verified-vibe/match-profile/${profileId}`, {
@@ -242,6 +334,70 @@
             <span class="section-icon">❤️</span> What Matters Most
           </h2>
           <p class="about-text">{profile.mattersMost}</p>
+        </section>
+      {/if}
+
+      <!-- Anonymous Tip Section -->
+      {#if availableTags.length > 0}
+        <section class="section tip-section">
+          <button
+            class="tip-toggle"
+            onclick={() => { showTipForm = !showTipForm; tipSubmitted = false; tipError = ''; }}
+            aria-expanded={showTipForm}
+          >
+            <span class="tip-toggle-left">
+              <span class="tip-toggle-icon">💡</span>
+              <span class="tip-toggle-label">Leave an anonymous tip</span>
+            </span>
+            <span class="tip-toggle-chevron" class:flipped={showTipForm}>›</span>
+          </button>
+
+          {#if showTipForm}
+            <div class="tip-form" transition:fly={{ y: 8, duration: 180 }}>
+              {#if tipSubmitted}
+                <div class="tip-success">
+                  <span class="tip-success-icon">🎉</span>
+                  <p>Tip sent — it's anonymous. Your input helps make matches better.</p>
+                </div>
+              {:else}
+                <p class="tip-note">Your identity is never revealed. This helps AI coach {profile?.firstName} behind the scenes.</p>
+
+                <div class="tip-tags">
+                  {#each availableTags as tag}
+                    <button
+                      class="tip-tag"
+                      class:tip-tag-selected={selectedTags.has(tag.id)}
+                      onclick={() => toggleTag(tag.id)}
+                      type="button"
+                    >{tag.label}</button>
+                  {/each}
+                </div>
+
+                <div class="tip-text-wrap">
+                  <textarea
+                    class="tip-textarea"
+                    placeholder="Optional: add a note (max 280 chars)…"
+                    maxlength="280"
+                    rows="3"
+                    bind:value={tipText}
+                  ></textarea>
+                  <span class="tip-char-count">{280 - tipText.length}</span>
+                </div>
+
+                {#if tipError}
+                  <p class="tip-error">{tipError}</p>
+                {/if}
+
+                <button
+                  class="tip-submit"
+                  onclick={submitTip}
+                  disabled={!canSubmitTip || tipSubmitting}
+                >
+                  {tipSubmitting ? 'Sending…' : 'Send anonymous tip'}
+                </button>
+              {/if}
+            </div>
+          {/if}
         </section>
       {/if}
 
@@ -540,6 +696,179 @@
   }
 
   .bottom-pad { height: 32px; }
+
+  /* ── Tip section ── */
+  .tip-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .tip-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .tip-toggle-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .tip-toggle-icon {
+    font-size: 14px;
+  }
+
+  .tip-toggle-label {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-3);
+  }
+
+  .tip-toggle-chevron {
+    font-size: 18px;
+    color: var(--text-3);
+    transition: transform 200ms;
+    line-height: 1;
+  }
+
+  .tip-toggle-chevron.flipped {
+    transform: rotate(90deg);
+  }
+
+  .tip-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 14px;
+  }
+
+  .tip-note {
+    font-size: 12px;
+    color: var(--text-3);
+    margin: 0;
+    line-height: 1.5;
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+
+  .tip-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .tip-tag {
+    padding: 7px 13px;
+    border-radius: 999px;
+    border: 1px solid var(--border-2);
+    background: var(--bg-2);
+    color: var(--text-2);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 130ms;
+  }
+
+  .tip-tag:hover {
+    border-color: #ec4899;
+    color: #ec4899;
+  }
+
+  .tip-tag-selected {
+    border-color: #ec4899;
+    background: rgba(236, 72, 153, 0.1);
+    color: #ec4899;
+    font-weight: 600;
+  }
+
+  .tip-text-wrap {
+    position: relative;
+  }
+
+  .tip-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    border-radius: 12px;
+    padding: 10px 12px 26px;
+    font-size: 13px;
+    color: var(--text-1);
+    font-family: inherit;
+    resize: none;
+    line-height: 1.5;
+    transition: border-color 150ms;
+  }
+
+  .tip-textarea:focus {
+    outline: none;
+    border-color: #ec4899;
+  }
+
+  .tip-char-count {
+    position: absolute;
+    bottom: 8px;
+    right: 10px;
+    font-size: 10px;
+    color: var(--text-4);
+  }
+
+  .tip-error {
+    font-size: 12px;
+    color: #f87171;
+    margin: 0;
+  }
+
+  .tip-submit {
+    width: 100%;
+    padding: 12px;
+    border-radius: 12px;
+    border: none;
+    background: linear-gradient(135deg, #ec4899, #a855f7);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: opacity 150ms;
+  }
+
+  .tip-submit:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .tip-success {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    border-radius: 12px;
+  }
+
+  .tip-success-icon { font-size: 20px; flex-shrink: 0; }
+
+  .tip-success p {
+    font-size: 13px;
+    color: var(--text-2);
+    margin: 0;
+    line-height: 1.5;
+  }
 
   /* ── Mobile ── */
   @media (max-width: 767px) {

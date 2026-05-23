@@ -3,178 +3,436 @@
 import type { ArchetypeDefinition } from './types';
 
 export const ARCHETYPES: Record<string, ArchetypeDefinition> = {
-  casual_man: {
-    id: 'casual_man',
+
+  // ─── MALE ARCHETYPES ────────────────────────────────────────────────────────
+
+  casual_generous_man: {
+    id: 'casual_generous_man',
     gender: 'man',
-    emoji: '🎯',
-    name: 'Casual Man',
-    tag: 'Casual dating & real connection',
-    longTag: 'You want casual dating & real connection. No pretense. Real vibes.',
+    emoji: '💸',
+    name: 'Casual-Generous',
+    tag: 'Confident, generous, experiences over labels',
+    longTag: 'You date well and you show it. Experiences over labels — dinners, weekends, no strings attached to who picks up the bill.',
     matchTraits: [
-      { lead: true, label: '💎 Spoilt Women' },
-      { label: 'Financially motivated' },
-      { label: 'Loves established men' },
-      { label: 'Socially savvy' },
-      { label: 'Luxury dater' },
-      { label: 'Open to short-term' }
+      { tier: 'best', lead: true, label: 'Spoiled-Casual Women' },
+      { tier: 'good', label: 'Rebound-Healing Women' },
+      { tier: 'good', label: 'Hopeless-Romantic Women' },
     ],
     avoidTraits: [
-      { label: 'Romantic idealists' },
-      { label: 'Anti-transactional' },
-      { label: 'Anti-materialistic' },
-      { label: 'Hates status games' },
-      { label: 'Looking for forever' }
+      { label: 'Forever-Focused' },
+      { label: 'Traditional-Matrimony' },
     ],
     brings: [
-      'Financial stability',
-      'Generosity mindset',
-      'Upscale travel & restaurants',
+      'Financial confidence',
+      'Upscale experiences',
+      'No-pressure energy',
       'Privacy & discretion',
-      'Confidence without arrogance',
-      'Respect & safety',
-      'Business insight',
-      'Emotional maturity'
+      'Generosity as a love language',
+      'Clarity of intent',
     ],
     needs: [
       'Government ID (prove you\'re real)',
       '5+ photos (prove it\'s really you)',
       'Spending pattern (prove you\'re solid)',
-      'Q&A responses (prove your intent)'
+      'Q&A responses (prove your intent)',
     ],
-    timeMins: 10
+    timeMins: 10,
   },
-  spoilt_woman: {
-    id: 'spoilt_woman',
-    gender: 'woman',
-    emoji: '💎',
-    name: 'Spoilt Woman',
-    tag: 'Want to be treated like royalty',
-    longTag: 'You want to be cherished — properly. Dinners, weekends, intent.',
+
+  hopeless_romantic_man: {
+    id: 'hopeless_romantic_man',
+    gender: 'man',
+    emoji: '💞',
+    name: 'Hopeless-Romantic',
+    tag: 'Emotionally intense, chasing the deep thing',
+    longTag: 'You\'re not here for casual. You feel deeply and you\'re not ashamed of it. You want connection that means something.',
     matchTraits: [
-      { lead: true, label: '🎯 Casual Men' },
-      { lead: true, label: '💍 Marriage-Minded Men' },
-      { label: 'Established earners' },
-      { label: 'Generous on dates' },
-      { label: 'Knows what he wants' },
-      { label: 'Cherishes effort' }
+      { tier: 'best', lead: true, label: 'Hopeless-Romantic Women' },
+      { tier: 'good', label: 'Untouched-Heart Women' },
+      { tier: 'good', label: 'Forever-Focused Women' },
+      { tier: 'good', label: 'Traditional-Matrimony Women' },
     ],
     avoidTraits: [
-      { label: 'Cheapskates' },
-      { label: 'Avoidants' },
-      { label: 'Anti-luxury' },
-      { label: 'Game players' },
-      { label: 'Bare-minimum daters' }
+      { label: 'Spoiled-Casual' },
+      { label: 'Rebound-Healing' },
     ],
     brings: [
-      'Elegance & poise',
-      'High social IQ',
-      'Conversation chops',
-      'Style & taste',
-      'Loyalty when chosen',
-      'Sense of occasion',
-      'Sharp wit',
-      'Genuine appreciation'
+      'Deep emotional availability',
+      'Fierce loyalty',
+      'Romantic intentionality',
+      'Vulnerability without weakness',
+      'Warmth & presence',
     ],
     needs: [
       'Government ID (prove you\'re real)',
       '5+ photos (prove it\'s really you)',
-      'Q&A responses (prove your standards)'
+      'Q&A responses (prove your depth)',
     ],
-    timeMins: 8
+    timeMins: 8,
   },
-  marriage_minded_man: {
-    id: 'marriage_minded_man',
+
+  rebound_healing_man: {
+    id: 'rebound_healing_man',
     gender: 'man',
-    emoji: '💍',
-    name: 'Marriage-Minded Man',
-    tag: 'Looking for serious & forever',
-    longTag: 'You\'re done playing. You want a partner, and you\'re building toward it.',
+    emoji: '🌱',
+    name: 'Rebound-Healing',
+    tag: 'Recovering, honest, not rushing',
+    longTag: 'You\'ve been through it. You\'re not hiding that — and you\'re not dragging it either. You\'re ready to explore, slowly.',
     matchTraits: [
-      { lead: true, label: '💎 Spoilt Women' },
-      { lead: true, label: '🛡️ Safety-First Women' },
-      { label: 'Marriage-ready' },
-      { label: 'Family-oriented' },
-      { label: 'Done with games' },
-      { label: 'Wants commitment' }
+      { tier: 'best', lead: true, label: 'Rebound-Healing Women' },
+      { tier: 'good', label: 'Untouched-Heart Women' },
+      { tier: 'good', label: 'Spoiled-Casual Women' },
     ],
     avoidTraits: [
-      { label: 'Situationship seekers' },
-      { label: 'Anti-commitment' },
-      { label: 'Hookup mindset' },
-      { label: 'Forever-single types' },
-      { label: 'Career-only (for now)' }
+      { label: 'Forever-Focused' },
+      { label: 'Traditional-Matrimony' },
+    ],
+    brings: [
+      'Hard-won emotional intelligence',
+      'Radical honesty',
+      'No-games energy',
+      'Self-awareness',
+      'Appreciation for real connection',
+    ],
+    needs: [
+      'Government ID (prove you\'re real)',
+      '5+ photos (prove it\'s really you)',
+      'Q&A responses (prove your intent)',
+    ],
+    timeMins: 8,
+  },
+
+  untouched_heart_man: {
+    id: 'untouched_heart_man',
+    gender: 'man',
+    emoji: '🕊️',
+    name: 'Untouched-Heart',
+    tag: 'Inexperienced, sincere, going slow',
+    longTag: 'You haven\'t dated much, and you\'re owning it. You\'re thoughtful, sincere, and bringing zero baggage.',
+    matchTraits: [
+      { tier: 'best', lead: true, label: 'Untouched-Heart Women' },
+      { tier: 'good', label: 'Hopeless-Romantic Women' },
+      { tier: 'good', label: 'Forever-Focused Women' },
+    ],
+    avoidTraits: [
+      { label: 'Spoiled-Casual' },
+      { label: 'Rebound-Healing' },
+    ],
+    brings: [
+      'Genuine curiosity',
+      'Open heart',
+      'Zero emotional baggage',
+      'Slow, intentional approach',
+      'Sincerity in every step',
+    ],
+    needs: [
+      'Government ID (prove you\'re real)',
+      '5+ photos (prove it\'s really you)',
+      'Q&A responses (prove your sincerity)',
+    ],
+    timeMins: 6,
+  },
+
+  forever_focused_man: {
+    id: 'forever_focused_man',
+    gender: 'man',
+    emoji: '🎯',
+    name: 'Forever-Focused',
+    tag: 'Marriage-minded, intentional, done with games',
+    longTag: 'You\'re building something real and you\'re selective about who\'s in it. Intentional dating only — no maybes.',
+    matchTraits: [
+      { tier: 'best', lead: true, label: 'Forever-Focused Women' },
+      { tier: 'best', label: 'Traditional-Matrimony Women' },
+      { tier: 'good', label: 'Untouched-Heart Women' },
+      { tier: 'good', label: 'Hopeless-Romantic Women' },
+    ],
+    avoidTraits: [
+      { label: 'Spoiled-Casual' },
+      { label: 'Rebound-Healing' },
     ],
     brings: [
       'Long-term commitment',
       'Financial stability',
-      'Family-ready mindset',
-      'Emotional availability',
-      'Provider mentality',
-      'Respect & safety',
+      'Partnership mindset',
       'Clear communication',
-      'Settled lifestyle'
+      'Emotional maturity',
+      'Settled, grounded lifestyle',
     ],
     needs: [
-      'Government ID',
-      '5+ photos',
-      'Spending pattern',
-      'Q&A responses',
-      '(Optional) Background check'
+      'Government ID (prove you\'re real)',
+      '5+ photos (prove it\'s really you)',
+      'Spending pattern (prove you\'re solid)',
+      'Q&A responses (prove your intent)',
     ],
-    timeMins: 12
+    timeMins: 12,
   },
-  safety_first_woman: {
-    id: 'safety_first_woman',
-    gender: 'woman',
-    emoji: '🛡️',
-    name: 'Safety-First Woman',
-    tag: 'Need verified, non-creep vibes',
-    longTag: 'Trust is non-negotiable. You date people who have done the work.',
+
+  traditional_matrimony_man: {
+    id: 'traditional_matrimony_man',
+    gender: 'man',
+    emoji: '🏛️',
+    name: 'Traditional-Matrimony',
+    tag: 'Hard set on matrimony, family values, cultural fit',
+    longTag: 'Marriage is the goal, not the conversation. Family fit, shared values, cultural alignment — these aren\'t compromises, they\'re the point.',
     matchTraits: [
-      { lead: true, label: '💍 Marriage-Minded Men only' },
-      { label: 'Verified earners' },
-      { label: 'Boundary-respecters' },
-      { label: 'Slow-pace daters' },
-      { label: 'Therapized' },
-      { label: 'Background-check ready' }
+      { tier: 'best', lead: true, label: 'Forever-Focused Women' },
+      { tier: 'best', label: 'Traditional-Matrimony Women' },
+      { tier: 'good', label: 'Untouched-Heart Women' },
+      { tier: 'good', label: 'Hopeless-Romantic Women' },
     ],
     avoidTraits: [
-      { label: 'Anonymous accounts' },
-      { label: 'Boundary-pushers' },
-      { label: 'Fast-movers' },
-      { label: 'Casual-only' },
-      { label: 'Red-flag carriers' }
+      { label: 'Spoiled-Casual' },
+      { label: 'Rebound-Healing' },
     ],
     brings: [
-      'Clear boundaries',
-      'Emotional intelligence',
-      'Self-respect',
-      'Sharp discernment',
-      'Total honesty',
-      'Healthy attachment',
-      'Reliable presence',
-      'Patience'
+      'Family-first values',
+      'Cultural alignment',
+      'Long-term commitment',
+      'Clear expectations',
+      'Stability & structure',
+      'Respect for tradition',
     ],
     needs: [
-      'Government ID',
-      '5+ photos',
-      'Q&A responses'
+      'Government ID (prove you\'re real)',
+      '5+ photos (prove it\'s really you)',
+      'Spending pattern (prove you\'re solid)',
+      'Q&A responses (prove your values)',
     ],
-    timeMins: 6
-  }
+    timeMins: 12,
+  },
+
+  // ─── FEMALE ARCHETYPES ──────────────────────────────────────────────────────
+
+  spoiled_casual_woman: {
+    id: 'spoiled_casual_woman',
+    gender: 'woman',
+    emoji: '✨',
+    name: 'Spoiled-Casual',
+    tag: 'Luxury vibes, treated well, no pressure',
+    longTag: 'You want to be wined, dined and genuinely enjoyed — without labels and without apology. Life is short; experience it at full quality.',
+    matchTraits: [
+      { tier: 'best', lead: true, label: 'Casual-Generous Men' },
+      { tier: 'good', label: 'Rebound-Healing Men' },
+    ],
+    avoidTraits: [
+      { label: 'Forever-Focused' },
+      { label: 'Traditional-Matrimony' },
+      { label: 'Hopeless-Romantic' },
+    ],
+    brings: [
+      'Elegance & poise',
+      'High social IQ',
+      'Conversation that actually lands',
+      'Style & taste',
+      'Loyalty when chosen',
+      'Genuine appreciation for effort',
+    ],
+    needs: [
+      'Government ID (prove you\'re real)',
+      '5+ photos (prove it\'s really you)',
+      'Q&A responses (prove your standards)',
+    ],
+    timeMins: 8,
+  },
+
+  hopeless_romantic_woman: {
+    id: 'hopeless_romantic_woman',
+    gender: 'woman',
+    emoji: '🌹',
+    name: 'Hopeless-Romantic',
+    tag: 'Emotionally intense, chasing the deep thing',
+    longTag: 'You feel everything and you\'re not sorry about it. You want a love that\'s real, consuming and worth the risk.',
+    matchTraits: [
+      { tier: 'best', lead: true, label: 'Hopeless-Romantic Men' },
+      { tier: 'good', label: 'Untouched-Heart Men' },
+      { tier: 'good', label: 'Forever-Focused Men' },
+    ],
+    avoidTraits: [
+      { label: 'Casual-Generous' },
+      { label: 'Rebound-Healing' },
+    ],
+    brings: [
+      'Deep emotional availability',
+      'Fierce loyalty',
+      'Romantic intentionality',
+      'Warmth & unwavering presence',
+      'The kind of love that lingers',
+    ],
+    needs: [
+      'Government ID (prove you\'re real)',
+      '5+ photos (prove it\'s really you)',
+      'Q&A responses (prove your depth)',
+    ],
+    timeMins: 8,
+  },
+
+  rebound_healing_woman: {
+    id: 'rebound_healing_woman',
+    gender: 'woman',
+    emoji: '🌿',
+    name: 'Rebound-Healing',
+    tag: 'Recovering, honest, finding her footing',
+    longTag: 'You\'ve come out the other side and you know yourself better for it. You\'re not guarded — you\'re thoughtful.',
+    matchTraits: [
+      { tier: 'best', lead: true, label: 'Rebound-Healing Men' },
+      { tier: 'good', label: 'Untouched-Heart Men' },
+      { tier: 'good', label: 'Casual-Generous Men' },
+    ],
+    avoidTraits: [
+      { label: 'Traditional-Matrimony' },
+      { label: 'Forever-Focused' },
+    ],
+    brings: [
+      'Hard-won self-awareness',
+      'Empathy without co-dependence',
+      'Emotional authenticity',
+      'No baggage disguised as personality',
+      'Perspective that makes you a better partner',
+    ],
+    needs: [
+      'Government ID (prove you\'re real)',
+      '5+ photos (prove it\'s really you)',
+      'Q&A responses (prove your intent)',
+    ],
+    timeMins: 8,
+  },
+
+  untouched_heart_woman: {
+    id: 'untouched_heart_woman',
+    gender: 'woman',
+    emoji: '🌸',
+    name: 'Untouched-Heart',
+    tag: 'First steps, sincere, no games in her',
+    longTag: 'You haven\'t dated much, and you\'re bringing exactly that energy — open, curious and completely without agenda.',
+    matchTraits: [
+      { tier: 'best', lead: true, label: 'Untouched-Heart Men' },
+      { tier: 'good', label: 'Hopeless-Romantic Men' },
+      { tier: 'good', label: 'Forever-Focused Men' },
+    ],
+    avoidTraits: [
+      { label: 'Casual-Generous' },
+      { label: 'Rebound-Healing' },
+    ],
+    brings: [
+      'Genuine curiosity',
+      'Zero emotional baggage',
+      'Completely open heart',
+      'Slow, intentional pace',
+      'Sincerity at every stage',
+    ],
+    needs: [
+      'Government ID (prove you\'re real)',
+      '5+ photos (prove it\'s really you)',
+      'Q&A responses (prove your sincerity)',
+    ],
+    timeMins: 6,
+  },
+
+  forever_focused_woman: {
+    id: 'forever_focused_woman',
+    gender: 'woman',
+    emoji: '💍',
+    name: 'Forever-Focused',
+    tag: 'Marriage-minded, knows what she wants',
+    longTag: 'You\'re not auditioning anyone. You know what you\'re building and who belongs in it. Intentional — every step.',
+    matchTraits: [
+      { tier: 'best', lead: true, label: 'Forever-Focused Men' },
+      { tier: 'best', label: 'Traditional-Matrimony Men' },
+      { tier: 'good', label: 'Untouched-Heart Men' },
+      { tier: 'good', label: 'Hopeless-Romantic Men' },
+    ],
+    avoidTraits: [
+      { label: 'Casual-Generous' },
+      { label: 'Rebound-Healing' },
+    ],
+    brings: [
+      'Clarity of intent',
+      'Ambition in life and love',
+      'Partnership-first mindset',
+      'Long-term thinking',
+      'Emotional intelligence under pressure',
+    ],
+    needs: [
+      'Government ID (prove you\'re real)',
+      '5+ photos (prove it\'s really you)',
+      'Q&A responses (prove your intent)',
+    ],
+    timeMins: 10,
+  },
+
+  traditional_matrimony_woman: {
+    id: 'traditional_matrimony_woman',
+    gender: 'woman',
+    emoji: '🏛️',
+    name: 'Traditional-Matrimony',
+    tag: 'Family fit, cultural match, matrimony is the goal',
+    longTag: 'Marriage isn\'t a milestone — it\'s the direction. Family alignment, cultural fit and shared values are the foundation, not the fine print.',
+    matchTraits: [
+      { tier: 'best', lead: true, label: 'Forever-Focused Men' },
+      { tier: 'best', label: 'Traditional-Matrimony Men' },
+      { tier: 'good', label: 'Hopeless-Romantic Men' },
+    ],
+    avoidTraits: [
+      { label: 'Casual-Generous' },
+      { label: 'Rebound-Healing' },
+      { label: 'Untouched-Heart' },
+    ],
+    brings: [
+      'Family-first values',
+      'Cultural alignment',
+      'Commitment with zero ambiguity',
+      'Clear expectations upfront',
+      'Stability & long-term partnership',
+    ],
+    needs: [
+      'Government ID (prove you\'re real)',
+      '5+ photos (prove it\'s really you)',
+      'Q&A responses (prove your values)',
+    ],
+    timeMins: 10,
+  },
 };
 
 export const MATCH_MATRIX: Record<string, string[]> = {
-  casual_man: ['spoilt_woman'],
-  marriage_minded_man: ['spoilt_woman', 'safety_first_woman'],
-  spoilt_woman: ['casual_man', 'marriage_minded_man'],
-  safety_first_woman: ['marriage_minded_man']
+  // Men → compatible women (best + good fit)
+  casual_generous_man:      ['spoiled_casual_woman', 'rebound_healing_woman', 'hopeless_romantic_woman'],
+  hopeless_romantic_man:    ['hopeless_romantic_woman', 'untouched_heart_woman', 'forever_focused_woman', 'traditional_matrimony_woman'],
+  rebound_healing_man:      ['rebound_healing_woman', 'untouched_heart_woman', 'spoiled_casual_woman'],
+  untouched_heart_man:      ['untouched_heart_woman', 'hopeless_romantic_woman', 'forever_focused_woman'],
+  forever_focused_man:      ['forever_focused_woman', 'traditional_matrimony_woman', 'untouched_heart_woman', 'hopeless_romantic_woman'],
+  traditional_matrimony_man:['forever_focused_woman', 'traditional_matrimony_woman', 'untouched_heart_woman', 'hopeless_romantic_woman'],
+  // Women → compatible men
+  spoiled_casual_woman:        ['casual_generous_man', 'rebound_healing_man'],
+  hopeless_romantic_woman:     ['hopeless_romantic_man', 'untouched_heart_man', 'forever_focused_man'],
+  rebound_healing_woman:       ['rebound_healing_man', 'untouched_heart_man', 'casual_generous_man'],
+  untouched_heart_woman:       ['untouched_heart_man', 'hopeless_romantic_man', 'forever_focused_man'],
+  forever_focused_woman:       ['forever_focused_man', 'traditional_matrimony_man', 'untouched_heart_man', 'hopeless_romantic_man'],
+  traditional_matrimony_woman: ['forever_focused_man', 'traditional_matrimony_man', 'hopeless_romantic_man'],
 };
 
 export const ARCHETYPES_BY_GENDER = {
-  man: ['casual_man', 'marriage_minded_man'],
-  woman: ['spoilt_woman', 'safety_first_woman'],
-  prefer_not_to_say: ['casual_man', 'marriage_minded_man', 'spoilt_woman', 'safety_first_woman']
+  man: [
+    'casual_generous_man',
+    'hopeless_romantic_man',
+    'rebound_healing_man',
+    'untouched_heart_man',
+    'forever_focused_man',
+    'traditional_matrimony_man',
+  ],
+  woman: [
+    'spoiled_casual_woman',
+    'hopeless_romantic_woman',
+    'rebound_healing_woman',
+    'untouched_heart_woman',
+    'forever_focused_woman',
+    'traditional_matrimony_woman',
+  ],
+  prefer_not_to_say: [
+    'casual_generous_man', 'hopeless_romantic_man', 'rebound_healing_man',
+    'untouched_heart_man', 'forever_focused_man', 'traditional_matrimony_man',
+    'spoiled_casual_woman', 'hopeless_romantic_woman', 'rebound_healing_woman',
+    'untouched_heart_woman', 'forever_focused_woman', 'traditional_matrimony_woman',
+  ],
 };
 
 export const VERIFICATION_STEPS = [
@@ -357,10 +615,18 @@ export const UI_TEXT = {
 
 // Archetype Color Mapping
 export const ARCHETYPE_COLORS: Record<string, string> = {
-  casual_man: COLOR_PALETTE.emerald,
-  marriage_minded_man: COLOR_PALETTE.mint,
-  spoilt_woman: COLOR_PALETTE.amber,
-  safety_first_woman: COLOR_PALETTE.lime
+  casual_generous_man:       COLOR_PALETTE.emerald,
+  hopeless_romantic_man:     COLOR_PALETTE.mint,
+  rebound_healing_man:       COLOR_PALETTE.lime,
+  untouched_heart_man:       COLOR_PALETTE.info,
+  forever_focused_man:       COLOR_PALETTE.mint,
+  traditional_matrimony_man: COLOR_PALETTE.amber,
+  spoiled_casual_woman:        COLOR_PALETTE.amber,
+  hopeless_romantic_woman:     COLOR_PALETTE.mint,
+  rebound_healing_woman:       COLOR_PALETTE.lime,
+  untouched_heart_woman:       COLOR_PALETTE.info,
+  forever_focused_woman:       COLOR_PALETTE.emerald,
+  traditional_matrimony_woman: COLOR_PALETTE.amber,
 };
 
 // Verification Step Status Messages

@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import {
+    user,
     discoveryProfiles,
     discoveryIndex,
     nextDiscoveryProfile,
@@ -13,6 +14,8 @@
   import { fade, slide } from 'svelte/transition';
   import MatchOverlay from '$lib/verified-vibe/components/MatchOverlay.svelte';
   import TrustScoreBadge from '$lib/verified-vibe/components/TrustScoreBadge.svelte';
+  import TipSheet from '$lib/verified-vibe/components/TipSheet.svelte';
+  import AttentionSheet from '$lib/verified-vibe/components/AttentionSheet.svelte';
   import { swipe } from '$lib/verified-vibe/utils/swipe';
   import type { DiscoveryProfile } from '$lib/verified-vibe/types';
   import { ARCHETYPES } from '$lib/verified-vibe/constants';
@@ -40,6 +43,11 @@
 
   let showMatchOverlay = $state(false);
   let matchedProfile = $state<DiscoveryProfile | null>(null);
+  let showTipSheet = $state(false);
+  let showAttentionSheet = $state(false);
+  let currentUserGender = $state<'man' | 'woman' | 'prefer_not_to_say'>('man');
+  let currentUserId = $state<string | null>(null);
+  let sentAttentionIds = $state<Set<string>>(new Set());
   let isLoadingMore = $state(false);
   let hasMoreProfiles = $state(true);
   let offset = $state(0);
@@ -367,6 +375,54 @@
     }
   });
 
+  // Load viewer's gender from the user store (authoritative), fall back to localStorage
+  $effect(() => {
+    const g = $user?.gender;
+    if (g === 'man' || g === 'woman' || g === 'prefer_not_to_say') {
+      currentUserGender = g;
+    } else if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('verified_vibe_gender') as typeof currentUserGender | null;
+      if (stored) currentUserGender = stored;
+    }
+  });
+
+  $effect(() => {
+    (async () => {
+      if (typeof window === 'undefined') return;
+      try {
+        const { getSupabaseClient } = await import('$lib/client/supabase');
+        const supabase = getSupabaseClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user?.id) return;
+        currentUserId = session.user.id;
+        const res = await fetch(`/api/verified-vibe/attention?senderId=${session.user.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          sentAttentionIds = new Set(data.sentToIds ?? []);
+        }
+      } catch { /* non-blocking */ }
+    })();
+  });
+
+  // Attention button visibility: only show for opposite-gender unmatched profiles
+  let attentionMessageType = $derived<'secret_admirer' | 'craving_attention'>(
+    currentUserGender === 'man' ? 'craving_attention' : 'secret_admirer'
+  );
+
+  let showAttentionButton = $derived(
+    currentProfile !== null &&
+    currentUserId !== null &&
+    !sentAttentionIds.has(currentProfile.id) &&
+    (
+      (currentUserGender === 'man'   && (currentProfile as any).gender === 'woman') ||
+      (currentUserGender === 'woman' && (currentProfile as any).gender === 'man')
+    )
+  );
+
+  let alreadySentAttention = $derived(
+    currentProfile !== null && sentAttentionIds.has(currentProfile.id)
+  );
+
   function barWidth(score: number): string {
     return `${Math.max(4, Math.min(100, score))}%`;
   }
@@ -556,9 +612,23 @@
           </section>
         {/if}
 
-        <!-- Next button -->
+        <!-- Action row -->
         {#if !isViewingSelected}
           <div class="next-wrap">
+            <button class="tip-btn" onclick={() => showTipSheet = true} title="Leave an anonymous tip">
+              💬 Tip
+            </button>
+            {#if showAttentionButton}
+              <button
+                class="attention-btn"
+                onclick={() => showAttentionSheet = true}
+                title={attentionMessageType === 'secret_admirer' ? 'Send a secret admirer message' : 'Send a craving attention message'}
+              >
+                {attentionMessageType === 'secret_admirer' ? '🌹 Admire' : '👀 Notice me'}
+              </button>
+            {:else if alreadySentAttention}
+              <span class="attention-sent">Sent ✓</span>
+            {/if}
             <button class="next-btn" onclick={handleSkip} disabled={isAnimating}>Next →</button>
           </div>
         {/if}
@@ -595,10 +665,35 @@
 
   <!-- Match Overlay -->
   {#if showMatchOverlay && matchedProfile}
-    <MatchOverlay 
+    <MatchOverlay
       profile={matchedProfile}
       onSendMessage={handleSendMessage}
       onClose={handleCloseMatch}
+    />
+  {/if}
+
+  <!-- Anonymous Tip Sheet -->
+  {#if showTipSheet && currentProfile}
+    <TipSheet
+      targetUserId={currentProfile.id}
+      targetName={currentProfile.firstName}
+      submitterGender={currentUserGender}
+      onClose={() => showTipSheet = false}
+    />
+  {/if}
+
+  <!-- Attention Sheet (Secret Admirer / Craving Attention) -->
+  {#if showAttentionSheet && currentProfile && currentUserId}
+    <AttentionSheet
+      senderId={currentUserId}
+      recipientId={currentProfile.id}
+      recipientName={currentProfile.firstName}
+      messageType={attentionMessageType}
+      onClose={() => showAttentionSheet = false}
+      onSent={() => {
+        sentAttentionIds.add(currentProfile!.id);
+        showAttentionSheet = false;
+      }}
     />
   {/if}
 </div>
@@ -855,7 +950,62 @@
   .brings-check { color: #34d399; font-weight: 700; flex-shrink: 0; }
 
   /* Next button */
-  .next-wrap { padding: 20px 20px 0; }
+  .next-wrap {
+    padding: 20px 20px 0;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .tip-btn {
+    padding: 0 16px;
+    height: 40px;
+    border-radius: 10px;
+    border: 1px solid var(--border-2);
+    background: var(--bg-2);
+    color: var(--text-2);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    transition: border-color 150ms, color 150ms;
+    flex-shrink: 0;
+  }
+
+  .tip-btn:hover {
+    border-color: var(--accent-bright);
+    color: var(--accent-bright);
+  }
+
+  .attention-btn {
+    padding: 0 14px;
+    height: 40px;
+    border-radius: 10px;
+    border: 1px solid #ec489966;
+    background: rgba(236, 72, 153, 0.08);
+    color: #ec4899;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: border-color 150ms, background 150ms;
+  }
+
+  .attention-btn:hover {
+    border-color: #ec4899;
+    background: rgba(236, 72, 153, 0.14);
+  }
+
+  .attention-sent {
+    font-size: 12px;
+    color: var(--text-3);
+    font-weight: 500;
+    flex-shrink: 0;
+    padding: 0 4px;
+  }
 
   .next-btn {
     width: 100%;
