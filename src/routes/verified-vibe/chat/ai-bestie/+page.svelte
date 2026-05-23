@@ -57,6 +57,8 @@
   let messages = $state<ChatMessage[]>([]);
   let input = $state('');
   let sending = $state(false);
+  let uploadingImage = $state(false);
+  let fileInputEl: HTMLInputElement | undefined;
   let sendingDraftId = $state<string | null>(null);
   let pendingDrafts = $state<Draft[]>([]);
   let messagesEnd: HTMLDivElement | undefined;
@@ -165,6 +167,27 @@
     return messages
       .filter(m => !m.pending)
       .map(m => ({ role: m.role, content: m.content }));
+  }
+
+  async function handleFileUpload(e: Event) {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file || !$user?.id) return;
+    uploadingImage = true;
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('userId', $user.id);
+      fd.append('claimTag', 'general');
+      fd.append('description', file.name);
+      const res = await fetch('/api/verified-vibe/artifacts', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        input = (input ? input + '\n' : '') + data.url;
+      }
+    } finally {
+      uploadingImage = false;
+      if (fileInputEl) fileInputEl.value = '';
+    }
   }
 
   async function send(opts: { text?: string; intent?: 'summary' | 'insights' }) {
@@ -438,6 +461,14 @@
       disabled={sending}
     ></textarea>
     <VoiceDictation onUse={(text) => { input = text; }} disabled={sending} />
+    <input bind:this={fileInputEl} type="file" accept="image/*" style="display:none" onchange={handleFileUpload} />
+    <button type="button" class="attach-btn" onclick={() => fileInputEl?.click()} disabled={sending || uploadingImage} title="Attach image" aria-label="Attach image">
+      {#if uploadingImage}
+        <span class="upload-spin"></span>
+      {:else}
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+      {/if}
+    </button>
     <button
       class="send-btn"
       onclick={() => send({ text: input })}
@@ -810,6 +841,31 @@
     border-color: rgba(236, 72, 153, 0.5);
   }
   .chat-input::placeholder { color: var(--text-3); }
+
+  .attach-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    color: var(--text-3);
+    flex-shrink: 0;
+    transition: color 150ms, border-color 150ms;
+  }
+  .attach-btn:hover:not(:disabled) { color: var(--accent-bright); border-color: var(--accent-bright); }
+  .attach-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .upload-spin {
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--border-2);
+    border-top-color: var(--accent-bright);
+    border-radius: 50%;
+    animation: aspin 0.6s linear infinite;
+  }
+  @keyframes aspin { to { transform: rotate(360deg); } }
 
   .send-btn {
     width: 40px;

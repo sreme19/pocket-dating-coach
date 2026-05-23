@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
-import type { Message, VerifiedVibeUser } from '$lib/verified-vibe/types';
+import type { Archetype, Message, VerifiedVibeUser } from '$lib/verified-vibe/types';
 
 interface ConversationResponse {
   data: {
@@ -149,7 +149,7 @@ export const GET: RequestHandler = async ({ params, request }) => {
         matchedUser: {
           id: matchedUser.id,
           gender: matchedUser.gender,
-          archetype: matchedUser.archetype,
+          archetype: matchedUser.archetype as Archetype,
           firstName: matchedUser.first_name,
           age: matchedUser.age,
           city: matchedUser.city,

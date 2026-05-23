@@ -46,7 +46,7 @@ export const GET: RequestHandler = async ({ url }) => {
       {
         id: 'uuid-1',
         gender: 'woman',
-        archetype: 'spoilt_woman',
+        archetype: 'spoiled_casual_woman',
         firstName: 'Sarah',
         age: 26,
         city: 'Brooklyn, NY',
@@ -66,7 +66,7 @@ export const GET: RequestHandler = async ({ url }) => {
       {
         id: 'uuid-2',
         gender: 'woman',
-        archetype: 'spoilt_woman',
+        archetype: 'spoiled_casual_woman',
         firstName: 'Emma',
         age: 24,
         city: 'Manhattan, NY',
@@ -86,7 +86,7 @@ export const GET: RequestHandler = async ({ url }) => {
       {
         id: 'uuid-3',
         gender: 'woman',
-        archetype: 'spoilt_woman',
+        archetype: 'spoiled_casual_woman',
         firstName: 'Jessica',
         age: 28,
         city: 'Williamsburg, NY',
@@ -107,7 +107,7 @@ export const GET: RequestHandler = async ({ url }) => {
       {
         id: 'uuid-4',
         gender: 'woman',
-        archetype: 'safety_first_woman',
+        archetype: 'forever_focused_woman',
         firstName: 'Maya',
         age: 25,
         city: 'Park Slope, NY',
@@ -127,7 +127,7 @@ export const GET: RequestHandler = async ({ url }) => {
       {
         id: 'uuid-5',
         gender: 'woman',
-        archetype: 'spoilt_woman',
+        archetype: 'spoiled_casual_woman',
         firstName: 'Olivia',
         age: 27,
         city: 'Upper West Side, NY',
@@ -148,7 +148,7 @@ export const GET: RequestHandler = async ({ url }) => {
       {
         id: 'uuid-6',
         gender: 'woman',
-        archetype: 'safety_first_woman',
+        archetype: 'forever_focused_woman',
         firstName: 'Sophie',
         age: 23,
         city: 'East Village, NY',

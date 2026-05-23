@@ -1,7 +1,21 @@
 // Verified Vibe — TypeScript Types
 
 export type Gender = 'man' | 'woman' | 'prefer_not_to_say';
-export type Archetype = 'casual_man' | 'marriage_minded_man' | 'spoilt_woman' | 'safety_first_woman';
+export type Archetype =
+  // Male archetypes
+  | 'casual_generous_man'
+  | 'hopeless_romantic_man'
+  | 'rebound_healing_man'
+  | 'untouched_heart_man'
+  | 'forever_focused_man'
+  | 'traditional_matrimony_man'
+  // Female archetypes
+  | 'spoiled_casual_woman'
+  | 'hopeless_romantic_woman'
+  | 'rebound_healing_woman'
+  | 'untouched_heart_woman'
+  | 'forever_focused_woman'
+  | 'traditional_matrimony_woman';
 export type VerificationStep = 'id' | 'liveness' | 'photos' | 'spending_or_qa';
 export type VerificationStatus = 'pending' | 'completed' | 'failed';
 export type MatchStatus = 'pending' | 'mutual' | 'rejected';
@@ -39,6 +53,7 @@ export interface ArchetypeDefinition {
 
 export interface TraitItem {
   lead?: boolean;
+  tier?: 'best' | 'good';
   label: string;
 }
 

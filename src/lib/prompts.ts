@@ -281,11 +281,32 @@ Generate the profile as a single JSON object with exactly these keys:
 5. The tone should be: a smart friend who knows him and is writing his profile — warm, grounded, real.`;
 }
 
+export interface UserArtifact {
+	claimTag: string;
+	description?: string | null;
+	storageUrl: string;
+	trustPoints: number;
+}
+
+function buildArtifactsSection(artifacts: UserArtifact[], pronoun: 'his' | 'her'): string {
+	if (!artifacts.length) return '';
+	const grouped: Record<string, UserArtifact[]> = {};
+	for (const a of artifacts) {
+		(grouped[a.claimTag] = grouped[a.claimTag] || []).push(a);
+	}
+	const lines = Object.entries(grouped).map(([tag, items]) => {
+		const labels = items.map(i => i.description || tag).join(', ');
+		return `- ${tag} (${items.length} file${items.length > 1 ? 's' : ''}): ${labels}`;
+	});
+	return `\n\nVerified trust evidence already on file — DO NOT ask ${pronoun === 'his' ? 'him' : 'her'} for these again:\n${lines.join('\n')}`;
+}
+
 export function buildAIBestieSystemPrompt(
 	profile: UserProfile | null,
 	bookContext: string,
 	matchedUserProfile?: Partial<UserProfile>,
-	preferencesProfile?: PreferencesProfile
+	preferencesProfile?: PreferencesProfile,
+	userArtifacts?: UserArtifact[]
 ): string {
 	let prompt = `You are AI Bestie, a warm, supportive dating coach for women navigating conversations with potential matches.
 
@@ -324,6 +345,10 @@ Her preferences:`;
 		}
 	}
 
+	if (userArtifacts?.length) {
+		prompt += buildArtifactsSection(userArtifacts, 'her');
+	}
+
 	prompt += `
 
 You are her trusted friend who knows dating strategy. Your role is to:
@@ -351,7 +376,8 @@ export function buildAIWingmanSystemPrompt(
 	profile: UserProfile | null,
 	bookContext: string,
 	matchedUserProfile?: Partial<UserProfile>,
-	personalityProfile?: PersonalityProfile
+	personalityProfile?: PersonalityProfile,
+	userArtifacts?: UserArtifact[]
 ): string {
 	let prompt = `You are AI Wingman, a confident, practical dating coach for men navigating conversations with potential matches.
 
@@ -382,6 +408,10 @@ His personality:`;
 			prompt += `
 - Core values: ${personalityProfile.values.join(', ')}`;
 		}
+	}
+
+	if (userArtifacts?.length) {
+		prompt += buildArtifactsSection(userArtifacts, 'his');
 	}
 
 	prompt += `
