@@ -348,9 +348,19 @@ export function clearSessionData(): void {
 	}
 
 	try {
-		// Clear localStorage (removes all stored data including auth tokens)
-		localStorage.clear();
-		console.log('[Push] localStorage cleared');
+		// Remove auth/session keys only — preserve chat history and user-generated content
+		const authPrefixes = ['sb-', 'supabase'];
+		const authKeys = ['vv_user', 'vv_phase', 'vv_tab', 'vv_device_token'];
+		const keysToRemove: string[] = [];
+		for (let i = 0; i < localStorage.length; i++) {
+			const key = localStorage.key(i);
+			if (!key) continue;
+			if (authKeys.includes(key) || authPrefixes.some(p => key.startsWith(p))) {
+				keysToRemove.push(key);
+			}
+		}
+		keysToRemove.forEach(k => localStorage.removeItem(k));
+		console.log('[Push] localStorage auth keys cleared:', keysToRemove.length);
 	} catch (error) {
 		console.error('[Push] Error clearing localStorage:', error);
 	}

@@ -82,6 +82,53 @@ export const POST: RequestHandler = async ({ request }) => {
 			}
 		} catch { /* skip */ }
 
+		// ── Load Secret Admirers / Craving Attention received ────────────────────
+		let admirerContext = '';
+		try {
+			const { data: admirers } = await (supabase as any)
+				.from('attention_messages')
+				.select('sender_id, message_type, content, reply_content, is_read, created_at')
+				.eq('recipient_id', userId)
+				.order('created_at', { ascending: false })
+				.limit(10);
+
+			if ((admirers as any[])?.length) {
+				const admLines: string[] = [];
+				for (const adm of (admirers as any[])) {
+					const { data: sender } = await supabase
+						.from('verified_vibe_users')
+						.select('first_name, age, archetype')
+						.eq('id', adm.sender_id)
+						.single();
+
+					if (!sender) continue;
+
+					const typeLabel = adm.message_type === 'secret_admirer' ? 'Secret Admirer 🌹' : 'Craving Attention';
+					const replyStatus = adm.reply_content
+						? `replied ✓`
+						: adm.is_read
+							? 'seen, no reply yet'
+							: '🆕 unread';
+					const diffMs = Date.now() - new Date(adm.created_at).getTime();
+					const diffMins = Math.floor(diffMs / 60000);
+					const timeLabel = diffMins < 60
+						? `${diffMins}m ago`
+						: diffMins < 1440
+							? `${Math.floor(diffMins / 60)}h ago`
+							: `${Math.floor(diffMins / 1440)}d ago`;
+
+					admLines.push(
+						`- **${sender.first_name}**, ${sender.age} (${sender.archetype}) — ${typeLabel} — sent ${timeLabel}: "${adm.content.slice(0, 120)}" [${replyStatus}]`
+					);
+				}
+				if (admLines.length) {
+					const unread = (admirers as any[]).filter((a: any) => !a.is_read).length;
+					const unreadNote = unread > 0 ? ` (${unread} unread)` : '';
+					admirerContext = `\n\nPeople who already showed interest in him${unreadNote} — these are WARM leads he hasn't matched with yet:\n${admLines.join('\n')}`;
+				}
+			}
+		} catch { /* skip if table not ready */ }
+
 		// ── Load matches + their abstracted preferences ────────────────────────
 		const { data: matches } = await supabase
 			.from('verified_vibe_matches')
@@ -194,10 +241,17 @@ HOW UPLOADS WORK — understand this fully so you can explain it to him:
 - Uploads are completely private — they never appear in his chats with matches, only here
 - The more he verifies, the stronger the feedback loop: better rank → more matches → Bestie coaching them → better outcomes
 
+ADMIRERS & WARM LEADS — treat these as priority opportunities:
+- If he has unread Secret Admirers or Craving Attention messages, always mention them first in summaries/insights — these are people who already showed interest before a match, which is rare and valuable
+- Name them specifically: "**[Name]** sent you a Secret Admirer message [time] ago and you haven't replied yet — that's a warm lead sitting cold"
+- Frame unreplied admirers as the highest-ROI action he can take right now
+- If he has replied to all, celebrate it: "You're on top of your admirer messages — well played"
+- If he has no admirers yet, don't mention the absence — just focus on matches
+
 Your role:
 - Lead with warmth and genuine encouragement — acknowledge his strengths first, then guide him
-- When asked for a summary: warm digest of his matches — celebrate what's working, gently nudge where he can improve, make him feel capable
-- When asked for insights: highlight opportunities and positive moves he could make — frame everything as an opening, not a problem
+- When asked for a summary: start with any unread/unreplied admirers, then do a warm digest of his matches — celebrate what's working, gently nudge where he can improve, make him feel capable
+- When asked for insights: highlight admirer opportunities first, then match opportunities — frame everything as an opening, not a problem
 - For general chat: warm, practical, supportive — like your smartest friend rooting for you
 - PROACTIVELY suggest uploads when: he has no artifacts yet, he has matches but no profile proof, or he mentions anything about himself that could be verified (travel, income, fitness, lifestyle). Be specific — if he mentions he travels for work, say "that's exactly what you should verify — tap 📎 here and upload a travel photo or passport stamp, it's worth +8 trust pts and Bestie will mention it to your matches"
 - If he's uploaded trust evidence: genuinely celebrate it, tell him how impressive it is and exactly when to weave it in naturally
@@ -205,7 +259,7 @@ Your role:
 
 Tone: like your most trusted, insightful friend who genuinely believes in you and wants to see you win. Warm and uplifting first, tactical second. Never dismissive or cold. Short paragraphs. Practical but encouraging.
 Format: use **bold** for names and key points. Use bullets (- item) for multi-point info. Use emoji warmly — 🟢 going well, 💡 tip, ⚡ opportunity, ✨ highlight, 💪 strength. Keep it mobile-friendly and motivating.
-${personalityContext}${artifactsContext}${matchContext}`;
+${personalityContext}${artifactsContext}${admirerContext}${matchContext}`;
 
 		// ── Call Claude ────────────────────────────────────────────────────────
 		const client = getClaudeClient();
