@@ -31,10 +31,6 @@
     'Photography', 'Dancing', 'Sports', 'Tech', 'Fashion'
   ];
 
-  const LOOKING_FOR_OPTIONS: Record<string, string[]> = {
-    casual_man: ['Casual dating', 'Something that evolves', 'No strings attached', 'Seeing where it goes'],
-    marriage_minded_man: ['Long-term relationship', 'Future partner', 'Serious commitment', 'Building something real']
-  };
 
   let firstName = $state(initialName);
   let age = $state<number | ''>(initialAge || '');
@@ -81,16 +77,12 @@
     }
   }
 
-  const lookingForOptions = $derived(
-    LOOKING_FOR_OPTIONS[archetype] ?? LOOKING_FOR_OPTIONS.casual_man
-  );
-
   const isValid = $derived(
     firstName.trim().length > 0 &&
     city.trim().length > 0 &&
     about.trim().length > 20 &&
     selectedTags.size > 0 &&
-    lookingFor.length > 0
+    lookingFor.trim().length > 10
   );
 
   function toggleTag(tag: string) {
@@ -232,23 +224,22 @@
     {/if}
   </div>
 
-  <!-- Looking for -->
+  <!-- Who's a good match -->
   <div class="field">
-    <label class="label">What are you looking for?</label>
-    <div class="option-list">
-      {#each lookingForOptions as option}
-        <button
-          type="button"
-          class="option {lookingFor === option ? 'selected' : ''}"
-          onclick={() => lookingFor = option}
-        >
-          <span class="option-dot"></span>
-          {option}
-        </button>
-      {/each}
-    </div>
-    {#if touched && !lookingFor}
-      <p class="field-error">Select one</p>
+    <label class="label" for="lookingFor">
+      Who's a good match for you?
+      <span class="label-hint">Be specific — it sharpens your matches</span>
+    </label>
+    <textarea
+      id="lookingFor"
+      class="textarea {touched && lookingFor.trim().length <= 10 ? 'error' : ''}"
+      placeholder="Someone emotionally available, who has their own thing going but actually makes time. Doesn't need to be everywhere at once — consistent, a bit ambitious, knows how to have a real conversation."
+      rows="4"
+      bind:value={lookingFor}
+    ></textarea>
+    <div class="char-hint">{lookingFor.length} chars</div>
+    {#if touched && lookingFor.trim().length <= 10}
+      <p class="field-error">Add a bit more detail</p>
     {/if}
   </div>
 
