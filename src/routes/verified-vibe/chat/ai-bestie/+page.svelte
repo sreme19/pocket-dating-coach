@@ -227,20 +227,24 @@
       const reply: string = data.reply ?? data.error ?? 'Something went wrong.';
 
       // Replace pending bubble with real reply
-      messages = [
+      const finalMessages = [
         ...messages.filter(m => !m.pending),
-        { role: 'assistant', content: reply, timestamp: new Date() }
+        { role: 'assistant' as const, content: reply, timestamp: new Date() }
       ];
+      messages = finalMessages;
+      persistMessages(finalMessages);
 
       // Surface any drafts AI Bestie prepared
       if (data.drafts?.length > 0) {
         pendingDrafts = data.drafts as Draft[];
       }
     } catch {
-      messages = [
+      const errorMessages = [
         ...messages.filter(m => !m.pending),
-        { role: 'assistant', content: "Sorry, something went wrong. Try again?", timestamp: new Date() }
+        { role: 'assistant' as const, content: "Sorry, something went wrong. Try again?", timestamp: new Date() }
       ];
+      messages = errorMessages;
+      persistMessages(errorMessages);
     } finally {
       sending = false;
       await scrollToBottom();

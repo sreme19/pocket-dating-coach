@@ -44,25 +44,131 @@
     createdAt: string;
   }
 
+  // Admirer messages this user SENT (outbound)
+  interface SentAdmirerMessage {
+    id: string;
+    recipientId: string;
+    recipientName: string;
+    recipientAge: number | null;
+    recipientAvatar: string | null;
+    recipientArchetype: string | null;
+    messageType: 'secret_admirer' | 'craving_attention';
+    content: string;
+    replyContent: string | null;
+    replySentAt: string | null;
+    createdAt: string;
+  }
+
   // ── State ──────────────────────────────────────────────────────────────────
   let conversations    = $state<Conversation[]>([]);
   let attentionMsgs    = $state<AttentionMessage[]>([]);
+  let sentAdmirerMsgs  = $state<SentAdmirerMessage[]>([]);
   let isLoading        = $state(true);
   let error            = $state<string | null>(null);
-  let activeFilter     = $state<'all' | 'unread'>('all');
+  let activeFilter     = $state<'all' | 'unread' | 'admirer'>('all');
   let replyingToId     = $state<string | null>(null);
   let replyContent     = $state('');
   let isReplying       = $state(false);
+  let expandedAdmirers = $state(new Set<string>());
+  let promotingId      = $state<string | null>(null); // loading state for promote
+
+  function toggleAdmirer(id: string) {
+    expandedAdmirers = new Set(
+      expandedAdmirers.has(id)
+        ? [...expandedAdmirers].filter(x => x !== id)
+        : [...expandedAdmirers, id]
+    );
+  }
+
+  // Promote a replied admirer message to a full chat match, then navigate
+  async function promoteToChat(messageId: string) {
+    if (promotingId) return;
+    promotingId = messageId;
+    try {
+      const res = await fetch('/api/verified-vibe/attention/promote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messageId }),
+      });
+      const data = await res.json();
+      if (data.matchId) {
+        goto(`/verified-vibe/chat/${data.matchId}`);
+      }
+    } catch { /* no-op */ }
+    finally { promotingId = null; }
+  }
 
   // ── Derived ────────────────────────────────────────────────────────────────
-  let newMatches     = $derived(conversations.filter(c => !c.hasMessages));
-  let activeConvos   = $derived(conversations.filter(c => c.hasMessages));
-  let unreadTotal    = $derived(conversations.reduce((s, c) => s + c.unreadCount, 0));
-  let filteredConvos = $derived(
-    activeFilter === 'unread'
-      ? activeConvos.filter(c => c.unreadCount > 0)
-      : activeConvos
+  type ListItem =
+    | { kind: 'conversation';  data: Conversation;        sortTs: number }
+    | { kind: 'admirer';       data: AttentionMessage;    sortTs: number }
+    | { kind: 'sent_admirer';  data: SentAdmirerMessage;  sortTs: number };
+
+  let newMatches   = $derived(conversations.filter(c => !c.hasMessages));
+  let activeConvos = $derived(conversations.filter(c => c.hasMessages));
+  let unreadTotal  = $derived(conversations.reduce((s, c) => s + c.unreadCount, 0));
+  let admUnread    = $derived(attentionMsgs.filter(m => !m.isRead).length);
+
+  // Map: otherUserId → matchId — used to link admirer cards to their chat thread
+  // once a match has been auto-created from the admirer exchange.
+  let userToMatchId = $derived.by(() => {
+    const map = new Map<string, string>();
+    for (const c of conversations) {
+      map.set(c.matchedUser.id, c.matchId);
+    }
+    return map;
+  });
+
+  // Sent admirer messages that don't yet have a full conversation
+  // (once replied, the match is auto-created and appears in conversations)
+  let pendingSentAdmirers = $derived(
+    sentAdmirerMsgs.filter(m => !userToMatchId.has(m.recipientId))
   );
+
+  // Total items shown in "Admirer" tab
+  let totalAdmirerItems = $derived(attentionMsgs.length + pendingSentAdmirers.length);
+
+  // Match IDs that already have an admirer card — these convos are shown
+  // as admirer cards (pink ring + rose) and must NOT also appear as plain
+  // green conversation cards, which would cause duplicates.
+  let admirerLinkedMatchIds = $derived(new Set(
+    attentionMsgs
+      .map(m => userToMatchId.get(m.senderId))
+      .filter((id): id is string => !!id)
+  ));
+
+  let allItems = $derived.by((): ListItem[] => {
+    // Exclude any conversation whose match is already represented by an admirer card
+    const convItems: ListItem[] = activeConvos
+      .filter(c => !admirerLinkedMatchIds.has(c.matchId))
+      .map(c => ({
+        kind: 'conversation',
+        data: c,
+        sortTs: new Date(c.lastMessageTime ?? (c as any).matchedAt ?? 0).getTime(),
+      }));
+    const admItems: ListItem[] = attentionMsgs.map(m => ({
+      kind: 'admirer',
+      data: m,
+      // Use the linked conversation's lastMessageTime if available so the card
+      // sorts by the most recent chat activity, not the original admirer timestamp
+      sortTs: (() => {
+        const mid = userToMatchId.get(m.senderId);
+        const conv = mid ? activeConvos.find(c => c.matchId === mid) : null;
+        return conv
+          ? new Date(conv.lastMessageTime ?? conv.matchedAt).getTime()
+          : new Date(m.createdAt).getTime();
+      })(),
+    }));
+    const sentItems: ListItem[] = pendingSentAdmirers.map(m => ({
+      kind: 'sent_admirer',
+      data: m,
+      sortTs: new Date(m.createdAt).getTime(),
+    }));
+
+    if (activeFilter === 'admirer') return [...admItems, ...sentItems].sort((a, b) => b.sortTs - a.sortTs);
+    if (activeFilter === 'unread')  return convItems.filter(i => (i.data as Conversation).unreadCount > 0).sort((a, b) => b.sortTs - a.sortTs);
+    return [...convItems, ...admItems, ...sentItems].sort((a, b) => b.sortTs - a.sortTs);
+  });
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
   onMount(async () => {
@@ -78,9 +184,13 @@
 
       if (!session?.access_token) throw new Error('Not authenticated');
 
-      const response = await fetch('/api/verified-vibe/chat/conversations', {
-        headers: { 'Authorization': `Bearer ${session.access_token}` }
-      });
+      const [response, attnRes, sentRes] = await Promise.all([
+        fetch('/api/verified-vibe/chat/conversations', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        }),
+        fetch(`/api/verified-vibe/attention?recipientId=${session.user.id}`).catch(() => null),
+        fetch(`/api/verified-vibe/attention?senderId=${session.user.id}&withDetails=true`).catch(() => null),
+      ]);
 
       if (!response.ok) {
         const errBody = await response.json().catch(() => ({}));
@@ -90,14 +200,15 @@
       const data = await response.json();
       conversations = data.data.conversations;
 
-      // Load attention inbox (non-blocking — failures are silent)
-      try {
-        const attnRes = await fetch(`/api/verified-vibe/attention?recipientId=${session.user.id}`);
-        if (attnRes.ok) {
-          const attnData = await attnRes.json();
-          attentionMsgs = attnData.messages ?? [];
-        }
-      } catch { /* non-blocking */ }
+      if (attnRes?.ok) {
+        const attnData = await attnRes.json().catch(() => ({}));
+        attentionMsgs = attnData.messages ?? [];
+      }
+
+      if (sentRes?.ok) {
+        const sentData = await sentRes.json().catch(() => ({}));
+        sentAdmirerMsgs = sentData.messages ?? [];
+      }
 
     } catch (err) {
       console.error('Error fetching conversations:', err);
@@ -118,6 +229,7 @@
         body: JSON.stringify({ messageId, replyContent: replyContent.trim() }),
       });
       if (res.ok) {
+        const responseData = await res.json();
         const snapshot = replyContent.trim();
         attentionMsgs = attentionMsgs.map(m =>
           m.id === messageId
@@ -126,6 +238,11 @@
         );
         replyingToId = null;
         replyContent = '';
+
+        // If the server auto-created a match, navigate to the full chat thread
+        if (responseData.matchId) {
+          goto(`/verified-vibe/chat/${responseData.matchId}`);
+        }
       }
     } finally {
       isReplying = false;
@@ -238,75 +355,6 @@
 
     {:else}
 
-      <!-- ── Attention inbox (Secret Admirers / Craving Attention) ── -->
-      {#if attentionMsgs.length > 0}
-        {@const attnLabel = $user?.gender === 'man' ? '🌹 SECRET ADMIRERS' : '👀 CRAVING ATTENTION'}
-        <section class="attention-section" transition:fade={{ duration: 200 }}>
-          <div class="section-hdr">
-            <span class="section-dot pink-dot"></span>
-            <span class="section-label">{attnLabel}</span>
-            <span class="section-hint">{attentionMsgs.length} message{attentionMsgs.length > 1 ? 's' : ''}</span>
-          </div>
-
-          {#each attentionMsgs as msg (msg.id)}
-            {@const meta = ARCHETYPE_META[msg.senderArchetype ?? '']}
-            <div class="attn-row {!msg.isRead ? 'attn-row-unread' : ''}">
-              <div class="attn-avatar">
-                {#if msg.senderAvatar}
-                  <img class="attn-avatar-img" src={msg.senderAvatar} alt={msg.senderName} />
-                {:else}
-                  <div class="attn-avatar-letter">{msg.senderName.charAt(0).toUpperCase()}</div>
-                {/if}
-              </div>
-              <div class="attn-body">
-                <div class="attn-line1">
-                  <div class="attn-name-group">
-                    <span class="attn-name">{msg.senderName}</span>
-                    {#if msg.senderAge}<span class="attn-age">, {msg.senderAge}</span>{/if}
-                    {#if meta}
-                      <span class="archetype-chip" style="color:{meta.color};background:{meta.bg};border-color:{meta.color}55;">{meta.emoji} {meta.label}</span>
-                    {/if}
-                  </div>
-                  <span class="attn-time">{formatTime(msg.createdAt)}</span>
-                </div>
-                <p class="attn-content">{msg.content}</p>
-
-                {#if msg.replyContent}
-                  <div class="attn-replied">
-                    <span class="replied-label">You replied:</span>
-                    <p class="replied-text">{msg.replyContent}</p>
-                  </div>
-                {:else if replyingToId === msg.id}
-                  <div class="attn-reply-form">
-                    <textarea
-                      class="reply-input"
-                      placeholder="Write a reply… (max 500 chars)"
-                      maxlength="500"
-                      rows="2"
-                      bind:value={replyContent}
-                    ></textarea>
-                    <div class="reply-actions">
-                      <button class="reply-cancel" onclick={() => { replyingToId = null; replyContent = ''; }}>Cancel</button>
-                      <button
-                        class="reply-submit"
-                        onclick={() => submitAttentionReply(msg.id)}
-                        disabled={!replyContent.trim() || isReplying}
-                      >{isReplying ? 'Sending…' : 'Reply'}</button>
-                    </div>
-                  </div>
-                {:else}
-                  <button
-                    class="reply-btn"
-                    onclick={() => { replyingToId = msg.id; replyContent = ''; }}
-                  >Reply</button>
-                {/if}
-              </div>
-            </div>
-          {/each}
-        </section>
-        <div class="band-divider"></div>
-      {/if}
-
       <!-- ── NEW MATCHES strip ── -->
       {#if newMatches.length > 0}
         <section class="new-matches-section" transition:fade={{ duration: 300 }}>
@@ -337,71 +385,196 @@
       {/if}
 
       <!-- ── Filter tabs ── -->
-      {#if activeConvos.length > 0}
+      {#if activeConvos.length > 0 || attentionMsgs.length > 0 || pendingSentAdmirers.length > 0}
         <div class="filter-row">
           <button
             class="filter-tab {activeFilter === 'all' ? 'tab-active' : ''}"
             onclick={() => activeFilter = 'all'}
-          >All {activeConvos.length}</button>
+          >All {activeConvos.filter(c => !admirerLinkedMatchIds.has(c.matchId)).length + attentionMsgs.length + pendingSentAdmirers.length}</button>
           <button
             class="filter-tab {activeFilter === 'unread' ? 'tab-active' : ''}"
             onclick={() => activeFilter = 'unread'}
           >Unread {unreadTotal}</button>
+          {#if totalAdmirerItems > 0}
+            <button
+              class="filter-tab admirer-tab {activeFilter === 'admirer' ? 'tab-active admirer-tab-active' : ''}"
+              onclick={() => activeFilter = 'admirer'}
+            >🌹 Admirer {#if admUnread > 0}<span class="admirer-dot"></span>{/if}</button>
+          {/if}
         </div>
       {/if}
 
-      <!-- ── Active conversations ── -->
+      <!-- ── Unified list (conversations + admirers) ── -->
       <div class="convos-list">
-        {#each filteredConvos as c (c.id)}
-          {@const meta = ARCHETYPE_META[c.matchedUser.archetype ?? '']}
-          <button
-            class="convo-row {c.unreadCount > 0 ? 'row-unread' : ''}"
-            onclick={() => goto(`/verified-vibe/chat/${c.matchId}`)}
-          >
-            <!-- Avatar -->
-            <div class="convo-avatar-wrap">
-              {#if c.matchedUser.avatar}
-                <img class="convo-avatar-img" src={c.matchedUser.avatar} alt={c.matchedUser.firstName} />
-              {:else}
-                <div class="convo-avatar-letter">{c.matchedUser.firstName.charAt(0).toUpperCase()}</div>
+        {#each allItems as item (item.kind + '-' + item.data.id)}
+
+          {#if item.kind === 'conversation'}
+            {@const c = item.data}
+            {@const meta = ARCHETYPE_META[c.matchedUser.archetype ?? '']}
+            <button
+              class="convo-row {c.unreadCount > 0 ? 'row-unread' : ''}"
+              onclick={() => goto(`/verified-vibe/chat/${c.matchId}`)}
+            >
+              <div class="convo-avatar-wrap">
+                {#if c.matchedUser.avatar}
+                  <img class="convo-avatar-img" src={c.matchedUser.avatar} alt={c.matchedUser.firstName} />
+                {:else}
+                  <div class="convo-avatar-letter">{c.matchedUser.firstName.charAt(0).toUpperCase()}</div>
+                {/if}
+              </div>
+              <div class="convo-body">
+                <div class="convo-line1">
+                  <div class="convo-name-group">
+                    <span class="convo-name">{c.matchedUser.firstName}</span>
+                    <span class="convo-age">, {c.matchedUser.age}</span>
+                    {#if meta}
+                      <span class="archetype-chip" style="color:{meta.color}; background:{meta.bg}; border-color:{meta.color}55;">{meta.emoji} {meta.label}</span>
+                    {/if}
+                  </div>
+                  <span class="convo-time {c.unreadCount > 0 ? 'time-unread' : ''}">{formatTime(c.lastMessageTime)}</span>
+                </div>
+                <div class="convo-line2">
+                  <span class="convo-preview {c.unreadCount > 0 ? 'preview-bold' : ''}">{truncate(c.lastMessage)}</span>
+                  <div class="convo-right-meta">
+                    {#if c.matchedUser.trustScore}
+                      <span class="trust-pill">🛡 {c.matchedUser.trustScore}</span>
+                    {/if}
+                    {#if c.unreadCount > 0}
+                      <span class="unread-badge">{c.unreadCount}</span>
+                    {/if}
+                  </div>
+                </div>
+              </div>
+            </button>
+
+          {:else if item.kind === 'admirer'}
+            {@const msg = item.data}
+            {@const meta = ARCHETYPE_META[msg.senderArchetype ?? '']}
+            {@const isExpanded = expandedAdmirers.has(msg.id)}
+            {@const linkedMatchId = userToMatchId.get(msg.senderId) ?? null}
+            <!-- Admirer card — if a match exists tap opens the chat directly -->
+            <div class="admirer-item {!msg.isRead ? 'admirer-item-unread' : ''}">
+              <button
+                class="convo-row admirer-convo-row"
+                onclick={() => linkedMatchId ? goto(`/verified-vibe/chat/${linkedMatchId}`) : toggleAdmirer(msg.id)}
+              >
+                <div class="convo-avatar-wrap">
+                  {#if msg.senderAvatar}
+                    <img class="convo-avatar-img admirer-avatar-ring" src={msg.senderAvatar} alt={msg.senderName} />
+                  {:else}
+                    <div class="convo-avatar-letter admirer-avatar-ring">{msg.senderName.charAt(0).toUpperCase()}</div>
+                  {/if}
+                  <span class="admirer-rose-pip">🌹</span>
+                </div>
+                <div class="convo-body">
+                  <div class="convo-line1">
+                    <div class="convo-name-group">
+                      <span class="convo-name">{msg.senderName}</span>
+                      {#if msg.senderAge}<span class="convo-age">, {msg.senderAge}</span>{/if}
+                      {#if meta}
+                        <span class="archetype-chip" style="color:{meta.color}; background:{meta.bg}; border-color:{meta.color}55;">{meta.emoji} {meta.label}</span>
+                      {/if}
+                    </div>
+                    <span class="convo-time">{formatTime(msg.createdAt)}</span>
+                  </div>
+                  <div class="convo-line2">
+                    <span class="convo-preview {!msg.isRead ? 'preview-bold' : ''}">{truncate(msg.content)}</span>
+                    {#if linkedMatchId}
+                      <span class="admirer-chat-badge">💬 Chat</span>
+                    {:else if msg.replyContent}
+                      <span class="admirer-replied-badge">Replied</span>
+                    {:else}
+                      <span class="admirer-new-badge">🌹</span>
+                    {/if}
+                  </div>
+                </div>
+              </button>
+
+              {#if isExpanded && !linkedMatchId}
+                <div class="admirer-expanded" transition:fade={{ duration: 160 }}>
+                  <p class="attn-content">{msg.content}</p>
+                  {#if msg.replyContent}
+                    <div class="attn-replied">
+                      <span class="replied-label">YOU REPLIED:</span>
+                      <p class="replied-text">{msg.replyContent}</p>
+                    </div>
+                  {:else if replyingToId === msg.id}
+                    <div class="attn-reply-form">
+                      <textarea
+                        class="reply-input"
+                        placeholder="Write a reply… (max 500 chars)"
+                        maxlength="500"
+                        rows="2"
+                        bind:value={replyContent}
+                      ></textarea>
+                      <div class="reply-actions">
+                        <button class="reply-cancel" onclick={() => { replyingToId = null; replyContent = ''; }}>Cancel</button>
+                        <button
+                          class="reply-submit"
+                          onclick={() => submitAttentionReply(msg.id)}
+                          disabled={!replyContent.trim() || isReplying}
+                        >{isReplying ? 'Sending…' : 'Reply'}</button>
+                      </div>
+                    </div>
+                  {:else}
+                    <button class="reply-btn" onclick={() => { replyingToId = msg.id; replyContent = ''; }}>Reply</button>
+                  {/if}
+                </div>
               {/if}
             </div>
 
-            <!-- Body -->
-            <div class="convo-body">
-              <!-- Line 1: name + archetype → time -->
-              <div class="convo-line1">
-                <div class="convo-name-group">
-                  <span class="convo-name">{c.matchedUser.firstName}</span>
-                  <span class="convo-age">, {c.matchedUser.age}</span>
-                  {#if meta}
-                    <span
-                      class="archetype-chip"
-                      style="color:{meta.color}; background:{meta.bg}; border-color:{meta.color}55;"
-                    >{meta.emoji} {meta.label}</span>
+          {:else}
+            {@const msg = item.data}
+            {@const meta = ARCHETYPE_META[msg.recipientArchetype ?? '']}
+            {@const isPromoting = promotingId === msg.id}
+            <!-- Sent admirer card — tapping when replied promotes to full chat -->
+            <div class="admirer-item sent-admirer-item {msg.replyContent ? 'sent-admirer-replied' : ''}">
+              <button
+                class="convo-row admirer-convo-row {msg.replyContent ? '' : 'sent-admirer-row'}"
+                onclick={() => msg.replyContent ? promoteToChat(msg.id) : undefined}
+                style={msg.replyContent ? '' : 'cursor: default;'}
+                disabled={isPromoting}
+              >
+                <div class="convo-avatar-wrap">
+                  {#if msg.recipientAvatar}
+                    <img class="convo-avatar-img {msg.replyContent ? 'admirer-avatar-ring' : 'sent-admirer-ring'}" src={msg.recipientAvatar} alt={msg.recipientName} />
+                  {:else}
+                    <div class="convo-avatar-letter {msg.replyContent ? 'admirer-avatar-ring' : 'sent-admirer-ring'}">{msg.recipientName.charAt(0).toUpperCase()}</div>
                   {/if}
+                  <span class="admirer-rose-pip">🌹</span>
                 </div>
-                <span class="convo-time {c.unreadCount > 0 ? 'time-unread' : ''}">{formatTime(c.lastMessageTime)}</span>
-              </div>
-
-              <!-- Line 2: preview → trust + unread badge -->
-              <div class="convo-line2">
-                <span class="convo-preview {c.unreadCount > 0 ? 'preview-bold' : ''}">{truncate(c.lastMessage)}</span>
-                <div class="convo-right-meta">
-                  {#if c.matchedUser.trustScore}
-                    <span class="trust-pill">🛡 {c.matchedUser.trustScore}</span>
-                  {/if}
-                  {#if c.unreadCount > 0}
-                    <span class="unread-badge">{c.unreadCount}</span>
-                  {/if}
+                <div class="convo-body">
+                  <div class="convo-line1">
+                    <div class="convo-name-group">
+                      <span class="convo-name">{msg.recipientName}</span>
+                      {#if msg.recipientAge}<span class="convo-age">, {msg.recipientAge}</span>{/if}
+                      {#if meta}
+                        <span class="archetype-chip" style="color:{meta.color}; background:{meta.bg}; border-color:{meta.color}55;">{meta.emoji} {meta.label}</span>
+                      {/if}
+                    </div>
+                    <span class="convo-time">{formatTime(msg.createdAt)}</span>
+                  </div>
+                  <div class="convo-line2">
+                    <span class="convo-preview {msg.replyContent ? '' : 'sent-preview'}">{truncate(msg.content)}</span>
+                    {#if msg.replyContent}
+                      <span class="admirer-chat-badge">{isPromoting ? '…' : '💬 Chat'}</span>
+                    {:else}
+                      <span class="sent-waiting-badge">Awaiting reply…</span>
+                    {/if}
+                  </div>
                 </div>
-              </div>
+              </button>
             </div>
-          </button>
+          {/if}
+
         {/each}
 
-        {#if filteredConvos.length === 0 && activeFilter === 'unread'}
+        {#if allItems.length === 0 && activeFilter === 'unread'}
           <div class="all-caught-up">✅ All caught up!</div>
+        {:else if allItems.length === 0 && activeFilter === 'admirer'}
+          <div class="all-caught-up">No admirers yet 🌹</div>
+        {:else if allItems.length === 0 && activeFilter === 'all'}
+          <div class="all-caught-up">No conversations yet</div>
         {/if}
       </div>
 
@@ -908,88 +1081,114 @@
     font-size: 14px;
   }
 
-  /* ── Attention inbox section ── */
-  .attention-section {
-    padding: 10px 0 0;
-    flex-shrink: 0;
+  /* ── Admirer filter tab ── */
+  .admirer-tab { position: relative; }
+  .admirer-tab-active {
+    background: #ec4899 !important;
+    border-color: #ec4899 !important;
+    color: #fff !important;
   }
-
-  .pink-dot { background: #ec4899; }
-
-  .attn-row {
-    display: flex;
-    gap: 12px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border-1);
-    transition: background 120ms;
-  }
-
-  .attn-row-unread {
-    background: rgba(236, 72, 153, 0.04);
-  }
-
-  .attn-avatar {
-    flex-shrink: 0;
-    width: 44px;
-    height: 44px;
+  .admirer-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    background: #f97316;
     border-radius: 50%;
-    overflow: hidden;
-    background: var(--bg-3);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    margin-left: 5px;
+    vertical-align: middle;
+    flex-shrink: 0;
   }
 
-  .attn-avatar-img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .attn-avatar-letter {
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--text-2);
-  }
-
-  .attn-body {
-    flex: 1;
-    min-width: 0;
+  /* ── Admirer card ── */
+  .admirer-item {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    border-bottom: 1px solid var(--border-1);
+  }
+  .admirer-item-unread .admirer-convo-row { background: rgba(236, 72, 153, 0.04); }
+
+  .admirer-convo-row {
+    border-bottom: none !important;  /* border is on parent .admirer-item */
+    width: 100%;
   }
 
-  .attn-line1 {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+  .admirer-avatar-ring {
+    border-color: #ec4899 !important;
+    box-shadow: 0 0 0 2px rgba(236, 72, 153, 0.22) !important;
   }
 
-  .attn-name-group {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    min-width: 0;
-    flex-wrap: wrap;
-  }
-
-  .attn-name {
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--text-1);
-  }
-
-  .attn-age {
+  .admirer-rose-pip {
+    position: absolute;
+    bottom: -3px;
+    right: -3px;
     font-size: 13px;
-    color: var(--text-3);
+    line-height: 1;
+    pointer-events: none;
   }
 
-  .attn-time {
+  .admirer-new-badge {
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  .admirer-replied-badge {
     font-size: 11px;
     color: var(--text-3);
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    border-radius: 8px;
+    padding: 1px 7px;
+    white-space: nowrap;
     flex-shrink: 0;
+  }
+
+  .admirer-chat-badge {
+    font-size: 11px;
+    font-weight: 600;
+    color: #10b981;
+    background: rgba(16,185,129,0.1);
+    border: 1px solid rgba(16,185,129,0.3);
+    border-radius: 8px;
+    padding: 1px 8px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Sent admirer card — outbound message awaiting reply */
+  .sent-admirer-item { opacity: 0.85; }
+  .sent-admirer-item.sent-admirer-replied { opacity: 1; }
+  .sent-admirer-row  { cursor: default; }
+  .sent-admirer-row:hover { background: transparent; }
+
+  .sent-their-reply {
+    border-left: 2px solid #ec4899;
+    background: rgba(236, 72, 153, 0.06);
+  }
+
+  .sent-admirer-ring {
+    border-color: rgba(245,158,11,0.7) !important;
+    box-shadow: 0 0 0 2px rgba(245,158,11,0.15) !important;
+  }
+
+  .sent-preview { font-style: italic; }
+
+  .sent-waiting-badge {
+    font-size: 11px;
+    color: #f59e0b;
+    background: rgba(245,158,11,0.08);
+    border: 1px solid rgba(245,158,11,0.25);
+    border-radius: 8px;
+    padding: 1px 8px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* ── Expanded admirer body ── */
+  .admirer-expanded {
+    padding: 0 16px 14px 80px; /* indent to align with text above */
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
 
   .attn-content {

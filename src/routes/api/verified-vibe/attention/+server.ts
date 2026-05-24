@@ -76,12 +76,54 @@ export const GET: RequestHandler = async ({ url }) => {
 
     // Sent-IDs mode — discover page "Sent ✓" check
     if (senderId && !recipientId) {
-      const { data } = await (supabase as any)
-        .from('attention_messages')
-        .select('recipient_id')
-        .eq('sender_id', senderId);
+      const withDetails = url.searchParams.get('withDetails') === 'true';
 
-      return json({ sentToIds: (data ?? []).map((r: any) => r.recipient_id) });
+      if (!withDetails) {
+        // Lightweight: just return IDs for Discover "Sent ✓" markers
+        const { data } = await (supabase as any)
+          .from('attention_messages')
+          .select('recipient_id')
+          .eq('sender_id', senderId);
+
+        return json({ sentToIds: (data ?? []).map((r: any) => r.recipient_id) });
+      }
+
+      // Full details mode — Messages tab shows the sender's outbound admirer cards
+      const { data: sentMsgs, error: sentErr } = await (supabase as any)
+        .from('attention_messages')
+        .select('id, recipient_id, message_type, content, reply_content, reply_sent_at, created_at')
+        .eq('sender_id', senderId)
+        .order('created_at', { ascending: false });
+
+      if (sentErr) return json({ error: 'Failed to fetch sent messages' }, { status: 500 });
+      if (!sentMsgs?.length) return json({ messages: [] });
+
+      const recipientIds = [...new Set((sentMsgs as any[]).map((m: any) => m.recipient_id))] as string[];
+      const { data: recipientProfiles } = await supabase
+        .from('verified_vibe_users')
+        .select('id, first_name, age, avatar_url, archetype')
+        .in('id', recipientIds);
+
+      const recipMap = new Map((recipientProfiles ?? []).map((r: any) => [r.id, r]));
+
+      const messages = (sentMsgs as any[]).map((m: any) => {
+        const r = recipMap.get(m.recipient_id) as any;
+        return {
+          id:                  m.id,
+          recipientId:         m.recipient_id,
+          recipientName:       r?.first_name  ?? 'Unknown',
+          recipientAge:        r?.age         ?? null,
+          recipientAvatar:     r?.avatar_url  ?? null,
+          recipientArchetype:  r?.archetype   ?? null,
+          messageType:         m.message_type,
+          content:             m.content,
+          replyContent:        m.reply_content  ?? null,
+          replySentAt:         m.reply_sent_at  ?? null,
+          createdAt:           m.created_at,
+        };
+      });
+
+      return json({ messages });
     }
 
     // Inbox mode — fetch messages with sender profile details
