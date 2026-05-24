@@ -1,12 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { user, userVerification } from '$lib/verified-vibe/stores';
+  import { user, userVerification, storesHydrated } from '$lib/verified-vibe/stores';
   import { calculateTrustScore, getTrustScoreLabel } from '$lib/verified-vibe/server/trustScore';
   import { upsertProfile } from '$lib/verified-vibe/services/profileService';
   import { getSupabaseClient } from '$lib/client/supabase';
   import { unregisterPushNotifications } from '$lib/push-notifications';
   import { ShieldCheck, Pencil, Check, X, MapPin, Sparkles, Wand2, LogOut, Heart, Zap } from 'lucide-svelte';
+  import { ARCHETYPES, ARCHETYPES_BY_GENDER } from '$lib/verified-vibe/constants';
+  import type { Archetype } from '$lib/verified-vibe/types';
   import type { ProfileIntakeData } from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
   import type { PhotoEnhanceResult } from '$lib/photo-enhance/types';
   import BestieAvatar from '$lib/components/BestieAvatar.svelte';
@@ -71,37 +73,58 @@
     'Real opinions, gently held'
   ];
 
-  // Here For + Hard Nos — loaded from DB, editable
-  let hereForTitle    = $state('Spoilt Women');
-  let hereForDesc     = $state('Wants effort, taste, and a calendar that respects yours.');
-  let hardNos         = $state<string[]>(['Dishonesty about what someone wants', 'Game-playing', 'Flake energy']);
+  // Pick Your Lane (archetype) — editable, male-gated
+  const laneOptions = ARCHETYPES_BY_GENDER.man.map(id => ARCHETYPES[id]).filter(Boolean);
+  let editingLane   = $state(false);
+  let selectedLane  = $state<string>('');
+  let savingLane    = $state(false);
+  let laneError     = $state<string | null>(null);
 
-  let editingHereFor  = $state(false);
-  let editHFTitle     = $state('');
-  let editHFDesc      = $state('');
-  let savingHF        = $state(false);
+  const currentArchetype = $derived(ARCHETYPES[$user?.archetype ?? ''] ?? null);
+
+  function startEditLane() {
+    selectedLane = $user?.archetype ?? '';
+    laneError    = null;
+    editingLane  = true;
+  }
+
+  async function saveLane() {
+    if (!selectedLane) return;
+    savingLane = true;
+    laneError  = null;
+    try {
+      // Use a direct UPDATE (not upsert) — the profile row always exists for
+      // a logged-in user, and upsert's INSERT leg would fail NOT NULL checks
+      // on gender/first_name before the conflict clause can fire.
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+
+      const { error } = await supabase
+        .from('verified_vibe_users')
+        .update({ archetype: selectedLane })
+        .eq('id', session.user.id);
+
+      if (error) throw error;
+
+      // Reflect in store immediately so the display refreshes
+      if ($user) user.set({ ...$user, archetype: selectedLane as Archetype });
+      editingLane = false;
+    } catch (err) {
+      laneError = err instanceof Error ? err.message : 'Failed to save — please try again';
+      console.error('[saveLane]', err);
+    } finally {
+      savingLane = false;
+    }
+  }
+
+  // Hard Nos — loaded from DB, editable
+  let hardNos         = $state<string[]>(['Dishonesty about what someone wants', 'Game-playing', 'Flake energy']);
 
   let editingHardNos  = $state(false);
   let editHardNos     = $state<string[]>([]);
   let newHardNo       = $state('');
   let savingHardNos   = $state(false);
-
-  function startEditHereFor() {
-    editHFTitle = hereForTitle;
-    editHFDesc  = hereForDesc;
-    editingHereFor = true;
-  }
-
-  async function saveHereFor() {
-    savingHF = true;
-    try {
-      await upsertProfile({ here_for_title: editHFTitle, here_for_desc: editHFDesc } as any);
-      hereForTitle = editHFTitle;
-      hereForDesc  = editHFDesc;
-      editingHereFor = false;
-    } catch { /* silent */ }
-    finally { savingHF = false; }
-  }
 
   function startEditHardNos() {
     editHardNos = [...hardNos];
@@ -198,19 +221,17 @@
       photos = [{ dataUrl: $user.avatar, label: 'lead' }];
     }
 
-    // Load here_for / hard_nos from DB
+    // Load hard_nos from DB
     try {
       const supabase = getSupabaseClient();
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         const { data } = await supabase
           .from('verified_vibe_users')
-          .select('here_for_title, here_for_desc, hard_nos')
+          .select('hard_nos')
           .eq('id', session.user.id)
           .single();
         if (data) {
-          if (data.here_for_title) hereForTitle = data.here_for_title;
-          if (data.here_for_desc)  hereForDesc  = data.here_for_desc;
           if (Array.isArray(data.hard_nos) && data.hard_nos.length) hardNos = data.hard_nos;
         }
       }
@@ -398,6 +419,26 @@
 </script>
 
 <div class="profile-page">
+  {#if !$storesHydrated && $user === null}
+    <div class="profile-skeleton">
+      <div class="skeleton-header">
+        <div class="skel skel-circle"></div>
+        <div class="skel skel-line" style="width:80px"></div>
+        <div class="skel skel-line" style="width:60px"></div>
+      </div>
+      <div class="skel skel-hero"></div>
+      <div class="skeleton-body">
+        <div class="skel skel-line" style="width:50%"></div>
+        <div class="skel skel-line" style="width:80%"></div>
+        <div class="skel skel-line" style="width:65%"></div>
+        <div class="skeleton-tags">
+          <div class="skel skel-tag"></div>
+          <div class="skel skel-tag"></div>
+          <div class="skel skel-tag"></div>
+        </div>
+      </div>
+    </div>
+  {:else}
   <!-- Mode toggle header -->
   <div class="profile-header">
     <button class="back-btn" onclick={() => goto('/verified-vibe/discover')} aria-label="Go to discover">
@@ -600,45 +641,60 @@
       </section>
       {/if}
 
-      <!-- Here For -->
+      <!-- Pick Your Lane -->
       {#if $user?.gender === 'man' || $user?.gender === null}
       <section class="section">
         <div class="section-label">
           <Heart size={13} />
-          Here For
-          <button class="section-edit-btn" onclick={startEditHereFor} aria-label="Edit Here For">
+          Pick Your Lane
+          <button class="section-edit-btn" onclick={startEditLane} aria-label="Change lane">
             <Pencil size={11} />
           </button>
         </div>
 
-        {#if editingHereFor}
-          <div class="inline-edit-card">
-            <input
-              class="inline-edit-input"
-              placeholder="Who you're here for (e.g. Spoilt Women)"
-              bind:value={editHFTitle}
-            />
-            <textarea
-              class="inline-edit-textarea"
-              placeholder="What she's like / what you're looking for..."
-              rows="2"
-              bind:value={editHFDesc}
-            ></textarea>
-            <div class="inline-edit-actions">
-              <button class="inline-save-btn" onclick={saveHereFor} disabled={savingHF}>
-                {savingHF ? 'Saving…' : 'Save'}
+        {#if editingLane}
+          <!-- Lane picker — radio cards -->
+          <div class="lane-picker">
+            {#each laneOptions as opt (opt.id)}
+              <button
+                class="lane-option {selectedLane === opt.id ? 'lane-option-selected' : ''}"
+                onclick={() => selectedLane = opt.id}
+                type="button"
+              >
+                <span class="lane-option-emoji">{opt.emoji}</span>
+                <div class="lane-option-body">
+                  <span class="lane-option-name">{opt.name}</span>
+                  <span class="lane-option-tag">{opt.tag}</span>
+                </div>
+                {#if selectedLane === opt.id}
+                  <span class="lane-option-check">✓</span>
+                {/if}
               </button>
-              <button class="inline-cancel-btn" onclick={() => editingHereFor = false}>Cancel</button>
+            {/each}
+            {#if laneError}
+              <p class="lane-error">{laneError}</p>
+            {/if}
+            <div class="inline-edit-actions">
+              <button class="inline-save-btn" onclick={saveLane} disabled={savingLane || !selectedLane}>
+                {savingLane ? 'Saving…' : 'Save Lane'}
+              </button>
+              <button class="inline-cancel-btn" onclick={() => editingLane = false}>Cancel</button>
+            </div>
+          </div>
+        {:else if currentArchetype}
+          <!-- Current lane display -->
+          <div class="here-for-card">
+            <div class="here-for-icon">{currentArchetype.emoji}</div>
+            <div class="here-for-content">
+              <h3 class="here-for-title">{currentArchetype.name}</h3>
+              <p class="here-for-desc">{currentArchetype.tag}</p>
             </div>
           </div>
         {:else}
-          <div class="here-for-card">
-            <div class="here-for-icon">💎</div>
-            <div class="here-for-content">
-              <h3 class="here-for-title">{hereForTitle}</h3>
-              <p class="here-for-desc">{hereForDesc}</p>
-            </div>
-          </div>
+          <button class="lane-empty-cta" onclick={startEditLane} type="button">
+            <span>🏁</span>
+            <span>Tap to pick your lane</span>
+          </button>
         {/if}
       </section>
       {/if}
@@ -1011,6 +1067,7 @@
       </div>
     {/if}
   </div>
+  {/if}
 </div>
 
 <!-- Edit Q&A Modal -->
@@ -1054,6 +1111,70 @@
     flex-direction: column;
     min-height: 100%;
     background: var(--bg-1);
+  }
+
+  /* ── Skeleton loader ── */
+  .profile-skeleton {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+  }
+
+  .skeleton-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-1);
+  }
+
+  .skel {
+    background: var(--bg-3);
+    border-radius: 6px;
+    animation: shimmer 1.4s ease-in-out infinite;
+  }
+
+  .skel-circle {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .skel-line {
+    height: 14px;
+    border-radius: 4px;
+  }
+
+  .skel-hero {
+    width: 100%;
+    aspect-ratio: 4/5;
+    max-height: 380px;
+    border-radius: 0;
+  }
+
+  .skeleton-body {
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .skeleton-tags {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .skel-tag {
+    height: 28px;
+    width: 80px;
+    border-radius: 999px;
+  }
+
+  @keyframes shimmer {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
   }
 
   /* Header */
@@ -1860,7 +1981,7 @@
     line-height: 1.4;
   }
 
-  /* Here For */
+  /* Pick Your Lane — display card */
   .here-for-card {
     display: flex;
     align-items: flex-start;
@@ -1883,9 +2004,9 @@
 
   .here-for-title {
     font-size: 15px;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--accent-bright);
-    margin: 0 0 6px;
+    margin: 0 0 4px;
   }
 
   .here-for-desc {
@@ -1893,6 +2014,105 @@
     color: var(--text-2);
     margin: 0;
     line-height: 1.5;
+  }
+
+  /* Lane picker — editor */
+  .lane-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .lane-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1.5px solid var(--border-2);
+    background: var(--bg-2);
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 130ms, background 130ms;
+    position: relative;
+  }
+
+  .lane-option:hover {
+    border-color: var(--accent-bright);
+    background: var(--accent-tint);
+  }
+
+  .lane-option-selected {
+    border-color: var(--accent-bright) !important;
+    background: var(--accent-tint) !important;
+  }
+
+  .lane-option-emoji {
+    font-size: 22px;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+
+  .lane-option-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .lane-option-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-1);
+    line-height: 1.2;
+  }
+
+  .lane-option-selected .lane-option-name {
+    color: var(--accent-bright);
+  }
+
+  .lane-option-tag {
+    font-size: 12px;
+    color: var(--text-3);
+    line-height: 1.3;
+  }
+
+  .lane-option-check {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent-bright);
+    flex-shrink: 0;
+  }
+
+  .lane-empty-cta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1.5px dashed var(--border-2);
+    background: transparent;
+    color: var(--text-3);
+    font-size: 14px;
+    cursor: pointer;
+    width: 100%;
+    transition: border-color 130ms, color 130ms;
+  }
+
+  .lane-empty-cta:hover {
+    border-color: var(--accent-bright);
+    color: var(--accent-bright);
+  }
+
+  .lane-error {
+    font-size: 12px;
+    color: #ef4444;
+    margin: 0;
+    padding: 6px 10px;
+    background: rgba(239,68,68,0.08);
+    border-radius: 8px;
   }
 
   /* Hard Nos */
