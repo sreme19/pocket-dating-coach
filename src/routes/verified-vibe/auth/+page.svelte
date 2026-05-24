@@ -137,7 +137,8 @@
   }
 
   async function routeAfterAuth() {
-    // Flush any locally-stored preferences collected before sign-up
+    // Flush any locally-stored preferences collected before sign-up.
+    // Read these BEFORE removing them so we can use them for routing below.
     const pendingGender    = localStorage.getItem('verified_vibe_pending_gender');
     const pendingArchetype = localStorage.getItem('verified_vibe_pending_archetype');
 
@@ -150,8 +151,22 @@
         localStorage.removeItem('verified_vibe_pending_gender');
         localStorage.removeItem('verified_vibe_pending_archetype');
       } catch (e) {
+        // Upsert can fail due to a session-propagation race on first sign-up.
+        // Don't let it block routing — the data is still in localStorage and
+        // will be retried on the next profile load.
         console.error('Failed to flush pending profile data:', e);
       }
+    }
+
+    // If the user just came from the lane-selection flow they have a pending
+    // archetype, which means they're a brand-new user who needs verification.
+    // Skip the completeness check here — it can return 'no_profile' if the
+    // upsert above lost the session-propagation race, which incorrectly sends
+    // them back to the gate.
+    if (pendingArchetype) {
+      setPhase('verify');
+      goto('/verified-vibe/verify');
+      return;
     }
 
     const completeness = await getProfileCompleteness();
