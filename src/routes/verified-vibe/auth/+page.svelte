@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { getSupabaseClient } from '$lib/client/supabase';
   import { setPhase } from '$lib/verified-vibe/stores';
@@ -10,6 +11,16 @@
   import { page } from '$app/stores';
   import { fade, slide } from 'svelte/transition';
   import { ShieldCheck } from 'lucide-svelte';
+
+  // ── auto-route if already signed in ────────────────────────────────────────
+  onMount(async () => {
+    const supabase = getSupabaseClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      step = 'loading';
+      await routeAfterAuth();
+    }
+  });
 
   // ── state ──────────────────────────────────────────────────────────────────
   type Step = 'email' | 'password' | 'code' | 'loading';
@@ -287,6 +298,10 @@
           By continuing you agree to our <a href="/verified-vibe/privacy">Privacy Policy</a>.
           New accounts are created automatically.
         </p>
+
+        <button class="auth-btn ghost" onclick={() => goto('/verified-vibe/gate')}>
+          ← Start from the beginning
+        </button>
 
         {#if isDevMode}
           <div class="dev-hint">
