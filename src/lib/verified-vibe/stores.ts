@@ -79,6 +79,8 @@ function createUserStore() {
 
 export const user = createUserStore();
 
+export const storesHydrated = writable(false);
+
 /**
  * User's trust score breakdown
  */
@@ -313,6 +315,7 @@ export async function hydrateStores() {
   currentTab.hydrate();
 
   await hydrateUserFromSupabase();
+  storesHydrated.set(true);
 }
 
 function mapStepsToRecords(steps: VVVerificationStep[]): VerificationRecord[] {
