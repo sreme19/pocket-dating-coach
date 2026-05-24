@@ -51,7 +51,7 @@
   let extractedName = $state('');
   let extractedAge = $state(0);
 
-  const steps = [
+  const steps = $derived([
     {
       number: 1,
       name: 'Government ID',
@@ -63,27 +63,27 @@
     },
     {
       number: 2,
-      name: 'Photo verification',
-      description: 'Five photos. One face.',
-      icon: '📸',
+      name: 'Selfie check',
+      description: 'Same face as your ID.',
+      icon: '🤳',
       stepType: 'liveness' as VerificationStepType,
       time: '~60 sec',
       points: 35
     },
     {
       number: 3,
-      name: 'Spending pattern',
-      description: 'Where the money lands.',
-      icon: '💰',
+      name: 'Photo story',
+      description: 'Five photos. One face.',
+      icon: '📸',
       stepType: 'photos' as VerificationStepType,
       time: '~45 sec',
       points: 55
     },
     {
       number: 4,
-      name: 'Q&A intent check',
-      description: 'Tell us the truth.',
-      icon: '💬',
+      name: $user?.archetype === 'casual_generous_man' ? 'Spending proof' : 'Intent check',
+      description: $user?.archetype === 'casual_generous_man' ? 'Where the money lands.' : 'Tell us the truth.',
+      icon: $user?.archetype === 'casual_generous_man' ? '💰' : '💬',
       stepType: 'spending_or_qa' as VerificationStepType,
       time: '~2 min',
       points: 80
@@ -97,7 +97,7 @@
       time: '~10 min',
       points: 0
     }
-  ];
+  ]);
 
   onMount(() => {
     // Initialize from store
