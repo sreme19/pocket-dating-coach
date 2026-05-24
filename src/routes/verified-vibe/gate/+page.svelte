@@ -3,6 +3,7 @@
   import { setPhase } from '$lib/verified-vibe/stores';
   import type { Gender } from '$lib/verified-vibe/types';
   import { fade, slide } from 'svelte/transition';
+  import LiveWomenCarousel from '$lib/verified-vibe/components/LiveWomenCarousel.svelte';
 
   let gender = $state<Gender | null>(null);
   let over18 = $state(false);
@@ -76,16 +77,6 @@
           <span class="pick-name">Woman</span>
           <span class="pick-sub">See Spoilt &amp; Safety-First</span>
         </button>
-        <button
-          class="gate-pick-btn {gender === 'prefer_not_to_say' ? 'selected' : ''}"
-          aria-pressed={gender === 'prefer_not_to_say'}
-          aria-label="Prefer not to say"
-          onclick={() => { gender = 'prefer_not_to_say' as Gender; }}
-        >
-          <span class="pick-ico" aria-hidden="true">⚬</span>
-          <span class="pick-name">Other</span>
-          <span class="pick-sub">Prefer not to say</span>
-        </button>
       </div>
     </fieldset>
 
@@ -138,6 +129,10 @@
     </div>
 
   </main>
+
+  <div class="gate-carousel" transition:fade={{ duration: 400, delay: 600 }}>
+    <LiveWomenCarousel showMixed={true} redirectTo="/verified-vibe/gate" />
+  </div>
 </div>
 
 <style>
@@ -282,7 +277,7 @@
   /* Gender pick */
   .gate-pick {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: 10px;
   }
 
@@ -494,11 +489,15 @@
     text-underline-offset: 2px;
   }
 
+  .gate-carousel {
+    margin-top: 28px;
+  }
+
   /* Mobile */
   @media (max-width: 767px) {
     .gate-screen { padding: 16px 16px 24px; }
     .gate-title { font-size: 44px; }
-    .gate-pick { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .gate-pick { gap: 8px; }
     .gate-pick-btn { padding: 18px 14px; }
   }
 

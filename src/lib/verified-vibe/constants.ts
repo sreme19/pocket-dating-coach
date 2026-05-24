@@ -391,16 +391,146 @@ export const ARCHETYPES: Record<string, ArchetypeDefinition> = {
     ],
     timeMins: 10,
   },
+
+  // ─── SECOND CHAPTER ─────────────────────────────────────────────────────────
+
+  second_chapter_man: {
+    id: 'second_chapter_man',
+    gender: 'man',
+    emoji: '🔄',
+    name: 'Second-Chapter',
+    tag: 'Loved or married before, ready to do it right',
+    longTag: 'You\'ve loved or married before. You\'re ready to try again — right this time. No bitterness, no rush. Just wisdom and the will to build something real.',
+    matchTraits: [
+      { tier: 'best', lead: true, label: 'Second-Chapter Women' },
+      { tier: 'good', label: 'Traditional-Matrimony Women' },
+      { tier: 'good', label: 'Forever-Focused Women' },
+    ],
+    avoidTraits: [
+      { label: 'Casual-Generous' },
+      { label: 'Rebound-Healing' },
+    ],
+    brings: [
+      'Hard-won emotional wisdom',
+      'Maturity without cynicism',
+      'Deep appreciation for real love',
+      'Patience built from experience',
+      'Clarity on what actually matters',
+    ],
+    needs: [
+      'Government ID (prove you\'re real)',
+      '5+ photos (prove it\'s really you)',
+      'Q&A responses (prove your readiness)',
+    ],
+    timeMins: 10,
+  },
+
+  second_chapter_woman: {
+    id: 'second_chapter_woman',
+    gender: 'woman',
+    emoji: '🌺',
+    name: 'Second-Chapter',
+    tag: 'Loved or married before, starting over right',
+    longTag: 'You\'ve loved or married before. You\'re ready to try again — right this time. Wiser, softer in the right places, and done settling.',
+    matchTraits: [
+      { tier: 'best', lead: true, label: 'Second-Chapter Men' },
+      { tier: 'good', label: 'Traditional-Matrimony Men' },
+      { tier: 'good', label: 'Forever-Focused Men' },
+    ],
+    avoidTraits: [
+      { label: 'Spoiled-Casual' },
+      { label: 'Rebound-Healing' },
+    ],
+    brings: [
+      'Emotional maturity',
+      'Clarity on what she needs',
+      'No games — only real',
+      'Appreciation without desperation',
+      'Strength that comes from having survived',
+    ],
+    needs: [
+      'Government ID (prove you\'re real)',
+      '5+ photos (prove it\'s really you)',
+      'Q&A responses (prove your readiness)',
+    ],
+    timeMins: 10,
+  },
+
+  // ─── JUST FRIENDS ───────────────────────────────────────────────────────────
+
+  just_friends_man: {
+    id: 'just_friends_man',
+    gender: 'man',
+    emoji: '🤝',
+    name: 'Just-Friends',
+    tag: 'Not looking to date — looking to connect',
+    longTag: 'You\'re not here for romance. You\'re here to find real people — conversations that go somewhere, energy that feels good, zero pressure attached.',
+    matchTraits: [
+      { tier: 'best', lead: true, label: 'Just-Friends Women' },
+      { tier: 'good', label: 'Untouched-Heart Women' },
+      { tier: 'good', label: 'Rebound-Healing Women' },
+    ],
+    avoidTraits: [
+      { label: 'Forever-Focused' },
+      { label: 'Traditional-Matrimony' },
+    ],
+    brings: [
+      'Zero pressure or agenda',
+      'Genuine company',
+      'Platonic loyalty',
+      'Good conversation',
+      'A safe, honest space',
+    ],
+    needs: [
+      'Government ID (prove you\'re real)',
+      '5+ photos (prove it\'s really you)',
+      'Q&A responses (prove your intent)',
+    ],
+    timeMins: 5,
+  },
+
+  just_friends_woman: {
+    id: 'just_friends_woman',
+    gender: 'woman',
+    emoji: '🫂',
+    name: 'Just-Friends',
+    tag: 'Not looking to date — looking to connect',
+    longTag: 'You\'re not here for romance. You want real people to talk to — no chase, no expectations, just good energy and honest connection.',
+    matchTraits: [
+      { tier: 'best', lead: true, label: 'Just-Friends Men' },
+      { tier: 'good', label: 'Untouched-Heart Men' },
+      { tier: 'good', label: 'Rebound-Healing Men' },
+    ],
+    avoidTraits: [
+      { label: 'Forever-Focused' },
+      { label: 'Traditional-Matrimony' },
+    ],
+    brings: [
+      'Zero pressure or hidden agenda',
+      'Warm, genuine company',
+      'Emotional safety',
+      'Real conversation',
+      'Friendship that actually sticks',
+    ],
+    needs: [
+      'Government ID (prove you\'re real)',
+      '5+ photos (prove it\'s really you)',
+      'Q&A responses (prove your intent)',
+    ],
+    timeMins: 5,
+  },
 };
 
 export const MATCH_MATRIX: Record<string, string[]> = {
   // Men → compatible women (best + good fit)
-  casual_generous_man:      ['spoiled_casual_woman', 'rebound_healing_woman', 'hopeless_romantic_woman'],
-  hopeless_romantic_man:    ['hopeless_romantic_woman', 'untouched_heart_woman', 'forever_focused_woman', 'traditional_matrimony_woman'],
-  rebound_healing_man:      ['rebound_healing_woman', 'untouched_heart_woman', 'spoiled_casual_woman'],
-  untouched_heart_man:      ['untouched_heart_woman', 'hopeless_romantic_woman', 'forever_focused_woman'],
-  forever_focused_man:      ['forever_focused_woman', 'traditional_matrimony_woman', 'untouched_heart_woman', 'hopeless_romantic_woman'],
-  traditional_matrimony_man:['forever_focused_woman', 'traditional_matrimony_woman', 'untouched_heart_woman', 'hopeless_romantic_woman'],
+  casual_generous_man:       ['spoiled_casual_woman', 'rebound_healing_woman', 'hopeless_romantic_woman'],
+  hopeless_romantic_man:     ['hopeless_romantic_woman', 'untouched_heart_woman', 'forever_focused_woman', 'traditional_matrimony_woman'],
+  rebound_healing_man:       ['rebound_healing_woman', 'untouched_heart_woman', 'spoiled_casual_woman'],
+  untouched_heart_man:       ['untouched_heart_woman', 'hopeless_romantic_woman', 'forever_focused_woman'],
+  forever_focused_man:       ['forever_focused_woman', 'traditional_matrimony_woman', 'untouched_heart_woman', 'hopeless_romantic_woman'],
+  traditional_matrimony_man: ['forever_focused_woman', 'traditional_matrimony_woman', 'untouched_heart_woman', 'hopeless_romantic_woman'],
+  second_chapter_man:        ['second_chapter_woman', 'traditional_matrimony_woman', 'forever_focused_woman'],
+  just_friends_man:          ['just_friends_woman', 'untouched_heart_woman', 'rebound_healing_woman'],
   // Women → compatible men
   spoiled_casual_woman:        ['casual_generous_man', 'rebound_healing_man'],
   hopeless_romantic_woman:     ['hopeless_romantic_man', 'untouched_heart_man', 'forever_focused_man'],
@@ -408,30 +538,51 @@ export const MATCH_MATRIX: Record<string, string[]> = {
   untouched_heart_woman:       ['untouched_heart_man', 'hopeless_romantic_man', 'forever_focused_man'],
   forever_focused_woman:       ['forever_focused_man', 'traditional_matrimony_man', 'untouched_heart_man', 'hopeless_romantic_man'],
   traditional_matrimony_woman: ['forever_focused_man', 'traditional_matrimony_man', 'hopeless_romantic_man'],
+  second_chapter_woman:        ['second_chapter_man', 'traditional_matrimony_man', 'forever_focused_man'],
+  just_friends_woman:          ['just_friends_man', 'untouched_heart_man', 'rebound_healing_man'],
 };
 
 export const ARCHETYPES_BY_GENDER = {
   man: [
-    'casual_generous_man',
+    'traditional_matrimony_man',
+    'forever_focused_man',
     'hopeless_romantic_man',
+    'second_chapter_man',
+    'casual_generous_man',
     'rebound_healing_man',
     'untouched_heart_man',
-    'forever_focused_man',
-    'traditional_matrimony_man',
+    'just_friends_man',
   ],
   woman: [
-    'spoiled_casual_woman',
+    'traditional_matrimony_woman',
+    'forever_focused_woman',
     'hopeless_romantic_woman',
+    'second_chapter_woman',
+    'spoiled_casual_woman',
     'rebound_healing_woman',
     'untouched_heart_woman',
-    'forever_focused_woman',
-    'traditional_matrimony_woman',
+    'just_friends_woman',
   ],
   prefer_not_to_say: [
-    'casual_generous_man', 'hopeless_romantic_man', 'rebound_healing_man',
-    'untouched_heart_man', 'forever_focused_man', 'traditional_matrimony_man',
-    'spoiled_casual_woman', 'hopeless_romantic_woman', 'rebound_healing_woman',
-    'untouched_heart_woman', 'forever_focused_woman', 'traditional_matrimony_woman',
+    'traditional_matrimony_man', 'forever_focused_man', 'hopeless_romantic_man', 'second_chapter_man',
+    'casual_generous_man', 'rebound_healing_man', 'untouched_heart_man', 'just_friends_man',
+    'traditional_matrimony_woman', 'forever_focused_woman', 'hopeless_romantic_woman', 'second_chapter_woman',
+    'spoiled_casual_woman', 'rebound_healing_woman', 'untouched_heart_woman', 'just_friends_woman',
+  ],
+};
+
+export const ARCHETYPE_SECTIONS: Record<string, { label: string; ids: string[] }[]> = {
+  man: [
+    { label: 'Serious Connection', ids: ['traditional_matrimony_man', 'forever_focused_man', 'hopeless_romantic_man', 'second_chapter_man'] },
+    { label: 'Low-Pressure', ids: ['casual_generous_man', 'rebound_healing_man', 'untouched_heart_man', 'just_friends_man'] },
+  ],
+  woman: [
+    { label: 'Serious Connection', ids: ['traditional_matrimony_woman', 'forever_focused_woman', 'hopeless_romantic_woman', 'second_chapter_woman'] },
+    { label: 'Low-Pressure', ids: ['spoiled_casual_woman', 'rebound_healing_woman', 'untouched_heart_woman', 'just_friends_woman'] },
+  ],
+  prefer_not_to_say: [
+    { label: 'Serious Connection', ids: ['traditional_matrimony_man', 'forever_focused_man', 'hopeless_romantic_man', 'second_chapter_man', 'traditional_matrimony_woman', 'forever_focused_woman', 'hopeless_romantic_woman', 'second_chapter_woman'] },
+    { label: 'Low-Pressure', ids: ['casual_generous_man', 'rebound_healing_man', 'untouched_heart_man', 'just_friends_man', 'spoiled_casual_woman', 'rebound_healing_woman', 'untouched_heart_woman', 'just_friends_woman'] },
   ],
 };
 
