@@ -121,9 +121,10 @@
   }
 
   // Quick-action chips
-  const CHIPS: { label: string; icon: string; intent: 'summary' | 'insights' | 'configure' | 'update_profile' }[] = [
-    { label: 'Summarize my matches', icon: '📋', intent: 'summary' },
+  const CHIPS: { label: string; icon: string; intent: 'summary' | 'insights' | 'configure' | 'update_profile' | 'better_matches' }[] = [
+    { label: 'Summarize matches', icon: '📋', intent: 'summary' },
     { label: 'Fresh insights', icon: '✨', intent: 'insights' },
+    { label: 'How can I get better matches', icon: '💡', intent: 'better_matches' },
     { label: 'Update profile', icon: '✏️', intent: 'update_profile' },
     { label: 'Configure Bestie', icon: '⚙️', intent: 'configure' }
   ];
@@ -201,7 +202,7 @@
 
     // Add user bubble (empty for implicit intents)
     const userContent =
-      opts.intent === 'summary' ? '📋 Summarize my matches'
+      opts.intent === 'summary' ? '📋 Summarize matches'
       : opts.intent === 'insights' ? '✨ Any fresh insights?'
       : text;
 
@@ -306,7 +307,7 @@
     }
   }
 
-  async function handleChip(intent: 'summary' | 'insights' | 'configure' | 'update_profile') {
+  async function handleChip(intent: 'summary' | 'insights' | 'configure' | 'update_profile' | 'better_matches') {
     if (intent === 'configure') {
       goto('/verified-vibe/chat/ai-bestie/configure');
       return;
@@ -318,6 +319,10 @@
         timestamp: new Date()
       }];
       await scrollToBottom();
+      return;
+    }
+    if (intent === 'better_matches') {
+      await send({ text: 'How can I get better matches?' });
       return;
     }
     await send({ intent });
@@ -782,13 +787,11 @@
   /* ── Chips ── */
   .chips-row {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     padding: 8px 16px;
-    overflow-x: auto;
     flex-shrink: 0;
-    scrollbar-width: none;
   }
-  .chips-row::-webkit-scrollbar { display: none; }
 
   .chip {
     display: inline-flex;
@@ -804,7 +807,6 @@
     cursor: pointer;
     white-space: nowrap;
     transition: all 150ms;
-    flex-shrink: 0;
   }
   .chip:hover:not(:disabled) {
     background: rgba(236, 72, 153, 0.18);

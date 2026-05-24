@@ -59,9 +59,10 @@
     }).filter(Boolean).join('');
   }
 
-  const CHIPS: { label: string; icon: string; intent: 'summary' | 'insights' | 'upload' | 'update_profile' }[] = [
-    { label: 'Summarize my matches', icon: '📋', intent: 'summary' },
+  const CHIPS: { label: string; icon: string; intent: 'summary' | 'insights' | 'upload' | 'update_profile' | 'better_matches' }[] = [
+    { label: 'Summarize matches', icon: '📋', intent: 'summary' },
     { label: 'New insights', icon: '⚡', intent: 'insights' },
+    { label: 'How can I get better matches', icon: '💡', intent: 'better_matches' },
     { label: 'Update profile', icon: '✏️', intent: 'update_profile' },
     { label: 'Upload proof', icon: '📸', intent: 'upload' }
   ];
@@ -107,7 +108,7 @@
     feedback = next;
   }
 
-  function handleChip(intent: 'summary' | 'insights' | 'upload' | 'update_profile') {
+  function handleChip(intent: 'summary' | 'insights' | 'upload' | 'update_profile' | 'better_matches') {
     if (intent === 'upload') {
       showUploadSuggestions = !showUploadSuggestions;
       return;
@@ -119,6 +120,10 @@
         timestamp: new Date()
       }];
       scrollToBottom();
+      return;
+    }
+    if (intent === 'better_matches') {
+      send({ text: 'How can I get better matches?' });
       return;
     }
     send({ intent });
@@ -177,7 +182,7 @@
     sending = true;
 
     const userContent =
-      opts.intent === 'summary' ? '📋 Summarize my matches'
+      opts.intent === 'summary' ? '📋 Summarize matches'
       : opts.intent === 'insights' ? '⚡ Any new insights?'
       : text;
 
@@ -577,13 +582,11 @@
   /* Chips */
   .chips-row {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     padding: 10px 16px 6px;
-    overflow-x: auto;
     flex-shrink: 0;
-    -webkit-overflow-scrolling: touch;
   }
-  .chips-row::-webkit-scrollbar { display: none; }
 
   .chip {
     padding: 7px 14px;
