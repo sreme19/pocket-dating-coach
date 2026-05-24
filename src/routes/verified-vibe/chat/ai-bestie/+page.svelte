@@ -786,12 +786,17 @@
 
   /* ── Chips ── */
   .chips-row {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-rows: repeat(2, auto);
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
     gap: 8px;
     padding: 8px 16px;
+    overflow-x: auto;
     flex-shrink: 0;
+    scrollbar-width: none;
   }
+  .chips-row::-webkit-scrollbar { display: none; }
 
   .chip {
     display: inline-flex;
