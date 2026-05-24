@@ -372,38 +372,24 @@ async function handleSpendingVerification(spendingImageBase64: string, mimeType:
 }
 
 /**
- * Handle Q&A verification for women
+ * Handle Q&A verification — saves preference responses without AI gating.
+ * The purpose of Q&A is to collect dating preferences, not to approve/reject
+ * users based on answer quality, so we skip the Claude evaluation entirely.
  */
 async function handleQAVerification(responses: Record<string, string>, gender: string, userId: string | null = null) {
   try {
-    const skipVerification = import.meta.env.VITE_SKIP_VERIFICATION === 'true';
-    const evaluationResult = skipVerification
-      ? { satisfactory: true, confidence: 0.99, reasoning: 'Bypassed in dev mode' }
-      : await evaluateQAResponsesWithClaude(responses, gender as 'man' | 'woman' | 'prefer_not_to_say');
-
-    // If Q&A is not satisfactory, return error
-    if (!evaluationResult.satisfactory) {
-      return json(
-        {
-          status: 'failed',
-          data: {
-            satisfactory: false,
-            confidence: evaluationResult.confidence,
-            reasoning: evaluationResult.reasoning
-          },
-          trustPoints: 0
-        },
-        { status: 400 }
-      );
+    const hasResponses = responses && typeof responses === 'object' && Object.keys(responses).length > 0;
+    if (!hasResponses) {
+      return json({ error: 'Q&A responses are required' }, { status: 400 });
     }
 
-    // Q&A is satisfactory
     const trustPoints = getTrustPoints('spending_or_qa');
     const stepData = {
       type: 'qa',
       satisfactory: true,
-      confidence: evaluationResult.confidence,
-      reasoning: evaluationResult.reasoning
+      confidence: 100,
+      reasoning: 'Responses collected',
+      responses
     };
 
     if (userId) {
@@ -412,26 +398,13 @@ async function handleQAVerification(responses: Record<string, string>, gender: s
 
     return json({
       status: 'completed',
-      data: { ...stepData, responses },
+      data: stepData,
       trustPoints,
       createdAt: new Date().toISOString()
     }, { status: 201 });
   } catch (error) {
     console.error('Q&A verification error:', error);
-
-    if (error instanceof Error) {
-      if (error.message.includes('API')) {
-        return json(
-          { error: 'Service temporarily unavailable. Please try again.' },
-          { status: 503 }
-        );
-      }
-    }
-
-    return json(
-      { error: 'Failed to verify Q&A responses. Please try again.' },
-      { status: 500 }
-    );
+    return json({ error: 'Failed to save Q&A responses. Please try again.' }, { status: 500 });
   }
 }
 
