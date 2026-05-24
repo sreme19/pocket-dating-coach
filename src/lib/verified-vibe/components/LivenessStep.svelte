@@ -1,5 +1,6 @@
 <script lang="ts">
   import { fade, slide, scale } from 'svelte/transition';
+  import { tick } from 'svelte';
   import type { LivenessCheckResult } from '../types';
 
   /**
@@ -94,16 +95,25 @@
    * Start camera capture
    */
   async function startCamera() {
+    error = null;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user' }
+        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
       });
+      // Render the video element first, then wire up the stream
+      cameraActive = true;
+      await tick();
       if (videoElement) {
         videoElement.srcObject = stream;
-        cameraActive = true;
+        await videoElement.play().catch(() => {});
       }
-    } catch (err) {
-      error = 'Unable to access camera. Please check permissions.';
+    } catch (err: any) {
+      cameraActive = false;
+      error = err?.name === 'NotAllowedError'
+        ? 'Camera permission denied. Please allow camera access and try again.'
+        : err?.name === 'NotFoundError'
+        ? 'No camera found on this device.'
+        : 'Unable to access camera. Use "Upload Photo" instead.';
     }
   }
 
