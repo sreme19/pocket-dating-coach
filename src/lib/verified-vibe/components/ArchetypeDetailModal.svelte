@@ -124,7 +124,7 @@
 
       <div class="sheet-footer">
         <button class="lock-btn" onclick={onLockIn}>
-          I'm a {archetype.name} — Let's go →
+          I'm a {archetype.name} {(archetype.gender ?? (archetype.id?.includes('_man') ? 'man' : 'woman')) === 'man' ? 'Man' : 'Woman'} — Let's go →
         </button>
       </div>
     </div>

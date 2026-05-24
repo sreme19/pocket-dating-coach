@@ -73,8 +73,12 @@
     'Real opinions, gently held'
   ];
 
-  // Pick Your Lane (archetype) — editable, male-gated
-  const laneOptions = ARCHETYPES_BY_GENDER.man.map(id => ARCHETYPES[id]).filter(Boolean);
+  // Pick Your Lane (archetype) — editable, reactive to the user's gender
+  const laneOptions = $derived(
+    (ARCHETYPES_BY_GENDER[$user?.gender as keyof typeof ARCHETYPES_BY_GENDER] ?? ARCHETYPES_BY_GENDER.man)
+      .map(id => ARCHETYPES[id])
+      .filter(Boolean)
+  );
   let editingLane   = $state(false);
   let selectedLane  = $state<string>('');
   let savingLane    = $state(false);
@@ -642,7 +646,7 @@
       {/if}
 
       <!-- Pick Your Lane -->
-      {#if $user?.gender === 'man' || $user?.gender === null}
+      {#if $user?.gender !== null}
       <section class="section">
         <div class="section-label">
           <Heart size={13} />
