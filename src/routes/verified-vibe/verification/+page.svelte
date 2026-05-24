@@ -104,7 +104,7 @@
     verificationStep.subscribe(step => {
       currentStep = step;
     });
-    
+
     verificationProgress.subscribe(progress => {
       // Update completed steps based on progress
       const stepsCompleted = Math.floor((progress / 100) * totalSteps);
@@ -112,6 +112,20 @@
         completedSteps.add(i);
       }
     });
+
+    // Retry flushing pending gender/archetype in case the auth-page upsert
+    // lost the session-propagation race on first sign-up.
+    const pendingGender    = localStorage.getItem('verified_vibe_pending_gender');
+    const pendingArchetype = localStorage.getItem('verified_vibe_pending_archetype');
+    if (pendingGender || pendingArchetype) {
+      upsertProfile({
+        ...(pendingGender    ? { gender:    pendingGender    as any } : {}),
+        ...(pendingArchetype ? { archetype: pendingArchetype as any } : {})
+      }).then(() => {
+        localStorage.removeItem('verified_vibe_pending_gender');
+        localStorage.removeItem('verified_vibe_pending_archetype');
+      }).catch(e => console.error('[verify] pending profile flush failed:', e));
+    }
   });
 
   async function handleIDSubmit(data: { idImage: string; mimeType: string }) {
