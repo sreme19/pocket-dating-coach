@@ -1,23 +1,32 @@
-<script lang="ts">
-  interface Profile {
+<script lang="ts" module>
+  export interface SeedCarouselProfile {
     id: string;
     name: string;
     age: number;
-    avatar: string;
-    title: string;
+    gender: 'man' | 'woman';
+    archetypeId: string;
+    photoUrl: string;
+    bio: string;
     isOnline: boolean;
-    lastActiveTime?: string;
+    lastActive: string;
   }
+</script>
+
+<script lang="ts">
+  import ProfilePreviewSheet from './ProfilePreviewSheet.svelte';
 
   interface Props {
     viewerGender?: 'man' | 'woman' | 'prefer_not_to_say' | null;
+    showMixed?: boolean;
+    redirectTo?: string;
     title?: string;
     subtitle?: string;
   }
 
-  let { viewerGender = null, title, subtitle }: Props = $props();
+  let { viewerGender = null, showMixed = false, redirectTo, title, subtitle }: Props = $props();
 
-  // Read gender from localStorage if not passed as prop
+  let openedProfile = $state<SeedCarouselProfile | null>(null);
+
   const resolvedGender = $derived.by(() => {
     if (viewerGender) return viewerGender;
     if (typeof window !== 'undefined') {
@@ -26,37 +35,178 @@
     return 'man';
   });
 
-  const womenProfiles: Profile[] = [
-    { id: 'w1', name: 'Iris',   age: 24, avatar: '👩‍⚕️', title: 'Med student',       isOnline: true,  lastActiveTime: '1h ago'   },
-    { id: 'w2', name: 'Camille',age: 29, avatar: '👩‍⚖️', title: 'Lawyer',            isOnline: true,  lastActiveTime: 'just now' },
-    { id: 'w3', name: 'Noor',   age: 26, avatar: '👩‍🎨', title: 'Designer',          isOnline: true,  lastActiveTime: 'just now' },
-    { id: 'w4', name: 'Lena',   age: 27, avatar: '👩‍💼', title: 'Brand strategist',  isOnline: true,  lastActiveTime: '1h ago'   },
-    { id: 'w5', name: 'Talia',  age: 30, avatar: '👩‍💻', title: 'VC analyst',        isOnline: false, lastActiveTime: '1d ago'   },
-    { id: 'w6', name: 'Reyna',  age: 25, avatar: '🎭',   title: 'Fashion buyer',    isOnline: true,  lastActiveTime: 'just now' },
-    { id: 'w7', name: 'Zara',   age: 28, avatar: '👩‍🔬', title: 'Biotech founder',  isOnline: true,  lastActiveTime: '20m ago'  },
-    { id: 'w8', name: 'Sofia',  age: 31, avatar: '🎨',   title: 'Creative director', isOnline: false, lastActiveTime: '3h ago'   },
+  // ── Seed profile data ────────────────────────────────────────────────────
+
+  const womenProfiles: SeedCarouselProfile[] = [
+    {
+      id: 'anjali',
+      name: 'Anjali', age: 25, gender: 'woman',
+      archetypeId: 'traditional_matrimony_woman',
+      photoUrl: '/female_profiles/anjali_Traditional_Family_First_g3s7mn/photos/Anjali_1.jpg',
+      bio: 'Pharmacist. Family-first, not by default — by choice. Looking for the real thing.',
+      isOnline: true, lastActive: 'online',
+    },
+    {
+      id: 'sarah',
+      name: 'Sarah', age: 24, gender: 'woman',
+      archetypeId: 'forever_focused_woman',
+      photoUrl: '/female_profiles/sarah_Tech_Founder_045db3/photos/Sarah_1.jpg',
+      bio: 'Tech founder. Knows what she\'s building and who belongs in it.',
+      isOnline: true, lastActive: 'online',
+    },
+    {
+      id: 'emma',
+      name: 'Emma', age: 27, gender: 'woman',
+      archetypeId: 'hopeless_romantic_woman',
+      photoUrl: '/female_profiles/emma_Outdoorsy_Adventure_w9d4cs/photos/Emma_1.jpg',
+      bio: 'Adventure first, love second — but she feels everything. Don\'t mistake softness for naivety.',
+      isOnline: false, lastActive: '2h ago',
+    },
+    {
+      id: 'jessica',
+      name: 'Jessica', age: 28, gender: 'woman',
+      archetypeId: 'forever_focused_woman',
+      photoUrl: '/female_profiles/jessica_Ambitious_Professional_e89f0f/photos/Jessica_3.jpg',
+      bio: 'Corporate lawyer. Sharp, intentional, done with maybes.',
+      isOnline: true, lastActive: 'online',
+    },
+    {
+      id: 'deepa',
+      name: 'Deepa', age: 33, gender: 'woman',
+      archetypeId: 'hopeless_romantic_woman',
+      photoUrl: '/female_profiles/deepa_Older_Dater_o1m4ft/photos/Deepa_1.jpg',
+      bio: 'Doctor. Older and wiser — still believes in the real thing.',
+      isOnline: false, lastActive: '45m ago',
+    },
+    {
+      id: 'lauren',
+      name: 'Lauren', age: 29, gender: 'woman',
+      archetypeId: 'forever_focused_woman',
+      photoUrl: '/female_profiles/lauren_Ambitious_Corporate_c7f2nx/photos/Lauren_5.jpg',
+      bio: 'Strategy consultant. Knows her worth and won\'t negotiate down.',
+      isOnline: true, lastActive: 'online',
+    },
+    {
+      id: 'neha',
+      name: 'Neha', age: 29, gender: 'woman',
+      archetypeId: 'traditional_matrimony_woman',
+      photoUrl: '/female_profiles/neha_NRI_Diaspora_x5r2vd/photos/Neha_1.jpg',
+      bio: 'London-based NRI. Navigating tradition and modernity on her own terms.',
+      isOnline: false, lastActive: '3h ago',
+    },
+    {
+      id: 'priya',
+      name: 'Priya', age: 30, gender: 'woman',
+      archetypeId: 'forever_focused_woman',
+      photoUrl: '/female_profiles/priya_High_Value_Feminist_f2k7zt/photos/Priya_2.jpg',
+      bio: 'UX researcher. Feminist who still wants the fairytale — without the compromise.',
+      isOnline: true, lastActive: 'online',
+    },
+    {
+      id: 'zara',
+      name: 'Zara', age: 26, gender: 'woman',
+      archetypeId: 'spoiled_casual_woman',
+      photoUrl: '/female_profiles/zara_Soft_Life_Seeker_m4p9rx/photos/fenomen-zara-1.jpg',
+      bio: 'Lifestyle curator. Good taste, no pressure, won\'t apologise for either.',
+      isOnline: true, lastActive: 'online',
+    },
+    {
+      id: 'diana',
+      name: 'Diana', age: 35, gender: 'woman',
+      archetypeId: 'forever_focused_woman',
+      photoUrl: '/female_profiles/diana_Fiercely_Independent_c4h9pw/photos/Diana_1.jpg',
+      bio: 'Creative director. Independent by design — but ready to let the right person in.',
+      isOnline: false, lastActive: '1h ago',
+    },
   ];
 
-  const menProfiles: Profile[] = [
-    { id: 'm1', name: 'Marcus', age: 34, avatar: '👨‍💼', title: 'Private equity',    isOnline: true,  lastActiveTime: 'just now' },
-    { id: 'm2', name: 'Elliot', age: 31, avatar: '👨‍🍳', title: 'Restaurant owner', isOnline: true,  lastActiveTime: '30m ago'  },
-    { id: 'm3', name: 'James',  age: 38, avatar: '👨‍⚖️', title: 'Attorney',         isOnline: true,  lastActiveTime: 'just now' },
-    { id: 'm4', name: 'Kai',    age: 29, avatar: '👨‍🚀', title: 'Aerospace eng.',   isOnline: false, lastActiveTime: '2h ago'   },
-    { id: 'm5', name: 'Darius', age: 36, avatar: '👨‍🎤', title: 'Music producer',   isOnline: true,  lastActiveTime: 'just now' },
-    { id: 'm6', name: 'Theo',   age: 32, avatar: '👨‍💻', title: 'Tech founder',     isOnline: true,  lastActiveTime: '45m ago'  },
-    { id: 'm7', name: 'Nico',   age: 33, avatar: '👨‍🎨', title: 'Creative dir.',    isOnline: false, lastActiveTime: '4h ago'   },
-    { id: 'm8', name: 'Ruben',  age: 37, avatar: '🏋️',   title: 'Sports agent',    isOnline: true,  lastActiveTime: '10m ago'  },
+  const menProfiles: SeedCarouselProfile[] = [
+    {
+      id: 'daniel',
+      name: 'Daniel', age: 35, gender: 'man',
+      archetypeId: 'hopeless_romantic_man',
+      photoUrl: '/male_profiles/daniel_Emotionally_Available_v2r6ys/photos/Daniel_5.jpg',
+      bio: 'Marketing director. Emotionally available — genuinely, not just in theory.',
+      isOnline: true, lastActive: 'online',
+    },
+    {
+      id: 'ethan',
+      name: 'Ethan', age: 29, gender: 'man',
+      archetypeId: 'hopeless_romantic_man',
+      photoUrl: '/male_profiles/ethan_Golden_Retriever_q7n5wc/photos/Ethan_1.jpg',
+      bio: 'Startup co-founder. Thinks deeply, shows up fully, no games in him.',
+      isOnline: true, lastActive: 'online',
+    },
+    {
+      id: 'greg',
+      name: 'Greg', age: 42, gender: 'man',
+      archetypeId: 'casual_generous_man',
+      photoUrl: '/male_profiles/greg_Casually_Ambitious_m6x2vt/photos/Greg_3.jpg',
+      bio: 'Sales exec. Established, generous, still chasing experiences over labels.',
+      isOnline: false, lastActive: '30m ago',
+    },
+    {
+      id: 'karan',
+      name: 'Karan', age: 34, gender: 'man',
+      archetypeId: 'forever_focused_man',
+      photoUrl: '/male_profiles/karan_Progressive_Traditional_u9j5ql/photos/Karan_5.jpg',
+      bio: 'PM at a unicorn. Knows exactly what he\'s building — in work and in love.',
+      isOnline: true, lastActive: 'online',
+    },
+    {
+      id: 'ryan',
+      name: 'Ryan', age: 31, gender: 'man',
+      archetypeId: 'casual_generous_man',
+      photoUrl: '/male_profiles/ryan_Serial_Dater_f4m2px/photos/Ryan_1.jpg',
+      bio: 'Banker. Fun, present, honest about what this is and what it isn\'t.',
+      isOnline: true, lastActive: 'online',
+    },
+    {
+      id: 'michael',
+      name: 'Michael', age: 44, gender: 'man',
+      archetypeId: 'rebound_healing_man',
+      photoUrl: '/male_profiles/michael_Perpetually_Busy_a4s9uf/photos/Michael_5.jpg',
+      bio: 'Architect. Survived a marriage, learned from it, rebuilding intentionally.',
+      isOnline: false, lastActive: '2h ago',
+    },
+    {
+      id: 'john',
+      name: 'John', age: 26, gender: 'man',
+      archetypeId: 'untouched_heart_man',
+      photoUrl: '/male_profiles/john_Young_Student_nsysor/photos/John_1.jpg',
+      bio: 'Postgrad. Hasn\'t done this much — brings exactly that energy. Zero baggage.',
+      isOnline: false, lastActive: '4h ago',
+    },
   ];
+
+  // Interleave women + men for the mixed view on the gate page
+  const mixedProfiles: SeedCarouselProfile[] = (() => {
+    const result: SeedCarouselProfile[] = [];
+    const w = [...womenProfiles];
+    const m = [...menProfiles];
+    const len = Math.max(w.length, m.length);
+    for (let i = 0; i < len; i++) {
+      if (w[i]) result.push(w[i]);
+      if (m[i]) result.push(m[i]);
+    }
+    return result;
+  })();
 
   const profiles = $derived(
-    resolvedGender === 'woman' ? menProfiles : womenProfiles
+    showMixed
+      ? mixedProfiles
+      : resolvedGender === 'woman' ? menProfiles : womenProfiles
   );
 
   const displayTitle = $derived(
-    title ?? (resolvedGender === 'woman' ? 'Verified Men Online Now' : 'Verified Women Online Now')
+    title ?? (showMixed
+      ? 'Verified Members Online Now'
+      : resolvedGender === 'woman' ? 'Verified Men Online Now' : 'Verified Women Online Now')
   );
-
-  const displaySubtitle = $derived(subtitle ?? '6 live · 10 today');
+  const displaySubtitle = $derived(subtitle ?? (() => {
+    const online = profiles.filter(p => p.isOnline).length;
+    return `${online} live · ${profiles.length} today`;
+  })());
 
   // Duplicate for seamless loop
   const loopProfiles = $derived([...profiles, ...profiles]);
@@ -74,19 +224,25 @@
   <div class="track-wrapper">
     <div class="track">
       {#each loopProfiles as profile, i (`${profile.id}-${i}`)}
-        <div class="avatar-item">
+        <button
+          class="avatar-item"
+          onclick={() => { openedProfile = profile; }}
+          aria-label="View {profile.name}'s profile"
+        >
           <div class="avatar-wrap">
-            <div class="avatar">{profile.avatar}</div>
+            <img
+              src={profile.photoUrl}
+              alt={profile.name}
+              class="avatar-img"
+              loading="lazy"
+            />
             <div class="status-dot" class:online={profile.isOnline}></div>
           </div>
           <span class="profile-name">{profile.name} {profile.age}</span>
-          <span class="profile-title">{profile.title}</span>
-          {#if profile.lastActiveTime}
-            <span class="profile-time" class:online={profile.isOnline}>
-              {profile.isOnline ? '● ' : '● '}{profile.lastActiveTime}
-            </span>
-          {/if}
-        </div>
+          <span class="profile-time" class:online={profile.isOnline}>
+            ● {profile.isOnline ? 'Online' : profile.lastActive}
+          </span>
+        </button>
       {/each}
     </div>
   </div>
@@ -95,10 +251,16 @@
     <span class="footer-icon">⚡</span>
     <p class="footer-text">
       Finish onboarding and you'll be speaking to a few of them
-      <em class="highlight"> within 30 minutes.</em>
+      <em class="highlight"> within 20 minutes.</em>
     </p>
   </div>
 </div>
+
+<ProfilePreviewSheet
+  profile={openedProfile}
+  onClose={() => { openedProfile = null; }}
+  {redirectTo}
+/>
 
 <style>
   .carousel-container {
@@ -149,7 +311,8 @@
     color: var(--text-3);
   }
 
-  /* Infinite scroll track */
+  /* ── Infinite scroll track ─────────────────────────────────────────────── */
+
   .track-wrapper {
     overflow: hidden;
     padding: 12px 0;
@@ -157,10 +320,10 @@
 
   .track {
     display: flex;
-    gap: 20px;
+    gap: 16px;
     width: max-content;
     padding: 0 16px;
-    animation: scroll 22s linear infinite;
+    animation: scroll 28s linear infinite;
   }
 
   .track:hover {
@@ -176,6 +339,8 @@
     .track { animation: none; }
   }
 
+  /* ── Avatar item ───────────────────────────────────────────────────────── */
+
   .avatar-item {
     display: flex;
     flex-direction: column;
@@ -183,24 +348,38 @@
     gap: 5px;
     flex-shrink: 0;
     width: 72px;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .avatar-item:active .avatar-wrap {
+    transform: scale(0.93);
   }
 
   .avatar-wrap {
     position: relative;
-    width: 62px;
-    height: 62px;
+    width: 64px;
+    height: 64px;
+    transition: transform 160ms ease;
   }
 
-  .avatar {
+  .avatar-img {
     width: 100%;
     height: 100%;
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent-tint), var(--bg-3));
-    border: 2px solid var(--border-2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 30px;
+    object-fit: cover;
+    object-position: top center;
+    border: 2.5px solid var(--border-2);
+    display: block;
+  }
+
+  .avatar-item:active .avatar-img,
+  .avatar-item:focus-visible .avatar-img {
+    border-color: var(--accent-bright);
   }
 
   .status-dot {
@@ -227,16 +406,6 @@
     text-align: center;
   }
 
-  .profile-title {
-    font-size: 10px;
-    color: var(--text-3);
-    white-space: nowrap;
-    text-align: center;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 72px;
-  }
-
   .profile-time {
     font-size: 10px;
     color: var(--text-4);
@@ -246,6 +415,8 @@
   .profile-time.online {
     color: var(--accent-bright);
   }
+
+  /* ── Footer ────────────────────────────────────────────────────────────── */
 
   .carousel-footer {
     display: flex;

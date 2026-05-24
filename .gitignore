@@ -37,3 +37,6 @@ android/app/release.keystore
 # Firebase config (contains project-specific keys, should not be committed)
 google-services.json
 android/app/google-services.json
+
+# Kiro MCP settings (contains API tokens)
+.kiro/settings/mcp.json
