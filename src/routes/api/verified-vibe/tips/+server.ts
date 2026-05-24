@@ -107,5 +107,3 @@ export const GET: RequestHandler = async ({ url }) => {
     return json({ error: 'Internal server error' }, { status: 500 });
   }
 };
-
-export { VALID_TAGS_BY_GENDER };
