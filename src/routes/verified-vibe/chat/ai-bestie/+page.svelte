@@ -121,9 +121,10 @@
   }
 
   // Quick-action chips
-  const CHIPS: { label: string; icon: string; intent: 'summary' | 'insights' | 'configure' }[] = [
+  const CHIPS: { label: string; icon: string; intent: 'summary' | 'insights' | 'configure' | 'update_profile' }[] = [
     { label: 'Summarize my matches', icon: '📋', intent: 'summary' },
     { label: 'Fresh insights', icon: '✨', intent: 'insights' },
+    { label: 'Update profile', icon: '✏️', intent: 'update_profile' },
     { label: 'Configure Bestie', icon: '⚙️', intent: 'configure' }
   ];
 
@@ -305,9 +306,18 @@
     }
   }
 
-  async function handleChip(intent: 'summary' | 'insights' | 'configure') {
+  async function handleChip(intent: 'summary' | 'insights' | 'configure' | 'update_profile') {
     if (intent === 'configure') {
       goto('/verified-vibe/chat/ai-bestie/configure');
+      return;
+    }
+    if (intent === 'update_profile') {
+      messages = [...messages, {
+        role: 'assistant',
+        content: "I can update your profile from here. You can change your name, city, bio, what you're looking for, your lane, and your photos. What would you like to change?",
+        timestamp: new Date()
+      }];
+      await scrollToBottom();
       return;
     }
     await send({ intent });

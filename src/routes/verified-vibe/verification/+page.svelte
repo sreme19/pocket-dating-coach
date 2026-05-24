@@ -331,7 +331,8 @@
           data: {
             spendingImage: data.spendingImage,
             mimeType: data.mimeType,
-            gender: $user?.gender
+            gender: $user?.gender,
+            archetype: $user?.archetype
           }
         })
       });
@@ -395,7 +396,8 @@
           step: 'spending_or_qa',
           data: {
             responses: data.responses,
-            gender: $user?.gender
+            gender: $user?.gender,
+            archetype: $user?.archetype
           }
         })
       });
@@ -733,7 +735,7 @@
           onCancel={handleBack}
         />
       {:else if currentStep === 4}
-        {#if $user?.gender === 'man'}
+        {#if $user?.archetype === 'casual_generous_man'}
           <SpendingUploadStep
             onSubmit={handleSpendingSubmit}
             onCancel={handleBack}
@@ -741,6 +743,7 @@
         {:else}
           <SpendingQAStep
             gender={$user?.gender}
+            archetype={$user?.archetype}
             onSubmit={handleQASubmit}
             onCancel={handleBack}
           />

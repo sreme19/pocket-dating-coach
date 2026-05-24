@@ -265,21 +265,20 @@ async function handleSpendingOrQAVerification(data: any, userId: string | null =
       );
     }
 
-    // Determine verification type based on gender
-    const isMale = gender === 'man';
+    // Spending upload only for casual_generous_man — everyone else does Q&A
+    const needsSpendingProof = data.archetype === 'casual_generous_man';
 
-    if (isMale) {
-      // Spending verification for men
+    if (needsSpendingProof) {
       if (!spendingImage) {
         return json(
-          { error: 'Spending image is required for men' },
+          { error: 'Spending image is required for this archetype' },
           { status: 400 }
         );
       }
 
       return await handleSpendingVerification(spendingImage, mimeType, userId);
     } else {
-      // Q&A verification for women and prefer_not_to_say
+      // Q&A for all other archetypes
       if (!responses || typeof responses !== 'object') {
         return json(
           { error: 'Q&A responses are required' },

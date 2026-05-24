@@ -59,9 +59,10 @@
     }).filter(Boolean).join('');
   }
 
-  const CHIPS: { label: string; icon: string; intent: 'summary' | 'insights' | 'upload' }[] = [
+  const CHIPS: { label: string; icon: string; intent: 'summary' | 'insights' | 'upload' | 'update_profile' }[] = [
     { label: 'Summarize my matches', icon: '📋', intent: 'summary' },
     { label: 'New insights', icon: '⚡', intent: 'insights' },
+    { label: 'Update profile', icon: '✏️', intent: 'update_profile' },
     { label: 'Upload proof', icon: '📸', intent: 'upload' }
   ];
 
@@ -106,9 +107,18 @@
     feedback = next;
   }
 
-  function handleChip(intent: 'summary' | 'insights' | 'upload') {
+  function handleChip(intent: 'summary' | 'insights' | 'upload' | 'update_profile') {
     if (intent === 'upload') {
       showUploadSuggestions = !showUploadSuggestions;
+      return;
+    }
+    if (intent === 'update_profile') {
+      messages = [...messages, {
+        role: 'assistant',
+        content: "You can update your profile from here — name, city, bio, what you're looking for, your lane, and your photos. What do you want to change?",
+        timestamp: new Date()
+      }];
+      scrollToBottom();
       return;
     }
     send({ intent });
