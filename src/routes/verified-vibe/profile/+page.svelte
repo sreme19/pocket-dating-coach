@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { user, userVerification, storesHydrated } from '$lib/verified-vibe/stores';
+  import { user, userVerification, storesHydrated, clearAllStores } from '$lib/verified-vibe/stores';
   import { calculateTrustScore, getTrustScoreLabel } from '$lib/verified-vibe/server/trustScore';
   import { upsertProfile } from '$lib/verified-vibe/services/profileService';
   import { getSupabaseClient } from '$lib/client/supabase';
@@ -42,7 +42,7 @@
   let enhancing = $state(false);
   let enhanceError = $state<string | null>(null);
   let generationProgress = $state(0); // 0-5 for number of photos generated
-  let generatingField = $state<'personality' | 'looking' | 'lifestyle' | null>(null);
+  let generatingField = $state<'about' | 'personality' | 'looking' | 'lifestyle' | null>(null);
 
   // Personality reads data
   interface PersonalityRead {
@@ -195,14 +195,11 @@
 
   async function handleSignOut() {
     try {
-      // Unregister push notifications first (needs active session for backend call)
-      // This also clears WebView cookies, localStorage, and sessionStorage
       await unregisterPushNotifications();
-
       const supabase = getSupabaseClient();
       await supabase.auth.signOut();
-      // Redirect to auth page
-      await goto('/verified-vibe/auth');
+      clearAllStores();
+      await goto('/verified-vibe/auth?mode=signin');
     } catch (err) {
       console.error('Sign out error:', err);
       alert('Failed to sign out');
@@ -387,7 +384,7 @@
   }
 
   // ── Auto-fill ──────────────────────────────────────────────────────────────
-  async function autoFill(field: 'personality' | 'looking' | 'lifestyle') {
+  async function autoFill(field: 'about' | 'personality' | 'looking' | 'lifestyle') {
     if (generatingField) return;
     generatingField = field;
 
@@ -409,11 +406,14 @@
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error ?? 'Failed');
 
-      const items = (data.value as string).split(',').map((s: string) => s.trim()).filter(Boolean);
-
-      if (field === 'personality') editTags = items.slice(0, 3);
-      else if (field === 'looking')  editIntent = items.slice(0, 6);
-      else                           editLifestyle = items.slice(0, 6);
+      if (field === 'about') {
+        editAbout = (data.value as string).trim();
+      } else {
+        const items = (data.value as string).split(',').map((s: string) => s.trim()).filter(Boolean);
+        if (field === 'personality') editTags = items.slice(0, 3);
+        else if (field === 'looking')  editIntent = items.slice(0, 6);
+        else                           editLifestyle = items.slice(0, 6);
+      }
     } catch (err) {
       console.warn('[auto-fill]', err);
     } finally {
@@ -556,12 +556,22 @@
           {/if}
         </div>
         {#if mode === 'enhance'}
-          <textarea
-            class="edit-textarea"
-            rows="4"
-            bind:value={editAbout}
-            placeholder="Write something about yourself..."
-          ></textarea>
+          <div class="about-edit-wrap">
+            <textarea
+              class="edit-textarea"
+              rows="4"
+              bind:value={editAbout}
+              placeholder="Write something about yourself..."
+            ></textarea>
+            <button
+              class="autofill-about-btn"
+              onclick={() => autoFill('about')}
+              disabled={generatingField !== null}
+              title="Auto-generate bio with AI"
+            >
+              {generatingField === 'about' ? '...' : '✨ Auto fill'}
+            </button>
+          </div>
         {:else}
           <p class="about-text">{about || 'Your story goes here.'}</p>
         {/if}
@@ -2522,6 +2532,34 @@
 
   .edit-textarea:focus {
     outline: none;
+  }
+
+  .about-edit-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .autofill-about-btn {
+    align-self: flex-end;
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px solid var(--accent-bright);
+    border-radius: 8px;
+    color: var(--accent-bright);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 150ms ease;
+  }
+
+  .autofill-about-btn:hover:not(:disabled) {
+    background: var(--accent-tint);
+  }
+
+  .autofill-about-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .edit-input {

@@ -13,6 +13,12 @@
   let hydrationComplete = $state(false);
   let pathname = $derived($page.url.pathname);
 
+  const ONBOARDING_PATHS = ['/verified-vibe/gate', '/verified-vibe/home', '/verified-vibe/verify', '/verified-vibe/verification'];
+  const showBottomNav = $derived(
+    !ONBOARDING_PATHS.some(p => pathname === p || pathname.startsWith(p + '/')) &&
+    !pathname.match(/^\/verified-vibe\/chat\/.+/)
+  );
+
   // ── Hydration ────────────────────────────────────────────────────────────────
   // On mount, hydrate stores from Supabase (if authenticated) or localStorage (pre-auth)
   onMount(async () => {
@@ -78,8 +84,8 @@
   </div>
   {/key}
 
-  <!-- Bottom navigation (only in app phase, never on individual conversation pages) -->
-  {#if $currentPhase === 'app' && !$page.url.pathname.match(/^\/verified-vibe\/chat\/.+/)}
+  <!-- Bottom navigation (hidden only during early onboarding and individual chat pages) -->
+  {#if showBottomNav}
     <nav class="verified-vibe-bottomnav" transition:slide={{ duration: 300, axis: 'y' }}>
       {#each navItems as item}
         {@const active = pathname.startsWith(`/verified-vibe/${item.tab}`)}

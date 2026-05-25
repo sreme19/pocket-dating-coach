@@ -48,21 +48,18 @@
   function processFiles(files: File[]) {
     error = null;
 
-    // Validate file types
     const invalidFiles = files.filter(f => !f.type.startsWith('image/'));
     if (invalidFiles.length > 0) {
       error = 'Please upload only image files';
       return;
     }
 
-    // Validate file sizes
     const oversizedFiles = files.filter(f => f.size > MAX_FILE_SIZE);
     if (oversizedFiles.length > 0) {
       error = 'Some files exceed 5MB limit';
       return;
     }
 
-    // Validate minimum photos
     if (files.length < MIN_PHOTOS) {
       error = `Please upload at least ${MIN_PHOTOS} photos`;
       return;
@@ -70,28 +67,19 @@
 
     uploadedFiles = files;
     previewUrls = [];
-    photoLabels = {};
+    // Auto-assign labels in order
+    photoLabels = Object.fromEntries(files.map((_, i) => [i, PHOTO_LABELS[i] ?? `photo-${i + 1}`]));
 
-    // Create previews
     files.forEach((file, index) => {
       const reader = new FileReader();
       reader.onload = (e) => {
         previewUrls[index] = e.target?.result as string;
-        previewUrls = previewUrls; // Trigger reactivity
+        previewUrls = previewUrls;
       };
       reader.readAsDataURL(file);
     });
 
     step = 'label';
-  }
-
-  function updateLabel(index: number, label: string) {
-    photoLabels[index] = label;
-    photoLabels = photoLabels; // Trigger reactivity
-  }
-
-  function isLabelComplete(): boolean {
-    return uploadedFiles.length > 0 && uploadedFiles.every((_, i) => photoLabels[i]);
   }
 
   async function handleSubmit() {
@@ -213,21 +201,7 @@
                 <img src={previewUrls[index]} alt="Photo {index + 1}" />
               {/if}
             </div>
-            <div class="photo-label-select">
-              <label for="label-{index}" class="label-text">Photo {index + 1}</label>
-              <select
-                id="label-{index}"
-                class="label-select"
-                value={photoLabels[index] || ''}
-                onchange={(e) => updateLabel(index, e.currentTarget.value)}
-                disabled={loading}
-              >
-                <option value="">Select label...</option>
-                {#each PHOTO_LABELS as label}
-                  <option value={label}>{label.charAt(0).toUpperCase() + label.slice(1)}</option>
-                {/each}
-              </select>
-            </div>
+            <p class="photo-auto-label">{(PHOTO_LABELS[index] ?? `photo-${index + 1}`).charAt(0).toUpperCase() + (PHOTO_LABELS[index] ?? `photo-${index + 1}`).slice(1)}</p>
           </div>
         {/each}
       </div>
@@ -254,15 +228,15 @@
         <button
           class="btn btn-primary"
           onclick={handleSubmit}
-          disabled={!isLabelComplete() || loading}
+          disabled={uploadedFiles.length === 0 || loading}
           tabindex="0"
-          aria-label="Save photos"
+          aria-label="Continue to next step"
         >
           {#if loading}
             <span class="loading-spinner"></span>
             Saving...
           {:else}
-            Save Photos
+            Next
           {/if}
         </button>
       </div>
@@ -450,41 +424,14 @@
     object-fit: cover;
   }
 
-  .photo-label-select {
-    display: flex;
-    flex-direction: column;
-    gap: var(--gap-xs);
-  }
-
-  .label-text {
+  .photo-auto-label {
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-semibold);
-    color: var(--color-vibe-text-2);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .label-select {
-    font-size: var(--font-size-sm);
-    color: var(--color-vibe-text-1);
-    padding: var(--spacing-sm);
-    background: var(--color-vibe-bg-2);
-    border: 1px solid var(--color-vibe-border);
-    border-radius: var(--radius-md);
-    font-family: inherit;
-    transition: all 200ms ease;
-    cursor: pointer;
-  }
-
-  .label-select:focus {
-    outline: none;
-    border-color: var(--color-vibe-emerald);
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
-  }
-
-  .label-select:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+    color: var(--color-vibe-text-3);
+    text-align: center;
+    text-transform: capitalize;
+    letter-spacing: 0.03em;
+    margin: 0;
   }
 
   /* Checking State */
