@@ -27,7 +27,7 @@ class MockResponse {
 const mockUser1: VerifiedVibeUser = {
   id: 'user1',
   gender: 'man',
-  archetype: 'marriage_minded_man',
+  archetype: 'traditional_matrimony_man',
   firstName: 'John',
   age: 28,
   city: 'New York',
@@ -42,7 +42,7 @@ const mockUser1: VerifiedVibeUser = {
 const mockUser2: VerifiedVibeUser = {
   id: 'user2',
   gender: 'woman',
-  archetype: 'safety_first_woman',
+  archetype: 'traditional_matrimony_woman',
   firstName: 'Jane',
   age: 26,
   city: 'New York',
@@ -288,8 +288,8 @@ describe('POST /api/verified-vibe/calculate-compatibility', () => {
     });
 
     it('should handle different archetype combinations', async () => {
-      const casualMan = { ...mockUser1, archetype: 'casual_man' as const };
-      const spoiltWoman = { ...mockUser2, archetype: 'spoilt_woman' as const };
+      const casualMan = { ...mockUser1, archetype: 'casual_generous_man' as const };
+      const spoiltWoman = { ...mockUser2, archetype: 'spoiled_casual_woman' as const };
 
       const request = new MockRequest({
         user1: casualMan,

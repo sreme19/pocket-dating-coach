@@ -74,7 +74,7 @@ Object.defineProperty(window, 'localStorage', {
 const mockUser: VerifiedVibeUser = {
   id: 'user-1',
   gender: 'man',
-  archetype: 'casual_man',
+  archetype: 'casual_generous_man',
   firstName: 'John',
   age: 28,
   city: 'Brooklyn, NY',

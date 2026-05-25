@@ -498,29 +498,29 @@ describe('getVerificationStatus', () => {
 
 describe('isValidMatch', () => {
   it('should return true for man and woman archetypes', () => {
-    expect(isValidMatch('casual_man', 'spoilt_woman')).toBe(true);
-    expect(isValidMatch('marriage_minded_man', 'safety_first_woman')).toBe(true);
+    expect(isValidMatch('casual_generous_man', 'spoiled_casual_woman')).toBe(true);
+    expect(isValidMatch('traditional_matrimony_man', 'traditional_matrimony_woman')).toBe(true);
   });
 
   it('should return false for same gender archetypes', () => {
-    expect(isValidMatch('casual_man', 'marriage_minded_man')).toBe(false);
-    expect(isValidMatch('spoilt_woman', 'safety_first_woman')).toBe(false);
+    expect(isValidMatch('casual_generous_man', 'traditional_matrimony_man')).toBe(false);
+    expect(isValidMatch('spoiled_casual_woman', 'traditional_matrimony_woman')).toBe(false);
   });
 
   it('should return false for invalid archetypes', () => {
-    expect(isValidMatch('invalid_archetype' as any, 'spoilt_woman')).toBe(false);
+    expect(isValidMatch('invalid_archetype' as any, 'spoiled_casual_woman')).toBe(false);
   });
 });
 
 describe('getMatchedArchetypes', () => {
   it('should return women archetypes for man archetype', () => {
-    const matched = getMatchedArchetypes('casual_man');
+    const matched = getMatchedArchetypes('casual_generous_man');
     expect(matched.length).toBeGreaterThan(0);
     expect(matched.every((a) => a.gender === 'woman')).toBe(true);
   });
 
   it('should return men archetypes for woman archetype', () => {
-    const matched = getMatchedArchetypes('spoilt_woman');
+    const matched = getMatchedArchetypes('spoiled_casual_woman');
     expect(matched.length).toBeGreaterThan(0);
     expect(matched.every((a) => a.gender === 'man')).toBe(true);
   });
