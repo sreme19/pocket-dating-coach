@@ -19,16 +19,40 @@
 
   let { onSubmit, onCancel, initialName = '', initialAge = 0, archetype = '' }: Props = $props();
 
-  const PERSONALITY_TAGS = [
-    'Ambitious', 'Laid-back', 'Adventurous', 'Intellectual', 'Funny',
-    'Creative', 'Athletic', 'Spontaneous', 'Grounded', 'Empathetic',
-    'Direct', 'Curious', 'Loyal', 'Social', 'Independent'
+  const PERSONALITY_TAGS: { value: string; label: string }[] = [
+    { value: 'Ambitious',     label: '🚀 Ambitious' },
+    { value: 'Laid-back',     label: '😌 Laid-back' },
+    { value: 'Adventurous',   label: '🌍 Adventurous' },
+    { value: 'Intellectual',  label: '🧠 Intellectual' },
+    { value: 'Funny',         label: '😂 Funny' },
+    { value: 'Creative',      label: '🎨 Creative' },
+    { value: 'Athletic',      label: '💪 Athletic' },
+    { value: 'Spontaneous',   label: '⚡ Spontaneous' },
+    { value: 'Grounded',      label: '🌿 Grounded' },
+    { value: 'Empathetic',    label: '🤍 Empathetic' },
+    { value: 'Direct',        label: '🎯 Direct' },
+    { value: 'Curious',       label: '🔍 Curious' },
+    { value: 'Loyal',         label: '🛡️ Loyal' },
+    { value: 'Social',        label: '🥂 Social' },
+    { value: 'Independent',   label: '🦁 Independent' }
   ];
 
-  const INTERESTS = [
-    'Travel', 'Food & Dining', 'Music', 'Fitness', 'Reading',
-    'Movies', 'Outdoors', 'Art', 'Gaming', 'Cooking',
-    'Photography', 'Dancing', 'Sports', 'Tech', 'Fashion'
+  const INTERESTS: { value: string; label: string }[] = [
+    { value: 'Travel',        label: '✈️ Travel' },
+    { value: 'Food & Dining', label: '🍽️ Food & Dining' },
+    { value: 'Music',         label: '🎵 Music' },
+    { value: 'Fitness',       label: '🏋️ Fitness' },
+    { value: 'Reading',       label: '📚 Reading' },
+    { value: 'Movies',        label: '🎬 Movies' },
+    { value: 'Outdoors',      label: '🌲 Outdoors' },
+    { value: 'Art',           label: '🎨 Art' },
+    { value: 'Gaming',        label: '🎮 Gaming' },
+    { value: 'Cooking',       label: '👨‍🍳 Cooking' },
+    { value: 'Photography',   label: '📸 Photography' },
+    { value: 'Dancing',       label: '💃 Dancing' },
+    { value: 'Sports',        label: '⚽ Sports' },
+    { value: 'Tech',          label: '💻 Tech' },
+    { value: 'Fashion',       label: '👗 Fashion' }
   ];
 
 
@@ -211,15 +235,15 @@
     </label>
     <div class="chip-grid">
       {#each PERSONALITY_TAGS as tag}
-        {@const selected = selectedTags.has(tag)}
+        {@const selected = selectedTags.has(tag.value)}
         {@const disabled = !selected && selectedTags.size >= 3}
         <button
           type="button"
           class="chip {selected ? 'selected' : ''} {disabled ? 'disabled' : ''}"
-          onclick={() => toggleTag(tag)}
+          onclick={() => toggleTag(tag.value)}
           disabled={disabled}
         >
-          {tag}
+          {tag.label}
         </button>
       {/each}
     </div>
@@ -279,15 +303,15 @@
     </label>
     <div class="chip-grid">
       {#each INTERESTS as interest}
-        {@const selected = selectedInterests.has(interest)}
+        {@const selected = selectedInterests.has(interest.value)}
         {@const disabled = !selected && selectedInterests.size >= 5}
         <button
           type="button"
           class="chip {selected ? 'selected' : ''} {disabled ? 'disabled' : ''}"
-          onclick={() => toggleInterest(interest)}
+          onclick={() => toggleInterest(interest.value)}
           disabled={disabled}
         >
-          {interest}
+          {interest.label}
         </button>
       {/each}
     </div>
