@@ -70,34 +70,29 @@ END;
 $$;
 
 -- match_book_chunks: pgvector similarity search
--- Re-declare with fixed search_path; keep existing signature intact.
--- NOTE: If this function was created with a different signature in Supabase,
--- update the parameter types to match before running.
+-- Signature matches what is in production (verified by Kiro before applying).
 CREATE OR REPLACE FUNCTION match_book_chunks(
   query_embedding vector,
-  match_threshold float,
-  match_count int
+  match_count integer DEFAULT 5
 )
 RETURNS TABLE (
-  id uuid,
+  id bigint,
   content text,
-  similarity float
+  chapter text,
+  similarity double precision
 )
-LANGUAGE plpgsql
+LANGUAGE sql
 SECURITY INVOKER
 SET search_path = public
 AS $$
-BEGIN
-  RETURN QUERY
   SELECT
     bc.id,
     bc.content,
+    bc.chapter,
     1 - (bc.embedding <=> query_embedding) AS similarity
   FROM book_chunks bc
-  WHERE 1 - (bc.embedding <=> query_embedding) > match_threshold
   ORDER BY bc.embedding <=> query_embedding
   LIMIT match_count;
-END;
 $$;
 
 -- ----------------------------------------------------------------------------
