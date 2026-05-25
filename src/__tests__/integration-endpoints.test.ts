@@ -55,14 +55,18 @@ const mockPersonality = {
 
 const mockConversationHistory: ChatMessage[] = [
 	{
+		id: 'mock-msg-1',
 		role: 'user',
 		content: 'He just asked me out for coffee. Should I say yes?',
-		assistantType: undefined
+		assistantType: undefined,
+		timestamp: 0
 	},
 	{
+		id: 'mock-msg-2',
 		role: 'assistant',
 		content: 'Coffee is a great low-pressure first date! He is showing genuine interest.',
-		assistantType: 'bestie'
+		assistantType: 'bestie',
+		timestamp: 1
 	}
 ];
 
@@ -216,8 +220,8 @@ describe('Message Sending and Response Generation', () => {
 
 		const updatedHistory = [
 			...mockConversationHistory,
-			{ role: 'user', content: userMessage, assistantType: undefined },
-			{ role: 'assistant', content: assistantResponse, assistantType: 'bestie' }
+			{ id: 'mock-msg-3', role: 'user', content: userMessage, assistantType: undefined, timestamp: 2 },
+			{ id: 'mock-msg-4', role: 'assistant', content: assistantResponse, assistantType: 'bestie', timestamp: 3 }
 		];
 
 		expect(updatedHistory).toHaveLength(mockConversationHistory.length + 2);
@@ -519,9 +523,11 @@ describe('Error Handling and Validation', () => {
 		it('should queue messages locally on database failure', async () => {
 			const localQueue: ChatMessage[] = [];
 			const message: ChatMessage = {
+				id: 'mock-msg-1',
 				role: 'user',
 				content: 'Test message',
-				assistantType: undefined
+				assistantType: undefined,
+				timestamp: 0
 			};
 
 			localQueue.push(message);
@@ -530,8 +536,8 @@ describe('Error Handling and Validation', () => {
 
 		it('should sync queued messages when connection restored', async () => {
 			const localQueue: ChatMessage[] = [
-				{ role: 'user', content: 'Message 1', assistantType: undefined },
-				{ role: 'user', content: 'Message 2', assistantType: undefined }
+				{ id: 'mock-msg-1', role: 'user', content: 'Message 1', assistantType: undefined, timestamp: 0 },
+				{ id: 'mock-msg-2', role: 'user', content: 'Message 2', assistantType: undefined, timestamp: 1 }
 			];
 
 			expect(localQueue).toHaveLength(2);
