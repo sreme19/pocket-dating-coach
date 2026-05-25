@@ -421,32 +421,34 @@
                 aria-label={question.question}
                 maxlength="500"
               ></textarea>
-              {#if voiceSupported}
-                <button
-                  type="button"
-                  class="mic-btn {listening ? 'listening' : ''}"
-                  onclick={toggleVoice}
-                  aria-label={listening ? 'Stop recording' : 'Speak your answer'}
-                  title={listening ? 'Tap to stop' : 'Tap to speak'}
-                >
-                  {#if listening}
-                    <span class="mic-ring"></span>
-                  {/if}
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                    <line x1="12" y1="19" x2="12" y2="23"/>
-                    <line x1="8" y1="23" x2="16" y2="23"/>
-                  </svg>
-                </button>
-                {#if listening}
-                  <p class="voice-hint">Listening… speak now</p>
+              <div class="textarea-footer">
+                <span class="char-count">{(responses[question.id] as string)?.length || 0}/500</span>
+                {#if voiceSupported}
+                  <div class="mic-row">
+                    {#if listening}
+                      <span class="voice-hint">Listening…</span>
+                    {/if}
+                    <button
+                      type="button"
+                      class="mic-btn {listening ? 'listening' : ''}"
+                      onclick={toggleVoice}
+                      aria-label={listening ? 'Stop recording' : 'Speak your answer'}
+                      title={listening ? 'Tap to stop' : 'Tap to speak'}
+                    >
+                      {#if listening}
+                        <span class="mic-ring"></span>
+                      {/if}
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                        <line x1="12" y1="19" x2="12" y2="23"/>
+                        <line x1="8" y1="23" x2="16" y2="23"/>
+                      </svg>
+                    </button>
+                  </div>
                 {/if}
-              {/if}
+              </div>
             </div>
-            <p class="char-count">
-              {(responses[question.id] as string)?.length || 0}/500
-            </p>
           {/if}
         </div>
       {/each}
@@ -712,8 +714,6 @@
   .char-count {
     font-size: 0.8rem;
     color: var(--text-3);
-    margin: 0;
-    text-align: right;
   }
 
   .review-container {
@@ -839,15 +839,27 @@
   /* ── Voice input ─────────────────────────────────────────────────────────── */
 
   .textarea-wrap {
-    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .textarea-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .mic-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
   .mic-btn {
-    position: absolute;
-    bottom: 10px;
-    right: 10px;
-    width: 34px;
-    height: 34px;
+    position: relative;
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
     border: 1px solid var(--border-2);
     background: var(--bg-1);
@@ -872,7 +884,7 @@
 
   .mic-ring {
     position: absolute;
-    inset: -4px;
+    inset: -3px;
     border-radius: 50%;
     border: 2px solid var(--accent-bright);
     animation: mic-pulse 1.2s ease-in-out infinite;
@@ -887,7 +899,6 @@
   .voice-hint {
     font-size: 11px;
     color: var(--accent-bright);
-    margin: 4px 0 0;
     font-style: italic;
   }
   @media (max-width: 767px) {
