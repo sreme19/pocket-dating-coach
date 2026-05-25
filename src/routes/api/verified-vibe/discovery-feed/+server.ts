@@ -178,7 +178,7 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
     // Fetch current user's profile to get their gender
     const { data: currentUserProfile, error: currentUserError } = await (supabase as any)
       .from('verified_vibe_users')
-      .select('gender')
+      .select('gender, archetype')
       .eq('id', currentUserId)
       .maybeSingle();
 
