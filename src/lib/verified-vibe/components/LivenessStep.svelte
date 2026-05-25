@@ -108,7 +108,7 @@
   }
 
   /**
-   * Capture photo from camera
+   * Capture photo from camera and immediately run liveness check
    */
   function capturePhoto() {
     if (!videoElement || !canvasElement) return;
@@ -120,12 +120,13 @@
     canvasElement.height = videoElement.videoHeight;
     context.drawImage(videoElement, 0, 0);
 
-    // Convert canvas to blob and create file
     canvasElement.toBlob((blob) => {
       if (blob) {
         const file = new File([blob], 'selfie.jpg', { type: 'image/jpeg' });
         processFile(file);
         stopCamera();
+        // Auto-trigger liveness check after capture
+        setTimeout(() => checkLiveness(), 200);
       }
     }, 'image/jpeg', 0.95);
   }
@@ -281,29 +282,6 @@
         <p class="step-description">Take a selfie to verify you're the same person as your ID</p>
       </div>
 
-      <!-- Camera or Upload Tabs -->
-      <div class="upload-tabs">
-        <button
-          class="tab-button"
-          class:active={!cameraActive}
-          onclick={() => {
-            stopCamera();
-            error = null;
-          }}
-          aria-label="Upload photo"
-        >
-          📤 Upload Photo
-        </button>
-        <button
-          class="tab-button"
-          class:active={cameraActive}
-          onclick={startCamera}
-          aria-label="Take photo with camera"
-        >
-          📷 Take Photo
-        </button>
-      </div>
-
       <!-- Camera View -->
       {#if cameraActive}
         <div class="camera-section" transition:slide={{ duration: 300, axis: 'y' }}>
@@ -336,44 +314,15 @@
         </div>
       {/if}
 
-      <!-- Upload Area -->
+      <!-- Camera prompt when not yet active -->
       {#if !cameraActive}
-        <div
-          class="upload-area"
-          class:dragging={isDragging}
-          ondragover={handleDragOver}
-          ondragleave={handleDragLeave}
-          ondrop={handleDrop}
-          onclick={() => fileInputEl?.click()}
-          role="button"
-          tabindex="0"
-          aria-label="Upload selfie photo"
+        <button
+          class="btn btn-primary"
+          onclick={startCamera}
+          aria-label="Open camera to take selfie"
         >
-          <div class="upload-icon">🤳</div>
-          <p class="upload-text">Drag and drop your selfie here</p>
-          <p class="upload-hint">or click to select a file</p>
-          <input
-            type="file"
-            accept="image/*"
-            onchange={handleFileSelect}
-            disabled={loading}
-            aria-label="Select selfie photo file"
-            class="file-input"
-            bind:this={fileInputEl}
-          />
-        </div>
-
-        <!-- File Requirements -->
-        <div class="requirements">
-          <h4 class="requirements-title">Requirements:</h4>
-          <ul class="requirements-list">
-            <li>Clear, well-lit selfie</li>
-            <li>Face clearly visible</li>
-            <li>No filters or heavy makeup</li>
-            <li>JPG, PNG, or WebP format</li>
-            <li>Max 5MB file size</li>
-          </ul>
-        </div>
+          📷 Open Camera
+        </button>
       {/if}
 
       <!-- Error Message -->
@@ -400,22 +349,15 @@
         </div>
       {/if}
 
-      <!-- Check Liveness Button -->
-      <div class="actions">
-        <button
-          class="btn btn-primary"
-          onclick={checkLiveness}
-          disabled={!previewUrl || loading}
-          aria-label="Check liveness"
-        >
-          {#if loading}
+      <!-- Loading state while liveness check runs after capture -->
+      {#if loading}
+        <div class="actions">
+          <button class="btn btn-primary" disabled aria-label="Checking liveness">
             <span class="loading-spinner"></span>
-            Checking...
-          {:else}
-            Check Liveness
-          {/if}
-        </button>
-      </div>
+            Checking…
+          </button>
+        </div>
+      {/if}
     </div>
   {/if}
 
