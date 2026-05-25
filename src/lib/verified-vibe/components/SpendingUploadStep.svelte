@@ -15,7 +15,11 @@
   let step = $state<'upload' | 'review' | 'submitting'>('upload');
 
   const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-  const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+  const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+
+  function isPDF(file: File | null): boolean {
+    return file?.type === 'application/pdf';
+  }
 
   function handleFileSelect(event: Event) {
     error = null;
@@ -32,7 +36,7 @@
 
     // Validate file type
     if (!ACCEPTED_TYPES.includes(file.type)) {
-      error = 'Invalid file type. Please upload a JPEG, PNG, or WebP image.';
+      error = 'Invalid file type. Please upload a JPEG, PNG, WebP, or PDF file.';
       return;
     }
 
@@ -107,7 +111,7 @@
         {#if step === 'upload'}
           Upload a bank statement or spending screenshot to verify your spending pattern
         {:else if step === 'review'}
-          Make sure the image is clear and readable
+          Make sure the document is clear and readable
         {:else}
           Processing your spending image...
         {/if}
@@ -129,8 +133,8 @@
       <div class="upload-info">
         <p class="info-title">What to upload:</p>
         <ul class="info-list">
-          <li>Bank statement screenshot (last 3 months)</li>
-          <li>Credit card statement</li>
+          <li>Bank statement screenshot or PDF (last 3 months)</li>
+          <li>Credit card statement (screenshot or PDF)</li>
           <li>Payment app screenshot (Venmo, PayPal, etc.)</li>
           <li>Any proof of spending pattern</li>
         </ul>
@@ -154,19 +158,21 @@
         >
           <div class="upload-icon">📊</div>
           <p class="upload-text">Click to upload or drag and drop</p>
-          <p class="upload-hint">JPEG, PNG, or WebP (max 10MB)</p>
+          <p class="upload-hint">JPEG, PNG, WebP, or PDF (max 10MB)</p>
           <input
             type="file"
-            accept="image/jpeg,image/png,image/webp"
+            accept="image/jpeg,image/png,image/webp,application/pdf"
             onchange={handleFileSelect}
             disabled={loading}
-            aria-label="Upload spending image"
+            aria-label="Upload spending document"
           />
         </div>
       {:else}
         <div class="file-preview" transition:fade={{ duration: 200 }}>
           <div class="preview-image">
-            {#if preview}
+            {#if isPDF(selectedFile)}
+              <div class="pdf-icon" aria-label="PDF document">📄</div>
+            {:else if preview}
               <img src={preview} alt="" />
             {/if}
           </div>
@@ -211,7 +217,12 @@
   <!-- Review View -->
   {#if step === 'review' || step === 'submitting'}
     <div class="review-container" transition:fade={{ duration: 200 }}>
-      {#if preview}
+      {#if isPDF(selectedFile)}
+        <div class="review-pdf-placeholder">
+          <div class="review-pdf-icon">📄</div>
+          <p class="review-pdf-label">PDF document ready for submission</p>
+        </div>
+      {:else if preview}
         <div class="review-image">
           <img src={preview} alt="" />
         </div>
@@ -420,6 +431,33 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+
+  .pdf-icon {
+    font-size: 2rem;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+  }
+
+  .review-pdf-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 2rem;
+    background-color: var(--color-vibe-bg-2, #f9fafb);
+    border: 1px solid var(--color-vibe-border, #e5e7eb);
+    border-radius: 0.75rem;
+  }
+
+  .review-pdf-icon { font-size: 3rem; }
+
+  .review-pdf-label {
+    font-size: 0.9rem;
+    color: var(--color-vibe-text-2, #374151);
+    margin: 0;
   }
 
   .file-info {
