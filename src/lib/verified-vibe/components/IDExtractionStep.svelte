@@ -265,10 +265,10 @@
       <div class="confirmation-actions">
         <button
           class="btn btn-secondary"
-          onclick={handleEdit}
+          onclick={handleClear}
           disabled={loading}
         >
-          Edit
+          Choose Different
         </button>
         <button
           class="btn btn-primary"

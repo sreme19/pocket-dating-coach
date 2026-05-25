@@ -299,9 +299,17 @@
           New accounts are created automatically.
         </p>
 
-        <button class="auth-btn ghost" onclick={() => goto('/verified-vibe/gate')}>
-          ← Start from the beginning
-        </button>
+        {#if isSignUp}
+          <p class="auth-switch-mode">
+            Already have an account?
+            <a href="/verified-vibe/auth?mode=signin" class="auth-switch-link">Sign back in →</a>
+          </p>
+        {:else}
+          <p class="auth-switch-mode">
+            New here?
+            <a href="/verified-vibe/gate" class="auth-switch-link">Create an account →</a>
+          </p>
+        {/if}
 
         {#if isDevMode}
           <div class="dev-hint">
@@ -587,6 +595,24 @@
   .auth-legal a {
     color: var(--accent);
     text-decoration: none;
+  }
+
+  .auth-switch-mode {
+    font-size: 13px;
+    color: var(--text-3);
+    text-align: center;
+    margin: 12px 0 0;
+  }
+
+  .auth-switch-link {
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 200ms;
+  }
+
+  .auth-switch-link:hover {
+    color: var(--accent-bright);
   }
 
   /* Loading */

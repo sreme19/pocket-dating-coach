@@ -4,11 +4,12 @@
 
   interface Props {
     gender?: Gender;
+    archetype?: string;
     onSubmit?: (data: { responses: Record<string, string | string[]> }) => Promise<void>;
     onCancel?: () => void;
   }
 
-  let { gender = 'prefer_not_to_say', onSubmit, onCancel }: Props = $props();
+  let { gender = 'prefer_not_to_say', archetype, onSubmit, onCancel }: Props = $props();
 
   // State management
   let currentQuestionIndex = $state(0);
@@ -16,6 +17,70 @@
   let loading = $state(false);
   let error = $state<string | null>(null);
   let step = $state<'questions' | 'review' | 'submitting'>('questions');
+
+  interface Question {
+    id: string;
+    type: 'multiple-choice' | 'text';
+    question: string;
+    options?: Array<{ value: string; label: string }>;
+    placeholder?: string;
+  }
+
+  const TIMELINE_OPTIONS = [
+    { value: 'asap', label: "ASAP — I'm ready now" },
+    { value: 'months', label: 'Within the next few months' },
+    { value: 'year', label: 'Within the next year or two' },
+    { value: 'no_rush', label: 'No rush, whenever it happens' }
+  ];
+
+  const MATRIMONY_QUESTIONS: Question[] = [
+    {
+      id: 'wedding_vision',
+      type: 'multiple-choice',
+      question: 'What kind of wedding are you envisioning?',
+      options: [
+        { value: 'intimate', label: 'Intimate — close family & friends' },
+        { value: 'traditional', label: 'Traditional — full ceremony & rituals' },
+        { value: 'big', label: 'Grand — large, celebratory event' },
+        { value: 'destination', label: 'Destination — something unique' }
+      ]
+    },
+    {
+      id: 'family_involvement',
+      type: 'multiple-choice',
+      question: 'How involved would your family be in choosing a partner?',
+      options: [
+        { value: 'fully_involved', label: 'Fully — family leads the search' },
+        { value: 'guided', label: 'Guided — family approves the choice' },
+        { value: 'informed', label: 'Informed — I decide, family knows' },
+        { value: 'independent', label: 'Independent — my choice, my way' }
+      ]
+    },
+    {
+      id: 'lifestyle_values',
+      type: 'text',
+      question: 'What lifestyle values matter most to you? (e.g., faith, culture, traditions)',
+      placeholder: 'Share what matters to you...'
+    },
+    {
+      id: 'relationship_timeline',
+      type: 'multiple-choice',
+      question: "What's your ideal relationship timeline?",
+      options: TIMELINE_OPTIONS
+    },
+    {
+      id: 'deal_breakers',
+      type: 'text',
+      question: "What are your deal-breakers in a partner?",
+      placeholder: "Be honest about what won't work for you..."
+    }
+  ];
+
+  // Archetype-specific question sets (take priority over gender)
+  const archetypeQuestionSets: Record<string, Question[]> = {
+    traditional_matrimony_man: MATRIMONY_QUESTIONS,
+    traditional_matrimony_woman: MATRIMONY_QUESTIONS
+  };
 
   // Voice input
   let listening = $state(false);
@@ -55,13 +120,13 @@
     }
   }
 
-  // Gender-specific questions
+  // Gender-specific questions (fallback when no archetype-specific set exists)
   const questionSets: Record<Gender, Question[]> = {
     man: [
       {
         id: 'spending_comfort',
         type: 'multiple-choice',
-        question: 'What\'s your comfort level with spending on dates?',
+        question: "What's your comfort level with spending on dates?",
         options: [
           { value: 'budget', label: 'Budget-conscious (₹1,000–3,000)' },
           { value: 'moderate', label: 'Moderate spender (₹3,000–8,000)' },
@@ -72,7 +137,7 @@
       {
         id: 'dating_intent',
         type: 'multiple-choice',
-        question: 'What\'s your primary dating intent?',
+        question: "What's your primary dating intent?",
         options: [
           { value: 'casual', label: 'Casual dating' },
           { value: 'relationship', label: 'Serious relationship' },
@@ -89,19 +154,14 @@
       {
         id: 'relationship_timeline',
         type: 'multiple-choice',
-        question: 'What\'s your ideal relationship timeline?',
-        options: [
-          { value: 'no_rush', label: 'No rush, let it develop naturally' },
-          { value: 'months', label: 'Months to a year' },
-          { value: 'year', label: 'Within a year' },
-          { value: 'asap', label: 'ASAP' }
-        ]
+        question: "What's your ideal relationship timeline?",
+        options: TIMELINE_OPTIONS
       },
       {
         id: 'deal_breakers',
         type: 'text',
-        question: 'What are your deal-breakers in a partner?',
-        placeholder: 'Be honest about what won\'t work for you...'
+        question: "What are your deal-breakers in a partner?",
+        placeholder: "Be honest about what won't work for you..."
       }
     ],
     woman: [
@@ -125,7 +185,7 @@
       {
         id: 'dating_intent',
         type: 'multiple-choice',
-        question: 'What\'s your primary dating intent?',
+        question: "What's your primary dating intent?",
         options: [
           { value: 'casual', label: 'Casual dating' },
           { value: 'relationship', label: 'Serious relationship' },
@@ -142,15 +202,15 @@
       {
         id: 'red_flags',
         type: 'text',
-        question: 'What are your red flags in a partner?',
-        placeholder: 'Be honest about what won\'t work for you...'
+        question: "What are your red flags in a partner?",
+        placeholder: "Be honest about what won't work for you..."
       }
     ],
     prefer_not_to_say: [
       {
         id: 'dating_intent',
         type: 'multiple-choice',
-        question: 'What\'s your primary dating intent?',
+        question: "What's your primary dating intent?",
         options: [
           { value: 'casual', label: 'Casual dating' },
           { value: 'relationship', label: 'Serious relationship' },
@@ -173,7 +233,7 @@
       {
         id: 'spending_comfort',
         type: 'multiple-choice',
-        question: 'What\'s your comfort level with spending on dates?',
+        question: "What's your comfort level with spending on dates?",
         options: [
           { value: 'budget', label: 'Budget-conscious' },
           { value: 'moderate', label: 'Moderate spender' },
@@ -184,21 +244,13 @@
       {
         id: 'deal_breakers',
         type: 'text',
-        question: 'What are your deal-breakers in a partner?',
-        placeholder: 'Be honest about what won\'t work for you...'
+        question: "What are your deal-breakers in a partner?",
+        placeholder: "Be honest about what won't work for you..."
       }
     ]
   };
 
-  interface Question {
-    id: string;
-    type: 'multiple-choice' | 'text';
-    question: string;
-    options?: Array<{ value: string; label: string }>;
-    placeholder?: string;
-  }
-
-  const questions = $derived(questionSets[gender]);
+  const questions = $derived(archetypeQuestionSets[archetype ?? ''] ?? questionSets[gender]);
 
   function getCurrentQuestion(): Question {
     return questions[currentQuestionIndex];
@@ -482,25 +534,13 @@
     </div>
   {/if}
 
-  <!-- Cancel Button -->
-  {#if onCancel && step === 'questions'}
-    <button
-      class="button-cancel"
-      onclick={onCancel}
-      disabled={loading}
-      aria-label="Cancel spending and Q&A verification"
-    >
-      Cancel
-    </button>
-  {/if}
 </div>
 
 <style>
   .spending-qa-step {
     display: flex;
     flex-direction: column;
-    gap: var(--gap-lg, 1.5rem);
-    padding: var(--spacing-lg, 1.5rem);
+    gap: 1.5rem;
     max-width: 600px;
     margin: 0 auto;
   }
@@ -508,62 +548,62 @@
   .header {
     display: flex;
     flex-direction: column;
-    gap: var(--gap-md, 1rem);
+    gap: 1rem;
   }
 
   .header-content {
     display: flex;
     flex-direction: column;
-    gap: var(--gap-sm, 0.5rem);
+    gap: 0.5rem;
   }
 
   .title {
     font-size: 1.5rem;
     font-weight: 600;
-    color: var(--color-vibe-text-1, #111827);
+    color: var(--text-1);
     margin: 0;
   }
 
   .subtitle {
     font-size: 0.95rem;
-    color: var(--color-vibe-text-2, #374151);
+    color: var(--text-2);
     margin: 0;
   }
 
   .progress-container {
     display: flex;
     flex-direction: column;
-    gap: var(--gap-xs, 0.25rem);
+    gap: 0.25rem;
   }
 
   .progress-bar {
     width: 100%;
     height: 4px;
-    background-color: var(--color-vibe-bg-2, #f3f4f6);
+    background-color: var(--bg-2);
     border-radius: 2px;
     overflow: hidden;
   }
 
   .progress-fill {
     height: 100%;
-    background-color: var(--color-vibe-emerald, #10b981);
+    background-color: var(--accent-bright);
     transition: width 0.3s ease;
   }
 
   .progress-label {
     font-size: 0.85rem;
-    color: var(--color-vibe-text-3, #6b7280);
+    color: var(--text-3);
     margin: 0;
   }
 
   .error-message {
     display: flex;
     align-items: center;
-    gap: var(--gap-sm, 0.5rem);
-    padding: var(--spacing-md, 1rem);
-    background-color: #fee2e2;
+    gap: 0.5rem;
+    padding: 1rem;
+    background-color: rgba(239, 68, 68, 0.1);
     border-left: 4px solid #ef4444;
-    border-radius: var(--radius-md, 0.5rem);
+    border-radius: 8px;
   }
 
   .error-icon {
@@ -572,62 +612,63 @@
   }
 
   .error-text {
-    color: #991b1b;
+    color: #ef4444;
     font-size: 0.95rem;
   }
 
   .questions-container {
     display: flex;
     flex-direction: column;
-    gap: var(--gap-lg, 1.5rem);
+    gap: 1.5rem;
   }
 
   .question-card {
     display: flex;
     flex-direction: column;
-    gap: var(--gap-md, 1rem);
-    padding: var(--spacing-lg, 1.5rem);
-    background-color: var(--color-vibe-bg-1, #ffffff);
-    border: 1px solid var(--color-vibe-border, #e5e7eb);
-    border-radius: var(--radius-lg, 0.75rem);
+    gap: 1rem;
+    padding: 1.5rem;
+    background-color: var(--bg-2);
+    border: 1px solid var(--border-1);
+    border-radius: 12px;
   }
 
   .question-text {
     font-size: 1.1rem;
     font-weight: 500;
-    color: var(--color-vibe-text-1, #111827);
+    color: var(--text-1);
     margin: 0;
   }
 
   .options-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: var(--gap-sm, 0.5rem);
+    gap: 0.5rem;
   }
 
   .option-button {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--spacing-md, 1rem);
-    background-color: var(--color-vibe-bg-2, #f9fafb);
-    border: 2px solid var(--color-vibe-border, #e5e7eb);
-    border-radius: var(--radius-md, 0.5rem);
+    padding: 1rem;
+    background-color: var(--bg-3);
+    border: 2px solid var(--border-1);
+    border-radius: 8px;
     cursor: pointer;
     transition: all 0.2s ease;
     font-size: 0.95rem;
-    color: var(--color-vibe-text-1, #111827);
+    color: var(--text-1);
     font-weight: 500;
+    text-align: left;
   }
 
   .option-button:hover:not(:disabled) {
-    border-color: var(--color-vibe-emerald, #10b981);
-    background-color: #f0fdf4;
+    border-color: var(--accent-bright);
+    background-color: var(--accent-tint);
   }
 
   .option-button.selected {
-    border-color: var(--color-vibe-emerald, #10b981);
-    background-color: #f0fdf4;
+    border-color: var(--accent-bright);
+    background-color: var(--accent-tint);
   }
 
   .option-button:disabled {
@@ -640,17 +681,18 @@
   }
 
   .checkmark {
-    color: var(--color-vibe-emerald, #10b981);
+    color: var(--accent-bright);
     font-weight: bold;
   }
 
   .text-input {
-    padding: var(--spacing-md, 1rem);
-    border: 2px solid var(--color-vibe-border, #e5e7eb);
-    border-radius: var(--radius-md, 0.5rem);
+    padding: 1rem;
+    border: 2px solid var(--border-1);
+    border-radius: 8px;
     font-size: 0.95rem;
     font-family: inherit;
-    color: var(--color-vibe-text-1, #111827);
+    color: var(--text-1);
+    background-color: var(--bg-3);
     resize: vertical;
     min-height: 120px;
     transition: border-color 0.2s ease;
@@ -658,19 +700,18 @@
 
   .text-input:focus {
     outline: none;
-    border-color: var(--color-vibe-emerald, #10b981);
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+    border-color: var(--accent-bright);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
   }
 
   .text-input:disabled {
-    background-color: var(--color-vibe-bg-2, #f9fafb);
-    cursor: not-allowed;
     opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .char-count {
     font-size: 0.8rem;
-    color: var(--color-vibe-text-3, #6b7280);
+    color: var(--text-3);
     margin: 0;
     text-align: right;
   }
@@ -678,34 +719,34 @@
   .review-container {
     display: flex;
     flex-direction: column;
-    gap: var(--gap-lg, 1.5rem);
+    gap: 1.5rem;
   }
 
   .review-list {
     display: flex;
     flex-direction: column;
-    gap: var(--gap-md, 1rem);
+    gap: 1rem;
   }
 
   .review-item {
-    padding: var(--spacing-md, 1rem);
-    background-color: var(--color-vibe-bg-2, #f9fafb);
-    border-radius: var(--radius-md, 0.5rem);
-    border: 1px solid var(--color-vibe-border, #e5e7eb);
+    padding: 1rem;
+    background-color: var(--bg-2);
+    border-radius: 8px;
+    border: 1px solid var(--border-1);
   }
 
   .review-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    gap: var(--gap-md, 1rem);
-    margin-bottom: var(--spacing-sm, 0.5rem);
+    gap: 1rem;
+    margin-bottom: 0.5rem;
   }
 
   .review-question {
     font-size: 0.95rem;
     font-weight: 500;
-    color: var(--color-vibe-text-1, #111827);
+    color: var(--text-1);
     margin: 0;
     flex: 1;
   }
@@ -713,9 +754,9 @@
   .edit-button {
     padding: 0.25rem 0.75rem;
     background-color: transparent;
-    border: 1px solid var(--color-vibe-emerald, #10b981);
-    border-radius: var(--radius-sm, 0.375rem);
-    color: var(--color-vibe-emerald, #10b981);
+    border: 1px solid var(--accent-bright);
+    border-radius: 6px;
+    color: var(--accent-bright);
     font-size: 0.8rem;
     font-weight: 500;
     cursor: pointer;
@@ -724,8 +765,8 @@
   }
 
   .edit-button:hover:not(:disabled) {
-    background-color: var(--color-vibe-emerald, #10b981);
-    color: white;
+    background-color: var(--accent-bright);
+    color: var(--bg-1);
   }
 
   .edit-button:disabled {
@@ -740,22 +781,22 @@
 
   .answer-text {
     font-size: 0.95rem;
-    color: var(--color-vibe-text-2, #374151);
+    color: var(--text-2);
     margin: 0;
     line-height: 1.5;
   }
 
   .button-group {
     display: flex;
-    gap: var(--gap-md, 1rem);
+    gap: 1rem;
     justify-content: space-between;
   }
 
   .button {
     flex: 1;
-    padding: var(--spacing-md, 1rem);
+    padding: 1rem;
     border: none;
-    border-radius: var(--radius-md, 0.5rem);
+    border-radius: 8px;
     font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
@@ -764,57 +805,33 @@
   }
 
   .button-primary {
-    background-color: var(--color-vibe-emerald, #10b981);
-    color: white;
+    background-color: var(--accent-bright);
+    color: var(--bg-1);
   }
 
   .button-primary:hover:not(:disabled) {
-    background-color: #059669;
+    opacity: 0.9;
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
   }
 
   .button-primary:disabled {
-    background-color: #d1d5db;
+    opacity: 0.5;
     cursor: not-allowed;
-    opacity: 0.6;
   }
 
   .button-secondary {
-    background-color: var(--color-vibe-bg-2, #f9fafb);
-    color: var(--color-vibe-text-1, #111827);
-    border: 1px solid var(--color-vibe-border, #e5e7eb);
+    background-color: var(--bg-2);
+    color: var(--text-1);
+    border: 1px solid var(--border-1);
   }
 
   .button-secondary:hover:not(:disabled) {
-    background-color: var(--color-vibe-bg-3, #f3f4f6);
-    border-color: var(--color-vibe-text-2, #374151);
+    background-color: var(--bg-3);
+    border-color: var(--border-2);
   }
 
   .button-secondary:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .button-cancel {
-    padding: var(--spacing-md, 1rem);
-    background-color: transparent;
-    border: 1px solid var(--color-vibe-border, #e5e7eb);
-    border-radius: var(--radius-md, 0.5rem);
-    color: var(--color-vibe-text-2, #374151);
-    font-size: 0.95rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    min-height: 44px;
-  }
-
-  .button-cancel:hover:not(:disabled) {
-    background-color: var(--color-vibe-bg-2, #f9fafb);
-    border-color: var(--color-vibe-text-2, #374151);
-  }
-
-  .button-cancel:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
@@ -832,9 +849,9 @@
     width: 34px;
     height: 34px;
     border-radius: 50%;
-    border: 1px solid var(--border-2, #e5e7eb);
-    background: var(--bg-1, #ffffff);
-    color: var(--text-3, #6b7280);
+    border: 1px solid var(--border-2);
+    background: var(--bg-1);
+    color: var(--text-3);
     display: grid;
     place-items: center;
     cursor: pointer;
@@ -843,21 +860,21 @@
   }
 
   .mic-btn:hover {
-    border-color: var(--color-vibe-emerald, #10b981);
-    color: var(--color-vibe-emerald, #10b981);
+    border-color: var(--accent-bright);
+    color: var(--accent-bright);
   }
 
   .mic-btn.listening {
-    border-color: var(--color-vibe-emerald, #10b981);
-    background: rgba(16, 185, 129, 0.08);
-    color: var(--color-vibe-emerald, #10b981);
+    border-color: var(--accent-bright);
+    background: var(--accent-tint);
+    color: var(--accent-bright);
   }
 
   .mic-ring {
     position: absolute;
     inset: -4px;
     border-radius: 50%;
-    border: 2px solid var(--color-vibe-emerald, #10b981);
+    border: 2px solid var(--accent-bright);
     animation: mic-pulse 1.2s ease-in-out infinite;
     pointer-events: none;
   }
@@ -869,16 +886,13 @@
 
   .voice-hint {
     font-size: 11px;
-    color: var(--color-vibe-emerald, #10b981);
+    color: var(--accent-bright);
     margin: 4px 0 0;
     font-style: italic;
   }
-
-  /* Mobile Responsive */
   @media (max-width: 767px) {
     .spending-qa-step {
-      padding: var(--spacing-md, 1rem);
-      gap: var(--gap-md, 1rem);
+      gap: 1rem;
     }
 
     .title {
@@ -886,7 +900,7 @@
     }
 
     .question-card {
-      padding: var(--spacing-md, 1rem);
+      padding: 1rem;
     }
 
     .button-group {
@@ -907,64 +921,12 @@
     }
   }
 
-  /* Tablet Responsive */
-  @media (min-width: 768px) and (max-width: 1023px) {
-    .spending-qa-step {
-      max-width: 100%;
-    }
-  }
-
-  /* Accessibility */
   @media (prefers-reduced-motion: reduce) {
     .progress-fill,
     .option-button,
     .text-input,
     .button {
       transition: none;
-    }
-  }
-
-  /* Dark mode support */
-  @media (prefers-color-scheme: dark) {
-    .spending-qa-step {
-      background-color: var(--color-vibe-bg-1, #1f2937);
-    }
-
-    .title,
-    .question-text,
-    .review-question {
-      color: var(--color-vibe-text-1, #f9fafb);
-    }
-
-    .subtitle,
-    .error-text,
-    .answer-text {
-      color: var(--color-vibe-text-2, #d1d5db);
-    }
-
-    .question-card,
-    .review-item {
-      background-color: var(--color-vibe-bg-2, #111827);
-      border-color: var(--color-vibe-border, #374151);
-    }
-
-    .option-button {
-      background-color: var(--color-vibe-bg-3, #1f2937);
-      color: var(--color-vibe-text-1, #f9fafb);
-    }
-
-    .option-button:hover:not(:disabled) {
-      background-color: rgba(16, 185, 129, 0.1);
-    }
-
-    .text-input {
-      background-color: var(--color-vibe-bg-3, #1f2937);
-      color: var(--color-vibe-text-1, #f9fafb);
-      border-color: var(--color-vibe-border, #374151);
-    }
-
-    .text-input:focus {
-      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
     }
   }
 </style>

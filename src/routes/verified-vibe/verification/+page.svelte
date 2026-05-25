@@ -21,6 +21,7 @@
   import IDExtractionStep from '$lib/verified-vibe/components/IDExtractionStep.svelte';
   import LivenessStep from '$lib/verified-vibe/components/LivenessStep.svelte';
   import ProfileIntakeStep from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
+  import MatrimonyPreferencesStep from '$lib/verified-vibe/components/MatrimonyPreferencesStep.svelte';
   import TrustPointsBadge from '$lib/verified-vibe/components/TrustPointsBadge.svelte';
   import type { ProfileIntakeData } from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
   import type { VerificationStep as VerificationStepType, LivenessCheckResult } from '$lib/verified-vibe/types';
@@ -38,7 +39,6 @@
     };
   }
 
-  const totalSteps = 5;
   let currentStep = $state(1);
   let loading = $state(false);
   let error = $state<string | null>(null);
@@ -51,53 +51,40 @@
   let extractedName = $state('');
   let extractedAge = $state(0);
 
-  const steps = $derived([
-    {
-      number: 1,
-      name: 'Government ID',
-      description: 'Prove you\'re actually you.',
-      icon: '🆔',
-      stepType: 'id' as VerificationStepType,
-      time: '~30 sec',
-      points: 30
-    },
-    {
-      number: 2,
-      name: 'Selfie check',
-      description: 'Same face as your ID.',
-      icon: '🤳',
-      stepType: 'liveness' as VerificationStepType,
-      time: '~60 sec',
-      points: 35
-    },
-    {
-      number: 3,
-      name: 'Photo story',
-      description: 'Five photos. One face.',
-      icon: '📸',
-      stepType: 'photos' as VerificationStepType,
-      time: '~45 sec',
-      points: 55
-    },
-    {
-      number: 4,
-      name: $user?.archetype === 'casual_generous_man' ? 'Spending proof' : 'Intent check',
-      description: $user?.archetype === 'casual_generous_man' ? 'Where the money lands.' : 'Tell us the truth.',
-      icon: $user?.archetype === 'casual_generous_man' ? '💰' : '💬',
-      stepType: 'spending_or_qa' as VerificationStepType,
-      time: '~2 min',
-      points: 80
-    },
-    {
-      number: 5,
-      name: 'Your Profile',
-      description: 'Earn your profile.',
-      icon: '✨',
-      stepType: 'id' as VerificationStepType, // placeholder type, step 5 is local-only
-      time: '~10 min',
-      points: 0
+  const isMatrimonyArchetype = $derived(
+    $user?.archetype === 'traditional_matrimony_man' ||
+    $user?.archetype === 'traditional_matrimony_woman'
+  );
+
+  const steps = $derived((() => {
+    const base = [
+      { number: 1, name: 'Government ID', description: "Prove you're actually you.", icon: '🆔', stepType: 'id' as VerificationStepType, time: '~30 sec', points: 30 },
+      { number: 2, name: 'Selfie check', description: 'Same face as your ID.', icon: '🤳', stepType: 'liveness' as VerificationStepType, time: '~60 sec', points: 35 },
+      { number: 3, name: 'Photo story', description: 'Five photos. One face.', icon: '📸', stepType: 'photos' as VerificationStepType, time: '~45 sec', points: 55 },
+      {
+        number: 4,
+        name: $user?.archetype === 'casual_generous_man' ? 'Spending proof' : 'Intent check',
+        description: $user?.archetype === 'casual_generous_man' ? 'Where the money lands.' : 'Tell us the truth.',
+        icon: $user?.archetype === 'casual_generous_man' ? '💰' : '💬',
+        stepType: 'spending_or_qa' as VerificationStepType,
+        time: '~2 min',
+        points: 80
+      }
+    ];
+    if (isMatrimonyArchetype) {
+      return [
+        ...base,
+        { number: 5, name: 'Partner Preferences', description: 'Your ideal partner.', icon: '💍', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
+        { number: 6, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
+      ];
     }
-  ]);
+    return [
+      ...base,
+      { number: 5, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
+    ];
+  })());
+
+  const totalSteps = $derived(steps.length);
 
   onMount(() => {
     // Initialize from store
@@ -461,6 +448,35 @@
     }
   }
 
+  async function handleMatrimonyPrefsSubmit(data: { preferences: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+    loading = true;
+
+    try {
+      // Persist partner preferences to localStorage for use in profile/matching
+      localStorage.setItem('vv_matrimony_preferences', JSON.stringify(data.preferences));
+
+      completedSteps.add(currentStep);
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+      updateTrustScoreAfterVerification();
+
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
   async function handleProfileIntakeSubmit(data: ProfileIntakeData) {
     loading = true;
     error = null;
@@ -762,7 +778,12 @@
             onCancel={handleBack}
           />
         {/if}
-      {:else if currentStep === 5}
+      {:else if currentStep === 5 && isMatrimonyArchetype}
+        <MatrimonyPreferencesStep
+          onSubmit={handleMatrimonyPrefsSubmit}
+          onCancel={handleBack}
+        />
+      {:else if currentStep === 5 || currentStep === 6}
         <ProfileIntakeStep
           onSubmit={handleProfileIntakeSubmit}
           onCancel={handleBack}
@@ -796,22 +817,8 @@
     </div>
   {/if}
 
-  <!-- Actions — steps 4 and 5 have their own submit buttons inside the component -->
-  {#if currentStep !== 4 && currentStep !== 5}
-  <div class="verification-actions" transition:slide={{ duration: 400, delay: 100, axis: 'y' }}>
-    <button class="btn btn-secondary" onclick={handleSkipClick} disabled={loading}>
-      Skip
-    </button>
-    <button class="btn btn-primary" onclick={handleNext} disabled={loading}>
-      {#if loading}
-        <span class="loading-spinner"></span>
-        Processing...
-      {:else}
-        Next
-      {/if}
-    </button>
-  </div>
-  {:else if currentStep === 4}
+  <!-- Each step component handles its own primary action; only Skip is shown externally -->
+  {#if currentStep >= 1 && currentStep <= (isMatrimonyArchetype ? 5 : 4)}
   <div class="verification-actions single" transition:slide={{ duration: 400, delay: 100, axis: 'y' }}>
     <button class="btn btn-secondary" onclick={handleSkipClick} disabled={loading}>
       Skip this step

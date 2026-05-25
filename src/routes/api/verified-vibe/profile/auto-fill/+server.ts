@@ -21,7 +21,7 @@ import { ANTHROPIC_API_KEY } from '$env/static/private';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
-type Field = 'personality' | 'looking' | 'lifestyle';
+type Field = 'about' | 'personality' | 'looking' | 'lifestyle';
 
 // ─── Prompt builders ──────────────────────────────────────────────────────────
 
@@ -29,10 +29,30 @@ function buildPrompt(
   field: Field,
   gender: string,
   about: string | null,
-  profileData: Record<string, unknown>
+  profileData: Record<string, unknown>,
+  archetype?: string
 ): string {
   const context = JSON.stringify(profileData, null, 2).slice(0, 3000);
   const aboutText = about ?? '';
+  const archetypeHint = archetype ? ` (archetype: ${archetype.replace(/_/g, ' ')})` : '';
+
+  if (field === 'about') {
+    return `You are writing a dating profile bio for a real person${archetypeHint} (gender: ${gender}).
+
+Their profile data:
+${context}
+
+Write a genuine, first-person "About me" bio for this person's dating profile. The bio should:
+- Sound natural and conversational, not stiff or salesy
+- Be 2-4 sentences (80-150 words maximum)
+- Reflect their values, lifestyle, and what makes them worth getting to know
+- Avoid generic clichés like "love to laugh", "love adventures", "looking for my person"
+- Be specific and honest — pull signals from the profile data above
+- Suit the ${archetype?.includes('matrimony') ? 'matrimony-minded, serious, family-oriented' : 'contemporary dating'} context
+- Write ONLY the bio text, no intro, no quotes, no labels
+
+Example (matrimony context): I grew up in a home where Sunday dinners meant the whole family — and that's the kind of home I want to build. I work in finance, take my faith seriously, and still make time for the things that matter. I'm not here to waste anyone's time; I'm here because I'm ready.`;
+  }
 
   if (field === 'personality') {
     return `You are writing a dating profile for a real person (gender: ${gender}).
@@ -111,8 +131,8 @@ export const POST: RequestHandler = async ({ request }) => {
     // Validate field
     const body = await request.json();
     const field: Field = body.field;
-    if (!['personality', 'looking', 'lifestyle'].includes(field)) {
-      return json({ error: 'Invalid field. Must be personality, looking, or lifestyle.' }, { status: 400 });
+    if (!['about', 'personality', 'looking', 'lifestyle'].includes(field)) {
+      return json({ error: 'Invalid field. Must be about, personality, looking, or lifestyle.' }, { status: 400 });
     }
 
     const supabase = getSupabase();
@@ -125,7 +145,7 @@ export const POST: RequestHandler = async ({ request }) => {
     const [{ data: vvUser }, { data: aiRows }] = await Promise.all([
       supabase
         .from('verified_vibe_users')
-        .select('gender, about')
+        .select('gender, about, archetype')
         .eq('id', user.id)
         .single(),
       supabase
@@ -138,17 +158,16 @@ export const POST: RequestHandler = async ({ request }) => {
 
     if (!vvUser) return json({ error: 'Profile not found' }, { status: 404 });
 
-    // Pick the most relevant profile row: for lifestyle/looking use preferences (woman)
-    // or personality (man); for personality field always use personality
+    // Pick the most relevant profile row
     const preferredType = vvUser.gender === 'woman' ? 'preferences' : 'personality';
     const aiRow = aiRows?.find(r => r.profile_type === preferredType) ?? aiRows?.[0] ?? null;
     const profileData = (aiRow?.data as Record<string, unknown>) ?? {};
 
-    const prompt = buildPrompt(field, vvUser.gender, vvUser.about, profileData);
+    const prompt = buildPrompt(field, vvUser.gender, vvUser.about, profileData, (vvUser as any).archetype);
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-5',
-      max_tokens: 150,
+      max_tokens: field === 'about' ? 300 : 150,
       messages: [{ role: 'user', content: prompt }]
     });
 
