@@ -32,6 +32,7 @@
   import SecondChapterIntentStep from '$lib/verified-vibe/components/SecondChapterIntentStep.svelte';
   import SecondChapterProfileStep from '$lib/verified-vibe/components/SecondChapterProfileStep.svelte';
   import SecondChapterPreferencesStep from '$lib/verified-vibe/components/SecondChapterPreferencesStep.svelte';
+  import ReboundHealingStep from '$lib/verified-vibe/components/ReboundHealingStep.svelte';
   import TrustPointsBadge from '$lib/verified-vibe/components/TrustPointsBadge.svelte';
   import type { ProfileIntakeData } from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
   import type { VerificationStep as VerificationStepType, LivenessCheckResult } from '$lib/verified-vibe/types';
@@ -81,6 +82,11 @@
     $user?.archetype === 'second_chapter_woman'
   );
 
+  const isReboundHealingArchetype = $derived(
+    $user?.archetype === 'rebound_healing_man' ||
+    $user?.archetype === 'rebound_healing_woman'
+  );
+
   const steps = $derived((() => {
     const base = [
       { number: 1, name: 'Government ID', description: "Prove you're actually you.", icon: '🆔', stepType: 'id' as VerificationStepType, time: '~30 sec', points: 30 },
@@ -88,9 +94,9 @@
       { number: 3, name: 'Photo story', description: 'Five photos. One face.', icon: '📸', stepType: 'photos' as VerificationStepType, time: '~45 sec', points: 55 },
       {
         number: 4,
-        name: $user?.archetype === 'casual_generous_man' ? 'Spending proof' : isForeverFocusedArchetype ? 'Relationship Intent' : isRomanticArchetype ? 'Love & Connection' : isSecondChapterArchetype ? 'Reflection & Readiness' : 'Intent check',
-        description: $user?.archetype === 'casual_generous_man' ? 'Where the money lands.' : isForeverFocusedArchetype ? 'Your relationship goals.' : isRomanticArchetype ? 'What love means to you.' : isSecondChapterArchetype ? 'Your journey so far.' : 'Tell us the truth.',
-        icon: $user?.archetype === 'casual_generous_man' ? '💰' : isForeverFocusedArchetype ? '💫' : isRomanticArchetype ? '❤️' : isSecondChapterArchetype ? '🌱' : '💬',
+        name: $user?.archetype === 'casual_generous_man' ? 'Spending proof' : isForeverFocusedArchetype ? 'Relationship Intent' : isRomanticArchetype ? 'Love & Connection' : isSecondChapterArchetype ? 'Reflection & Readiness' : isReboundHealingArchetype ? 'Connection Style' : 'Intent check',
+        description: $user?.archetype === 'casual_generous_man' ? 'Where the money lands.' : isForeverFocusedArchetype ? 'Your relationship goals.' : isRomanticArchetype ? 'What love means to you.' : isSecondChapterArchetype ? 'Your journey so far.' : isReboundHealingArchetype ? 'How you connect now.' : 'Tell us the truth.',
+        icon: $user?.archetype === 'casual_generous_man' ? '💰' : isForeverFocusedArchetype ? '💫' : isRomanticArchetype ? '❤️' : isSecondChapterArchetype ? '🌱' : isReboundHealingArchetype ? '🌙' : '💬',
         stepType: 'spending_or_qa' as VerificationStepType,
         time: '~2 min',
         points: 80
@@ -627,6 +633,31 @@
     }
   }
 
+  async function handleReboundHealingSubmit(data: { responses: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+    loading = true;
+    try {
+      localStorage.setItem('vv_rebound_healing', JSON.stringify(data.responses));
+      completedSteps.add(currentStep);
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+      updateTrustScoreAfterVerification();
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
   async function handleRomanticIntentSubmit(data: { intent: Record<string, string | string[]> }) {
     error = null;
     clearError();
@@ -1083,6 +1114,11 @@
         {:else if isSecondChapterArchetype}
           <SecondChapterIntentStep
             onSubmit={handleSecondChapterIntentSubmit}
+            onCancel={handleBack}
+          />
+        {:else if isReboundHealingArchetype}
+          <ReboundHealingStep
+            onSubmit={handleReboundHealingSubmit}
             onCancel={handleBack}
           />
         {:else}
