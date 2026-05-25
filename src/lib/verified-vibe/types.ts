@@ -9,13 +9,17 @@ export type Archetype =
   | 'untouched_heart_man'
   | 'forever_focused_man'
   | 'traditional_matrimony_man'
+  | 'second_chapter_man'
+  | 'just_friends_man'
   // Female archetypes
   | 'spoiled_casual_woman'
   | 'hopeless_romantic_woman'
   | 'rebound_healing_woman'
   | 'untouched_heart_woman'
   | 'forever_focused_woman'
-  | 'traditional_matrimony_woman';
+  | 'traditional_matrimony_woman'
+  | 'second_chapter_woman'
+  | 'just_friends_woman';
 export type VerificationStep = 'id' | 'liveness' | 'photos' | 'spending_or_qa';
 export type VerificationStatus = 'pending' | 'completed' | 'failed';
 export type MatchStatus = 'pending' | 'mutual' | 'rejected';
