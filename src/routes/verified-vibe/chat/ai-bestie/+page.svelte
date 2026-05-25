@@ -121,9 +121,11 @@
   }
 
   // Quick-action chips
-  const CHIPS: { label: string; icon: string; intent: 'summary' | 'insights' | 'configure' }[] = [
-    { label: 'Summarize my matches', icon: '📋', intent: 'summary' },
+  const CHIPS: { label: string; icon: string; intent: 'summary' | 'insights' | 'configure' | 'update_profile' | 'better_matches' }[] = [
+    { label: 'Summarize matches', icon: '📋', intent: 'summary' },
     { label: 'Fresh insights', icon: '✨', intent: 'insights' },
+    { label: 'How can I get better matches', icon: '💡', intent: 'better_matches' },
+    { label: 'Update profile', icon: '✏️', intent: 'update_profile' },
     { label: 'Configure Bestie', icon: '⚙️', intent: 'configure' }
   ];
 
@@ -200,7 +202,7 @@
 
     // Add user bubble (empty for implicit intents)
     const userContent =
-      opts.intent === 'summary' ? '📋 Summarize my matches'
+      opts.intent === 'summary' ? '📋 Summarize matches'
       : opts.intent === 'insights' ? '✨ Any fresh insights?'
       : text;
 
@@ -305,9 +307,22 @@
     }
   }
 
-  async function handleChip(intent: 'summary' | 'insights' | 'configure') {
+  async function handleChip(intent: 'summary' | 'insights' | 'configure' | 'update_profile' | 'better_matches') {
     if (intent === 'configure') {
       goto('/verified-vibe/chat/ai-bestie/configure');
+      return;
+    }
+    if (intent === 'update_profile') {
+      messages = [...messages, {
+        role: 'assistant',
+        content: "I can update your profile from here. You can change your name, city, bio, what you're looking for, your lane, and your photos. What would you like to change?",
+        timestamp: new Date()
+      }];
+      await scrollToBottom();
+      return;
+    }
+    if (intent === 'better_matches') {
+      await send({ text: 'How can I get better matches?' });
       return;
     }
     await send({ intent });
@@ -771,7 +786,10 @@
 
   /* ── Chips ── */
   .chips-row {
-    display: flex;
+    display: grid;
+    grid-template-rows: repeat(2, auto);
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
     gap: 8px;
     padding: 8px 16px;
     overflow-x: auto;
@@ -794,7 +812,6 @@
     cursor: pointer;
     white-space: nowrap;
     transition: all 150ms;
-    flex-shrink: 0;
   }
   .chip:hover:not(:disabled) {
     background: rgba(236, 72, 153, 0.18);

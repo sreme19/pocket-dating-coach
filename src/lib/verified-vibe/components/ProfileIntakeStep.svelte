@@ -31,10 +31,6 @@
     'Photography', 'Dancing', 'Sports', 'Tech', 'Fashion'
   ];
 
-  const LOOKING_FOR_OPTIONS: Record<string, string[]> = {
-    casual_man: ['Casual dating', 'Something that evolves', 'No strings attached', 'Seeing where it goes'],
-    marriage_minded_man: ['Long-term relationship', 'Future partner', 'Serious commitment', 'Building something real']
-  };
 
   let firstName = $state(initialName);
   let age = $state<number | ''>(initialAge || '');
@@ -45,8 +41,8 @@
   let selectedInterests = $state<Set<string>>(new Set());
   let touched = $state(false);
 
-  // Voice input
-  let listening = $state(false);
+  // Voice input — tracks which field is actively listening
+  let listeningFor = $state<'about' | 'looking' | null>(null);
   let voiceSupported = $state(false);
   let recognition: any = null;
 
@@ -61,36 +57,36 @@
         recognition.lang = 'en-US';
         recognition.onresult = (e: any) => {
           const transcript = e.results[0][0].transcript;
-          about = about ? about.trimEnd() + ' ' + transcript : transcript;
-          listening = false;
+          if (listeningFor === 'about') {
+            about = about ? about.trimEnd() + ' ' + transcript : transcript;
+          } else if (listeningFor === 'looking') {
+            lookingFor = lookingFor ? lookingFor.trimEnd() + ' ' + transcript : transcript;
+          }
+          listeningFor = null;
         };
-        recognition.onerror = () => { listening = false; };
-        recognition.onend = () => { listening = false; };
+        recognition.onerror = () => { listeningFor = null; };
+        recognition.onend = () => { listeningFor = null; };
       }
     }
   });
 
-  function toggleVoice() {
+  function toggleVoice(target: 'about' | 'looking') {
     if (!recognition) return;
-    if (listening) {
+    if (listeningFor) {
       recognition.stop();
-      listening = false;
+      listeningFor = null;
     } else {
+      listeningFor = target;
       recognition.start();
-      listening = true;
     }
   }
-
-  const lookingForOptions = $derived(
-    LOOKING_FOR_OPTIONS[archetype] ?? LOOKING_FOR_OPTIONS.casual_man
-  );
 
   const isValid = $derived(
     firstName.trim().length > 0 &&
     city.trim().length > 0 &&
     about.trim().length > 20 &&
     selectedTags.size > 0 &&
-    lookingFor.length > 0
+    lookingFor.trim().length > 10
   );
 
   function toggleTag(tag: string) {
@@ -184,12 +180,12 @@
       {#if voiceSupported}
         <button
           type="button"
-          class="mic-btn {listening ? 'listening' : ''}"
-          onclick={toggleVoice}
-          aria-label={listening ? 'Stop recording' : 'Speak your answer'}
-          title={listening ? 'Tap to stop' : 'Tap to speak'}
+          class="mic-btn {listeningFor === 'about' ? 'listening' : ''}"
+          onclick={() => toggleVoice('about')}
+          aria-label={listeningFor === 'about' ? 'Stop recording' : 'Speak your answer'}
+          title={listeningFor === 'about' ? 'Tap to stop' : 'Tap to speak'}
         >
-          {#if listening}
+          {#if listeningFor === 'about'}
             <span class="mic-ring"></span>
           {/if}
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -199,7 +195,7 @@
             <line x1="8" y1="23" x2="16" y2="23"/>
           </svg>
         </button>
-        {#if listening}
+        {#if listeningFor === 'about'}
           <p class="voice-hint">Listening… speak now</p>
         {/if}
       {/if}
@@ -232,23 +228,46 @@
     {/if}
   </div>
 
-  <!-- Looking for -->
+  <!-- Who's a good match -->
   <div class="field">
-    <label class="label">What are you looking for?</label>
-    <div class="option-list">
-      {#each lookingForOptions as option}
+    <label class="label" for="lookingFor">
+      Who's a good match for you?
+      <span class="label-hint">Be specific — it sharpens your matches</span>
+    </label>
+    <div class="textarea-wrap">
+      <textarea
+        id="lookingFor"
+        class="textarea {touched && lookingFor.trim().length <= 10 ? 'error' : ''}"
+        placeholder="Someone emotionally available, who has their own thing going but actually makes time. Doesn't need to be everywhere at once — consistent, a bit ambitious, knows how to have a real conversation."
+        rows="4"
+        bind:value={lookingFor}
+      ></textarea>
+      {#if voiceSupported}
         <button
           type="button"
-          class="option {lookingFor === option ? 'selected' : ''}"
-          onclick={() => lookingFor = option}
+          class="mic-btn {listeningFor === 'looking' ? 'listening' : ''}"
+          onclick={() => toggleVoice('looking')}
+          aria-label={listeningFor === 'looking' ? 'Stop recording' : 'Speak your answer'}
+          title={listeningFor === 'looking' ? 'Tap to stop' : 'Tap to speak'}
         >
-          <span class="option-dot"></span>
-          {option}
+          {#if listeningFor === 'looking'}
+            <span class="mic-ring"></span>
+          {/if}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/>
+            <line x1="8" y1="23" x2="16" y2="23"/>
+          </svg>
         </button>
-      {/each}
+        {#if listeningFor === 'looking'}
+          <p class="voice-hint">Listening… speak now</p>
+        {/if}
+      {/if}
     </div>
-    {#if touched && !lookingFor}
-      <p class="field-error">Select one</p>
+    <div class="char-hint">{lookingFor.length} chars</div>
+    {#if touched && lookingFor.trim().length <= 10}
+      <p class="field-error">Add a bit more detail</p>
     {/if}
   </div>
 

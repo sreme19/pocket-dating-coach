@@ -1,18 +1,35 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { user, setPhase } from '$lib/verified-vibe/stores';
-  import { ARCHETYPES, ARCHETYPES_BY_GENDER } from '$lib/verified-vibe/constants';
+  import { ARCHETYPES, ARCHETYPES_BY_GENDER, ARCHETYPE_SECTIONS } from '$lib/verified-vibe/constants';
   import type { Archetype, Gender, VerifiedVibeUser } from '$lib/verified-vibe/types';
   import ArchetypeCard from '$lib/verified-vibe/components/ArchetypeCard.svelte';
   import ArchetypeDetailModal from '$lib/verified-vibe/components/ArchetypeDetailModal.svelte';
   import LiveWomenCarousel from '$lib/verified-vibe/components/LiveWomenCarousel.svelte';
   import { getProfile } from '$lib/verified-vibe/services/profileService';
+  import { getSupabaseClient } from '$lib/client/supabase';
 
   let gender = $state<Gender | null>(null);
   let openedArchetype = $state<Archetype | null>(null);
+  let activeSection = $state<string | null>(null);
+
+  // Countdown — starts at 14:59 and counts down
+  let secondsLeft = $state(19 * 60 + 59);
+  const timerDisplay = $derived(() => {
+    const m = Math.floor(secondsLeft / 60).toString().padStart(2, '0');
+    const s = (secondsLeft % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  });
 
   $effect(() => {
-    // Pending gender (set by gate page) is highest priority — the user just selected it.
+    const id = setInterval(() => {
+      secondsLeft = secondsLeft > 0 ? secondsLeft - 1 : 0;
+    }, 1000);
+    return () => clearInterval(id);
+  });
+
+  $effect(() => {
+    // Priority 1: fresh selection just made at the gate
     const pending = localStorage.getItem('verified_vibe_pending_gender') as Gender | null;
     if (pending) {
       gender = pending;
@@ -21,30 +38,43 @@
       return;
     }
 
-    // Fallback: load from Supabase profile or localStorage
+    // Priority 2: gender already stored locally from a previous gate visit
+    // Trust localStorage over the DB here — the gate is the authoritative entry
+    // point for gender selection, and a mismatched profile.gender (e.g. from a
+    // seed account or stale data) should not override what the user picked.
+    const stored = localStorage.getItem('verified_vibe_gender');
+    if (stored) {
+      gender = stored as Gender;
+      return;
+    }
+
+    // Priority 3: no localStorage — first load or cleared storage, fall back to profile
     getProfile().then((profile) => {
       if (profile?.gender) {
         gender = profile.gender;
         localStorage.setItem('verified_vibe_gender', profile.gender);
-      } else {
-        const stored = localStorage.getItem('verified_vibe_gender');
-        if (stored) gender = stored as Gender;
       }
-    }).catch(() => {
-      const stored = localStorage.getItem('verified_vibe_gender');
-      if (stored) gender = stored as Gender;
-    });
+    }).catch(() => {});
   });
 
-  const availableArchetypes = $derived.by(() => {
+  const availableSections = $derived.by(() => {
     if (!gender) return [];
-    const archetypeIds = ARCHETYPES_BY_GENDER[gender] || [];
-    return archetypeIds.map(id => ARCHETYPES[id as Archetype]).filter(Boolean);
+    const sections = ARCHETYPE_SECTIONS[gender] || [];
+    return sections.map(section => ({
+      label: section.label,
+      archetypes: section.ids
+        .map(id => ARCHETYPES[id as Archetype])
+        .filter(Boolean),
+    }));
   });
 
   const openedArchetypeData = $derived(openedArchetype ? ARCHETYPES[openedArchetype] : null);
 
-  function handleLockIn(archetypeId: Archetype) {
+  function toggleSection(label: string) {
+    activeSection = activeSection === label ? null : label;
+  }
+
+  async function handleLockIn(archetypeId: Archetype) {
     localStorage.setItem('verified_vibe_archetype', archetypeId);
     localStorage.setItem('verified_vibe_pending_archetype', archetypeId);
 
@@ -63,9 +93,18 @@
       updatedAt: new Date()
     };
     user.set(devUser);
-    setPhase('verification');
     openedArchetype = null;
-    goto('/verified-vibe/verify');
+
+    // Check if already signed in — if so go straight to verification,
+    // otherwise collect an email first
+    const supabase = getSupabaseClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      setPhase('verification');
+      goto('/verified-vibe/verify');
+    } else {
+      goto('/verified-vibe/auth');
+    }
   }
 </script>
 
@@ -78,10 +117,17 @@
     <h1 class="title">
       Pick your<br /><em>lane.</em>
     </h1>
-    <p class="subtitle">
-      Stop swiping blind. Earn your profile, verify your intent, and start speaking to people who actually want what you want.
-    </p>
-    <p class="pay-later"><em>Pay later.</em></p>
+    <div class="urgency-banner">
+      <div class="urgency-top">
+        <span class="urgency-label">Get matched within</span>
+        <span class="urgency-timer">{timerDisplay()}</span>
+        <span class="urgency-label">minutes.</span>
+        <span class="urgency-guaranteed">Guaranteed.</span>
+      </div>
+      <p class="urgency-sub">
+        Earn your profile, verify your intent. <em class="pay-later-inline">Pay later.</em>
+      </p>
+    </div>
   </div>
 
   <div class="lane-section">
@@ -90,14 +136,46 @@
       <p class="lane-sub">Pick one. You can switch later — but switching means re-verifying.</p>
     </div>
 
-    <div class="lane-cards">
-      {#each availableArchetypes as archetype (archetype.id)}
-        <ArchetypeCard
-          {archetype}
-          onOpen={() => { openedArchetype = archetype.id as Archetype; }}
-        />
-      {/each}
-    </div>
+    {#if availableSections.length > 0}
+      <div class="sections">
+        {#each availableSections as section (section.label)}
+          {@const isOpen = activeSection === section.label}
+          <div class="section" class:section--collapsed={!isOpen}>
+            <button
+              class="section-header"
+              class:section-header--serious={section.label === 'Serious Connection'}
+              class:section-header--low={section.label === 'Low-Pressure'}
+              onclick={() => toggleSection(section.label)}
+              aria-expanded={isOpen}
+            >
+              <span class="section-pill">
+                {section.label === 'Serious Connection' ? '❤️' : '✌️'}
+                {section.label}
+              </span>
+              <span class="section-count">{section.archetypes.length} options</span>
+              <span class="section-chevron" class:rotated={!isOpen}>›</span>
+            </button>
+
+            {#if isOpen}
+              <div class="section-cards">
+                {#each section.archetypes as archetype (archetype.id)}
+                  <ArchetypeCard
+                    {archetype}
+                    onOpen={() => { openedArchetype = archetype.id as Archetype; }}
+                  />
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/each}
+      </div>
+    {:else}
+      <div class="loading-cards">
+        {#each [1, 2, 3, 4] as _}
+          <div class="skeleton"></div>
+        {/each}
+      </div>
+    {/if}
 
     <p class="trust-note">
       We verify ID, photos, spending pattern &amp; intent.<br />
@@ -161,18 +239,61 @@
     font-style: italic;
   }
 
-  .subtitle {
-    font-size: 15px;
-    color: var(--text-2);
-    line-height: 1.55;
-    margin: 0 0 4px;
+  .urgency-banner {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px 16px;
+    background: color-mix(in srgb, var(--accent-bright) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-bright) 25%, transparent);
+    border-radius: 14px;
   }
 
-  .pay-later {
-    font-style: italic;
-    color: var(--accent-bright);
+  .urgency-top {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .urgency-label {
     font-size: 15px;
+    color: var(--text-2);
+    font-weight: 500;
+  }
+
+  .urgency-timer {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--accent-bright);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+    animation: timer-pulse 1s ease-in-out infinite;
+  }
+
+  @keyframes timer-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  .urgency-guaranteed {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent-bright);
+    font-style: italic;
+  }
+
+  .urgency-sub {
+    font-size: 13px;
+    color: var(--text-3);
     margin: 0;
+    line-height: 1.45;
+  }
+
+  .pay-later-inline {
+    color: var(--accent-bright);
+    font-weight: 600;
+    font-style: italic;
   }
 
   .lane-section {
@@ -202,10 +323,127 @@
     line-height: 1.4;
   }
 
-  .lane-cards {
+  /* ── Sections ─────────────────────────────────────────────────────────────── */
+
+  .sections {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .section {
+    border-radius: 18px;
+    border: 1px solid var(--border-1);
+    overflow: hidden;
+    transition: border-color 200ms;
+  }
+
+  .section--collapsed {
+    border-color: var(--border-1);
+  }
+
+  .section-header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    background: var(--bg-2);
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    transition: background 180ms;
+  }
+
+  .section-header:active {
+    background: var(--bg-3);
+  }
+
+  @media (hover: hover) {
+    .section-header:hover {
+      background: var(--bg-3);
+    }
+  }
+
+  .section-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 5px 12px;
+    border-radius: 100px;
+    flex-shrink: 0;
+  }
+
+  .section-header--serious .section-pill {
+    background: color-mix(in srgb, var(--accent-bright) 12%, transparent);
+    color: var(--accent-bright);
+  }
+
+  .section-header--low .section-pill {
+    background: color-mix(in srgb, #a78bfa 12%, transparent);
+    color: #a78bfa;
+  }
+
+  .section-count {
+    font-size: 12px;
+    color: var(--text-4);
+    flex: 1;
+  }
+
+  .section-chevron {
+    font-size: 20px;
+    color: var(--text-3);
+    line-height: 1;
+    transition: transform 220ms ease;
+    display: block;
+    transform: rotate(90deg);
+  }
+
+  .section-chevron.rotated {
+    transform: rotate(-90deg);
+  }
+
+  .section-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: var(--border-1);
+    border-top: 1px solid var(--border-1);
+  }
+
+  .section-cards :global(.card) {
+    border-radius: 0;
+    border: none;
+    border-bottom: none;
+  }
+
+  .section-cards :global(.card:last-child) {
+    border-radius: 0 0 17px 17px;
+  }
+
+  /* ── Loading skeletons ───────────────────────────────────────────────────── */
+
+  .loading-cards {
     display: flex;
     flex-direction: column;
     gap: 10px;
+  }
+
+  .skeleton {
+    height: 76px;
+    border-radius: 16px;
+    background: var(--bg-2);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
   }
 
   .trust-note {

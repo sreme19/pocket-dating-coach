@@ -59,9 +59,17 @@
   const steps = $derived((() => {
     const base = [
       { number: 1, name: 'Government ID', description: "Prove you're actually you.", icon: '🆔', stepType: 'id' as VerificationStepType, time: '~30 sec', points: 30 },
-      { number: 2, name: 'Photo verification', description: 'Five photos. One face.', icon: '📸', stepType: 'liveness' as VerificationStepType, time: '~60 sec', points: 35 },
-      { number: 3, name: 'Spending pattern', description: 'Where the money lands.', icon: '💰', stepType: 'photos' as VerificationStepType, time: '~45 sec', points: 55 },
-      { number: 4, name: 'Q&A intent check', description: 'Tell us the truth.', icon: '💬', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 80 }
+      { number: 2, name: 'Selfie check', description: 'Same face as your ID.', icon: '🤳', stepType: 'liveness' as VerificationStepType, time: '~60 sec', points: 35 },
+      { number: 3, name: 'Photo story', description: 'Five photos. One face.', icon: '📸', stepType: 'photos' as VerificationStepType, time: '~45 sec', points: 55 },
+      {
+        number: 4,
+        name: $user?.archetype === 'casual_generous_man' ? 'Spending proof' : 'Intent check',
+        description: $user?.archetype === 'casual_generous_man' ? 'Where the money lands.' : 'Tell us the truth.',
+        icon: $user?.archetype === 'casual_generous_man' ? '💰' : '💬',
+        stepType: 'spending_or_qa' as VerificationStepType,
+        time: '~2 min',
+        points: 80
+      }
     ];
     if (isMatrimonyArchetype) {
       return [
@@ -83,7 +91,7 @@
     verificationStep.subscribe(step => {
       currentStep = step;
     });
-    
+
     verificationProgress.subscribe(progress => {
       // Update completed steps based on progress
       const stepsCompleted = Math.floor((progress / 100) * totalSteps);
@@ -91,6 +99,20 @@
         completedSteps.add(i);
       }
     });
+
+    // Retry flushing pending gender/archetype in case the auth-page upsert
+    // lost the session-propagation race on first sign-up.
+    const pendingGender    = localStorage.getItem('verified_vibe_pending_gender');
+    const pendingArchetype = localStorage.getItem('verified_vibe_pending_archetype');
+    if (pendingGender || pendingArchetype) {
+      upsertProfile({
+        ...(pendingGender    ? { gender:    pendingGender    as any } : {}),
+        ...(pendingArchetype ? { archetype: pendingArchetype as any } : {})
+      }).then(() => {
+        localStorage.removeItem('verified_vibe_pending_gender');
+        localStorage.removeItem('verified_vibe_pending_archetype');
+      }).catch(e => console.error('[verify] pending profile flush failed:', e));
+    }
   });
 
   async function handleIDSubmit(data: { idImage: string; mimeType: string }) {
@@ -310,7 +332,8 @@
           data: {
             spendingImage: data.spendingImage,
             mimeType: data.mimeType,
-            gender: $user?.gender
+            gender: $user?.gender,
+            archetype: $user?.archetype
           }
         })
       });
@@ -374,7 +397,8 @@
           step: 'spending_or_qa',
           data: {
             responses: data.responses,
-            gender: $user?.gender
+            gender: $user?.gender,
+            archetype: $user?.archetype
           }
         })
       });

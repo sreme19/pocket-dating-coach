@@ -82,6 +82,44 @@
     traditional_matrimony_woman: MATRIMONY_QUESTIONS
   };
 
+  // Voice input
+  let listening = $state(false);
+  let voiceSupported = $state(false);
+  let recognition: any = null;
+
+  $effect(() => {
+    if (typeof window !== 'undefined') {
+      const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      voiceSupported = !!SR;
+      if (SR) {
+        recognition = new SR();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+        recognition.onresult = (e: any) => {
+          const transcript = e.results[0][0].transcript;
+          const q = getCurrentQuestion();
+          const current = (responses[q.id] as string) || '';
+          handleTextInput(current ? current.trimEnd() + ' ' + transcript : transcript);
+          listening = false;
+        };
+        recognition.onerror = () => { listening = false; };
+        recognition.onend = () => { listening = false; };
+      }
+    }
+  });
+
+  function toggleVoice() {
+    if (!recognition) return;
+    if (listening) {
+      recognition.stop();
+      listening = false;
+    } else {
+      recognition.start();
+      listening = true;
+    }
+  }
+
   // Gender-specific questions (fallback when no archetype-specific set exists)
   const questionSets: Record<Gender, Question[]> = {
     man: [
@@ -90,10 +128,10 @@
         type: 'multiple-choice',
         question: "What's your comfort level with spending on dates?",
         options: [
-          { value: 'budget', label: 'Budget-conscious ($20-50)' },
-          { value: 'moderate', label: 'Moderate spender ($50-150)' },
-          { value: 'generous', label: 'Generous spender ($150-300)' },
-          { value: 'luxury', label: 'Luxury spender ($300+)' }
+          { value: 'budget', label: 'Budget-conscious (₹1,000–3,000)' },
+          { value: 'moderate', label: 'Moderate spender (₹3,000–8,000)' },
+          { value: 'generous', label: 'Generous spender (₹8,000–20,000)' },
+          { value: 'luxury', label: 'Luxury spender (₹20,000+)' }
         ]
       },
       {
@@ -373,15 +411,39 @@
               {/each}
             </div>
           {:else if question.type === 'text'}
-            <textarea
-              class="text-input"
-              placeholder={question.placeholder}
-              value={responses[question.id] || ''}
-              oninput={(e) => handleTextInput(e.currentTarget.value)}
-              disabled={loading}
-              aria-label={question.question}
-              maxlength="500"
-            ></textarea>
+            <div class="textarea-wrap">
+              <textarea
+                class="text-input"
+                placeholder={question.placeholder}
+                value={responses[question.id] || ''}
+                oninput={(e) => handleTextInput(e.currentTarget.value)}
+                disabled={loading}
+                aria-label={question.question}
+                maxlength="500"
+              ></textarea>
+              {#if voiceSupported}
+                <button
+                  type="button"
+                  class="mic-btn {listening ? 'listening' : ''}"
+                  onclick={toggleVoice}
+                  aria-label={listening ? 'Stop recording' : 'Speak your answer'}
+                  title={listening ? 'Tap to stop' : 'Tap to speak'}
+                >
+                  {#if listening}
+                    <span class="mic-ring"></span>
+                  {/if}
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="23"/>
+                    <line x1="8" y1="23" x2="16" y2="23"/>
+                  </svg>
+                </button>
+                {#if listening}
+                  <p class="voice-hint">Listening… speak now</p>
+                {/if}
+              {/if}
+            </div>
             <p class="char-count">
               {(responses[question.id] as string)?.length || 0}/500
             </p>
@@ -774,6 +836,60 @@
     cursor: not-allowed;
   }
 
+  /* ── Voice input ─────────────────────────────────────────────────────────── */
+
+  .textarea-wrap {
+    position: relative;
+  }
+
+  .mic-btn {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1px solid var(--border-2);
+    background: var(--bg-1);
+    color: var(--text-3);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition: all 150ms ease;
+    flex-shrink: 0;
+  }
+
+  .mic-btn:hover {
+    border-color: var(--accent-bright);
+    color: var(--accent-bright);
+  }
+
+  .mic-btn.listening {
+    border-color: var(--accent-bright);
+    background: var(--accent-tint);
+    color: var(--accent-bright);
+  }
+
+  .mic-ring {
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 2px solid var(--accent-bright);
+    animation: mic-pulse 1.2s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  @keyframes mic-pulse {
+    0%, 100% { opacity: 0.8; transform: scale(1); }
+    50%       { opacity: 0.2; transform: scale(1.25); }
+  }
+
+  .voice-hint {
+    font-size: 11px;
+    color: var(--accent-bright);
+    margin: 4px 0 0;
+    font-style: italic;
+  }
   @media (max-width: 767px) {
     .spending-qa-step {
       gap: 1rem;

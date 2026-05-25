@@ -41,7 +41,8 @@
     // Public paths (no session check needed)
     if (PUBLIC_VV_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))) return;
 
-    // App-phase routes require session + full verification
+    // App-phase routes require a session. If the phase store is already 'app',
+    // hydrateStores() already validated the profile — no need to re-fetch it.
     if (APP_PHASE_PATHS.some(p => pathname === p || pathname.startsWith(p + '/'))) {
       getSupabaseClient()
         .auth.getSession()
@@ -51,10 +52,12 @@
             return;
           }
 
-          // Check if user has a profile
+          // Phase store validated by hydrateStores — trust it
+          if ($currentPhase === 'app') return;
+
+          // Phase not yet 'app' — check profile to decide where to send the user
           const profile = await getProfile();
           if (!profile) {
-            // Authenticated but no profile — redirect to gate to create one
             goto('/verified-vibe/gate');
           }
         })
