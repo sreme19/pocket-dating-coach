@@ -20,7 +20,7 @@
 
   interface Question {
     id: string;
-    type: 'multiple-choice' | 'text';
+    type: 'multiple-choice' | 'multi-select' | 'text';
     question: string;
     options?: Array<{ value: string; label: string }>;
     placeholder?: string;
@@ -76,10 +76,352 @@
     }
   ];
 
+  const SPOILED_CASUAL_QUESTIONS: Question[] = [
+    {
+      id: 'date_expectations',
+      type: 'multiple-choice',
+      question: '✨ What do you expect from a date?',
+      options: [
+        { value: 'chemistry', label: '☕ Simple chemistry first' },
+        { value: 'intentional', label: '🌸 Intentional & thoughtful' },
+        { value: 'premium', label: '🍷 Premium experiences' },
+        { value: 'spoiled', label: '✨ Spoiled & celebrated' }
+      ]
+    },
+    {
+      id: 'relationship_energy',
+      type: 'multi-select',
+      question: '✨ Describe the energy you want in a relationship',
+      options: [
+        { value: 'generous', label: '💎 Generous' },
+        { value: 'well_traveled', label: '🌍 Well-traveled' },
+        { value: 'affectionate', label: '❤️ Affectionate' },
+        { value: 'calm_energy', label: '🧘 Calm energy' },
+        { value: 'respectful', label: '🤝 Respectful' },
+        { value: 'confident', label: '🧲 Confident' },
+        { value: 'provider_mindset', label: '🌹 Provider mindset' },
+        { value: 'spontaneous', label: '🎉 Spontaneous' },
+        { value: 'discreet', label: '🔒 Discreet' },
+        { value: 'high_standards', label: '🏆 High standards' },
+        { value: 'flirtatious', label: '✨ Flirtatious' },
+        { value: 'after_hours', label: '🌙 After-hours energy' }
+      ]
+    },
+    {
+      id: 'relationship_vibe',
+      type: 'multi-select',
+      question: '✨ How would you describe your vibe in a relationship?',
+      options: [
+        { value: 'romantic', label: '🌹 Romantic' },
+        { value: 'feminine_energy', label: '✨ Feminine energy' },
+        { value: 'sweet_caring', label: '🥰 Sweet & caring' },
+        { value: 'soft_sensual', label: '🕯️ Soft & sensual' },
+        { value: 'flirty', label: '😏 Flirty' },
+        { value: 'magnetic', label: '🧲 Magnetic presence' },
+        { value: 'glamorous', label: '✨ Glamorous' },
+        { value: 'mysterious', label: '🌙 Mysterious vibe' },
+        { value: 'chemistry_driven', label: '💫 Chemistry-driven' },
+        { value: 'playful_teasing', label: '😘 Playful & teasing' },
+        { value: 'sensual_connection', label: '🫦 Sensual connection' }
+      ]
+    },
+    {
+      id: 'chemistry_type',
+      type: 'multi-select',
+      question: '🔥 What kind of chemistry do you enjoy most?',
+      options: [
+        { value: 'emotional_first', label: '❤️ Emotional connection first' },
+        { value: 'instant_sparks', label: '⚡ Instant sparks' },
+        { value: 'affection_touch', label: '💋 Affection & touch' },
+        { value: 'flirty_banter', label: '😏 Flirty banter' },
+        { value: 'romantic_intimacy', label: '🌹 Romantic intimacy' },
+        { value: 'sensual_experiences', label: '🍷 Sensual experiences' },
+        { value: 'slow_burn', label: '🕯️ Slow-burn attraction' },
+        { value: 'passionate', label: '🔥 Passionate chemistry' }
+      ]
+    },
+    {
+      id: 'lifestyle_experiences',
+      type: 'multi-select',
+      question: '✨ What kind of experiences do you enjoy most?',
+      options: [
+        { value: 'international_travel', label: '🌍 International travel' },
+        { value: 'luxury_getaways', label: '🛥️ Luxury getaways' },
+        { value: 'fine_dining', label: '🍷 Fine dining' },
+        { value: 'designer_shopping', label: '🛍️ Designer shopping' },
+        { value: 'premium_lifestyle', label: '💎 Premium lifestyle' },
+        { value: 'thoughtful_gifts', label: '🎁 Thoughtful gifts' },
+        { value: 'luxury_hotels', label: '🏨 Luxury hotels & resorts' },
+        { value: 'vip_events', label: '🎭 VIP events & nightlife' },
+        { value: 'spontaneous_trips', label: '✈️ Spontaneous trips' },
+        { value: 'relaxing_escapes', label: '🌴 Relaxing escapes' },
+        { value: 'wellness_spa', label: '🧘 Wellness & spa experiences' },
+        { value: 'art_fashion', label: '🎨 Art, fashion & culture' }
+      ]
+    },
+    {
+      id: 'appreciation',
+      type: 'multi-select',
+      question: '✨ What makes you feel most appreciated?',
+      options: [
+        { value: 'quality_time', label: '❤️ Quality time' },
+        { value: 'attention', label: '💬 Attention & communication' },
+        { value: 'gifts_surprises', label: '🎁 Gifts & surprises' },
+        { value: 'shared_experiences', label: '✈️ Shared experiences' },
+        { value: 'financial_generosity', label: '💎 Financial generosity' },
+        { value: 'romance_affection', label: '🌹 Romance & affection' },
+        { value: 'luxury_treatment', label: '🥂 Luxury treatment' },
+        { value: 'consistency', label: '🕰️ Consistency & effort' }
+      ]
+    },
+    {
+      id: 'intimacy_openness',
+      type: 'multi-select',
+      question: '💋 What kind of chemistry and intimacy are you open to exploring?',
+      options: [
+        { value: 'pda', label: '💋 PDA' },
+        { value: 'roleplay', label: '🕯️ Roleplay' },
+        { value: 'power_dynamics', label: '⛓️ Power dynamics' },
+        { value: 'sensory_sensual', label: '🌹 Sensory & sensual play' },
+        { value: 'exploring_fantasies', label: '✨ Exploring fantasies together' },
+        { value: 'teasing_flirtation', label: '😏 Teasing & flirtation' },
+        { value: 'emotional_intimacy', label: '❤️ Emotional intimacy focus' },
+        { value: 'prefer_discretion', label: '🔒 Prefer discretion' },
+        { value: 'experimental', label: '🎭 Experimental experiences' }
+      ]
+    },
+    {
+      id: 'boundaries',
+      type: 'multi-select',
+      question: '🛡️ What boundaries or relationship standards matter most to you?',
+      options: [
+        { value: 'discretion', label: '🔒 Discretion is important' },
+        { value: 'emotionally_respectful', label: '❤️ Emotionally respectful behavior' },
+        { value: 'honest_communication', label: '💬 Honest communication' },
+        { value: 'no_married', label: '🚫 No married partners' },
+        { value: 'safety_trust', label: '🛡️ Safety & trust first' },
+        { value: 'clear_expectations', label: '✨ Clear expectations' },
+        { value: 'mutual_respect', label: '🤝 Mutual respect' },
+        { value: 'no_aggression', label: '🚫 No aggressive behavior' },
+        { value: 'consistent_treatment', label: '🌹 Consistent treatment' },
+        { value: 'drama_free', label: '🧘 Drama-free connections' },
+        { value: 'privacy', label: '🔐 Privacy matters' },
+        { value: 'emotional_maturity', label: '❤️ Emotional maturity matters' }
+      ]
+    }
+  ];
+
+  const CASUAL_GENEROUS_QUESTIONS: Question[] = [
+    {
+      id: 'dating_experience',
+      type: 'multi-select',
+      question: '✨ What kind of dating experience do you enjoy most?',
+      options: [
+        { value: 'premium_dining', label: '🍷 Premium dining & cocktails' },
+        { value: 'spontaneous_getaways', label: '✈️ Spontaneous getaways' },
+        { value: 'traveling_together', label: '🌍 Traveling together' },
+        { value: 'luxury_experiences', label: '🛥️ Luxury experiences' },
+        { value: 'vip_nightlife', label: '🎭 VIP nightlife & events' },
+        { value: 'chemistry_dates', label: '🥂 Chemistry-focused dates' },
+        { value: 'companionship', label: '❤️ Meaningful companionship' },
+        { value: 'making_feel_special', label: '💎 Making my partner feel special' },
+        { value: 'romantic_experiences', label: '🌹 Romantic experiences' },
+        { value: 'thoughtful_surprises', label: '🎁 Thoughtful surprises' },
+        { value: 'low_pressure', label: '🧘 Relaxed & low-pressure energy' },
+        { value: 'passion_attraction', label: '🔥 Passion & attraction' },
+        { value: 'memorable_moments', label: '📸 Memorable shared experiences' }
+      ]
+    },
+    {
+      id: 'partner_energy',
+      type: 'multi-select',
+      question: '✨ Describe the energy you want in a relationship',
+      options: [
+        { value: 'feminine_energy', label: '🌹 Feminine energy' },
+        { value: 'affectionate', label: '💋 Affectionate' },
+        { value: 'flirty_playful', label: '😏 Flirty & playful' },
+        { value: 'confident', label: '✨ Confident' },
+        { value: 'emotionally_warm', label: '🥰 Emotionally warm' },
+        { value: 'well_traveled', label: '🌍 Well-traveled' },
+        { value: 'glamorous', label: '💃 Glamorous' },
+        { value: 'adventurous', label: '🎭 Adventurous' },
+        { value: 'emotionally_intelligent', label: '❤️ Emotionally intelligent' },
+        { value: 'passionate', label: '🔥 Passionate' },
+        { value: 'chemistry_driven', label: '💫 Chemistry-driven' },
+        { value: 'drama_free', label: '🧘 Drama-free' },
+        { value: 'elevated_experiences', label: '🛍️ Enjoys elevated experiences' },
+        { value: 'spontaneous', label: '🎉 Spontaneous' },
+        { value: 'magnetic', label: '🧲 Magnetic presence' },
+        { value: 'discreet', label: '🔒 Discreet' },
+        { value: 'sensual', label: '🕯️ Sensual' },
+        { value: 'strong_attraction', label: '⚡ Strong attraction matters' },
+        { value: 'romantic', label: '🌹 Romantic' },
+        { value: 'great_communicator', label: '💬 Great communication' }
+      ]
+    },
+    {
+      id: 'relationship_approach',
+      type: 'multi-select',
+      question: '✨ How would you describe your approach in a relationship?',
+      options: [
+        { value: 'generous', label: '💎 Generous' },
+        { value: 'protective', label: '🛡️ Protective' },
+        { value: 'romantic', label: '🌹 Romantic' },
+        { value: 'thoughtful', label: '🎁 Thoughtful' },
+        { value: 'calm_composed', label: '🧘 Calm & composed' },
+        { value: 'loves_shared_exp', label: '✈️ Loves shared experiences' },
+        { value: 'communicative', label: '💬 Communicative' },
+        { value: 'luxury_lifestyle', label: '🥂 Enjoys luxury lifestyles' },
+        { value: 'discreet', label: '🔒 Discreet' },
+        { value: 'adventurous', label: '🎭 Adventurous' },
+        { value: 'emotionally_supportive', label: '❤️ Emotionally supportive' },
+        { value: 'passionate', label: '🔥 Passionate' },
+        { value: 'confident_presence', label: '🧲 Confident presence' },
+        { value: 'consistent_effort', label: '🕰️ Consistent effort' },
+        { value: 'ambitious', label: '💼 Ambitious & driven' }
+      ]
+    },
+    {
+      id: 'chemistry_type',
+      type: 'multi-select',
+      question: '🔥 What kind of chemistry do you enjoy most?',
+      options: [
+        { value: 'instant_sparks', label: '⚡ Instant sparks' },
+        { value: 'affection_touch', label: '💋 Affection & touch' },
+        { value: 'flirty_banter', label: '😏 Flirty banter' },
+        { value: 'romantic_intimacy', label: '🌹 Romantic intimacy' },
+        { value: 'sensual_experiences', label: '🍷 Sensual experiences' },
+        { value: 'passionate', label: '🔥 Passionate chemistry' },
+        { value: 'slow_burn', label: '🕯️ Slow-burn attraction' },
+        { value: 'emotional_connection', label: '❤️ Emotional connection first' },
+        { value: 'open_minded', label: '💫 Open-minded connection' },
+        { value: 'physical_affection', label: '🥰 Physical affection matters' }
+      ]
+    },
+    {
+      id: 'shared_experiences',
+      type: 'multi-select',
+      question: '✨ What kind of experiences do you enjoy sharing with a partner?',
+      options: [
+        { value: 'international_travel', label: '🌍 International travel' },
+        { value: 'luxury_getaways', label: '🛥️ Luxury getaways' },
+        { value: 'fine_dining', label: '🍷 Fine dining' },
+        { value: 'vip_events', label: '🎭 VIP events & nightlife' },
+        { value: 'luxury_hotels', label: '🏨 Luxury hotels & resorts' },
+        { value: 'spontaneous_trips', label: '✈️ Spontaneous trips' },
+        { value: 'high_end_social', label: '🥂 High-end social experiences' },
+        { value: 'luxury_gifting', label: '🎁 Luxury gifting' },
+        { value: 'memorable_experiences', label: '📸 Creating memorable experiences' },
+        { value: 'art_culture', label: '🎨 Art, culture & fashion' },
+        { value: 'relaxing_escapes', label: '🌴 Relaxing escapes' },
+        { value: 'exotic_cars', label: '🚗 Exotic cars & experiences' },
+        { value: 'wellness_spa', label: '🧘 Wellness & spa experiences' }
+      ]
+    },
+    {
+      id: 'show_appreciation',
+      type: 'multi-select',
+      question: '💎 How do you naturally show appreciation in a relationship?',
+      options: [
+        { value: 'gifts_surprises', label: '🎁 Gifts & surprises' },
+        { value: 'shared_experiences', label: '✈️ Shared experiences' },
+        { value: 'attention_communication', label: '💬 Attention & communication' },
+        { value: 'quality_time', label: '❤️ Quality time' },
+        { value: 'financial_generosity', label: '💎 Financial generosity' },
+        { value: 'romance_affection', label: '🌹 Romance & affection' },
+        { value: 'consistency', label: '🕰️ Consistency & reliability' },
+        { value: 'elevated_experiences', label: '🥂 Elevated experiences' },
+        { value: 'thoughtful_luxury', label: '🛍️ Thoughtful luxury' },
+        { value: 'providing_support', label: '💼 Providing support' }
+      ]
+    },
+    {
+      id: 'intimacy_openness',
+      type: 'multi-select',
+      question: '🔒 What kind of chemistry and intimacy are you open to exploring?',
+      options: [
+        { value: 'pda', label: '💋 PDA' },
+        { value: 'teasing_flirtation', label: '😏 Teasing & flirtation' },
+        { value: 'sensual_connection', label: '🌹 Sensual connection' },
+        { value: 'roleplay', label: '🕯️ Roleplay' },
+        { value: 'power_dynamics', label: '⛓️ Power dynamics' },
+        { value: 'bdsm_friendly', label: '🖤 BDSM-friendly' },
+        { value: 'group_experiences', label: '🔥 Group experiences' },
+        { value: 'open_relationships', label: '💫 Open relationships' },
+        { value: 'exploring_fantasies', label: '✨ Exploring fantasies together' },
+        { value: 'experimental', label: '🎭 Experimental experiences' },
+        { value: 'emotional_intimacy', label: '❤️ Emotional intimacy focus' },
+        { value: 'prefer_discretion', label: '🔒 Prefer discretion' }
+      ]
+    },
+    {
+      id: 'relationship_standards',
+      type: 'multi-select',
+      question: '🛡️ What relationship standards matter most to you?',
+      options: [
+        { value: 'mutual_respect', label: '🤝 Mutual respect' },
+        { value: 'discretion', label: '🔒 Discretion matters' },
+        { value: 'honest_communication', label: '💬 Honest communication' },
+        { value: 'emotional_maturity', label: '❤️ Emotional maturity' },
+        { value: 'safety_trust', label: '🛡️ Safety & trust first' },
+        { value: 'clear_expectations', label: '✨ Clear expectations' },
+        { value: 'drama_free', label: '🧘 Drama-free connections' },
+        { value: 'verified_profiles', label: '🔍 Verified profiles preferred' },
+        { value: 'consistency', label: '🌹 Consistency matters' },
+        { value: 'no_manipulation', label: '🚫 No manipulation or games' },
+        { value: 'public_first', label: '📍 Comfortable meeting publicly first' },
+        { value: 'privacy_respected', label: '🔐 Privacy respected' },
+        { value: 'respect_boundaries', label: '❤️ Respect for boundaries' }
+      ]
+    },
+    {
+      id: 'lifestyle_today',
+      type: 'multiple-choice',
+      question: '💼 What best describes your lifestyle today?',
+      options: [
+        { value: 'building', label: 'Building my success' },
+        { value: 'comfortable', label: 'Financially comfortable' },
+        { value: 'established', label: 'Established & successful' },
+        { value: 'high_income', label: 'High-income lifestyle' },
+        { value: 'wealth_focused', label: 'Wealth-focused & ambitious' },
+        { value: 'executive', label: 'Executive / founder lifestyle' },
+        { value: 'luxury', label: 'Luxury lifestyle' }
+      ]
+    },
+    {
+      id: 'financial_position',
+      type: 'multiple-choice',
+      question: '🏆 Which best reflects your financial position?',
+      options: [
+        { value: 'growing', label: 'Growing steadily' },
+        { value: 'comfortable_assets', label: 'Comfortable assets & investments' },
+        { value: 'high_value_assets', label: 'High-value lifestyle assets' },
+        { value: 'significant_wealth', label: 'Significant wealth accumulation' },
+        { value: 'multi_million', label: 'Multi-million net worth' },
+        { value: 'private', label: 'Prefer to keep private' }
+      ]
+    },
+    {
+      id: 'annual_income',
+      type: 'multiple-choice',
+      question: '💎 What\'s your approximate annual income?',
+      options: [
+        { value: 'under_25l', label: 'Under ₹25L' },
+        { value: '25l_50l', label: '₹25L – ₹50L' },
+        { value: '50l_1cr', label: '₹50L – ₹1Cr' },
+        { value: '1cr_3cr', label: '₹1Cr – ₹3Cr' },
+        { value: '3cr_10cr', label: '₹3Cr – ₹10Cr' },
+        { value: '10cr_plus', label: '₹10Cr+' }
+      ]
+    }
+  ];
+
   // Archetype-specific question sets (take priority over gender)
   const archetypeQuestionSets: Record<string, Question[]> = {
     traditional_matrimony_man: MATRIMONY_QUESTIONS,
-    traditional_matrimony_woman: MATRIMONY_QUESTIONS
+    traditional_matrimony_woman: MATRIMONY_QUESTIONS,
+    spoiled_casual_woman: SPOILED_CASUAL_QUESTIONS,
+    casual_generous_man: CASUAL_GENEROUS_QUESTIONS
   };
 
   // Voice input
@@ -258,8 +600,14 @@
 
   function handleOptionSelect(value: string) {
     const question = getCurrentQuestion();
-    responses[question.id] = value;
-    responses = { ...responses }; // Trigger reactivity
+    if (question.type === 'multi-select') {
+      const current = (responses[question.id] as string[]) || [];
+      const idx = current.indexOf(value);
+      responses[question.id] = idx === -1 ? [...current, value] : current.filter(v => v !== value);
+    } else {
+      responses[question.id] = value;
+    }
+    responses = { ...responses };
   }
 
   function handleTextInput(value: string) {
@@ -268,10 +616,14 @@
     responses = { ...responses }; // Trigger reactivity
   }
 
+  function isAnswered(question: Question, response: string | string[] | undefined): boolean {
+    if (question.type === 'multi-select') return Array.isArray(response) && response.length > 0;
+    return response !== undefined && response !== '' && response !== null;
+  }
+
   function isCurrentQuestionAnswered(): boolean {
     const question = getCurrentQuestion();
-    const response = responses[question.id];
-    return response !== undefined && response !== '' && response !== null;
+    return isAnswered(question, responses[question.id] as string | string[] | undefined);
   }
 
   function handleNext() {
@@ -309,10 +661,7 @@
     error = null;
 
     // Validate all questions are answered
-    const allAnswered = questions.every((q) => {
-      const response = responses[q.id];
-      return response !== undefined && response !== '' && response !== null;
-    });
+    const allAnswered = questions.every((q) => isAnswered(q, responses[q.id] as string | string[] | undefined));
 
     if (!allAnswered) {
       error = 'Please answer all questions before submitting';
@@ -410,6 +759,22 @@
                 </button>
               {/each}
             </div>
+          {:else if question.type === 'multi-select'}
+            <p class="multi-select-hint">Select all that apply</p>
+            <div class="bubbles-grid">
+              {#each question.options || [] as option (option.value)}
+                {@const selected = ((responses[question.id] as string[]) || []).includes(option.value)}
+                <button
+                  class="bubble-chip"
+                  class:selected
+                  onclick={() => handleOptionSelect(option.value)}
+                  aria-pressed={selected}
+                  disabled={loading}
+                >
+                  {option.label}
+                </button>
+              {/each}
+            </div>
           {:else if question.type === 'text'}
             <div class="textarea-wrap">
               <textarea
@@ -498,8 +863,14 @@
             <div class="review-answer">
               {#if question.type === 'multiple-choice'}
                 <p class="answer-text">
-                  {question.options?.find((o) => o.value === responses[question.id])?.label ||
-                    'Not answered'}
+                  {question.options?.find((o) => o.value === responses[question.id])?.label || 'Not answered'}
+                </p>
+              {:else if question.type === 'multi-select'}
+                <p class="answer-text">
+                  {((responses[question.id] as string[]) || [])
+                    .map(v => question.options?.find(o => o.value === v)?.label)
+                    .filter(Boolean)
+                    .join(' · ') || 'Not answered'}
                 </p>
               {:else}
                 <p class="answer-text">{responses[question.id] || 'Not answered'}</p>
@@ -832,6 +1203,53 @@
   }
 
   .button-secondary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* ── Multi-select bubbles ────────────────────────────────────────────────── */
+
+  .multi-select-hint {
+    font-size: 0.8rem;
+    color: var(--text-3);
+    margin: 0 0 0.5rem;
+  }
+
+  .bubbles-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .bubble-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.45rem 0.9rem;
+    border-radius: 100px;
+    border: 1.5px solid var(--border-1);
+    background-color: var(--bg-3);
+    color: var(--text-2);
+    font-size: 0.875rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    white-space: nowrap;
+  }
+
+  .bubble-chip:hover:not(:disabled) {
+    border-color: var(--accent-bright);
+    color: var(--text-1);
+  }
+
+  .bubble-chip.selected {
+    border-color: var(--accent-bright);
+    background-color: var(--accent-tint);
+    color: var(--accent-bright);
+    font-weight: 600;
+  }
+
+  .bubble-chip:disabled {
     opacity: 0.6;
     cursor: not-allowed;
   }
