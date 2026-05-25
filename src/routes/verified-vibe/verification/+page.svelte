@@ -23,6 +23,15 @@
   import ProfileIntakeStep from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
   import MatrimonyPreferencesStep from '$lib/verified-vibe/components/MatrimonyPreferencesStep.svelte';
   import MatrimonyProfileStep from '$lib/verified-vibe/components/MatrimonyProfileStep.svelte';
+  import ForeverIntentStep from '$lib/verified-vibe/components/ForeverIntentStep.svelte';
+  import ForeverProfileStep from '$lib/verified-vibe/components/ForeverProfileStep.svelte';
+  import ForeverPreferencesStep from '$lib/verified-vibe/components/ForeverPreferencesStep.svelte';
+  import RomanticIntentStep from '$lib/verified-vibe/components/RomanticIntentStep.svelte';
+  import RomanticProfileStep from '$lib/verified-vibe/components/RomanticProfileStep.svelte';
+  import RomanticPreferencesStep from '$lib/verified-vibe/components/RomanticPreferencesStep.svelte';
+  import SecondChapterIntentStep from '$lib/verified-vibe/components/SecondChapterIntentStep.svelte';
+  import SecondChapterProfileStep from '$lib/verified-vibe/components/SecondChapterProfileStep.svelte';
+  import SecondChapterPreferencesStep from '$lib/verified-vibe/components/SecondChapterPreferencesStep.svelte';
   import TrustPointsBadge from '$lib/verified-vibe/components/TrustPointsBadge.svelte';
   import type { ProfileIntakeData } from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
   import type { VerificationStep as VerificationStepType, LivenessCheckResult } from '$lib/verified-vibe/types';
@@ -57,6 +66,21 @@
     $user?.archetype === 'traditional_matrimony_woman'
   );
 
+  const isForeverFocusedArchetype = $derived(
+    $user?.archetype === 'forever_focused_man' ||
+    $user?.archetype === 'forever_focused_woman'
+  );
+
+  const isRomanticArchetype = $derived(
+    $user?.archetype === 'hopeless_romantic_man' ||
+    $user?.archetype === 'hopeless_romantic_woman'
+  );
+
+  const isSecondChapterArchetype = $derived(
+    $user?.archetype === 'second_chapter_man' ||
+    $user?.archetype === 'second_chapter_woman'
+  );
+
   const steps = $derived((() => {
     const base = [
       { number: 1, name: 'Government ID', description: "Prove you're actually you.", icon: '🆔', stepType: 'id' as VerificationStepType, time: '~30 sec', points: 30 },
@@ -64,9 +88,9 @@
       { number: 3, name: 'Photo story', description: 'Five photos. One face.', icon: '📸', stepType: 'photos' as VerificationStepType, time: '~45 sec', points: 55 },
       {
         number: 4,
-        name: $user?.archetype === 'casual_generous_man' ? 'Spending proof' : 'Intent check',
-        description: $user?.archetype === 'casual_generous_man' ? 'Where the money lands.' : 'Tell us the truth.',
-        icon: $user?.archetype === 'casual_generous_man' ? '💰' : '💬',
+        name: $user?.archetype === 'casual_generous_man' ? 'Spending proof' : isForeverFocusedArchetype ? 'Relationship Intent' : isRomanticArchetype ? 'Love & Connection' : isSecondChapterArchetype ? 'Reflection & Readiness' : 'Intent check',
+        description: $user?.archetype === 'casual_generous_man' ? 'Where the money lands.' : isForeverFocusedArchetype ? 'Your relationship goals.' : isRomanticArchetype ? 'What love means to you.' : isSecondChapterArchetype ? 'Your journey so far.' : 'Tell us the truth.',
+        icon: $user?.archetype === 'casual_generous_man' ? '💰' : isForeverFocusedArchetype ? '💫' : isRomanticArchetype ? '❤️' : isSecondChapterArchetype ? '🌱' : '💬',
         stepType: 'spending_or_qa' as VerificationStepType,
         time: '~2 min',
         points: 80
@@ -77,6 +101,30 @@
         ...base,
         { number: 5, name: 'About You', description: 'Your background & values.', icon: '👤', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
         { number: 6, name: 'Partner Preferences', description: 'Your ideal partner.', icon: '💍', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
+        { number: 7, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
+      ];
+    }
+    if (isForeverFocusedArchetype) {
+      return [
+        ...base,
+        { number: 5, name: 'About You', description: 'Your values & priorities.', icon: '👤', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
+        { number: 6, name: 'Partner Preferences', description: 'Your ideal partner.', icon: '💝', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
+        { number: 7, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
+      ];
+    }
+    if (isRomanticArchetype) {
+      return [
+        ...base,
+        { number: 5, name: 'About You', description: 'Your love language & values.', icon: '🫀', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
+        { number: 6, name: 'Partner Preferences', description: 'Who your heart falls for.', icon: '💝', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
+        { number: 7, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
+      ];
+    }
+    if (isSecondChapterArchetype) {
+      return [
+        ...base,
+        { number: 5, name: 'About You', description: 'Where you are today.', icon: '🌤️', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
+        { number: 6, name: 'Partner Preferences', description: 'What you need now.', icon: '💝', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
         { number: 7, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
       ];
     }
@@ -504,6 +552,231 @@
     }
   }
 
+  async function handleForeverIntentSubmit(data: { intent: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+    loading = true;
+    try {
+      localStorage.setItem('vv_forever_intent', JSON.stringify(data.intent));
+      completedSteps.add(currentStep);
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+      updateTrustScoreAfterVerification();
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleForeverProfileSubmit(data: { profile: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+    loading = true;
+    try {
+      localStorage.setItem('vv_forever_profile', JSON.stringify(data.profile));
+      completedSteps.add(currentStep);
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+      updateTrustScoreAfterVerification();
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleForeverPrefsSubmit(data: { preferences: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+    loading = true;
+    try {
+      localStorage.setItem('vv_forever_preferences', JSON.stringify(data.preferences));
+      completedSteps.add(currentStep);
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+      updateTrustScoreAfterVerification();
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleRomanticIntentSubmit(data: { intent: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+    loading = true;
+    try {
+      localStorage.setItem('vv_romantic_intent', JSON.stringify(data.intent));
+      completedSteps.add(currentStep);
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+      updateTrustScoreAfterVerification();
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleRomanticProfileSubmit(data: { profile: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+    loading = true;
+    try {
+      localStorage.setItem('vv_romantic_profile', JSON.stringify(data.profile));
+      completedSteps.add(currentStep);
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+      updateTrustScoreAfterVerification();
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleRomanticPrefsSubmit(data: { preferences: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+    loading = true;
+    try {
+      localStorage.setItem('vv_romantic_preferences', JSON.stringify(data.preferences));
+      completedSteps.add(currentStep);
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+      updateTrustScoreAfterVerification();
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleSecondChapterIntentSubmit(data: { intent: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+    loading = true;
+    try {
+      localStorage.setItem('vv_second_chapter_intent', JSON.stringify(data.intent));
+      completedSteps.add(currentStep);
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+      updateTrustScoreAfterVerification();
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleSecondChapterProfileSubmit(data: { profile: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+    loading = true;
+    try {
+      localStorage.setItem('vv_second_chapter_profile', JSON.stringify(data.profile));
+      completedSteps.add(currentStep);
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+      updateTrustScoreAfterVerification();
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleSecondChapterPrefsSubmit(data: { preferences: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+    loading = true;
+    try {
+      localStorage.setItem('vv_second_chapter_preferences', JSON.stringify(data.preferences));
+      completedSteps.add(currentStep);
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+      updateTrustScoreAfterVerification();
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
   async function handleProfileIntakeSubmit(data: ProfileIntakeData) {
     loading = true;
     error = null;
@@ -797,6 +1070,21 @@
             onSubmit={handleSpendingSubmit}
             onCancel={handleBack}
           />
+        {:else if isForeverFocusedArchetype}
+          <ForeverIntentStep
+            onSubmit={handleForeverIntentSubmit}
+            onCancel={handleBack}
+          />
+        {:else if isRomanticArchetype}
+          <RomanticIntentStep
+            onSubmit={handleRomanticIntentSubmit}
+            onCancel={handleBack}
+          />
+        {:else if isSecondChapterArchetype}
+          <SecondChapterIntentStep
+            onSubmit={handleSecondChapterIntentSubmit}
+            onCancel={handleBack}
+          />
         {:else}
           <SpendingQAStep
             gender={$user?.gender}
@@ -813,6 +1101,36 @@
       {:else if currentStep === 6 && isMatrimonyArchetype}
         <MatrimonyPreferencesStep
           onSubmit={handleMatrimonyPrefsSubmit}
+          onCancel={handleBack}
+        />
+      {:else if currentStep === 5 && isForeverFocusedArchetype}
+        <ForeverProfileStep
+          onSubmit={handleForeverProfileSubmit}
+          onCancel={handleBack}
+        />
+      {:else if currentStep === 6 && isForeverFocusedArchetype}
+        <ForeverPreferencesStep
+          onSubmit={handleForeverPrefsSubmit}
+          onCancel={handleBack}
+        />
+      {:else if currentStep === 5 && isRomanticArchetype}
+        <RomanticProfileStep
+          onSubmit={handleRomanticProfileSubmit}
+          onCancel={handleBack}
+        />
+      {:else if currentStep === 6 && isRomanticArchetype}
+        <RomanticPreferencesStep
+          onSubmit={handleRomanticPrefsSubmit}
+          onCancel={handleBack}
+        />
+      {:else if currentStep === 5 && isSecondChapterArchetype}
+        <SecondChapterProfileStep
+          onSubmit={handleSecondChapterProfileSubmit}
+          onCancel={handleBack}
+        />
+      {:else if currentStep === 6 && isSecondChapterArchetype}
+        <SecondChapterPreferencesStep
+          onSubmit={handleSecondChapterPrefsSubmit}
           onCancel={handleBack}
         />
       {:else if currentStep === 5 || currentStep === 6 || currentStep === 7}
