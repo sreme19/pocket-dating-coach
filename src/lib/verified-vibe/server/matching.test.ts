@@ -11,11 +11,11 @@ import {
 } from './matching';
 import type { VerifiedVibeUser } from '../types';
 
-// Mock user data
+// Mock user data — archetypes use the v2.7.0 8+8 naming scheme
 const mockUser1: VerifiedVibeUser = {
   id: 'user1',
   gender: 'man',
-  archetype: 'marriage_minded_man',
+  archetype: 'traditional_matrimony_man',
   firstName: 'John',
   age: 28,
   city: 'New York',
@@ -30,7 +30,7 @@ const mockUser1: VerifiedVibeUser = {
 const mockUser2: VerifiedVibeUser = {
   id: 'user2',
   gender: 'woman',
-  archetype: 'safety_first_woman',
+  archetype: 'traditional_matrimony_woman',
   firstName: 'Jane',
   age: 26,
   city: 'New York',
@@ -45,7 +45,7 @@ const mockUser2: VerifiedVibeUser = {
 const mockUser3: VerifiedVibeUser = {
   id: 'user3',
   gender: 'man',
-  archetype: 'casual_man',
+  archetype: 'casual_generous_man',
   firstName: 'Mike',
   age: 30,
   city: 'Los Angeles',
@@ -60,7 +60,7 @@ const mockUser3: VerifiedVibeUser = {
 const mockUser4: VerifiedVibeUser = {
   id: 'user4',
   gender: 'woman',
-  archetype: 'spoilt_woman',
+  archetype: 'spoiled_casual_woman',
   firstName: 'Sarah',
   age: 25,
   city: 'Los Angeles',
@@ -453,13 +453,13 @@ describe('Compatibility Scoring', () => {
       expect(Math.abs(casualManSpoiltWoman.archetypeScore - spoiltWomanCasualMan.archetypeScore)).toBeLessThan(5);
     });
 
-    it('should reflect marriage-minded + safety-first as high compatibility', () => {
+    it('should reflect traditional_matrimony_man + traditional_matrimony_woman as high compatibility', () => {
       const result = calculateCompatibility(mockUser1, mockUser2);
 
       expect(result.archetypeScore).toBeGreaterThan(70);
     });
 
-    it('should reflect casual + safety-first as lower compatibility', () => {
+    it('should reflect casual_generous_man + traditional_matrimony_woman as lower compatibility', () => {
       const result = calculateCompatibility(mockUser3, mockUser2);
 
       expect(result.archetypeScore).toBeLessThan(60);
