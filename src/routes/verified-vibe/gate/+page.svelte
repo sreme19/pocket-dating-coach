@@ -36,7 +36,7 @@
       <span class="pulse" aria-hidden="true"></span>
       Verified Vibe
     </div>
-    <h1 class="gate-title">Verified Vibe — Two questions. <em>Then we move.</em></h1>
+    <h1 class="gate-title">Two questions. <em>Then we move.</em></h1>
     <p class="gate-sub">Two quick questions to set up your profile.</p>
   </div>
 
