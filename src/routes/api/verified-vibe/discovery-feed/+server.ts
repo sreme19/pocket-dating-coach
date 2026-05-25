@@ -45,29 +45,33 @@ interface DiscoveryFeedResponse {
 const SEED_PROFILES_WOMAN: DiscoveryProfile[] = [
   {
     id: 'seed-w-1', gender: 'woman', archetype: 'traditional_matrimony_woman' as any,
-    firstName: 'Priya', age: 26, city: 'Chicago, IL',
-    avatar: null, about: 'Family-oriented and looking for a lifelong partner. Love cooking, travel, and quiet evenings.',
+    firstName: 'Anjali', age: 26, city: 'Chicago, IL',
+    avatar: '/female_profiles/anjali_Traditional_Family_First_g3s7mn/photos/Anjali_1.jpg',
+    about: 'Family-oriented and looking for a lifelong partner. Love cooking, travel, and quiet evenings.',
     looking: 'Marriage', trustScore: 85, distance: '—', verified: ['id', 'liveness', 'photos'],
     createdAt: new Date(), updatedAt: new Date(), isSeed: true
   },
   {
     id: 'seed-w-2', gender: 'woman', archetype: 'forever_focused_woman' as any,
-    firstName: 'Aisha', age: 28, city: 'Houston, TX',
-    avatar: null, about: 'Focused on building a future with the right person. Values trust, loyalty, and shared goals.',
+    firstName: 'Neha', age: 28, city: 'Houston, TX',
+    avatar: '/female_profiles/neha_NRI_Diaspora_x5r2vd/photos/Neha_1.jpg',
+    about: 'Focused on building a future with the right person. Values trust, loyalty, and shared goals.',
     looking: 'Serious relationship', trustScore: 78, distance: '—', verified: ['id', 'photos'],
     createdAt: new Date(), updatedAt: new Date(), isSeed: true
   },
   {
     id: 'seed-w-3', gender: 'woman', archetype: 'spoiled_casual_woman' as any,
-    firstName: 'Sofia', age: 24, city: 'Miami, FL',
-    avatar: null, about: 'Loves fine dining and spontaneous adventures. Looking for a confident, caring partner.',
+    firstName: 'Zara', age: 24, city: 'Miami, FL',
+    avatar: '/female_profiles/zara_Soft_Life_Seeker_m4p9rx/photos/fenomen-zara-1.jpg',
+    about: 'Loves fine dining and spontaneous adventures. Looking for a confident, caring partner.',
     looking: 'Casual dating', trustScore: 72, distance: '—', verified: ['id', 'photos'],
     createdAt: new Date(), updatedAt: new Date(), isSeed: true
   },
   {
     id: 'seed-w-4', gender: 'woman', archetype: 'hopeless_romantic_woman' as any,
-    firstName: 'Nadia', age: 25, city: 'New York, NY',
-    avatar: null, about: 'Hopeless romantic who believes in genuine connection. Loves literature and long walks.',
+    firstName: 'Diana', age: 25, city: 'New York, NY',
+    avatar: '/female_profiles/diana_Fiercely_Independent_c4h9pw/photos/Diana_1.jpg',
+    about: 'Hopeless romantic who believes in genuine connection. Loves literature and long walks.',
     looking: 'Serious relationship', trustScore: 80, distance: '—', verified: ['id', 'liveness', 'photos'],
     createdAt: new Date(), updatedAt: new Date(), isSeed: true
   }
