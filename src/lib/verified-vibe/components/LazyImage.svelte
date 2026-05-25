@@ -85,7 +85,7 @@
 </script>
 
 <img
-	{src: currentSrc}
+	src={currentSrc}
 	{alt}
 	{width}
 	{height}

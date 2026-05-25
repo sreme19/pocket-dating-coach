@@ -84,7 +84,7 @@ export async function loadSessionState(
 		console.error('Error loading conversation history:', conversationError);
 	}
 
-	const conversationHistory: ChatMessage[] = conversationData?.messages || [];
+	const conversationHistory: ChatMessage[] = (conversationData?.messages as ChatMessage[]) || [];
 
 	// Create session state
 	const sessionState: MatchSessionState = {
@@ -185,7 +185,7 @@ export async function addMessageToHistory(
 	}
 
 	// Append message to existing messages or create new array
-	const currentMessages = conversation?.messages || [];
+	const currentMessages = (conversation?.messages as ChatMessage[]) || [];
 	const updatedMessages = [...currentMessages, message];
 
 	// Save updated messages

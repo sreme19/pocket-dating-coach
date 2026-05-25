@@ -3,7 +3,11 @@
 declare global {
 	namespace App {
 		// interface Error {}
-		// interface Locals {}
+		interface Locals {
+			auth: {
+				getSession: () => Promise<import('@supabase/supabase-js').Session | null>;
+			};
+		}
 		// interface PageData {}
 		// interface PageState {}
 		// interface Platform {}

@@ -8,7 +8,7 @@ export type Database = {
 				Row: {
 					id: string;
 					gender: 'man' | 'woman' | 'prefer_not_to_say';
-					archetype: 'casual_man' | 'marriage_minded_man' | 'spoilt_woman' | 'safety_first_woman';
+					archetype: string;
 					first_name: string;
 					age: number;
 					city: string;
@@ -17,13 +17,14 @@ export type Database = {
 					looking: string | null;
 					trust_score: number;
 					preferences: Record<string, unknown> | null;
+					hard_nos: string[] | null;
 					created_at: string;
 					updated_at: string;
 				};
 				Insert: {
 					id?: string;
 					gender: 'man' | 'woman' | 'prefer_not_to_say';
-					archetype: 'casual_man' | 'marriage_minded_man' | 'spoilt_woman' | 'safety_first_woman';
+					archetype: string;
 					first_name: string;
 					age: number;
 					city: string;
@@ -32,6 +33,7 @@ export type Database = {
 					looking?: string | null;
 					trust_score?: number;
 					preferences?: Record<string, unknown> | null;
+					hard_nos?: string[] | null;
 					created_at?: string;
 					updated_at?: string;
 				};
@@ -77,6 +79,8 @@ export type Database = {
 					user2_id: string;
 					status: 'pending' | 'mutual' | 'rejected';
 					ai_bestie_active: boolean;
+					user1_last_read_at: string | null;
+					user2_last_read_at: string | null;
 					created_at: string;
 				};
 				Insert: {
@@ -85,6 +89,8 @@ export type Database = {
 					user2_id: string;
 					status?: 'pending' | 'mutual' | 'rejected';
 					ai_bestie_active?: boolean;
+					user1_last_read_at?: string | null;
+					user2_last_read_at?: string | null;
 					created_at?: string;
 				};
 				Update: Partial<Database['public']['Tables']['verified_vibe_matches']['Insert']>;
@@ -293,6 +299,158 @@ export type Database = {
 				Update: Partial<Database['public']['Tables']['female_profile_audit_events']['Insert']>;
 				Relationships: [];
 			};
+			ai_assistant_match_configs: {
+				Row: {
+					id: string;
+					user_id: string;
+					match_id: string;
+					assistant_type: 'bestie' | 'wingman';
+					is_active: boolean;
+					auto_impersonate: boolean;
+					exchange_count: number;
+					last_exchange_at: string | null;
+					created_at: string;
+					updated_at: string;
+				};
+				Insert: {
+					id?: string;
+					user_id: string;
+					match_id: string;
+					assistant_type: 'bestie' | 'wingman';
+					is_active?: boolean;
+					auto_impersonate?: boolean;
+					exchange_count?: number;
+					last_exchange_at?: string | null;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['ai_assistant_match_configs']['Insert']>;
+				Relationships: [];
+			};
+			ai_assistant_conversations: {
+				Row: {
+					id: string;
+					user_id: string;
+					match_conversation_id: string;
+					assistant_type: 'bestie' | 'wingman';
+					messages: unknown[];
+					is_active: boolean;
+					exchange_count: number;
+					created_at: string;
+					updated_at: string;
+				};
+				Insert: {
+					id?: string;
+					user_id: string;
+					match_conversation_id: string;
+					assistant_type: 'bestie' | 'wingman';
+					messages?: unknown[];
+					is_active?: boolean;
+					exchange_count?: number;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['ai_assistant_conversations']['Insert']>;
+				Relationships: [];
+			};
+			ai_assistant_summaries: {
+				Row: {
+					id: string;
+					user_id: string;
+					summary_data: Record<string, unknown>;
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					user_id: string;
+					summary_data: Record<string, unknown>;
+					created_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['ai_assistant_summaries']['Insert']>;
+				Relationships: [];
+			};
+			verified_vibe_action_history: {
+				Row: {
+					id: string;
+					user_id: string;
+					action_type: string;
+					profile_id: string;
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					user_id: string;
+					action_type: string;
+					profile_id: string;
+					created_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['verified_vibe_action_history']['Insert']>;
+				Relationships: [];
+			};
+			verified_vibe_analytics: {
+				Row: {
+					id: string;
+					user_id: string;
+					event_type: string;
+					profile_id: string | null;
+					metadata: Record<string, unknown>;
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					user_id: string;
+					event_type: string;
+					profile_id?: string | null;
+					metadata?: Record<string, unknown>;
+					created_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['verified_vibe_analytics']['Insert']>;
+				Relationships: [];
+			};
+			ai_bestie_feedback: {
+				Row: {
+					id: string;
+					user_id: string;
+					feedback_type: string;
+					message_content: string | null;
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					user_id: string;
+					feedback_type: string;
+					message_content?: string | null;
+					created_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['ai_bestie_feedback']['Insert']>;
+				Relationships: [];
+			};
+			attention_messages: {
+				Row: {
+					id: string;
+					sender_id: string;
+					recipient_id: string;
+					message_type: string;
+					content: string;
+					reply_content: string | null;
+					reply_sent_at: string | null;
+					is_read: boolean;
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					sender_id: string;
+					recipient_id: string;
+					message_type: string;
+					content: string;
+					reply_content?: string | null;
+					reply_sent_at?: string | null;
+					is_read?: boolean;
+					created_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['attention_messages']['Insert']>;
+				Relationships: [];
+			};
 			device_tokens: {
 				Row: {
 					id: string;
@@ -333,9 +491,9 @@ export type Database = {
 
 let client: ReturnType<typeof createClient<Database>> | null = null;
 
-export function getSupabase() {
+export function getSupabase(): ReturnType<typeof createClient<Database>> {
 	if (!client) {
-		client = createClient<Database>(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
+		client = createClient<Database>(env.SUPABASE_URL as string, env.SUPABASE_SERVICE_KEY as string);
 	}
-	return client;
+	return client!;
 }

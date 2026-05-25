@@ -173,7 +173,7 @@
    */
   function toggleEdit() {
     if (isEditing) {
-      editedData = { ...extractedData };
+      editedData = { ...extractedData } as IDExtractionResult;
     }
     isEditing = !isEditing;
   }

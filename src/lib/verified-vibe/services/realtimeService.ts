@@ -46,7 +46,7 @@ export function subscribeToMessages(conversationId: string, onMessage?: (message
   wsClient.send({
     type: 'subscribe-messages',
     conversationId,
-    userId: currentUserId
+    userId: currentUserId ?? undefined
   });
 
   // Subscribe to message events
@@ -88,7 +88,7 @@ export function subscribeToMessages(conversationId: string, onMessage?: (message
       wsClient.send({
         type: 'unsubscribe-messages',
         conversationId,
-        userId: currentUserId
+        userId: currentUserId ?? undefined
       });
     }
   };
@@ -106,7 +106,7 @@ export function sendMessage(conversationId: string, content: string, imageUrl?: 
   wsClient.send({
     type: 'send-message',
     conversationId,
-    userId: currentUserId,
+    userId: currentUserId ?? undefined,
     data: {
       content,
       imageUrl,
@@ -128,7 +128,7 @@ export function subscribeToTypingIndicator(conversationId: string): () => void {
   wsClient.send({
     type: 'subscribe-typing',
     conversationId,
-    userId: currentUserId
+    userId: currentUserId ?? undefined
   });
 
   // Subscribe to typing events
@@ -160,7 +160,7 @@ export function subscribeToTypingIndicator(conversationId: string): () => void {
       wsClient.send({
         type: 'unsubscribe-typing',
         conversationId,
-        userId: currentUserId
+        userId: currentUserId ?? undefined
       });
     }
   };
@@ -178,7 +178,7 @@ export function publishTypingIndicator(conversationId: string, isTyping: boolean
   wsClient.send({
     type: 'typing',
     conversationId,
-    userId: currentUserId,
+    userId: currentUserId ?? undefined,
     data: {
       isTyping,
       timestamp: new Date().toISOString()
@@ -199,7 +199,7 @@ export function subscribeToOnlineStatus(conversationId: string, matchUserId: str
   wsClient.send({
     type: 'subscribe-online-status',
     conversationId,
-    userId: currentUserId,
+    userId: currentUserId ?? undefined,
     data: {
       targetUserId: matchUserId
     }
@@ -227,7 +227,7 @@ export function subscribeToOnlineStatus(conversationId: string, matchUserId: str
       wsClient.send({
         type: 'unsubscribe-online-status',
         conversationId,
-        userId: currentUserId,
+        userId: currentUserId ?? undefined,
         data: {
           targetUserId: matchUserId
         }
@@ -247,7 +247,7 @@ export function publishOnlineStatus(isOnline: boolean): void {
 
   wsClient.send({
     type: 'online-status',
-    userId: currentUserId,
+    userId: currentUserId ?? undefined,
     data: {
       isOnline,
       timestamp: new Date().toISOString()
@@ -268,7 +268,7 @@ export function subscribeToReadReceipts(conversationId: string): () => void {
   wsClient.send({
     type: 'subscribe-read-receipts',
     conversationId,
-    userId: currentUserId
+    userId: currentUserId ?? undefined
   });
 
   // Subscribe to read receipt events
@@ -294,7 +294,7 @@ export function subscribeToReadReceipts(conversationId: string): () => void {
       wsClient.send({
         type: 'unsubscribe-read-receipts',
         conversationId,
-        userId: currentUserId
+        userId: currentUserId ?? undefined
       });
     }
   };
@@ -312,7 +312,7 @@ export function publishReadReceipt(conversationId: string, messageId: string): v
   wsClient.send({
     type: 'read-receipt',
     conversationId,
-    userId: currentUserId,
+    userId: currentUserId ?? undefined,
     data: {
       messageId,
       timestamp: new Date().toISOString()
@@ -333,7 +333,7 @@ export function subscribeToReactions(conversationId: string): () => void {
   wsClient.send({
     type: 'subscribe-reactions',
     conversationId,
-    userId: currentUserId
+    userId: currentUserId ?? undefined
   });
 
   // Subscribe to reaction events
@@ -362,7 +362,7 @@ export function subscribeToReactions(conversationId: string): () => void {
       wsClient.send({
         type: 'unsubscribe-reactions',
         conversationId,
-        userId: currentUserId
+        userId: currentUserId ?? undefined
       });
     }
   };
@@ -380,7 +380,7 @@ export function publishReaction(conversationId: string, messageId: string, emoji
   wsClient.send({
     type: 'reaction',
     conversationId,
-    userId: currentUserId,
+    userId: currentUserId ?? undefined,
     data: {
       messageId,
       emoji,

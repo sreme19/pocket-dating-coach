@@ -199,7 +199,7 @@
               aria-expanded={showCitations}
               aria-label={showCitations ? 'Hide citations' : 'Show citations'}
             >
-              <ChevronDown size={14} class:rotated={showCitations} aria-hidden="true" />
+              <ChevronDown size={14} class={showCitations ? 'rotated' : ''} aria-hidden="true" />
               <span>{message.citations.length} citation{message.citations.length !== 1 ? 's' : ''}</span>
             </button>
             {#if showCitations}

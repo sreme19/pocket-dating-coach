@@ -354,17 +354,18 @@ Be specific and grounded in the user's actual preferences. Only include flags th
 
 			// Prepare message objects
 			const matchMessageObj: ChatMessage = {
+				id: crypto.randomUUID(),
 				role: 'user',
-				content: matchMessage
+				content: matchMessage,
+				timestamp: Date.now()
 			};
 
 			const analysisMessageObj: ChatMessage = {
+				id: crypto.randomUUID(),
 				role: 'assistant',
 				content: JSON.stringify(analysis),
 				assistantType: 'bestie',
-				metadata: {
-					type: 'compatibility_analysis'
-				}
+				timestamp: Date.now()
 			};
 
 			// Combine with existing messages or create new array

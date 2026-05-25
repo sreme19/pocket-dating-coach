@@ -78,7 +78,7 @@ export async function generateEnhancedPhoto(
           true_cfg: 1,
           id_weight: input.idWeight ?? 1.0,
           num_images: 1
-        } as Record<string, unknown>
+        } as any
       }) as { data: { images: { url: string }[] } };
 
       return result.data.images[0].url;

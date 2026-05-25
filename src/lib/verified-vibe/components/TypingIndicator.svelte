@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { fade } from 'svelte/transition';
+
   /**
    * TypingIndicator Component
    *
@@ -124,6 +126,3 @@
   }
 </style>
 
-<script lang="ts">
-  import { fade } from 'svelte/transition';
-</script>

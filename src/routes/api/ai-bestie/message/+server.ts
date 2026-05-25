@@ -290,6 +290,14 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			.map(line => line.trim().replace(/^[-•]\s*/, ''))
 			.filter(s => s.length > 0);
 
+		// Prepare user message object for use in both DB save and auto-update
+		const userMessageObj: ChatMessage = {
+			id: crypto.randomUUID(),
+			role: 'user',
+			content: userMessage,
+			timestamp: Date.now()
+		};
+
 		// Save message to database
 		try {
 			const supabase = getSupabase();
@@ -308,15 +316,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			}
 
 			// Prepare message objects
-			const userMessageObj: ChatMessage = {
-				role: 'user',
-				content: userMessage
-			};
-
 			const assistantMessageObj: ChatMessage = {
+				id: crypto.randomUUID(),
 				role: 'assistant',
 				content: cleanText,
-				assistantType: 'bestie'
+				assistantType: 'bestie',
+				timestamp: Date.now()
 			};
 
 			// Combine with existing messages or create new array

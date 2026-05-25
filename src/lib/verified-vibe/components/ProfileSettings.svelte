@@ -76,8 +76,8 @@
       bio: formData.bio.trim(),
       interests: formData.interests
         .split(',')
-        .map((i) => i.trim())
-        .filter((i) => i),
+        .map((i: string) => i.trim())
+        .filter((i: string) => i),
       lookingFor: formData.lookingFor.trim()
     };
 

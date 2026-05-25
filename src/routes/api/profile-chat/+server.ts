@@ -33,7 +33,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			? 'personality strengths what makes someone interesting dating profile'
 			: 'personality values compatibility dating profile psychology';
 
-		const bookChunks = await searchBookChunks(query, 4);
+		const bookChunks = await searchBookChunks(query as unknown as number[], 4);
 		const bookContext = bookChunks.map((c) => c.content).join('\n\n---\n\n');
 
 		// Format chat history for prompt

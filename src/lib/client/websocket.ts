@@ -19,7 +19,7 @@ export interface WebSocketMessage {
   type: string;
   conversationId?: string;
   userId?: string;
-  data: any;
+  data?: any;
 }
 
 interface QueuedMessage {

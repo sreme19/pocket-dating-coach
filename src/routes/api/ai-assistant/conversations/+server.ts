@@ -1,7 +1,7 @@
-import { json, error } from '@sveltejs/kit';
+import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { createClient } from '@supabase/supabase-js';
 import type { AIAssistantConversation, AssistantType } from '$lib/types';
+import { getSupabase } from '$lib/server/supabase';
 import {
 	throwAuthenticationError,
 	throwValidationError,
@@ -13,21 +13,6 @@ import {
 	ErrorType,
 	handleSupabaseError
 } from '$lib/server/error-handler';
-
-// Lazy-initialised client — avoids top-level throws that break vite build analysis
-let _supabase: ReturnType<typeof createClient> | null = null;
-function getSupabase() {
-	if (!_supabase) {
-		const url = process.env.PUBLIC_SUPABASE_URL;
-		const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-		if (!url || !key) {
-			logError('Supabase Init', new Error('Missing env vars'), ErrorType.INTERNAL_ERROR);
-			throw error(500, 'Database configuration error');
-		}
-		_supabase = createClient(url, key);
-	}
-	return _supabase;
-}
 
 /**
  * POST /api/ai-assistant/conversations
