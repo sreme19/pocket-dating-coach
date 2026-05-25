@@ -239,7 +239,7 @@
           {/if}
 
           {#if q.type === 'multiple-choice'}
-            <div class="options-grid">
+            <div class="options-grid" class:chips={q.options && q.options.length > 6}>
               {#each q.options ?? [] as opt (opt.value)}
                 <button
                   class="option-button"
@@ -257,7 +257,7 @@
             </div>
 
           {:else if q.type === 'multi-select'}
-            <div class="options-grid">
+            <div class="options-grid" class:chips={q.options && q.options.length > 6}>
               {#each q.options ?? [] as opt (opt.value)}
                 {@const selected = ((responses[q.id] as string[]) ?? []).includes(opt.value)}
                 <button

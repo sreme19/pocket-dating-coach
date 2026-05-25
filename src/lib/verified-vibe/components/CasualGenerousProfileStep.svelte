@@ -222,7 +222,7 @@
             <p class="question-note">💡 {q.note}</p>
           {/if}
 
-          <div class="options-grid">
+          <div class="options-grid" class:chips={q.options && q.options.length > 6}>
             {#each q.options as opt (opt.value)}
               {@const sel = ((responses[q.id] as string[]) ?? []).includes(opt.value)}
               <button
@@ -350,6 +350,24 @@
   }
 
   .options-grid { display: grid; grid-template-columns: 1fr; gap: 0.5rem; }
+
+  .options-grid.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .options-grid.chips .option-button {
+    flex: none;
+    padding: 7px 16px;
+    border-radius: 100px;
+    font-size: 0.85rem;
+    min-height: 36px;
+    justify-content: center;
+    white-space: nowrap;
+  }
+
+  .options-grid.chips .checkmark { display: none; }
 
   .option-button {
     display: flex;
