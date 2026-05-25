@@ -450,6 +450,9 @@ export function clearAllStores() {
     localStorage.removeItem('vv_user');
     localStorage.removeItem('vv_phase');
     localStorage.removeItem('vv_tab');
+    localStorage.removeItem('verified_vibe_pending_archetype');
+    localStorage.removeItem('verified_vibe_pending_gender');
+    localStorage.removeItem('verified_vibe_gender');
   }
 }
 

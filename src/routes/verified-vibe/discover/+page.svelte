@@ -62,6 +62,7 @@
   const likedIds = $state<Set<string>>(new Set());
   let richProfile = $state<RichProfile | null>(null);
   let richProfileLoading = $state(false);
+  let showingSeedProfiles = $state(false);
 
   // Get current profile
   let currentProfile = $derived(isViewingSelected ? selectedProfile : ($discoveryProfiles[$discoveryIndex] || null));
@@ -143,6 +144,7 @@
       const newProfiles = result.data.profiles;
 
       if (newProfiles.length > 0) {
+        showingSeedProfiles = newProfiles.some((p: DiscoveryProfile) => p.isSeed);
         newProfiles.forEach((profile: DiscoveryProfile) => {
           addDiscoveryProfile(profile);
         });
@@ -487,6 +489,13 @@
     </div>
   {/if}
 
+  <!-- Seed profiles notice -->
+  {#if showingSeedProfiles}
+    <div class="seed-banner" transition:slide={{ duration: 300, axis: 'y' }}>
+      <span>👀 Preview profiles — real members joining soon</span>
+    </div>
+  {/if}
+
   <!-- Profile scroll area -->
   <div class="profile-scroll" bind:this={cardStackContainer}>
     {#if richProfileLoading}
@@ -768,6 +777,18 @@
     border: 1px solid rgba(239, 68, 68, 0.3);
     border-radius: 8px;
     color: #ef4444;
+  }
+
+  .seed-banner {
+    padding: 8px 16px;
+    margin: 8px 16px 0;
+    background: var(--accent-tint);
+    border: 1px solid var(--accent-bright);
+    border-radius: 8px;
+    color: var(--accent-bright);
+    font-size: 12px;
+    font-weight: 500;
+    text-align: center;
   }
 
   .error-icon {

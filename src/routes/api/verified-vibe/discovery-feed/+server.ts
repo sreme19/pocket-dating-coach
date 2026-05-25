@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import type { DiscoveryProfile } from '$lib/verified-vibe/types';
 import { getSupabase } from '$lib/server/supabase';
+import { MATCH_MATRIX } from '$lib/verified-vibe/constants';
 
 interface DiscoveryFeedRequest {
   limit?: number;
@@ -41,6 +42,75 @@ interface DiscoveryFeedResponse {
  *   }
  * }
  */
+const SEED_PROFILES_WOMAN: DiscoveryProfile[] = [
+  {
+    id: 'seed-w-1', gender: 'woman', archetype: 'traditional_matrimony_woman' as any,
+    firstName: 'Priya', age: 26, city: 'Chicago, IL',
+    avatar: null, about: 'Family-oriented and looking for a lifelong partner. Love cooking, travel, and quiet evenings.',
+    looking: 'Marriage', trustScore: 85, distance: '—', verified: ['id', 'liveness', 'photos'],
+    createdAt: new Date(), updatedAt: new Date(), isSeed: true
+  },
+  {
+    id: 'seed-w-2', gender: 'woman', archetype: 'forever_focused_woman' as any,
+    firstName: 'Aisha', age: 28, city: 'Houston, TX',
+    avatar: null, about: 'Focused on building a future with the right person. Values trust, loyalty, and shared goals.',
+    looking: 'Serious relationship', trustScore: 78, distance: '—', verified: ['id', 'photos'],
+    createdAt: new Date(), updatedAt: new Date(), isSeed: true
+  },
+  {
+    id: 'seed-w-3', gender: 'woman', archetype: 'spoiled_casual_woman' as any,
+    firstName: 'Sofia', age: 24, city: 'Miami, FL',
+    avatar: null, about: 'Loves fine dining and spontaneous adventures. Looking for a confident, caring partner.',
+    looking: 'Casual dating', trustScore: 72, distance: '—', verified: ['id', 'photos'],
+    createdAt: new Date(), updatedAt: new Date(), isSeed: true
+  },
+  {
+    id: 'seed-w-4', gender: 'woman', archetype: 'hopeless_romantic_woman' as any,
+    firstName: 'Nadia', age: 25, city: 'New York, NY',
+    avatar: null, about: 'Hopeless romantic who believes in genuine connection. Loves literature and long walks.',
+    looking: 'Serious relationship', trustScore: 80, distance: '—', verified: ['id', 'liveness', 'photos'],
+    createdAt: new Date(), updatedAt: new Date(), isSeed: true
+  }
+];
+
+const SEED_PROFILES_MAN: DiscoveryProfile[] = [
+  {
+    id: 'seed-m-1', gender: 'man', archetype: 'traditional_matrimony_man' as any,
+    firstName: 'Arjun', age: 29, city: 'Dallas, TX',
+    avatar: null, about: 'Family-first mindset. Engineer by day, home chef by evening. Looking for a life partner.',
+    looking: 'Marriage', trustScore: 87, distance: '—', verified: ['id', 'liveness', 'photos'],
+    createdAt: new Date(), updatedAt: new Date(), isSeed: true
+  },
+  {
+    id: 'seed-m-2', gender: 'man', archetype: 'forever_focused_man' as any,
+    firstName: 'Marcus', age: 31, city: 'Atlanta, GA',
+    avatar: null, about: 'Purpose-driven and ready to settle down with the right woman.',
+    looking: 'Serious relationship', trustScore: 82, distance: '—', verified: ['id', 'photos'],
+    createdAt: new Date(), updatedAt: new Date(), isSeed: true
+  },
+  {
+    id: 'seed-m-3', gender: 'man', archetype: 'casual_generous_man' as any,
+    firstName: 'James', age: 27, city: 'Los Angeles, CA',
+    avatar: null, about: 'Entrepreneur who enjoys spoiling a deserving woman. Life of the party with a generous heart.',
+    looking: 'Casual dating', trustScore: 75, distance: '—', verified: ['id', 'photos'],
+    createdAt: new Date(), updatedAt: new Date(), isSeed: true
+  },
+  {
+    id: 'seed-m-4', gender: 'man', archetype: 'hopeless_romantic_man' as any,
+    firstName: 'David', age: 30, city: 'Seattle, WA',
+    avatar: null, about: 'Believes in old-school romance. Will plan the perfect date for you.',
+    looking: 'Serious relationship', trustScore: 79, distance: '—', verified: ['id', 'liveness', 'photos'],
+    createdAt: new Date(), updatedAt: new Date(), isSeed: true
+  }
+];
+
+function buildSeedProfiles(targetGender: string, compatibleArchetypes: string[]): DiscoveryProfile[] {
+  const pool = targetGender === 'woman' ? SEED_PROFILES_WOMAN : SEED_PROFILES_MAN;
+  if (compatibleArchetypes.length === 0) return pool;
+  const filtered = pool.filter(p => compatibleArchetypes.includes(p.archetype));
+  return filtered.length > 0 ? filtered : pool;
+}
+
 export const GET: RequestHandler = async ({ url, locals, request }) => {
   try {
     // Parse query parameters
@@ -129,16 +199,25 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
     }
 
     const currentUserGender = currentUserProfile.gender || 'man';
+    const currentUserArchetype = currentUserProfile.archetype || '';
 
-    // Determine opposite gender
+    // Determine compatible archetypes via MATCH_MATRIX (falls back to opposite gender)
+    const compatibleArchetypes: string[] = MATCH_MATRIX[currentUserArchetype] ?? [];
     const targetGender = currentUserGender === 'man' ? 'woman' : 'man';
 
-    // Fetch all verified profiles from database (opposite gender only)
-    const { data: profiles, error: profileError } = await (supabase as any)
+    // Fetch profiles: filter by compatible archetypes when available, else opposite gender
+    let profileQuery = (supabase as any)
       .from('verified_vibe_users')
       .select('*')
-      .neq('id', currentUserId)
-      .eq('gender', targetGender);
+      .neq('id', currentUserId);
+
+    if (compatibleArchetypes.length > 0) {
+      profileQuery = profileQuery.in('archetype', compatibleArchetypes);
+    } else {
+      profileQuery = profileQuery.eq('gender', targetGender);
+    }
+
+    const { data: profiles, error: profileError } = await profileQuery;
 
     if (profileError) {
       console.error('Database error:', profileError);
@@ -205,7 +284,7 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
             photos: 'Photos',
             spending_or_qa: 'Q&A'
           };
-          return stepNames[s] || s;
+          return stepNames[s as string] || (s as string);
         });
 
         return {
@@ -239,9 +318,17 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
     }
 
     // Apply pagination
-    const total = discoveryProfiles.length;
-    const paginatedProfiles = discoveryProfiles.slice(offset, offset + limit);
-    const hasMore = offset + limit < total;
+    let total = discoveryProfiles.length;
+    let paginatedProfiles = discoveryProfiles.slice(offset, offset + limit);
+    let hasMore = offset + limit < total;
+
+    // When real pool is empty, fall back to seed/demo profiles
+    if (paginatedProfiles.length === 0 && offset === 0) {
+      const seedProfiles = buildSeedProfiles(targetGender, compatibleArchetypes);
+      paginatedProfiles = seedProfiles.slice(0, limit);
+      total = seedProfiles.length;
+      hasMore = false;
+    }
 
     const response: DiscoveryFeedResponse = {
       data: {
