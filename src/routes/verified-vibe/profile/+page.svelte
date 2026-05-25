@@ -207,6 +207,15 @@
   }
 
   onMount(async () => {
+    const supabase = getSupabaseClient();
+    const { data: { session } } = await supabase.auth.getSession();
+
+    // No session — redirect to sign-in instead of rendering stale cached profile
+    if (!session) {
+      goto('/verified-vibe/auth?mode=signin');
+      return;
+    }
+
     const rawDraft = localStorage.getItem('vv_profile_draft');
     const rawGenerated = localStorage.getItem('vv_profile');
     const rawPhotos = localStorage.getItem('vv_photos');
@@ -224,8 +233,6 @@
 
     // Load hard_nos from DB
     try {
-      const supabase = getSupabaseClient();
-      const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         const { data } = await supabase
           .from('verified_vibe_users')

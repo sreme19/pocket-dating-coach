@@ -13,7 +13,7 @@
   let hydrationComplete = $state(false);
   let pathname = $derived($page.url.pathname);
 
-  const ONBOARDING_PATHS = ['/verified-vibe/gate', '/verified-vibe/home', '/verified-vibe/verify', '/verified-vibe/verification'];
+  const ONBOARDING_PATHS = ['/verified-vibe/auth', '/verified-vibe/gate', '/verified-vibe/home', '/verified-vibe/verify', '/verified-vibe/verification'];
   const showBottomNav = $derived(
     !ONBOARDING_PATHS.some(p => pathname === p || pathname.startsWith(p + '/')) &&
     !pathname.match(/^\/verified-vibe\/chat\/.+/)

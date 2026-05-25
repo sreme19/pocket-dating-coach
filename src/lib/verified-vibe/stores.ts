@@ -447,12 +447,35 @@ export function clearAllStores() {
   currentTab.set('discover');
 
   if (typeof window !== 'undefined') {
+    // Core session keys
     localStorage.removeItem('vv_user');
     localStorage.removeItem('vv_phase');
     localStorage.removeItem('vv_tab');
+    // Archetype / onboarding keys
+    localStorage.removeItem('verified_vibe_archetype');
     localStorage.removeItem('verified_vibe_pending_archetype');
     localStorage.removeItem('verified_vibe_pending_gender');
     localStorage.removeItem('verified_vibe_gender');
+    // Profile & media (prevent stale profile showing after sign-out)
+    localStorage.removeItem('vv_profile');
+    localStorage.removeItem('vv_profile_draft');
+    localStorage.removeItem('vv_photos');
+    localStorage.removeItem('vv_ai_photos');
+    // Archetype-specific verification step data
+    localStorage.removeItem('vv_forever_intent');
+    localStorage.removeItem('vv_forever_profile');
+    localStorage.removeItem('vv_forever_preferences');
+    localStorage.removeItem('vv_romantic_intent');
+    localStorage.removeItem('vv_romantic_profile');
+    localStorage.removeItem('vv_romantic_preferences');
+    localStorage.removeItem('vv_second_chapter_intent');
+    localStorage.removeItem('vv_second_chapter_profile');
+    localStorage.removeItem('vv_second_chapter_preferences');
+    localStorage.removeItem('vv_rebound_healing');
+    localStorage.removeItem('vv_matrimony_profile');
+    localStorage.removeItem('vv_matrimony_preferences');
+    localStorage.removeItem('vv_casual_generous_profile');
+    localStorage.removeItem('vv_casual_generous_preferences');
   }
 }
 
