@@ -33,6 +33,8 @@
   import SecondChapterProfileStep from '$lib/verified-vibe/components/SecondChapterProfileStep.svelte';
   import SecondChapterPreferencesStep from '$lib/verified-vibe/components/SecondChapterPreferencesStep.svelte';
   import ReboundHealingStep from '$lib/verified-vibe/components/ReboundHealingStep.svelte';
+  import CasualGenerousProfileStep from '$lib/verified-vibe/components/CasualGenerousProfileStep.svelte';
+  import CasualGenerousPreferencesStep from '$lib/verified-vibe/components/CasualGenerousPreferencesStep.svelte';
   import TrustPointsBadge from '$lib/verified-vibe/components/TrustPointsBadge.svelte';
   import type { ProfileIntakeData } from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
   import type { VerificationStep as VerificationStepType, LivenessCheckResult } from '$lib/verified-vibe/types';
@@ -131,6 +133,14 @@
         ...base,
         { number: 5, name: 'About You', description: 'Where you are today.', icon: '🌤️', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
         { number: 6, name: 'Partner Preferences', description: 'What you need now.', icon: '💝', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
+        { number: 7, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
+      ];
+    }
+    if ($user?.archetype === 'casual_generous_man') {
+      return [
+        ...base,
+        { number: 5, name: 'Lifestyle & Experiences', description: 'What you enjoy sharing.', icon: '💎', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
+        { number: 6, name: 'Standards & Preferences', description: 'What you look for.', icon: '🔒', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
         { number: 7, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
       ];
     }
@@ -556,6 +566,56 @@
       verificationProgress.set(progress);
       updateTrustScoreAfterVerification();
 
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleCasualGenerousProfileSubmit(data: { profile: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+    loading = true;
+    try {
+      localStorage.setItem('vv_casual_generous_profile', JSON.stringify(data.profile));
+      completedSteps.add(currentStep);
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+      updateTrustScoreAfterVerification();
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleCasualGenerousPrefsSubmit(data: { preferences: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+    loading = true;
+    try {
+      localStorage.setItem('vv_casual_generous_preferences', JSON.stringify(data.preferences));
+      completedSteps.add(currentStep);
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+      updateTrustScoreAfterVerification();
       if (currentStep < totalSteps) {
         currentStep++;
         verificationStep.set(currentStep);
@@ -1142,6 +1202,16 @@
             onCancel={handleBack}
           />
         {/if}
+      {:else if currentStep === 5 && $user?.archetype === 'casual_generous_man'}
+        <CasualGenerousProfileStep
+          onSubmit={handleCasualGenerousProfileSubmit}
+          onCancel={handleBack}
+        />
+      {:else if currentStep === 6 && $user?.archetype === 'casual_generous_man'}
+        <CasualGenerousPreferencesStep
+          onSubmit={handleCasualGenerousPrefsSubmit}
+          onCancel={handleBack}
+        />
       {:else if currentStep === 5 && isMatrimonyArchetype}
         <MatrimonyProfileStep
           onSubmit={handleMatrimonyProfileSubmit}
