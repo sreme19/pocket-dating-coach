@@ -186,14 +186,15 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
       );
     }
 
-    // If user doesn't have a profile yet, return empty list
+    // If user doesn't have a profile yet, return seed profiles as a preview
     if (!currentUserProfile) {
-      console.warn('User profile not found for:', currentUserId);
+      console.warn('User profile not found for:', currentUserId, '— returning seed profiles');
+      const seedProfiles = buildSeedProfiles('woman', []);
       return json({
         data: {
-          profiles: [],
+          profiles: seedProfiles.slice(0, limit),
           hasMore: false,
-          total: 0
+          total: seedProfiles.length
         }
       });
     }
