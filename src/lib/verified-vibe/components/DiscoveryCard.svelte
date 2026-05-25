@@ -246,7 +246,6 @@
           class="profile-photo"
           loading="lazy"
           decoding="async"
-          key={currentPhotoIndex}
           transition:fade={{ duration: 200 }}
         />
       {:else}

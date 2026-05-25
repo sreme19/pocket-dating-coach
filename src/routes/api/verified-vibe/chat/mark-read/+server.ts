@@ -47,7 +47,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		const { error: updateError } = await supabase
 			.from('verified_vibe_matches')
-			.update({ [column]: now })
+			.update({ [column]: now } as any)
 			.eq('id', matchId);
 
 		if (updateError) {

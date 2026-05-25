@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { ChevronDown, TrendingUp, TrendingDown, Minus, CheckCircle, AlertCircle, XCircle, Zap } from 'lucide-svelte';
-	import type { MatchSummary } from '$lib/routes/api/ai-bestie/summary/+server';
+	import type { MatchSummary } from '../../routes/api/ai-bestie/summary/+server';
 
 	interface Props {
 		summaries: MatchSummary[];

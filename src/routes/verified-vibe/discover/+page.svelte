@@ -505,7 +505,7 @@
       </div>
 
     {:else if currentProfile && richProfile}
-      <div transition:fade={{ duration: 250 }} key={currentProfile.id}>
+      <div transition:fade={{ duration: 250 }}>
 
         <!-- Photo -->
         <div class="photo-block">

@@ -30,7 +30,7 @@
 	});
 
 	function startEdit(field: keyof MaleProfile) {
-		if (field === 'citations' || field === 'generatedAt' || field === 'feedback' || field === 'updatedAt') return;
+		if (field === 'citations' || field === 'generatedAt' || field === 'feedback') return;
 		editingField = field;
 		editValue = String(profile?.[field] ?? '');
 	}
@@ -60,8 +60,7 @@
 			if (data.error) throw new Error(data.error);
 
 			// Update profile
-			profile[editingField] = editValue;
-			profile.updatedAt = Date.now();
+			(profile as any)[editingField] = editValue;
 
 			saveMaleProfile(profile);
 			editingField = null;

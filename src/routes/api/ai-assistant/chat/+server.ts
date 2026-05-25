@@ -46,7 +46,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	// Validate required fields
-	const { valid, missingFields } = validateRequiredFields(body, [
+	const { valid, missingFields } = validateRequiredFields(body as unknown as Record<string, unknown>, [
 		'conversationId',
 		'assistantType',
 		'messages'
@@ -72,7 +72,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	// Validate messages array
 	const messagesValidation = validateArrayLength(messages, 1);
 	if (!messagesValidation.valid) {
-		throwValidationError(messagesValidation.error);
+		throwValidationError(messagesValidation.error ?? '');
 	}
 
 	// Validate message structure
@@ -121,13 +121,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		try {
 			if (assistantType === 'bestie') {
 				systemPrompt = buildAIBestieSystemPrompt(
-					matchContext?.matchedUserProfile as UserProfile | undefined,
+					(matchContext?.matchedUserProfile ?? null) as UserProfile | null,
 					bookContext || 'No book context available.',
 					matchContext?.matchedUserProfile
 				);
 			} else {
 				systemPrompt = buildAIWingmanSystemPrompt(
-					matchContext?.matchedUserProfile as UserProfile | undefined,
+					(matchContext?.matchedUserProfile ?? null) as UserProfile | null,
 					bookContext || 'No book context available.',
 					matchContext?.matchedUserProfile
 				);

@@ -357,7 +357,7 @@ export async function generateHourlySummaries(
 		try {
 			const { error: insertError } = await supabase.from('ai_assistant_summaries').insert({
 				user_id: userId,
-				summary_data: summaryData,
+				summary_data: summaryData as unknown as Record<string, unknown>,
 				created_at: new Date().toISOString()
 			});
 
@@ -478,7 +478,7 @@ export async function getLatestSummary(
 			return null;
 		}
 
-		const summaryData = data?.summary_data as HourlySummaryData;
+		const summaryData = data?.summary_data as unknown as HourlySummaryData;
 
 		// Filter by assistant type if needed
 		if (summaryData && summaryData.assistantType === assistantType) {
@@ -521,7 +521,7 @@ export async function getSummaryHistory(
 
 		// Filter by assistant type and extract summary data
 		return data
-			.map(row => row.summary_data as HourlySummaryData)
+			.map(row => row.summary_data as unknown as HourlySummaryData)
 			.filter(summary => summary.assistantType === assistantType);
 	} catch (err) {
 		console.error('Failed to get summary history:', err);

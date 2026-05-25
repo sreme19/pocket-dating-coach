@@ -258,7 +258,8 @@ export async function updateAssistantConfig(
 
 	const { error } = await supabase
 		.from('ai_assistant_match_configs')
-		.update(updateData)
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		.update(updateData as any)
 		.eq('user_id', userId)
 		.eq('match_id', matchId)
 		.eq('assistant_type', assistantType);

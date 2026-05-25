@@ -65,7 +65,7 @@ export class PerformanceMonitor {
 					const entries = list.getEntries();
 					const lastEntry = entries[entries.length - 1];
 					if (this.metrics) {
-						this.metrics.largestContentfulPaint = lastEntry.renderTime || lastEntry.loadTime;
+						this.metrics.largestContentfulPaint = (lastEntry as any).renderTime || (lastEntry as any).loadTime;
 					}
 				});
 				lcpObserver.observe({ entryTypes: ['largest-contentful-paint'] });

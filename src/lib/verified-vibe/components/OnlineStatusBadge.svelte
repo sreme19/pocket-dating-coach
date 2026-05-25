@@ -12,7 +12,15 @@
    * - size: 'small' | 'medium' | 'large' - Size of the badge (default: 'medium')
    */
 
-  import { formatDistanceToNow } from 'date-fns';
+  function formatDistanceToNow(date: Date): string {
+    const diff = Date.now() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'}`;
+    return `${Math.floor(hours / 24)} day${Math.floor(hours / 24) === 1 ? '' : 's'}`;
+  }
 
   interface Props {
     isOnline?: boolean;
@@ -27,7 +35,7 @@
     if (!date) return 'Last seen recently';
 
     try {
-      return `Last seen ${formatDistanceToNow(new Date(date), { addSuffix: false })} ago`;
+      return `Last seen ${formatDistanceToNow(new Date(date))} ago`;
     } catch (error) {
       return 'Last seen recently';
     }
@@ -173,7 +181,3 @@
   }
 </style>
 
-<script lang="ts">
-  // Import date-fns for formatting
-  // Note: This requires adding date-fns to package.json if not already present
-</script>

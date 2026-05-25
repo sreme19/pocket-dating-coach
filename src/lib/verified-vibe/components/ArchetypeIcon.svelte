@@ -24,8 +24,8 @@
     lg: '24px'
   };
 
-  const iconSize = sizeMap[size];
-  const textSize = fontSize[size];
+  const iconSize = sizeMap[size as 'sm' | 'md' | 'lg'];
+  const textSize = fontSize[size as 'sm' | 'md' | 'lg'];
 </script>
 
 <div class="archetype-icon {size}">

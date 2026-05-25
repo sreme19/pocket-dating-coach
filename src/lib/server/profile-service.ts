@@ -93,7 +93,7 @@ export async function loadPreferences(userId: string): Promise<PreferencesProfil
 		throw new Error(`Failed to load preferences: ${error.message}`);
 	}
 
-	const preferences = data.data as PreferencesProfile;
+	const preferences = data.data as unknown as PreferencesProfile;
 
 	// Cache the result
 	profileCache.set(cacheKey, { data: preferences, timestamp: Date.now() });
@@ -143,7 +143,7 @@ export async function loadPersonality(userId: string): Promise<PersonalityProfil
 		throw new Error(`Failed to load personality: ${error.message}`);
 	}
 
-	const personality = data.data as PersonalityProfile;
+	const personality = data.data as unknown as PersonalityProfile;
 
 	// Cache the result
 	profileCache.set(cacheKey, { data: personality, timestamp: Date.now() });
@@ -185,7 +185,7 @@ export async function updatePreferences(
 	const { error } = await supabase.from('ai_assistant_profiles').insert({
 		user_id: userId,
 		profile_type: 'preferences',
-		data: updated,
+		data: updated as unknown as Record<string, unknown>,
 		version: nextVersion,
 		reason
 	});
@@ -233,7 +233,7 @@ export async function updatePersonality(
 	const { error } = await supabase.from('ai_assistant_profiles').insert({
 		user_id: userId,
 		profile_type: 'personality',
-		data: updated,
+		data: updated as unknown as Record<string, unknown>,
 		version: nextVersion,
 		reason
 	});
@@ -267,7 +267,7 @@ export async function getPreferencesHistory(userId: string): Promise<ProfileVers
 	return (data || []).map((row) => ({
 		id: row.id,
 		version: row.version,
-		data: row.data as PreferencesProfile,
+		data: row.data as unknown as PreferencesProfile,
 		reason: row.reason || 'No reason provided',
 		createdAt: new Date(row.created_at).getTime()
 	}));
@@ -293,7 +293,7 @@ export async function getPersonalityHistory(userId: string): Promise<ProfileVers
 	return (data || []).map((row) => ({
 		id: row.id,
 		version: row.version,
-		data: row.data as PersonalityProfile,
+		data: row.data as unknown as PersonalityProfile,
 		reason: row.reason || 'No reason provided',
 		createdAt: new Date(row.created_at).getTime()
 	}));

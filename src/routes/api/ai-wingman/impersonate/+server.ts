@@ -243,7 +243,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				.update({
 					impersonation_enabled: true,
 					updated_at: new Date().toISOString()
-				})
+				} as any)
 				.eq('id', conversationId)
 				.eq('user_id', userId);
 

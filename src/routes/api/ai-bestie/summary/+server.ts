@@ -206,7 +206,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		for (const conversation of conversations) {
 			try {
-				const messages: ChatMessage[] = conversation.messages || [];
+				const messages: ChatMessage[] = (conversation.messages as ChatMessage[]) || [];
 
 				// Skip if no messages
 				if (messages.length === 0) {

@@ -175,13 +175,14 @@ export function createSessionStore(userId: string, matchId: string) {
 		 * Add a message to the conversation history
 		 */
 		async addMessage(message: ChatMessage) {
-			update((state) => ({
-				...state,
-				conversationHistory: [...state.conversationHistory, message]
-			}));
+			let capturedState: SessionState | undefined;
+			update((s) => {
+				capturedState = s;
+				return { ...s, conversationHistory: [...s.conversationHistory, message] };
+			});
 
 			// Persist to server
-			if (state.activeAssistant) {
+			if (capturedState?.activeAssistant) {
 				try {
 					await fetch('/api/session/add-message', {
 						method: 'POST',
@@ -189,7 +190,7 @@ export function createSessionStore(userId: string, matchId: string) {
 						body: JSON.stringify({
 							userId,
 							matchId,
-							assistantType: state.activeAssistant,
+							assistantType: capturedState.activeAssistant,
 							message
 						})
 					});
@@ -238,7 +239,7 @@ export function createGlobalSessionStore() {
 		 * Get or create a session for a match
 		 */
 		getOrCreateSession(userId: string, matchId: string): SessionState {
-			let currentSessions: Map<string, SessionState>;
+			let currentSessions: Map<string, SessionState> = new Map();
 			sessions.subscribe((s) => {
 				currentSessions = s;
 			})();

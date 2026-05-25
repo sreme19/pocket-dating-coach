@@ -73,11 +73,10 @@ export function sendPushNotification(options: NotificationOptions): Notification
       badge: options.badge,
       tag: options.tag,
       requireInteraction: options.requireInteraction ?? false,
-      actions: options.actions,
       data: options.data
     });
 
-    return notification;
+    return notification as unknown as Notification;
   } catch (error) {
     console.error('Error sending push notification:', error);
     return null;

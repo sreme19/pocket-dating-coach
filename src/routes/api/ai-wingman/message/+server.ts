@@ -309,14 +309,18 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 			// Prepare message objects
 			const userMessageObj: ChatMessage = {
+				id: crypto.randomUUID(),
 				role: 'user',
-				content: userMessage
+				content: userMessage,
+				timestamp: Date.now()
 			};
 
 			const assistantMessageObj: ChatMessage = {
+				id: crypto.randomUUID(),
 				role: 'assistant',
 				content: cleanText,
-				assistantType: 'wingman'
+				assistantType: 'wingman',
+				timestamp: Date.now()
 			};
 
 			// Combine with existing messages or create new array
@@ -360,8 +364,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		// Auto-update personality based on conversation (fire and forget)
 		try {
 			const userMessageObj: ChatMessage = {
+				id: crypto.randomUUID(),
 				role: 'user',
-				content: userMessage
+				content: userMessage,
+				timestamp: Date.now()
 			};
 			const allMessages = [...recentMessages, userMessageObj];
 			await autoUpdateProfile('wingman', allMessages, null, userId, bookContext);

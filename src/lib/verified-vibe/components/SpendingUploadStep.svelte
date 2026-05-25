@@ -144,11 +144,11 @@
           class="upload-area" 
           role="button" 
           tabindex="0" 
-          onclick={() => document.querySelector('.upload-area input')?.click()}
+          onclick={() => (document.querySelector('.upload-area input') as HTMLInputElement)?.click()}
           onkeydown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              document.querySelector('.upload-area input')?.click();
+              (document.querySelector('.upload-area input') as HTMLInputElement)?.click();
             }
           }}
         >

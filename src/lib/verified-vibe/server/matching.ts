@@ -51,73 +51,113 @@ const ARCHETYPE_COMPATIBILITY: Record<Archetype, Record<Archetype, number>> = {
     casual_generous_man: 45, hopeless_romantic_man: 30, rebound_healing_man: 35,
     untouched_heart_man: 30, forever_focused_man: 25, traditional_matrimony_man: 20,
     spoiled_casual_woman: 85, hopeless_romantic_woman: 65, rebound_healing_woman: 65,
-    untouched_heart_woman: 45, forever_focused_woman: 35, traditional_matrimony_woman: 25
+    untouched_heart_woman: 45, forever_focused_woman: 35, traditional_matrimony_woman: 25,
+    second_chapter_man: 35, just_friends_man: 55, second_chapter_woman: 40, just_friends_woman: 60
   },
   hopeless_romantic_man: {
     casual_generous_man: 30, hopeless_romantic_man: 50, rebound_healing_man: 40,
     untouched_heart_man: 40, forever_focused_man: 45, traditional_matrimony_man: 50,
     spoiled_casual_woman: 45, hopeless_romantic_woman: 85, rebound_healing_woman: 55,
-    untouched_heart_woman: 65, forever_focused_woman: 65, traditional_matrimony_woman: 65
+    untouched_heart_woman: 65, forever_focused_woman: 65, traditional_matrimony_woman: 65,
+    second_chapter_man: 50, just_friends_man: 35, second_chapter_woman: 60, just_friends_woman: 30
   },
   rebound_healing_man: {
     casual_generous_man: 35, hopeless_romantic_man: 40, rebound_healing_man: 55,
     untouched_heart_man: 35, forever_focused_man: 30, traditional_matrimony_man: 25,
     spoiled_casual_woman: 65, hopeless_romantic_woman: 50, rebound_healing_woman: 85,
-    untouched_heart_woman: 65, forever_focused_woman: 40, traditional_matrimony_woman: 35
+    untouched_heart_woman: 65, forever_focused_woman: 40, traditional_matrimony_woman: 35,
+    second_chapter_man: 70, just_friends_man: 45, second_chapter_woman: 75, just_friends_woman: 40
   },
   untouched_heart_man: {
     casual_generous_man: 30, hopeless_romantic_man: 40, rebound_healing_man: 35,
     untouched_heart_man: 55, forever_focused_man: 50, traditional_matrimony_man: 45,
     spoiled_casual_woman: 35, hopeless_romantic_woman: 65, rebound_healing_woman: 55,
-    untouched_heart_woman: 85, forever_focused_woman: 65, traditional_matrimony_woman: 55
+    untouched_heart_woman: 85, forever_focused_woman: 65, traditional_matrimony_woman: 55,
+    second_chapter_man: 45, just_friends_man: 40, second_chapter_woman: 55, just_friends_woman: 35
   },
   forever_focused_man: {
     casual_generous_man: 25, hopeless_romantic_man: 45, rebound_healing_man: 30,
     untouched_heart_man: 50, forever_focused_man: 60, traditional_matrimony_man: 60,
     spoiled_casual_woman: 30, hopeless_romantic_woman: 65, rebound_healing_woman: 40,
-    untouched_heart_woman: 65, forever_focused_woman: 85, traditional_matrimony_woman: 85
+    untouched_heart_woman: 65, forever_focused_woman: 85, traditional_matrimony_woman: 85,
+    second_chapter_man: 55, just_friends_man: 30, second_chapter_woman: 60, just_friends_woman: 25
   },
   traditional_matrimony_man: {
     casual_generous_man: 20, hopeless_romantic_man: 50, rebound_healing_man: 25,
     untouched_heart_man: 45, forever_focused_man: 60, traditional_matrimony_man: 65,
     spoiled_casual_woman: 25, hopeless_romantic_woman: 65, rebound_healing_woman: 35,
-    untouched_heart_woman: 55, forever_focused_woman: 85, traditional_matrimony_woman: 85
+    untouched_heart_woman: 55, forever_focused_woman: 85, traditional_matrimony_woman: 85,
+    second_chapter_man: 60, just_friends_man: 25, second_chapter_woman: 65, just_friends_woman: 20
   },
   spoiled_casual_woman: {
     casual_generous_man: 85, hopeless_romantic_man: 45, rebound_healing_man: 65,
     untouched_heart_man: 35, forever_focused_man: 30, traditional_matrimony_man: 25,
     spoiled_casual_woman: 55, hopeless_romantic_woman: 45, rebound_healing_woman: 50,
-    untouched_heart_woman: 40, forever_focused_woman: 30, traditional_matrimony_woman: 25
+    untouched_heart_woman: 40, forever_focused_woman: 30, traditional_matrimony_woman: 25,
+    second_chapter_man: 40, just_friends_man: 60, second_chapter_woman: 45, just_friends_woman: 65
   },
   hopeless_romantic_woman: {
     casual_generous_man: 65, hopeless_romantic_man: 85, rebound_healing_man: 50,
     untouched_heart_man: 65, forever_focused_man: 65, traditional_matrimony_man: 65,
     spoiled_casual_woman: 45, hopeless_romantic_woman: 60, rebound_healing_woman: 55,
-    untouched_heart_woman: 55, forever_focused_woman: 50, traditional_matrimony_woman: 50
+    untouched_heart_woman: 55, forever_focused_woman: 50, traditional_matrimony_woman: 50,
+    second_chapter_man: 60, just_friends_man: 40, second_chapter_woman: 55, just_friends_woman: 35
   },
   rebound_healing_woman: {
     casual_generous_man: 65, hopeless_romantic_man: 55, rebound_healing_man: 85,
     untouched_heart_man: 55, forever_focused_man: 40, traditional_matrimony_man: 35,
     spoiled_casual_woman: 50, hopeless_romantic_woman: 55, rebound_healing_woman: 60,
-    untouched_heart_woman: 50, forever_focused_woman: 40, traditional_matrimony_woman: 35
+    untouched_heart_woman: 50, forever_focused_woman: 40, traditional_matrimony_woman: 35,
+    second_chapter_man: 75, just_friends_man: 45, second_chapter_woman: 70, just_friends_woman: 40
   },
   untouched_heart_woman: {
     casual_generous_man: 45, hopeless_romantic_man: 65, rebound_healing_man: 65,
     untouched_heart_man: 85, forever_focused_man: 65, traditional_matrimony_man: 55,
     spoiled_casual_woman: 40, hopeless_romantic_woman: 55, rebound_healing_woman: 50,
-    untouched_heart_woman: 60, forever_focused_woman: 55, traditional_matrimony_woman: 50
+    untouched_heart_woman: 60, forever_focused_woman: 55, traditional_matrimony_woman: 50,
+    second_chapter_man: 55, just_friends_man: 40, second_chapter_woman: 60, just_friends_woman: 35
   },
   forever_focused_woman: {
     casual_generous_man: 35, hopeless_romantic_man: 65, rebound_healing_man: 40,
     untouched_heart_man: 65, forever_focused_man: 85, traditional_matrimony_man: 85,
     spoiled_casual_woman: 30, hopeless_romantic_woman: 50, rebound_healing_woman: 40,
-    untouched_heart_woman: 55, forever_focused_woman: 65, traditional_matrimony_woman: 65
+    untouched_heart_woman: 55, forever_focused_woman: 65, traditional_matrimony_woman: 65,
+    second_chapter_man: 60, just_friends_man: 30, second_chapter_woman: 65, just_friends_woman: 25
   },
   traditional_matrimony_woman: {
     casual_generous_man: 25, hopeless_romantic_man: 65, rebound_healing_man: 35,
     untouched_heart_man: 55, forever_focused_man: 85, traditional_matrimony_man: 85,
     spoiled_casual_woman: 25, hopeless_romantic_woman: 50, rebound_healing_woman: 35,
-    untouched_heart_woman: 50, forever_focused_woman: 65, traditional_matrimony_woman: 70
+    untouched_heart_woman: 50, forever_focused_woman: 65, traditional_matrimony_woman: 70,
+    second_chapter_man: 60, just_friends_man: 30, second_chapter_woman: 55, just_friends_woman: 25
+  },
+  second_chapter_man: {
+    casual_generous_man: 35, hopeless_romantic_man: 55, rebound_healing_man: 70,
+    untouched_heart_man: 50, forever_focused_man: 55, traditional_matrimony_man: 60,
+    spoiled_casual_woman: 40, hopeless_romantic_woman: 65, rebound_healing_woman: 75,
+    untouched_heart_woman: 60, forever_focused_woman: 65, traditional_matrimony_woman: 60,
+    second_chapter_man: 65, just_friends_man: 50, second_chapter_woman: 80, just_friends_woman: 45
+  },
+  just_friends_man: {
+    casual_generous_man: 50, hopeless_romantic_man: 40, rebound_healing_man: 45,
+    untouched_heart_man: 35, forever_focused_man: 30, traditional_matrimony_man: 25,
+    spoiled_casual_woman: 55, hopeless_romantic_woman: 45, rebound_healing_woman: 50,
+    untouched_heart_woman: 40, forever_focused_woman: 30, traditional_matrimony_woman: 25,
+    second_chapter_man: 50, just_friends_man: 65, second_chapter_woman: 45, just_friends_woman: 70
+  },
+  second_chapter_woman: {
+    casual_generous_man: 40, hopeless_romantic_man: 65, rebound_healing_man: 75,
+    untouched_heart_man: 60, forever_focused_man: 65, traditional_matrimony_man: 60,
+    spoiled_casual_woman: 45, hopeless_romantic_woman: 60, rebound_healing_woman: 70,
+    untouched_heart_woman: 55, forever_focused_woman: 60, traditional_matrimony_woman: 55,
+    second_chapter_man: 80, just_friends_man: 45, second_chapter_woman: 65, just_friends_woman: 40
+  },
+  just_friends_woman: {
+    casual_generous_man: 55, hopeless_romantic_man: 45, rebound_healing_man: 50,
+    untouched_heart_man: 40, forever_focused_man: 30, traditional_matrimony_man: 25,
+    spoiled_casual_woman: 60, hopeless_romantic_woman: 50, rebound_healing_woman: 55,
+    untouched_heart_woman: 45, forever_focused_woman: 30, traditional_matrimony_woman: 25,
+    second_chapter_man: 45, just_friends_man: 70, second_chapter_woman: 40, just_friends_woman: 65
   }
 };
 
@@ -325,7 +365,11 @@ function getMatchingTraits(archetype1: Archetype, archetype2: Archetype): string
     rebound_healing_woman: ['open', 'resilient', 'self-aware', 'growing'],
     untouched_heart_woman: ['sincere', 'careful', 'genuine', 'loyal'],
     forever_focused_woman: ['ambitious', 'stable', 'goal-oriented', 'dependable'],
-    traditional_matrimony_woman: ['family-oriented', 'principled', 'stable', 'responsible']
+    traditional_matrimony_woman: ['family-oriented', 'principled', 'stable', 'responsible'],
+    second_chapter_man: ['resilient', 'experienced', 'grounded', 'intentional'],
+    just_friends_man: ['platonic', 'easygoing', 'social', 'low-pressure'],
+    second_chapter_woman: ['resilient', 'experienced', 'grounded', 'intentional'],
+    just_friends_woman: ['platonic', 'easygoing', 'social', 'low-pressure']
   };
 
   const traits1 = traitMappings[archetype1] || [];

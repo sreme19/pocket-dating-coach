@@ -4,7 +4,7 @@
   import { fade } from 'svelte/transition';
   import { user } from '$lib/verified-vibe/stores';
   import BestieAvatar from '$lib/components/BestieAvatar.svelte';
-  import type { Conversation } from '../api/verified-vibe/chat/conversations/+server';
+  import type { Conversation } from '../../api/verified-vibe/chat/conversations/+server';
 
   // ── Archetype display metadata ─────────────────────────────────────────────
   const ARCHETYPE_META: Record<string, { emoji: string; label: string; color: string; bg: string }> = {

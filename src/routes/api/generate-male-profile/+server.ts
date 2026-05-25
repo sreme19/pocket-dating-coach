@@ -24,7 +24,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		// Retrieve book context
 		const bookChunks = await searchBookChunks(
-			'personality values compatibility strengths dating authenticity',
+			'personality values compatibility strengths dating authenticity' as unknown as number[],
 			5
 		);
 		const bookContext = bookChunks.map((c) => c.content).join('\n\n---\n\n');

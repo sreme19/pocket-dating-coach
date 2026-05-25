@@ -39,6 +39,7 @@ export interface VVVerificationStep {
   data: Record<string, unknown> | null;
   completed_at: string | null;
   created_at: string;
+  trust_points?: number;
 }
 
 export type ProfileCompleteness =
@@ -196,7 +197,7 @@ export async function saveVerificationStep(
  * Returns total trust score from all completed steps.
  */
 export function totalTrustPoints(steps: VVVerificationStep[]): number {
-  return steps.reduce((sum, s) => sum + s.trust_points, 0);
+  return steps.reduce((sum, s) => sum + (s.trust_points ?? 0), 0);
 }
 
 /**

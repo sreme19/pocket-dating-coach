@@ -192,7 +192,7 @@ export function onServiceWorkerMessage(callback: (data: any) => void): () => voi
 		return () => {};
 	}
 
-	const handler = (event: ExtendableMessageEvent) => {
+	const handler = (event: MessageEvent) => {
 		callback(event.data);
 	};
 

@@ -66,7 +66,7 @@ export const GET: RequestHandler = async ({ request, locals }) => {
 
 		configs?.forEach((config: any) => {
 			if (config.assistant_type === 'bestie' || config.assistant_type === 'wingman') {
-				configMap[config.assistant_type] = {
+				configMap[config.assistant_type as AssistantType] = {
 					id: config.id,
 					userId: config.user_id,
 					assistantType: config.assistant_type,

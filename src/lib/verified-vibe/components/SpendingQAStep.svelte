@@ -849,7 +849,7 @@
           <div class="review-item">
             <div class="review-header">
               <h4 class="review-question">{question.question}</h4>
-              {#if step === 'questions' || (step !== 'submitting' && !loading)}
+              {#if step !== 'submitting' && !loading}
                 <button
                   class="edit-button"
                   onclick={() => handleEditQuestion(index)}

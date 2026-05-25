@@ -19,8 +19,8 @@
     lg: '14px'
   };
 
-  const dotSize = sizeMap[size];
-  const textSize = fontSize[size];
+  const dotSize = sizeMap[size as 'sm' | 'md' | 'lg'];
+  const textSize = fontSize[size as 'sm' | 'md' | 'lg'];
 </script>
 
 {#if variant === 'badge'}
