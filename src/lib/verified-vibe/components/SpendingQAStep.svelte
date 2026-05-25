@@ -27,51 +27,51 @@
   }
 
   const TIMELINE_OPTIONS = [
-    { value: 'asap', label: "ASAP — I'm ready now" },
-    { value: 'months', label: 'Within the next few months' },
-    { value: 'year', label: 'Within the next year or two' },
-    { value: 'no_rush', label: 'No rush, whenever it happens' }
+    { value: 'asap', label: "⚡ ASAP — I'm ready now" },
+    { value: 'months', label: '📅 Within the next few months' },
+    { value: 'year', label: '🌱 Within the next year or two' },
+    { value: 'no_rush', label: '🌊 No rush, whenever it happens' }
   ];
 
   const MATRIMONY_QUESTIONS: Question[] = [
     {
       id: 'wedding_vision',
       type: 'multiple-choice',
-      question: 'What kind of wedding are you envisioning?',
+      question: '💍 What kind of wedding are you envisioning?',
       options: [
-        { value: 'intimate', label: 'Intimate — close family & friends' },
-        { value: 'traditional', label: 'Traditional — full ceremony & rituals' },
-        { value: 'big', label: 'Grand — large, celebratory event' },
-        { value: 'destination', label: 'Destination — something unique' }
+        { value: 'intimate', label: '🥂 Intimate — close family & friends' },
+        { value: 'traditional', label: '🪔 Traditional — full ceremony & rituals' },
+        { value: 'big', label: '🎉 Grand — large, celebratory event' },
+        { value: 'destination', label: '✈️ Destination — something unique' }
       ]
     },
     {
       id: 'family_involvement',
       type: 'multiple-choice',
-      question: 'How involved would your family be in choosing a partner?',
+      question: '👨‍👩‍👧‍👦 How involved would your family be in choosing a partner?',
       options: [
-        { value: 'fully_involved', label: 'Fully — family leads the search' },
-        { value: 'guided', label: 'Guided — family approves the choice' },
-        { value: 'informed', label: 'Informed — I decide, family knows' },
-        { value: 'independent', label: 'Independent — my choice, my way' }
+        { value: 'fully_involved', label: '🏡 Fully — family leads the search' },
+        { value: 'guided', label: '🤝 Guided — family approves the choice' },
+        { value: 'informed', label: '💬 Informed — I decide, family knows' },
+        { value: 'independent', label: '🦁 Independent — my choice, my way' }
       ]
     },
     {
       id: 'lifestyle_values',
       type: 'text',
-      question: 'What lifestyle values matter most to you? (e.g., faith, culture, traditions)',
+      question: '🌿 What lifestyle values matter most to you? (e.g., faith, culture, traditions)',
       placeholder: 'Share what matters to you...'
     },
     {
       id: 'relationship_timeline',
       type: 'multiple-choice',
-      question: "What's your ideal relationship timeline?",
+      question: "🗓️ What's your ideal relationship timeline?",
       options: TIMELINE_OPTIONS
     },
     {
       id: 'deal_breakers',
       type: 'text',
-      question: "What are your deal-breakers in a partner?",
+      question: "🚫 What are your deal-breakers in a partner?",
       placeholder: "Be honest about what won't work for you..."
     }
   ];
@@ -126,41 +126,41 @@
       {
         id: 'spending_comfort',
         type: 'multiple-choice',
-        question: "What's your comfort level with spending on dates?",
+        question: "💸 What's your comfort level with spending on dates?",
         options: [
-          { value: 'budget', label: 'Budget-conscious (₹1,000–3,000)' },
-          { value: 'moderate', label: 'Moderate spender (₹3,000–8,000)' },
-          { value: 'generous', label: 'Generous spender (₹8,000–20,000)' },
-          { value: 'luxury', label: 'Luxury spender (₹20,000+)' }
+          { value: 'budget', label: '🪙 Budget-conscious (₹1,000–3,000)' },
+          { value: 'moderate', label: '💳 Moderate spender (₹3,000–8,000)' },
+          { value: 'generous', label: '🥂 Generous spender (₹8,000–20,000)' },
+          { value: 'luxury', label: '💎 Luxury spender (₹20,000+)' }
         ]
       },
       {
         id: 'dating_intent',
         type: 'multiple-choice',
-        question: "What's your primary dating intent?",
+        question: "🎯 What's your primary dating intent?",
         options: [
-          { value: 'casual', label: 'Casual dating' },
-          { value: 'relationship', label: 'Serious relationship' },
-          { value: 'marriage', label: 'Marriage-minded' },
-          { value: 'exploring', label: 'Still exploring' }
+          { value: 'casual', label: '☀️ Casual dating' },
+          { value: 'relationship', label: '❤️ Serious relationship' },
+          { value: 'marriage', label: '💍 Marriage-minded' },
+          { value: 'exploring', label: '🧭 Still exploring' }
         ]
       },
       {
         id: 'lifestyle_values',
         type: 'text',
-        question: 'What lifestyle values matter most to you? (e.g., travel, fitness, culture)',
+        question: '🌿 What lifestyle values matter most to you? (e.g., travel, fitness, culture)',
         placeholder: 'Share what matters to you...'
       },
       {
         id: 'relationship_timeline',
         type: 'multiple-choice',
-        question: "What's your ideal relationship timeline?",
+        question: "🗓️ What's your ideal relationship timeline?",
         options: TIMELINE_OPTIONS
       },
       {
         id: 'deal_breakers',
         type: 'text',
-        question: "What are your deal-breakers in a partner?",
+        question: "🚫 What are your deal-breakers in a partner?",
         placeholder: "Be honest about what won't work for you..."
       }
     ],
@@ -168,41 +168,41 @@
       {
         id: 'date_expectations',
         type: 'multiple-choice',
-        question: 'What do you expect from a date?',
+        question: '✨ What do you expect from a date?',
         options: [
-          { value: 'casual', label: 'Casual hangout' },
-          { value: 'thoughtful', label: 'Thoughtful & planned' },
-          { value: 'upscale', label: 'Upscale experience' },
-          { value: 'luxury', label: 'Luxury treatment' }
+          { value: 'casual', label: '☕ Casual hangout' },
+          { value: 'thoughtful', label: '🌸 Thoughtful & planned' },
+          { value: 'upscale', label: '🥂 Upscale experience' },
+          { value: 'luxury', label: '💎 Luxury treatment' }
         ]
       },
       {
         id: 'partner_qualities',
         type: 'text',
-        question: 'What qualities matter most in a partner?',
+        question: '💫 What qualities matter most in a partner?',
         placeholder: 'Describe your ideal partner...'
       },
       {
         id: 'dating_intent',
         type: 'multiple-choice',
-        question: "What's your primary dating intent?",
+        question: "🎯 What's your primary dating intent?",
         options: [
-          { value: 'casual', label: 'Casual dating' },
-          { value: 'relationship', label: 'Serious relationship' },
-          { value: 'marriage', label: 'Marriage-minded' },
-          { value: 'exploring', label: 'Still exploring' }
+          { value: 'casual', label: '☀️ Casual dating' },
+          { value: 'relationship', label: '❤️ Serious relationship' },
+          { value: 'marriage', label: '💍 Marriage-minded' },
+          { value: 'exploring', label: '🧭 Still exploring' }
         ]
       },
       {
         id: 'lifestyle_values',
         type: 'text',
-        question: 'What lifestyle values matter most to you? (e.g., travel, fitness, culture)',
+        question: '🌿 What lifestyle values matter most to you? (e.g., travel, fitness, culture)',
         placeholder: 'Share what matters to you...'
       },
       {
         id: 'red_flags',
         type: 'text',
-        question: "What are your red flags in a partner?",
+        question: "🚩 What are your red flags in a partner?",
         placeholder: "Be honest about what won't work for you..."
       }
     ],
@@ -210,41 +210,41 @@
       {
         id: 'dating_intent',
         type: 'multiple-choice',
-        question: "What's your primary dating intent?",
+        question: "🎯 What's your primary dating intent?",
         options: [
-          { value: 'casual', label: 'Casual dating' },
-          { value: 'relationship', label: 'Serious relationship' },
-          { value: 'marriage', label: 'Marriage-minded' },
-          { value: 'exploring', label: 'Still exploring' }
+          { value: 'casual', label: '☀️ Casual dating' },
+          { value: 'relationship', label: '❤️ Serious relationship' },
+          { value: 'marriage', label: '💍 Marriage-minded' },
+          { value: 'exploring', label: '🧭 Still exploring' }
         ]
       },
       {
         id: 'lifestyle_values',
         type: 'text',
-        question: 'What lifestyle values matter most to you?',
+        question: '🌿 What lifestyle values matter most to you?',
         placeholder: 'Share what matters to you...'
       },
       {
         id: 'partner_qualities',
         type: 'text',
-        question: 'What qualities matter most in a partner?',
+        question: '💫 What qualities matter most in a partner?',
         placeholder: 'Describe your ideal partner...'
       },
       {
         id: 'spending_comfort',
         type: 'multiple-choice',
-        question: "What's your comfort level with spending on dates?",
+        question: "💸 What's your comfort level with spending on dates?",
         options: [
-          { value: 'budget', label: 'Budget-conscious' },
-          { value: 'moderate', label: 'Moderate spender' },
-          { value: 'generous', label: 'Generous spender' },
-          { value: 'luxury', label: 'Luxury spender' }
+          { value: 'budget', label: '🪙 Budget-conscious' },
+          { value: 'moderate', label: '💳 Moderate spender' },
+          { value: 'generous', label: '🥂 Generous spender' },
+          { value: 'luxury', label: '💎 Luxury spender' }
         ]
       },
       {
         id: 'deal_breakers',
         type: 'text',
-        question: "What are your deal-breakers in a partner?",
+        question: "🚫 What are your deal-breakers in a partner?",
         placeholder: "Be honest about what won't work for you..."
       }
     ]
