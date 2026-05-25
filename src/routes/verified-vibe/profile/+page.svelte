@@ -181,7 +181,7 @@
 
           // Add photo if we haven't reached max
           if (photos.length < 5) {
-            photos = [...photos, { dataUrl, label: `photo-${photos.length + 1}` }];
+            photos = [...photos, { dataUrl, label: PHOTO_SLOTS[photos.length] ?? `photo-${photos.length + 1}` }];
             localStorage.setItem('vv_photos', JSON.stringify(photos));
           } else {
             alert('Maximum 5 photos allowed');
