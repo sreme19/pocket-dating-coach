@@ -211,6 +211,7 @@
     overflow-y: auto;
     overflow-x: hidden;
     animation: pageEnter 300ms ease-out;
+    background: var(--bg-1);
   }
 
   @keyframes pageEnter {

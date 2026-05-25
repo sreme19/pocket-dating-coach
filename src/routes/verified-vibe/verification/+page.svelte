@@ -1111,7 +1111,6 @@
               {step.number}
             {/if}
           </div>
-          <div class="step-label">{step.number}/{totalSteps}</div>
         </div>
       {/each}
     </div>
@@ -1300,7 +1299,7 @@
   .verification-screen {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    min-height: 100%;
     padding: 0;
     background: var(--bg-1);
   }
@@ -1370,7 +1369,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 3px;
+    gap: 0;
     flex: 1;
     cursor: pointer;
     transition: all 200ms ease;
