@@ -1,13 +1,12 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
-  import { user, setPhase } from '$lib/verified-vibe/stores';
+  import { user } from '$lib/verified-vibe/stores';
   import { ARCHETYPES, ARCHETYPES_BY_GENDER, ARCHETYPE_SECTIONS } from '$lib/verified-vibe/constants';
   import type { Archetype, Gender, VerifiedVibeUser } from '$lib/verified-vibe/types';
   import ArchetypeCard from '$lib/verified-vibe/components/ArchetypeCard.svelte';
   import ArchetypeDetailModal from '$lib/verified-vibe/components/ArchetypeDetailModal.svelte';
   import LiveWomenCarousel from '$lib/verified-vibe/components/LiveWomenCarousel.svelte';
   import { getProfile } from '$lib/verified-vibe/services/profileService';
-  import { getSupabaseClient } from '$lib/client/supabase';
 
   let gender = $state<Gender | null>(null);
   let openedArchetype = $state<Archetype | null>(null);
@@ -74,7 +73,7 @@
     activeSection = activeSection === label ? null : label;
   }
 
-  async function handleLockIn(archetypeId: Archetype) {
+  function handleLockIn(archetypeId: Archetype) {
     localStorage.setItem('verified_vibe_archetype', archetypeId);
     localStorage.setItem('verified_vibe_pending_archetype', archetypeId);
 
@@ -95,16 +94,7 @@
     user.set(devUser);
     openedArchetype = null;
 
-    // Check if already signed in — if so go straight to verification,
-    // otherwise collect an email first
-    const supabase = getSupabaseClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
-      setPhase('verification');
-      goto('/verified-vibe/verify');
-    } else {
-      goto('/verified-vibe/auth');
-    }
+    goto('/verified-vibe/auth');
   }
 </script>
 
