@@ -156,6 +156,19 @@
       }
     });
 
+    // If the user store has no archetype (e.g. direct navigation or hydration
+    // race), recover from localStorage so the correct archetype-specific steps
+    // and components render immediately.
+    if (!$user?.archetype) {
+      const storedUser = localStorage.getItem('vv_user');
+      if (storedUser) {
+        try {
+          const parsed = JSON.parse(storedUser);
+          if (parsed?.archetype) user.set(parsed);
+        } catch {}
+      }
+    }
+
     // Retry flushing pending gender/archetype in case the auth-page upsert
     // lost the session-propagation race on first sign-up.
     const pendingGender    = localStorage.getItem('verified_vibe_pending_gender');
