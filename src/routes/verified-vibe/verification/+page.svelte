@@ -22,6 +22,7 @@
   import LivenessStep from '$lib/verified-vibe/components/LivenessStep.svelte';
   import ProfileIntakeStep from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
   import MatrimonyPreferencesStep from '$lib/verified-vibe/components/MatrimonyPreferencesStep.svelte';
+  import MatrimonyProfileStep from '$lib/verified-vibe/components/MatrimonyProfileStep.svelte';
   import TrustPointsBadge from '$lib/verified-vibe/components/TrustPointsBadge.svelte';
   import type { ProfileIntakeData } from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
   import type { VerificationStep as VerificationStepType, LivenessCheckResult } from '$lib/verified-vibe/types';
@@ -74,8 +75,9 @@
     if (isMatrimonyArchetype) {
       return [
         ...base,
-        { number: 5, name: 'Partner Preferences', description: 'Your ideal partner.', icon: '💍', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
-        { number: 6, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
+        { number: 5, name: 'About You', description: 'Your background & values.', icon: '👤', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
+        { number: 6, name: 'Partner Preferences', description: 'Your ideal partner.', icon: '💍', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
+        { number: 7, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
       ];
     }
     return [
@@ -448,6 +450,31 @@
     }
   }
 
+  async function handleMatrimonyProfileSubmit(data: { profile: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+    loading = true;
+    try {
+      localStorage.setItem('vv_matrimony_profile', JSON.stringify(data.profile));
+      completedSteps.add(currentStep);
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+      updateTrustScoreAfterVerification();
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
   async function handleMatrimonyPrefsSubmit(data: { preferences: Record<string, string | string[]> }) {
     error = null;
     clearError();
@@ -779,11 +806,16 @@
           />
         {/if}
       {:else if currentStep === 5 && isMatrimonyArchetype}
+        <MatrimonyProfileStep
+          onSubmit={handleMatrimonyProfileSubmit}
+          onCancel={handleBack}
+        />
+      {:else if currentStep === 6 && isMatrimonyArchetype}
         <MatrimonyPreferencesStep
           onSubmit={handleMatrimonyPrefsSubmit}
           onCancel={handleBack}
         />
-      {:else if currentStep === 5 || currentStep === 6}
+      {:else if currentStep === 5 || currentStep === 6 || currentStep === 7}
         <ProfileIntakeStep
           onSubmit={handleProfileIntakeSubmit}
           onCancel={handleBack}
@@ -818,7 +850,7 @@
   {/if}
 
   <!-- Each step component handles its own primary action; only Skip is shown externally -->
-  {#if currentStep >= 1 && currentStep <= (isMatrimonyArchetype ? 5 : 4)}
+  {#if currentStep >= 1 && currentStep <= (isMatrimonyArchetype ? 6 : 4)}
   <div class="verification-actions single" transition:slide={{ duration: 400, delay: 100, axis: 'y' }}>
     <button class="btn btn-secondary" onclick={handleSkipClick} disabled={loading}>
       Skip this step
