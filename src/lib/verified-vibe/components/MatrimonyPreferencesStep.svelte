@@ -28,55 +28,68 @@
     {
       id: 'marital_status',
       type: 'multiple-choice',
-      question: 'Preferred marital status?',
+      question: '💍 Preferred marital status?',
       options: [
-        { value: 'never_married', label: 'Never married' },
-        { value: 'divorced', label: 'Divorced' },
-        { value: 'widowed', label: 'Widowed' },
-        { value: 'any', label: 'No preference' }
+        { value: 'never_married', label: '✨ Never married' },
+        { value: 'divorced', label: '📋 Divorced / separated' },
+        { value: 'widowed', label: '🕊️ Widowed' },
+        { value: 'any', label: '🤷 No preference' }
       ]
     },
     {
       id: 'religion',
       type: 'multiple-choice',
-      question: 'Preferred religion?',
+      question: '🙏 Preferred religion?',
       options: [
-        { value: 'same', label: 'Same religion as me' },
-        { value: 'hindu', label: 'Hindu' },
-        { value: 'muslim', label: 'Muslim' },
-        { value: 'christian', label: 'Christian' },
-        { value: 'sikh', label: 'Sikh' },
-        { value: 'any', label: 'No preference' }
+        { value: 'same', label: '🤝 Same religion as me' },
+        { value: 'hindu', label: '🪔 Hindu' },
+        { value: 'muslim', label: '☪️ Muslim' },
+        { value: 'christian', label: '✝️ Christian' },
+        { value: 'sikh', label: '🪯 Sikh' },
+        { value: 'any', label: '🌍 Any / No preference' }
       ]
     },
     {
       id: 'education',
       type: 'multiple-choice',
-      question: 'Minimum education level?',
+      question: '🎓 Minimum education level?',
       options: [
-        { value: 'high_school', label: "High school" },
-        { value: 'bachelor', label: "Bachelor's degree" },
-        { value: 'master', label: "Master's degree or above" },
-        { value: 'any', label: 'No preference' }
+        { value: 'high_school', label: '📚 High school / 12th' },
+        { value: 'bachelor', label: "🎓 Bachelor's degree" },
+        { value: 'master', label: "📖 Master's degree or above" },
+        { value: 'any', label: '🤷 No preference' }
       ]
     },
     {
       id: 'lifestyle',
       type: 'multi-select',
-      question: 'Lifestyle requirements?',
+      question: '🌿 Lifestyle requirements?',
       subtitle: 'Select all that apply',
       options: [
-        { value: 'vegetarian', label: 'Vegetarian / vegan' },
-        { value: 'no_smoking', label: 'Non-smoker' },
-        { value: 'no_drinking', label: 'Non-drinker' },
-        { value: 'family_oriented', label: 'Family-oriented' },
-        { value: 'religiously_practicing', label: 'Religiously practicing' }
+        { value: 'vegetarian', label: '🥦 Vegetarian / vegan' },
+        { value: 'no_smoking', label: '🚭 Non-smoker' },
+        { value: 'no_drinking', label: '🚫🍷 Non-drinker' },
+        { value: 'family_oriented', label: '👨‍👩‍👧‍👦 Family-oriented' },
+        { value: 'religiously_practicing', label: '🛐 Religiously practicing' }
+      ]
+    },
+    {
+      id: 'partner_income',
+      type: 'multiple-choice',
+      question: '💰 Minimum partner income (annual)?',
+      options: [
+        { value: 'below_5l', label: '💸 Below ₹5 LPA' },
+        { value: '5_10l', label: '💳 ₹5 – 10 LPA' },
+        { value: '10_25l', label: '🥂 ₹10 – 25 LPA' },
+        { value: '25_50l', label: '💎 ₹25 – 50 LPA' },
+        { value: 'above_50l', label: '🏆 Above ₹50 LPA' },
+        { value: 'any', label: '🤷 No preference' }
       ]
     },
     {
       id: 'partner_qualities',
       type: 'text',
-      question: 'What matters most in a life partner?',
+      question: '💝 What matters most in a life partner?',
       placeholder: 'Values, character, qualities you cannot compromise on…',
       optional: true
     }
