@@ -8,7 +8,7 @@ let client: ReturnType<typeof createClient<Database>> | null = null;
  * Get or create the Supabase client for client-side operations
  * Uses anonymous key for public operations (realtime subscriptions)
  */
-export function getSupabaseClient() {
+export function getSupabaseClient(): ReturnType<typeof createClient<Database>> {
   if (!client) {
     client = createClient<Database>(env.PUBLIC_SUPABASE_URL, env.PUBLIC_SUPABASE_ANON_KEY);
   }

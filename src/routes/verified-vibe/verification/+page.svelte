@@ -12,7 +12,7 @@
     updateTrustScore,
     loading as globalLoading
   } from '$lib/verified-vibe/stores';
-  import { calculateTrustScore } from '$lib/verified-vibe/utils';
+  import { calculateTrustScore } from '$lib/verified-vibe/server/trustScore';
   import { getSupabaseClient } from '$lib/client/supabase';
   import { upsertProfile } from '$lib/verified-vibe/services/profileService';
   import PhotoUploadStep from '$lib/verified-vibe/components/PhotoUploadStep.svelte';
