@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { fade, slide } from 'svelte/transition';
+  import { fade, slide, scale } from 'svelte/transition';
   // PhotoConsistencyResult import archived with consistency check feature
 
   interface Props {
@@ -118,6 +118,11 @@
   async function handleConfirm() { ... requires consistencyResult.consistent ... }
   See git history for full implementation.
   */
+
+  function isLabelComplete(): boolean {
+    // Labels are auto-assigned on upload, so just verify all photos have one
+    return uploadedFiles.every((_, i) => !!photoLabels[i]);
+  }
 
   function handleCancel() {
     if (onCancel) {
