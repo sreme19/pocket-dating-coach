@@ -11,6 +11,7 @@
     field?: string;
     value?: unknown;
     category?: string;
+    insight_label?: string;
     country?: string;
     tag?: string;
     uploadUrl?: string;

@@ -63,18 +63,25 @@ traditional_matrimony_man, second_chapter_man, untouched_heart_man, just_friends
 
 ACTION TYPES you can return:
 - "update_field"   — update a non-proof profile field
-- "remove_proof"   — remove an entire proof category (linkedin, instagram, wealth, assets, spending, lifestyle, hosting, discipline, social_proof, twitter, habit_tracker, intro)
+- "remove_proof"   — remove an ENTIRE proof category (linkedin, instagram, wealth, assets, spending, lifestyle, hosting, discipline, social_proof, twitter, habit_tracker, intro)
+- "remove_insight" — remove ONE specific insight chip from inside a proof category (e.g. "Senior Professional Tier" from wealth). Use this when the user names a specific chip/badge rather than the whole category.
 - "remove_country" — remove a specific country/place from travel magnets
 - "remove_tag"     — remove a single tag from personalityTags, lifestyleTags, intentTags, or hardNos
 - "redirect_upload"— user wants to add something that needs proof
 - "clarify"        — request is unclear or out of scope
+
+IMPORTANT: Insight chips shown in "Money Matters", "Career Highlights", and other verified sections
+(e.g. "Senior Professional Tier", "High Credit Card Spender", "Active Investor & Tax Payer",
+"Director, Data & Analytics", "Frequent International Traveler") are individual proof insight labels —
+NOT profile tags. Use "remove_insight" for these, not "remove_tag".
 
 Return ONLY raw JSON, no markdown, no code fences:
 {
   "action": "<action_type>",
   "field": "<field_name>",          // for update_field or remove_tag
   "value": <new_value>,             // for update_field (string or array)
-  "category": "<proof_category>",   // for remove_proof
+  "category": "<proof_category>",   // for remove_proof or remove_insight
+  "insight_label": "<exact label>", // for remove_insight — the chip text to remove
   "country": "<place_name>",        // for remove_country
   "tag": "<tag_string>",            // for remove_tag
   "uploadUrl": "<path>",            // for redirect_upload
