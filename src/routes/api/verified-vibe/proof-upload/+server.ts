@@ -155,9 +155,58 @@ async function persistInsight(userId: string, category: string, pts: number, dat
         { onConflict: 'user_id,step' }
       );
 
-    // 2. Merge proof insights into ai_assistant_profiles so auto-fill has full context
+    // 2. Merge proof insights into user_master_profile (primary) and
+    //    ai_assistant_profiles (legacy — keeps auto-fill working)
     try {
-      const { data: existing } = await db
+      const d = data as Record<string, unknown>;
+      const newEntry = {
+        category,
+        insights:    d.insights   ?? [],
+        aggregated:  d.aggregated ?? '',
+        locations:   d.locations  ?? [],
+        verified_at: new Date().toISOString(),
+      };
+
+      // ── 2a. user_master_profile (source of truth) ──────────────────────────
+      const { data: masterRow } = await db
+        .from('user_master_profile')
+        .select('data')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      const masterData = (masterRow?.data as Record<string, unknown>) ?? {};
+      const prevProofs: unknown[] = Array.isArray(masterData.verifiedProofs)
+        ? masterData.verifiedProofs as unknown[]
+        : [];
+      const mergedProofs = [...prevProofs.filter((p: any) => p.category !== category), newEntry];
+
+      // Also union-merge locations into countriesTraveled
+      const prevCountries: string[] = Array.isArray(masterData.countriesTraveled)
+        ? masterData.countriesTraveled as string[]
+        : [];
+      const newLocations: string[] = Array.isArray(d.locations) ? d.locations as string[] : [];
+      const mergedCountries = Array.from(new Set([...prevCountries, ...newLocations]));
+
+      const updatedMaster = {
+        ...masterData,
+        verifiedProofs:    mergedProofs,
+        countriesTraveled: mergedCountries,
+        lastSynced:        new Date().toISOString(),
+      };
+
+      if (masterRow) {
+        await db
+          .from('user_master_profile')
+          .update({ data: updatedMaster, updated_at: new Date().toISOString() })
+          .eq('user_id', userId);
+      } else {
+        await db
+          .from('user_master_profile')
+          .insert({ user_id: userId, data: updatedMaster });
+      }
+
+      // ── 2b. ai_assistant_profiles (kept for auto-fill backward compat) ──────
+      const { data: aiExisting } = await db
         .from('ai_assistant_profiles')
         .select('id, data, version')
         .eq('user_id', userId)
@@ -166,32 +215,21 @@ async function persistInsight(userId: string, category: string, pts: number, dat
         .limit(1)
         .maybeSingle();
 
-      const d = data as Record<string, unknown>;
-      const newEntry = {
-        category,
-        insights:   d.insights   ?? [],
-        aggregated: d.aggregated ?? '',
-        locations:  d.locations  ?? [],
-        verified_at: new Date().toISOString(),
-      };
-
-      if (existing) {
-        // Merge: replace entry for same category, keep others
-        const prev: unknown[] = Array.isArray((existing.data as any)?.verifiedProofs)
-          ? (existing.data as any).verifiedProofs
+      if (aiExisting) {
+        const prev: unknown[] = Array.isArray((aiExisting.data as any)?.verifiedProofs)
+          ? (aiExisting.data as any).verifiedProofs
           : [];
         const merged = [...prev.filter((p: any) => p.category !== category), newEntry];
         await db
           .from('ai_assistant_profiles')
-          .update({ data: { ...(existing.data as object), verifiedProofs: merged }, version: (existing.version ?? 1) + 1 })
-          .eq('id', existing.id);
+          .update({ data: { ...(aiExisting.data as object), verifiedProofs: merged }, version: (aiExisting.version ?? 1) + 1 })
+          .eq('id', aiExisting.id);
       } else {
-        // No personality row yet — create one with just the proof data
         await db
           .from('ai_assistant_profiles')
           .insert({ user_id: userId, profile_type: 'personality', data: { verifiedProofs: [newEntry] }, version: 1, reason: 'proof_upload' });
       }
-    } catch (e) { console.warn('ai_assistant_profiles sync failed (non-fatal):', e); }
+    } catch (e) { console.warn('master profile / ai_assistant_profiles sync failed (non-fatal):', e); }
 
     // 3. Recalculate and persist CG trust score after proof update
     await recalculateAndSaveTrustScore(userId);

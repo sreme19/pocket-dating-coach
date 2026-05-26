@@ -49,16 +49,66 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		const supabase = getSupabase();
 
-		// ── Load user's personality ───────────────────────────────────────────
+		// ── Load master profile (user_master_profile — source of truth) ─────────
 		let personalityContext = '';
+		let masterProfileContext = '';
 		try {
-			const p = await loadPersonality(userId);
-			const parts: string[] = [];
-			if (p.communicationStyle) parts.push(`Communication style: ${p.communicationStyle}`);
-			if (p.personalityVibe) parts.push(`Vibe: ${p.personalityVibe}`);
-			if (p.mattersMost) parts.push(`What matters most: ${p.mattersMost}`);
-			if (p.values?.length) parts.push(`Values: ${p.values.join(', ')}`);
-			if (parts.length) personalityContext = `\n\nHis personality on file:\n${parts.join('\n')}`;
+			const { data: masterRow } = await (supabase as any)
+				.from('user_master_profile')
+				.select('data')
+				.eq('user_id', userId)
+				.maybeSingle();
+
+			if (masterRow?.data) {
+				const m = masterRow.data as Record<string, unknown>;
+				const parts: string[] = [];
+
+				// Identity
+				const identity = m.identity as Record<string, unknown> | undefined;
+				if (identity?.archetype) parts.push(`Archetype: ${String(identity.archetype).replace(/_/g, ' ')}`);
+				if (identity?.city)      parts.push(`City: ${identity.city}`);
+
+				// Generated profile copy
+				const gp = m.generatedProfile as Record<string, unknown> | undefined;
+				if (gp?.about)                   parts.push(`His bio: "${gp.about}"`);
+				if (Array.isArray(gp?.personalityDescriptors) && gp.personalityDescriptors.length)
+					parts.push(`Personality: ${(gp.personalityDescriptors as string[]).join(', ')}`);
+				if (Array.isArray(gp?.lifestyleTags) && gp.lifestyleTags.length)
+					parts.push(`Lifestyle tags: ${(gp.lifestyleTags as string[]).join(', ')}`);
+				if (gp?.intentStatement) parts.push(`Looking for: ${gp.intentStatement}`);
+
+				// Countries traveled
+				const countries = m.countriesTraveled as string[] | undefined;
+				if (Array.isArray(countries) && countries.length)
+					parts.push(`Countries he's been to: ${countries.join(', ')}`);
+
+				if (parts.length) {
+					personalityContext = `\n\nHis master profile:\n${parts.join('\n')}`;
+				}
+
+				// Verified proofs (richer than trust artifacts)
+				const proofs = m.verifiedProofs as Array<Record<string, unknown>> | undefined;
+				if (Array.isArray(proofs) && proofs.length) {
+					const proofLines = proofs.map((p) => {
+						const summary = p.aggregated
+							? `"${p.aggregated}"`
+							: Array.isArray(p.insights)
+								? (p.insights as Array<{label: string}>).map(i => i.label).join(', ')
+								: 'verified';
+						return `• ${String(p.category).replace(/_/g, ' ')}: ${summary}`;
+					});
+					masterProfileContext = `\n\nVerified proofs on his profile (CONFIRMED facts — use to coach him and frame advice around his real strengths):\n${proofLines.join('\n')}`;
+				}
+			} else {
+				// Fallback to legacy loadPersonality if no master profile yet
+				const p = await loadPersonality(userId);
+				const parts: string[] = [];
+				if (p.communicationStyle) parts.push(`Communication style: ${p.communicationStyle}`);
+				if (p.personalityVibe)    parts.push(`Vibe: ${p.personalityVibe}`);
+				if (p.mattersMost)        parts.push(`What matters most: ${p.mattersMost}`);
+				if (p.values?.length)     parts.push(`Values: ${p.values.join(', ')}`);
+				if (parts.length) personalityContext = `\n\nHis personality on file:\n${parts.join('\n')}`;
+			}
 		} catch { /* skip if not set up */ }
 
 		// ── Load trust artifacts ──────────────────────────────────────────────
@@ -259,7 +309,7 @@ Your role:
 
 Tone: like your most trusted, insightful friend who genuinely believes in you and wants to see you win. Warm and uplifting first, tactical second. Never dismissive or cold. Short paragraphs. Practical but encouraging.
 Format: use **bold** for names and key points. Use bullets (- item) for multi-point info. Use emoji warmly — 🟢 going well, 💡 tip, ⚡ opportunity, ✨ highlight, 💪 strength. Keep it mobile-friendly and motivating.
-${personalityContext}${artifactsContext}${admirerContext}${matchContext}`;
+${personalityContext}${masterProfileContext}${artifactsContext}${admirerContext}${matchContext}`;
 
 		// ── Call Claude ────────────────────────────────────────────────────────
 		const client = getClaudeClient();
