@@ -145,13 +145,55 @@ async function getUserIdFromRequest(request: Request): Promise<string | null> {
 async function persistInsight(userId: string, category: string, pts: number, data: object) {
   try {
     const supabase = getSupabase();
-    await (supabase as any)
+    const db = supabase as any;
+
+    // 1. Save proof record
+    await db
       .from('verified_vibe_verification')
       .upsert(
         { user_id: userId, step: `proof_${category}`, status: 'completed', data, completed_at: new Date().toISOString() },
         { onConflict: 'user_id,step' }
       );
-    // Recalculate and persist CG trust score after proof update
+
+    // 2. Merge proof insights into ai_assistant_profiles so auto-fill has full context
+    try {
+      const { data: existing } = await db
+        .from('ai_assistant_profiles')
+        .select('id, data, version')
+        .eq('user_id', userId)
+        .eq('profile_type', 'personality')
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const d = data as Record<string, unknown>;
+      const newEntry = {
+        category,
+        insights:   d.insights   ?? [],
+        aggregated: d.aggregated ?? '',
+        locations:  d.locations  ?? [],
+        verified_at: new Date().toISOString(),
+      };
+
+      if (existing) {
+        // Merge: replace entry for same category, keep others
+        const prev: unknown[] = Array.isArray((existing.data as any)?.verifiedProofs)
+          ? (existing.data as any).verifiedProofs
+          : [];
+        const merged = [...prev.filter((p: any) => p.category !== category), newEntry];
+        await db
+          .from('ai_assistant_profiles')
+          .update({ data: { ...(existing.data as object), verifiedProofs: merged }, version: (existing.version ?? 1) + 1 })
+          .eq('id', existing.id);
+      } else {
+        // No personality row yet — create one with just the proof data
+        await db
+          .from('ai_assistant_profiles')
+          .insert({ user_id: userId, profile_type: 'personality', data: { verifiedProofs: [newEntry] }, version: 1, reason: 'proof_upload' });
+      }
+    } catch (e) { console.warn('ai_assistant_profiles sync failed (non-fatal):', e); }
+
+    // 3. Recalculate and persist CG trust score after proof update
     await recalculateAndSaveTrustScore(userId);
   } catch (e) { console.warn(`proof-upload DB persist failed (${category}):`, e); }
 }

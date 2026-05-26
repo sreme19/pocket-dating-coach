@@ -52,6 +52,18 @@ function loadPersonalityMd(archetype?: string): string | null {
 
 // ─── Prompt builders ──────────────────────────────────────────────────────────
 
+function buildVerifiedProofsSection(profileData: Record<string, unknown>): string {
+  const proofs = profileData.verifiedProofs;
+  if (!Array.isArray(proofs) || proofs.length === 0) return '';
+  const lines = proofs.map((p: any) => {
+    const agg = p.aggregated ? `"${p.aggregated}"` : '';
+    const tags = Array.isArray(p.insights) ? p.insights.map((i: any) => i.label).join(', ') : '';
+    const locs = Array.isArray(p.locations) && p.locations.length > 0 ? ` · Locations: ${p.locations.join(', ')}` : '';
+    return `• ${p.category}: ${agg || tags}${locs}`;
+  }).join('\n');
+  return `\n\nVerified proof from their Trust & Boost uploads (REAL, confirmed facts — weave these in naturally):\n${lines}`;
+}
+
 function buildPrompt(
   field: Field,
   gender: string,
@@ -63,6 +75,7 @@ function buildPrompt(
   const context = JSON.stringify(profileData, null, 2).slice(0, 3000);
   const aboutText = about ?? '';
   const archetypeHint = archetype ? ` (archetype: ${archetype.replace(/_/g, ' ')})` : '';
+  const verifiedSection = buildVerifiedProofsSection(profileData);
 
   if (field === 'about') {
     const personalityMd = loadPersonalityMd(archetype);
@@ -77,10 +90,11 @@ function buildPrompt(
       : '';
 
     return `You are writing a dating profile bio for a real man${archetypeHint}.
-${draftSection}${personalitySection}
+${draftSection}${verifiedSection}${personalitySection}
 
 Write a genuine, engaging, first-person "About me" bio. Rules:
 - Use the user's rough notes as the source of truth for facts — don't invent details they didn't mention
+- If verified proof is provided above, you MUST weave at least one verified fact into the bio naturally
 - Polish the language: fix grammar, capitalise "I", make it flow naturally
 - Add 2-3 relevant emojis woven in naturally (not all at the end)
 - Be 2-4 sentences, 60-120 words maximum
@@ -98,11 +112,12 @@ Their bio: "${aboutText}"
 
 Their profile data:
 ${context}
+${verifiedSection}
 
 Generate exactly 3 personality adjectives that describe THIS specific person — earned, not generic.
 Rules:
 - Single adjectives only (e.g. "Ambitious", "Grounded", "Direct")
-- Reflect who they actually are based on the data above
+- Reflect who they actually are based on the data above — if verified proofs exist, let them inform the adjectives
 - Avoid clichés: no "Caring", "Funny", "Loyal", "Easy-going"
 - Return ONLY the 3 adjectives as a comma-separated string, nothing else
 
@@ -135,11 +150,12 @@ Their bio: "${aboutText}"
 
 Their profile data:
 ${context}
+${verifiedSection}
 
 Generate 5-6 lifestyle tags for this person's OWN life — not what they want in a partner.
 Rules:
 - Reflect THIS person's actual interests, identity, and daily life
-- Read the bio and profile notes carefully for personal signals
+- If verified proofs exist above, include tags that reflect those confirmed facts (e.g. "Solo traveler", "Bali explorer")
 - Short and specific: 1-3 words per tag
 - Think: where do they live, what do they love, how do they spend time
 - Return ONLY the tags as a comma-separated string, nothing else
