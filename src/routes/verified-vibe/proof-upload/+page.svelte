@@ -116,13 +116,13 @@
       title: 'Instagram',
       subtitle: 'Connect your Instagram to verify social presence',
       examples: [
-        'Tap "Connect Instagram" to open Instagram and sign in',
-        'Copy your profile URL from the browser and paste it below',
-        'Or upload a screenshot of your profile page',
-        'We only check your username, posts, and followers — nothing private',
+        'Tap "Connect Instagram" — it opens Instagram login in a new tab',
+        'Sign in to your Instagram account',
+        'Copy your profile URL from the browser address bar',
+        'Come back and paste it below — we only check username, posts, and followers',
       ],
       maxFiles: 1,
-      hintLine: 'Connecting takes 30 seconds. Screenshot also works.',
+      hintLine: 'Takes under 60 seconds. Your posts and DMs stay private.',
       accept: 'image/*',
       hasOAuthConnect: true,
       connectLabel: 'Connect Instagram',
@@ -137,13 +137,13 @@
       title: 'Twitter / X',
       subtitle: 'Connect your Twitter / X to show real interests',
       examples: [
-        'Tap "Connect X" to open Twitter and sign in',
-        'Copy your profile URL from the browser and paste it below',
-        'Or screenshot your profile showing your bio and recent activity',
-        'Your DMs and private posts stay completely private',
+        'Tap "Connect X" — it opens X / Twitter login in a new tab',
+        'Sign in to your X account',
+        'Copy your profile URL from the browser address bar',
+        'Come back and paste it below — your DMs and private posts stay private',
       ],
       maxFiles: 1,
-      hintLine: 'Connecting takes 30 seconds. Screenshot also works.',
+      hintLine: 'Takes under 60 seconds. Your private posts are never accessed.',
       accept: 'image/*',
       hasOAuthConnect: true,
       connectLabel: 'Connect X (Twitter)',
@@ -597,7 +597,6 @@
           <p class="connect-hint">Tap Connect → sign in → copy your profile URL → come back and paste it</p>
         {/if}
 
-        <div class="connect-divider">or upload a screenshot instead</div>
       </div>
 
     <!-- URL input for LinkedIn only (no branded connect) -->
@@ -687,8 +686,8 @@
 
       </div>
 
-    <!-- Upload area — all other categories -->
-    {:else}
+    <!-- Upload area — all other categories except OAuth-connect ones -->
+    {:else if !config.hasOAuthConnect}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="drop-zone"
