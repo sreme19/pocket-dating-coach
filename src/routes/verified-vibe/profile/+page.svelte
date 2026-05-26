@@ -1466,10 +1466,10 @@
         </div>
         <div class="brings-list">
           {#each whatBrings as item}
-            <div class="brings-item">
+            <span class="brings-item">
               <span class="brings-emoji">{item.emoji}</span>
               <span class="brings-text">{item.text}</span>
-            </div>
+            </span>
           {/each}
         </div>
       </section>
@@ -3042,35 +3042,34 @@
     text-align: center;
   }
 
-  /* What He Brings */
+  /* What He Brings — bubble chips */
   .brings-list {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .brings-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 12px 14px;
-    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 13px;
+    border-radius: 999px;
     background: var(--bg-2);
     border: 1px solid var(--border-2);
   }
 
   .brings-emoji {
-    font-size: 20px;
+    font-size: 15px;
     line-height: 1;
     flex-shrink: 0;
-    width: 24px;
-    text-align: center;
   }
 
   .brings-text {
-    font-size: 14px;
+    font-size: 13px;
+    font-weight: 500;
     color: var(--text-1);
-    line-height: 1.4;
+    white-space: nowrap;
   }
 
   /* Pick Your Lane — display card */
