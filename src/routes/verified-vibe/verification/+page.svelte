@@ -195,6 +195,21 @@
     return pool[Math.floor(Math.random() * pool.length)];
   });
 
+  // Fixed card shown on step 4 (Spending Proof) — women to men only
+  const spendingStepCard: MotivationCard = {
+    profile: {
+      id: 'priya', name: 'Priya', age: 30, gender: 'woman',
+      archetypeId: 'forever_focused_woman',
+      photoUrl: '/female_profiles/priya_High_Value_Feminist_f2k7zt/photos/Priya_2.jpg',
+      bio: 'UX researcher. Feminist who still wants the fairytale — without the compromise.',
+      isOnline: true, lastActive: 'online',
+    },
+    quoteBefore: '"Most men won\'t do this step. Which is exactly why the ones who do ',
+    highlight: 'immediately move to the top of my list',
+    quoteAfter: '. It\'s that simple."',
+    profession: 'UX Researcher',
+  };
+
   // ── Archetype derived booleans ──────────────────────────────────────────────
 
   const isMatrimonyArchetype = $derived(
@@ -1653,9 +1668,34 @@
         {motivationCard.quoteBefore}<em class="motivation-highlight">{motivationCard.highlight}</em>{motivationCard.quoteAfter}
       </p>
       <p class="motivation-meta">
-        {motivationCard.profile.name}, {motivationCard.profile.age}
-        · <span class="meta-verified">verified</span>
-        · {motivationCard.profession}
+        {motivationCard.profile.name}, {motivationCard.profile.age} · {motivationCard.profession}
+      </p>
+    </div>
+    <span class="motivation-chevron">›</span>
+  </button>
+  {/if}
+
+  {#if currentStep === 4 && viewerGender !== 'woman'}
+  <button
+    class="motivation-card"
+    onclick={() => { openedMotivationProfile = spendingStepCard.profile; }}
+    aria-label="View {spendingStepCard.profile.name}'s profile"
+    transition:fade={{ duration: 300, delay: 200 }}
+  >
+    <div class="motivation-avatar-wrap">
+      <img
+        class="motivation-avatar"
+        src={spendingStepCard.profile.photoUrl}
+        alt={spendingStepCard.profile.name}
+      />
+      <span class="motivation-verified-badge">✓</span>
+    </div>
+    <div class="motivation-body">
+      <p class="motivation-quote">
+        {spendingStepCard.quoteBefore}<em class="motivation-highlight">{spendingStepCard.highlight}</em>{spendingStepCard.quoteAfter}
+      </p>
+      <p class="motivation-meta">
+        {spendingStepCard.profile.name}, {spendingStepCard.profile.age} · {spendingStepCard.profession}
       </p>
     </div>
     <span class="motivation-chevron">›</span>
@@ -1682,9 +1722,7 @@
         {photoStepCard.quoteBefore}<em class="motivation-highlight">{photoStepCard.highlight}</em>{photoStepCard.quoteAfter}
       </p>
       <p class="motivation-meta">
-        {photoStepCard.profile.name}, {photoStepCard.profile.age}
-        · <span class="meta-verified">verified</span>
-        · {photoStepCard.profession}
+        {photoStepCard.profile.name}, {photoStepCard.profile.age} · {photoStepCard.profession}
       </p>
     </div>
     <span class="motivation-chevron">›</span>
@@ -1933,7 +1971,7 @@
 
   .step-header {
     text-align: center;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
   }
 
   .step-header-top {

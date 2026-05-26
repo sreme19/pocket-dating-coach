@@ -167,18 +167,6 @@
         />
       </div>
 
-      <!-- Requirements -->
-      <div class="requirements">
-        <h4 class="requirements-title">Requirements:</h4>
-        <ul class="requirements-list">
-          <li>At least 1 photo</li>
-          <li>Clear, well-lit photos</li>
-          <li>Show different sides of yourself</li>
-          <li>JPG, PNG, or WebP format</li>
-          <li>Max 5MB per file</li>
-        </ul>
-      </div>
-
       <!-- Error Message -->
       {#if error}
         <div class="error-message" transition:slide={{ duration: 300, axis: 'y' }} role="alert">
@@ -337,46 +325,6 @@
 
   .file-input {
     display: none;
-  }
-
-  /* Requirements */
-  .requirements {
-    background: var(--color-vibe-bg-2);
-    border-radius: var(--radius-md);
-    padding: var(--spacing-lg);
-  }
-
-  .requirements-title {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-vibe-text-1);
-    margin: 0 0 var(--gap-md);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .requirements-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--gap-sm);
-  }
-
-  .requirements-list li {
-    font-size: var(--font-size-sm);
-    color: var(--color-vibe-text-2);
-    display: flex;
-    align-items: center;
-    gap: var(--gap-sm);
-  }
-
-  .requirements-list li::before {
-    content: '✓';
-    color: var(--color-vibe-emerald);
-    font-weight: var(--font-weight-bold);
-    flex-shrink: 0;
   }
 
   /* Error Message */
