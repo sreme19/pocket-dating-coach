@@ -392,23 +392,20 @@
     </svg>
     Verified Insights
   </div>
-  <div class="insights-list">
+  <div class="insights-chips">
     {#each proofInsights as p (p.id)}
       {#if p.insights && p.insights.length > 0}
         {#each p.insights as ins}
-          <div class="insight-row">
-            <span class="insight-row-emoji">{ins.emoji}</span>
-            <span class="insight-row-label">{ins.label}</span>
-            <span class="insight-row-badge">✓ Verified</span>
-          </div>
+          <span class="insight-chip">
+            <span class="insight-chip-emoji">{ins.emoji}</span>
+            {ins.label}
+          </span>
         {/each}
       {:else}
-        <!-- Backward compat: old single-insight format -->
-        <div class="insight-row">
-          <span class="insight-row-emoji">{p.insight_emoji}</span>
-          <span class="insight-row-label">{p.insight_label}</span>
-          <span class="insight-row-badge">✓ Verified</span>
-        </div>
+        <span class="insight-chip">
+          <span class="insight-chip-emoji">{p.insight_emoji}</span>
+          {p.insight_label}
+        </span>
       {/if}
     {/each}
   </div>
@@ -896,39 +893,33 @@
     margin: 0;
   }
 
-  /* ── Verified Insights ── */
-  .insights-list {
+  /* ── Verified Insights — chip grid ── */
+  .insights-chips {
     display: flex;
-    flex-direction: column;
-    gap: 1px;
-    background: var(--border-1);
-    border: 1px solid var(--border-1);
-    border-radius: var(--r-lg);
-    overflow: hidden;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
-  .insight-row {
-    display: flex;
+  .insight-chip {
+    display: inline-flex;
     align-items: center;
-    gap: 10px;
-    padding: 11px 14px;
+    gap: 5px;
+    padding: 6px 11px;
+    border-radius: 999px;
     background: var(--bg-2);
-  }
-
-  .insight-row-emoji {
-    font-size: 20px;
-    width: 28px;
-    text-align: center;
-    flex-shrink: 0;
-  }
-
-  .insight-row-label {
-    flex: 1;
-    font-size: 13px;
+    border: 1px solid var(--border-2);
+    font-size: 12px;
     font-weight: 600;
     color: var(--text-1);
+    white-space: nowrap;
   }
 
+  .insight-chip-emoji {
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  /* kept for any stale references */
   .insight-row-badge {
     font-size: 11px;
     font-weight: 700;
