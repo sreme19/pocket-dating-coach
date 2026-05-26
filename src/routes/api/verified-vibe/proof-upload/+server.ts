@@ -63,6 +63,10 @@ Return ONLY raw JSON — no markdown, no code fences:
 {"verified":true/false,"insight_label":"3-5 words, e.g. 'Daily fitness tracker'","insight_emoji":"📊","confidence":0.0-1.0,"reason":"one sentence"}`,
 };
 
+// intro is auto-verified (audio/video can't be analysed by Claude Vision)
+const INTRO_PROMPT = '__auto_verify__';
+PROMPTS['intro'] = INTRO_PROMPT;
+
 const CATEGORY_PTS: Record<string, number> = {
   lifestyle:    8,
   hosting:      6,
@@ -70,6 +74,7 @@ const CATEGORY_PTS: Record<string, number> = {
   social_proof: 4,
   linkedin:     5,
   habit_tracker: 2,
+  intro:        8,
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -105,6 +110,32 @@ export const POST: RequestHandler = async ({ request }) => {
     }
 
     const pts = CATEGORY_PTS[category] ?? 4;
+
+    // ── Auto-verify: intro category (audio/video) ────────────────────────────
+    if (PROMPTS[category] === INTRO_PROMPT) {
+      const hasAudio = files.some(f => f.type.startsWith('audio/'));
+      const hasVideo = files.some(f => f.type.startsWith('video/'));
+      const label = hasAudio && hasVideo ? 'Voice & video intro'
+                  : hasAudio             ? 'Voice intro recorded'
+                  : hasVideo             ? 'Video intro recorded'
+                  :                        'Intro uploaded';
+      const emoji = hasVideo ? '🎥' : '🎙️';
+      const userId = await getUserIdFromRequest(request);
+      if (userId) {
+        try {
+          const supabase = getSupabase();
+          await (supabase as any)
+            .from('verified_vibe_verification')
+            .upsert(
+              { user_id: userId, step: 'proof_intro', status: 'completed',
+                data: { insight_label: label, insight_emoji: emoji, pts_awarded: pts },
+                completed_at: new Date().toISOString() },
+              { onConflict: 'user_id,step' }
+            );
+        } catch (e) { console.warn('proof intro DB persist failed:', e); }
+      }
+      return json({ verified: true, insight_label: label, insight_emoji: emoji, pts_awarded: pts, confidence: 1.0, reason: 'Intro files accepted' });
+    }
 
     // ── Dev mode bypass ───────────────────────────────────────────────────────
     if (import.meta.env.VITE_SKIP_VERIFICATION === 'true') {
