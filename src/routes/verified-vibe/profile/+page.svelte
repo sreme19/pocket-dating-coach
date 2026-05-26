@@ -1286,11 +1286,20 @@
     hardNos,
     countriesTraveled,
     moneyMatters,
-    proofCategories: (() => {
+    // Full proof insight detail — category + individual chip labels — so Claude
+    // can distinguish "remove entire proof" from "remove one insight chip"
+    proofInsights: (() => {
       try {
         const raw = localStorage.getItem('vv_proof_insights');
         if (!raw) return [];
-        return (JSON.parse(raw) as Array<{ category: string }>).map(p => p.category);
+        return (JSON.parse(raw) as Array<{
+          category: string;
+          insights?: Array<{ label: string }>;
+          insight_label?: string;
+        }>).map(p => ({
+          category: p.category,
+          labels: p.insights?.map(i => i.label) ?? (p.insight_label ? [p.insight_label] : []),
+        }));
       } catch { return []; }
     })(),
   });
@@ -1353,6 +1362,38 @@
         if (!action.category) break;
         const existing: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
         localStorage.setItem('vv_proof_insights', JSON.stringify(existing.filter((p: any) => p.category !== action.category)));
+        break;
+      }
+
+      case 'remove_insight': {
+        // Remove one specific insight chip from within a proof category
+        if (!action.category || !(action as any).insight_label) break;
+        const targetLabel = ((action as any).insight_label as string).toLowerCase();
+        const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
+        const updated = all.map((p: any) => {
+          if (p.category !== action.category) return p;
+          const filteredInsights = (p.insights ?? []).filter(
+            (ins: { label: string }) => ins.label.toLowerCase() !== targetLabel
+          );
+          // If we've removed the last insight in this category, drop the whole entry
+          if (filteredInsights.length === 0) return null;
+          return {
+            ...p,
+            insights: filteredInsights,
+            insight_label: filteredInsights[0]?.label ?? p.insight_label,
+            insight_emoji: filteredInsights[0]?.emoji ?? p.insight_emoji,
+          };
+        }).filter(Boolean);
+        localStorage.setItem('vv_proof_insights', JSON.stringify(updated));
+        // Refresh derived state that reads from proof insights
+        wealthInsights = (() => {
+          const w = updated.find((p: any) => p.category === 'wealth') as any;
+          return w?.insights?.length ? { insights: w.insights, aggregated: w.aggregated ?? '' } : null;
+        })();
+        careerHighlights = (() => {
+          const l = updated.find((p: any) => p.category === 'linkedin') as any;
+          return l?.insights?.length ? { insights: l.insights, aggregated: l.aggregated ?? '' } : null;
+        })();
         break;
       }
 
