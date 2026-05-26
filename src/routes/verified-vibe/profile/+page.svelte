@@ -1096,7 +1096,28 @@
   let showEditQAModal = $state(false);
 
   const about = $derived(generated?.about ?? draft?.about ?? $user?.about ?? '');
-  const personalityTags = $derived(generated?.personalityDescriptors ?? draft?.personalityTags ?? []);
+  // Archetype-based fallback tags — used when user hasn't run AI generation yet
+  const ARCHETYPE_DEFAULT_TAGS: Record<string, string[]> = {
+    casual_man:              ['Laid-back', 'Genuine', 'Present'],
+    casual_generous_man:     ['Generous', 'Sophisticated', 'Discreet'],
+    forever_focused_man:     ['Intentional', 'Loyal', 'Grounded'],
+    marriage_minded_man:     ['Committed', 'Family-first', 'Stable'],
+    hopeless_romantic_man:   ['Romantic', 'Emotionally available', 'All-in'],
+    traditional_matrimony_man:['Traditional', 'Respectful', 'Family-led'],
+    second_chapter_man:      ['Mature', 'Clear-headed', 'Experienced'],
+    spiritual_connector_man: ['Spiritual', 'Thoughtful', 'Grounded'],
+    adventure_seeker_man:    ['Adventurous', 'Spontaneous', 'Free-spirited'],
+    spoilt_woman:            ['Selective', 'High-standard', 'Worth it'],
+    safety_first_woman:      ['Careful', 'Values-led', 'Intentional'],
+  };
+
+  const personalityTags = $derived(
+    generated?.personalityDescriptors?.length
+      ? generated.personalityDescriptors
+      : draft?.personalityTags?.length
+        ? draft.personalityTags
+        : (ARCHETYPE_DEFAULT_TAGS[$user?.archetype ?? ''] ?? [])
+  );
   // intentStatement stored as comma-separated string in GeneratedProfile; we split to array here
   const intentTags = $derived(
     (() => {
@@ -1354,21 +1375,42 @@
     {#if activeTab === 'public'}
       <div class="profile-sections">
       <!-- The Vibe in Three Words -->
-      {#if ($user?.gender === 'man' || $user?.gender === null) && personalityTags.length > 0}
+      {#if $user?.gender === 'man' || $user?.gender === null}
       <section class="section">
         <div class="section-label">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
           </svg>
           The Vibe in Three Words (or Five)
+          {#if mode === 'enhance'}
+            <button class="autofill-btn" onclick={() => autoFill('personality')} disabled={!!generatingField} title="Auto-generate from your profile">
+              {#if generatingField === 'personality'}
+                <span class="autofill-spinner"></span>
+              {:else}
+                ✨
+              {/if}
+              Auto-fill
+            </button>
+          {/if}
         </div>
-        <div class="vibe-tags">
-          {#each personalityTags as tag, i}
-            <span class="vibe-tag {i === 0 ? 'highlighted' : ''}">
-              {tag}
-            </span>
-          {/each}
-        </div>
+        {#if mode === 'enhance'}
+          <input
+            class="edit-input"
+            type="text"
+            value={editTags.join(', ')}
+            onchange={handleTagEdit}
+            placeholder="Ambitious, Curious, Grounded"
+          />
+          <p class="edit-hint">Comma-separated, up to 3–5 words</p>
+        {:else}
+          <div class="vibe-tags">
+            {#each personalityTags as tag, i}
+              <span class="vibe-tag {i === 0 ? 'highlighted' : ''}">
+                {tag}
+              </span>
+            {/each}
+          </div>
+        {/if}
       </section>
       {/if}
 
@@ -1478,40 +1520,6 @@
         </div>
       </section>
       {/if}
-      {#if personalityTags.length > 0 || mode === 'enhance'}
-        <section class="section">
-          <div class="section-label">
-            Personality
-            {#if mode === 'enhance'}
-              <button class="autofill-btn" onclick={() => autoFill('personality')} disabled={!!generatingField} title="Auto-generate from your profile">
-                {#if generatingField === 'personality'}
-                  <span class="autofill-spinner"></span>
-                {:else}
-                  ✨
-                {/if}
-                Auto-fill
-              </button>
-            {/if}
-          </div>
-          {#if mode === 'enhance'}
-            <input
-              class="edit-input"
-              type="text"
-              value={editTags.join(', ')}
-              onchange={handleTagEdit}
-              placeholder="Ambitious, Curious, Grounded"
-            />
-            <p class="edit-hint">Comma-separated, up to 3</p>
-          {:else}
-            <div class="tag-row">
-              {#each personalityTags as tag}
-                <span class="tag">{tag}</span>
-              {/each}
-            </div>
-          {/if}
-        </section>
-      {/if}
-
       <!-- What He Brings -->
       {#if $user?.gender === 'man' || $user?.gender === null}
       <section class="section">
