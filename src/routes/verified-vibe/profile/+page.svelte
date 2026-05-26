@@ -1386,75 +1386,37 @@
       </section>
       {/if}
 
-      <!-- Money Matters -->
+      <!-- Money Matters — read-only in public view -->
       {#if $user?.gender === 'man' || $user?.gender === null}
         <section class="section money-section">
           <div class="section-label">
             <span>💰</span>
             Money Matters
-            <button class="section-edit-btn" onclick={() => { moneyDraft = { ...moneyMatters }; editingMoney = !editingMoney; }} aria-label="Edit money details">
-              <Pencil size={11} />
-            </button>
           </div>
 
-          {#if editingMoney}
-            <!-- Edit mode: range pickers -->
-            <div class="money-edit-card">
-              <div class="money-edit-group">
-                <p class="money-edit-label">💼 Annual Income</p>
-                <div class="money-pill-row">
-                  {#each INCOME_RANGES as r}
-                    <button
-                      class="money-pill {moneyDraft.annualIncome === r ? 'money-pill-active' : ''}"
-                      onclick={() => moneyDraft = { ...moneyDraft, annualIncome: r === 'Prefer not to say' ? undefined : r }}
-                      type="button"
-                    >{r}</button>
-                  {/each}
-                </div>
-              </div>
-              <div class="money-edit-group">
-                <p class="money-edit-label">📈 Net Worth</p>
-                <div class="money-pill-row">
-                  {#each NET_WORTH_RANGES as r}
-                    <button
-                      class="money-pill {moneyDraft.netWorth === r ? 'money-pill-active' : ''}"
-                      onclick={() => moneyDraft = { ...moneyDraft, netWorth: r === 'Prefer not to say' ? undefined : r }}
-                      type="button"
-                    >{r}</button>
-                  {/each}
-                </div>
-              </div>
-              <div class="inline-edit-actions">
-                <button class="inline-save-btn" onclick={saveMoney}>Save</button>
-                <button class="inline-cancel-btn" onclick={() => editingMoney = false}>Cancel</button>
-              </div>
-            </div>
-          {:else}
-            <!-- View mode -->
-            <div class="money-card">
+          <div class="money-card">
+            {#if moneyMatters.annualIncome || moneyMatters.netWorth}
               <!-- Income + net worth header stats -->
-              {#if moneyMatters.annualIncome || moneyMatters.netWorth}
-                <div class="money-stats-row">
-                  {#if moneyMatters.annualIncome}
-                    <div class="money-stat">
-                      <span class="money-stat-icon">💼</span>
-                      <div>
-                        <p class="money-stat-label">Annual Income</p>
-                        <p class="money-stat-value">{moneyMatters.annualIncome}</p>
-                      </div>
+              <div class="money-stats-row">
+                {#if moneyMatters.annualIncome}
+                  <div class="money-stat">
+                    <span class="money-stat-icon">💼</span>
+                    <div>
+                      <p class="money-stat-label">Annual Income</p>
+                      <p class="money-stat-value">{moneyMatters.annualIncome}</p>
                     </div>
-                  {/if}
-                  {#if moneyMatters.netWorth}
-                    <div class="money-stat">
-                      <span class="money-stat-icon">📈</span>
-                      <div>
-                        <p class="money-stat-label">Net Worth</p>
-                        <p class="money-stat-value">{moneyMatters.netWorth}</p>
-                      </div>
+                  </div>
+                {/if}
+                {#if moneyMatters.netWorth}
+                  <div class="money-stat">
+                    <span class="money-stat-icon">📈</span>
+                    <div>
+                      <p class="money-stat-label">Net Worth</p>
+                      <p class="money-stat-value">{moneyMatters.netWorth}</p>
                     </div>
-                  {/if}
-                </div>
-              {/if}
+                  </div>
+                {/if}
+              </div>
 
               <!-- Spending breakdown -->
               {#if spendingData.length > 0}
@@ -1482,27 +1444,19 @@
                     </div>
                   {/each}
                 </div>
-              {:else if !moneyMatters.annualIncome && !moneyMatters.netWorth}
-                <!-- Completely empty — prompt to fill -->
-                <button
-                  class="money-empty-cta"
-                  onclick={() => { moneyDraft = {}; editingMoney = true; }}
-                  type="button"
-                >
-                  <span>💳</span>
-                  <span>Add income & spending details</span>
-                </button>
               {/if}
-
-              <!-- No spending yet but has income — upload nudge -->
-              {#if (moneyMatters.annualIncome || moneyMatters.netWorth) && spendingData.length === 0}
-                <a class="money-upload-nudge" href="/verified-vibe/proof-upload?category=spending">
-                  <span>🧾</span>
-                  <span>Upload receipts to verify your spending →</span>
-                </a>
-              {/if}
-            </div>
-          {/if}
+            {:else}
+              <!-- Empty — direct to Trust & Boost -->
+              <button
+                class="money-empty-cta"
+                onclick={() => activeTab = 'boost'}
+                type="button"
+              >
+                <span>💳</span>
+                <span>Set this up in Trust &amp; Boost →</span>
+              </button>
+            {/if}
+          </div>
         </section>
       {/if}
 
@@ -2021,6 +1975,80 @@
               </svg>
             </div>
           </section>
+
+          <!-- ── Money Matters — edit lives here in Trust & Boost ── -->
+          {#if $user?.gender === 'man' || $user?.gender === null}
+            <section class="section money-section">
+              <div class="section-label">
+                <span>💰</span>
+                Money Matters
+              </div>
+
+              {#if !editingMoney}
+                <div class="money-boost-summary">
+                  {#if moneyMatters.annualIncome}
+                    <p class="money-boost-row"><span class="money-boost-key">💼 Income</span><span class="money-boost-val">{moneyMatters.annualIncome}</span></p>
+                  {/if}
+                  {#if moneyMatters.netWorth}
+                    <p class="money-boost-row"><span class="money-boost-key">📈 Net Worth</span><span class="money-boost-val">{moneyMatters.netWorth}</span></p>
+                  {/if}
+                  {#if spendingData.length > 0}
+                    <p class="money-boost-row"><span class="money-boost-key">🧾 Spending</span><span class="money-boost-val money-boost-verified">{spendingData.length} categories verified</span></p>
+                  {/if}
+                </div>
+                <button
+                  class="money-boost-edit-btn"
+                  onclick={() => { moneyDraft = { ...moneyMatters }; editingMoney = true; }}
+                  type="button"
+                >
+                  {#if moneyMatters.annualIncome || moneyMatters.netWorth}
+                    <Pencil size={12} /> Edit income &amp; net worth
+                  {:else}
+                    + Add income &amp; net worth
+                  {/if}
+                </button>
+              {:else}
+                <div class="money-edit-card">
+                  <div class="money-edit-group">
+                    <p class="money-edit-label">💼 Annual Income</p>
+                    <div class="money-pill-row">
+                      {#each INCOME_RANGES as r}
+                        <button
+                          class="money-pill {moneyDraft.annualIncome === r || (!moneyDraft.annualIncome && r === 'Prefer not to say') ? 'money-pill-active' : ''}"
+                          onclick={() => moneyDraft = { ...moneyDraft, annualIncome: r === 'Prefer not to say' ? undefined : r }}
+                          type="button"
+                        >{r}</button>
+                      {/each}
+                    </div>
+                  </div>
+                  <div class="money-edit-group">
+                    <p class="money-edit-label">📈 Net Worth</p>
+                    <div class="money-pill-row">
+                      {#each NET_WORTH_RANGES as r}
+                        <button
+                          class="money-pill {moneyDraft.netWorth === r || (!moneyDraft.netWorth && r === 'Prefer not to say') ? 'money-pill-active' : ''}"
+                          onclick={() => moneyDraft = { ...moneyDraft, netWorth: r === 'Prefer not to say' ? undefined : r }}
+                          type="button"
+                        >{r}</button>
+                      {/each}
+                    </div>
+                  </div>
+                  <div class="inline-edit-actions">
+                    <button class="inline-save-btn" onclick={saveMoney}>Save</button>
+                    <button class="inline-cancel-btn" onclick={() => editingMoney = false}>Cancel</button>
+                  </div>
+                </div>
+              {/if}
+
+              <!-- Spending upload nudge -->
+              {#if spendingData.length === 0}
+                <a class="money-upload-nudge" href="/verified-vibe/proof-upload?category=spending">
+                  <span>🧾</span>
+                  <span>Upload receipts to verify spending — shows on your public profile →</span>
+                </a>
+              {/if}
+            </section>
+          {/if}
         {/if}
 
         <!-- AI Bestie — female users only, in Trust & Boost tab -->
@@ -4118,6 +4146,63 @@
     transition: color 0.15s;
   }
   .money-upload-nudge:hover { color: rgba(212, 160, 23, 0.9); }
+
+  /* Trust & Boost tab — money summary + edit button */
+  .money-boost-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 14px;
+    background: rgba(212, 160, 23, 0.05);
+    border-radius: 10px;
+    margin-bottom: 10px;
+  }
+
+  .money-boost-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 0;
+    font-size: 13px;
+  }
+
+  .money-boost-key {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 12px;
+  }
+
+  .money-boost-val {
+    color: rgba(255, 255, 255, 0.85);
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  .money-boost-verified {
+    color: #4ade80;
+    font-size: 12px;
+  }
+
+  .money-boost-edit-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    background: rgba(212, 160, 23, 0.1);
+    border: 1px solid rgba(212, 160, 23, 0.25);
+    border-radius: 10px;
+    color: rgba(212, 160, 23, 0.85);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    width: 100%;
+    justify-content: center;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .money-boost-edit-btn:hover {
+    background: rgba(212, 160, 23, 0.18);
+    border-color: rgba(212, 160, 23, 0.45);
+  }
 
   /* Edit mode */
   .money-edit-card {
