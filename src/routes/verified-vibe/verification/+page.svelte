@@ -313,8 +313,8 @@
     if ($user?.archetype === 'casual_generous_man') {
       return [
         ...base,
-        { number: 5, name: 'Lifestyle & Experiences', description: 'What you enjoy sharing.', icon: '💎', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
-        { number: 6, name: 'Standards & Preferences', description: 'What you look for.', icon: '🔒', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
+        { number: 5, name: 'Standards & Preferences', description: 'What you look for.', icon: '🔒', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
+        { number: 6, name: 'Lifestyle & Experiences', description: 'What you enjoy sharing.', icon: '💎', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
         { number: 7, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
       ];
     }
@@ -1536,13 +1536,13 @@
           />
         {/if}
       {:else if currentStep === 5 && $user?.archetype === 'casual_generous_man'}
-        <CasualGenerousProfileStep
-          onSubmit={handleCasualGenerousProfileSubmit}
+        <CasualGenerousPreferencesStep
+          onSubmit={handleCasualGenerousPrefsSubmit}
           onCancel={handleBack}
         />
       {:else if currentStep === 6 && $user?.archetype === 'casual_generous_man'}
-        <CasualGenerousPreferencesStep
-          onSubmit={handleCasualGenerousPrefsSubmit}
+        <CasualGenerousProfileStep
+          onSubmit={handleCasualGenerousProfileSubmit}
           onCancel={handleBack}
         />
       {:else if currentStep === 5 && isMatrimonyArchetype}
