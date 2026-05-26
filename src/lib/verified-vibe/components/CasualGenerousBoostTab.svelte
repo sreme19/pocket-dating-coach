@@ -29,7 +29,7 @@
   let proofInsights = $state<ProofInsight[]>([]);
   let insightsExpanded = $state(false);
 
-  const CHIPS_PREVIEW = 4;
+  const CHIPS_PREVIEW = 2;
 
   // Flat list of all insight chips across all proof categories
   const allInsightChips = $derived(
@@ -547,7 +547,7 @@
 </section>
 {/if}
 
-<!-- ── Verified Insights — collapsible, shown at bottom ──────────────────── -->
+<!-- ── Verified Insights — inline comma-separated, 2 shown + "+X more" ───── -->
 {#if allInsightChips.length > 0}
 <section class="section">
   <div class="section-label">
@@ -556,29 +556,18 @@
     </svg>
     Verified Insights
   </div>
-  <div class="insights-chips">
-    {#each visibleChips as chip}
-      <span class="insight-chip">
-        <span class="insight-chip-emoji">{chip.emoji}</span>
-        {chip.label}
-      </span>
+  <p class="insights-inline">
+    {#each visibleChips as chip, i}
+      <span class="insight-inline-item">
+        <span class="insight-inline-emoji">{chip.emoji}</span>{chip.label}
+      </span>{#if i < visibleChips.length - 1}<span class="insight-sep">, </span>{/if}
     {/each}
-  </div>
-  {#if !insightsExpanded && hiddenCount > 0}
-    <button class="insights-expand-btn" onclick={() => insightsExpanded = true} type="button">
-      +{hiddenCount} more
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <path d="M6 9l6 6 6-6"/>
-      </svg>
-    </button>
-  {:else if insightsExpanded && allInsightChips.length > CHIPS_PREVIEW}
-    <button class="insights-expand-btn insights-expand-btn--collapse" onclick={() => insightsExpanded = false} type="button">
-      Show less
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <path d="M18 15l-6-6-6 6"/>
-      </svg>
-    </button>
-  {/if}
+    {#if !insightsExpanded && hiddenCount > 0}
+      <span class="insight-sep"> · </span><button class="insights-more-btn" onclick={() => insightsExpanded = true} type="button">+{hiddenCount} more</button>
+    {:else if insightsExpanded && allInsightChips.length > CHIPS_PREVIEW}
+      <span class="insight-sep"> · </span><button class="insights-more-btn insights-more-btn--less" onclick={() => insightsExpanded = false} type="button">Show less</button>
+    {/if}
+  </p>
 </section>
 {/if}
 
@@ -984,53 +973,45 @@
     margin: 0;
   }
 
-  /* ── Verified Insights — chip grid ── */
-  .insights-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+  /* ── Verified Insights — inline comma-separated ── */
+  .insights-inline {
+    font-size: 13px;
+    color: var(--text-2);
+    line-height: 1.65;
+    margin: 0;
   }
 
-  .insight-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 6px 11px;
-    border-radius: 999px;
-    background: var(--bg-2);
-    border: 1px solid var(--border-2);
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-1);
-    white-space: nowrap;
+  .insight-inline-item {
+    display: inline;
   }
 
-  .insight-chip-emoji {
+  .insight-inline-emoji {
+    display: inline;
+    margin-right: 3px;
     font-size: 14px;
-    line-height: 1;
   }
 
-  .insights-expand-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    margin-top: 10px;
-    padding: 5px 12px;
-    border-radius: 999px;
-    background: transparent;
-    border: 1px solid var(--accent);
-    color: var(--accent);
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  .insights-expand-btn:hover {
-    background: var(--accent-tint);
-  }
-  .insights-expand-btn--collapse {
-    border-color: var(--border-2);
+  .insight-sep {
     color: var(--text-3);
+  }
+
+  .insights-more-btn {
+    display: inline;
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    cursor: pointer;
+    font-family: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .insights-more-btn--less {
+    color: var(--text-3);
+    font-weight: 500;
   }
 
   /* ── Background Verification card ── */

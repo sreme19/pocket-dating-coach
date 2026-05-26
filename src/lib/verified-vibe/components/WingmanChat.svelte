@@ -26,7 +26,13 @@
   let input = $state('');
   let loading = $state(false);
   let messages = $state<Array<{ role: 'user' | 'wingman' | 'redirect'; text: string; url?: string }>>([]);
-  let inputEl = $state<HTMLInputElement | null>(null);
+  let inputEl = $state<HTMLTextAreaElement | null>(null);
+
+  function autoResize() {
+    if (!inputEl) return;
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 160) + 'px';
+  }
 
   const SUGGESTIONS = [
     'Remove my LinkedIn',
@@ -47,6 +53,8 @@
     if (!msg || loading) return;
 
     input = '';
+    // Reset textarea height after clearing
+    if (inputEl) { inputEl.style.height = 'auto'; }
     messages = [...messages, { role: 'user', text: msg }];
     loading = true;
 
@@ -102,6 +110,8 @@
   function useSuggestion(s: string) {
     input = s;
     inputEl?.focus();
+    // Resize after suggestion populates the textarea
+    setTimeout(autoResize, 0);
   }
 </script>
 
@@ -190,15 +200,17 @@
 
     <!-- Input -->
     <div class="wingman-input-row">
-      <input
+      <textarea
         bind:this={inputEl}
         bind:value={input}
         onkeydown={handleKey}
+        oninput={autoResize}
         class="wingman-input"
         placeholder="e.g. Remove my LinkedIn, update my bio…"
         disabled={loading}
         autocomplete="off"
-      />
+        rows="1"
+      ></textarea>
       <button
         class="wingman-send {input.trim() ? 'wingman-send--active' : ''}"
         onclick={send}
@@ -433,7 +445,7 @@
   /* ── Input row ── */
   .wingman-input-row {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     gap: 8px;
     padding: 10px 14px 14px;
     flex-shrink: 0;
@@ -442,12 +454,18 @@
   .wingman-input {
     flex: 1;
     padding: 10px 14px;
-    border-radius: 999px;
+    border-radius: 18px;
     background: var(--bg-3);
     border: 1px solid var(--border-2);
     color: var(--text-1);
     font-size: 13px;
+    font-family: inherit;
+    line-height: 1.45;
     outline: none;
+    resize: none;
+    overflow-y: hidden;
+    min-height: 40px;
+    max-height: 160px;
     transition: border-color 0.15s;
   }
   .wingman-input:focus { border-color: rgba(99,102,241,0.5); }

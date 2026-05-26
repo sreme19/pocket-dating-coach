@@ -570,6 +570,7 @@
     result   = null;
     step     = 'upload';
   }
+
 </script>
 
 <div class="page">
@@ -1063,6 +1064,7 @@
     </button>
   {/if}
 </div>
+
 
 <style>
   .page {
