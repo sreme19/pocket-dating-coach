@@ -2112,24 +2112,6 @@
             <p class="tier-note">🔒 Everything here stays private. Matches only</p>
           </section>
 
-          <section class="section">
-            <div class="section-label">
-              <Heart size={13} />
-              Connect a habit tracker
-            </div>
-            <div class="habit-tracker-cta">
-              <div class="habit-icon">+<br/>2</div>
-              <div class="habit-content">
-                <div class="habit-title">Connect a habit tracker</div>
-                <div class="habit-desc">Sleep, gym, reading — proves the lifestyle isn't fiction.</div>
-                <div class="habit-time">1 min</div>
-              </div>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M9 5l7 7-7 7"/>
-              </svg>
-            </div>
-          </section>
-
           <!-- ── Money Matters — edit lives here in Trust & Boost ── -->
           {#if $user?.gender === 'man' || $user?.gender === null}
             <section class="section money-section">
