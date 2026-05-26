@@ -20,6 +20,9 @@ import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { createClient } from '@supabase/supabase-js';
 import { getSupabase } from '$lib/server/supabase';
+// Use the lib path to avoid pdf-parse loading its own test fixtures on import
+// @ts-ignore — pdf-parse has no bundled type declarations
+import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_MODEL   = 'claude-sonnet-4-6';
@@ -126,21 +129,23 @@ Return ONLY raw JSON — no markdown, no code fences:
 }
 Only include categories you can actually see evidence for in the images.`,
 
-  wealth: `You are reviewing financial documents for a dating-app "Wealth" verification. Documents may include bank statements, salary slips/payslips, tax returns (ITR/Form 16), or investment portfolio screenshots (Zerodha, Groww, Robinhood, etc.).
+  wealth: `You are reviewing financial documents for a dating-app "Wealth" verification. Input may be raw text extracted from a PDF (bank statement, salary slip/payslip, ITR/Form 16, investment portfolio) OR a screenshot image.
 
-Extract evidence of financial health WITHOUT exposing sensitive account numbers or exact balances publicly.
+Extract evidence of financial health. NEVER expose exact account numbers, exact salary, or exact balance — only ranges and tiers.
 
-For each document extract:
+From the document(s) extract:
 - Document type: "bank statement" / "salary slip" / "investment portfolio" / "tax return"
-- Income tier if visible: "entry-level" / "professional" / "senior professional" / "high income" / "affluent"
-- Any institution or employer name that is clearly visible (e.g. "HDFC Bank", "Infosys", "Zerodha")
-- Estimated monthly income or portfolio value RANGE only (never exact figure): e.g. "₹2–5L/month", "₹50L+ portfolio"
+- Income tier: "entry-level" / "professional" / "senior professional" / "high income" / "affluent"
+- Employer or institution name if clearly present (e.g. "HDFC Bank", "Infosys", "Zerodha")
+- Estimated RANGE only — e.g. "₹5–10L/year", "₹2–5L/month", "₹50L+ portfolio", "₹1Cr+ net worth"
 
 Write one punchy "aggregated" sentence (8–12 words) for the profile — aspirational but honest.
 
+IMPORTANT: ITR (income tax return) documents contain "Gross Total Income" or "Total Income" fields — use that figure to determine the range tier. Do NOT output the exact figure.
+
 YOU MUST return ONLY raw JSON — no explanation, no preamble, no markdown:
 {"verified":true,"insights":[{"label":"3-5 words e.g. 'High-income salaried professional'","emoji":"💰"}],"aggregated":"e.g. 'Consistently high earner with diversified savings and investments'","confidence":0.0-1.0,"reason":"one sentence"}
-If the documents are too blurry or show no income/wealth signal, set verified=false.`,
+If the document contains no readable income/wealth signal, set verified=false.`,
 
   assets: `You are reviewing documents for a dating-app "Assets" verification.
 Accept ANY of these documents — ownership OR authorisation:
@@ -430,14 +435,80 @@ export const POST: RequestHandler = async ({ request }) => {
       if (userId) await persistInsight(userId, category, pts, { insights, pts_awarded: pts });
       return json({ verified: true, insights, pts_awarded: pts, photo_count: 1, confidence: 0.85, reason: 'CV accepted as career proof' });
     }
-    // Wealth PDFs (bank statements, ITR) — accepted; Vision can't read PDFs so flag as intent-verified
-    // If the upload also has images (e.g. screenshots) those will go through Vision below
+    // Wealth PDFs — extract text via pdf-parse, then analyse with Claude text API
+    // Images mixed in will go through Vision below; PDF-only skips Vision entirely
     const onlyPdfs = files.every(f => f.type === 'application/pdf');
     if (hasPdf && onlyPdfs && category === 'wealth') {
-      const insights = [{ label: 'Financial document uploaded', emoji: '💰' }];
+      // 1. Extract text from every uploaded PDF
+      let combinedText = '';
+      for (const pdfFile of files) {
+        try {
+          const buf    = Buffer.from(await pdfFile.arrayBuffer());
+          const parsed = await pdfParse(buf);
+          combinedText += parsed.text + '\n\n';
+        } catch (err) {
+          console.error('pdf-parse error:', err);
+        }
+      }
+
+      // 2. If extraction produced nothing useful, fall back to intent-verified
+      if (!combinedText.trim()) {
+        const insights = [{ label: 'Financial document uploaded', emoji: '💰' }];
+        const userId = await getUserIdFromRequest(request);
+        if (userId) await persistInsight(userId, category, pts, { insights, pts_awarded: pts });
+        return json({ verified: true, insights, pts_awarded: pts, photo_count: files.length, confidence: 0.8, reason: 'Wealth PDF uploaded — text unreadable, verified by intent' });
+      }
+
+      // 3. Send extracted text to Claude (text-only message — no Vision needed)
+      const wealthTextPrompt = `${PROMPTS.wealth}
+
+The following is raw text extracted from the uploaded PDF document(s). Analyse it and return JSON:
+
+---
+${combinedText.slice(0, 14000)}
+---`;
+
+      const wealthResp = await fetch(CLAUDE_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: CLAUDE_MODEL,
+          max_tokens: 768,
+          messages: [{ role: 'user', content: wealthTextPrompt }],
+        }),
+        signal: AbortSignal.timeout(35_000),
+      });
+
+      if (!wealthResp.ok) {
+        const insights = [{ label: 'Financial document uploaded', emoji: '💰' }];
+        const userId = await getUserIdFromRequest(request);
+        if (userId) await persistInsight(userId, category, pts, { insights, pts_awarded: pts });
+        return json({ verified: true, insights, pts_awarded: pts, photo_count: files.length, confidence: 0.8, reason: 'Wealth PDF verified by upload' });
+      }
+
+      const wealthData = await wealthResp.json();
+      let wRaw = (wealthData.content?.[0]?.text ?? '{}') as string;
+      wRaw = wRaw.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim();
+      if (!wRaw.startsWith('{')) {
+        const m = wRaw.match(/\{[\s\S]*\}/);
+        if (m) wRaw = m[0];
+      }
+
+      let wResult: { verified?: boolean; insights?: Array<{ label: string; emoji: string }>; aggregated?: string; confidence?: number; reason?: string } = {};
+      try { wResult = JSON.parse(wRaw); } catch { /* fall through to default */ }
+
+      const wInsights = (wResult.insights?.length ? wResult.insights : [{ label: 'Financial document uploaded', emoji: '💰' }]).slice(0, 5);
       const userId = await getUserIdFromRequest(request);
-      if (userId) await persistInsight(userId, category, pts, { insights, pts_awarded: pts });
-      return json({ verified: true, insights, pts_awarded: pts, photo_count: files.length, confidence: 0.8, reason: 'Wealth document accepted — PDF verified by upload' });
+      if (userId) await persistInsight(userId, category, pts, { insights: wInsights, aggregated: wResult.aggregated, pts_awarded: pts });
+      return json({
+        verified:     wResult.verified !== false,
+        insights:     wInsights,
+        aggregated:   wResult.aggregated,
+        pts_awarded:  pts,
+        photo_count:  files.length,
+        confidence:   wResult.confidence ?? 0.85,
+        reason:       wResult.reason ?? 'Wealth PDF analysed',
+      });
     }
 
     // ── 4. Dev bypass ─────────────────────────────────────────────────────────
