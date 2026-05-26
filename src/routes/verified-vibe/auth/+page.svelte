@@ -203,6 +203,14 @@
 
     let completeness = await getProfileCompleteness();
 
+    // Retry once after a short delay — handles the session-propagation race where
+    // PostgREST RLS hasn't picked up the newly-issued OTP token yet, causing
+    // getVerificationSteps() to return fewer rows than actually exist in the DB.
+    if (completeness === 'no_verification') {
+      await new Promise(r => setTimeout(r, 400));
+      completeness = await getProfileCompleteness();
+    }
+
     // Repair: if the DB has no archetype but localStorage still holds one (e.g.
     // the upsertProfile call raced and failed silently on first sign-up, removing
     // verified_vibe_pending_archetype before it could be confirmed), re-apply it

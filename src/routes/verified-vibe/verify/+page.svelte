@@ -5,11 +5,11 @@
   import type { Archetype } from '$lib/verified-vibe/types';
   import { ChevronLeft } from 'lucide-svelte';
   import LiveWomenCarousel from '$lib/verified-vibe/components/LiveWomenCarousel.svelte';
-  import { getProfile } from '$lib/verified-vibe/services/profileService';
+  import { getProfile, getProfileCompleteness } from '$lib/verified-vibe/services/profileService';
 
   let archetype = $state<Archetype | null>(null);
 
-  $effect(() => {
+  function loadArchetype() {
     getProfile().then((profile) => {
       if (profile?.archetype) {
         archetype = profile.archetype;
@@ -23,6 +23,22 @@
       const stored = localStorage.getItem('verified_vibe_archetype');
       if (stored) archetype = stored as Archetype;
       else goto('/verified-vibe/home');
+    });
+  }
+
+  $effect(() => {
+    // If the user is already fully verified, route them straight to discover.
+    // This is a safety net for cases where routeAfterAuth() landed them here
+    // due to a session-propagation race that has since resolved.
+    getProfileCompleteness().then((completeness) => {
+      if (completeness === 'complete') {
+        setPhase('app');
+        goto('/verified-vibe/discover');
+        return;
+      }
+      loadArchetype();
+    }).catch(() => {
+      loadArchetype();
     });
   });
 
