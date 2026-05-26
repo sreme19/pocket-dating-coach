@@ -34,7 +34,7 @@
     habit_tracker:'🔒 Show, don\'t fake. Everything stays private while we verify your vibe. Boosts your Trust Score.',
     intro:        '🔒 Your voice and video stay completely private. Never shown publicly. They make women feel safe messaging you first.',
     spending:     '🔒 Your receipts stay completely private. We only check that your generosity signals are genuine.',
-    assets:       '🔒 Your documents stay completely private. We only verify ownership. Your name on the document must match your profile name.',
+    assets:       '🔒 Your documents stay completely private. We only verify ownership. The name on the document must match your verified government ID — your profile display name can be a pseudonym.',
   };
 
   const CONFIGS: Record<Category, CategoryConfig> = {
@@ -206,7 +206,7 @@
         'Screenshot of ownership portal or app — name clearly shown',
       ],
       maxFiles: 5,
-      hintLine: '⚠️ Name match is compulsory — your name on the document must match your profile. Screenshots are accepted.',
+      hintLine: '⚠️ Name on document must match your government ID, not your display name. Screenshots are accepted.',
       accept: 'image/*,.pdf',
     },
   };
