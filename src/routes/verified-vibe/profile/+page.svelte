@@ -493,6 +493,7 @@
     label: string;
     value: string;
     type: 'chip' | 'text';
+    selfDeclared?: boolean;
   }
 
   function getArchetypeSections(
@@ -502,11 +503,11 @@
     const out: ProfileSection[] = [];
     if (!archetype) return out;
 
-    const push = (icon: string, label: string, raw: string | string[] | undefined, type: 'chip' | 'text' = 'chip') => {
+    const push = (icon: string, label: string, raw: string | string[] | undefined, type: 'chip' | 'text' = 'chip', selfDeclared = false) => {
       if (!raw) return;
       const str = Array.isArray(raw) ? raw.join('').trim() : String(raw).trim();
       if (!str) return;
-      out.push({ icon, label, value: resolveValue(raw), type });
+      out.push({ icon, label, value: resolveValue(raw), type, selfDeclared });
     };
 
     const qa   = store['vv_qa_responses'] ?? {};
@@ -526,7 +527,7 @@
         push('✨', 'Energy in a relationship', qa.relationship_energy ?? p.relationship_energy);
         push('🌹', 'My relationship vibe', qa.relationship_vibe);
         push('💼', 'My lifestyle', pref.lifestyle_profile);
-        push('💰', 'Annual income', pref.income_range);
+        push('💰', 'Annual income', pref.income_range, 'chip', true);
         push('🔥', 'Chemistry', qa.chemistry_type ?? p.chemistry_preferences);
         push('🌿', 'What I value', qa.lifestyle_values, 'text');
         break;
@@ -1512,7 +1513,12 @@
             <div class="archetype-qa-item">
               <span class="archetype-qa-icon">{s.icon}</span>
               <div class="archetype-qa-body">
-                <span class="archetype-qa-label">{s.label}</span>
+                <div class="archetype-qa-label-row">
+                  <span class="archetype-qa-label">{s.label}</span>
+                  {#if s.selfDeclared}
+                    <span class="archetype-qa-declared">Self declared</span>
+                  {/if}
+                </div>
                 {#if s.type === 'chip'}
                   <div class="archetype-qa-chips">
                     {#each s.value.split(/,\s*/).filter(v => v.trim()) as chip}
@@ -4184,12 +4190,29 @@
     gap: 5px;
   }
 
+  .archetype-qa-label-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
   .archetype-qa-label {
     font-size: 10px;
     font-weight: 600;
     color: var(--text-3);
     text-transform: uppercase;
     letter-spacing: 0.06em;
+  }
+
+  .archetype-qa-declared {
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.28);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 4px;
+    padding: 1px 5px;
   }
 
   .archetype-qa-chips {
