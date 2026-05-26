@@ -190,10 +190,12 @@
   const sc = $derived(scoreColor(subscores.socialLegitimacy));
 
   const showOffCategories = [
-    { icon: '🌍', label: 'Lifestyle',    desc: 'Travel, dining, events',      pts: 8, time: '2 min', category: 'lifestyle'    },
-    { icon: '🍽️', label: 'Hosting',      desc: 'Dinners, celebrations',        pts: 6, time: '2 min', category: 'hosting'      },
-    { icon: '💪', label: 'Discipline',   desc: 'Gym, sleep, reading routines', pts: 4, time: '1 min', category: 'discipline'   },
-    { icon: '🤝', label: 'Social Proof', desc: 'Friends, communities',         pts: 4, time: '2 min', category: 'social_proof' },
+    { icon: '🌍', label: 'Lifestyle',    desc: 'Travel, dining, events',               pts: 8,  time: '2 min', category: 'lifestyle'    },
+    { icon: '🍽️', label: 'Hosting',      desc: 'Dinners, celebrations',                 pts: 6,  time: '2 min', category: 'hosting'      },
+    { icon: '💪', label: 'Discipline',   desc: 'Gym, sleep, reading routines',          pts: 4,  time: '1 min', category: 'discipline'   },
+    { icon: '🤝', label: 'Social Proof', desc: 'Friends, communities',                  pts: 4,  time: '2 min', category: 'social_proof' },
+    { icon: '💰', label: 'Wealth',       desc: 'Bank statements, salary, investments',  pts: 12, time: '2 min', category: 'wealth'       },
+    { icon: '🏠', label: 'Assets',       desc: 'Car, property, company ownership',      pts: 10, time: '2 min', category: 'assets'       },
   ] as const;
 
   // Social platforms grouped into one card
@@ -203,10 +205,8 @@
     { category: 'twitter',   label: 'Twitter / X', pts: 2 },
   ] as const;
 
-  // Non-social proof connections (Habit Tracker removed)
-  const proofConnections = [
-    { icon: '🏠', label: 'Assets', desc: 'Car, property, company ownership. Name match required.', pts: 10, time: '2 min', category: 'assets' },
-  ] as const;
+  // Non-social proof connections — Assets moved to Show-Off
+  const proofConnections: { icon: string; label: string; desc: string; pts: number; time: string; category: string }[] = [];
 </script>
 
 <!-- ── Privacy banner ─────────────────────────────────────────────────────── -->
