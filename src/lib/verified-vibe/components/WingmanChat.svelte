@@ -249,26 +249,13 @@
   }
   .wingman-fab-label { letter-spacing: 0.01em; }
 
-  /* ── Desktop: keep everything inside the 430px app frame ── */
-  @media (min-width: 768px) {
-    .wingman-fab {
-      /* 18px from the right edge of the centered 430px container */
-      right: calc((100vw - 430px) / 2 + 18px);
-    }
-    .wingman-backdrop {
-      left: calc((100vw - 430px) / 2);
-      right: calc((100vw - 430px) / 2);
-    }
-    .wingman-drawer {
-      left: calc((100vw - 430px) / 2);
-      right: calc((100vw - 430px) / 2);
-    }
-  }
-
   /* ── Backdrop ── */
   .wingman-backdrop {
     position: fixed;
-    inset: 0;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
     z-index: 118;
     background: rgba(0,0,0,0.45);
   }
@@ -482,5 +469,23 @@
     background: linear-gradient(135deg, #7c3aed, #6366f1);
     border-color: transparent;
     color: #fff;
+  }
+
+  /* ── Desktop: constrain everything inside the 430px centered app frame ──
+     Must be LAST so it overrides base left/right/inset rules above. ── */
+  @media (min-width: 768px) {
+    .wingman-fab {
+      right: calc((100vw - 430px) / 2 + 18px);
+    }
+    .wingman-backdrop {
+      left: calc((100vw - 430px) / 2);
+      right: calc((100vw - 430px) / 2);
+      top: 0;
+      bottom: 0;
+    }
+    .wingman-drawer {
+      left: calc((100vw - 430px) / 2);
+      right: calc((100vw - 430px) / 2);
+    }
   }
 </style>
