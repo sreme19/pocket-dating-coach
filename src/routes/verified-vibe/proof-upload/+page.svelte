@@ -282,6 +282,12 @@
         {/each}
       </ul>
       <div class="hint-line">{config.hintLine}</div>
+      {#if category !== 'intro'}
+        <div class="auth-note">
+          <span class="auth-note-icon">👤</span>
+          <span>Your face should be clearly visible in at least one photo, or your name should appear on any document, so we can authenticate the proof.</span>
+        </div>
+      {/if}
     </div>
 
     <!-- Upload area -->
@@ -509,6 +515,26 @@
     color: #a5b4fc;
     line-height: 1.5;
     font-weight: 500;
+  }
+
+  /* ── Auth note ── */
+  .auth-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 9px 11px;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.22);
+    border-radius: 9px;
+    font-size: 12px;
+    color: #fcd34d;
+    line-height: 1.5;
+  }
+
+  .auth-note-icon {
+    flex-shrink: 0;
+    font-size: 13px;
+    margin-top: 1px;
   }
 
   /* ── Examples card ── */
