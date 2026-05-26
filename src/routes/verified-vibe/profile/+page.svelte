@@ -67,6 +67,12 @@
   let moneyDraft     = $state<MoneyMatters>({});
   let spendingData   = $state<SpendingCategory[]>([]);
 
+  // Wealth proof insights — derived from uploaded bank statements / ITR / investments
+  let wealthInsights = $state<{
+    insights: Array<{ label: string; emoji: string }>;
+    aggregated: string;
+  } | null>(null);
+
   const INCOME_RANGES = [
     'Prefer not to say',
     'Under £30K',  '£30K – £60K', '£60K – £100K',
@@ -1002,7 +1008,7 @@
       }
     } catch { /* non-critical */ }
 
-    // Load Career Highlights from LinkedIn / CV proof insights
+    // Load Career Highlights + Wealth Insights from proof insights
     try {
       const rawInsights = localStorage.getItem('vv_proof_insights');
       if (rawInsights) {
@@ -1011,11 +1017,20 @@
           insights?: Array<{ label: string; emoji: string }>;
           aggregated?: string;
         }> = JSON.parse(rawInsights);
+
         const linkedinInsight = allI.find(i => i.category === 'linkedin');
         if (linkedinInsight?.insights?.length) {
           careerHighlights = {
             insights: linkedinInsight.insights,
             aggregated: linkedinInsight.aggregated ?? '',
+          };
+        }
+
+        const wealthInsight = allI.find(i => i.category === 'wealth');
+        if (wealthInsight?.insights?.length) {
+          wealthInsights = {
+            insights: wealthInsight.insights,
+            aggregated: wealthInsight.aggregated ?? '',
           };
         }
       }
@@ -1601,30 +1616,55 @@
           </div>
 
           <div class="money-card">
-            {#if moneyMatters.annualIncome || moneyMatters.netWorth}
-              <!-- Income + net worth header stats -->
-              <div class="money-stats-row">
-                {#if moneyMatters.annualIncome}
-                  <div class="money-stat">
-                    <span class="money-stat-icon">💼</span>
-                    <div>
-                      <p class="money-stat-label">Annual Income</p>
-                      <p class="money-stat-value">{moneyMatters.annualIncome}</p>
+            {#if moneyMatters.annualIncome || moneyMatters.netWorth || wealthInsights}
+              <!-- Self-reported income + net worth header stats -->
+              {#if moneyMatters.annualIncome || moneyMatters.netWorth}
+                <div class="money-stats-row">
+                  {#if moneyMatters.annualIncome}
+                    <div class="money-stat">
+                      <span class="money-stat-icon">💼</span>
+                      <div>
+                        <p class="money-stat-label">Annual Income</p>
+                        <p class="money-stat-value">{moneyMatters.annualIncome}</p>
+                      </div>
                     </div>
-                  </div>
-                {/if}
-                {#if moneyMatters.netWorth}
-                  <div class="money-stat">
-                    <span class="money-stat-icon">📈</span>
-                    <div>
-                      <p class="money-stat-label">Net Worth</p>
-                      <p class="money-stat-value">{moneyMatters.netWorth}</p>
+                  {/if}
+                  {#if moneyMatters.netWorth}
+                    <div class="money-stat">
+                      <span class="money-stat-icon">📈</span>
+                      <div>
+                        <p class="money-stat-label">Net Worth</p>
+                        <p class="money-stat-value">{moneyMatters.netWorth}</p>
+                      </div>
                     </div>
-                  </div>
-                {/if}
-              </div>
+                  {/if}
+                </div>
+              {/if}
 
-              <!-- Spending breakdown -->
+              <!-- AI-verified wealth signals from bank statement / ITR / investments -->
+              {#if wealthInsights}
+                <div class="money-wealth-block">
+                  {#if wealthInsights.aggregated}
+                    <p class="money-wealth-summary">{wealthInsights.aggregated}</p>
+                  {/if}
+                  <div class="money-wealth-chips">
+                    {#each wealthInsights.insights as ins}
+                      <span class="money-wealth-chip">
+                        <span class="money-wealth-chip-emoji">{ins.emoji}</span>
+                        {ins.label}
+                      </span>
+                    {/each}
+                  </div>
+                  <div class="money-wealth-verified">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.55">
+                      <path d="M20 6L9 17l-5-5"/>
+                    </svg>
+                    <span>AI verified via bank statement / financial document</span>
+                  </div>
+                </div>
+              {/if}
+
+              <!-- Spending breakdown from receipts -->
               {#if spendingData.length > 0}
                 <div class="money-spend-header">
                   <span class="money-spend-title">Where the money goes</span>
@@ -4264,6 +4304,54 @@
     color: #F5D485;
     margin: 0;
     letter-spacing: 0.01em;
+  }
+
+  /* Wealth proof signals block */
+  .money-wealth-block {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 14px 12px;
+    border-bottom: 1px solid rgba(212, 160, 23, 0.12);
+  }
+
+  .money-wealth-summary {
+    font-size: 13px;
+    line-height: 1.55;
+    color: rgba(255,255,255,0.75);
+    font-style: italic;
+    margin: 0;
+  }
+
+  .money-wealth-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+
+  .money-wealth-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(212,160,23,0.12);
+    border: 1px solid rgba(212,160,23,0.28);
+    border-radius: 999px;
+    padding: 5px 11px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #F5D485;
+    white-space: nowrap;
+  }
+
+  .money-wealth-chip-emoji { font-size: 13px; }
+
+  .money-wealth-verified {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10.5px;
+    color: rgba(255,255,255,0.38);
+    letter-spacing: 0.02em;
   }
 
   /* Spending breakdown */
