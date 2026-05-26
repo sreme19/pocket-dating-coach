@@ -47,6 +47,74 @@
   let autoFillError = $state<string | null>(null);
   let countriesTraveled = $state<string[]>([]);
 
+  // ── Garage ─────────────────────────────────────────────────────────────────
+
+  interface GarageCar {
+    make: string;
+    model: string;
+    year?: string;
+    color?: string;
+    vehicleType?: string;
+  }
+
+  let garageCars = $state<GarageCar[]>([]);
+  let garageActiveIdx = $state(0);
+
+  // Brand → accent colour for showroom card
+  const BRAND_COLORS: Record<string, { accent: string; logo: string }> = {
+    'bmw':            { accent: '#1C69D4', logo: '𝗕𝗠𝗪' },
+    'mercedes':       { accent: '#00ADEF', logo: '𝗠𝗕' },
+    'mercedes-benz':  { accent: '#00ADEF', logo: '𝗠𝗕' },
+    'audi':           { accent: '#BB0A30', logo: '𝗔𝗨𝗗𝗜' },
+    'porsche':        { accent: '#C9A84C', logo: '𝗣𝗢𝗥𝗦𝗖𝗛𝗘' },
+    'ferrari':        { accent: '#DC143C', logo: '𝗙𝗘𝗥𝗥𝗔𝗥𝗜' },
+    'lamborghini':    { accent: '#DAA520', logo: '𝗟𝗔𝗠𝗕𝗢' },
+    'tesla':          { accent: '#E31937', logo: '𝗧𝗘𝗦𝗟𝗔' },
+    'range rover':    { accent: '#006B3F', logo: '𝗥𝗥' },
+    'land rover':     { accent: '#006B3F', logo: '𝗟𝗥' },
+    'rolls-royce':    { accent: '#C0A882', logo: '𝗥𝗥' },
+    'bentley':        { accent: '#254E52', logo: '𝗕' },
+    'mclaren':        { accent: '#FF7900', logo: '𝗠𝗖' },
+    'maserati':       { accent: '#1C3E6E', logo: '𝗠' },
+    'jaguar':         { accent: '#1C3E6E', logo: '𝗝𝗔𝗚' },
+    'toyota':         { accent: '#EB0A1E', logo: '𝗧𝗢𝗬𝗢𝗧𝗔' },
+    'honda':          { accent: '#CC0000', logo: '𝗛𝗢𝗡𝗗𝗔' },
+    'ford':           { accent: '#003476', logo: '𝗙𝗢𝗥𝗗' },
+    'chevrolet':      { accent: '#D4A017', logo: '𝗖𝗛𝗘𝗩𝗬' },
+    'lexus':          { accent: '#1A1A1A', logo: '𝗟𝗘𝗫𝗨𝗦' },
+    'infiniti':       { accent: '#1A1A1A', logo: '𝗜𝗡𝗙' },
+    'volvo':          { accent: '#003057', logo: '𝗩𝗢𝗟𝗩𝗢' },
+    'mg':             { accent: '#C8102E', logo: '𝗠𝗚' },
+    'hyundai':        { accent: '#002C5F', logo: '𝗛𝗬𝗨𝗡𝗗𝗔𝗜' },
+    'kia':            { accent: '#05141F', logo: '𝗞𝗜𝗔' },
+    'volkswagen':     { accent: '#001E6C', logo: '𝗩𝗪' },
+    'vw':             { accent: '#001E6C', logo: '𝗩𝗪' },
+    'skoda':          { accent: '#4BA82E', logo: '𝗦𝗞𝗢𝗗𝗔' },
+    'tata':           { accent: '#00205B', logo: '𝗧𝗔𝗧𝗔' },
+    'mahindra':       { accent: '#C8102E', logo: '𝗠&𝗠' },
+    'maruti':         { accent: '#003087', logo: '𝗠𝗦' },
+    'suzuki':         { accent: '#003087', logo: '𝗦𝗨𝗭𝗨𝗞𝗜' },
+    'nissan':         { accent: '#C3002F', logo: '𝗡𝗜𝗦𝗦𝗔𝗡' },
+    'jeep':           { accent: '#365B2F', logo: '𝗝𝗘𝗘𝗣' },
+  };
+
+  function getBrandStyle(make: string): { accent: string; logo: string } {
+    const key = make.toLowerCase().trim();
+    return BRAND_COLORS[key] ?? { accent: '#34D399', logo: make.slice(0, 2).toUpperCase() };
+  }
+
+  function vehicleEmoji(car: GarageCar): string {
+    const vt = (car.vehicleType ?? '').toLowerCase();
+    const m  = (car.model ?? '').toLowerCase();
+    if (vt.includes('super') || vt.includes('sport') || m.includes('911') || m.includes('ferrari')) return '🏎️';
+    if (vt.includes('suv') || vt.includes('4x4') || vt.includes('crossover')) return '🚙';
+    if (vt.includes('truck') || vt.includes('pickup')) return '🛻';
+    if (vt.includes('van') || vt.includes('minivan')) return '🚐';
+    if (vt.includes('convert') || vt.includes('cabriolet')) return '🚘';
+    if (vt.includes('electric') || vt.includes('ev') || m.includes('model') || m.includes('comet')) return '⚡';
+    return '🚗';
+  }
+
   // ── Travel Magnets ─────────────────────────────────────────────────────────
 
   // Country/place → ISO 3166-1 alpha-2 code for flag emoji generation
@@ -670,6 +738,26 @@
     const rawCountries = localStorage.getItem('vv_countries_traveled');
     if (rawCountries) { try { countriesTraveled = JSON.parse(rawCountries); } catch { /* ignore */ } }
 
+    // Load garage cars from proof insights (assets category)
+    try {
+      const rawInsights = localStorage.getItem('vv_proof_insights');
+      if (rawInsights) {
+        const allInsights: Array<{ category: string; assets?: Array<Record<string, string>> }> = JSON.parse(rawInsights);
+        const assetsInsight = allInsights.find(i => i.category === 'assets');
+        if (assetsInsight?.assets) {
+          garageCars = assetsInsight.assets
+            .filter((a) => a.type === 'car' && a.make)
+            .map((a) => ({
+              make: a.make ?? '',
+              model: a.model ?? '',
+              year: a.year,
+              color: a.color,
+              vehicleType: a.vehicleType,
+            }));
+        }
+      }
+    } catch { /* non-critical */ }
+
     if (rawDraft) draft = JSON.parse(rawDraft);
     if (rawGenerated) generated = JSON.parse(rawGenerated);
     if (rawPhotos) photos = JSON.parse(rawPhotos);
@@ -1192,6 +1280,82 @@
           {/each}
         </div>
       </section>
+      {/if}
+
+      <!-- What My Garage Looks Like -->
+      {#if garageCars.length > 0}
+        <section class="section garage-section">
+          <div class="section-label">
+            <span>🏎️</span>
+            What My Garage Looks Like
+          </div>
+
+          <!-- Showroom card -->
+          <div class="garage-showroom">
+            {#each garageCars as car, i}
+              {@const brand = getBrandStyle(car.make)}
+              <div class="garage-card {garageActiveIdx === i ? 'garage-card-active' : 'garage-card-hidden'}">
+                <!-- Brand accent bar -->
+                <div class="garage-brand-bar" style="background: {brand.accent}"></div>
+
+                <!-- Showroom floor grid -->
+                <div class="garage-grid-overlay"></div>
+
+                <!-- Car hero -->
+                <div class="garage-hero">
+                  <div class="garage-car-emoji">{vehicleEmoji(car)}</div>
+                  <div class="garage-light-sweep"></div>
+                </div>
+
+                <!-- Plate style info -->
+                <div class="garage-info">
+                  <div class="garage-make-row">
+                    <span class="garage-brand-badge" style="background: {brand.accent}">{brand.logo}</span>
+                    {#if car.year}
+                      <span class="garage-year">{car.year}</span>
+                    {/if}
+                  </div>
+                  <div class="garage-model">{car.make} {car.model}</div>
+                  {#if car.color}
+                    <div class="garage-color-row">
+                      <span class="garage-color-dot" style="background: {car.color.toLowerCase() === 'white' ? '#e8e8e8' : car.color.toLowerCase() === 'silver' ? '#b0b0b0' : car.color.toLowerCase() === 'gold' ? '#d4a017' : car.color.toLowerCase()}"></span>
+                      <span class="garage-color-label">{car.color}</span>
+                    </div>
+                  {/if}
+                  <div class="garage-verified-badge">
+                    <span>✅</span> Ownership Verified
+                  </div>
+                </div>
+              </div>
+            {/each}
+          </div>
+
+          <!-- Dots + arrows for multiple cars -->
+          {#if garageCars.length > 1}
+            <div class="garage-nav">
+              <button
+                class="garage-arrow"
+                onclick={() => garageActiveIdx = (garageActiveIdx - 1 + garageCars.length) % garageCars.length}
+                aria-label="Previous car"
+              >‹</button>
+              <div class="garage-dots">
+                {#each garageCars as _, i}
+                  <button
+                    class="garage-dot {garageActiveIdx === i ? 'garage-dot-active' : ''}"
+                    onclick={() => garageActiveIdx = i}
+                    aria-label="Car {i + 1}"
+                  ></button>
+                {/each}
+              </div>
+              <button
+                class="garage-arrow"
+                onclick={() => garageActiveIdx = (garageActiveIdx + 1) % garageCars.length}
+                aria-label="Next car"
+              >›</button>
+            </div>
+            <p class="garage-counter">{garageActiveIdx + 1} of {garageCars.length} in the garage</p>
+          {/if}
+        </section>
       {/if}
 
       <!-- Pick Your Lane -->
@@ -3549,6 +3713,214 @@
     font-size: 13px;
     color: var(--text-2);
     line-height: 1.5;
+  }
+
+  /* ── Garage ───────────────────────────────────────────────────────────────── */
+
+  .garage-section { overflow: visible; }
+
+  .garage-showroom {
+    position: relative;
+    width: 100%;
+    border-radius: 16px;
+    overflow: hidden;
+    aspect-ratio: 4/3;
+    max-height: 260px;
+  }
+
+  .garage-card {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(160deg, #0d0d0d 0%, #1a1a2e 45%, #0d0d1a 100%);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+
+  .garage-card-active  { opacity: 1; transform: scale(1); pointer-events: auto; }
+  .garage-card-hidden  { opacity: 0; transform: scale(0.97); pointer-events: none; }
+
+  .garage-brand-bar {
+    height: 4px;
+    width: 100%;
+    flex-shrink: 0;
+  }
+
+  /* Perspective floor grid */
+  .garage-grid-overlay {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 32px 32px;
+    pointer-events: none;
+  }
+
+  /* Showroom spotlight sweep */
+  .garage-hero {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .garage-light-sweep {
+    position: absolute;
+    top: -40%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 140%;
+    height: 200%;
+    background: radial-gradient(ellipse at 50% 30%, rgba(255,255,255,0.06) 0%, transparent 65%);
+    pointer-events: none;
+  }
+
+  .garage-car-emoji {
+    font-size: 96px;
+    line-height: 1;
+    filter: drop-shadow(0 8px 24px rgba(0,0,0,0.7));
+    position: relative;
+    z-index: 1;
+    transform: scaleX(-1); /* face left like a display car */
+    animation: garageFloat 4s ease-in-out infinite;
+  }
+
+  @keyframes garageFloat {
+    0%, 100% { transform: scaleX(-1) translateY(0px);   }
+    50%       { transform: scaleX(-1) translateY(-6px);  }
+  }
+
+  .garage-info {
+    padding: 10px 14px 12px;
+    background: linear-gradient(0deg, rgba(0,0,0,0.85) 0%, transparent 100%);
+    position: relative;
+    z-index: 1;
+  }
+
+  .garage-make-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .garage-brand-badge {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    padding: 2px 7px;
+    border-radius: 4px;
+    color: white;
+    line-height: 1.4;
+  }
+
+  .garage-year {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 0.04em;
+  }
+
+  .garage-model {
+    font-size: 18px;
+    font-weight: 700;
+    color: white;
+    letter-spacing: 0.01em;
+    line-height: 1.2;
+  }
+
+  .garage-color-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 3px;
+  }
+
+  .garage-color-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.3);
+    flex-shrink: 0;
+  }
+
+  .garage-color-label {
+    font-size: 11px;
+    color: rgba(255,255,255,0.55);
+    text-transform: capitalize;
+  }
+
+  .garage-verified-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: #34D399;
+    text-transform: uppercase;
+  }
+
+  /* Navigation */
+  .garage-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 10px;
+  }
+
+  .garage-arrow {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    color: var(--text-2);
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 0 1px;
+    transition: background 0.15s;
+  }
+  .garage-arrow:hover { background: var(--bg-3); }
+
+  .garage-dots {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .garage-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--bg-3);
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.2s, transform 0.2s;
+  }
+
+  .garage-dot-active {
+    background: var(--accent-bright);
+    transform: scale(1.4);
+  }
+
+  .garage-counter {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-4);
+    margin: 4px 0 0;
   }
 
   /* ── Travel Magnets ───────────────────────────────────────────────────────── */
