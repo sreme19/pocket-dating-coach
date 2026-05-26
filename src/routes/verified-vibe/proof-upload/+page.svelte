@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { getSupabaseClient } from '$lib/client/supabase';
 
-  type Category = 'lifestyle' | 'hosting' | 'discipline' | 'social_proof' | 'linkedin' | 'habit_tracker';
+  type Category = 'lifestyle' | 'hosting' | 'discipline' | 'social_proof' | 'linkedin' | 'habit_tracker' | 'intro';
   type Step = 'upload' | 'analyzing' | 'success' | 'failed';
 
   interface CategoryConfig {
@@ -13,7 +13,19 @@
     examples: string[];
     maxFiles: number;
     hintLine: string;
+    accept: string;
   }
+
+  // Per-category privacy reassurance copy (different variant for each)
+  const PRIVACY_COPY: Record<string, string> = {
+    lifestyle:    '🔒 Your uploads stay private. They help confirm your profile is authentic and improve match quality.',
+    hosting:      '🔒 Nothing here is public. These signals confirm your lifestyle and improve compatibility.',
+    discipline:   '🔒 Private by default. Your proofs strengthen trust, verify authenticity, and help you get better matches.',
+    social_proof: '🔒 Nothing here is public. These signals confirm your lifestyle and improve compatibility.',
+    linkedin:     '🔒 Your uploads are never shared publicly. Used only to verify authenticity and improve your Trust Score.',
+    habit_tracker:'🔒 Show, don\'t fake. Everything stays private while we verify your vibe — boosting your Trust Score.',
+    intro:        '🔒 Your voice & video stay completely private — never shown publicly. They make women feel safe messaging you first.',
+  };
 
   const CONFIGS: Record<Category, CategoryConfig> = {
     lifestyle: {
@@ -28,6 +40,7 @@
       ],
       maxFiles: 3,
       hintLine: 'Mix photos + booking screenshots for strongest signal.',
+      accept: 'image/*',
     },
     hosting: {
       icon: '🍽️',
@@ -41,6 +54,7 @@
       ],
       maxFiles: 3,
       hintLine: 'Real moments at home work better than restaurant photos alone.',
+      accept: 'image/*',
     },
     discipline: {
       icon: '💪',
@@ -54,6 +68,7 @@
       ],
       maxFiles: 2,
       hintLine: 'Streak screens from apps are the most convincing.',
+      accept: 'image/*',
     },
     social_proof: {
       icon: '🤝',
@@ -67,6 +82,7 @@
       ],
       maxFiles: 3,
       hintLine: 'Natural group moments beat posed shots.',
+      accept: 'image/*',
     },
     linkedin: {
       icon: '💼',
@@ -79,6 +95,7 @@
       ],
       maxFiles: 1,
       hintLine: 'Blur sensitive details if needed — we only check role & company.',
+      accept: 'image/*',
     },
     habit_tracker: {
       icon: '📱',
@@ -92,22 +109,39 @@
       ],
       maxFiles: 2,
       hintLine: 'Any habit app works — consistency is what matters.',
+      accept: 'image/*',
+    },
+    intro: {
+      icon: '🎙️',
+      title: 'Voice & Video Intro',
+      subtitle: 'A short intro makes women feel safe messaging you first',
+      examples: [
+        '30–60 second voice memo — introduce yourself naturally',
+        'Short video clip (face visible, no filters needed)',
+        'Talk about what you\'re looking for, your vibe',
+        'Natural beats scripted — just be yourself',
+      ],
+      maxFiles: 2,
+      hintLine: 'One voice + one video is the ideal combo.',
+      accept: 'audio/*,video/*',
     },
   };
 
-  let category  = $state<Category>('lifestyle');
-  let config    = $state<CategoryConfig>(CONFIGS.lifestyle);
-  let files     = $state<File[]>([]);
-  let previews  = $state<string[]>([]);
-  let step      = $state<Step>('upload');
-  let result    = $state<{ insight_label: string; insight_emoji: string; pts_awarded: number; reason: string } | null>(null);
-  let failReason = $state('');
-  let dragOver  = $state(false);
+  let category    = $state<Category>('lifestyle');
+  let config      = $state<CategoryConfig>(CONFIGS.lifestyle);
+  let privacyCopy = $state('');
+  let files       = $state<File[]>([]);
+  let previews    = $state<string[]>([]);  // dataURL for images, objectURL for audio/video
+  let step        = $state<Step>('upload');
+  let result      = $state<{ insight_label: string; insight_emoji: string; pts_awarded: number; reason: string } | null>(null);
+  let failReason  = $state('');
+  let dragOver    = $state(false);
 
   onMount(() => {
     const cat = (new URLSearchParams(window.location.search).get('category') ?? 'lifestyle') as Category;
-    category = CONFIGS[cat] ? cat : 'lifestyle';
-    config   = CONFIGS[category];
+    category    = CONFIGS[cat] ? cat : 'lifestyle';
+    config      = CONFIGS[category];
+    privacyCopy = PRIVACY_COPY[category] ?? PRIVACY_COPY.lifestyle;
   });
 
   function addFiles(incoming: FileList | null) {
@@ -117,13 +151,16 @@
     const toAdd = Array.from(incoming).slice(0, remaining);
     files = [...files, ...toAdd];
     toAdd.forEach(f => {
-      if (!f.type.startsWith('image/')) {
+      if (f.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = e => { previews = [...previews, (e.target?.result as string) ?? '']; };
+        reader.readAsDataURL(f);
+      } else if (f.type.startsWith('audio/') || f.type.startsWith('video/')) {
+        // Object URL for inline playback
+        previews = [...previews, URL.createObjectURL(f)];
+      } else {
         previews = [...previews, ''];
-        return;
       }
-      const reader = new FileReader();
-      reader.onload = e => { previews = [...previews, (e.target?.result as string) ?? '']; };
-      reader.readAsDataURL(f);
     });
   }
 
@@ -225,6 +262,13 @@
     </div>
   </div>
 
+  <!-- Privacy banner -->
+  {#if privacyCopy}
+    <div class="privacy-banner">
+      <span class="privacy-text">{privacyCopy}</span>
+    </div>
+  {/if}
+
   {#if step === 'upload'}
     <!-- What to upload -->
     <div class="examples-card">
@@ -252,47 +296,87 @@
     >
       {#if files.length === 0}
         <div class="drop-empty">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4">
-            <rect x="3" y="3" width="18" height="18" rx="2"/>
-            <path d="M8 12h8M12 8v8"/>
-          </svg>
-          <p class="drop-hint">Tap to select photos</p>
-          <p class="drop-hint-sub">Up to {config.maxFiles} {config.maxFiles === 1 ? 'file' : 'files'} · JPEG / PNG</p>
-          <label class="pick-btn">
-            Choose Photos
-            <input type="file" accept="image/*" multiple={config.maxFiles > 1} onchange={e => addFiles(e.currentTarget.files)} hidden />
-          </label>
-        </div>
-      {:else}
-        <!-- Preview grid -->
-        <div class="preview-grid">
-          {#each previews as src, i}
-            <div class="preview-item">
-              {#if src}
-                <img class="preview-img" {src} alt="Proof {i+1}" />
-              {:else}
-                <div class="preview-doc">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
-                  </svg>
-                  <span class="preview-fname">{files[i]?.name?.slice(0,14) ?? 'File'}</span>
-                </div>
-              {/if}
-              <button class="preview-remove" onclick={() => removeFile(i)} aria-label="Remove">✕</button>
-            </div>
-          {/each}
-
-          {#if files.length < config.maxFiles}
-            <label class="preview-add">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <path d="M8 12h8M12 8v8"/>
-              </svg>
-              <input type="file" accept="image/*" multiple={config.maxFiles > 1} onchange={e => addFiles(e.currentTarget.files)} hidden />
+          {#if category === 'intro'}
+            <div class="intro-icons">🎙️<span class="intro-plus">+</span>🎥</div>
+            <p class="drop-hint">Tap to add voice or video</p>
+            <p class="drop-hint-sub">Up to {config.maxFiles} files · MP3, M4A, MP4, MOV</p>
+            <label class="pick-btn">
+              Choose Files
+              <input type="file" accept="audio/*,video/*" multiple={config.maxFiles > 1} onchange={e => addFiles(e.currentTarget.files)} hidden />
+            </label>
+          {:else}
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <path d="M8 12h8M12 8v8"/>
+            </svg>
+            <p class="drop-hint">Tap to select photos</p>
+            <p class="drop-hint-sub">Up to {config.maxFiles} {config.maxFiles === 1 ? 'file' : 'files'} · JPEG / PNG</p>
+            <label class="pick-btn">
+              Choose Photos
+              <input type="file" accept={config.accept} multiple={config.maxFiles > 1} onchange={e => addFiles(e.currentTarget.files)} hidden />
             </label>
           {/if}
         </div>
+      {:else}
+        <!-- Preview grid / media player -->
+        {#if category === 'intro'}
+          <!-- Media previews for audio/video -->
+          <div class="media-previews">
+            {#each files as f, i}
+              <div class="media-item">
+                <div class="media-item-header">
+                  <span class="media-type-icon">{f.type.startsWith('audio/') ? '🎙️' : '🎥'}</span>
+                  <span class="media-filename">{f.type.startsWith('audio/') ? 'Voice Memo' : 'Video Clip'}</span>
+                  <button class="media-remove" onclick={() => removeFile(i)} aria-label="Remove">✕</button>
+                </div>
+                {#if f.type.startsWith('audio/')}
+                  <!-- svelte-ignore a11y_media_has_caption -->
+                  <audio class="media-audio" src={previews[i]} controls></audio>
+                {:else if f.type.startsWith('video/')}
+                  <!-- svelte-ignore a11y_media_has_caption -->
+                  <video class="media-video" src={previews[i]} controls muted playsinline></video>
+                {/if}
+              </div>
+            {/each}
+
+            {#if files.length < config.maxFiles}
+              <label class="media-add-btn">
+                <span>{files.some(f => f.type.startsWith('audio/')) ? '+ Add Video' : '+ Add Voice Memo'}</span>
+                <input type="file" accept="audio/*,video/*" onchange={e => addFiles(e.currentTarget.files)} hidden />
+              </label>
+            {/if}
+          </div>
+        {:else}
+          <!-- Image preview grid -->
+          <div class="preview-grid">
+            {#each previews as src, i}
+              <div class="preview-item">
+                {#if src}
+                  <img class="preview-img" {src} alt="Proof {i+1}" />
+                {:else}
+                  <div class="preview-doc">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    <span class="preview-fname">{files[i]?.name?.slice(0,14) ?? 'File'}</span>
+                  </div>
+                {/if}
+                <button class="preview-remove" onclick={() => removeFile(i)} aria-label="Remove">✕</button>
+              </div>
+            {/each}
+
+            {#if files.length < config.maxFiles}
+              <label class="preview-add">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <path d="M8 12h8M12 8v8"/>
+                </svg>
+                <input type="file" accept={config.accept} multiple={config.maxFiles > 1} onchange={e => addFiles(e.currentTarget.files)} hidden />
+              </label>
+            {/if}
+          </div>
+        {/if}
       {/if}
     </div>
 
@@ -302,14 +386,14 @@
       disabled={files.length === 0}
       onclick={analyze}
     >
-      Analyse &amp; Verify
+      {category === 'intro' ? 'Submit Intro' : 'Analyse & Verify'}
     </button>
 
   {:else if step === 'analyzing'}
     <div class="state-card state-card--analyzing">
       <div class="spinner"></div>
-      <div class="state-title">Reviewing your proof…</div>
-      <div class="state-sub">Claude is analysing {files.length === 1 ? 'your image' : 'your images'}. Usually takes 5–10 seconds.</div>
+      <div class="state-title">{category === 'intro' ? 'Submitting your intro…' : 'Reviewing your proof…'}</div>
+      <div class="state-sub">{category === 'intro' ? 'Confirming your upload — just a moment.' : 'Claude is analysing your files. Usually 5–10 seconds.'}</div>
     </div>
 
   {:else if step === 'success' && result}
@@ -410,6 +494,21 @@
   .header-sub {
     font-size: 12px;
     color: var(--text-3);
+  }
+
+  /* ── Privacy banner ── */
+  .privacy-banner {
+    padding: 10px 13px;
+    background: rgba(99, 102, 241, 0.09);
+    border: 1px solid rgba(99, 102, 241, 0.22);
+    border-radius: 12px;
+  }
+
+  .privacy-text {
+    font-size: 12px;
+    color: #a5b4fc;
+    line-height: 1.5;
+    font-weight: 500;
   }
 
   /* ── Examples card ── */
@@ -762,5 +861,103 @@
     font-size: 11px;
     font-weight: 700;
     color: var(--accent);
+  }
+
+  /* ── Intro category — media upload ── */
+  .intro-icons {
+    font-size: 36px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    line-height: 1;
+  }
+
+  .intro-plus {
+    font-size: 20px;
+    color: var(--text-4);
+    font-style: normal;
+  }
+
+  .media-previews {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .media-item {
+    background: var(--bg-3);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .media-item-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px 8px;
+  }
+
+  .media-type-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .media-filename {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+
+  .media-remove {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.4);
+    color: var(--text-3);
+    border: none;
+    font-size: 11px;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+
+  .media-audio {
+    width: 100%;
+    height: 40px;
+    padding: 0 10px 10px;
+    display: block;
+    accent-color: var(--accent);
+  }
+
+  .media-video {
+    width: 100%;
+    max-height: 200px;
+    object-fit: cover;
+    display: block;
+    background: #000;
+  }
+
+  .media-add-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    border: 2px dashed var(--border-1);
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    transition: border-color 150ms;
+  }
+
+  .media-add-btn:hover {
+    border-color: var(--accent);
   }
 </style>
