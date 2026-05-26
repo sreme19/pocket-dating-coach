@@ -39,6 +39,7 @@
     social_proof: { key: 'socialLegitimacy',  boost: 30 },
     linkedin:     { key: 'socialLegitimacy',  boost: 50 },
     habit_tracker:{ key: 'socialLegitimacy',  boost: 20 },
+    intro:        { key: 'emotionalSafety',   boost: 45 },
   };
 
   const baseSubscores = $derived(calculateCGSubscores(verificationRecords));
@@ -74,6 +75,12 @@
     return 'green';
   }
 
+  const ic = $derived(scoreColor(subscores.identity));
+  const lc = $derived(scoreColor(subscores.lifestyleDepth));
+  const gc = $derived(scoreColor(subscores.generositySignals));
+  const ec = $derived(scoreColor(subscores.emotionalSafety));
+  const sc = $derived(scoreColor(subscores.socialLegitimacy));
+
   const showOffCategories = [
     { icon: '🌍', label: 'Lifestyle',    desc: 'Travel, dining, events',      pts: 8, time: '2 min', category: 'lifestyle'    },
     { icon: '🍽️', label: 'Hosting',      desc: 'Dinners, celebrations',        pts: 6, time: '2 min', category: 'hosting'      },
@@ -86,6 +93,12 @@
     { icon: '📱', label: 'Habit Tracker', desc: 'Sleep, gym, reading — live proof', pts: 2, time: '1 min', category: 'habit_tracker' },
   ] as const;
 </script>
+
+<!-- ── Privacy banner ─────────────────────────────────────────────────────── -->
+<div class="privacy-banner">
+  <span class="privacy-lock">🔒</span>
+  <span class="privacy-text">Everything here stays private. We only verify that your profile reflects real life — improving your Trust Score and matches.</span>
+</div>
 
 <!-- ── Trust Score gauge ──────────────────────────────────────────────────── -->
 <section class="section">
@@ -130,7 +143,6 @@
   <div class="breakdown">
 
     <!-- Identity -->
-    {@const ic = scoreColor(subscores.identity)}
     <div class="breakdown-item">
       <div class="breakdown-header">
         <span class="breakdown-name">Identity</span>
@@ -155,7 +167,6 @@
     </div>
 
     <!-- Lifestyle Depth -->
-    {@const lc = scoreColor(subscores.lifestyleDepth)}
     <div class="breakdown-item">
       <div class="breakdown-header">
         <span class="breakdown-name">Lifestyle Depth</span>
@@ -180,7 +191,6 @@
     </div>
 
     <!-- Generosity Signals -->
-    {@const gc = scoreColor(subscores.generositySignals)}
     <div class="breakdown-item">
       <div class="breakdown-header">
         <span class="breakdown-name">Generosity Signals</span>
@@ -205,7 +215,6 @@
     </div>
 
     <!-- Emotional Safety -->
-    {@const ec = scoreColor(subscores.emotionalSafety)}
     <div class="breakdown-item">
       <div class="breakdown-header">
         <span class="breakdown-name">Emotional Safety</span>
@@ -214,18 +223,22 @@
       <div class="breakdown-bar">
         <div class="breakdown-fill fill-{ec}" style="width: {subscores.emotionalSafety}%"></div>
       </div>
-      {#if subscores.emotionalSafety < 75}
-        <button class="nudge-cta nudge-{ec}" onclick={onEditQA}>
-          <span class="nudge-text">Voice intro makes women feel safe messaging you first</span>
+      {#if subscores.emotionalSafety < 50}
+        <button class="nudge-cta nudge-{ec}" onclick={() => goto('/verified-vibe/proof-upload?category=intro')}>
+          <span class="nudge-text">Voice + video intro unlocks women messaging you first</span>
           <span class="nudge-pts">+8 pts →</span>
         </button>
+      {:else if subscores.emotionalSafety < 75}
+        <button class="nudge-cta nudge-{ec}" onclick={() => goto('/verified-vibe/proof-upload?category=intro')}>
+          <span class="nudge-text">Add a video intro to complete your safety signal</span>
+          <span class="nudge-pts">boost →</span>
+        </button>
       {:else}
-        <div class="breakdown-subs">✓ Voice intro verified</div>
+        <div class="breakdown-subs">✓ Voice &amp; video intro verified</div>
       {/if}
     </div>
 
     <!-- Social Legitimacy -->
-    {@const sc = scoreColor(subscores.socialLegitimacy)}
     <div class="breakdown-item">
       <div class="breakdown-header">
         <span class="breakdown-name">Social Legitimacy</span>
@@ -377,6 +390,31 @@
 </section>
 
 <style>
+  /* ── Privacy banner ── */
+  .privacy-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 0 16px;
+    padding: 10px 13px;
+    background: rgba(99, 102, 241, 0.09);
+    border: 1px solid rgba(99, 102, 241, 0.22);
+    border-radius: 12px;
+  }
+
+  .privacy-lock {
+    font-size: 13px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .privacy-text {
+    font-size: 12px;
+    color: #a5b4fc;
+    line-height: 1.5;
+    font-weight: 500;
+  }
+
   .section {
     display: flex;
     flex-direction: column;
