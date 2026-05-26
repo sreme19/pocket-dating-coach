@@ -5,6 +5,8 @@ export interface PhotoEnhanceInput {
   scenePrompt: string;
   /** Optional negative prompt */
   negativePrompt?: string;
+  /** Extra negative terms appended (e.g. scenes user rejected) */
+  negativePromptExtra?: string;
   /** How strongly to preserve face features (0–2, default 1.0) */
   idWeight?: number;
 }
@@ -20,13 +22,24 @@ export interface PhotoEnhanceResult {
 
 export type PhotoRole = 'lead' | 'warmth' | 'lifestyle' | 'conversation' | 'social';
 
+export interface RejectedPhoto {
+  /** Role/slot that was rejected */
+  role: string;
+  /** The scene label (e.g. "Professional headshot") */
+  scene: string;
+  /** Optional note from the user */
+  reason?: string;
+}
+
 export interface GenerateProfilePhotosInput {
   /** Base64 data URL of the best reference photo */
   referenceDataUrl: string;
   /** User's archetype — drives scene selection */
   archetype: string;
-  /** How many photos to generate (1–5) */
+  /** How many photos to generate (1–3) */
   count?: number;
+  /** Photos the user rejected — their scenes are added to the negative prompt */
+  rejectedPhotos?: RejectedPhoto[];
 }
 
 export interface GenerateProfilePhotosResult {

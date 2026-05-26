@@ -12,12 +12,13 @@ import { getScenesForArchetype } from './scenes';
 import type {
   PhotoEnhanceInput,
   PhotoEnhanceResult,
+  RejectedPhoto,
   GenerateProfilePhotosInput,
   GenerateProfilePhotosResult,
   PhotoRole
 } from './types';
 
-export type { PhotoEnhanceInput, PhotoEnhanceResult, GenerateProfilePhotosInput, GenerateProfilePhotosResult, PhotoRole };
+export type { PhotoEnhanceInput, PhotoEnhanceResult, RejectedPhoto, GenerateProfilePhotosInput, GenerateProfilePhotosResult, PhotoRole };
 export { getScenesForArchetype } from './scenes';
 
 const FAL_MODEL = 'fal-ai/flux-pulid';
@@ -72,7 +73,10 @@ export async function generateEnhancedPhoto(
         input: {
           reference_image_url: referenceUrl,
           prompt: `photorealistic portrait, ${input.scenePrompt}, professional photography, high quality, sharp focus`,
-          negative_prompt: input.negativePrompt ?? 'blurry, low quality, distorted face, ugly, bad anatomy, watermark',
+          negative_prompt: [
+            input.negativePrompt ?? 'blurry, low quality, distorted face, ugly, bad anatomy, watermark',
+            input.negativePromptExtra ?? '',
+          ].filter(Boolean).join(', '),
           num_inference_steps: 20,
           guidance_scale: 4,
           true_cfg: 1,
@@ -111,12 +115,23 @@ export async function generateProfilePhotos(
   input: GenerateProfilePhotosInput,
   apiKey: string
 ): Promise<GenerateProfilePhotosResult> {
-  const scenes = getScenesForArchetype(input.archetype, input.count ?? 5);
+  const scenes = getScenesForArchetype(input.archetype, input.count ?? 3);
+
+  // Build a negative-prompt suffix from rejected photos so Claude avoids
+  // repeating looks, settings, or styles the user already dismissed.
+  const rejected: RejectedPhoto[] = input.rejectedPhotos ?? [];
+  const negativePromptExtra = rejected.length > 0
+    ? `avoid repeating these rejected styles: ${rejected.map(r => r.scene).join(', ')}`
+    : '';
 
   const results = await Promise.allSettled(
     scenes.map(async (scene): Promise<PhotoEnhanceResult> => {
       const url = await generateEnhancedPhoto(
-        { referenceDataUrl: input.referenceDataUrl, scenePrompt: scene.prompt },
+        {
+          referenceDataUrl: input.referenceDataUrl,
+          scenePrompt: scene.prompt,
+          negativePromptExtra: negativePromptExtra || undefined,
+        },
         apiKey,
         1 // Retry once on failure
       );

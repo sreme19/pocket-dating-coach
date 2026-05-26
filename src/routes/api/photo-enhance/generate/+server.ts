@@ -10,8 +10,8 @@ export const config = {
 
 // Mock photos for development (when FAL_KEY is not available)
 function generateMockPhotos(count: number) {
-  const roles = ['lead', 'warmth', 'lifestyle', 'conversation', 'social'];
-  const scenes = ['professional', 'casual', 'formal', 'outdoor', 'candid'];
+  const roles = ['lead', 'warmth', 'lifestyle'];
+  const scenes = ['professional', 'casual', 'outdoor'];
   const colors = [
     ['#FF6B6B', '#FF8E72'],
     ['#4ECDC4', '#44A5A5'],
@@ -21,7 +21,7 @@ function generateMockPhotos(count: number) {
   ];
 
   const photos = [];
-  for (let i = 0; i < Math.min(count, 5); i++) {
+  for (let i = 0; i < Math.min(count, 3); i++) {
     // Create a simple SVG placeholder with gradients
     const [color1, color2] = colors[i];
     const svgData = `<svg width="512" height="640" xmlns="http://www.w3.org/2000/svg">
@@ -52,7 +52,7 @@ function generateMockPhotos(count: number) {
 }
 
 export const POST: RequestHandler = async ({ request }) => {
-  const { referenceDataUrl, archetype, count } = await request.json();
+  const { referenceDataUrl, archetype, count, rejectedPhotos } = await request.json();
 
   if (!referenceDataUrl) {
     throw error(400, 'referenceDataUrl is required');
@@ -65,14 +65,15 @@ export const POST: RequestHandler = async ({ request }) => {
   // If FAL_KEY is not available, use mock implementation for development
   if (!env.FAL_KEY) {
     console.warn('FAL_KEY not configured, using mock photo enhancement');
-    return json(generateMockPhotos(count ?? 5));
+    return json(generateMockPhotos(count ?? 3));
   }
 
   const result = await generateProfilePhotos(
     {
       referenceDataUrl,
       archetype: archetype ?? 'casual_man',
-      count: Math.min(count ?? 5, 5)
+      count: Math.min(count ?? 3, 3),
+      rejectedPhotos: rejectedPhotos ?? [],
     },
     env.FAL_KEY
   );
