@@ -14,7 +14,7 @@ import type { Gender, Archetype } from '$lib/verified-vibe/types';
 
 export interface VVProfile {
   id: string;
-  email: string;
+  email?: string;
   gender: Gender | null;
   archetype: Archetype | null;
   first_name: string | null;
@@ -87,7 +87,6 @@ export async function upsertProfile(
 
   const row = {
     id: session.user.id,
-    email: session.user.email ?? '',
     ...updates
   };
 
