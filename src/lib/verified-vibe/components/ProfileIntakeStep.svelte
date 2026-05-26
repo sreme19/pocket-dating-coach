@@ -56,9 +56,99 @@
   ];
 
 
+  // ── City combobox ──────────────────────────────────────────────────────────
+  const CITIES = [
+    // UK
+    'London, UK', 'Manchester, UK', 'Birmingham, UK', 'Leeds, UK', 'Glasgow, UK',
+    'Edinburgh, UK', 'Liverpool, UK', 'Bristol, UK', 'Sheffield, UK', 'Cardiff, UK',
+    'Newcastle, UK', 'Nottingham, UK', 'Leicester, UK', 'Oxford, UK', 'Cambridge, UK',
+    'Brighton, UK', 'Bath, UK', 'York, UK', 'Coventry, UK', 'Belfast, UK',
+    // US
+    'New York, NY', 'Los Angeles, CA', 'Chicago, IL', 'Houston, TX', 'Phoenix, AZ',
+    'Philadelphia, PA', 'San Antonio, TX', 'San Diego, CA', 'Dallas, TX', 'San Jose, CA',
+    'Austin, TX', 'Jacksonville, FL', 'San Francisco, CA', 'Columbus, OH', 'Charlotte, NC',
+    'Indianapolis, IN', 'Seattle, WA', 'Denver, CO', 'Washington, DC', 'Nashville, TN',
+    'Boston, MA', 'Las Vegas, NV', 'Portland, OR', 'Miami, FL', 'Atlanta, GA',
+    // India
+    'Mumbai, India', 'Delhi, India', 'Bangalore, India', 'Hyderabad, India', 'Chennai, India',
+    'Kolkata, India', 'Pune, India', 'Ahmedabad, India', 'Jaipur, India', 'Surat, India',
+    'Lucknow, India', 'Kanpur, India', 'Nagpur, India', 'Indore, India', 'Thane, India',
+    'Bhopal, India', 'Chandigarh, India', 'Kochi, India', 'Coimbatore, India', 'Goa, India',
+    // Australia
+    'Sydney, Australia', 'Melbourne, Australia', 'Brisbane, Australia', 'Perth, Australia',
+    'Adelaide, Australia', 'Gold Coast, Australia', 'Canberra, Australia',
+    // Canada
+    'Toronto, Canada', 'Vancouver, Canada', 'Montreal, Canada', 'Calgary, Canada',
+    'Ottawa, Canada', 'Edmonton, Canada',
+    // UAE / Middle East
+    'Dubai, UAE', 'Abu Dhabi, UAE', 'Riyadh, Saudi Arabia', 'Doha, Qatar',
+    // Europe
+    'Paris, France', 'Berlin, Germany', 'Madrid, Spain', 'Rome, Italy', 'Amsterdam, Netherlands',
+    'Zurich, Switzerland', 'Vienna, Austria', 'Stockholm, Sweden', 'Oslo, Norway',
+    'Copenhagen, Denmark', 'Helsinki, Finland', 'Dublin, Ireland', 'Lisbon, Portugal',
+    'Brussels, Belgium', 'Warsaw, Poland', 'Prague, Czech Republic', 'Budapest, Hungary',
+    'Athens, Greece', 'Istanbul, Turkey', 'Zurich, Switzerland',
+    // Asia
+    'Singapore', 'Hong Kong', 'Tokyo, Japan', 'Osaka, Japan', 'Seoul, South Korea',
+    'Bangkok, Thailand', 'Kuala Lumpur, Malaysia', 'Jakarta, Indonesia', 'Manila, Philippines',
+    'Taipei, Taiwan', 'Shanghai, China', 'Beijing, China', 'Guangzhou, China', 'Shenzhen, China',
+    // Africa / LatAm
+    'Lagos, Nigeria', 'Nairobi, Kenya', 'Cape Town, South Africa', 'Johannesburg, South Africa',
+    'São Paulo, Brazil', 'Rio de Janeiro, Brazil', 'Buenos Aires, Argentina',
+    'Bogotá, Colombia', 'Mexico City, Mexico',
+    // NZ
+    'Auckland, New Zealand', 'Wellington, New Zealand',
+  ];
+
   let firstName = $state(initialName);
   let age = $state<number | ''>(initialAge || '');
   let city = $state('');
+  let cityQuery = $state('');
+  let cityOpen = $state(false);
+  let cityHighlight = $state(-1);
+  let cityInputEl = $state<HTMLInputElement | null>(null);
+
+  const citySuggestions = $derived.by(() => {
+    const q = cityQuery.trim().toLowerCase();
+    if (!q) return [];
+    return CITIES.filter(c => c.toLowerCase().includes(q)).slice(0, 6);
+  });
+
+  function selectCity(c: string) {
+    city = c;
+    cityQuery = c;
+    cityOpen = false;
+    cityHighlight = -1;
+  }
+
+  function onCityInput(e: Event) {
+    cityQuery = (e.target as HTMLInputElement).value;
+    city = cityQuery; // keep raw value in sync in case user types something not in the list
+    cityOpen = true;
+    cityHighlight = -1;
+  }
+
+  function onCityKeydown(e: KeyboardEvent) {
+    if (!cityOpen || citySuggestions.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      cityHighlight = (cityHighlight + 1) % citySuggestions.length;
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      cityHighlight = (cityHighlight - 1 + citySuggestions.length) % citySuggestions.length;
+    } else if (e.key === 'Enter' && cityHighlight >= 0) {
+      e.preventDefault();
+      selectCity(citySuggestions[cityHighlight]);
+    } else if (e.key === 'Escape') {
+      cityOpen = false;
+    }
+  }
+
+  function onCityBlur() {
+    // Small delay so click on suggestion registers first
+    setTimeout(() => { cityOpen = false; }, 150);
+  }
+
   let about = $state('');
   let selectedTags = $state<Set<string>>(new Set());
   let lookingFor = $state('');
@@ -175,16 +265,42 @@
     </div>
   </div>
 
-  <!-- City -->
+  <!-- City combobox -->
   <div class="field">
     <label class="label" for="city">City</label>
-    <input
-      id="city"
-      class="input {touched && !city.trim() ? 'error' : ''}"
-      type="text"
-      placeholder="New York, NY"
-      bind:value={city}
-    />
+    <div class="city-wrap">
+      <input
+        id="city"
+        bind:this={cityInputEl}
+        class="input {touched && !city.trim() ? 'error' : ''}"
+        type="text"
+        placeholder="Start typing your city…"
+        autocomplete="off"
+        value={cityQuery}
+        oninput={onCityInput}
+        onkeydown={onCityKeydown}
+        onblur={onCityBlur}
+        onfocus={() => { if (cityQuery) cityOpen = true; }}
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={cityOpen && citySuggestions.length > 0}
+      />
+      {#if cityOpen && citySuggestions.length > 0}
+        <ul class="city-dropdown" role="listbox">
+          {#each citySuggestions as suggestion, i}
+            <li
+              class="city-option {i === cityHighlight ? 'highlighted' : ''}"
+              role="option"
+              aria-selected={i === cityHighlight}
+              onmousedown={() => selectCity(suggestion)}
+            >
+              <span class="city-pin">📍</span>
+              {suggestion}
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
   </div>
 
   <!-- About -->
@@ -327,6 +443,50 @@
 </div>
 
 <style>
+  /* ── City combobox ── */
+  .city-wrap {
+    position: relative;
+  }
+
+  .city-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    border-radius: 10px;
+    list-style: none;
+    margin: 0;
+    padding: 4px;
+    z-index: 100;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    overflow: hidden;
+  }
+
+  .city-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 7px;
+    font-size: 14px;
+    color: var(--text-1);
+    cursor: pointer;
+    transition: background 100ms;
+  }
+
+  .city-option:hover,
+  .city-option.highlighted {
+    background: var(--bg-3);
+  }
+
+  .city-pin {
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  /* ─────────────────── */
   .intake {
     display: flex;
     flex-direction: column;
