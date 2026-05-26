@@ -27,6 +27,21 @@
   }
 
   let proofInsights = $state<ProofInsight[]>([]);
+  let insightsExpanded = $state(false);
+
+  const CHIPS_PREVIEW = 4;
+
+  // Flat list of all insight chips across all proof categories
+  const allInsightChips = $derived(
+    proofInsights.flatMap(p =>
+      (p.insights && p.insights.length > 0)
+        ? p.insights.map(ins => ({ emoji: ins.emoji, label: ins.label }))
+        : [{ emoji: p.insight_emoji, label: p.insight_label }]
+    )
+  );
+
+  const visibleChips  = $derived(insightsExpanded ? allInsightChips : allInsightChips.slice(0, CHIPS_PREVIEW));
+  const hiddenCount   = $derived(allInsightChips.length - CHIPS_PREVIEW);
 
   // Scores derived from localStorage onboarding completion (fallback when DB records missing)
   let lsBaseScores = $state({ identity: 0, lifestyleDepth: 0, generositySignals: 0 });
@@ -387,35 +402,6 @@
   </div>
 </section>
 
-<!-- ── Verified Insights (from proof uploads) ────────────────────────────── -->
-{#if proofInsights.length > 0}
-<section class="section">
-  <div class="section-label">
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
-    </svg>
-    Verified Insights
-  </div>
-  <div class="insights-chips">
-    {#each proofInsights as p (p.id)}
-      {#if p.insights && p.insights.length > 0}
-        {#each p.insights as ins}
-          <span class="insight-chip">
-            <span class="insight-chip-emoji">{ins.emoji}</span>
-            {ins.label}
-          </span>
-        {/each}
-      {:else}
-        <span class="insight-chip">
-          <span class="insight-chip-emoji">{p.insight_emoji}</span>
-          {p.insight_label}
-        </span>
-      {/if}
-    {/each}
-  </div>
-</section>
-{/if}
-
 <!-- ── Show-Off upload prompts ────────────────────────────────────────────── -->
 <section class="section">
   <div class="section-label">
@@ -532,6 +518,41 @@
       </button>
     {/each}
   </div>
+</section>
+{/if}
+
+<!-- ── Verified Insights — collapsible, shown at bottom ──────────────────── -->
+{#if allInsightChips.length > 0}
+<section class="section">
+  <div class="section-label">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
+    </svg>
+    Verified Insights
+  </div>
+  <div class="insights-chips">
+    {#each visibleChips as chip}
+      <span class="insight-chip">
+        <span class="insight-chip-emoji">{chip.emoji}</span>
+        {chip.label}
+      </span>
+    {/each}
+  </div>
+  {#if !insightsExpanded && hiddenCount > 0}
+    <button class="insights-expand-btn" onclick={() => insightsExpanded = true} type="button">
+      +{hiddenCount} more
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M6 9l6 6 6-6"/>
+      </svg>
+    </button>
+  {:else if insightsExpanded && allInsightChips.length > CHIPS_PREVIEW}
+    <button class="insights-expand-btn insights-expand-btn--collapse" onclick={() => insightsExpanded = false} type="button">
+      Show less
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M18 15l-6-6-6 6"/>
+      </svg>
+    </button>
+  {/if}
 </section>
 {/if}
 
@@ -961,6 +982,29 @@
   .insight-chip-emoji {
     font-size: 14px;
     line-height: 1;
+  }
+
+  .insights-expand-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 10px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .insights-expand-btn:hover {
+    background: var(--accent-tint);
+  }
+  .insights-expand-btn--collapse {
+    border-color: var(--border-2);
+    color: var(--text-3);
   }
 
   /* kept for any stale references */
