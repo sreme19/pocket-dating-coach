@@ -126,49 +126,25 @@ Return ONLY raw JSON — no markdown, no code fences:
 }
 Only include categories you can actually see evidence for in the images.`,
 
-  assets: `You are reviewing ownership documents for a dating-app "Assets" verification.
-Carefully examine all documents. For each asset, extract the exact details visible in the document.
+  assets: `You are reviewing documents for a dating-app "Assets" verification.
+Accept ANY of these documents — ownership OR authorisation:
+• Car Registration Certificate (RC) / vehicle title — proves ownership
+• Driving Licence (DL) — proves authorisation to drive that vehicle class (MCWG/LMV/HMV); set verified=true and use "Licensed [vehicle class] driver" as insight
+• Property deed, mortgage statement, or utility bill with address — proves property
+• Company registration or GST certificate — proves business ownership
 
-CRITICAL — for cars: read the Registration Certificate (RC) or title carefully and extract:
-- Exact make (manufacturer): e.g. "BMW", "Mercedes-Benz", "Porsche", "Tesla", "Toyota", "MG"
-- Exact model: e.g. "X5", "C-Class", "911", "Model S", "Fortuner", "Comet EV"
-- Year of manufacture or registration year if visible
-- Color if mentioned
-- Vehicle type: "sedan", "SUV", "coupe", "hatchback", "convertible", "supercar", "EV"
+CRITICAL — always set verified=true if the document is genuine and readable, even if it is a DL rather than an RC.
 
-For property: city, type (apartment/villa/commercial), size if visible.
+For car RC or title: extract make, model, year, color, vehicleType ("sedan"/"SUV"/"hatchback"/"coupe"/"EV"/"motorcycle").
+For DL: extract the vehicle classes (COV field) and use a label like "Licensed LMV & motorcycle driver".
+For property: city, type (apartment/villa/commercial).
 For company: company name, type (Pvt Ltd / LLP / LLC).
 
 Write one punchy "aggregated" sentence (8–12 words) suitable for a dating profile.
 
-Return ONLY raw JSON — no markdown, no code fences:
-{
-  "verified": true/false,
-  "insights": [{"label": "3-5 words e.g. 'BMW X5 owner'", "emoji": "🚗"}],
-  "aggregated": "e.g. 'Drives a BMW X5 and owns property in South Mumbai'",
-  "assets": [
-    {
-      "type": "car",
-      "make": "BMW",
-      "model": "X5",
-      "year": "2022",
-      "color": "black",
-      "vehicleType": "SUV"
-    },
-    {
-      "type": "property",
-      "city": "Mumbai",
-      "detail": "3BHK apartment"
-    },
-    {
-      "type": "company",
-      "name": "Acme Ventures Pvt Ltd"
-    }
-  ],
-  "confidence": 0.0-1.0,
-  "reason": "one sentence"
-}
-Only include asset types that are clearly visible in the document.`,
+YOU MUST return ONLY raw JSON — no explanation, no preamble, no markdown, no code fences. Start your response with { and end with }:
+{"verified":true,"insights":[{"label":"3-5 words e.g. 'BMW X5 owner'","emoji":"🚗"}],"aggregated":"e.g. 'Licensed driver with multi-vehicle authorisation across India'","assets":[{"type":"car","make":"","model":"","year":"","color":"","vehicleType":""}],"confidence":0.0-1.0,"reason":"one sentence"}
+Only populate fields you can actually read. For a DL with no RC, omit make/model and set type to "car" with vehicleType matching the COV class.`,
 };
 
 // intro + URL-only social categories are auto-verified without Vision
@@ -490,7 +466,15 @@ export const POST: RequestHandler = async ({ request }) => {
 
     const claudeData = await claudeResp.json();
     const rawText    = (claudeData.content?.[0]?.text ?? '{}') as string;
-    const cleaned    = rawText.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim();
+
+    // Strip code fences if Claude added them (memory note: Claude 4.x sometimes wraps JSON)
+    let cleaned = rawText.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim();
+
+    // Fallback: extract first {...} block even if Claude prefixed explanation text
+    if (!cleaned.startsWith('{')) {
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (jsonMatch) cleaned = jsonMatch[0];
+    }
 
     let result: {
       verified?: boolean;
@@ -503,7 +487,11 @@ export const POST: RequestHandler = async ({ request }) => {
       reason?: string;
     };
     try { result = JSON.parse(cleaned); }
-    catch { console.error('Non-JSON from Claude:', cleaned); return json({ error: 'Analysis returned unexpected format' }, { status: 500 }); }
+    catch {
+      console.error('Non-JSON from Claude:', cleaned);
+      // Last resort: return a graceful failure rather than a hard error
+      return json({ error: 'Analysis returned unexpected format', hint: 'Try a clearer photo of the document' }, { status: 422 });
+    }
 
     const verified          = result.verified === true;
     const insights          = (result.insights ?? []).filter(i => i.label && i.emoji).slice(0, 5);

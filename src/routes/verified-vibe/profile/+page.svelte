@@ -1334,15 +1334,25 @@
         </div>
         <div class="personality-reads">
           {#each personalityReads as read}
+            {@const r = 26}
+            {@const circ = 2 * Math.PI * r}
+            {@const dash = (read.percentage / 100) * circ}
             <div class="read-item">
-              <div class="read-header">
-                <span class="read-name">{read.name}</span>
-                <span class="read-level">{read.level}</span>
-              </div>
-              <div class="read-bar">
-                <div class="read-fill" style="width: {read.percentage}%"></div>
-              </div>
-              <p class="read-desc">{read.description}</p>
+              <svg class="read-ring" viewBox="0 0 68 68" width="68" height="68">
+                <circle cx="34" cy="34" r={r} fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="5"/>
+                <circle
+                  cx="34" cy="34" r={r}
+                  fill="none"
+                  stroke="var(--accent-bright)"
+                  stroke-width="5"
+                  stroke-linecap="round"
+                  stroke-dasharray="{dash} {circ}"
+                  transform="rotate(-90 34 34)"
+                />
+                <text x="34" y="38" text-anchor="middle" class="read-ring-pct">{read.percentage}%</text>
+              </svg>
+              <span class="read-name">{read.name}</span>
+              <span class="read-level">{read.level}</span>
             </div>
           {/each}
         </div>
@@ -2926,56 +2936,45 @@
     flex-shrink: 0;
   }
 
-  /* Personality Reads */
+  /* Personality Reads — circular meter grid */
   .personality-reads {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px 6px;
   }
 
   .read-item {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    align-items: center;
+    gap: 5px;
   }
 
-  .read-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+  .read-ring {
+    display: block;
+    flex-shrink: 0;
+  }
+
+  .read-ring-pct {
+    font-size: 11px;
+    font-weight: 700;
+    fill: var(--accent-bright);
+    font-family: inherit;
   }
 
   .read-name {
-    font-size: 14px;
+    font-size: 11px;
     font-weight: 600;
     color: var(--text-1);
+    text-align: center;
+    line-height: 1.2;
   }
 
   .read-level {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--accent-bright);
-  }
-
-  .read-bar {
-    width: 100%;
-    height: 6px;
-    border-radius: 3px;
-    background: var(--bg-3);
-    overflow: hidden;
-  }
-
-  .read-fill {
-    height: 100%;
-    background: var(--accent-bright);
-    transition: width 300ms ease;
-  }
-
-  .read-desc {
-    font-size: 12px;
+    font-size: 10px;
+    font-weight: 500;
     color: var(--text-3);
-    margin: 0;
-    line-height: 1.4;
+    text-align: center;
   }
 
   /* What He Brings */
