@@ -12,6 +12,7 @@
     value?: unknown;
     category?: string;
     insight_label?: string;
+    new_insights?: Array<{ label: string; emoji: string }>;
     country?: string;
     tag?: string;
     uploadUrl?: string;
