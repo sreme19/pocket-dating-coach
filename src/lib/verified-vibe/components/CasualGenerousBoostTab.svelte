@@ -415,6 +415,46 @@
 </section>
 {/if}
 
+<!-- ── Show-Off upload prompts ────────────────────────────────────────────── -->
+<section class="section">
+  <div class="section-label">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8M12 8v8"/>
+    </svg>
+    Show-Off
+    <span class="section-hint">prove, don't claim</span>
+  </div>
+  <div class="showoff-grid">
+    {#each showOffCategories as cat}
+      {@const done = proofInsights.some(p => p.category === cat.category)}
+      <button class="showoff-tile" class:showoff-tile--done={done} onclick={() => goto(`/verified-vibe/proof-upload?category=${cat.category}`)}>
+        <div class="showoff-icon">{cat.icon}</div>
+        <div class="showoff-body">
+          <div class="showoff-label">{cat.label}</div>
+          {#if done}
+            {@const pi = proofInsights.find(p => p.category === cat.category)}
+            <div class="showoff-desc">{pi?.insights?.[0]?.label ?? pi?.insight_label ?? cat.desc}</div>
+          {:else}
+            <div class="showoff-desc">{cat.desc}</div>
+          {/if}
+          <div class="showoff-meta">
+            {#if done}
+              <span class="showoff-done-tag">✓ Verified</span>
+            {:else}
+              <span class="showoff-time">{cat.time}</span>
+            {/if}
+          </div>
+        </div>
+        {#if done}
+          <div class="showoff-pts showoff-pts--done">✓</div>
+        {:else}
+          <div class="showoff-pts">+{cat.pts}</div>
+        {/if}
+      </button>
+    {/each}
+  </div>
+</section>
+
 <!-- ── Proof connections ──────────────────────────────────────────────────── -->
 <section class="section">
   <div class="section-label">
