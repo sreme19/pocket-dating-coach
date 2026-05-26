@@ -239,6 +239,12 @@
     thumbnails?: string[];
     showcased?: boolean;     // whether shown on public profile
     assets?: AssetDetail[];  // structured asset details (cars, property, company)
+    spendingBreakdown?: Array<{
+      category: string;
+      emoji: string;
+      amountLabel: string;
+      estimatedMonthly?: number;
+    }>;
   }
 
   let category        = $state<Category>('lifestyle');
@@ -476,7 +482,8 @@
         pts_awarded:   data.pts_awarded,
         verified_at:   new Date().toISOString(),
         thumbnails:    thumbnails.length > 0 ? thumbnails : undefined,
-        assets:        Array.isArray(data.assets) && data.assets.length > 0 ? data.assets : undefined,
+        assets:            Array.isArray(data.assets)            && data.assets.length > 0            ? data.assets            : undefined,
+        spendingBreakdown: Array.isArray(data.spendingBreakdown) && data.spendingBreakdown.length > 0 ? data.spendingBreakdown : undefined,
       };
       filtered.push(newInsight);
       localStorage.setItem('vv_proof_insights', JSON.stringify(filtered));

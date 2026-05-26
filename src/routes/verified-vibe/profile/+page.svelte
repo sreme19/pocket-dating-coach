@@ -47,6 +47,78 @@
   let autoFillError = $state<string | null>(null);
   let countriesTraveled = $state<string[]>([]);
 
+  // ── Money Matters ──────────────────────────────────────────────────────────
+
+  interface SpendingCategory {
+    category: string;
+    emoji: string;
+    amountLabel: string;
+    estimatedMonthly?: number;
+    verified: boolean;
+  }
+
+  interface MoneyMatters {
+    annualIncome?: string;
+    netWorth?: string;
+  }
+
+  let moneyMatters   = $state<MoneyMatters>({});
+  let editingMoney   = $state(false);
+  let moneyDraft     = $state<MoneyMatters>({});
+  let spendingData   = $state<SpendingCategory[]>([]);
+
+  const INCOME_RANGES = [
+    'Prefer not to say',
+    'Under £30K',  '£30K – £60K', '£60K – £100K',
+    '£100K – £150K', '£150K – £250K', '£250K – £500K', '£500K+',
+  ];
+
+  const NET_WORTH_RANGES = [
+    'Prefer not to say',
+    'Under £250K', '£250K – £500K', '£500K – £1M',
+    '£1M – £5M', '£5M – £10M', '£10M+',
+  ];
+
+  // Spending category display config (order + colours for bars)
+  const SPEND_CAT_COLORS: Record<string, string> = {
+    'Fine Dining':         '#F59E0B',
+    'Travel':              '#3B82F6',
+    'Luxury Shopping':     '#8B5CF6',
+    'Experiences & Events':'#EC4899',
+    'Hotels & Stays':      '#06B6D4',
+    'Nightlife':           '#F97316',
+    'Gifting':             '#EF4444',
+    'Wellness & Fitness':  '#10B981',
+  };
+
+  function spendColor(cat: string): string {
+    return SPEND_CAT_COLORS[cat] ?? '#34D399';
+  }
+
+  function maxMonthly(items: SpendingCategory[]): number {
+    return Math.max(1, ...items.map(i => i.estimatedMonthly ?? 0));
+  }
+
+  function saveMoney() {
+    moneyMatters = { ...moneyDraft };
+    localStorage.setItem('vv_money_matters', JSON.stringify(moneyMatters));
+    editingMoney = false;
+    // Sync to master profile (fire-and-forget)
+    try {
+      import('$lib/client/supabase').then(({ getSupabaseClient }) => {
+        getSupabaseClient().auth.getSession().then(({ data: { session } }) => {
+          if (session?.access_token) {
+            fetch('/api/verified-vibe/master-profile', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ moneyMatters }),
+            }).catch(() => {});
+          }
+        });
+      });
+    } catch { /* non-critical */ }
+  }
+
   // ── Garage ─────────────────────────────────────────────────────────────────
 
   interface GarageCar {
@@ -738,6 +810,38 @@
     const rawCountries = localStorage.getItem('vv_countries_traveled');
     if (rawCountries) { try { countriesTraveled = JSON.parse(rawCountries); } catch { /* ignore */ } }
 
+    // Load money matters
+    try {
+      const rawMoney = localStorage.getItem('vv_money_matters');
+      if (rawMoney) moneyMatters = JSON.parse(rawMoney);
+
+      // Also pull income_range from casual generous QA if no self-reported income yet
+      if (!moneyMatters.annualIncome) {
+        const cgRaw = localStorage.getItem('vv_casual_generous_profile');
+        if (cgRaw) {
+          const cg = JSON.parse(cgRaw);
+          if (cg.income_range) {
+            // Map onboarding codes to display labels
+            const incomeMap: Record<string,string> = {
+              under_25l: 'Under ₹25L', '25l_50l': '₹25L – ₹50L', '50l_1cr': '₹50L – ₹1Cr',
+              '1cr_3cr': '₹1Cr – ₹3Cr', '3cr_10cr': '₹3Cr – ₹10Cr', '10cr_plus': '₹10Cr+',
+            };
+            moneyMatters = { ...moneyMatters, annualIncome: incomeMap[cg.income_range] ?? cg.income_range };
+          }
+        }
+      }
+
+      // Load spending breakdown from proof insights (spending category)
+      const rawInsightsForSpend = localStorage.getItem('vv_proof_insights');
+      if (rawInsightsForSpend) {
+        const allI: Array<{ category: string; spendingBreakdown?: Array<{ category: string; emoji: string; amountLabel: string; estimatedMonthly?: number }> }> = JSON.parse(rawInsightsForSpend);
+        const spendInsight = allI.find(i => i.category === 'spending');
+        if (spendInsight?.spendingBreakdown?.length) {
+          spendingData = spendInsight.spendingBreakdown.map(s => ({ ...s, verified: true }));
+        }
+      }
+    } catch { /* non-critical */ }
+
     // Load garage cars from proof insights (assets category)
     try {
       const rawInsights = localStorage.getItem('vv_proof_insights');
@@ -1280,6 +1384,126 @@
           {/each}
         </div>
       </section>
+      {/if}
+
+      <!-- Money Matters -->
+      {#if $user?.gender === 'man' || $user?.gender === null}
+        <section class="section money-section">
+          <div class="section-label">
+            <span>💰</span>
+            Money Matters
+            <button class="section-edit-btn" onclick={() => { moneyDraft = { ...moneyMatters }; editingMoney = !editingMoney; }} aria-label="Edit money details">
+              <Pencil size={11} />
+            </button>
+          </div>
+
+          {#if editingMoney}
+            <!-- Edit mode: range pickers -->
+            <div class="money-edit-card">
+              <div class="money-edit-group">
+                <p class="money-edit-label">💼 Annual Income</p>
+                <div class="money-pill-row">
+                  {#each INCOME_RANGES as r}
+                    <button
+                      class="money-pill {moneyDraft.annualIncome === r ? 'money-pill-active' : ''}"
+                      onclick={() => moneyDraft = { ...moneyDraft, annualIncome: r === 'Prefer not to say' ? undefined : r }}
+                      type="button"
+                    >{r}</button>
+                  {/each}
+                </div>
+              </div>
+              <div class="money-edit-group">
+                <p class="money-edit-label">📈 Net Worth</p>
+                <div class="money-pill-row">
+                  {#each NET_WORTH_RANGES as r}
+                    <button
+                      class="money-pill {moneyDraft.netWorth === r ? 'money-pill-active' : ''}"
+                      onclick={() => moneyDraft = { ...moneyDraft, netWorth: r === 'Prefer not to say' ? undefined : r }}
+                      type="button"
+                    >{r}</button>
+                  {/each}
+                </div>
+              </div>
+              <div class="inline-edit-actions">
+                <button class="inline-save-btn" onclick={saveMoney}>Save</button>
+                <button class="inline-cancel-btn" onclick={() => editingMoney = false}>Cancel</button>
+              </div>
+            </div>
+          {:else}
+            <!-- View mode -->
+            <div class="money-card">
+              <!-- Income + net worth header stats -->
+              {#if moneyMatters.annualIncome || moneyMatters.netWorth}
+                <div class="money-stats-row">
+                  {#if moneyMatters.annualIncome}
+                    <div class="money-stat">
+                      <span class="money-stat-icon">💼</span>
+                      <div>
+                        <p class="money-stat-label">Annual Income</p>
+                        <p class="money-stat-value">{moneyMatters.annualIncome}</p>
+                      </div>
+                    </div>
+                  {/if}
+                  {#if moneyMatters.netWorth}
+                    <div class="money-stat">
+                      <span class="money-stat-icon">📈</span>
+                      <div>
+                        <p class="money-stat-label">Net Worth</p>
+                        <p class="money-stat-value">{moneyMatters.netWorth}</p>
+                      </div>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
+
+              <!-- Spending breakdown -->
+              {#if spendingData.length > 0}
+                <div class="money-spend-header">
+                  <span class="money-spend-title">Where the money goes</span>
+                  <span class="money-spend-verified">✅ Receipt verified</span>
+                </div>
+                <div class="money-spend-list">
+                  {#each spendingData as item}
+                    {@const pct = Math.round(((item.estimatedMonthly ?? 0) / maxMonthly(spendingData)) * 100)}
+                    <div class="money-spend-row">
+                      <div class="money-spend-meta">
+                        <span class="money-spend-emoji">{item.emoji}</span>
+                        <div class="money-spend-info">
+                          <span class="money-spend-cat">{item.category}</span>
+                          <span class="money-spend-amt">{item.amountLabel}</span>
+                        </div>
+                      </div>
+                      <div class="money-spend-bar-track">
+                        <div
+                          class="money-spend-bar-fill"
+                          style="width: {pct}%; background: {spendColor(item.category)}"
+                        ></div>
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              {:else if !moneyMatters.annualIncome && !moneyMatters.netWorth}
+                <!-- Completely empty — prompt to fill -->
+                <button
+                  class="money-empty-cta"
+                  onclick={() => { moneyDraft = {}; editingMoney = true; }}
+                  type="button"
+                >
+                  <span>💳</span>
+                  <span>Add income & spending details</span>
+                </button>
+              {/if}
+
+              <!-- No spending yet but has income — upload nudge -->
+              {#if (moneyMatters.annualIncome || moneyMatters.netWorth) && spendingData.length === 0}
+                <a class="money-upload-nudge" href="/verified-vibe/proof-upload?category=spending">
+                  <span>🧾</span>
+                  <span>Upload receipts to verify your spending →</span>
+                </a>
+              {/if}
+            </div>
+          {/if}
+        </section>
       {/if}
 
       <!-- What My Garage Looks Like -->
@@ -3713,6 +3937,223 @@
     font-size: 13px;
     color: var(--text-2);
     line-height: 1.5;
+  }
+
+  /* ── Money Matters ────────────────────────────────────────────────────────── */
+
+  .money-section { gap: 10px; }
+
+  .money-card {
+    background: linear-gradient(145deg, #0f0f12 0%, #1a1506 60%, #0f0f0c 100%);
+    border: 1px solid rgba(212, 160, 23, 0.25);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+
+  /* Income / Net Worth stats row */
+  .money-stats-row {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid rgba(212, 160, 23, 0.12);
+  }
+
+  .money-stat {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 14px;
+  }
+
+  .money-stat + .money-stat {
+    border-left: 1px solid rgba(212, 160, 23, 0.12);
+  }
+
+  .money-stat-icon {
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+
+  .money-stat-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(212, 160, 23, 0.7);
+    margin: 0 0 2px;
+  }
+
+  .money-stat-value {
+    font-size: 15px;
+    font-weight: 700;
+    color: #F5D485;
+    margin: 0;
+    letter-spacing: 0.01em;
+  }
+
+  /* Spending breakdown */
+  .money-spend-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px 8px;
+  }
+
+  .money-spend-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(212, 160, 23, 0.8);
+  }
+
+  .money-spend-verified {
+    font-size: 10px;
+    color: #34D399;
+    font-weight: 600;
+  }
+
+  .money-spend-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0 14px 14px;
+  }
+
+  .money-spend-row {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 8px 0;
+    border-top: 1px solid rgba(255,255,255,0.04);
+  }
+
+  .money-spend-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .money-spend-emoji {
+    font-size: 18px;
+    width: 24px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .money-spend-info {
+    display: flex;
+    flex: 1;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .money-spend-cat {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.85);
+  }
+
+  .money-spend-amt {
+    font-size: 11px;
+    color: rgba(212, 160, 23, 0.8);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .money-spend-bar-track {
+    height: 4px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 99px;
+    margin-left: 34px;
+    overflow: hidden;
+  }
+
+  .money-spend-bar-fill {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 0.6s ease;
+    opacity: 0.85;
+  }
+
+  /* Empty state / nudge */
+  .money-empty-cta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 18px 14px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    color: rgba(212, 160, 23, 0.7);
+    font-weight: 500;
+  }
+
+  .money-upload-nudge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px 12px;
+    font-size: 12px;
+    color: rgba(212, 160, 23, 0.6);
+    text-decoration: none;
+    border-top: 1px solid rgba(212, 160, 23, 0.1);
+    transition: color 0.15s;
+  }
+  .money-upload-nudge:hover { color: rgba(212, 160, 23, 0.9); }
+
+  /* Edit mode */
+  .money-edit-card {
+    background: var(--bg-2);
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    border: 1px solid var(--border-1);
+  }
+
+  .money-edit-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .money-edit-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-3);
+    margin: 0;
+  }
+
+  .money-pill-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .money-pill {
+    padding: 5px 11px;
+    border-radius: 999px;
+    border: 1px solid var(--border-1);
+    background: var(--bg-3);
+    color: var(--text-2);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .money-pill:hover { border-color: var(--accent-bright); color: var(--accent-bright); }
+
+  .money-pill-active {
+    background: rgba(212, 160, 23, 0.12);
+    border-color: rgba(212, 160, 23, 0.6);
+    color: #F5D485;
+    font-weight: 600;
   }
 
   /* ── Garage ───────────────────────────────────────────────────────────────── */
