@@ -413,13 +413,20 @@ export async function analyzeSpendingPatternWithClaude(
     throw new Error('ANTHROPIC_API_KEY environment variable not set');
   }
 
+  const isPDF = mimeType === 'application/pdf';
+
   try {
+    const mediaBlock = isPDF
+      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: spendingImageBase64 } }
+      : { type: 'image', source: { type: 'base64', media_type: mimeType, data: spendingImageBase64 } };
+
     const response = await fetch(CLAUDE_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': CLAUDE_API_KEY,
-        'anthropic-version': '2023-06-01'
+        'anthropic-version': '2023-06-01',
+        ...(isPDF ? { 'anthropic-beta': 'pdfs-2024-09-25' } : {})
       },
       body: JSON.stringify({
         model: CLAUDE_MODEL,
@@ -432,14 +439,7 @@ export async function analyzeSpendingPatternWithClaude(
                 type: 'text',
                 text: 'Analyze this bank statement or spending screenshot. Assess the credibility of the spending pattern shown.'
               },
-              {
-                type: 'image',
-                source: {
-                  type: 'base64',
-                  media_type: mimeType,
-                  data: spendingImageBase64
-                }
-              },
+              mediaBlock,
               {
                 type: 'text',
                 text: `Evaluate the spending pattern for credibility. Consider:
