@@ -149,6 +149,32 @@
   const tier85 = $derived(cgTotal >= 85);
   const tier95 = $derived(cgTotal >= 95);
 
+  // ── Tier unlock notification ──────────────────────────────────────────────────
+  const TIER_MESSAGES: Record<number, { emoji: string; title: string; desc: string }> = {
+    60: { emoji: '🎉', title: 'You hit Visible tier!',  desc: 'You are now showing up in match pools.' },
+    70: { emoji: '🚀', title: 'You hit Featured tier!', desc: 'Lifestyle-Oriented Women now see you in their feed.' },
+    85: { emoji: '⭐', title: 'You hit Priority tier!', desc: 'You appear first. Spoilt Women\'s pool fully unlocked.' },
+    95: { emoji: '👑', title: 'You hit Elite tier!',    desc: 'Exclusive visibility across all match pools.' },
+  };
+  let tierUnlock = $state<{ emoji: string; title: string; desc: string } | null>(null);
+
+  $effect(() => {
+    const score = cgTotal;
+    if (typeof window === 'undefined') return;
+    const prevScore = parseInt(localStorage.getItem('vv_cg_prev_score') ?? '0', 10);
+    if (score <= prevScore) return;
+
+    // Find highest new tier crossed
+    const tiers = [95, 85, 70, 60] as const;
+    for (const t of tiers) {
+      if (score >= t && prevScore < t) {
+        tierUnlock = TIER_MESSAGES[t];
+        break;
+      }
+    }
+    localStorage.setItem('vv_cg_prev_score', String(score));
+  });
+
   // Color tier for a subscore
   function scoreColor(s: number): 'red' | 'amber' | 'green' {
     if (s < 50)  return 'red';
@@ -182,6 +208,18 @@
   <span class="privacy-lock">🔒</span>
   <span class="privacy-text">Everything here stays private. We only verify that your profile reflects real life. This improves your Trust Score and who you match with.</span>
 </div>
+
+<!-- ── Tier unlock celebration ────────────────────────────────────────────── -->
+{#if tierUnlock}
+<div class="tier-unlock-banner">
+  <span class="tier-unlock-emoji">{tierUnlock.emoji}</span>
+  <div class="tier-unlock-body">
+    <div class="tier-unlock-title">{tierUnlock.title}</div>
+    <div class="tier-unlock-desc">{tierUnlock.desc}</div>
+  </div>
+  <button class="tier-unlock-dismiss" onclick={() => tierUnlock = null} aria-label="Dismiss">✕</button>
+</div>
+{/if}
 
 <!-- ── Trust Score gauge ──────────────────────────────────────────────────── -->
 <section class="section">
@@ -494,6 +532,54 @@
 </section>
 
 <style>
+  /* ── Tier unlock banner ── */
+  .tier-unlock-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 16px;
+    padding: 12px 14px;
+    background: linear-gradient(135deg, rgba(52,211,153,0.12), rgba(52,211,153,0.06));
+    border: 1px solid rgba(52, 211, 153, 0.35);
+    border-radius: 14px;
+    animation: tier-pop 0.4s cubic-bezier(0.34,1.56,0.64,1);
+  }
+
+  @keyframes tier-pop {
+    from { transform: scale(0.94); opacity: 0; }
+    to   { transform: scale(1);    opacity: 1; }
+  }
+
+  .tier-unlock-emoji { font-size: 28px; flex-shrink: 0; }
+
+  .tier-unlock-body { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+
+  .tier-unlock-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .tier-unlock-desc {
+    font-size: 12px;
+    color: var(--text-2);
+    line-height: 1.4;
+  }
+
+  .tier-unlock-dismiss {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--bg-3);
+    border: 1px solid var(--border-1);
+    color: var(--text-3);
+    font-size: 11px;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+
   /* ── Privacy banner ── */
   .privacy-banner {
     display: flex;
