@@ -92,13 +92,39 @@ Write one punchy "aggregated" sentence (8–12 words) suitable for a profile.
 Return ONLY raw JSON — no markdown, no code fences:
 {"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Daily fitness tracker'","emoji":"📊"},...],"aggregated":"e.g. 'Tracks his habits daily — proof he follows through, not just talks'","confidence":0.0-1.0,"reason":"one sentence"}`,
 
-  spending: `You are reviewing 1–5 receipts or spending screenshots for a dating-app "Generosity Signal" verification.
-Analyse ALL images. Look for spending evidence: restaurant bills, hotel or travel receipts, premium experiences, event tickets, generous gestures.
-Extract 1–3 distinct signals about their generosity and lifestyle.
-Write one punchy "aggregated" sentence (8–12 words) suitable for a profile.
+  spending: `You are reviewing 1–5 receipts or spending screenshots for a dating-app "Money Matters" verification.
+Analyse ALL images. Look for spending evidence: restaurant bills, hotel or travel receipts, luxury purchases, premium experiences, event tickets, generous gestures.
+
+For each receipt or screenshot, extract:
+1. The spending CATEGORY (use these exact labels where possible: "Fine Dining", "Travel", "Luxury Shopping", "Experiences & Events", "Hotels & Stays", "Nightlife", "Gifting", "Wellness & Fitness")
+2. The amount visible on the receipt/screenshot (exact figure if clear)
+3. An emoji for the category
+
+Write one punchy "aggregated" sentence (8–12 words) that captures their overall spending personality.
 
 Return ONLY raw JSON — no markdown, no code fences:
-{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Fine dining regular'","emoji":"💳"},...],"aggregated":"e.g. 'Spends generously on real experiences — dining, travel, and meaningful moments'","confidence":0.0-1.0,"reason":"one sentence"}`,
+{
+  "verified": true/false,
+  "insights": [{"label": "3-5 words e.g. 'Fine dining regular'", "emoji": "💳"}],
+  "aggregated": "e.g. 'Spends generously on real experiences — dining, travel, and meaningful moments'",
+  "spendingBreakdown": [
+    {
+      "category": "Fine Dining",
+      "emoji": "🍽️",
+      "amountLabel": "£320 / evening",
+      "estimatedMonthly": 1200
+    },
+    {
+      "category": "Travel",
+      "emoji": "✈️",
+      "amountLabel": "Business class confirmed",
+      "estimatedMonthly": 3000
+    }
+  ],
+  "confidence": 0.0-1.0,
+  "reason": "one sentence"
+}
+Only include categories you can actually see evidence for in the images.`,
 
   assets: `You are reviewing ownership documents for a dating-app "Assets" verification.
 Carefully examine all documents. For each asset, extract the exact details visible in the document.
@@ -472,22 +498,24 @@ export const POST: RequestHandler = async ({ request }) => {
       locations?: string[];
       aggregated?: string;
       assets?: Array<Record<string, string>>;
+      spendingBreakdown?: Array<{ category: string; emoji: string; amountLabel: string; estimatedMonthly?: number }>;
       confidence?: number;
       reason?: string;
     };
     try { result = JSON.parse(cleaned); }
     catch { console.error('Non-JSON from Claude:', cleaned); return json({ error: 'Analysis returned unexpected format' }, { status: 500 }); }
 
-    const verified   = result.verified === true;
-    const insights   = (result.insights ?? []).filter(i => i.label && i.emoji).slice(0, 5);
-    const locations  = (result.locations ?? []).filter((l): l is string => typeof l === 'string' && l.trim().length > 0);
-    const aggregated = typeof result.aggregated === 'string' ? result.aggregated.trim() : '';
-    const assets     = Array.isArray(result.assets) ? result.assets : [];
+    const verified          = result.verified === true;
+    const insights          = (result.insights ?? []).filter(i => i.label && i.emoji).slice(0, 5);
+    const locations         = (result.locations ?? []).filter((l): l is string => typeof l === 'string' && l.trim().length > 0);
+    const aggregated        = typeof result.aggregated === 'string' ? result.aggregated.trim() : '';
+    const assets            = Array.isArray(result.assets) ? result.assets : [];
+    const spendingBreakdown = Array.isArray(result.spendingBreakdown) ? result.spendingBreakdown : [];
     if (insights.length === 0 && verified) insights.push({ label: 'Proof verified', emoji: '✅' });
 
     if (verified) {
       const userId = await getUserIdFromRequest(request);
-      if (userId) await persistInsight(userId, category, pts, { insights, locations, aggregated, assets, confidence: result.confidence, reason: result.reason, pts_awarded: pts, photo_count: files.length });
+      if (userId) await persistInsight(userId, category, pts, { insights, locations, aggregated, assets, spendingBreakdown, confidence: result.confidence, reason: result.reason, pts_awarded: pts, photo_count: files.length });
     }
 
     return json({
@@ -496,6 +524,7 @@ export const POST: RequestHandler = async ({ request }) => {
       locations,
       aggregated,
       assets,
+      spendingBreakdown,
       pts_awarded:  verified ? pts : 0,
       photo_count:  files.length,
       confidence:   result.confidence ?? 0,
