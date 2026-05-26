@@ -44,6 +44,7 @@
   let enhanceError = $state<string | null>(null);
   let generationProgress = $state(0); // 0-5 for number of photos generated
   let generatingField = $state<'about' | 'personality' | 'looking' | 'lifestyle' | null>(null);
+  let autoFillError = $state<string | null>(null);
 
   // Personality reads data
   interface PersonalityRead {
@@ -64,16 +65,71 @@
   // Archetype QA data — all keys loaded in onMount, rendered per archetype
   let archetypeStore = $state<Record<string, Record<string, string | string[]>>>({});
 
-  const ARCHETYPE_BRINGS: Record<string, string[]> = {
-    casual_man:               ['Easy energy', 'Honest intentions', 'Good conversation', 'Low pressure', 'Quality time'],
-    casual_generous_man:      ['Financial stability', 'Generosity on dates', 'Time he actually gives you', 'Privacy & discretion', 'Real opinions, gently held'],
-    forever_focused_man:      ['Emotional depth', 'Long-term clarity', 'Shared values', 'Consistent presence', 'Real commitment'],
-    hopeless_romantic_man:    ['Romantic thoughtfulness', 'Emotional availability', 'Deep connection', 'All-in energy', 'Genuine gestures'],
-    traditional_matrimony_man:['Family values', 'Stability', 'Cultural alignment', 'Clear life plan', 'Lifelong respect'],
-    second_chapter_man:       ['Hard-earned wisdom', 'Emotional maturity', 'Clarity on what he wants', 'Grounded presence', 'Real partnership'],
-    untouched_heart_man:      ['Authenticity', 'Fresh perspective', 'Open heart', 'Curiosity', 'No baggage'],
-    just_friends_man:         ['Good company', 'Zero pressure', 'Easy conversation', 'Genuine connection', 'Consistent energy'],
-    rebound_healing_man:      ['Honest intentions', 'Light touch', 'Fun energy', 'Present focus', 'Real moments'],
+  interface BringsItem { emoji: string; text: string; }
+  const ARCHETYPE_BRINGS: Record<string, BringsItem[]> = {
+    casual_man: [
+      { emoji: '✌️', text: 'Easy energy' },
+      { emoji: '🤝', text: 'Honest intentions' },
+      { emoji: '💬', text: 'Good conversation' },
+      { emoji: '🌱', text: 'Low pressure' },
+      { emoji: '⏱️', text: 'Quality time' },
+    ],
+    casual_generous_man: [
+      { emoji: '💰', text: 'Financial stability' },
+      { emoji: '🍾', text: 'Generosity on dates' },
+      { emoji: '🗓️', text: 'Time he actually gives you' },
+      { emoji: '🔒', text: 'Privacy & discretion' },
+      { emoji: '💭', text: 'Real opinions, gently held' },
+    ],
+    forever_focused_man: [
+      { emoji: '💙', text: 'Emotional depth' },
+      { emoji: '🎯', text: 'Long-term clarity' },
+      { emoji: '🌿', text: 'Shared values' },
+      { emoji: '🏠', text: 'Consistent presence' },
+      { emoji: '💍', text: 'Real commitment' },
+    ],
+    hopeless_romantic_man: [
+      { emoji: '🌹', text: 'Romantic thoughtfulness' },
+      { emoji: '💕', text: 'Emotional availability' },
+      { emoji: '🌊', text: 'Deep connection' },
+      { emoji: '⚡', text: 'All-in energy' },
+      { emoji: '🎁', text: 'Genuine gestures' },
+    ],
+    traditional_matrimony_man: [
+      { emoji: '👨‍👩‍👧', text: 'Family values' },
+      { emoji: '🏡', text: 'Stability' },
+      { emoji: '🌺', text: 'Cultural alignment' },
+      { emoji: '🗺️', text: 'Clear life plan' },
+      { emoji: '🤲', text: 'Lifelong respect' },
+    ],
+    second_chapter_man: [
+      { emoji: '🧠', text: 'Hard-earned wisdom' },
+      { emoji: '🌿', text: 'Emotional maturity' },
+      { emoji: '🎯', text: 'Clarity on what he wants' },
+      { emoji: '⚓', text: 'Grounded presence' },
+      { emoji: '🤝', text: 'Real partnership' },
+    ],
+    untouched_heart_man: [
+      { emoji: '✨', text: 'Authenticity' },
+      { emoji: '👁️', text: 'Fresh perspective' },
+      { emoji: '💚', text: 'Open heart' },
+      { emoji: '🔍', text: 'Curiosity' },
+      { emoji: '🕊️', text: 'No baggage' },
+    ],
+    just_friends_man: [
+      { emoji: '😊', text: 'Good company' },
+      { emoji: '🌬️', text: 'Zero pressure' },
+      { emoji: '💬', text: 'Easy conversation' },
+      { emoji: '🤗', text: 'Genuine connection' },
+      { emoji: '⚡', text: 'Consistent energy' },
+    ],
+    rebound_healing_man: [
+      { emoji: '🤝', text: 'Honest intentions' },
+      { emoji: '🌸', text: 'Light touch' },
+      { emoji: '✨', text: 'Fun energy' },
+      { emoji: '🧘', text: 'Present focus' },
+      { emoji: '📸', text: 'Real moments' },
+    ],
   };
 
   const OPTION_LABELS: Record<string, string> = {
@@ -244,7 +300,13 @@
   }
 
   // What He Brings — archetype-specific
-  const whatBrings = $derived(ARCHETYPE_BRINGS[$user?.archetype ?? ''] ?? ['Good energy', 'Honest intentions', 'Genuine connection', 'Respect', 'Presence']);
+  const whatBrings = $derived(ARCHETYPE_BRINGS[$user?.archetype ?? ''] ?? [
+    { emoji: '⚡', text: 'Good energy' },
+    { emoji: '🤝', text: 'Honest intentions' },
+    { emoji: '💬', text: 'Genuine connection' },
+    { emoji: '🌿', text: 'Respect' },
+    { emoji: '🕰️', text: 'Presence' },
+  ]);
 
   // Archetype insight sections derived from stored QA data
   const archetypeSections = $derived(getArchetypeSections($user?.archetype, archetypeStore));
@@ -421,6 +483,10 @@
     }
     archetypeStore = loaded;
 
+    // Deep-link tab: ?tab=boost jumps to Trust & Boost tab
+    const tabParam = new URL(window.location.href).searchParams.get('tab');
+    if (tabParam === 'boost') activeTab = 'boost';
+
     // If no local photos but user has an avatar from Supabase, use it as hero
     if (photos.length === 0 && $user?.avatar) {
       photos = [{ dataUrl: $user.avatar, label: 'lead' }];
@@ -589,12 +655,25 @@
   async function autoFill(field: 'about' | 'personality' | 'looking' | 'lifestyle') {
     if (generatingField) return;
     generatingField = field;
+    autoFillError = null;
 
     try {
       const { getSupabaseClient } = await import('$lib/client/supabase');
       const supabase = getSupabaseClient();
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token ?? '';
+
+      // Collect all localStorage onboarding context to pass as profileData fallback
+      const lsKeys = ['vv_qa_responses','vv_casual_generous_profile','vv_casual_generous_preferences',
+        'vv_forever_intent','vv_forever_profile','vv_forever_preferences',
+        'vv_romantic_intent','vv_romantic_profile','vv_romantic_preferences',
+        'vv_second_chapter_intent','vv_second_chapter_profile',
+        'vv_untouched_heart_intent','vv_just_friends_intent','vv_rebound_healing'];
+      const lsData: Record<string, unknown> = {};
+      for (const k of lsKeys) {
+        const raw = localStorage.getItem(k);
+        if (raw) { try { Object.assign(lsData, JSON.parse(raw)); } catch { /* ignore */ } }
+      }
 
       const res = await fetch('/api/verified-vibe/profile/auto-fill', {
         method: 'POST',
@@ -606,12 +685,13 @@
           field,
           gender: $user?.gender ?? 'man',
           archetype: $user?.archetype,
-          currentAbout: field === 'about' ? editAbout : undefined
+          currentAbout: field === 'about' ? editAbout : undefined,
+          profileData: lsData
         })
       });
 
       const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error ?? 'Failed');
+      if (!res.ok || data.error) throw new Error(data.error ?? 'Auto-fill failed');
 
       if (field === 'about') {
         editAbout = (data.value as string).trim();
@@ -623,6 +703,7 @@
       }
     } catch (err) {
       console.warn('[auto-fill]', err);
+      autoFillError = err instanceof Error ? err.message : 'Auto-fill failed. Try again.';
     } finally {
       generatingField = null;
     }
@@ -778,9 +859,12 @@
               disabled={generatingField !== null}
               title="Auto-generate bio with AI"
             >
-              {generatingField === 'about' ? '...' : '✨ Auto fill'}
+              {generatingField === 'about' ? '⏳ Generating…' : '✨ Auto fill'}
             </button>
           </div>
+          {#if autoFillError}
+            <div class="autofill-error">⚠️ {autoFillError}</div>
+          {/if}
         {:else}
           <p class="about-text">{about || 'Your story goes here.'}</p>
         {/if}
@@ -887,8 +971,8 @@
         <div class="brings-list">
           {#each whatBrings as item}
             <div class="brings-item">
-              <span class="brings-check">✓</span>
-              <span class="brings-text">{item}</span>
+              <span class="brings-emoji">{item.emoji}</span>
+              <span class="brings-text">{item.text}</span>
             </div>
           {/each}
         </div>
@@ -2224,18 +2308,12 @@
     border: 1px solid var(--border-2);
   }
 
-  .brings-check {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: var(--accent-bright);
-    color: var(--bg-1);
-    font-size: 12px;
-    font-weight: 700;
+  .brings-emoji {
+    font-size: 20px;
+    line-height: 1;
     flex-shrink: 0;
+    width: 24px;
+    text-align: center;
   }
 
   .brings-text {
@@ -2809,6 +2887,17 @@
   .autofill-about-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .autofill-error {
+    margin-top: 6px;
+    padding: 8px 12px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: 8px;
+    font-size: 12px;
+    color: #fca5a5;
+    line-height: 1.4;
   }
 
   .edit-input {

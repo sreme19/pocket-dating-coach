@@ -1,5 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
+  import { get } from 'svelte/store';
   import {
     verificationStep,
     verificationProgress,
@@ -713,6 +715,17 @@
         completedSteps.add(i);
       }
     });
+
+    // Jump to a specific step when coming from a boost CTA (e.g. ?step=liveness)
+    const urlStep = get(page).url.searchParams.get('step');
+    if (urlStep) {
+      const STEP_MAP: Record<string, number> = { id: 1, liveness: 2 };
+      const target = STEP_MAP[urlStep];
+      if (target) {
+        currentStep = target;
+        verificationStep.set(target);
+      }
+    }
 
     // If the user store has no archetype (e.g. direct navigation or hydration
     // race), recover from localStorage so the correct archetype-specific steps

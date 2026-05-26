@@ -100,6 +100,7 @@
     habit_tracker:{ key: 'socialLegitimacy',  boost: 20 },
     intro:        { key: 'emotionalSafety',   boost: 45 },
     spending:     { key: 'generositySignals', boost: 30 },
+    assets:       { key: 'generositySignals', boost: 35 },
   };
 
   // Show-off categories scale boost by photo count
@@ -200,6 +201,7 @@
     { icon: '📸', label: 'Instagram',       desc: 'Social life and personality',       pts: 3, time: '1 min', category: 'instagram'     },
     { icon: '🐦', label: 'Twitter / X',     desc: 'Thoughts, interests, engagement',   pts: 2, time: '1 min', category: 'twitter'       },
     { icon: '📱', label: 'Habit Tracker',   desc: 'Sleep, gym, reading. Live proof.',  pts: 2, time: '1 min', category: 'habit_tracker' },
+    { icon: '🏠', label: 'Assets',          desc: 'Car, property, company ownership. Name match required.', pts: 10, time: '2 min', category: 'assets' },
   ] as const;
 </script>
 
@@ -412,85 +414,6 @@
   </div>
 </section>
 {/if}
-
-<!-- ── Show-Off upload prompts ────────────────────────────────────────────── -->
-<section class="section">
-  <div class="section-label">
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8M12 8v8"/>
-    </svg>
-    Show-Off
-    <span class="section-hint">prove, don't claim</span>
-  </div>
-  <div class="showoff-grid">
-    {#each showOffCategories as cat}
-      {@const done = proofInsights.some(p => p.category === cat.category)}
-      <button class="showoff-tile" class:showoff-tile--done={done} onclick={() => goto(`/verified-vibe/proof-upload?category=${cat.category}`)}>
-        <div class="showoff-icon">{cat.icon}</div>
-        <div class="showoff-body">
-          <div class="showoff-label">{cat.label}</div>
-          {#if done}
-            {@const pi = proofInsights.find(p => p.category === cat.category)}
-            <div class="showoff-desc">{pi?.insights?.[0]?.label ?? pi?.insight_label ?? cat.desc}</div>
-          {:else}
-            <div class="showoff-desc">{cat.desc}</div>
-          {/if}
-          <div class="showoff-meta">
-            {#if done}
-              <span class="showoff-done-tag">✓ Verified</span>
-            {:else}
-              <span class="showoff-time">{cat.time}</span>
-            {/if}
-          </div>
-        </div>
-        {#if done}
-          <div class="showoff-pts showoff-pts--done">✓</div>
-        {:else}
-          <div class="showoff-pts">+{cat.pts}</div>
-        {/if}
-      </button>
-    {/each}
-  </div>
-</section>
-
-<!-- ── Tier unlocks ───────────────────────────────────────────────────────── -->
-<section class="section">
-  <div class="section-label">
-    <Zap size={13} />
-    What Each Tier Unlocks
-  </div>
-  <div class="tier-list">
-    <div class="tier-item {tier60 ? 'unlocked' : 'locked'}">
-      {#if tier60}<div class="tier-check">✓</div>{:else}<div class="tier-number">60</div>{/if}
-      <div class="tier-content">
-        <div class="tier-title">60 · Visible</div>
-        <div class="tier-desc">You start showing up in pools.</div>
-      </div>
-    </div>
-    <div class="tier-item {tier70 ? 'unlocked' : 'locked'}">
-      {#if tier70}<div class="tier-check">✓</div>{:else}<div class="tier-number">70</div>{/if}
-      <div class="tier-content">
-        <div class="tier-title">70 · Featured</div>
-        <div class="tier-desc">Lifestyle-Oriented Women see you in their feed{tier70 ? ' ← you\'re here' : ''}.</div>
-      </div>
-    </div>
-    <div class="tier-item {tier85 ? 'unlocked' : 'locked'}">
-      {#if tier85}<div class="tier-check">✓</div>{:else}<div class="tier-number">85</div>{/if}
-      <div class="tier-content">
-        <div class="tier-title">85 · Priority</div>
-        <div class="tier-desc">You appear first. Spoilt Women's pool fully unlocks.</div>
-      </div>
-    </div>
-    <div class="tier-item {tier95 ? 'unlocked' : 'locked'}">
-      {#if tier95}<div class="tier-check">✓</div>{:else}<div class="tier-number">95</div>{/if}
-      <div class="tier-content">
-        <div class="tier-title">95 · Elite</div>
-        <div class="tier-desc">Exclusive visibility across all pools.</div>
-      </div>
-    </div>
-  </div>
-  <p class="tier-note">🔒 Everything here stays private. Matches only</p>
-</section>
 
 <!-- ── Proof connections ──────────────────────────────────────────────────── -->
 <section class="section">

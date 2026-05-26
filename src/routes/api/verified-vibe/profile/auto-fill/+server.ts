@@ -151,44 +151,44 @@ Example output: London life, Biryani runs, Tech career, Good food, Travel, Cultu
 
 export const POST: RequestHandler = async ({ request }) => {
   try {
-    // Auth
-    const authHeader = request.headers.get('authorization') ?? '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    if (!token) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    const { createClient } = await import('@supabase/supabase-js');
-    const { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } = await import('$env/static/public');
-    const userClient = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
-      global: { headers: { Authorization: `Bearer ${token}` } }
-    });
-
-    const { data: { user }, error: authErr } = await userClient.auth.getUser();
-    if (authErr || !user?.id) return json({ error: 'Unauthorized' }, { status: 401 });
-
-    // Validate field
     const body = await request.json();
     const field: Field = body.field;
     const currentAbout: string | undefined = body.currentAbout;
-    // Client supplies gender + archetype from the local user store (avoids DB lookup race)
     const clientGender: string = body.gender ?? 'man';
     const clientArchetype: string | undefined = body.archetype;
+    // Client can pass localStorage onboarding data as profileData fallback
+    const clientProfileData: Record<string, unknown> = body.profileData ?? {};
+
     if (!['about', 'personality', 'looking', 'lifestyle'].includes(field)) {
       return json({ error: 'Invalid field. Must be about, personality, looking, or lifestyle.' }, { status: 400 });
     }
 
-    const supabase = getSupabase();
-
-    // Only fetch ai_assistant_profiles — don't require verified_vibe_users row
-    const preferredType = clientGender === 'woman' ? 'preferences' : 'personality';
-    const { data: aiRows } = await supabase
-      .from('ai_assistant_profiles')
-      .select('data, profile_type')
-      .eq('user_id', user.id)
-      .order('version', { ascending: false })
-      .limit(2);
-
-    const aiRow = aiRows?.find(r => r.profile_type === preferredType) ?? aiRows?.[0] ?? null;
-    const profileData = (aiRow?.data as Record<string, unknown>) ?? {};
+    // Auth is optional — if a real session token is present, fetch DB profile for richer context
+    let profileData: Record<string, unknown> = clientProfileData;
+    try {
+      const authHeader = request.headers.get('authorization') ?? '';
+      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+      if (token) {
+        const { createClient } = await import('@supabase/supabase-js');
+        const { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } = await import('$env/static/public');
+        const userClient = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
+          global: { headers: { Authorization: `Bearer ${token}` } }
+        });
+        const { data: { user } } = await userClient.auth.getUser();
+        if (user?.id) {
+          const supabase = getSupabase();
+          const preferredType = clientGender === 'woman' ? 'preferences' : 'personality';
+          const { data: aiRows } = await supabase
+            .from('ai_assistant_profiles')
+            .select('data, profile_type')
+            .eq('user_id', user.id)
+            .order('version', { ascending: false })
+            .limit(2);
+          const aiRow = aiRows?.find(r => r.profile_type === preferredType) ?? aiRows?.[0] ?? null;
+          if (aiRow?.data) profileData = { ...clientProfileData, ...(aiRow.data as Record<string, unknown>) };
+        }
+      }
+    } catch { /* non-critical — proceed with client-supplied data */ }
 
     const prompt = buildPrompt(field, clientGender, currentAbout ?? null, profileData, clientArchetype, currentAbout);
 
