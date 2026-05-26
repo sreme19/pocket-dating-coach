@@ -230,7 +230,7 @@
   let files           = $state<File[]>([]);
   let previews        = $state<string[]>([]);
   let step            = $state<Step>('upload');
-  let result          = $state<{ insights: Array<{ label: string; emoji: string }>; pts_awarded: number; reason: string } | null>(null);
+  let result          = $state<{ insights: Array<{ label: string; emoji: string }>; pts_awarded: number; reason: string; locations?: string[] } | null>(null);
   let failReason      = $state('');
   let dragOver        = $state(false);
   let existingInsight = $state<StoredInsight | null>(null);
@@ -441,7 +441,17 @@
       localStorage.setItem('vv_proof_insights', JSON.stringify(filtered));
       existingInsight = newInsight;
 
-      result = { insights: insightsArr, pts_awarded: data.pts_awarded, reason: data.reason ?? '' };
+      // Persist locations (countries traveled) to localStorage
+      const locationsArr: string[] = Array.isArray(data.locations) ? data.locations : [];
+      if (locationsArr.length > 0) {
+        try {
+          const existing: string[] = JSON.parse(localStorage.getItem('vv_countries_traveled') ?? '[]');
+          const merged = Array.from(new Set([...existing, ...locationsArr]));
+          localStorage.setItem('vv_countries_traveled', JSON.stringify(merged));
+        } catch { /* ignore */ }
+      }
+
+      result = { insights: insightsArr, pts_awarded: data.pts_awarded, reason: data.reason ?? '', locations: locationsArr };
       step   = 'success';
     } catch (e) {
       console.error('proof upload failed:', e);
@@ -769,10 +779,25 @@
       <div class="success-emoji">{result.insights[0]?.emoji ?? '✅'}</div>
       <div class="success-badge">Verified ✓</div>
       <div class="success-pts">+{result.pts_awarded} pts added to your profile</div>
-      {#if result.reason}
-        <div class="success-reason">{result.reason}</div>
-      {/if}
     </div>
+
+    <!-- Uploaded images kept for review -->
+    {#if previews.some(p => p)}
+      <div class="success-review">
+        <div class="success-review-label">Your uploaded proof</div>
+        <div class="success-review-grid">
+          {#each previews as src, i}
+            {#if src && files[i]?.type?.startsWith('image/')}
+              <img class="success-review-img" {src} alt="Proof {i+1}" />
+            {:else if src}
+              <div class="success-review-media">
+                <span>{files[i]?.type?.startsWith('audio/') ? '🎙️' : '🎥'}</span>
+              </div>
+            {/if}
+          {/each}
+        </div>
+      </div>
+    {/if}
 
     <div class="wingman-block">
       <div class="wingman-header">
@@ -791,6 +816,20 @@
         {/each}
       </div>
     </div>
+
+    {#if result.locations && result.locations.length > 0}
+      <div class="locations-block">
+        <div class="locations-header">
+          <span class="locations-icon">📍</span>
+          <span class="locations-title">Added to Countries Traveled</span>
+        </div>
+        <div class="locations-chips">
+          {#each result.locations as loc}
+            <span class="location-chip">{loc}</span>
+          {/each}
+        </div>
+      </div>
+    {/if}
 
     <div class="insight-preview">
       <div class="insight-preview-label">These will show on your Trust & Boost tab:</div>
@@ -1515,6 +1554,87 @@
   .examples-card--retry {
     border-color: rgba(245, 158, 11, 0.3);
     background: rgba(245, 158, 11, 0.05);
+  }
+
+  /* ── Success uploaded proof review ── */
+  .success-review {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .success-review-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-3);
+  }
+
+  .success-review-grid {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .success-review-img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 10px;
+    border: 1px solid var(--border-1);
+  }
+
+  .success-review-media {
+    width: 80px;
+    height: 80px;
+    border-radius: 10px;
+    border: 1px solid var(--border-1);
+    background: var(--bg-3);
+    display: grid;
+    place-items: center;
+    font-size: 28px;
+  }
+
+  /* ── Locations extracted block ── */
+  .locations-block {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
+    background: rgba(16, 185, 129, 0.06);
+    border: 1px solid rgba(16, 185, 129, 0.22);
+    border-radius: 14px;
+  }
+
+  .locations-header {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .locations-icon { font-size: 16px; }
+
+  .locations-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .locations-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .location-chip {
+    padding: 5px 12px;
+    background: var(--accent-tint);
+    border: 1px solid rgba(52, 211, 153, 0.3);
+    border-radius: 100px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
   }
 
   /* ── AI Wingman block ── */
