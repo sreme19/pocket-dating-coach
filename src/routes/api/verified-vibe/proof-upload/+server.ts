@@ -31,72 +31,82 @@ const PROMPTS: Record<string, string> = {
 Analyse ALL the images. Look for distinct lifestyle signals: luxury travel, fine dining, premium experiences, events, hotels, flights, etc.
 Also identify any specific countries or cities visible in the photos (from landmarks, signs, menus, boarding passes, etc.).
 Extract UP TO 5 specific insights — one per distinct lifestyle signal you can confirm.
+Write one punchy "aggregated" sentence (10–15 words) that combines ALL insights into a single profile-ready statement a man would be proud to show.
 
 Return ONLY raw JSON — no markdown, no code fences:
-{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Business-class traveler'","emoji":"single emoji"},...],"locations":["country or city name","..."],"confidence":0.0-1.0,"reason":"one sentence"}`,
+{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Business-class traveler'","emoji":"single emoji"},...],"locations":["country or city name","..."],"aggregated":"e.g. 'Travels internationally, explores cultural landmarks, and adventures solo'","confidence":0.0-1.0,"reason":"one sentence"}`,
 
   hosting: `You are reviewing 1–20 proof photos for a dating-app "Show-Off: Hosting" section.
 Analyse ALL images. Look for evidence of hosting dinners, celebrations, gatherings.
 Extract UP TO 5 distinct hosting signals.
+Write one punchy "aggregated" sentence (10–15 words) combining ALL insights into a profile-ready statement.
 
 Return ONLY raw JSON — no markdown, no code fences:
-{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Hosts dinner parties'","emoji":"single emoji"},...],"confidence":0.0-1.0,"reason":"one sentence"}`,
+{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Hosts dinner parties'","emoji":"single emoji"},...],"aggregated":"e.g. 'Hosts intimate dinners and celebrations with a real eye for detail'","confidence":0.0-1.0,"reason":"one sentence"}`,
 
   discipline: `You are reviewing 1–20 proof photos for a dating-app "Show-Off: Discipline" section.
 Analyse ALL images. Look for gym sessions, fitness tracking, reading streaks, sleep data, learning logs.
 Extract UP TO 5 distinct discipline signals.
+Write one punchy "aggregated" sentence (10–15 words) combining ALL insights into a profile-ready statement.
 
 Return ONLY raw JSON — no markdown, no code fences:
-{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Consistent gym goer'","emoji":"single emoji"},...],"confidence":0.0-1.0,"reason":"one sentence"}`,
+{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Consistent gym goer'","emoji":"single emoji"},...],"aggregated":"e.g. 'Trains consistently, tracks his sleep, and reads daily — habits that show'","confidence":0.0-1.0,"reason":"one sentence"}`,
 
   social_proof: `You are reviewing 1–20 proof photos for a dating-app "Show-Off: Social Proof" section.
 Analyse ALL images. Look for real friendships, social activities, group events, community involvement.
 Extract UP TO 5 distinct social signals.
+Write one punchy "aggregated" sentence (10–15 words) combining ALL insights into a profile-ready statement.
 
 Return ONLY raw JSON — no markdown, no code fences:
-{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Active social circle'","emoji":"single emoji"},...],"confidence":0.0-1.0,"reason":"one sentence"}`,
+{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Active social circle'","emoji":"single emoji"},...],"aggregated":"e.g. 'Has a real social life — group trips, events, and genuine friendships'","confidence":0.0-1.0,"reason":"one sentence"}`,
 
   linkedin: `You are reviewing a LinkedIn profile screenshot or a CV/resume for a dating-app career verification step.
 Does this show a GENUINE established professional with clear work history?
 Extract 1–2 insights about their role and career.
+Write one punchy "aggregated" sentence (8–12 words) suitable for a profile.
 
 Return ONLY raw JSON — no markdown, no code fences:
-{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Senior software engineer'","emoji":"💼"},...],"confidence":0.0-1.0,"reason":"one sentence"}`,
+{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Senior software engineer'","emoji":"💼"},...],"aggregated":"e.g. 'A senior engineer with a decade of real industry experience'","confidence":0.0-1.0,"reason":"one sentence"}`,
 
   instagram: `You are reviewing an Instagram profile screenshot for a dating-app social verification step.
 Does this show a GENUINE, active Instagram account with real social activity?
 Extract 1–2 insights about their social personality.
+Write one punchy "aggregated" sentence (8–12 words) suitable for a profile.
 
 Return ONLY raw JSON — no markdown, no code fences:
-{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Active lifestyle sharer'","emoji":"📸"},...],"confidence":0.0-1.0,"reason":"one sentence"}`,
+{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Active lifestyle sharer'","emoji":"📸"},...],"aggregated":"e.g. 'Genuinely active online — shares real moments, not a curated fantasy'","confidence":0.0-1.0,"reason":"one sentence"}`,
 
   twitter: `You are reviewing a Twitter/X profile screenshot for a dating-app social verification step.
 Does this show a GENUINE, active account with real engagement and interests?
 Extract 1–2 insights.
+Write one punchy "aggregated" sentence (8–12 words) suitable for a profile.
 
 Return ONLY raw JSON — no markdown, no code fences:
-{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Tech community voice'","emoji":"🐦"},...],"confidence":0.0-1.0,"reason":"one sentence"}`,
+{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Tech community voice'","emoji":"🐦"},...],"aggregated":"e.g. 'Has real opinions and engages meaningfully in the topics he cares about'","confidence":0.0-1.0,"reason":"one sentence"}`,
 
   habit_tracker: `You are reviewing a habit-tracker screenshot for a dating-app verification step.
 Does this show GENUINE consistent habit tracking with meaningful streaks or data?
 Extract 1–2 insights.
+Write one punchy "aggregated" sentence (8–12 words) suitable for a profile.
 
 Return ONLY raw JSON — no markdown, no code fences:
-{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Daily fitness tracker'","emoji":"📊"},...],"confidence":0.0-1.0,"reason":"one sentence"}`,
+{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Daily fitness tracker'","emoji":"📊"},...],"aggregated":"e.g. 'Tracks his habits daily — proof he follows through, not just talks'","confidence":0.0-1.0,"reason":"one sentence"}`,
 
   spending: `You are reviewing 1–5 receipts or spending screenshots for a dating-app "Generosity Signal" verification.
 Analyse ALL images. Look for spending evidence: restaurant bills, hotel or travel receipts, premium experiences, event tickets, generous gestures.
 Extract 1–3 distinct signals about their generosity and lifestyle.
+Write one punchy "aggregated" sentence (8–12 words) suitable for a profile.
 
 Return ONLY raw JSON — no markdown, no code fences:
-{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Fine dining regular'","emoji":"💳"},...],"confidence":0.0-1.0,"reason":"one sentence"}`,
+{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Fine dining regular'","emoji":"💳"},...],"aggregated":"e.g. 'Spends generously on real experiences — dining, travel, and meaningful moments'","confidence":0.0-1.0,"reason":"one sentence"}`,
 
   assets: `You are reviewing ownership documents for a dating-app "Assets" verification.
 Check if the document shows genuine ownership of a car, property, or company. The name on the document must match the government-verified identity.
 Extract 1–2 specific insights about what they own.
+Write one punchy "aggregated" sentence (8–12 words) suitable for a profile.
 
 Return ONLY raw JSON — no markdown, no code fences:
-{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Property owner'","emoji":"🏠"},...],"confidence":0.0-1.0,"reason":"one sentence"}`,
+{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Property owner'","emoji":"🏠"},...],"aggregated":"e.g. 'Owns property — verified, not just claimed'","confidence":0.0-1.0,"reason":"one sentence"}`,
 };
 
 // intro + URL-only social categories are auto-verified without Vision
@@ -340,24 +350,26 @@ export const POST: RequestHandler = async ({ request }) => {
     const rawText    = (claudeData.content?.[0]?.text ?? '{}') as string;
     const cleaned    = rawText.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim();
 
-    let result: { verified?: boolean; insights?: Array<{ label: string; emoji: string }>; locations?: string[]; confidence?: number; reason?: string };
+    let result: { verified?: boolean; insights?: Array<{ label: string; emoji: string }>; locations?: string[]; aggregated?: string; confidence?: number; reason?: string };
     try { result = JSON.parse(cleaned); }
     catch { console.error('Non-JSON from Claude:', cleaned); return json({ error: 'Analysis returned unexpected format' }, { status: 500 }); }
 
-    const verified  = result.verified === true;
-    const insights  = (result.insights ?? []).filter(i => i.label && i.emoji).slice(0, 5);
-    const locations = (result.locations ?? []).filter((l): l is string => typeof l === 'string' && l.trim().length > 0);
+    const verified   = result.verified === true;
+    const insights   = (result.insights ?? []).filter(i => i.label && i.emoji).slice(0, 5);
+    const locations  = (result.locations ?? []).filter((l): l is string => typeof l === 'string' && l.trim().length > 0);
+    const aggregated = typeof result.aggregated === 'string' ? result.aggregated.trim() : '';
     if (insights.length === 0 && verified) insights.push({ label: 'Proof verified', emoji: '✅' });
 
     if (verified) {
       const userId = await getUserIdFromRequest(request);
-      if (userId) await persistInsight(userId, category, pts, { insights, locations, confidence: result.confidence, reason: result.reason, pts_awarded: pts, photo_count: files.length });
+      if (userId) await persistInsight(userId, category, pts, { insights, locations, aggregated, confidence: result.confidence, reason: result.reason, pts_awarded: pts, photo_count: files.length });
     }
 
     return json({
       verified,
       insights,
       locations,
+      aggregated,
       pts_awarded:  verified ? pts : 0,
       photo_count:  files.length,
       confidence:   result.confidence ?? 0,
