@@ -210,6 +210,21 @@
     profession: 'UX Researcher',
   };
 
+  // Fixed card shown on step 6 (Lifestyle & Standards) — women to men only
+  const sharedExperiencesCard: MotivationCard = {
+    profile: {
+      id: 'sarah', name: 'Sarah', age: 24, gender: 'woman',
+      archetypeId: 'forever_focused_woman',
+      photoUrl: '/female_profiles/sarah_Tech_Founder_045db3/photos/Sarah_1.jpg',
+      bio: 'Tech founder. Knows what she\'s building and who belongs in it.',
+      isOnline: true, lastActive: 'online',
+    },
+    quoteBefore: '"I don\'t care about a man\'s résumé. I care about what he\'d do with a free weekend. ',
+    highlight: 'That\'s what tells me everything',
+    quoteAfter: '."',
+    profession: 'Tech Founder',
+  };
+
   // ── Archetype derived booleans ──────────────────────────────────────────────
 
   const isMatrimonyArchetype = $derived(
@@ -313,8 +328,8 @@
     if ($user?.archetype === 'casual_generous_man') {
       return [
         ...base,
-        { number: 5, name: 'Standards & Preferences', description: 'What you look for.', icon: '🔒', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
-        { number: 6, name: 'Lifestyle & Experiences', description: 'What you enjoy sharing.', icon: '💎', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
+        { number: 5, name: 'Taste & Experiences', description: 'What you\'re drawn to.', icon: '💎', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
+        { number: 6, name: 'Lifestyle & Standards', description: 'How you live and what you value.', icon: '🔒', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
         { number: 7, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
       ];
     }
@@ -1536,13 +1551,13 @@
           />
         {/if}
       {:else if currentStep === 5 && $user?.archetype === 'casual_generous_man'}
-        <CasualGenerousPreferencesStep
-          onSubmit={handleCasualGenerousPrefsSubmit}
+        <CasualGenerousProfileStep
+          onSubmit={handleCasualGenerousProfileSubmit}
           onCancel={handleBack}
         />
       {:else if currentStep === 6 && $user?.archetype === 'casual_generous_man'}
-        <CasualGenerousProfileStep
-          onSubmit={handleCasualGenerousProfileSubmit}
+        <CasualGenerousPreferencesStep
+          onSubmit={handleCasualGenerousPrefsSubmit}
           onCancel={handleBack}
         />
       {:else if currentStep === 5 && isMatrimonyArchetype}
@@ -1723,6 +1738,33 @@
       </p>
       <p class="motivation-meta">
         {photoStepCard.profile.name}, {photoStepCard.profile.age} · {photoStepCard.profession}
+      </p>
+    </div>
+    <span class="motivation-chevron">›</span>
+  </button>
+  {/if}
+
+  {#if currentStep === 6 && $user?.archetype === 'casual_generous_man' && viewerGender !== 'woman'}
+  <button
+    class="motivation-card motivation-card--tall"
+    onclick={() => { openedMotivationProfile = sharedExperiencesCard.profile; }}
+    aria-label="View {sharedExperiencesCard.profile.name}'s profile"
+    transition:fade={{ duration: 300, delay: 200 }}
+  >
+    <div class="motivation-avatar-wrap">
+      <img
+        class="motivation-avatar"
+        src={sharedExperiencesCard.profile.photoUrl}
+        alt={sharedExperiencesCard.profile.name}
+      />
+      <span class="motivation-verified-badge">✓</span>
+    </div>
+    <div class="motivation-body">
+      <p class="motivation-quote">
+        {sharedExperiencesCard.quoteBefore}<em class="motivation-highlight">{sharedExperiencesCard.highlight}</em>{sharedExperiencesCard.quoteAfter}
+      </p>
+      <p class="motivation-meta">
+        {sharedExperiencesCard.profile.name}, {sharedExperiencesCard.profile.age} · {sharedExperiencesCard.profession}
       </p>
     </div>
     <span class="motivation-chevron">›</span>

@@ -184,16 +184,6 @@
 
 <div class="casual-generous-preferences-step">
   <div class="header" transition:fade={{ duration: 200 }}>
-    <div class="header-content">
-      <h2 class="title">
-        {step === 'questions' ? 'Standards & Preferences' : 'Review Your Answers'}
-      </h2>
-      <p class="subtitle">
-        {step === 'questions'
-          ? 'What you look for and how you operate'
-          : 'Make sure everything looks right'}
-      </p>
-    </div>
     <div class="progress-container">
       <div class="progress-bar">
         <div class="progress-fill" style="width: {getProgressPct()}%"></div>
@@ -297,11 +287,7 @@
     margin: 0 auto;
   }
 
-  .header { display: flex; flex-direction: column; gap: 1rem; }
-  .header-content { display: flex; flex-direction: column; gap: 0.5rem; }
-
-  .title { font-size: 1.5rem; font-weight: 600; color: var(--text-1); margin: 0; }
-  .subtitle { font-size: 0.95rem; color: var(--text-2); margin: 0; }
+  .header { display: flex; flex-direction: column; gap: 0.5rem; }
 
   .progress-container { display: flex; flex-direction: column; gap: 0.25rem; }
 
@@ -366,19 +352,21 @@
   .options-grid { display: grid; grid-template-columns: 1fr; gap: 0.5rem; }
 
   .options-grid.chips {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     gap: 8px;
   }
 
   .options-grid.chips .option-button {
-    flex: none;
-    padding: 7px 16px;
+    padding: 7px 12px;
     border-radius: 100px;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     min-height: 36px;
     justify-content: center;
-    white-space: nowrap;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.3;
+    width: 100%;
   }
 
   .options-grid.chips .checkmark { display: none; }
@@ -476,7 +464,6 @@
 
   @media (max-width: 767px) {
     .casual-generous-preferences-step { gap: 1rem; }
-    .title { font-size: 1.25rem; }
     .question-card { padding: 1rem; }
     .button-group { flex-direction: column; }
     .button { width: 100%; }
