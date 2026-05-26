@@ -444,6 +444,99 @@
     }
   }
 
+  // All localStorage keys that form the universal profile
+  const ALL_ONBOARDING_KEYS = [
+    'vv_qa_responses',
+    'vv_casual_generous_profile', 'vv_casual_generous_preferences',
+    'vv_matrimony_profile', 'vv_matrimony_preferences',
+    'vv_forever_intent', 'vv_forever_profile', 'vv_forever_preferences',
+    'vv_romantic_intent', 'vv_romantic_profile', 'vv_romantic_preferences',
+    'vv_second_chapter_intent', 'vv_second_chapter_profile', 'vv_second_chapter_preferences',
+    'vv_untouched_heart_intent', 'vv_untouched_heart_profile', 'vv_untouched_heart_preferences',
+    'vv_just_friends_intent', 'vv_just_friends_profile', 'vv_just_friends_preferences',
+    'vv_rebound_healing',
+  ] as const;
+
+  /** Pull master profile from Supabase and hydrate any missing localStorage keys */
+  async function hydrateMasterProfile(token: string) {
+    try {
+      const res = await fetch('/api/verified-vibe/master-profile', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const master = await res.json() as {
+        profileDraft: object | null;
+        generatedProfile: object | null;
+        onboarding: Record<string, unknown> | null;
+        countriesTraveled: string[];
+        proofInsightsLocalStorage: object[];
+      };
+
+      // Hydrate profile draft if missing locally
+      if (master.profileDraft && !localStorage.getItem('vv_profile_draft')) {
+        localStorage.setItem('vv_profile_draft', JSON.stringify(master.profileDraft));
+        draft = master.profileDraft as typeof draft;
+      }
+
+      // Hydrate generated profile if missing locally
+      if (master.generatedProfile && !localStorage.getItem('vv_profile')) {
+        localStorage.setItem('vv_profile', JSON.stringify(master.generatedProfile));
+        generated = master.generatedProfile as typeof generated;
+      }
+
+      // Hydrate each onboarding key that is absent locally
+      if (master.onboarding) {
+        const freshLoaded: Record<string, Record<string, string | string[]>> = { ...archetypeStore };
+        for (const key of ALL_ONBOARDING_KEYS) {
+          if (!localStorage.getItem(key) && master.onboarding[key]) {
+            try {
+              const val = master.onboarding[key];
+              localStorage.setItem(key, JSON.stringify(val));
+              freshLoaded[key] = val as Record<string, string | string[]>;
+            } catch { /* ignore */ }
+          }
+        }
+        archetypeStore = freshLoaded;
+      }
+
+      // Hydrate countries traveled if missing locally
+      if (master.countriesTraveled.length > 0 && !localStorage.getItem('vv_countries_traveled')) {
+        localStorage.setItem('vv_countries_traveled', JSON.stringify(master.countriesTraveled));
+      }
+
+      // Hydrate proof insights if missing locally (from verifiedProofs in DB)
+      if (master.proofInsightsLocalStorage.length > 0 && !localStorage.getItem('vv_proof_insights')) {
+        localStorage.setItem('vv_proof_insights', JSON.stringify(master.proofInsightsLocalStorage));
+      }
+    } catch { /* non-critical */ }
+  }
+
+  /** Push all current localStorage data up to Supabase (fire-and-forget) */
+  function pushMasterProfile(token: string, extra?: Record<string, unknown>) {
+    try {
+      const onboarding: Record<string, unknown> = {};
+      for (const key of ALL_ONBOARDING_KEYS) {
+        const raw = localStorage.getItem(key);
+        if (raw) { try { onboarding[key] = JSON.parse(raw); } catch { /* ignore */ } }
+      }
+
+      const countriesRaw = localStorage.getItem('vv_countries_traveled');
+      const countriesTraveled = countriesRaw ? JSON.parse(countriesRaw) : [];
+
+      const rawProfile = localStorage.getItem('vv_profile');
+      const generatedProfile = rawProfile ? JSON.parse(rawProfile) : undefined;
+
+      const rawDraftRaw = localStorage.getItem('vv_profile_draft');
+      const profileDraft = rawDraftRaw ? JSON.parse(rawDraftRaw) : undefined;
+
+      fetch('/api/verified-vibe/master-profile', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ onboarding, countriesTraveled, generatedProfile, profileDraft, ...extra }),
+      }).catch(() => { /* non-critical */ });
+    } catch { /* non-critical */ }
+  }
+
   onMount(async () => {
     const supabase = getSupabaseClient();
     const { data: { session } } = await supabase.auth.getSession();
@@ -464,24 +557,17 @@
     if (rawPhotos) photos = JSON.parse(rawPhotos);
     if (rawAiPhotos) aiPhotos = JSON.parse(rawAiPhotos);
 
-    // Load all archetype-specific QA data
-    const archetypeKeys = [
-      'vv_qa_responses',
-      'vv_casual_generous_profile', 'vv_casual_generous_preferences',
-      'vv_matrimony_profile', 'vv_matrimony_preferences',
-      'vv_forever_intent', 'vv_forever_profile', 'vv_forever_preferences',
-      'vv_romantic_intent', 'vv_romantic_profile', 'vv_romantic_preferences',
-      'vv_second_chapter_intent', 'vv_second_chapter_profile', 'vv_second_chapter_preferences',
-      'vv_untouched_heart_intent', 'vv_untouched_heart_profile', 'vv_untouched_heart_preferences',
-      'vv_just_friends_intent', 'vv_just_friends_profile', 'vv_just_friends_preferences',
-      'vv_rebound_healing',
-    ];
+    // Load all archetype-specific QA data from localStorage
     const loaded: Record<string, Record<string, string | string[]>> = {};
-    for (const key of archetypeKeys) {
+    for (const key of ALL_ONBOARDING_KEYS) {
       const raw = localStorage.getItem(key);
       if (raw) { try { loaded[key] = JSON.parse(raw); } catch { /* ignore */ } }
     }
     archetypeStore = loaded;
+
+    // ── Universal sync: pull from Supabase to hydrate any missing keys ────────
+    // Runs in parallel with the rest of the setup; result merged after resolution
+    const hydratePromise = hydrateMasterProfile(session.access_token);
 
     // Deep-link tab: ?tab=boost jumps to Trust & Boost tab
     const tabParam = new URL(window.location.href).searchParams.get('tab');
@@ -505,6 +591,10 @@
         }
       }
     } catch { /* non-critical — keep defaults */ }
+
+    // Wait for hydration, then push current state up (idempotent upsert)
+    await hydratePromise;
+    pushMasterProfile(session.access_token);
   });
 
   async function handleEnhancePhotos() {
@@ -613,7 +703,7 @@
     localStorage.setItem('vv_profile', JSON.stringify(updatedGenerated));
     generated = updatedGenerated;
 
-    // Also persist basic profile fields to Supabase if available
+    // Persist basic profile fields to Supabase
     if ($user) {
       try {
         await upsertProfile({
@@ -628,6 +718,13 @@
         // Continue anyway — localStorage has the data, will sync on next opportunity
       }
     }
+
+    // Push generated profile to universal master profile (fire-and-forget)
+    try {
+      const { getSupabaseClient: _sb } = await import('$lib/client/supabase');
+      const { data: { session: s } } = await _sb().auth.getSession();
+      if (s?.access_token) pushMasterProfile(s.access_token, { generatedProfile: updatedGenerated });
+    } catch { /* non-critical */ }
 
     mode = 'public';
   }
