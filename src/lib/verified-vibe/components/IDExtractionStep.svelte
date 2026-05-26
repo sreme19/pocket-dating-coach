@@ -310,7 +310,7 @@
   .upload-area {
     border: 2px dashed var(--border-2);
     border-radius: 12px;
-    padding: 32px 20px;
+    padding: 20px 20px;
     text-align: center;
     cursor: pointer;
     transition: all 200ms ease;
@@ -318,7 +318,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
   }
 
   .upload-area:hover {
@@ -327,7 +327,7 @@
   }
 
   .upload-icon {
-    font-size: 48px;
+    font-size: 32px;
     display: block;
   }
 
