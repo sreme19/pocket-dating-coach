@@ -146,12 +146,30 @@ From the document(s) extract:
 - Employer or institution name if clearly present (e.g. "HDFC Bank", "Infosys", "Zerodha")
 - Estimated RANGE only — e.g. "₹5–10L/year", "₹2–5L/month", "₹50L+ portfolio", "₹1Cr+ net worth"
 
+ALSO extract spending patterns if visible (especially from bank statements):
+Look for recurring debits, EMIs, card charges, UPI payments, investment SIPs, subscriptions.
+Group them into up to 5 spending categories. For each provide:
+- category name (e.g. "Home Loan EMI", "Investments & SIP", "Dining & Lifestyle", "Subscriptions", "Travel")
+- emoji that fits
+- amountLabel: a RANGE only (e.g. "₹40–60K/month", "₹10–15K/month") — never exact
+- estimatedMonthly: rough integer in INR (e.g. 50000) — used only for proportional bar chart rendering
+
 Write one punchy "aggregated" sentence (8–12 words) for the profile — aspirational but honest.
 
-IMPORTANT: ITR (income tax return) documents contain "Gross Total Income" or "Total Income" fields — use that figure to determine the range tier. Do NOT output the exact figure.
+IMPORTANT: ITR documents contain "Gross Total Income" — use it for range tier only, never exact figure.
 
 YOU MUST return ONLY raw JSON — no explanation, no preamble, no markdown:
-{"verified":true,"insights":[{"label":"3-5 words e.g. 'High-income salaried professional'","emoji":"💰"}],"aggregated":"e.g. 'Consistently high earner with diversified savings and investments'","confidence":0.0-1.0,"reason":"one sentence"}
+{
+  "verified": true,
+  "insights": [{"label": "3-5 words", "emoji": "💰"}],
+  "aggregated": "8-12 word profile sentence",
+  "spendingBreakdown": [
+    {"category": "Home Loan EMI", "emoji": "🏡", "amountLabel": "₹40–60K/month", "estimatedMonthly": 50000}
+  ],
+  "confidence": 0.0-1.0,
+  "reason": "one sentence"
+}
+spendingBreakdown may be omitted or empty [] if the document has no transaction data (e.g. ITR, salary slip only).
 If the document contains no readable income/wealth signal, set verified=false.`,
 
   assets: `You are reviewing documents for a dating-app "Assets" verification.
@@ -500,16 +518,18 @@ export const POST: RequestHandler = async ({ request }) => {
     if (hasPdf && onlyPdfs && category === 'wealth') {
       const parsed    = await callClaudeWithPdfs(files, PROMPTS.wealth);
       const wInsights = (parsed?.insights?.length ? parsed.insights : [{ label: 'Financial document uploaded', emoji: '💰' }]).slice(0, 5);
+      const wSpending = parsed?.spendingBreakdown ?? [];
       const userId    = await getUserIdFromRequest(request);
-      if (userId) await persistInsight(userId, category, pts, { insights: wInsights, aggregated: parsed?.aggregated, pts_awarded: pts });
+      if (userId) await persistInsight(userId, category, pts, { insights: wInsights, aggregated: parsed?.aggregated, spendingBreakdown: wSpending.length ? wSpending : undefined, pts_awarded: pts });
       return json({
-        verified:    parsed?.verified !== false,
-        insights:    wInsights,
-        aggregated:  parsed?.aggregated,
-        pts_awarded: pts,
-        photo_count: files.length,
-        confidence:  parsed?.confidence ?? 0.85,
-        reason:      parsed?.reason ?? 'Wealth PDF analysed',
+        verified:          parsed?.verified !== false,
+        insights:          wInsights,
+        aggregated:        parsed?.aggregated,
+        spendingBreakdown: wSpending,
+        pts_awarded:       pts,
+        photo_count:       files.length,
+        confidence:        parsed?.confidence ?? 0.85,
+        reason:            parsed?.reason ?? 'Wealth PDF analysed',
       });
     }
 

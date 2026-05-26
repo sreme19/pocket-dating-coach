@@ -930,14 +930,19 @@
         }
       }
 
-      // Load spending breakdown from proof insights (spending category)
+      // Load spending breakdown — merge receipt-verified (spending) + bank-statement-derived (wealth)
       const rawInsightsForSpend = localStorage.getItem('vv_proof_insights');
       if (rawInsightsForSpend) {
         const allI: Array<{ category: string; spendingBreakdown?: Array<{ category: string; emoji: string; amountLabel: string; estimatedMonthly?: number }> }> = JSON.parse(rawInsightsForSpend);
-        const spendInsight = allI.find(i => i.category === 'spending');
-        if (spendInsight?.spendingBreakdown?.length) {
-          spendingData = spendInsight.spendingBreakdown.map(s => ({ ...s, verified: true }));
-        }
+        const spendInsight  = allI.find(i => i.category === 'spending');
+        const wealthInsight = allI.find(i => i.category === 'wealth');
+        const fromReceipts  = (spendInsight?.spendingBreakdown  ?? []).map(s => ({ ...s, verified: true }));
+        const fromWealth    = (wealthInsight?.spendingBreakdown ?? []).map(s => ({ ...s, verified: true }));
+        // Receipts take precedence; fill in with wealth-derived patterns for categories not already covered
+        const receiptCats = new Set(fromReceipts.map(r => r.category.toLowerCase()));
+        const extra = fromWealth.filter(w => !receiptCats.has(w.category.toLowerCase()));
+        const merged = [...fromReceipts, ...extra];
+        if (merged.length > 0) spendingData = merged;
       }
     } catch { /* non-critical */ }
 
@@ -1666,11 +1671,14 @@
                 </div>
               {/if}
 
-              <!-- Spending breakdown from receipts -->
+              <!-- Spending patterns — from receipts and/or bank statement -->
               {#if spendingData.length > 0}
+                {@const hasReceipts = spendingData.some(s => s.verified)}
                 <div class="money-spend-header">
-                  <span class="money-spend-title">Where the money goes</span>
-                  <span class="money-spend-verified">✅ Receipt verified</span>
+                  <span class="money-spend-title">Spending patterns</span>
+                  <span class="money-spend-verified">
+                    {hasReceipts ? '✅ Receipt verified' : '🏦 Bank statement'}
+                  </span>
                 </div>
                 <div class="money-spend-list">
                   {#each spendingData as item}
@@ -1692,6 +1700,12 @@
                     </div>
                   {/each}
                 </div>
+              {:else if wealthInsights}
+                <!-- Has wealth proof but no spending breakdown extracted — nudge -->
+                <a class="money-spend-nudge" href="/verified-vibe/proof-upload?category=spending">
+                  <span>🧾</span>
+                  <span>Upload receipts to show spending patterns →</span>
+                </a>
               {/if}
             {:else}
               <!-- Empty — direct to Trust & Boost -->
@@ -4393,6 +4407,19 @@
     gap: 2px;
     padding: 0 14px 14px;
   }
+
+  .money-spend-nudge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    font-size: 12.5px;
+    color: rgba(212,160,23,0.6);
+    text-decoration: none;
+    border-top: 1px solid rgba(212,160,23,0.1);
+    transition: color 150ms;
+  }
+  .money-spend-nudge:hover { color: rgba(212,160,23,0.9); }
 
   .money-spend-row {
     display: flex;
