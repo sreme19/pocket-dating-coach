@@ -148,6 +148,21 @@
   }
 
   async function routeAfterAuth() {
+    // Guard against a session-propagation race: verifyOtp resolves before the
+    // access token is always available for PostgREST RLS. Retry up to 3×.
+    const supabase = getSupabaseClient();
+    let session = null;
+    for (let i = 0; i < 3; i++) {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) { session = data.session; break; }
+      await new Promise(r => setTimeout(r, 150));
+    }
+    if (!session) {
+      // Session never materialised — send back to auth.
+      goto('/verified-vibe/auth');
+      return;
+    }
+
     // Flush any locally-stored preferences collected before sign-up.
     // Read these BEFORE removing them so we can use them for routing below.
     const pendingGender    = localStorage.getItem('verified_vibe_pending_gender');
@@ -180,7 +195,30 @@
       return;
     }
 
-    const completeness = await getProfileCompleteness();
+    let completeness = await getProfileCompleteness();
+
+    // Repair: if the DB has no archetype but localStorage still holds one (e.g.
+    // the upsertProfile call raced and failed silently on first sign-up, removing
+    // verified_vibe_pending_archetype before it could be confirmed), re-apply it
+    // now so the user is not sent back to lane-selection every time they sign in.
+    if (completeness === 'no_archetype') {
+      const savedArchetype = localStorage.getItem('verified_vibe_archetype');
+      if (savedArchetype) {
+        try {
+          await upsertProfile({ archetype: savedArchetype as any });
+          completeness = 'no_verification';
+        } catch (e) {
+          console.error('Failed to repair archetype from localStorage:', e);
+        }
+      }
+    }
+
+    // In dev mode (VITE_SKIP_VERIFICATION=true), treat users who have a complete
+    // profile (gender + archetype set) as fully verified — mirrors hydrateStores().
+    if (import.meta.env.VITE_SKIP_VERIFICATION === 'true' && completeness === 'no_verification') {
+      completeness = 'complete';
+    }
+
     const destination  = routeForCompleteness(completeness);
     if (completeness === 'complete')             setPhase('app');
     else if (completeness === 'no_verification') setPhase('verify');

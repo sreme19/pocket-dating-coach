@@ -1,16 +1,40 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
   import { user } from '$lib/verified-vibe/stores';
   import { ARCHETYPES, ARCHETYPES_BY_GENDER, ARCHETYPE_SECTIONS } from '$lib/verified-vibe/constants';
   import type { Archetype, Gender, VerifiedVibeUser } from '$lib/verified-vibe/types';
   import ArchetypeCard from '$lib/verified-vibe/components/ArchetypeCard.svelte';
   import ArchetypeDetailModal from '$lib/verified-vibe/components/ArchetypeDetailModal.svelte';
   import LiveWomenCarousel from '$lib/verified-vibe/components/LiveWomenCarousel.svelte';
-  import { getProfile } from '$lib/verified-vibe/services/profileService';
+  import { getProfile, upsertProfile } from '$lib/verified-vibe/services/profileService';
+  import { getSupabaseClient } from '$lib/client/supabase';
+  import { setPhase } from '$lib/verified-vibe/stores';
 
   let gender = $state<Gender | null>(null);
   let openedArchetype = $state<Archetype | null>(null);
   let activeSection = $state<string | null>(null);
+
+  // Repair: if a signed-in user lands here but already has a saved archetype in
+  // localStorage (upsert raced and failed on first sign-up), re-apply it now and
+  // skip straight to the next step rather than forcing a repeat lane selection.
+  onMount(async () => {
+    const savedArchetype = localStorage.getItem('verified_vibe_archetype');
+    if (!savedArchetype) return;
+
+    const supabase = getSupabaseClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return; // not signed in — normal new-user flow, nothing to repair
+
+    try {
+      await upsertProfile({ archetype: savedArchetype as Archetype });
+      setPhase('verify');
+      goto('/verified-vibe/verify');
+    } catch (e) {
+      // Upsert failed — fall through to manual lane selection
+      console.error('Archetype repair failed on home page:', e);
+    }
+  });
 
   // Countdown — starts at 14:59 and counts down
   let secondsLeft = $state(19 * 60 + 59);
