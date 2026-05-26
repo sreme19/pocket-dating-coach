@@ -352,21 +352,19 @@
   .options-grid { display: grid; grid-template-columns: 1fr; gap: 0.5rem; }
 
   .options-grid.chips {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    display: flex;
+    flex-wrap: wrap;
     gap: 8px;
   }
 
   .options-grid.chips .option-button {
-    padding: 7px 12px;
+    flex: none;
+    padding: 7px 16px;
     border-radius: 100px;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     min-height: 36px;
     justify-content: center;
-    white-space: normal;
-    text-align: center;
-    line-height: 1.3;
-    width: 100%;
+    white-space: nowrap;
   }
 
   .options-grid.chips .checkmark { display: none; }
