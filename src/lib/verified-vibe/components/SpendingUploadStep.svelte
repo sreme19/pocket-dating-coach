@@ -139,7 +139,7 @@
           <li>Any proof of spending pattern</li>
         </ul>
         <p class="info-note">
-          💡 Make sure the image is clear and readable. Personal information will be analyzed by AI and not stored.
+          Personal information will be analyzed by AI and not stored.
         </p>
       </div>
 
@@ -266,7 +266,7 @@
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
-    padding: 1.5rem;
+    padding: 0 1.5rem 1.5rem;
     max-width: 600px;
     margin: 0 auto;
   }
