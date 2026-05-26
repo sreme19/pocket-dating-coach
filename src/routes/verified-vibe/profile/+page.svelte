@@ -132,6 +132,12 @@
   let garageCars = $state<GarageCar[]>([]);
   let garageActiveIdx = $state(0);
 
+  // Career Highlights — derived from LinkedIn / CV proof insights
+  let careerHighlights = $state<{
+    insights: Array<{ label: string; emoji: string }>;
+    aggregated: string;
+  } | null>(null);
+
   // Brand → accent colour for showroom card
   const BRAND_COLORS: Record<string, { accent: string; logo: string }> = {
     'bmw':            { accent: '#1C69D4', logo: '𝗕𝗠𝗪' },
@@ -996,6 +1002,25 @@
       }
     } catch { /* non-critical */ }
 
+    // Load Career Highlights from LinkedIn / CV proof insights
+    try {
+      const rawInsights = localStorage.getItem('vv_proof_insights');
+      if (rawInsights) {
+        const allI: Array<{
+          category: string;
+          insights?: Array<{ label: string; emoji: string }>;
+          aggregated?: string;
+        }> = JSON.parse(rawInsights);
+        const linkedinInsight = allI.find(i => i.category === 'linkedin');
+        if (linkedinInsight?.insights?.length) {
+          careerHighlights = {
+            insights: linkedinInsight.insights,
+            aggregated: linkedinInsight.aggregated ?? '',
+          };
+        }
+      }
+    } catch { /* non-critical */ }
+
     if (rawDraft) draft = JSON.parse(rawDraft);
     if (rawGenerated) generated = JSON.parse(rawGenerated);
     if (rawPhotos) photos = JSON.parse(rawPhotos);
@@ -1536,6 +1561,35 @@
           {/each}
         </div>
       </section>
+      {/if}
+
+      <!-- Career Highlights — derived from LinkedIn / CV -->
+      {#if careerHighlights}
+        <section class="section career-section">
+          <div class="section-label">
+            <span>💼</span>
+            Career Highlights
+          </div>
+          <div class="career-card">
+            {#if careerHighlights.aggregated}
+              <p class="career-summary">{careerHighlights.aggregated}</p>
+            {/if}
+            <div class="career-chips">
+              {#each careerHighlights.insights as ins}
+                <span class="career-chip">
+                  <span class="career-chip-emoji">{ins.emoji}</span>
+                  {ins.label}
+                </span>
+              {/each}
+            </div>
+            <div class="career-verified-row">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+              <span>AI verified via CV / LinkedIn</span>
+            </div>
+          </div>
+        </section>
       {/if}
 
       <!-- Money Matters — read-only in public view -->
@@ -4103,6 +4157,61 @@
     font-size: 13px;
     color: var(--text-2);
     line-height: 1.5;
+  }
+
+  /* ── Career Highlights ────────────────────────────────────────────────────── */
+
+  .career-section { gap: 10px; }
+
+  .career-card {
+    background: linear-gradient(145deg, rgba(10,102,194,0.12) 0%, rgba(6,6,20,0.95) 100%);
+    border: 1px solid rgba(10,102,194,0.25);
+    border-radius: 18px;
+    padding: 18px 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .career-summary {
+    font-size: 14px;
+    line-height: 1.55;
+    color: rgba(255,255,255,0.88);
+    font-style: italic;
+    margin: 0;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+
+  .career-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .career-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(10,102,194,0.18);
+    border: 1px solid rgba(10,102,194,0.35);
+    border-radius: 999px;
+    padding: 6px 13px;
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.92);
+    white-space: nowrap;
+  }
+
+  .career-chip-emoji { font-size: 14px; }
+
+  .career-verified-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 0.02em;
   }
 
   /* ── Money Matters ────────────────────────────────────────────────────────── */
