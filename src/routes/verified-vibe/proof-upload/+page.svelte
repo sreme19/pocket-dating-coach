@@ -211,6 +211,21 @@
     },
   };
 
+  interface AssetDetail {
+    type: 'car' | 'property' | 'company';
+    // car fields
+    make?: string;
+    model?: string;
+    year?: string;
+    color?: string;
+    vehicleType?: string;
+    // property fields
+    city?: string;
+    detail?: string;
+    // company fields
+    name?: string;
+  }
+
   interface StoredInsight {
     id: string;
     category: string;
@@ -223,6 +238,7 @@
     verified_at: string;
     thumbnails?: string[];
     showcased?: boolean;     // whether shown on public profile
+    assets?: AssetDetail[];  // structured asset details (cars, property, company)
   }
 
   let category        = $state<Category>('lifestyle');
@@ -460,6 +476,7 @@
         pts_awarded:   data.pts_awarded,
         verified_at:   new Date().toISOString(),
         thumbnails:    thumbnails.length > 0 ? thumbnails : undefined,
+        assets:        Array.isArray(data.assets) && data.assets.length > 0 ? data.assets : undefined,
       };
       filtered.push(newInsight);
       localStorage.setItem('vv_proof_insights', JSON.stringify(filtered));

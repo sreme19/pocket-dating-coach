@@ -101,12 +101,48 @@ Return ONLY raw JSON — no markdown, no code fences:
 {"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Fine dining regular'","emoji":"💳"},...],"aggregated":"e.g. 'Spends generously on real experiences — dining, travel, and meaningful moments'","confidence":0.0-1.0,"reason":"one sentence"}`,
 
   assets: `You are reviewing ownership documents for a dating-app "Assets" verification.
-Check if the document shows genuine ownership of a car, property, or company. The name on the document must match the government-verified identity.
-Extract 1–2 specific insights about what they own.
-Write one punchy "aggregated" sentence (8–12 words) suitable for a profile.
+Carefully examine all documents. For each asset, extract the exact details visible in the document.
+
+CRITICAL — for cars: read the Registration Certificate (RC) or title carefully and extract:
+- Exact make (manufacturer): e.g. "BMW", "Mercedes-Benz", "Porsche", "Tesla", "Toyota", "MG"
+- Exact model: e.g. "X5", "C-Class", "911", "Model S", "Fortuner", "Comet EV"
+- Year of manufacture or registration year if visible
+- Color if mentioned
+- Vehicle type: "sedan", "SUV", "coupe", "hatchback", "convertible", "supercar", "EV"
+
+For property: city, type (apartment/villa/commercial), size if visible.
+For company: company name, type (Pvt Ltd / LLP / LLC).
+
+Write one punchy "aggregated" sentence (8–12 words) suitable for a dating profile.
 
 Return ONLY raw JSON — no markdown, no code fences:
-{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Property owner'","emoji":"🏠"},...],"aggregated":"e.g. 'Owns property — verified, not just claimed'","confidence":0.0-1.0,"reason":"one sentence"}`,
+{
+  "verified": true/false,
+  "insights": [{"label": "3-5 words e.g. 'BMW X5 owner'", "emoji": "🚗"}],
+  "aggregated": "e.g. 'Drives a BMW X5 and owns property in South Mumbai'",
+  "assets": [
+    {
+      "type": "car",
+      "make": "BMW",
+      "model": "X5",
+      "year": "2022",
+      "color": "black",
+      "vehicleType": "SUV"
+    },
+    {
+      "type": "property",
+      "city": "Mumbai",
+      "detail": "3BHK apartment"
+    },
+    {
+      "type": "company",
+      "name": "Acme Ventures Pvt Ltd"
+    }
+  ],
+  "confidence": 0.0-1.0,
+  "reason": "one sentence"
+}
+Only include asset types that are clearly visible in the document.`,
 };
 
 // intro + URL-only social categories are auto-verified without Vision
@@ -430,7 +466,15 @@ export const POST: RequestHandler = async ({ request }) => {
     const rawText    = (claudeData.content?.[0]?.text ?? '{}') as string;
     const cleaned    = rawText.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim();
 
-    let result: { verified?: boolean; insights?: Array<{ label: string; emoji: string }>; locations?: string[]; aggregated?: string; confidence?: number; reason?: string };
+    let result: {
+      verified?: boolean;
+      insights?: Array<{ label: string; emoji: string }>;
+      locations?: string[];
+      aggregated?: string;
+      assets?: Array<Record<string, string>>;
+      confidence?: number;
+      reason?: string;
+    };
     try { result = JSON.parse(cleaned); }
     catch { console.error('Non-JSON from Claude:', cleaned); return json({ error: 'Analysis returned unexpected format' }, { status: 500 }); }
 
@@ -438,11 +482,12 @@ export const POST: RequestHandler = async ({ request }) => {
     const insights   = (result.insights ?? []).filter(i => i.label && i.emoji).slice(0, 5);
     const locations  = (result.locations ?? []).filter((l): l is string => typeof l === 'string' && l.trim().length > 0);
     const aggregated = typeof result.aggregated === 'string' ? result.aggregated.trim() : '';
+    const assets     = Array.isArray(result.assets) ? result.assets : [];
     if (insights.length === 0 && verified) insights.push({ label: 'Proof verified', emoji: '✅' });
 
     if (verified) {
       const userId = await getUserIdFromRequest(request);
-      if (userId) await persistInsight(userId, category, pts, { insights, locations, aggregated, confidence: result.confidence, reason: result.reason, pts_awarded: pts, photo_count: files.length });
+      if (userId) await persistInsight(userId, category, pts, { insights, locations, aggregated, assets, confidence: result.confidence, reason: result.reason, pts_awarded: pts, photo_count: files.length });
     }
 
     return json({
@@ -450,6 +495,7 @@ export const POST: RequestHandler = async ({ request }) => {
       insights,
       locations,
       aggregated,
+      assets,
       pts_awarded:  verified ? pts : 0,
       photo_count:  files.length,
       confidence:   result.confidence ?? 0,
