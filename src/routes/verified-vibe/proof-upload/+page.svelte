@@ -645,13 +645,6 @@
           </div>
         </div>
       {:else}
-        {#if existingInsight.showcased}
-          <div class="showcased-badge">⭐ Showing on your public profile</div>
-        {:else}
-          <button class="showoff-public-btn" onclick={showcaseProof}>
-            🌟 Show off in public profile
-          </button>
-        {/if}
         <div class="uploaded-actions">
           <button class="reupload-btn" onclick={() => { existingInsight = null; }}>Upload more</button>
           <button class="delete-btn" onclick={() => confirmDelete = true}>Remove proof</button>
@@ -1352,25 +1345,6 @@
     line-height: 1.5;
     font-style: italic;
   }
-
-  /* ── Show off public button ── */
-  .showoff-public-btn {
-    width: 100%;
-    padding: 14px;
-    background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
-    border: none;
-    border-radius: 12px;
-    font-size: 15px;
-    font-weight: 700;
-    color: #fff;
-    cursor: pointer;
-    font-family: inherit;
-    letter-spacing: -0.01em;
-    transition: opacity 150ms;
-  }
-
-  .showoff-public-btn:hover { opacity: 0.88; }
-  .showoff-public-btn:active { opacity: 0.75; }
 
   .showcased-badge {
     width: 100%;
