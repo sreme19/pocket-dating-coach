@@ -467,12 +467,22 @@
 
       // Persist locations (countries traveled) to localStorage
       const locationsArr: string[] = Array.isArray(data.locations) ? data.locations : [];
+      let mergedCountries: string[] = [];
       if (locationsArr.length > 0) {
         try {
-          const existing: string[] = JSON.parse(localStorage.getItem('vv_countries_traveled') ?? '[]');
-          const merged = Array.from(new Set([...existing, ...locationsArr]));
-          localStorage.setItem('vv_countries_traveled', JSON.stringify(merged));
+          const existingCountries: string[] = JSON.parse(localStorage.getItem('vv_countries_traveled') ?? '[]');
+          mergedCountries = Array.from(new Set([...existingCountries, ...locationsArr]));
+          localStorage.setItem('vv_countries_traveled', JSON.stringify(mergedCountries));
         } catch { /* ignore */ }
+      }
+
+      // Push updated countries (and proof insights metadata) to universal master profile
+      if (session?.access_token && mergedCountries.length > 0) {
+        fetch('/api/verified-vibe/master-profile', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ countriesTraveled: mergedCountries }),
+        }).catch(() => { /* non-critical */ });
       }
 
       result = { insights: insightsArr, pts_awarded: data.pts_awarded, reason: data.reason ?? '', locations: locationsArr, aggregated: data.aggregated ?? '' };
