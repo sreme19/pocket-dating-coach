@@ -136,27 +136,30 @@ Return ONLY raw JSON — no markdown, no code fences:
 }
 Only include categories you can actually see evidence for in the images.`,
 
-  wealth: `You are reviewing financial documents for a dating-app "Wealth" verification. Input may be raw text extracted from a PDF (bank statement, salary slip/payslip, ITR/Form 16, investment portfolio) OR a screenshot image.
+  wealth: `You are reviewing financial documents for a dating-app "Wealth" verification. Input may be raw text extracted from a PDF OR a screenshot image.
 
-Extract evidence of financial health. NEVER expose exact account numbers, exact salary, or exact balance — only ranges and tiers.
+Accepted document types: bank statement, credit card statement, salary slip/payslip, ITR/Form 16, investment portfolio screenshot.
+
+Extract evidence of financial health. NEVER expose exact account numbers, exact salary figures, or exact balances — ranges and tiers only.
 
 From the document(s) extract:
-- Document type: "bank statement" / "salary slip" / "investment portfolio" / "tax return"
+- Document type: "bank statement" / "credit card statement" / "salary slip" / "investment portfolio" / "tax return"
 - Income tier: "entry-level" / "professional" / "senior professional" / "high income" / "affluent"
-- Employer or institution name if clearly present (e.g. "HDFC Bank", "Infosys", "Zerodha")
+- Employer or institution name if clearly present (e.g. "HDFC Bank", "Infosys", "Zerodha", "ICICI Credit")
 - Estimated RANGE only — e.g. "₹5–10L/year", "₹2–5L/month", "₹50L+ portfolio", "₹1Cr+ net worth"
 
-ALSO extract spending patterns if visible (especially from bank statements):
-Look for recurring debits, EMIs, card charges, UPI payments, investment SIPs, subscriptions.
-Group them into up to 5 spending categories. For each provide:
-- category name (e.g. "Home Loan EMI", "Investments & SIP", "Dining & Lifestyle", "Subscriptions", "Travel")
+SPENDING PATTERNS — extract for bank statements AND credit card statements:
+Look for recurring debits, EMIs, card charges, UPI spends, SIP investments, subscriptions, travel bookings, dining.
+For credit card statements especially: group merchant categories into lifestyle buckets.
+Return up to 6 spending categories. For each:
+- category name (e.g. "Home Loan EMI", "Credit Card Spend", "Investments & SIP", "Dining & Lifestyle", "Travel", "Subscriptions")
 - emoji that fits
-- amountLabel: a RANGE only (e.g. "₹40–60K/month", "₹10–15K/month") — never exact
-- estimatedMonthly: rough integer in INR (e.g. 50000) — used only for proportional bar chart rendering
+- amountLabel: RANGE only (e.g. "₹40–60K/month", "₹10–15K/month") — never exact
+- estimatedMonthly: rough integer in INR (e.g. 50000) — for proportional bar chart only
 
 Write one punchy "aggregated" sentence (8–12 words) for the profile — aspirational but honest.
 
-IMPORTANT: ITR documents contain "Gross Total Income" — use it for range tier only, never exact figure.
+IMPORTANT: ITR "Gross Total Income" → range tier only, never exact figure.
 
 YOU MUST return ONLY raw JSON — no explanation, no preamble, no markdown:
 {
@@ -169,7 +172,7 @@ YOU MUST return ONLY raw JSON — no explanation, no preamble, no markdown:
   "confidence": 0.0-1.0,
   "reason": "one sentence"
 }
-spendingBreakdown may be omitted or empty [] if the document has no transaction data (e.g. ITR, salary slip only).
+spendingBreakdown may be [] if the document has no transaction data (e.g. ITR-only, salary slip only).
 If the document contains no readable income/wealth signal, set verified=false.`,
 
   assets: `You are reviewing documents for a dating-app "Assets" verification.
