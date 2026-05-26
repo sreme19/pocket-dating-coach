@@ -37,24 +37,6 @@
     { value: 'Independent',   label: '🦁 Independent' }
   ];
 
-  const INTERESTS: { value: string; label: string }[] = [
-    { value: 'Travel',        label: '✈️ Travel' },
-    { value: 'Food & Dining', label: '🍽️ Food & Dining' },
-    { value: 'Music',         label: '🎵 Music' },
-    { value: 'Fitness',       label: '🏋️ Fitness' },
-    { value: 'Reading',       label: '📚 Reading' },
-    { value: 'Movies',        label: '🎬 Movies' },
-    { value: 'Outdoors',      label: '🌲 Outdoors' },
-    { value: 'Art',           label: '🎨 Art' },
-    { value: 'Gaming',        label: '🎮 Gaming' },
-    { value: 'Cooking',       label: '👨‍🍳 Cooking' },
-    { value: 'Photography',   label: '📸 Photography' },
-    { value: 'Dancing',       label: '💃 Dancing' },
-    { value: 'Sports',        label: '⚽ Sports' },
-    { value: 'Tech',          label: '💻 Tech' },
-    { value: 'Fashion',       label: '👗 Fashion' }
-  ];
-
 
   // ── City combobox ──────────────────────────────────────────────────────────
   const CITIES = [
@@ -151,12 +133,10 @@
 
   let about = $state('');
   let selectedTags = $state<Set<string>>(new Set());
-  let lookingFor = $state('');
-  let selectedInterests = $state<Set<string>>(new Set());
   let touched = $state(false);
 
   // Voice input — tracks which field is actively listening
-  let listeningFor = $state<'about' | 'looking' | null>(null);
+  let listeningFor = $state<'about' | null>(null);
   let voiceSupported = $state(false);
   let recognition: any = null;
 
@@ -173,8 +153,6 @@
           const transcript = e.results[0][0].transcript;
           if (listeningFor === 'about') {
             about = about ? about.trimEnd() + ' ' + transcript : transcript;
-          } else if (listeningFor === 'looking') {
-            lookingFor = lookingFor ? lookingFor.trimEnd() + ' ' + transcript : transcript;
           }
           listeningFor = null;
         };
@@ -184,7 +162,7 @@
     }
   });
 
-  function toggleVoice(target: 'about' | 'looking') {
+  function toggleVoice(target: 'about') {
     if (!recognition) return;
     if (listeningFor) {
       recognition.stop();
@@ -199,8 +177,7 @@
     firstName.trim().length > 0 &&
     city.trim().length > 0 &&
     about.trim().length > 20 &&
-    selectedTags.size > 0 &&
-    lookingFor.trim().length > 10
+    selectedTags.size > 0
   );
 
   function toggleTag(tag: string) {
@@ -213,16 +190,6 @@
     selectedTags = next;
   }
 
-  function toggleInterest(interest: string) {
-    const next = new Set(selectedInterests);
-    if (next.has(interest)) {
-      next.delete(interest);
-    } else if (next.size < 5) {
-      next.add(interest);
-    }
-    selectedInterests = next;
-  }
-
   function handleSubmit() {
     touched = true;
     if (!isValid) return;
@@ -232,8 +199,8 @@
       city: city.trim(),
       about: about.trim(),
       personalityTags: [...selectedTags],
-      lookingFor,
-      interests: [...selectedInterests]
+      lookingFor: '',
+      interests: []
     });
   }
 </script>
@@ -366,71 +333,6 @@
     {#if touched && selectedTags.size === 0}
       <p class="field-error">Pick at least one</p>
     {/if}
-  </div>
-
-  <!-- Who's a good match -->
-  <div class="field">
-    <label class="label" for="lookingFor">
-      Who's a good match for you?
-      <span class="label-hint">Be specific — it sharpens your matches</span>
-    </label>
-    <div class="textarea-wrap">
-      <textarea
-        id="lookingFor"
-        class="textarea {touched && lookingFor.trim().length <= 10 ? 'error' : ''}"
-        placeholder="Someone emotionally available, who has their own thing going but actually makes time. Doesn't need to be everywhere at once — consistent, a bit ambitious, knows how to have a real conversation."
-        rows="4"
-        bind:value={lookingFor}
-      ></textarea>
-      {#if voiceSupported}
-        <button
-          type="button"
-          class="mic-btn {listeningFor === 'looking' ? 'listening' : ''}"
-          onclick={() => toggleVoice('looking')}
-          aria-label={listeningFor === 'looking' ? 'Stop recording' : 'Speak your answer'}
-          title={listeningFor === 'looking' ? 'Tap to stop' : 'Tap to speak'}
-        >
-          {#if listeningFor === 'looking'}
-            <span class="mic-ring"></span>
-          {/if}
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-            <line x1="12" y1="19" x2="12" y2="23"/>
-            <line x1="8" y1="23" x2="16" y2="23"/>
-          </svg>
-        </button>
-        {#if listeningFor === 'looking'}
-          <p class="voice-hint">Listening… speak now</p>
-        {/if}
-      {/if}
-    </div>
-    <div class="char-hint">{lookingFor.length} chars</div>
-    {#if touched && lookingFor.trim().length <= 10}
-      <p class="field-error">Add a bit more detail</p>
-    {/if}
-  </div>
-
-  <!-- Interests -->
-  <div class="field">
-    <label class="label">
-      Interests
-      <span class="label-hint">Pick up to 5 (optional)</span>
-    </label>
-    <div class="chip-grid">
-      {#each INTERESTS as interest}
-        {@const selected = selectedInterests.has(interest.value)}
-        {@const disabled = !selected && selectedInterests.size >= 5}
-        <button
-          type="button"
-          class="chip {selected ? 'selected' : ''} {disabled ? 'disabled' : ''}"
-          onclick={() => toggleInterest(interest.value)}
-          disabled={disabled}
-        >
-          {interest.label}
-        </button>
-      {/each}
-    </div>
   </div>
 
   <!-- Submit -->
