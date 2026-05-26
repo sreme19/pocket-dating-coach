@@ -183,16 +183,6 @@
 
 <div class="casual-generous-profile-step">
   <div class="header" transition:fade={{ duration: 200 }}>
-    <div class="header-content">
-      <h2 class="title">
-        {step === 'questions' ? 'Your Style' : 'Review Your Answers'}
-      </h2>
-      <p class="subtitle">
-        {step === 'questions'
-          ? 'Tell us what you enjoy'
-          : 'Make sure everything looks right'}
-      </p>
-    </div>
     <div class="progress-container">
       <div class="progress-bar">
         <div class="progress-fill" style="width: {getProgressPct()}%"></div>
@@ -290,11 +280,7 @@
     margin: 0 auto;
   }
 
-  .header { display: flex; flex-direction: column; gap: 1rem; }
-  .header-content { display: flex; flex-direction: column; gap: 0.5rem; }
-
-  .title { font-size: 1.5rem; font-weight: 600; color: var(--text-1); margin: 0; }
-  .subtitle { font-size: 0.95rem; color: var(--text-2); margin: 0; }
+  .header { display: flex; flex-direction: column; gap: 0.5rem; }
 
   .progress-container { display: flex; flex-direction: column; gap: 0.25rem; }
 
@@ -462,7 +448,6 @@
 
   @media (max-width: 767px) {
     .casual-generous-profile-step { gap: 1rem; }
-    .title { font-size: 1.25rem; }
     .question-card { padding: 1rem; }
     .button-group { flex-direction: column; }
     .button { width: 100%; }
