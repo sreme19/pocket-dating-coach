@@ -63,13 +63,19 @@ Write one punchy "aggregated" sentence (10–15 words) combining ALL insights in
 Return ONLY raw JSON — no markdown, no code fences:
 {"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Active social circle'","emoji":"single emoji"},...],"aggregated":"e.g. 'Has a real social life — group trips, events, and genuine friendships'","confidence":0.0-1.0,"reason":"one sentence"}`,
 
-  linkedin: `You are reviewing a LinkedIn profile screenshot or a CV/resume for a dating-app career verification step.
+  linkedin: `You are reviewing a LinkedIn profile screenshot OR raw CV/resume text for a dating-app career verification step.
 Does this show a GENUINE established professional with clear work history?
-Extract 1–2 insights about their role and career.
-Write one punchy "aggregated" sentence (8–12 words) suitable for a profile.
 
-Return ONLY raw JSON — no markdown, no code fences:
-{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Senior software engineer'","emoji":"💼"},...],"aggregated":"e.g. 'A senior engineer with a decade of real industry experience'","confidence":0.0-1.0,"reason":"one sentence"}`,
+Extract UP TO 3 insights — be specific:
+- Current job title and seniority level (e.g. "Senior Product Manager", "Founding Engineer")
+- Current or most recent company / employer name
+- Years of experience or career highlight if clear (e.g. "8 years in tech", "Ex-Google")
+
+Write one punchy "aggregated" sentence (8–12 words) that would look great on a dating profile.
+
+YOU MUST return ONLY raw JSON — no explanation, no preamble, no markdown:
+{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Senior software engineer'","emoji":"💼"},...],"aggregated":"e.g. 'A senior engineer with a decade of real industry experience'","confidence":0.0-1.0,"reason":"one sentence"}
+If the document has no clear career information, set verified=false.`,
 
   instagram: `You are reviewing an Instagram profile screenshot for a dating-app social verification step.
 Does this show a GENUINE, active Instagram account with real social activity?
@@ -427,13 +433,78 @@ export const POST: RequestHandler = async ({ request }) => {
       return json({ verified: true, insights, pts_awarded: pts, photo_count: 0, confidence: 0.9, reason: `${lbl.label} via URL` });
     }
 
-    // ── 3. PDF → intent-verified (can't Vision-analyse PDFs) ─────────────────
+    // ── 3. PDF uploads — extract text with pdf-parse → Claude text API ────────
     const hasPdf = files.some(f => f.type === 'application/pdf');
     if (hasPdf && category === 'linkedin') {
-      const insights = [{ label: 'CV uploaded', emoji: '📄' }];
-      const userId = await getUserIdFromRequest(request);
-      if (userId) await persistInsight(userId, category, pts, { insights, pts_awarded: pts });
-      return json({ verified: true, insights, pts_awarded: pts, photo_count: 1, confidence: 0.85, reason: 'CV accepted as career proof' });
+      // Extract text from all PDFs (CV / resume)
+      let cvText = '';
+      for (const pdfFile of files.filter(f => f.type === 'application/pdf')) {
+        try {
+          const buf    = Buffer.from(await pdfFile.arrayBuffer());
+          const parsed = await pdfParse(buf);
+          cvText += parsed.text + '\n\n';
+        } catch (err) {
+          console.error('pdf-parse error (linkedin):', err);
+        }
+      }
+
+      if (!cvText.trim()) {
+        // Unreadable PDF — fall back to intent-verified
+        const insights = [{ label: 'CV uploaded', emoji: '📄' }];
+        const userId   = await getUserIdFromRequest(request);
+        if (userId) await persistInsight(userId, category, pts, { insights, pts_awarded: pts });
+        return json({ verified: true, insights, pts_awarded: pts, photo_count: files.length, confidence: 0.8, reason: 'CV accepted — text unreadable, verified by upload' });
+      }
+
+      const cvPrompt = `${PROMPTS.linkedin}
+
+The following is raw text extracted from the candidate's uploaded CV / resume PDF. Analyse it and return JSON:
+
+---
+${cvText.slice(0, 14000)}
+---`;
+
+      const cvResp = await fetch(CLAUDE_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: CLAUDE_MODEL,
+          max_tokens: 768,
+          messages: [{ role: 'user', content: cvPrompt }],
+        }),
+        signal: AbortSignal.timeout(35_000),
+      });
+
+      if (!cvResp.ok) {
+        const insights = [{ label: 'CV uploaded', emoji: '📄' }];
+        const userId   = await getUserIdFromRequest(request);
+        if (userId) await persistInsight(userId, category, pts, { insights, pts_awarded: pts });
+        return json({ verified: true, insights, pts_awarded: pts, photo_count: files.length, confidence: 0.8, reason: 'CV verified by upload' });
+      }
+
+      const cvData = await cvResp.json();
+      let cvRaw = (cvData.content?.[0]?.text ?? '{}') as string;
+      cvRaw = cvRaw.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim();
+      if (!cvRaw.startsWith('{')) {
+        const m = cvRaw.match(/\{[\s\S]*\}/);
+        if (m) cvRaw = m[0];
+      }
+
+      let cvResult: { verified?: boolean; insights?: Array<{ label: string; emoji: string }>; aggregated?: string; confidence?: number; reason?: string } = {};
+      try { cvResult = JSON.parse(cvRaw); } catch { /* fall through */ }
+
+      const cvInsights = (cvResult.insights?.length ? cvResult.insights : [{ label: 'CV uploaded', emoji: '📄' }]).slice(0, 5);
+      const userId     = await getUserIdFromRequest(request);
+      if (userId) await persistInsight(userId, category, pts, { insights: cvInsights, aggregated: cvResult.aggregated, pts_awarded: pts });
+      return json({
+        verified:    cvResult.verified !== false,
+        insights:    cvInsights,
+        aggregated:  cvResult.aggregated,
+        pts_awarded: pts,
+        photo_count: files.length,
+        confidence:  cvResult.confidence ?? 0.85,
+        reason:      cvResult.reason ?? 'CV analysed',
+      });
     }
     // Wealth PDFs — extract text via pdf-parse, then analyse with Claude text API
     // Images mixed in will go through Vision below; PDF-only skips Vision entirely
