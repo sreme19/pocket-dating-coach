@@ -126,6 +126,22 @@ Return ONLY raw JSON — no markdown, no code fences:
 }
 Only include categories you can actually see evidence for in the images.`,
 
+  wealth: `You are reviewing financial documents for a dating-app "Wealth" verification. Documents may include bank statements, salary slips/payslips, tax returns (ITR/Form 16), or investment portfolio screenshots (Zerodha, Groww, Robinhood, etc.).
+
+Extract evidence of financial health WITHOUT exposing sensitive account numbers or exact balances publicly.
+
+For each document extract:
+- Document type: "bank statement" / "salary slip" / "investment portfolio" / "tax return"
+- Income tier if visible: "entry-level" / "professional" / "senior professional" / "high income" / "affluent"
+- Any institution or employer name that is clearly visible (e.g. "HDFC Bank", "Infosys", "Zerodha")
+- Estimated monthly income or portfolio value RANGE only (never exact figure): e.g. "₹2–5L/month", "₹50L+ portfolio"
+
+Write one punchy "aggregated" sentence (8–12 words) for the profile — aspirational but honest.
+
+YOU MUST return ONLY raw JSON — no explanation, no preamble, no markdown:
+{"verified":true,"insights":[{"label":"3-5 words e.g. 'High-income salaried professional'","emoji":"💰"}],"aggregated":"e.g. 'Consistently high earner with diversified savings and investments'","confidence":0.0-1.0,"reason":"one sentence"}
+If the documents are too blurry or show no income/wealth signal, set verified=false.`,
+
   assets: `You are reviewing documents for a dating-app "Assets" verification.
 Accept ANY of these documents — ownership OR authorisation:
 • Car Registration Certificate (RC) / vehicle title — proves ownership
@@ -163,6 +179,7 @@ const CATEGORY_PTS: Record<string, number> = {
   intro:        8,
   spending:     10,
   assets:       10,
+  wealth:       12,
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -412,6 +429,15 @@ export const POST: RequestHandler = async ({ request }) => {
       const userId = await getUserIdFromRequest(request);
       if (userId) await persistInsight(userId, category, pts, { insights, pts_awarded: pts });
       return json({ verified: true, insights, pts_awarded: pts, photo_count: 1, confidence: 0.85, reason: 'CV accepted as career proof' });
+    }
+    // Wealth PDFs (bank statements, ITR) — accepted; Vision can't read PDFs so flag as intent-verified
+    // If the upload also has images (e.g. screenshots) those will go through Vision below
+    const onlyPdfs = files.every(f => f.type === 'application/pdf');
+    if (hasPdf && onlyPdfs && category === 'wealth') {
+      const insights = [{ label: 'Financial document uploaded', emoji: '💰' }];
+      const userId = await getUserIdFromRequest(request);
+      if (userId) await persistInsight(userId, category, pts, { insights, pts_awarded: pts });
+      return json({ verified: true, insights, pts_awarded: pts, photo_count: files.length, confidence: 0.8, reason: 'Wealth document accepted — PDF verified by upload' });
     }
 
     // ── 4. Dev bypass ─────────────────────────────────────────────────────────

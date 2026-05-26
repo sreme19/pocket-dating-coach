@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { getSupabaseClient } from '$lib/client/supabase';
 
-  type Category = 'lifestyle' | 'hosting' | 'discipline' | 'social_proof' | 'linkedin' | 'instagram' | 'twitter' | 'habit_tracker' | 'intro' | 'spending' | 'assets';
+  type Category = 'lifestyle' | 'hosting' | 'discipline' | 'social_proof' | 'linkedin' | 'instagram' | 'twitter' | 'habit_tracker' | 'intro' | 'spending' | 'assets' | 'wealth';
   type Step = 'upload' | 'analyzing' | 'success' | 'failed';
 
   interface CategoryConfig {
@@ -207,6 +207,20 @@
       ],
       maxFiles: 5,
       hintLine: '⚠️ Name on document must match your government ID, not your display name. Screenshots are accepted.',
+      accept: 'image/*,.pdf',
+    },
+    wealth: {
+      icon: '💰',
+      title: 'Wealth Proof',
+      subtitle: 'Verify income, savings and investments privately',
+      examples: [
+        'Bank statement (PDF or screenshot) — name + balance visible',
+        'Salary slip or payslip — name, employer, net pay shown',
+        'Investment portfolio screenshot (Zerodha, Groww, etc.)',
+        'Tax return (ITR) or Form 16 — income section visible',
+      ],
+      maxFiles: 5,
+      hintLine: '🔒 Fully private — never shared publicly. Blur account numbers before uploading. PDFs accepted.',
       accept: 'image/*,.pdf',
     },
   };
@@ -792,7 +806,7 @@
               <path d="M8 12h8M12 8v8"/>
             </svg>
             <p class="drop-hint">{config.hasUrlInput ? 'Or upload a screenshot' : 'Tap to select photos'}</p>
-            <p class="drop-hint-sub">Up to {config.maxFiles} {config.maxFiles === 1 ? 'file' : 'files'} · JPEG / PNG{category === 'linkedin' ? ' / PDF' : ''}</p>
+            <p class="drop-hint-sub">Up to {config.maxFiles} {config.maxFiles === 1 ? 'file' : 'files'} · JPEG / PNG{(category === 'linkedin' || category === 'assets' || category === 'wealth') ? ' / PDF' : ''}</p>
             <label class="pick-btn">
               Choose Photos
               <input type="file" accept={config.accept} multiple={config.maxFiles > 1} onchange={e => addFiles(e.currentTarget.files)} hidden />
