@@ -99,14 +99,18 @@
       title: 'LinkedIn / CV',
       subtitle: 'Connect your LinkedIn or upload your CV',
       examples: [
-        'Paste your LinkedIn URL below for instant one-click verification',
+        'Tap "Sign in with LinkedIn" below for instant one-click verification',
         'Or screenshot your profile with name, title and company visible',
         'Or upload your CV or resume as a PDF',
         'We only check your role and company — nothing else is read',
       ],
       maxFiles: 2,
-      hintLine: 'URL connection is fastest. Screenshot or CV also accepted.',
+      hintLine: 'Sign in is fastest. Screenshot or CV also accepted.',
       accept: 'image/*,.pdf',
+      hasOAuthConnect: true,
+      connectLabel: 'Sign in with LinkedIn',
+      connectUrl: 'https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=LINKEDIN_CLIENT_ID_PLACEHOLDER&redirect_uri=REDIRECT_URI_PLACEHOLDER&scope=openid%20profile%20email%20w_member_social',
+      connectColor: '#0A66C2',
       hasUrlInput: true,
       urlLabel: 'LinkedIn URL',
       urlPlaceholder: 'linkedin.com/in/yourname',
@@ -547,6 +551,13 @@
   function goBack() {
     goto('/verified-vibe/profile?tab=boost');
   }
+
+  function resetForMore() {
+    files    = [];
+    previews = [];
+    result   = null;
+    step     = 'upload';
+  }
 </script>
 
 <div class="page">
@@ -664,7 +675,7 @@
       <div class="hint-line">{config.hintLine}</div>
     </div>
 
-    <!-- OAuth connect UI for Instagram / Twitter -->
+    <!-- OAuth connect UI for LinkedIn / Instagram / Twitter -->
     {#if config.hasOAuthConnect}
       <div class="connect-card">
         <button
@@ -673,13 +684,22 @@
           onclick={() => { connectOpened = true; window.open(config.connectUrl, '_blank'); }}
           type="button"
         >
-          <span class="connect-platform-icon">{config.icon}</span>
+          {#if category === 'linkedin'}
+            <!-- LinkedIn official logo -->
+            <svg class="connect-platform-svg" viewBox="0 0 24 24" fill="#ffffff" xmlns="http://www.w3.org/2000/svg">
+              <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+            </svg>
+          {:else}
+            <span class="connect-platform-icon">{config.icon}</span>
+          {/if}
           {config.connectLabel}
         </button>
 
         {#if connectOpened}
           <div class="connect-paste-area">
-            <div class="connect-paste-label">Paste your profile URL after signing in:</div>
+            <div class="connect-paste-label">
+              {category === 'linkedin' ? 'Paste your LinkedIn profile URL after signing in:' : 'Paste your profile URL after signing in:'}
+            </div>
             <div class="url-input-row">
               <input
                 class="url-input"
@@ -696,12 +716,16 @@
             {/if}
           </div>
         {:else}
-          <p class="connect-hint">Tap Connect → sign in → copy your profile URL → come back and paste it</p>
+          <p class="connect-hint">
+            {category === 'linkedin'
+              ? 'Tap above → sign in → copy your LinkedIn profile URL → paste it below'
+              : 'Tap Connect → sign in → copy your profile URL → come back and paste it'}
+          </p>
         {/if}
 
       </div>
 
-    <!-- URL input for LinkedIn only (no branded connect) -->
+    <!-- URL input only (no branded connect) -->
     {:else if config.hasUrlInput}
       <div class="url-input-card">
         <div class="url-input-label">{config.urlLabel}</div>
@@ -936,9 +960,17 @@
       </div>
     </div>
 
-    <button class="done-btn" onclick={goBack}>
-      Back to profile
-    </button>
+    <div class="success-actions">
+      <button class="upload-more-btn" onclick={resetForMore}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 5v14M5 12l7-7 7 7"/>
+        </svg>
+        Upload More
+      </button>
+      <button class="done-btn" onclick={goBack}>
+        Back to profile
+      </button>
+    </div>
 
   {:else if step === 'failed'}
     <div class="state-card state-card--failed">
@@ -1130,6 +1162,7 @@
   .connect-platform-btn:active { opacity: 0.75; }
 
   .connect-platform-icon { font-size: 20px; }
+  .connect-platform-svg  { width: 20px; height: 20px; flex-shrink: 0; }
 
   .connect-hint {
     font-size: 12px;
@@ -1625,6 +1658,32 @@
     opacity: 0.35;
     cursor: default;
   }
+
+  .success-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .upload-more-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 14px;
+    background: rgba(99, 232, 175, 0.1);
+    border: 1.5px solid rgba(99, 232, 175, 0.35);
+    border-radius: 16px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #63e8af;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 150ms, border-color 150ms;
+  }
+  .upload-more-btn:hover { background: rgba(99, 232, 175, 0.18); border-color: rgba(99, 232, 175, 0.55); }
 
   .done-btn {
     width: 100%;
