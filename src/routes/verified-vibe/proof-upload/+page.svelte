@@ -349,6 +349,7 @@
     return `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
   }
   let confirmDelete   = $state(false);
+  let managingDocs    = $state(false);  // selective-remove panel
   let connectOpened   = $state(false); // tracks if user has clicked the OAuth connect button
 
   onMount(() => {
@@ -407,11 +408,18 @@
   function removeThumb(index: number) {
     if (!existingInsight?.thumbnails) return;
     const updated = existingInsight.thumbnails.filter((_, i) => i !== index);
-    existingInsight = { ...existingInsight, thumbnails: updated };
     try {
       const all: StoredInsight[] = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
-      const idx = all.findIndex(p => p.category === category);
-      if (idx >= 0) { all[idx] = existingInsight; localStorage.setItem('vv_proof_insights', JSON.stringify(all)); }
+      if (updated.length === 0) {
+        // Last file removed — delete the whole proof entry
+        localStorage.setItem('vv_proof_insights', JSON.stringify(all.filter(p => p.category !== category)));
+        existingInsight = null;
+        managingDocs = false;
+      } else {
+        existingInsight = { ...existingInsight, thumbnails: updated };
+        const idx = all.findIndex(p => p.category === category);
+        if (idx >= 0) { all[idx] = existingInsight; localStorage.setItem('vv_proof_insights', JSON.stringify(all)); }
+      }
     } catch {}
   }
 
@@ -635,8 +643,56 @@
         </div>
       {/if}
 
-      <!-- Show off / delete actions -->
-      {#if confirmDelete}
+      <!-- Selective document management panel -->
+      {#if managingDocs}
+        <div class="manage-docs-panel">
+          <div class="manage-docs-header">
+            <span class="manage-docs-title">Uploaded documents</span>
+            <button class="manage-docs-close" onclick={() => managingDocs = false} aria-label="Close">✕</button>
+          </div>
+
+          <div class="manage-docs-list">
+            {#if existingInsight.thumbnails && existingInsight.thumbnails.length > 0}
+              {#each existingInsight.thumbnails as thumb, ti}
+                <div class="manage-doc-row">
+                  {#if thumb}
+                    <img class="manage-doc-thumb" src={thumb} alt="Document {ti+1}" />
+                  {:else}
+                    <div class="manage-doc-icon">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                      </svg>
+                    </div>
+                  {/if}
+                  <span class="manage-doc-label">{thumb ? `Photo ${ti + 1}` : `Document ${ti + 1} (PDF)`}</span>
+                  <button class="manage-doc-remove" onclick={() => removeThumb(ti)} aria-label="Remove document {ti+1}">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                      <path d="M18 6L6 18M6 6l12 12"/>
+                    </svg>
+                  </button>
+                </div>
+              {/each}
+            {:else}
+              <!-- No thumbnails stored (e.g. URL-only or legacy entry) -->
+              <div class="manage-doc-row">
+                <div class="manage-doc-icon">📋</div>
+                <span class="manage-doc-label">Verified proof (no file preview)</span>
+              </div>
+            {/if}
+          </div>
+
+          <button class="manage-docs-remove-all" onclick={deleteProof}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6M14 11v6"/>
+            </svg>
+            Remove all proof for this category
+          </button>
+        </div>
+
+      {:else if confirmDelete}
         <div class="delete-confirm">
           <span class="delete-confirm-text">Remove this proof? Your score will drop.</span>
           <div class="delete-confirm-actions">
@@ -647,7 +703,7 @@
       {:else}
         <div class="uploaded-actions">
           <button class="reupload-btn" onclick={() => { existingInsight = null; }}>Upload more</button>
-          <button class="delete-btn" onclick={() => confirmDelete = true}>Remove proof</button>
+          <button class="delete-btn" onclick={() => managingDocs = true}>Remove proof</button>
         </div>
       {/if}
     </div>
@@ -1385,6 +1441,119 @@
     font-family: inherit;
     transition: background 150ms;
   }
+
+  /* ── Manage docs panel ── */
+  .manage-docs-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 14px;
+    overflow: hidden;
+    background: rgba(15,15,20,0.9);
+  }
+
+  .manage-docs-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+
+  .manage-docs-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.5);
+  }
+
+  .manage-docs-close {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.4);
+    font-size: 15px;
+    cursor: pointer;
+    padding: 2px 4px;
+    line-height: 1;
+  }
+
+  .manage-docs-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .manage-doc-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+
+  .manage-doc-thumb {
+    width: 42px;
+    height: 42px;
+    object-fit: cover;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  .manage-doc-icon {
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.06);
+    border-radius: 8px;
+    flex-shrink: 0;
+    color: rgba(255,255,255,0.5);
+    font-size: 20px;
+  }
+
+  .manage-doc-label {
+    flex: 1;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.82);
+  }
+
+  .manage-doc-remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    background: rgba(239,68,68,0.12);
+    border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 8px;
+    color: #f87171;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 120ms;
+  }
+  .manage-doc-remove:hover { background: rgba(239,68,68,0.22); }
+
+  .manage-docs-remove-all {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 13px;
+    background: none;
+    border: none;
+    border-top: 1px solid rgba(239,68,68,0.15);
+    font-size: 13px;
+    font-weight: 600;
+    color: #f87171;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 120ms;
+  }
+  .manage-docs-remove-all:hover { background: rgba(239,68,68,0.08); }
 
   .delete-confirm {
     display: flex;
