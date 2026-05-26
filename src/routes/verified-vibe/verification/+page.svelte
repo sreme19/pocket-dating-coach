@@ -818,7 +818,19 @@
     loading = true;
 
     try {
-      // Store verification record (liveness check already completed in LivenessStep)
+      // Persist liveness step to Supabase
+      const response = await fetch('/api/verified-vibe/verify-step', {
+        method: 'POST',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({ step: 'liveness', data })
+      });
+
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || 'Liveness verification failed');
+      }
+
+      // Store verification record in local store
       addVerificationRecord({
         id: `${$user?.id}-liveness`,
         userId: $user?.id || '',
