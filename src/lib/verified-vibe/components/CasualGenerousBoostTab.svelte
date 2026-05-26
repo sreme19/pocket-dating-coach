@@ -487,6 +487,32 @@
   </div>
 </section>
 
+<!-- ── Background Verification ────────────────────────────────────────────── -->
+<section class="section">
+  <div class="section-label">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+    </svg>
+    Background Verification
+    <span class="section-hint">optional</span>
+  </div>
+  <button class="bgv-card" onclick={() => goto('/verified-vibe/background-check')} type="button">
+    <div class="bgv-icon-wrap">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M9 12l2 2 4-4"/>
+        <path d="M12 2L3 7v5c0 5.25 3.75 10.2 9 11.4C17.25 22.2 21 17.25 21 12V7l-9-5z"/>
+      </svg>
+    </div>
+    <div class="bgv-body">
+      <p class="bgv-title">Run a background check</p>
+      <p class="bgv-desc">Criminal, identity & address verification — report stays private, only a badge shows on your profile.</p>
+    </div>
+    <svg class="bgv-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <path d="M9 5l7 7-7 7"/>
+    </svg>
+  </button>
+</section>
+
 <!-- ── Remaining proof connections (Assets) ───────────────────────────────── -->
 {#if proofConnections.length > 0}
 <section class="section">
@@ -1005,6 +1031,56 @@
   .insights-expand-btn--collapse {
     border-color: var(--border-2);
     color: var(--text-3);
+  }
+
+  /* ── Background Verification card ── */
+  .bgv-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(99,102,241,0.04));
+    border: 1px solid rgba(99,102,241,0.28);
+    border-radius: 14px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .bgv-card:hover {
+    background: linear-gradient(135deg, rgba(99,102,241,0.14), rgba(99,102,241,0.08));
+    border-color: rgba(99,102,241,0.45);
+  }
+  .bgv-icon-wrap {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: rgba(99,102,241,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #818cf8;
+  }
+  .bgv-body {
+    flex: 1;
+    min-width: 0;
+  }
+  .bgv-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-1);
+    margin: 0 0 3px;
+  }
+  .bgv-desc {
+    font-size: 11px;
+    color: var(--text-3);
+    line-height: 1.45;
+    margin: 0;
+  }
+  .bgv-arrow {
+    flex-shrink: 0;
+    color: rgba(99,102,241,0.6);
   }
 
   /* kept for any stale references */
