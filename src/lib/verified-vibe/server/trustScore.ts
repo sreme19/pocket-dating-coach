@@ -235,6 +235,48 @@ export function getNextIncompleteStep(
   return null;
 }
 
+// ── Casual Generous archetype ────────────────────────────────────────────────
+
+export interface CGTrustSubscores {
+  identity: number;         // ID + liveness average
+  lifestyleDepth: number;   // photo consistency
+  generositySignals: number; // spending proof
+  emotionalSafety: number;  // behavioural — always 0 until messaging data exists
+  socialLegitimacy: number; // proof connections — 0 until connected
+}
+
+/**
+ * Map generic verification records onto the 5 Casual Generous subscores.
+ * Scores that require live behavioural data (emotionalSafety, socialLegitimacy)
+ * are held at 0 until those pipelines exist.
+ */
+export function calculateCGSubscores(verificationRecords: VerificationRecord[]): CGTrustSubscores {
+  const { idScore, livenessScore, photoScore, qaScore } = calculateTrustScore(verificationRecords);
+  return {
+    identity: Math.round((idScore + livenessScore) / 2),
+    lifestyleDepth: photoScore,
+    generositySignals: qaScore,
+    emotionalSafety: 0,
+    socialLegitimacy: 0,
+  };
+}
+
+/**
+ * Weighted CG total — different weight distribution than the generic score.
+ * Identity 20% · Lifestyle 25% · Generosity 30% · Safety 15% · Social 10%
+ */
+export function calculateCGTotal(subscores: CGTrustSubscores): number {
+  return Math.min(100, Math.round(
+    subscores.identity        * 0.20 +
+    subscores.lifestyleDepth  * 0.25 +
+    subscores.generositySignals * 0.30 +
+    subscores.emotionalSafety * 0.15 +
+    subscores.socialLegitimacy * 0.10
+  ));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
  * Get verification progress percentage
  *

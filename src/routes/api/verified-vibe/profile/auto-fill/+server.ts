@@ -18,10 +18,37 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
 import Anthropic from '@anthropic-ai/sdk';
 import { ANTHROPIC_API_KEY } from '$env/static/private';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
 type Field = 'about' | 'personality' | 'looking' | 'lifestyle';
+
+// Maps real user archetypes to the closest seed personality.md for style reference
+const ARCHETYPE_PERSONALITY_MAP: Record<string, string> = {
+  casual_man:                   'ryan_Serial_Dater_f4m2px',
+  casual_generous_man:          'victor_Sugar_Daddy_e6p4rl',
+  forever_focused_man:          'karan_Progressive_Traditional_u9j5ql',
+  hopeless_romantic_man:        'ethan_Golden_Retriever_q7n5wc',
+  traditional_matrimony_man:    'arjun_Progressive_Traditional_e2m8cw',
+  second_chapter_man:           'jake_Serial_Monogamist_c3n7qr',
+  untouched_heart_man:          'john_Young_Student_nsysor',
+  just_friends_man:             'alex_Monogamish_t9n2cw',
+  rebound_healing_man:          'daniel_Emotionally_Available_v2r6ys',
+};
+
+function loadPersonalityMd(archetype?: string): string | null {
+  if (!archetype) return null;
+  const folder = ARCHETYPE_PERSONALITY_MAP[archetype];
+  if (!folder) return null;
+  try {
+    const filePath = resolve('static', 'male_profiles', folder, 'personality.md');
+    return readFileSync(filePath, 'utf-8');
+  } catch {
+    return null;
+  }
+}
 
 // ─── Prompt builders ──────────────────────────────────────────────────────────
 
@@ -30,28 +57,38 @@ function buildPrompt(
   gender: string,
   about: string | null,
   profileData: Record<string, unknown>,
-  archetype?: string
+  archetype?: string,
+  currentAbout?: string
 ): string {
   const context = JSON.stringify(profileData, null, 2).slice(0, 3000);
   const aboutText = about ?? '';
   const archetypeHint = archetype ? ` (archetype: ${archetype.replace(/_/g, ' ')})` : '';
 
   if (field === 'about') {
-    return `You are writing a dating profile bio for a real person${archetypeHint} (gender: ${gender}).
+    const personalityMd = loadPersonalityMd(archetype);
+    const rawDraft = currentAbout?.trim() || aboutText.trim();
 
-Their profile data:
-${context}
+    const personalitySection = personalityMd
+      ? `\n\nPersonality reference for this archetype (use for tone, authenticity signals, and what makes this type attractive — do NOT copy verbatim):\n${personalityMd.slice(0, 2000)}`
+      : '';
 
-Write a genuine, first-person "About me" bio for this person's dating profile. The bio should:
-- Sound natural and conversational, not stiff or salesy
-- Be 2-4 sentences (80-150 words maximum)
-- Reflect their values, lifestyle, and what makes them worth getting to know
-- Avoid generic clichés like "love to laugh", "love adventures", "looking for my person"
-- Be specific and honest — pull signals from the profile data above
-- Suit the ${archetype?.includes('matrimony') ? 'matrimony-minded, serious, family-oriented' : 'contemporary dating'} context
-- Write ONLY the bio text, no intro, no quotes, no labels
+    const draftSection = rawDraft
+      ? `\n\nThe user's rough notes about themselves (treat as raw material to polish — keep their facts, fix the language):\n"${rawDraft}"`
+      : '';
 
-Example (matrimony context): I grew up in a home where Sunday dinners meant the whole family — and that's the kind of home I want to build. I work in finance, take my faith seriously, and still make time for the things that matter. I'm not here to waste anyone's time; I'm here because I'm ready.`;
+    return `You are writing a dating profile bio for a real man${archetypeHint}.
+${draftSection}${personalitySection}
+
+Write a genuine, engaging, first-person "About me" bio. Rules:
+- Use the user's rough notes as the source of truth for facts — don't invent details they didn't mention
+- Polish the language: fix grammar, capitalise "I", make it flow naturally
+- Add 2-3 relevant emojis woven in naturally (not all at the end)
+- Be 2-4 sentences, 60-120 words maximum
+- Sound confident and specific — no generic clichés like "love to laugh" or "easy-going"
+- Match the energy of the archetype: ${archetype?.replace(/_/g, ' ')}
+- Write ONLY the bio text — no intro, no labels, no quotes around it
+
+Example output: 💼 Work hard, play harder — I run my own business and I genuinely love the grind. But I know how to switch off: good food, good company, and the kind of evenings that don't need a plan. 🥃 I live well and I like having the right people around me. Looking for someone who actually enjoys the finer things without making it a personality.`;
   }
 
   if (field === 'personality') {
@@ -131,43 +168,33 @@ export const POST: RequestHandler = async ({ request }) => {
     // Validate field
     const body = await request.json();
     const field: Field = body.field;
+    const currentAbout: string | undefined = body.currentAbout;
+    // Client supplies gender + archetype from the local user store (avoids DB lookup race)
+    const clientGender: string = body.gender ?? 'man';
+    const clientArchetype: string | undefined = body.archetype;
     if (!['about', 'personality', 'looking', 'lifestyle'].includes(field)) {
       return json({ error: 'Invalid field. Must be about, personality, looking, or lifestyle.' }, { status: 400 });
     }
 
     const supabase = getSupabase();
 
-    // Fetch user profile + latest ai_assistant_profiles in parallel
-    const profileType = field === 'personality'
-      ? 'personality'
-      : 'preferences';   // women use preferences, men use personality
+    // Only fetch ai_assistant_profiles — don't require verified_vibe_users row
+    const preferredType = clientGender === 'woman' ? 'preferences' : 'personality';
+    const { data: aiRows } = await supabase
+      .from('ai_assistant_profiles')
+      .select('data, profile_type')
+      .eq('user_id', user.id)
+      .order('version', { ascending: false })
+      .limit(2);
 
-    const [{ data: vvUser }, { data: aiRows }] = await Promise.all([
-      supabase
-        .from('verified_vibe_users')
-        .select('gender, about, archetype')
-        .eq('id', user.id)
-        .single(),
-      supabase
-        .from('ai_assistant_profiles')
-        .select('data, profile_type')
-        .eq('user_id', user.id)
-        .order('version', { ascending: false })
-        .limit(2)            // grab both types if present
-    ]);
-
-    if (!vvUser) return json({ error: 'Profile not found' }, { status: 404 });
-
-    // Pick the most relevant profile row
-    const preferredType = vvUser.gender === 'woman' ? 'preferences' : 'personality';
     const aiRow = aiRows?.find(r => r.profile_type === preferredType) ?? aiRows?.[0] ?? null;
     const profileData = (aiRow?.data as Record<string, unknown>) ?? {};
 
-    const prompt = buildPrompt(field, vvUser.gender, vvUser.about, profileData, (vvUser as any).archetype);
+    const prompt = buildPrompt(field, clientGender, currentAbout ?? null, profileData, clientArchetype, currentAbout);
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-5',
-      max_tokens: field === 'about' ? 300 : 150,
+      max_tokens: field === 'about' ? 400 : 150,
       messages: [{ role: 'user', content: prompt }]
     });
 
