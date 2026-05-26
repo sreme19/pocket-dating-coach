@@ -351,6 +351,17 @@
     confirmDelete   = false;
   }
 
+  function removeThumb(index: number) {
+    if (!existingInsight?.thumbnails) return;
+    const updated = existingInsight.thumbnails.filter((_, i) => i !== index);
+    existingInsight = { ...existingInsight, thumbnails: updated };
+    try {
+      const all: StoredInsight[] = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
+      const idx = all.findIndex(p => p.category === category);
+      if (idx >= 0) { all[idx] = existingInsight; localStorage.setItem('vv_proof_insights', JSON.stringify(all)); }
+    } catch {}
+  }
+
   function addFiles(incoming: FileList | null) {
     if (!incoming) return;
     const remaining = config.maxFiles - files.length;
@@ -528,8 +539,15 @@
 
       {#if existingInsight.thumbnails && existingInsight.thumbnails.length > 0}
         <div class="uploaded-thumbs">
-          {#each existingInsight.thumbnails as thumb}
-            <img class="uploaded-thumb" src={thumb} alt="Uploaded proof" />
+          {#each existingInsight.thumbnails as thumb, ti}
+            <div class="uploaded-thumb-wrap">
+              <img class="uploaded-thumb" src={thumb} alt="Uploaded proof {ti+1}" />
+              <button
+                class="uploaded-thumb-remove"
+                onclick={() => removeThumb(ti)}
+                aria-label="Remove photo"
+              >✕</button>
+            </div>
           {/each}
         </div>
       {/if}
@@ -544,7 +562,7 @@
         </div>
       {:else}
         <div class="uploaded-actions">
-          <button class="reupload-btn" onclick={() => { existingInsight = null; }}>Re-upload</button>
+          <button class="reupload-btn" onclick={() => { existingInsight = null; }}>Upload more</button>
           <button class="delete-btn" onclick={() => confirmDelete = true}>Remove proof</button>
         </div>
       {/if}
@@ -1153,12 +1171,39 @@
     flex-wrap: wrap;
   }
 
+  .uploaded-thumb-wrap {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    flex-shrink: 0;
+  }
+
   .uploaded-thumb {
     width: 72px;
     height: 72px;
     object-fit: cover;
     border-radius: 9px;
     border: 1px solid var(--border-1);
+    display: block;
+  }
+
+  .uploaded-thumb-remove {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ef4444;
+    color: #fff;
+    border: none;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    line-height: 1;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
   }
 
   .uploaded-actions {
