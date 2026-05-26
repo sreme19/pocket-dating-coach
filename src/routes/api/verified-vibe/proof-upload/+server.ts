@@ -29,10 +29,11 @@ const CLAUDE_MODEL   = 'claude-sonnet-4-6';
 const PROMPTS: Record<string, string> = {
   lifestyle: `You are reviewing 1–20 proof photos for a dating-app "Show-Off: Lifestyle" section.
 Analyse ALL the images. Look for distinct lifestyle signals: luxury travel, fine dining, premium experiences, events, hotels, flights, etc.
+Also identify any specific countries or cities visible in the photos (from landmarks, signs, menus, boarding passes, etc.).
 Extract UP TO 5 specific insights — one per distinct lifestyle signal you can confirm.
 
 Return ONLY raw JSON — no markdown, no code fences:
-{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Business-class traveler'","emoji":"single emoji"},...],"confidence":0.0-1.0,"reason":"one sentence"}`,
+{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Business-class traveler'","emoji":"single emoji"},...],"locations":["country or city name","..."],"confidence":0.0-1.0,"reason":"one sentence"}`,
 
   hosting: `You are reviewing 1–20 proof photos for a dating-app "Show-Off: Hosting" section.
 Analyse ALL images. Look for evidence of hosting dinners, celebrations, gatherings.
@@ -89,6 +90,13 @@ Extract 1–3 distinct signals about their generosity and lifestyle.
 
 Return ONLY raw JSON — no markdown, no code fences:
 {"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Fine dining regular'","emoji":"💳"},...],"confidence":0.0-1.0,"reason":"one sentence"}`,
+
+  assets: `You are reviewing ownership documents for a dating-app "Assets" verification.
+Check if the document shows genuine ownership of a car, property, or company. The name on the document must match the government-verified identity.
+Extract 1–2 specific insights about what they own.
+
+Return ONLY raw JSON — no markdown, no code fences:
+{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Property owner'","emoji":"🏠"},...],"confidence":0.0-1.0,"reason":"one sentence"}`,
 };
 
 // intro + URL-only social categories are auto-verified without Vision
@@ -106,6 +114,7 @@ const CATEGORY_PTS: Record<string, number> = {
   habit_tracker: 2,
   intro:        8,
   spending:     10,
+  assets:       10,
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -149,6 +158,7 @@ const PROOF_BOOST_MAP: Record<string, { key: string; boost: number }> = {
   habit_tracker:{ key: 'socialLegitimacy',  boost: 20 },
   intro:        { key: 'emotionalSafety',   boost: 45 },
   spending:     { key: 'generositySignals', boost: 30 },
+  assets:       { key: 'generositySignals', boost: 35 },
 };
 
 function photoMultiplier(count: number): number {
@@ -330,22 +340,24 @@ export const POST: RequestHandler = async ({ request }) => {
     const rawText    = (claudeData.content?.[0]?.text ?? '{}') as string;
     const cleaned    = rawText.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim();
 
-    let result: { verified?: boolean; insights?: Array<{ label: string; emoji: string }>; confidence?: number; reason?: string };
+    let result: { verified?: boolean; insights?: Array<{ label: string; emoji: string }>; locations?: string[]; confidence?: number; reason?: string };
     try { result = JSON.parse(cleaned); }
     catch { console.error('Non-JSON from Claude:', cleaned); return json({ error: 'Analysis returned unexpected format' }, { status: 500 }); }
 
-    const verified = result.verified === true;
-    const insights = (result.insights ?? []).filter(i => i.label && i.emoji).slice(0, 5);
+    const verified  = result.verified === true;
+    const insights  = (result.insights ?? []).filter(i => i.label && i.emoji).slice(0, 5);
+    const locations = (result.locations ?? []).filter((l): l is string => typeof l === 'string' && l.trim().length > 0);
     if (insights.length === 0 && verified) insights.push({ label: 'Proof verified', emoji: '✅' });
 
     if (verified) {
       const userId = await getUserIdFromRequest(request);
-      if (userId) await persistInsight(userId, category, pts, { insights, confidence: result.confidence, reason: result.reason, pts_awarded: pts, photo_count: files.length });
+      if (userId) await persistInsight(userId, category, pts, { insights, locations, confidence: result.confidence, reason: result.reason, pts_awarded: pts, photo_count: files.length });
     }
 
     return json({
       verified,
       insights,
+      locations,
       pts_awarded:  verified ? pts : 0,
       photo_count:  files.length,
       confidence:   result.confidence ?? 0,
