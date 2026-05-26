@@ -20,9 +20,8 @@ import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { createClient } from '@supabase/supabase-js';
 import { getSupabase } from '$lib/server/supabase';
-// Use the lib path to avoid pdf-parse loading its own test fixtures on import
-// @ts-ignore — pdf-parse has no bundled type declarations
-import pdfParse from 'pdf-parse/lib/pdf-parse.js';
+// pdf-parse kept as dep for potential future text pre-processing;
+// primary PDF analysis now goes through Anthropic's native PDF document type
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_MODEL   = 'claude-sonnet-4-6';
@@ -433,152 +432,82 @@ export const POST: RequestHandler = async ({ request }) => {
       return json({ verified: true, insights, pts_awarded: pts, photo_count: 0, confidence: 0.9, reason: `${lbl.label} via URL` });
     }
 
-    // ── 3. PDF uploads — extract text with pdf-parse → Claude text API ────────
+    // ── 3. PDF uploads — send directly to Claude as native PDF document ─────────
+    // Claude natively reads both text-based AND scanned PDFs (uses Vision internally
+    // for scanned pages) — no pdf-parse text extraction needed.
     const hasPdf = files.some(f => f.type === 'application/pdf');
-    if (hasPdf && category === 'linkedin') {
-      // Extract text from all PDFs (CV / resume)
-      let cvText = '';
-      for (const pdfFile of files.filter(f => f.type === 'application/pdf')) {
-        try {
-          const buf    = Buffer.from(await pdfFile.arrayBuffer());
-          const parsed = await pdfParse(buf);
-          cvText += parsed.text + '\n\n';
-        } catch (err) {
-          console.error('pdf-parse error (linkedin):', err);
-        }
+    const onlyPdfs = files.every(f => f.type === 'application/pdf');
+
+    /** Build the content array for a Claude call that includes PDF documents */
+    async function buildPdfContent(pdfFiles: File[], promptText: string): Promise<object[]> {
+      const blocks: object[] = [];
+      for (const pdfFile of pdfFiles.slice(0, 5)) {
+        const buf = Buffer.from(await pdfFile.arrayBuffer());
+        blocks.push({
+          type: 'document',
+          source: { type: 'base64', media_type: 'application/pdf', data: buf.toString('base64') },
+        });
       }
+      blocks.push({ type: 'text', text: promptText });
+      return blocks;
+    }
 
-      if (!cvText.trim()) {
-        // Unreadable PDF — fall back to intent-verified
-        const insights = [{ label: 'CV uploaded', emoji: '📄' }];
-        const userId   = await getUserIdFromRequest(request);
-        if (userId) await persistInsight(userId, category, pts, { insights, pts_awarded: pts });
-        return json({ verified: true, insights, pts_awarded: pts, photo_count: files.length, confidence: 0.8, reason: 'CV accepted — text unreadable, verified by upload' });
-      }
-
-      const cvPrompt = `${PROMPTS.linkedin}
-
-The following is raw text extracted from the candidate's uploaded CV / resume PDF. Analyse it and return JSON:
-
----
-${cvText.slice(0, 14000)}
----`;
-
-      const cvResp = await fetch(CLAUDE_API_URL, {
+    /** Call Claude with PDF documents and parse the JSON response */
+    async function callClaudeWithPdfs(pdfFiles: File[], promptText: string) {
+      const content = await buildPdfContent(pdfFiles, promptText);
+      const resp = await fetch(CLAUDE_API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-beta': 'pdfs-2024-09-25',
+        },
         body: JSON.stringify({
           model: CLAUDE_MODEL,
           max_tokens: 768,
-          messages: [{ role: 'user', content: cvPrompt }],
+          messages: [{ role: 'user', content }],
         }),
-        signal: AbortSignal.timeout(35_000),
+        signal: AbortSignal.timeout(60_000),
       });
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      let raw = (data.content?.[0]?.text ?? '{}') as string;
+      raw = raw.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim();
+      if (!raw.startsWith('{')) { const m = raw.match(/\{[\s\S]*\}/); if (m) raw = m[0]; }
+      try { return JSON.parse(raw); } catch { return null; }
+    }
 
-      if (!cvResp.ok) {
-        const insights = [{ label: 'CV uploaded', emoji: '📄' }];
-        const userId   = await getUserIdFromRequest(request);
-        if (userId) await persistInsight(userId, category, pts, { insights, pts_awarded: pts });
-        return json({ verified: true, insights, pts_awarded: pts, photo_count: files.length, confidence: 0.8, reason: 'CV verified by upload' });
-      }
-
-      const cvData = await cvResp.json();
-      let cvRaw = (cvData.content?.[0]?.text ?? '{}') as string;
-      cvRaw = cvRaw.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim();
-      if (!cvRaw.startsWith('{')) {
-        const m = cvRaw.match(/\{[\s\S]*\}/);
-        if (m) cvRaw = m[0];
-      }
-
-      let cvResult: { verified?: boolean; insights?: Array<{ label: string; emoji: string }>; aggregated?: string; confidence?: number; reason?: string } = {};
-      try { cvResult = JSON.parse(cvRaw); } catch { /* fall through */ }
-
-      const cvInsights = (cvResult.insights?.length ? cvResult.insights : [{ label: 'CV uploaded', emoji: '📄' }]).slice(0, 5);
+    if (hasPdf && category === 'linkedin') {
+      const pdfFiles = files.filter(f => f.type === 'application/pdf');
+      const parsed   = await callClaudeWithPdfs(pdfFiles, PROMPTS.linkedin);
+      const cvInsights = (parsed?.insights?.length ? parsed.insights : [{ label: 'CV uploaded', emoji: '📄' }]).slice(0, 5);
       const userId     = await getUserIdFromRequest(request);
-      if (userId) await persistInsight(userId, category, pts, { insights: cvInsights, aggregated: cvResult.aggregated, pts_awarded: pts });
+      if (userId) await persistInsight(userId, category, pts, { insights: cvInsights, aggregated: parsed?.aggregated, pts_awarded: pts });
       return json({
-        verified:    cvResult.verified !== false,
+        verified:    parsed?.verified !== false,
         insights:    cvInsights,
-        aggregated:  cvResult.aggregated,
+        aggregated:  parsed?.aggregated,
         pts_awarded: pts,
         photo_count: files.length,
-        confidence:  cvResult.confidence ?? 0.85,
-        reason:      cvResult.reason ?? 'CV analysed',
+        confidence:  parsed?.confidence ?? 0.85,
+        reason:      parsed?.reason ?? 'CV analysed',
       });
     }
-    // Wealth PDFs — extract text via pdf-parse, then analyse with Claude text API
-    // Images mixed in will go through Vision below; PDF-only skips Vision entirely
-    const onlyPdfs = files.every(f => f.type === 'application/pdf');
+
     if (hasPdf && onlyPdfs && category === 'wealth') {
-      // 1. Extract text from every uploaded PDF
-      let combinedText = '';
-      for (const pdfFile of files) {
-        try {
-          const buf    = Buffer.from(await pdfFile.arrayBuffer());
-          const parsed = await pdfParse(buf);
-          combinedText += parsed.text + '\n\n';
-        } catch (err) {
-          console.error('pdf-parse error:', err);
-        }
-      }
-
-      // 2. If extraction produced nothing useful, fall back to intent-verified
-      if (!combinedText.trim()) {
-        const insights = [{ label: 'Financial document uploaded', emoji: '💰' }];
-        const userId = await getUserIdFromRequest(request);
-        if (userId) await persistInsight(userId, category, pts, { insights, pts_awarded: pts });
-        return json({ verified: true, insights, pts_awarded: pts, photo_count: files.length, confidence: 0.8, reason: 'Wealth PDF uploaded — text unreadable, verified by intent' });
-      }
-
-      // 3. Send extracted text to Claude (text-only message — no Vision needed)
-      const wealthTextPrompt = `${PROMPTS.wealth}
-
-The following is raw text extracted from the uploaded PDF document(s). Analyse it and return JSON:
-
----
-${combinedText.slice(0, 14000)}
----`;
-
-      const wealthResp = await fetch(CLAUDE_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({
-          model: CLAUDE_MODEL,
-          max_tokens: 768,
-          messages: [{ role: 'user', content: wealthTextPrompt }],
-        }),
-        signal: AbortSignal.timeout(35_000),
-      });
-
-      if (!wealthResp.ok) {
-        const insights = [{ label: 'Financial document uploaded', emoji: '💰' }];
-        const userId = await getUserIdFromRequest(request);
-        if (userId) await persistInsight(userId, category, pts, { insights, pts_awarded: pts });
-        return json({ verified: true, insights, pts_awarded: pts, photo_count: files.length, confidence: 0.8, reason: 'Wealth PDF verified by upload' });
-      }
-
-      const wealthData = await wealthResp.json();
-      let wRaw = (wealthData.content?.[0]?.text ?? '{}') as string;
-      wRaw = wRaw.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim();
-      if (!wRaw.startsWith('{')) {
-        const m = wRaw.match(/\{[\s\S]*\}/);
-        if (m) wRaw = m[0];
-      }
-
-      let wResult: { verified?: boolean; insights?: Array<{ label: string; emoji: string }>; aggregated?: string; confidence?: number; reason?: string } = {};
-      try { wResult = JSON.parse(wRaw); } catch { /* fall through to default */ }
-
-      const wInsights = (wResult.insights?.length ? wResult.insights : [{ label: 'Financial document uploaded', emoji: '💰' }]).slice(0, 5);
-      const userId = await getUserIdFromRequest(request);
-      if (userId) await persistInsight(userId, category, pts, { insights: wInsights, aggregated: wResult.aggregated, pts_awarded: pts });
+      const parsed    = await callClaudeWithPdfs(files, PROMPTS.wealth);
+      const wInsights = (parsed?.insights?.length ? parsed.insights : [{ label: 'Financial document uploaded', emoji: '💰' }]).slice(0, 5);
+      const userId    = await getUserIdFromRequest(request);
+      if (userId) await persistInsight(userId, category, pts, { insights: wInsights, aggregated: parsed?.aggregated, pts_awarded: pts });
       return json({
-        verified:     wResult.verified !== false,
-        insights:     wInsights,
-        aggregated:   wResult.aggregated,
-        pts_awarded:  pts,
-        photo_count:  files.length,
-        confidence:   wResult.confidence ?? 0.85,
-        reason:       wResult.reason ?? 'Wealth PDF analysed',
+        verified:    parsed?.verified !== false,
+        insights:    wInsights,
+        aggregated:  parsed?.aggregated,
+        pts_awarded: pts,
+        photo_count: files.length,
+        confidence:  parsed?.confidence ?? 0.85,
+        reason:      parsed?.reason ?? 'Wealth PDF analysed',
       });
     }
 
