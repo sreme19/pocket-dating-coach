@@ -175,16 +175,71 @@
     return BRAND_COLORS[key] ?? { accent: '#34D399', logo: make.slice(0, 2).toUpperCase() };
   }
 
-  function vehicleEmoji(car: GarageCar): string {
+  function getCarSVG(car: GarageCar, accent: string): string {
     const vt = (car.vehicleType ?? '').toLowerCase();
     const m  = (car.model ?? '').toLowerCase();
-    if (vt.includes('super') || vt.includes('sport') || m.includes('911') || m.includes('ferrari')) return '🏎️';
-    if (vt.includes('suv') || vt.includes('4x4') || vt.includes('crossover')) return '🚙';
-    if (vt.includes('truck') || vt.includes('pickup')) return '🛻';
-    if (vt.includes('van') || vt.includes('minivan')) return '🚐';
-    if (vt.includes('convert') || vt.includes('cabriolet')) return '🚘';
-    if (vt.includes('electric') || vt.includes('ev') || m.includes('model') || m.includes('comet')) return '⚡';
-    return '🚗';
+    const c  = accent;
+    const f  = c + '28'; // translucent fill
+    const s  = c;        // solid stroke
+
+    // ── SUV / Crossover ──────────────────────────────────────────────────────
+    if (vt.includes('suv') || vt.includes('4x4') || vt.includes('crossover')) {
+      return `<svg viewBox="0 0 300 120" xmlns="http://www.w3.org/2000/svg" class="car-svg-el">
+        <path d="M22,98 L22,58 Q28,32 60,20 L150,14 Q200,11 228,26 L266,56 L278,98 Z" fill="${f}" stroke="${s}" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M60,20 Q82,6 122,4 L175,3 Q208,3 228,26" fill="${f}" stroke="${s}" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M67,22 Q88,10 120,8 L155,8 L158,16 L74,18 Z" fill="${c}" opacity="0.18"/>
+        <path d="M161,16 L196,14 Q216,13 228,26 L218,22 Q198,14 168,15 Z" fill="${c}" opacity="0.18"/>
+        <circle cx="82" cy="98" r="23" fill="rgba(0,0,0,0.65)" stroke="${s}" stroke-width="2.5"/>
+        <circle cx="82" cy="98" r="12" fill="${c}" opacity="0.22" stroke="${s}" stroke-width="1.5"/>
+        <circle cx="220" cy="98" r="23" fill="rgba(0,0,0,0.65)" stroke="${s}" stroke-width="2.5"/>
+        <circle cx="220" cy="98" r="12" fill="${c}" opacity="0.22" stroke="${s}" stroke-width="1.5"/>
+        <ellipse cx="151" cy="117" rx="128" ry="5" fill="rgba(0,0,0,0.28)"/>
+      </svg>`;
+    }
+
+    // ── Sports / Supercar ────────────────────────────────────────────────────
+    if (vt.includes('super') || vt.includes('sport') || vt.includes('coupe') ||
+        m.includes('911') || m.includes('ferrari') || m.includes('lambo')) {
+      return `<svg viewBox="0 0 340 105" xmlns="http://www.w3.org/2000/svg" class="car-svg-el">
+        <path d="M18,88 L18,74 Q28,56 58,44 L98,34 Q135,22 178,20 L238,22 Q272,24 298,48 L318,70 L325,88 Z" fill="${f}" stroke="${s}" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M98,34 Q125,16 168,13 L212,13 Q244,14 270,30 L238,22 Q200,18 165,20 L98,34" fill="${f}" stroke="${s}" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M103,34 Q128,18 165,15 L196,15 L198,22 L108,26 Z" fill="${c}" opacity="0.18"/>
+        <path d="M201,22 L235,23 Q260,24 272,36 L252,28 Q230,22 206,22 Z" fill="${c}" opacity="0.18"/>
+        <circle cx="88" cy="88" r="20" fill="rgba(0,0,0,0.65)" stroke="${s}" stroke-width="2.5"/>
+        <circle cx="88" cy="88" r="10" fill="${c}" opacity="0.22" stroke="${s}" stroke-width="1.5"/>
+        <circle cx="255" cy="88" r="20" fill="rgba(0,0,0,0.65)" stroke="${s}" stroke-width="2.5"/>
+        <circle cx="255" cy="88" r="10" fill="${c}" opacity="0.22" stroke="${s}" stroke-width="1.5"/>
+        <ellipse cx="172" cy="102" rx="148" ry="5" fill="rgba(0,0,0,0.28)"/>
+      </svg>`;
+    }
+
+    // ── Sedan ────────────────────────────────────────────────────────────────
+    if (vt.includes('sedan')) {
+      return `<svg viewBox="0 0 320 112" xmlns="http://www.w3.org/2000/svg" class="car-svg-el">
+        <path d="M18,90 L18,70 Q22,52 50,38 L92,28 L168,22 L225,24 Q263,26 286,52 L302,72 L308,90 Z" fill="${f}" stroke="${s}" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M92,28 Q114,12 150,9 L196,9 Q224,10 244,24 L225,24 L168,22 L92,28" fill="${f}" stroke="${s}" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M97,28 Q117,14 150,11 L178,11 L180,22 L102,24 Z" fill="${c}" opacity="0.18"/>
+        <path d="M183,22 L221,23 Q238,23 246,32 L234,26 Q212,20 188,21 Z" fill="${c}" opacity="0.18"/>
+        <circle cx="88" cy="90" r="22" fill="rgba(0,0,0,0.65)" stroke="${s}" stroke-width="2.5"/>
+        <circle cx="88" cy="90" r="11" fill="${c}" opacity="0.22" stroke="${s}" stroke-width="1.5"/>
+        <circle cx="238" cy="90" r="22" fill="rgba(0,0,0,0.65)" stroke="${s}" stroke-width="2.5"/>
+        <circle cx="238" cy="90" r="11" fill="${c}" opacity="0.22" stroke="${s}" stroke-width="1.5"/>
+        <ellipse cx="163" cy="108" rx="135" ry="5" fill="rgba(0,0,0,0.28)"/>
+      </svg>`;
+    }
+
+    // ── Default: Hatchback / City Car / EV ───────────────────────────────────
+    return `<svg viewBox="0 0 280 112" xmlns="http://www.w3.org/2000/svg" class="car-svg-el">
+      <path d="M20,90 L20,66 Q25,44 56,30 L108,20 Q150,14 188,18 L232,32 L254,58 L260,90 Z" fill="${f}" stroke="${s}" stroke-width="2.5" stroke-linejoin="round"/>
+      <path d="M56,30 Q76,12 114,8 L160,7 Q192,7 212,20 L188,18 Q150,14 108,20 L56,30" fill="${f}" stroke="${s}" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M61,31 Q80,15 114,10 L150,10 L152,20 L67,24 Z" fill="${c}" opacity="0.18"/>
+      <path d="M155,20 L188,19 Q208,19 215,28 L203,22 Q184,16 160,17 Z" fill="${c}" opacity="0.18"/>
+      <circle cx="80" cy="90" r="22" fill="rgba(0,0,0,0.65)" stroke="${s}" stroke-width="2.5"/>
+      <circle cx="80" cy="90" r="11" fill="${c}" opacity="0.22" stroke="${s}" stroke-width="1.5"/>
+      <circle cx="200" cy="90" r="22" fill="rgba(0,0,0,0.65)" stroke="${s}" stroke-width="2.5"/>
+      <circle cx="200" cy="90" r="11" fill="${c}" opacity="0.22" stroke="${s}" stroke-width="1.5"/>
+      <ellipse cx="140" cy="108" rx="120" ry="5" fill="rgba(0,0,0,0.28)"/>
+    </svg>`;
   }
 
   // ── Travel Magnets ─────────────────────────────────────────────────────────
@@ -1568,9 +1623,11 @@
                 <!-- Showroom floor grid -->
                 <div class="garage-grid-overlay"></div>
 
-                <!-- Car hero -->
+                <!-- Car hero — SVG silhouette tinted with brand accent -->
                 <div class="garage-hero">
-                  <div class="garage-car-emoji">{vehicleEmoji(car)}</div>
+                  <div class="garage-car-svg">
+                    {@html getCarSVG(car, brand.accent)}
+                  </div>
                   <div class="garage-light-sweep"></div>
                 </div>
 
@@ -4397,19 +4454,24 @@
     pointer-events: none;
   }
 
-  .garage-car-emoji {
-    font-size: 96px;
-    line-height: 1;
-    filter: drop-shadow(0 8px 24px rgba(0,0,0,0.7));
+  .garage-car-svg {
     position: relative;
     z-index: 1;
-    transform: scaleX(-1); /* face left like a display car */
+    width: 88%;
+    max-width: 320px;
+    filter: drop-shadow(0 10px 28px rgba(0,0,0,0.55));
     animation: garageFloat 4s ease-in-out infinite;
   }
 
+  :global(.car-svg-el) {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
   @keyframes garageFloat {
-    0%, 100% { transform: scaleX(-1) translateY(0px);   }
-    50%       { transform: scaleX(-1) translateY(-6px);  }
+    0%, 100% { transform: translateY(0px);  }
+    50%       { transform: translateY(-7px); }
   }
 
   .garage-info {
