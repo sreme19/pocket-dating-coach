@@ -31,7 +31,7 @@
   const steps = [
     { num: '01', name: 'Government ID',    sub: 'prove you\'re real',         time: '~30 sec' },
     { num: '02', name: '5+ photos',        sub: 'prove it\'s really you',     time: '~60 sec' },
-    { num: '03', name: 'Spending pattern', sub: 'prove you\'re solid',        time: '~45 sec' },
+    { num: '03', name: 'Lifestyle Choices', sub: 'prove you\'re solid',        time: '~45 sec' },
     { num: '04', name: 'Q&A responses',    sub: 'prove your intent',          time: '~2 min'  }
   ];
 
@@ -53,7 +53,6 @@
 
   <div class="hero">
     <h1 class="title">Earn your<br /><em>profile.</em></h1>
-    <p class="subtitle">Four steps. Each one takes under a minute.<br />We verify, you control what's visible.</p>
   </div>
 
   <div class="steps-list">
