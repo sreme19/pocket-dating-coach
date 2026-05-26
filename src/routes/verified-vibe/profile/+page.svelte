@@ -1286,19 +1286,21 @@
     hardNos,
     countriesTraveled,
     moneyMatters,
-    // Full proof insight detail — category + individual chip labels — so Claude
-    // can distinguish "remove entire proof" from "remove one insight chip"
+    // Full proof insight detail — category, individual chip labels, and aggregated
+    // summary text — so Claude can derive new chips from existing verified data.
     proofInsights: (() => {
       try {
         const raw = localStorage.getItem('vv_proof_insights');
         if (!raw) return [];
         return (JSON.parse(raw) as Array<{
           category: string;
-          insights?: Array<{ label: string }>;
+          insights?: Array<{ label: string; emoji: string }>;
           insight_label?: string;
+          aggregated?: string;
         }>).map(p => ({
           category: p.category,
           labels: p.insights?.map(i => i.label) ?? (p.insight_label ? [p.insight_label] : []),
+          aggregated: p.aggregated ?? '',
         }));
       } catch { return []; }
     })(),
@@ -1394,6 +1396,37 @@
           const l = updated.find((p: any) => p.category === 'linkedin') as any;
           return l?.insights?.length ? { insights: l.insights, aggregated: l.aggregated ?? '' } : null;
         })();
+        break;
+      }
+
+      case 'add_derived_insights': {
+        // Merge AI-derived chips into the existing proof category in localStorage
+        if (!action.category || !action.new_insights?.length) break;
+        const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
+        const updated = all.map((p: any) => {
+          if (p.category !== action.category) return p;
+          const existing = (p.insights ?? []) as Array<{ label: string; emoji: string }>;
+          const existingLabels = new Set(existing.map((i: { label: string }) => i.label.toLowerCase()));
+          const toAdd = (action.new_insights ?? []).filter(
+            (i: { label: string }) => !existingLabels.has(i.label.toLowerCase())
+          );
+          const merged = [...existing, ...toAdd];
+          return { ...p, insights: merged };
+        });
+        localStorage.setItem('vv_proof_insights', JSON.stringify(updated));
+        // Refresh derived career / wealth state
+        if (action.category === 'linkedin') {
+          const lEntry = updated.find((p: any) => p.category === 'linkedin') as any;
+          if (lEntry?.insights?.length) {
+            careerHighlights = { insights: lEntry.insights, aggregated: lEntry.aggregated ?? '' };
+          }
+        }
+        if (action.category === 'wealth') {
+          const wEntry = updated.find((p: any) => p.category === 'wealth') as any;
+          if (wEntry?.insights?.length) {
+            wealthInsights = { insights: wEntry.insights, aggregated: wEntry.aggregated ?? '' };
+          }
+        }
         break;
       }
 

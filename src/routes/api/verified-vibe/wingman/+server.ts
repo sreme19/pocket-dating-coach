@@ -62,29 +62,37 @@ Valid archetypes: casual_man, casual_generous_man, forever_focused_man, hopeless
 traditional_matrimony_man, second_chapter_man, untouched_heart_man, just_friends_man, rebound_healing_man
 
 ACTION TYPES you can return:
-- "update_field"   — update a non-proof profile field
-- "remove_proof"   — remove an ENTIRE proof category (linkedin, instagram, wealth, assets, spending, lifestyle, hosting, discipline, social_proof, twitter, habit_tracker, intro)
-- "remove_insight" — remove ONE specific insight chip from inside a proof category (e.g. "Senior Professional Tier" from wealth). Use this when the user names a specific chip/badge rather than the whole category.
-- "remove_country" — remove a specific country/place from travel magnets
-- "remove_tag"     — remove a single tag from personalityTags, lifestyleTags, intentTags, or hardNos
-- "redirect_upload"— user wants to add something that needs proof
-- "clarify"        — request is unclear or out of scope
+- "update_field"         — update a non-proof profile field
+- "remove_proof"         — remove an ENTIRE proof category
+- "remove_insight"       — remove ONE specific insight chip from inside a proof category
+- "add_derived_insights" — user asks for MORE suggestions from already-uploaded proof data.
+                           Read the existing proof's "aggregated" text + labels and derive 2-4
+                           NEW insight chips that are NOT already in the labels list.
+                           ONLY use this when that proof category already exists in proofInsights.
+                           DO NOT use redirect_upload for this case.
+- "remove_country"       — remove a specific country/place from travel magnets
+- "remove_tag"           — remove a single tag from personalityTags, lifestyleTags, intentTags, or hardNos
+- "redirect_upload"      — user wants to ADD a brand-new proof category that does NOT exist yet
+- "clarify"              — request is unclear or out of scope
 
 IMPORTANT: Insight chips shown in "Money Matters", "Career Highlights", and other verified sections
-(e.g. "Senior Professional Tier", "High Credit Card Spender", "Active Investor & Tax Payer",
-"Director, Data & Analytics", "Frequent International Traveler") are individual proof insight labels —
-NOT profile tags. Use "remove_insight" for these, not "remove_tag".
+(e.g. "Senior Professional Tier", "High Credit Card Spender", "Director, Data & Analytics") are
+individual proof insight labels — NOT profile tags.
+- To remove one chip → use "remove_insight"
+- To suggest more chips from existing uploaded data → use "add_derived_insights"
+- Only redirect to upload if the proof category does NOT exist in proofInsights at all.
 
 Return ONLY raw JSON, no markdown, no code fences:
 {
   "action": "<action_type>",
-  "field": "<field_name>",          // for update_field or remove_tag
-  "value": <new_value>,             // for update_field (string or array)
-  "category": "<proof_category>",   // for remove_proof or remove_insight
-  "insight_label": "<exact label>", // for remove_insight — the chip text to remove
-  "country": "<place_name>",        // for remove_country
-  "tag": "<tag_string>",            // for remove_tag
-  "uploadUrl": "<path>",            // for redirect_upload
+  "field": "<field_name>",           // for update_field or remove_tag
+  "value": <new_value>,              // for update_field (string or array)
+  "category": "<proof_category>",    // for remove_proof, remove_insight, add_derived_insights
+  "insight_label": "<exact label>",  // for remove_insight
+  "new_insights": [{"label":"...","emoji":"..."}],  // for add_derived_insights (2-4 items)
+  "country": "<place_name>",         // for remove_country
+  "tag": "<tag_string>",             // for remove_tag
+  "uploadUrl": "<path>",             // for redirect_upload
   "confirmation": "<friendly 6-10 word message shown in chat>",
   "redirectMessage": "<friendly message explaining why they need to upload>"
 }`;
