@@ -99,14 +99,18 @@
       title: 'LinkedIn / CV',
       subtitle: 'Connect your LinkedIn or upload your CV',
       examples: [
-        'Paste your LinkedIn URL below for instant one-click verification',
+        'Tap "Open LinkedIn" → copy your profile URL → paste below',
         'Or screenshot your profile with name, title and company visible',
         'Or upload your CV or resume as a PDF',
         'We only check your role and company — nothing else is read',
       ],
-      maxFiles: 2,
-      hintLine: 'URL connection is fastest. Screenshot or CV also accepted.',
+      maxFiles: 3,
+      hintLine: 'URL or CV upload accepted — both can be used together.',
       accept: 'image/*,.pdf',
+      hasOAuthConnect: true,
+      connectLabel: 'Open LinkedIn',
+      connectUrl: 'https://www.linkedin.com',
+      connectColor: '#0A66C2',
       hasUrlInput: true,
       urlLabel: 'LinkedIn URL',
       urlPlaceholder: 'linkedin.com/in/yourname',
@@ -671,7 +675,7 @@
       <div class="hint-line">{config.hintLine}</div>
     </div>
 
-    <!-- OAuth connect UI for LinkedIn / Instagram / Twitter -->
+    <!-- OAuth / branded connect UI -->
     {#if config.hasOAuthConnect}
       <div class="connect-card">
         <button
@@ -681,7 +685,6 @@
           type="button"
         >
           {#if category === 'linkedin'}
-            <!-- LinkedIn official logo -->
             <svg class="connect-platform-svg" viewBox="0 0 24 24" fill="#ffffff" xmlns="http://www.w3.org/2000/svg">
               <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
             </svg>
@@ -691,11 +694,30 @@
           {config.connectLabel}
         </button>
 
-        {#if connectOpened}
+        {#if category === 'linkedin'}
+          <!-- LinkedIn: always show URL field + divider — no tap-to-reveal -->
           <div class="connect-paste-area">
-            <div class="connect-paste-label">
-              {category === 'linkedin' ? 'Paste your LinkedIn profile URL after signing in:' : 'Paste your profile URL after signing in:'}
+            <div class="connect-paste-label">Paste your LinkedIn profile URL:</div>
+            <div class="url-input-row">
+              <input
+                class="url-input"
+                type="url"
+                placeholder={config.urlPlaceholder}
+                bind:value={profileUrl}
+              />
+              {#if profileUrl.trim()}
+                <button class="url-clear" onclick={() => profileUrl = ''} aria-label="Clear URL">✕</button>
+              {/if}
             </div>
+            {#if profileUrl.trim()}
+              <span class="connect-url-confirmed">✓ URL captured</span>
+            {/if}
+          </div>
+          <p class="url-or-divider" style="margin: 4px 0 0">or upload a screenshot / CV below</p>
+
+        {:else if connectOpened}
+          <div class="connect-paste-area">
+            <div class="connect-paste-label">Paste your profile URL after signing in:</div>
             <div class="url-input-row">
               <input
                 class="url-input"
@@ -712,11 +734,7 @@
             {/if}
           </div>
         {:else}
-          <p class="connect-hint">
-            {category === 'linkedin'
-              ? 'Tap above → sign in → copy your LinkedIn profile URL → paste it below'
-              : 'Tap Connect → sign in → copy your profile URL → come back and paste it'}
-          </p>
+          <p class="connect-hint">Tap Connect → sign in → copy your profile URL → come back and paste it</p>
         {/if}
 
       </div>
@@ -825,10 +843,10 @@
               <rect x="3" y="3" width="18" height="18" rx="2"/>
               <path d="M8 12h8M12 8v8"/>
             </svg>
-            <p class="drop-hint">{config.hasUrlInput ? 'Or upload a screenshot' : 'Tap to select photos'}</p>
+            <p class="drop-hint">{category === 'linkedin' ? 'Upload screenshot or CV' : config.hasUrlInput ? 'Or upload a screenshot' : 'Tap to select photos'}</p>
             <p class="drop-hint-sub">Up to {config.maxFiles} {config.maxFiles === 1 ? 'file' : 'files'} · JPEG / PNG{(category === 'linkedin' || category === 'assets' || category === 'wealth') ? ' / PDF' : ''}</p>
             <label class="pick-btn">
-              Choose Photos
+              {category === 'linkedin' ? 'Choose Screenshot or CV' : 'Choose Photos'}
               <input type="file" accept={config.accept} multiple={config.maxFiles > 1} onchange={e => addFiles(e.currentTarget.files)} hidden />
             </label>
         </div>
