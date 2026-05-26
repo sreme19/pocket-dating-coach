@@ -2115,16 +2115,6 @@
         </section>
       {/if}
 
-      <!-- CTA to discover -->
-      {#if mode === 'public'}
-        <button class="discover-cta" onclick={() => goto('/verified-vibe/discover')}>
-          Start discovering matches
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path d="M5 12h14M12 5l7 7-7 7"/>
-          </svg>
-        </button>
-      {/if}
-
       <!-- Sign Out Button -->
       <button class="sign-out-btn" onclick={handleSignOut} title="Sign out">
         <LogOut size={16} />
