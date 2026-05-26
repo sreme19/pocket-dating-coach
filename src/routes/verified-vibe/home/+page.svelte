@@ -112,7 +112,6 @@
         <span class="urgency-label">Get matched within</span>
         <span class="urgency-timer">{timerDisplay()}</span>
         <span class="urgency-label">minutes.</span>
-        <span class="urgency-guaranteed">Guaranteed.</span>
       </div>
       <p class="urgency-sub">
         Earn your profile, verify your intent. <em class="pay-later-inline">Pay later.</em>
@@ -123,7 +122,7 @@
   <div class="lane-section">
     <div class="lane-header">
       <p class="lane-q">What are you here for?</p>
-      <p class="lane-sub">Pick one. You can switch later — but switching means re-verifying.</p>
+      <p class="lane-sub">Pick one. You can switch later.</p>
     </div>
 
     {#if availableSections.length > 0}
