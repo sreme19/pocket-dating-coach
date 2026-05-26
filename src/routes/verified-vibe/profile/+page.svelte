@@ -807,8 +807,22 @@
     const rawGenerated = localStorage.getItem('vv_profile');
     const rawPhotos = localStorage.getItem('vv_photos');
     const rawAiPhotos = localStorage.getItem('vv_ai_photos');
-    const rawCountries = localStorage.getItem('vv_countries_traveled');
-    if (rawCountries) { try { countriesTraveled = JSON.parse(rawCountries); } catch { /* ignore */ } }
+    // Build countriesTraveled from two sources and union them:
+    // 1. vv_countries_traveled (fast path, always written on new uploads)
+    // 2. locations[] inside each stored insight (fallback — handles proofs uploaded before the separate key existed)
+    try {
+      const fromKey: string[] = JSON.parse(localStorage.getItem('vv_countries_traveled') ?? '[]');
+      const rawInsightsForLoc = localStorage.getItem('vv_proof_insights');
+      const fromInsights: string[] = rawInsightsForLoc
+        ? (JSON.parse(rawInsightsForLoc) as Array<{ locations?: string[] }>)
+            .flatMap(i => i.locations ?? [])
+        : [];
+      const merged = Array.from(new Set([...fromKey, ...fromInsights])).filter(Boolean);
+      if (merged.length > 0) {
+        countriesTraveled = merged;
+        localStorage.setItem('vv_countries_traveled', JSON.stringify(merged));
+      }
+    } catch { /* ignore */ }
 
     // Load money matters
     try {

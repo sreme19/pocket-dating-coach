@@ -238,6 +238,7 @@
     verified_at: string;
     thumbnails?: string[];
     showcased?: boolean;     // whether shown on public profile
+    locations?: string[];    // countries/cities detected from this proof
     assets?: AssetDetail[];  // structured asset details (cars, property, company)
     spendingBreakdown?: Array<{
       category: string;
@@ -471,6 +472,8 @@
       // Persist to localStorage
       const existing: StoredInsight[] = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
       const filtered = existing.filter(p => p.category !== category);
+      const locationsArr: string[] = Array.isArray(data.locations) ? data.locations.filter((l): l is string => typeof l === 'string' && l.trim().length > 0) : [];
+
       const newInsight: StoredInsight = {
         id:            crypto.randomUUID(),
         category,
@@ -482,6 +485,7 @@
         pts_awarded:   data.pts_awarded,
         verified_at:   new Date().toISOString(),
         thumbnails:    thumbnails.length > 0 ? thumbnails : undefined,
+        locations:     locationsArr.length > 0 ? locationsArr : undefined,
         assets:            Array.isArray(data.assets)            && data.assets.length > 0            ? data.assets            : undefined,
         spendingBreakdown: Array.isArray(data.spendingBreakdown) && data.spendingBreakdown.length > 0 ? data.spendingBreakdown : undefined,
       };
@@ -489,8 +493,7 @@
       localStorage.setItem('vv_proof_insights', JSON.stringify(filtered));
       existingInsight = newInsight;
 
-      // Persist locations (countries traveled) to localStorage
-      const locationsArr: string[] = Array.isArray(data.locations) ? data.locations : [];
+      // Persist locations (countries traveled) to localStorage — rebuild from ALL stored insights so it stays in sync
       let mergedCountries: string[] = [];
       if (locationsArr.length > 0) {
         try {
