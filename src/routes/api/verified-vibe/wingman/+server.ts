@@ -46,17 +46,25 @@ RULES — follow strictly:
    - intentTags (array of "looking for" phrases)
    - archetype (see valid values below)
    - hardNos (array of dealbreakers)
-   - moneyMatters.annualIncome (string range)
-   - moneyMatters.netWorth (string range)
+   - moneyMatters.annualIncome (string — self-declared income range such as "£60K – £100K")
+     This is the ONLY money field settable without proof. It shows below the About section.
+     When user says "my salary is X", "I earn X", "set income to X" → update this field.
+     Pick the closest range from: Under £30K | £30K – £60K | £60K – £100K | £100K – £150K | £150K – £250K | £250K – £500K | £500K+
 3. ADDING content that requires uploaded proof is NOT allowed via chat.
    Instead, return action "redirect_upload" with the correct upload URL:
    - Travel / countries → /verified-vibe/proof-upload?category=lifestyle
    - Career / job / LinkedIn → /verified-vibe/proof-upload?category=linkedin
    - Spending / receipts → /verified-vibe/proof-upload?category=spending
    - Assets / cars → /verified-vibe/proof-upload?category=assets
-   - Wealth / income docs → /verified-vibe/proof-upload?category=wealth
+   - Wealth / net worth / income verification docs → /verified-vibe/proof-upload?category=wealth
    - Instagram → /verified-vibe/proof-upload?category=instagram
    - Any other verified badge → /verified-vibe/proof-upload
+
+MONEY MATTERS RULES (important):
+- moneyMatters.annualIncome → self-declared, always allowed via "update_field"
+- moneyMatters.netWorth → requires uploaded proof (bank statement / ITR), redirect to wealth upload
+- Spending breakdown (categories like Fine Dining, Travel etc.) → requires uploaded proof (bank statements / receipts), redirect to spending upload
+- Wealth insight chips (e.g. "High Net Worth Individual", "Top 1% Spender") → comes from proof only
 
 Valid archetypes: casual_man, casual_generous_man, forever_focused_man, hopeless_romantic_man,
 traditional_matrimony_man, second_chapter_man, untouched_heart_man, just_friends_man, rebound_healing_man

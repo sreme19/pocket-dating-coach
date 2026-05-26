@@ -8,8 +8,6 @@
   import { unregisterPushNotifications } from '$lib/push-notifications';
   import { ShieldCheck, Pencil, Check, X, MapPin, Sparkles, Wand2, LogOut, Heart, Zap } from 'lucide-svelte';
   import CasualGenerousBoostTab from '$lib/verified-vibe/components/CasualGenerousBoostTab.svelte';
-  import WingmanChat from '$lib/verified-vibe/components/WingmanChat.svelte';
-  import type { WingmanAction } from '$lib/verified-vibe/components/WingmanChat.svelte';
   import { ARCHETYPES, ARCHETYPES_BY_GENDER } from '$lib/verified-vibe/constants';
   import type { Archetype } from '$lib/verified-vibe/types';
   import type { ProfileIntakeData } from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
@@ -1274,202 +1272,6 @@
     editLifestyle = val.split(',').map(t => t.trim()).filter(Boolean);
   }
 
-  // ── AI Wingman ─────────────────────────────────────────────────────────────
-
-  // Build a snapshot of the current profile state to send with each wingman request
-  const wingmanSnapshot = $derived({
-    about,
-    personalityTags,
-    lifestyleTags,
-    intentTags,
-    archetype: $user?.archetype ?? '',
-    hardNos,
-    countriesTraveled,
-    moneyMatters,
-    // Full proof insight detail — category, individual chip labels, and aggregated
-    // summary text — so Claude can derive new chips from existing verified data.
-    proofInsights: (() => {
-      try {
-        const raw = localStorage.getItem('vv_proof_insights');
-        if (!raw) return [];
-        return (JSON.parse(raw) as Array<{
-          category: string;
-          insights?: Array<{ label: string; emoji: string }>;
-          insight_label?: string;
-          aggregated?: string;
-        }>).map(p => ({
-          category: p.category,
-          labels: p.insights?.map(i => i.label) ?? (p.insight_label ? [p.insight_label] : []),
-          aggregated: p.aggregated ?? '',
-        }));
-      } catch { return []; }
-    })(),
-  });
-
-  function handleWingmanAction(action: WingmanAction) {
-    switch (action.action) {
-      case 'update_field': {
-        const val = action.value;
-        switch (action.field) {
-          case 'about': {
-            const updated = { ...generated, about: val as string } as GeneratedProfile;
-            generated = updated;
-            localStorage.setItem('vv_profile', JSON.stringify(updated));
-            break;
-          }
-          case 'personalityTags': {
-            const tags = Array.isArray(val) ? val as string[] : String(val).split(',').map(s => s.trim()).filter(Boolean);
-            const updated = { ...generated, personalityDescriptors: tags } as GeneratedProfile;
-            generated = updated;
-            localStorage.setItem('vv_profile', JSON.stringify(updated));
-            break;
-          }
-          case 'lifestyleTags': {
-            const tags = Array.isArray(val) ? val as string[] : String(val).split(',').map(s => s.trim()).filter(Boolean);
-            const updated = { ...generated, lifestyleTags: tags } as GeneratedProfile;
-            generated = updated;
-            localStorage.setItem('vv_profile', JSON.stringify(updated));
-            break;
-          }
-          case 'intentTags': {
-            const tags = Array.isArray(val) ? val as string[] : String(val).split(',').map(s => s.trim()).filter(Boolean);
-            const updated = { ...generated, intentStatement: tags.join(', ') } as GeneratedProfile;
-            generated = updated;
-            localStorage.setItem('vv_profile', JSON.stringify(updated));
-            break;
-          }
-          case 'archetype': {
-            if ($user) user.set({ ...$user, archetype: val as Archetype });
-            break;
-          }
-          case 'hardNos': {
-            hardNos = Array.isArray(val) ? val as string[] : [String(val)];
-            break;
-          }
-          case 'moneyMatters.annualIncome': {
-            moneyMatters = { ...moneyMatters, annualIncome: String(val) };
-            localStorage.setItem('vv_money_matters', JSON.stringify(moneyMatters));
-            break;
-          }
-          case 'moneyMatters.netWorth': {
-            moneyMatters = { ...moneyMatters, netWorth: String(val) };
-            localStorage.setItem('vv_money_matters', JSON.stringify(moneyMatters));
-            break;
-          }
-        }
-        break;
-      }
-
-      case 'remove_proof': {
-        if (!action.category) break;
-        const existing: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
-        localStorage.setItem('vv_proof_insights', JSON.stringify(existing.filter((p: any) => p.category !== action.category)));
-        break;
-      }
-
-      case 'remove_insight': {
-        // Remove one specific insight chip from within a proof category
-        if (!action.category || !(action as any).insight_label) break;
-        const targetLabel = ((action as any).insight_label as string).toLowerCase();
-        const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
-        const updated = all.map((p: any) => {
-          if (p.category !== action.category) return p;
-          const filteredInsights = (p.insights ?? []).filter(
-            (ins: { label: string }) => ins.label.toLowerCase() !== targetLabel
-          );
-          // If we've removed the last insight in this category, drop the whole entry
-          if (filteredInsights.length === 0) return null;
-          return {
-            ...p,
-            insights: filteredInsights,
-            insight_label: filteredInsights[0]?.label ?? p.insight_label,
-            insight_emoji: filteredInsights[0]?.emoji ?? p.insight_emoji,
-          };
-        }).filter(Boolean);
-        localStorage.setItem('vv_proof_insights', JSON.stringify(updated));
-        // Refresh derived state that reads from proof insights
-        wealthInsights = (() => {
-          const w = updated.find((p: any) => p.category === 'wealth') as any;
-          return w?.insights?.length ? { insights: w.insights, aggregated: w.aggregated ?? '' } : null;
-        })();
-        careerHighlights = (() => {
-          const l = updated.find((p: any) => p.category === 'linkedin') as any;
-          return l?.insights?.length ? { insights: l.insights, aggregated: l.aggregated ?? '' } : null;
-        })();
-        break;
-      }
-
-      case 'add_derived_insights': {
-        // Merge AI-derived chips into the existing proof category in localStorage
-        if (!action.category || !action.new_insights?.length) break;
-        const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
-        const updated = all.map((p: any) => {
-          if (p.category !== action.category) return p;
-          const existing = (p.insights ?? []) as Array<{ label: string; emoji: string }>;
-          const existingLabels = new Set(existing.map((i: { label: string }) => i.label.toLowerCase()));
-          const toAdd = (action.new_insights ?? []).filter(
-            (i: { label: string }) => !existingLabels.has(i.label.toLowerCase())
-          );
-          const merged = [...existing, ...toAdd];
-          return { ...p, insights: merged };
-        });
-        localStorage.setItem('vv_proof_insights', JSON.stringify(updated));
-        // Refresh derived career / wealth state
-        if (action.category === 'linkedin') {
-          const lEntry = updated.find((p: any) => p.category === 'linkedin') as any;
-          if (lEntry?.insights?.length) {
-            careerHighlights = { insights: lEntry.insights, aggregated: lEntry.aggregated ?? '' };
-          }
-        }
-        if (action.category === 'wealth') {
-          const wEntry = updated.find((p: any) => p.category === 'wealth') as any;
-          if (wEntry?.insights?.length) {
-            wealthInsights = { insights: wEntry.insights, aggregated: wEntry.aggregated ?? '' };
-          }
-        }
-        break;
-      }
-
-      case 'remove_country': {
-        if (!action.country) break;
-        const target = action.country.toLowerCase();
-        countriesTraveled = countriesTraveled.filter(c => c.toLowerCase() !== target);
-        localStorage.setItem('vv_countries_traveled', JSON.stringify(countriesTraveled));
-        break;
-      }
-
-      case 'remove_tag': {
-        if (!action.tag || !action.field) break;
-        const tag = action.tag.toLowerCase();
-        switch (action.field) {
-          case 'personalityTags': {
-            const updated = { ...generated, personalityDescriptors: personalityTags.filter(t => t.toLowerCase() !== tag) } as GeneratedProfile;
-            generated = updated;
-            localStorage.setItem('vv_profile', JSON.stringify(updated));
-            break;
-          }
-          case 'lifestyleTags': {
-            const updated = { ...generated, lifestyleTags: lifestyleTags.filter(t => t.toLowerCase() !== tag) } as GeneratedProfile;
-            generated = updated;
-            localStorage.setItem('vv_profile', JSON.stringify(updated));
-            break;
-          }
-          case 'hardNos': {
-            hardNos = hardNos.filter(t => t.toLowerCase() !== tag);
-            break;
-          }
-        }
-        break;
-      }
-    }
-
-    // Fire-and-forget sync to Supabase
-    try {
-      getSupabaseClient().auth.getSession().then(({ data: { session } }) => {
-        if (session?.access_token) pushMasterProfile(session.access_token);
-      });
-    } catch { /* non-critical */ }
-  }
 
   // ── Auto-fill ──────────────────────────────────────────────────────────────
   async function autoFill(field: 'about' | 'personality' | 'looking' | 'lifestyle') {
@@ -1711,6 +1513,20 @@
         {/if}
       </section>
 
+      <!-- Annual Income (self-declared, set via wingman or Trust & Boost tab) -->
+      {#if moneyMatters.annualIncome && moneyMatters.annualIncome !== 'Prefer not to say' && mode === 'public'}
+      <section class="section income-row-section">
+        <div class="income-row">
+          <span class="income-icon">💼</span>
+          <div class="income-body">
+            <span class="income-label">Annual Income</span>
+            <span class="income-value">{moneyMatters.annualIncome}</span>
+          </div>
+          <span class="archetype-qa-declared">Self declared</span>
+        </div>
+      </section>
+      {/if}
+
       <!-- Archetype-specific onboarding answers -->
       {#if archetypeSections.length > 0}
       <section class="section">
@@ -1817,6 +1633,22 @@
                 <span class="career-chip">
                   <span class="career-chip-emoji">{ins.emoji}</span>
                   {ins.label}
+                  <button
+                    class="chip-remove-btn"
+                    type="button"
+                    aria-label="Remove {ins.label}"
+                    onclick={() => {
+                      const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
+                      const updated = all.map((p: any) => {
+                        if (p.category !== 'linkedin') return p;
+                        const filtered = (p.insights ?? []).filter((i: { label: string }) => i.label !== ins.label);
+                        return filtered.length ? { ...p, insights: filtered } : null;
+                      }).filter(Boolean);
+                      localStorage.setItem('vv_proof_insights', JSON.stringify(updated));
+                      const lEntry = updated.find((p: any) => p.category === 'linkedin') as any;
+                      careerHighlights = lEntry?.insights?.length ? { insights: lEntry.insights, aggregated: lEntry.aggregated ?? '' } : null;
+                    }}
+                  >×</button>
                 </span>
               {/each}
             </div>
@@ -1877,6 +1709,22 @@
                       <span class="money-wealth-chip">
                         <span class="money-wealth-chip-emoji">{ins.emoji}</span>
                         {ins.label}
+                        <button
+                          class="chip-remove-btn chip-remove-btn--gold"
+                          type="button"
+                          aria-label="Remove {ins.label}"
+                          onclick={() => {
+                            const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
+                            const updated = all.map((p: any) => {
+                              if (p.category !== 'wealth') return p;
+                              const filtered = (p.insights ?? []).filter((i: { label: string }) => i.label !== ins.label);
+                              return filtered.length ? { ...p, insights: filtered } : null;
+                            }).filter(Boolean);
+                            localStorage.setItem('vv_proof_insights', JSON.stringify(updated));
+                            const wEntry = updated.find((p: any) => p.category === 'wealth') as any;
+                            wealthInsights = wEntry?.insights?.length ? { insights: wEntry.insights, aggregated: wEntry.aggregated ?? '' } : null;
+                          }}
+                        >×</button>
                       </span>
                     {/each}
                   </div>
@@ -2554,13 +2402,6 @@
   {/if}
 </div>
 
-<!-- AI Wingman — fixed floating chat bubble, always visible on profile -->
-{#if $user}
-  <WingmanChat
-    profileSnapshot={wingmanSnapshot}
-    onAction={handleWingmanAction}
-  />
-{/if}
 
 <!-- Edit Q&A Modal -->
 {#if showEditQAModal}
@@ -4466,6 +4307,45 @@
     padding: 1px 5px;
   }
 
+  /* ── Annual Income row (below About) ── */
+  .income-row-section {
+    padding-top: 0;
+    margin-top: -8px;
+  }
+  .income-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.07);
+  }
+  .income-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+    width: 28px;
+    text-align: center;
+  }
+  .income-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .income-label {
+    font-size: 10px;
+    color: var(--text-3);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .income-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-1);
+  }
+
   .archetype-qa-chips {
     display: flex;
     flex-wrap: wrap;
@@ -4534,6 +4414,38 @@
   }
 
   .career-chip-emoji { font-size: 14px; }
+
+  /* Shared chip remove button — tiny × at the right edge of any chip */
+  .chip-remove-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.55);
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+    transition: background 0.12s, color 0.12s;
+    margin-left: 2px;
+  }
+  .chip-remove-btn:hover {
+    background: rgba(239,68,68,0.35);
+    color: #fca5a5;
+  }
+  .chip-remove-btn--gold {
+    background: rgba(212,160,23,0.18);
+    color: rgba(245,212,133,0.6);
+  }
+  .chip-remove-btn--gold:hover {
+    background: rgba(239,68,68,0.3);
+    color: #fca5a5;
+  }
 
   .career-verified-row {
     display: flex;
