@@ -42,6 +42,8 @@
   import CasualGenerousProfileStep from '$lib/verified-vibe/components/CasualGenerousProfileStep.svelte';
   import CasualGenerousPreferencesStep from '$lib/verified-vibe/components/CasualGenerousPreferencesStep.svelte';
   import TrustPointsBadge from '$lib/verified-vibe/components/TrustPointsBadge.svelte';
+  import ProfilePreviewSheet from '$lib/verified-vibe/components/ProfilePreviewSheet.svelte';
+  import type { SeedCarouselProfile } from '$lib/verified-vibe/components/LiveWomenCarousel.svelte';
   import type { ProfileIntakeData } from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
   import type { VerificationStep as VerificationStepType, LivenessCheckResult } from '$lib/verified-vibe/types';
   import { fade, slide } from 'svelte/transition';
@@ -60,6 +62,7 @@
 
   let currentStep = $state(1);
   let loading = $state(false);
+  let openedMotivationProfile = $state<SeedCarouselProfile | null>(null);
   let error = $state<string | null>(null);
   let completedSteps = $state<Set<number>>(new Set());
   let skippedSteps = $state<Set<number>>(new Set());
@@ -69,6 +72,130 @@
   // Extracted from ID step — pre-fills profile intake
   let extractedName = $state('');
   let extractedAge = $state(0);
+
+  // ── Motivation cards ────────────────────────────────────────────────────────
+
+  interface MotivationCard {
+    profile: SeedCarouselProfile;
+    quoteBefore: string;
+    highlight: string;
+    quoteAfter: string;
+    profession: string;
+  }
+
+  const womenMotivationCards: MotivationCard[] = [
+    {
+      profile: {
+        id: 'priya', name: 'Priya', age: 30, gender: 'woman',
+        archetypeId: 'forever_focused_woman',
+        photoUrl: '/female_profiles/priya_High_Value_Feminist_f2k7zt/photos/Priya_2.jpg',
+        bio: 'UX researcher. Feminist who still wants the fairytale — without the compromise.',
+        isOnline: true, lastActive: 'online',
+      },
+      quoteBefore: '"I still want the fairytale — but with someone ',
+      highlight: 'serious enough to prove it',
+      quoteAfter: '. That\'s all verification is."',
+      profession: 'UX Researcher',
+    },
+    {
+      profile: {
+        id: 'anjali', name: 'Anjali', age: 25, gender: 'woman',
+        archetypeId: 'traditional_matrimony_woman',
+        photoUrl: '/female_profiles/anjali_Traditional_Family_First_g3s7mn/photos/Anjali_1.jpg',
+        bio: 'Pharmacist. Family-first, not by default — by choice.',
+        isOnline: true, lastActive: 'online',
+      },
+      quoteBefore: '"Family-first is easy to say. A ',
+      highlight: 'verified profile',
+      quoteAfter: ' shows you actually mean it."',
+      profession: 'Pharmacist',
+    },
+    {
+      profile: {
+        id: 'sarah', name: 'Sarah', age: 24, gender: 'woman',
+        archetypeId: 'forever_focused_woman',
+        photoUrl: '/female_profiles/sarah_Tech_Founder_045db3/photos/Sarah_1.jpg',
+        bio: 'Tech founder. Knows what she\'s building and who belongs in it.',
+        isOnline: true, lastActive: 'online',
+      },
+      quoteBefore: '"I give my time to people I can trust. ',
+      highlight: 'Verification',
+      quoteAfter: ' is how I know someone\'s worth that."',
+      profession: 'Tech Founder',
+    },
+  ];
+
+  const menMotivationCards: MotivationCard[] = [
+    {
+      profile: {
+        id: 'marcus', name: 'Marcus', age: 38, gender: 'man',
+        archetypeId: 'forever_focused_man',
+        photoUrl: '/male_profiles/marcus_Self_Made_Ambitious_b3k9rz/photos/Lauren_4.jpg',
+        bio: 'Built a company from scratch. Same standard in everything — including this.',
+        isOnline: true, lastActive: 'online',
+      },
+      quoteBefore: '"I built something from nothing. A ',
+      highlight: 'verified profile',
+      quoteAfter: ' shows we\'re operating at the same standard."',
+      profession: 'Entrepreneur',
+    },
+    {
+      profile: {
+        id: 'tim', name: 'Tim', age: 33, gender: 'man',
+        archetypeId: 'forever_focused_man',
+        photoUrl: '/male_profiles/tim_VC_Founder_ono35i/photos/Ethan_4.jpg',
+        bio: 'VC-backed founder. Filters signal from noise for a living.',
+        isOnline: true, lastActive: 'online',
+      },
+      quoteBefore: '"I read pitches all day. The first thing I check is whether someone\'s ',
+      highlight: 'actually real',
+      quoteAfter: '. Same applies here."',
+      profession: 'VC Founder',
+    },
+    {
+      profile: {
+        id: 'karan', name: 'Karan', age: 34, gender: 'man',
+        archetypeId: 'forever_focused_man',
+        photoUrl: '/male_profiles/karan_Progressive_Traditional_u9j5ql/photos/Karan_5.jpg',
+        bio: 'PM at a unicorn. Knows exactly what he\'s building — in work and in love.',
+        isOnline: true, lastActive: 'online',
+      },
+      quoteBefore: '"I know what I want — in work and in life. ',
+      highlight: 'This just shows I\'m willing to prove it',
+      quoteAfter: '."',
+      profession: 'Product Manager',
+    },
+  ];
+
+  // Fixed card shown on step 3 (Photo Story) — women to men only
+  const photoStepCard: MotivationCard = {
+    profile: {
+      id: 'anjali', name: 'Anjali', age: 25, gender: 'woman',
+      archetypeId: 'traditional_matrimony_woman',
+      photoUrl: '/female_profiles/anjali_Traditional_Family_First_g3s7mn/photos/Anjali_1.jpg',
+      bio: 'Pharmacist. Family-first, not by default — by choice.',
+      isOnline: true, lastActive: 'online',
+    },
+    quoteBefore: '"I want to see your world a little — not just your face. The energy you bring. The life you\'ve built. The experiences you enjoy. A man who\'s ',
+    highlight: 'generous with his attention, effort, and presence',
+    quoteAfter: ' stands out for me."',
+    profession: 'Pharmacist',
+  };
+
+  const viewerGender = $derived.by(() => {
+    if ($user?.gender) return $user.gender;
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('verified_vibe_gender') as 'man' | 'woman') ?? 'man';
+    }
+    return 'man';
+  });
+
+  const motivationCard = $derived.by(() => {
+    const pool = viewerGender === 'woman' ? menMotivationCards : womenMotivationCards;
+    return pool[Math.floor(Math.random() * pool.length)];
+  });
+
+  // ── Archetype derived booleans ──────────────────────────────────────────────
 
   const isMatrimonyArchetype = $derived(
     $user?.archetype === 'traditional_matrimony_man' ||
@@ -1506,25 +1633,70 @@
   </div>
   {/if}
 
-  {#if currentStep === 1}
-  <div class="testimonial-card" transition:fade={{ duration: 300, delay: 200 }}>
-    <div class="testimonial-avatar-wrap">
+  {#if currentStep === 1 && motivationCard}
+  <button
+    class="motivation-card"
+    onclick={() => { openedMotivationProfile = motivationCard.profile; }}
+    aria-label="View {motivationCard.profile.name}'s profile"
+    transition:fade={{ duration: 300, delay: 200 }}
+  >
+    <div class="motivation-avatar-wrap">
       <img
-        class="testimonial-avatar"
-        src="/female_profiles/jessica_Ambitious_Professional_e89f0f/photos/Jessica_3.jpg"
-        alt="Jessica"
+        class="motivation-avatar"
+        src={motivationCard.profile.photoUrl}
+        alt={motivationCard.profile.name}
       />
-      <span class="testimonial-verified-badge">✓</span>
+      <span class="motivation-verified-badge">✓</span>
     </div>
-    <div class="testimonial-body">
-      <p class="testimonial-quote">
-        "I get a lot of attention. <em class="testimonial-highlight">Verified men</em> instantly feel safer, more serious, and worth responding to."
+    <div class="motivation-body">
+      <p class="motivation-quote">
+        {motivationCard.quoteBefore}<em class="motivation-highlight">{motivationCard.highlight}</em>{motivationCard.quoteAfter}
       </p>
-      <p class="testimonial-meta">Jessica, 28 · <span class="meta-verified">verified</span> · Ambitious Professional</p>
+      <p class="motivation-meta">
+        {motivationCard.profile.name}, {motivationCard.profile.age}
+        · <span class="meta-verified">verified</span>
+        · {motivationCard.profession}
+      </p>
     </div>
-  </div>
+    <span class="motivation-chevron">›</span>
+  </button>
+  {/if}
+
+  {#if currentStep === 3 && viewerGender !== 'woman'}
+  <button
+    class="motivation-card motivation-card--tall"
+    onclick={() => { openedMotivationProfile = photoStepCard.profile; }}
+    aria-label="View {photoStepCard.profile.name}'s profile"
+    transition:fade={{ duration: 300, delay: 200 }}
+  >
+    <div class="motivation-avatar-wrap">
+      <img
+        class="motivation-avatar"
+        src={photoStepCard.profile.photoUrl}
+        alt={photoStepCard.profile.name}
+      />
+      <span class="motivation-verified-badge">✓</span>
+    </div>
+    <div class="motivation-body">
+      <p class="motivation-quote">
+        {photoStepCard.quoteBefore}<em class="motivation-highlight">{photoStepCard.highlight}</em>{photoStepCard.quoteAfter}
+      </p>
+      <p class="motivation-meta">
+        {photoStepCard.profile.name}, {photoStepCard.profile.age}
+        · <span class="meta-verified">verified</span>
+        · {photoStepCard.profession}
+      </p>
+    </div>
+    <span class="motivation-chevron">›</span>
+  </button>
   {/if}
 </div>
+
+<ProfilePreviewSheet
+  profile={openedMotivationProfile}
+  onClose={() => { openedMotivationProfile = null; }}
+  redirectTo="/verified-vibe/verification"
+/>
 
 <style>
   .verification-screen {
@@ -2178,27 +2350,49 @@
     }
   }
 
-  /* ── Testimonial card ─────────────────────────────────────────────────────── */
+  /* ── Motivation card ──────────────────────────────────────────────────────── */
 
-  .testimonial-card {
-    display: flex;
+  .motivation-card--tall {
     align-items: flex-start;
+  }
+
+  .motivation-card {
+    display: flex;
+    align-items: center;
     gap: 14px;
     margin: 0 16px 24px;
     padding: 14px;
     background: var(--bg-2);
     border: 1px solid var(--border-1);
     border-radius: 14px;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    width: calc(100% - 32px);
+    transition: background 160ms, border-color 160ms;
+    -webkit-tap-highlight-color: transparent;
   }
 
-  .testimonial-avatar-wrap {
+  .motivation-card:active {
+    background: var(--bg-3);
+    border-color: var(--accent-bright);
+  }
+
+  @media (hover: hover) {
+    .motivation-card:hover {
+      background: var(--bg-3);
+      border-color: color-mix(in srgb, var(--accent-bright) 40%, transparent);
+    }
+  }
+
+  .motivation-avatar-wrap {
     position: relative;
     flex-shrink: 0;
-    width: 52px;
-    height: 52px;
+    width: 72px;
+    height: 72px;
   }
 
-  .testimonial-avatar {
+  .motivation-avatar {
     width: 100%;
     height: 100%;
     border-radius: 50%;
@@ -2208,16 +2402,16 @@
     display: block;
   }
 
-  .testimonial-verified-badge {
+  .motivation-verified-badge {
     position: absolute;
-    bottom: -1px;
-    right: -1px;
-    width: 18px;
-    height: 18px;
+    bottom: 1px;
+    right: 1px;
+    width: 20px;
+    height: 20px;
     border-radius: 50%;
     background: var(--accent-bright);
     color: #06281e;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     display: grid;
     place-items: center;
@@ -2225,14 +2419,15 @@
     line-height: 1;
   }
 
-  .testimonial-body {
+  .motivation-body {
     display: flex;
     flex-direction: column;
     gap: 6px;
     min-width: 0;
+    flex: 1;
   }
 
-  .testimonial-quote {
+  .motivation-quote {
     font-size: 13px;
     color: var(--text-1);
     line-height: 1.55;
@@ -2240,13 +2435,13 @@
     font-style: italic;
   }
 
-  .testimonial-highlight {
+  .motivation-highlight {
     color: var(--accent-bright);
     font-style: italic;
     font-weight: 600;
   }
 
-  .testimonial-meta {
+  .motivation-meta {
     font-size: 11px;
     color: var(--text-3);
     margin: 0;
@@ -2255,5 +2450,13 @@
   .meta-verified {
     color: var(--accent-bright);
     font-weight: 600;
+  }
+
+  .motivation-chevron {
+    font-size: 20px;
+    color: var(--text-4);
+    flex-shrink: 0;
+    line-height: 1;
+    margin-left: 4px;
   }
 </style>

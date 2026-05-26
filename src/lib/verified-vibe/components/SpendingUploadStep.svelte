@@ -107,15 +107,15 @@
           Analyzing...
         {/if}
       </h2>
-      <p class="subtitle">
-        {#if step === 'upload'}
-          Upload a bank statement or spending screenshot to verify your spending pattern
-        {:else if step === 'review'}
-          Make sure the document is clear and readable
-        {:else}
-          Processing your spending image...
-        {/if}
-      </p>
+      {#if step !== 'upload'}
+        <p class="subtitle">
+          {#if step === 'review'}
+            Make sure the document is clear and readable
+          {:else}
+            Processing your spending image...
+          {/if}
+        </p>
+      {/if}
     </div>
   </div>
 
