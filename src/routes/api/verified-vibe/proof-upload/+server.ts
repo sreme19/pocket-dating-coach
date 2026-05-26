@@ -82,6 +82,13 @@ Extract 1–2 insights.
 
 Return ONLY raw JSON — no markdown, no code fences:
 {"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Daily fitness tracker'","emoji":"📊"},...],"confidence":0.0-1.0,"reason":"one sentence"}`,
+
+  spending: `You are reviewing 1–5 receipts or spending screenshots for a dating-app "Generosity Signal" verification.
+Analyse ALL images. Look for spending evidence: restaurant bills, hotel or travel receipts, premium experiences, event tickets, generous gestures.
+Extract 1–3 distinct signals about their generosity and lifestyle.
+
+Return ONLY raw JSON — no markdown, no code fences:
+{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Fine dining regular'","emoji":"💳"},...],"confidence":0.0-1.0,"reason":"one sentence"}`,
 };
 
 // intro + URL-only social categories are auto-verified without Vision
@@ -98,6 +105,7 @@ const CATEGORY_PTS: Record<string, number> = {
   twitter:      2,
   habit_tracker: 2,
   intro:        8,
+  spending:     10,
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

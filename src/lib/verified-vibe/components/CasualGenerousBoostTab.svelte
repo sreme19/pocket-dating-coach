@@ -4,6 +4,7 @@
   import { ShieldCheck, Zap } from 'lucide-svelte';
   import { calculateCGSubscores, calculateCGTotal } from '$lib/verified-vibe/server/trustScore';
   import type { VerificationRecord } from '$lib/verified-vibe/types';
+  import { getSupabaseClient } from '$lib/client/supabase';
 
   interface Props {
     trustScore: number;
@@ -13,22 +14,78 @@
 
   let { trustScore, verificationRecords, onEditQA = () => {} }: Props = $props();
 
-  // ── Proof insights (from localStorage) ───────────────────────────────────────
+  // ── Proof insights (localStorage + Supabase) ─────────────────────────────────
   interface ProofInsight {
     id: string;
     category: string;
     insight_label: string;
     insight_emoji: string;
+    insights?: Array<{ label: string; emoji: string }>;
+    photo_count?: number;
     pts_awarded: number;
     verified_at: string;
   }
 
   let proofInsights = $state<ProofInsight[]>([]);
 
-  onMount(() => {
+  // Scores derived from localStorage onboarding completion (fallback when DB records missing)
+  let lsBaseScores = $state({ identity: 0, lifestyleDepth: 0, generositySignals: 0 });
+
+  onMount(async () => {
+    // Load proof insights from localStorage immediately
     try {
       proofInsights = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
     } catch { proofInsights = []; }
+
+    // Derive base scores from onboarding localStorage data (fixes 0/100 in dev/skip mode)
+    try {
+      const hasUser = !!localStorage.getItem('vv_user');
+      const hasPhotos = !!localStorage.getItem('vv_photos');
+      let qaData: Record<string, unknown> = {};
+      try { qaData = JSON.parse(localStorage.getItem('vv_qa_responses') ?? '{}'); } catch {}
+      const hasCGProfile = !!localStorage.getItem('vv_casual_generous_profile');
+
+      lsBaseScores = {
+        identity:          hasUser ? 65 : 0,
+        lifestyleDepth:    hasPhotos ? 60 : 0,
+        generositySignals: (qaData.spending_comfort || hasCGProfile) ? 75 : (Object.keys(qaData).length > 2 ? 50 : 0),
+      };
+    } catch { /* ignore */ }
+
+    // Try to pull proof insights from Supabase (fixes device-switch / localStorage clear)
+    try {
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data: rows } = await (supabase as any)
+          .from('verified_vibe_verification')
+          .select('id, step, data, completed_at')
+          .eq('user_id', session.user.id)
+          .like('step', 'proof_%');
+
+        if (rows && rows.length > 0) {
+          const fromDB: ProofInsight[] = rows.map((r: any) => ({
+            id:            r.id,
+            category:      (r.step as string).replace('proof_', ''),
+            insight_label: r.data?.insights?.[0]?.label ?? r.data?.insight_label ?? 'Proof verified',
+            insight_emoji: r.data?.insights?.[0]?.emoji ?? r.data?.insight_emoji ?? '✅',
+            insights:      r.data?.insights ?? undefined,
+            photo_count:   r.data?.photo_count,
+            pts_awarded:   r.data?.pts_awarded ?? 0,
+            verified_at:   r.completed_at ?? new Date().toISOString(),
+          }));
+
+          // Merge: Supabase takes priority over localStorage for same category
+          const merged = [...proofInsights];
+          for (const dbItem of fromDB) {
+            const idx = merged.findIndex(p => p.category === dbItem.category);
+            if (idx >= 0) merged[idx] = dbItem; else merged.push(dbItem);
+          }
+          proofInsights = merged;
+          localStorage.setItem('vv_proof_insights', JSON.stringify(proofInsights));
+        }
+      }
+    } catch { /* non-critical */ }
   });
 
   // ── Score boost from proof insights ──────────────────────────────────────────
@@ -38,18 +95,42 @@
     discipline:   { key: 'emotionalSafety',   boost: 35 },
     social_proof: { key: 'socialLegitimacy',  boost: 30 },
     linkedin:     { key: 'socialLegitimacy',  boost: 50 },
+    instagram:    { key: 'socialLegitimacy',  boost: 25 },
+    twitter:      { key: 'socialLegitimacy',  boost: 15 },
     habit_tracker:{ key: 'socialLegitimacy',  boost: 20 },
     intro:        { key: 'emotionalSafety',   boost: 45 },
+    spending:     { key: 'generositySignals', boost: 30 },
   };
 
-  const baseSubscores = $derived(calculateCGSubscores(verificationRecords));
+  // Show-off categories scale boost by photo count
+  const SHOW_OFF_CATS = new Set(['lifestyle', 'hosting', 'discipline', 'social_proof']);
+  function photoBoostMultiplier(count: number | undefined): number {
+    if (!count || count <= 0) return 1;
+    if (count <= 4)  return 0.40;
+    if (count <= 9)  return 0.65;
+    if (count <= 14) return 0.85;
+    return 1.0;
+  }
+
+  // Base subscores: DB verification records supplemented by localStorage onboarding data
+  const baseSubscores = $derived.by(() => {
+    const fromRecords = calculateCGSubscores(verificationRecords);
+    return {
+      identity:          Math.max(fromRecords.identity,          lsBaseScores.identity),
+      lifestyleDepth:    Math.max(fromRecords.lifestyleDepth,    lsBaseScores.lifestyleDepth),
+      generositySignals: Math.max(fromRecords.generositySignals, lsBaseScores.generositySignals),
+      emotionalSafety:   fromRecords.emotionalSafety,
+      socialLegitimacy:  fromRecords.socialLegitimacy,
+    };
+  });
 
   const subscores = $derived.by(() => {
     const s = { ...baseSubscores };
     for (const p of proofInsights) {
       const boost = PROOF_BOOST[p.category];
       if (boost) {
-        (s[boost.key] as number) = Math.min(100, (s[boost.key] as number) + boost.boost);
+        const multiplier = SHOW_OFF_CATS.has(p.category) ? photoBoostMultiplier(p.photo_count) : 1;
+        (s[boost.key] as number) = Math.min(100, (s[boost.key] as number) + Math.round(boost.boost * multiplier));
       }
     }
     return s;
@@ -89,8 +170,10 @@
   ] as const;
 
   const proofConnections = [
-    { icon: '💼', label: 'LinkedIn',      desc: 'Career stability proof',          pts: 5, time: '1 min', category: 'linkedin'      },
-    { icon: '📱', label: 'Habit Tracker', desc: 'Sleep, gym, reading. Live proof.', pts: 2, time: '1 min', category: 'habit_tracker' },
+    { icon: '💼', label: 'LinkedIn / CV',  desc: 'Career stability proof',           pts: 5, time: '1 min', category: 'linkedin'      },
+    { icon: '📸', label: 'Instagram',       desc: 'Social life and personality',       pts: 3, time: '1 min', category: 'instagram'     },
+    { icon: '🐦', label: 'Twitter / X',     desc: 'Thoughts, interests, engagement',   pts: 2, time: '1 min', category: 'twitter'       },
+    { icon: '📱', label: 'Habit Tracker',   desc: 'Sleep, gym, reading. Live proof.',  pts: 2, time: '1 min', category: 'habit_tracker' },
   ] as const;
 </script>
 
@@ -152,13 +235,13 @@
         <div class="breakdown-fill fill-{ic}" style="width: {subscores.identity}%"></div>
       </div>
       {#if subscores.identity < 50}
-        <button class="nudge-cta nudge-{ic}" onclick={() => goto('/verified-vibe/verification')}>
-          <span class="nudge-text">Complete ID verification. Women only message verified men.</span>
+        <button class="nudge-cta nudge-{ic}" onclick={() => goto('/verified-vibe/verification?step=id&standalone=1')}>
+          <span class="nudge-text">Verify your identity. Women only message verified men.</span>
           <span class="nudge-pts">+50 pts →</span>
         </button>
       {:else if subscores.identity < 75}
-        <button class="nudge-cta nudge-{ic}" onclick={() => goto('/verified-vibe/verification')}>
-          <span class="nudge-text">Complete face match to maximise identity score</span>
+        <button class="nudge-cta nudge-{ic}" onclick={() => goto('/verified-vibe/verification?step=liveness&standalone=1')}>
+          <span class="nudge-text">Complete face match to maximise your identity score</span>
           <span class="nudge-pts">boost →</span>
         </button>
       {:else}
@@ -176,12 +259,12 @@
         <div class="breakdown-fill fill-{lc}" style="width: {subscores.lifestyleDepth}%"></div>
       </div>
       {#if subscores.lifestyleDepth < 50}
-        <button class="nudge-cta nudge-{lc}" onclick={() => goto('/verified-vibe/verification')}>
+        <button class="nudge-cta nudge-{lc}" onclick={() => goto('/verified-vibe/proof-upload?category=lifestyle')}>
           <span class="nudge-text">Add lifestyle photos. Women want to see your actual world.</span>
-          <span class="nudge-pts">+25 pts →</span>
+          <span class="nudge-pts">+30 pts →</span>
         </button>
       {:else if subscores.lifestyleDepth < 75}
-        <button class="nudge-cta nudge-{lc}" onclick={() => goto('/verified-vibe/verification')}>
+        <button class="nudge-cta nudge-{lc}" onclick={() => goto('/verified-vibe/proof-upload?category=lifestyle')}>
           <span class="nudge-text">More real-world moments strengthen this signal</span>
           <span class="nudge-pts">boost →</span>
         </button>
@@ -200,12 +283,12 @@
         <div class="breakdown-fill fill-{gc}" style="width: {subscores.generositySignals}%"></div>
       </div>
       {#if subscores.generositySignals < 50}
-        <button class="nudge-cta nudge-{gc}" onclick={() => goto('/verified-vibe/verification')}>
-          <span class="nudge-text">Add a spending snapshot. The #1 signal for Casual Generous profiles.</span>
-          <span class="nudge-pts">+25 pts →</span>
+        <button class="nudge-cta nudge-{gc}" onclick={() => goto('/verified-vibe/proof-upload?category=spending')}>
+          <span class="nudge-text">Upload a spending receipt. The #1 signal for Casual Generous profiles.</span>
+          <span class="nudge-pts">+10 pts →</span>
         </button>
       {:else if subscores.generositySignals < 75}
-        <button class="nudge-cta nudge-{gc}" onclick={() => goto('/verified-vibe/verification')}>
+        <button class="nudge-cta nudge-{gc}" onclick={() => goto('/verified-vibe/proof-upload?category=spending')}>
           <span class="nudge-text">Add more spending proof to push this signal higher</span>
           <span class="nudge-pts">boost →</span>
         </button>
@@ -248,12 +331,12 @@
         <div class="breakdown-fill fill-{sc}" style="width: {subscores.socialLegitimacy}%"></div>
       </div>
       {#if subscores.socialLegitimacy < 75}
-        <button class="nudge-cta nudge-{sc}">
+        <button class="nudge-cta nudge-{sc}" onclick={() => goto('/verified-vibe/proof-upload?category=linkedin')}>
           <span class="nudge-text">Connect LinkedIn. Proves career stability and legitimacy.</span>
           <span class="nudge-pts">+5 pts →</span>
         </button>
       {:else}
-        <div class="breakdown-subs">✓ LinkedIn connected</div>
+        <div class="breakdown-subs">✓ Social presence verified</div>
       {/if}
     </div>
 
@@ -270,12 +353,23 @@
     Verified Insights
   </div>
   <div class="insights-list">
-    {#each proofInsights as insight (insight.id)}
-      <div class="insight-row">
-        <span class="insight-row-emoji">{insight.insight_emoji}</span>
-        <span class="insight-row-label">{insight.insight_label}</span>
-        <span class="insight-row-badge">✓ Verified</span>
-      </div>
+    {#each proofInsights as p (p.id)}
+      {#if p.insights && p.insights.length > 0}
+        {#each p.insights as ins}
+          <div class="insight-row">
+            <span class="insight-row-emoji">{ins.emoji}</span>
+            <span class="insight-row-label">{ins.label}</span>
+            <span class="insight-row-badge">✓ Verified</span>
+          </div>
+        {/each}
+      {:else}
+        <!-- Backward compat: old single-insight format -->
+        <div class="insight-row">
+          <span class="insight-row-emoji">{p.insight_emoji}</span>
+          <span class="insight-row-label">{p.insight_label}</span>
+          <span class="insight-row-badge">✓ Verified</span>
+        </div>
+      {/if}
     {/each}
   </div>
 </section>
@@ -297,7 +391,12 @@
         <div class="showoff-icon">{cat.icon}</div>
         <div class="showoff-body">
           <div class="showoff-label">{cat.label}</div>
-          <div class="showoff-desc">{done ? proofInsights.find(p => p.category === cat.category)?.insight_label ?? cat.desc : cat.desc}</div>
+          {#if done}
+            {@const pi = proofInsights.find(p => p.category === cat.category)}
+            <div class="showoff-desc">{pi?.insights?.[0]?.label ?? pi?.insight_label ?? cat.desc}</div>
+          {:else}
+            <div class="showoff-desc">{cat.desc}</div>
+          {/if}
           <div class="showoff-meta">
             {#if done}
               <span class="showoff-done-tag">✓ Verified</span>
@@ -371,7 +470,12 @@
         <div class="proof-icon">{conn.icon}</div>
         <div class="proof-body">
           <div class="proof-label">{conn.label}</div>
-          <div class="proof-desc">{done ? proofInsights.find(p => p.category === conn.category)?.insight_label ?? conn.desc : conn.desc}</div>
+          {#if done}
+            {@const pi = proofInsights.find(p => p.category === conn.category)}
+            <div class="proof-desc">{pi?.insights?.[0]?.label ?? pi?.insight_label ?? conn.desc}</div>
+          {:else}
+            <div class="proof-desc">{conn.desc}</div>
+          {/if}
           <div class="proof-time" class:proof-time--done={done}>{done ? '✓ Verified' : conn.time}</div>
         </div>
         <div class="proof-right">
