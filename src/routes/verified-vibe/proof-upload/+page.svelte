@@ -23,20 +23,20 @@
     discipline:   '🔒 Private by default. Your proofs strengthen trust, verify authenticity, and help you get better matches.',
     social_proof: '🔒 Nothing here is public. These signals confirm your lifestyle and improve compatibility.',
     linkedin:     '🔒 Your uploads are never shared publicly. Used only to verify authenticity and improve your Trust Score.',
-    habit_tracker:'🔒 Show, don\'t fake. Everything stays private while we verify your vibe — boosting your Trust Score.',
-    intro:        '🔒 Your voice & video stay completely private — never shown publicly. They make women feel safe messaging you first.',
+    habit_tracker:'🔒 Show, don\'t fake. Everything stays private while we verify your vibe. Boosts your Trust Score.',
+    intro:        '🔒 Your voice and video stay completely private. Never shown publicly. They make women feel safe messaging you first.',
   };
 
   const CONFIGS: Record<Category, CategoryConfig> = {
     lifestyle: {
       icon: '🌍',
       title: 'Lifestyle Proof',
-      subtitle: 'Show your real world — travel, dining, experiences',
+      subtitle: 'Show your real world: travel, dining, experiences',
       examples: [
         'Hotel or flight booking screenshots',
         'Restaurant / bar photos with context',
         'Event or concert tickets',
-        'Travel photos — show locations & moments',
+        'Travel photos with locations and moments visible',
       ],
       maxFiles: 3,
       hintLine: 'Mix photos + booking screenshots for strongest signal.',
@@ -89,18 +89,18 @@
       title: 'LinkedIn Verification',
       subtitle: 'Screenshot your LinkedIn to prove career stability',
       examples: [
-        'Profile screenshot — name, title, company visible',
+        'Profile screenshot with name, title and company visible',
         'Work experience section clearly shown',
         'Profile photo + headline visible',
       ],
       maxFiles: 1,
-      hintLine: 'Blur sensitive details if needed — we only check role & company.',
+      hintLine: 'Blur sensitive details if needed. We only check your role and company.',
       accept: 'image/*',
     },
     habit_tracker: {
       icon: '📱',
       title: 'Habit Tracker',
-      subtitle: 'Screenshot your habit app — show real streaks',
+      subtitle: 'Screenshot your habit app and show real streaks',
       examples: [
         'Streak screen from Habitica, Streaks, or similar',
         'Sleep data from Oura / Apple Health',
@@ -108,7 +108,7 @@
         'Reading progress from Goodreads or Kindle',
       ],
       maxFiles: 2,
-      hintLine: 'Any habit app works — consistency is what matters.',
+      hintLine: 'Any habit app works. Consistency is what matters.',
       accept: 'image/*',
     },
     intro: {
@@ -116,10 +116,10 @@
       title: 'Voice & Video Intro',
       subtitle: 'A short intro makes women feel safe messaging you first',
       examples: [
-        '30–60 second voice memo — introduce yourself naturally',
+        '30–60 second voice memo, introduce yourself naturally',
         'Short video clip (face visible, no filters needed)',
         'Talk about what you\'re looking for, your vibe',
-        'Natural beats scripted — just be yourself',
+        'Natural beats scripted. Just be yourself.',
       ],
       maxFiles: 2,
       hintLine: 'One voice + one video is the ideal combo.',
@@ -127,22 +127,72 @@
     },
   };
 
-  let category    = $state<Category>('lifestyle');
-  let config      = $state<CategoryConfig>(CONFIGS.lifestyle);
-  let privacyCopy = $state('');
-  let files       = $state<File[]>([]);
-  let previews    = $state<string[]>([]);  // dataURL for images, objectURL for audio/video
-  let step        = $state<Step>('upload');
-  let result      = $state<{ insight_label: string; insight_emoji: string; pts_awarded: number; reason: string } | null>(null);
-  let failReason  = $state('');
-  let dragOver    = $state(false);
+  interface StoredInsight {
+    id: string;
+    category: string;
+    insight_label: string;
+    insight_emoji: string;
+    pts_awarded: number;
+    verified_at: string;
+    thumbnails?: string[]; // compressed base64 thumbnails (images only)
+  }
+
+  let category      = $state<Category>('lifestyle');
+  let config        = $state<CategoryConfig>(CONFIGS.lifestyle);
+  let privacyCopy   = $state('');
+  let files         = $state<File[]>([]);
+  let previews      = $state<string[]>([]);  // dataURL for images, objectURL for audio/video
+  let step          = $state<Step>('upload');
+  let result        = $state<{ insight_label: string; insight_emoji: string; pts_awarded: number; reason: string } | null>(null);
+  let failReason    = $state('');
+  let dragOver      = $state(false);
+  let existingInsight = $state<StoredInsight | null>(null);
+  let confirmDelete = $state(false);
 
   onMount(() => {
     const cat = (new URLSearchParams(window.location.search).get('category') ?? 'lifestyle') as Category;
     category    = CONFIGS[cat] ? cat : 'lifestyle';
     config      = CONFIGS[category];
     privacyCopy = PRIVACY_COPY[category] ?? PRIVACY_COPY.lifestyle;
+
+    // Load any existing verified proof for this category
+    try {
+      const all: StoredInsight[] = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
+      existingInsight = all.find(p => p.category === category) ?? null;
+    } catch { existingInsight = null; }
   });
+
+  // Generate a compressed 160×160 thumbnail from an image File
+  async function makeThumbnail(file: File): Promise<string> {
+    return new Promise(resolve => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const SIZE = 160;
+        const canvas = document.createElement('canvas');
+        canvas.width  = SIZE;
+        canvas.height = SIZE;
+        const ctx = canvas.getContext('2d')!;
+        const ratio = Math.max(SIZE / img.width, SIZE / img.height);
+        const w = img.width  * ratio;
+        const h = img.height * ratio;
+        ctx.drawImage(img, (SIZE - w) / 2, (SIZE - h) / 2, w, h);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL('image/jpeg', 0.55));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(''); };
+      img.src = url;
+    });
+  }
+
+  function deleteProof() {
+    try {
+      const all: StoredInsight[] = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
+      localStorage.setItem('vv_proof_insights', JSON.stringify(all.filter(p => p.category !== category)));
+    } catch {}
+    existingInsight = null;
+    confirmDelete   = false;
+  }
 
   function addFiles(incoming: FileList | null) {
     if (!incoming) return;
@@ -212,18 +262,30 @@
         return;
       }
 
-      // Persist insight in localStorage
-      const existing: object[] = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
-      const filtered = (existing as any[]).filter((p: any) => p.category !== category);
-      filtered.push({
+      // Generate thumbnails for image files (compressed, ~15KB each)
+      const thumbnails: string[] = [];
+      for (const f of files) {
+        if (f.type.startsWith('image/')) {
+          const thumb = await makeThumbnail(f);
+          if (thumb) thumbnails.push(thumb);
+        }
+      }
+
+      // Persist insight + thumbnails in localStorage
+      const existing: StoredInsight[] = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
+      const filtered = existing.filter(p => p.category !== category);
+      const newInsight: StoredInsight = {
         id:            crypto.randomUUID(),
         category,
         insight_label: data.insight_label,
         insight_emoji: data.insight_emoji,
         pts_awarded:   data.pts_awarded,
         verified_at:   new Date().toISOString(),
-      });
+        thumbnails:    thumbnails.length > 0 ? thumbnails : undefined,
+      };
+      filtered.push(newInsight);
       localStorage.setItem('vv_proof_insights', JSON.stringify(filtered));
+      existingInsight = newInsight;
 
       result = data;
       step   = 'success';
@@ -269,7 +331,44 @@
     </div>
   {/if}
 
-  {#if step === 'upload'}
+  <!-- ── Already uploaded ──────────────────────────────────────────────── -->
+  {#if existingInsight && step === 'upload'}
+    <div class="uploaded-card">
+      <div class="uploaded-header">
+        <span class="uploaded-emoji">{existingInsight.insight_emoji}</span>
+        <div class="uploaded-meta">
+          <span class="uploaded-label">{existingInsight.insight_label}</span>
+          <span class="uploaded-date">Verified {new Date(existingInsight.verified_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+        </div>
+        <span class="uploaded-badge">✓</span>
+      </div>
+
+      {#if existingInsight.thumbnails && existingInsight.thumbnails.length > 0}
+        <div class="uploaded-thumbs">
+          {#each existingInsight.thumbnails as thumb}
+            <img class="uploaded-thumb" src={thumb} alt="Uploaded proof" />
+          {/each}
+        </div>
+      {/if}
+
+      {#if confirmDelete}
+        <div class="delete-confirm">
+          <span class="delete-confirm-text">Remove this proof? Your score will drop.</span>
+          <div class="delete-confirm-actions">
+            <button class="delete-confirm-yes" onclick={deleteProof}>Yes, remove</button>
+            <button class="delete-confirm-no" onclick={() => confirmDelete = false}>Keep it</button>
+          </div>
+        </div>
+      {:else}
+        <div class="uploaded-actions">
+          <button class="reupload-btn" onclick={() => { existingInsight = null; }}>Re-upload</button>
+          <button class="delete-btn" onclick={() => confirmDelete = true}>Remove proof</button>
+        </div>
+      {/if}
+    </div>
+  {/if}
+
+  {#if step === 'upload' && !existingInsight}
     <!-- What to upload -->
     <div class="examples-card">
       <div class="examples-label">What works</div>
@@ -282,6 +381,12 @@
         {/each}
       </ul>
       <div class="hint-line">{config.hintLine}</div>
+      {#if category !== 'intro'}
+        <div class="auth-note">
+          <span class="auth-note-icon">👤</span>
+          <span>Your face should be clearly visible in at least one photo, or your name should appear on any document, so we can authenticate the proof.</span>
+        </div>
+      {/if}
     </div>
 
     <!-- Upload area -->
@@ -393,7 +498,7 @@
     <div class="state-card state-card--analyzing">
       <div class="spinner"></div>
       <div class="state-title">{category === 'intro' ? 'Submitting your intro…' : 'Reviewing your proof…'}</div>
-      <div class="state-sub">{category === 'intro' ? 'Confirming your upload — just a moment.' : 'Claude is analysing your files. Usually 5–10 seconds.'}</div>
+      <div class="state-sub">{category === 'intro' ? 'Confirming your upload. Just a moment.' : 'Claude is analysing your files. Usually 5–10 seconds.'}</div>
     </div>
 
   {:else if step === 'success' && result}
@@ -509,6 +614,174 @@
     color: #a5b4fc;
     line-height: 1.5;
     font-weight: 500;
+  }
+
+  /* ── Already uploaded card ── */
+  .uploaded-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+    background: var(--bg-2);
+    border: 1px solid var(--accent);
+    border-radius: 16px;
+  }
+
+  .uploaded-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .uploaded-emoji {
+    font-size: 24px;
+    flex-shrink: 0;
+  }
+
+  .uploaded-meta {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .uploaded-label {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-1);
+    letter-spacing: -0.01em;
+  }
+
+  .uploaded-date {
+    font-size: 11px;
+    color: var(--text-4);
+  }
+
+  .uploaded-badge {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #000;
+    font-size: 12px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+
+  .uploaded-thumbs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .uploaded-thumb {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 10px;
+    border: 1px solid var(--border-1);
+  }
+
+  .uploaded-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .reupload-btn {
+    flex: 1;
+    padding: 9px;
+    background: var(--bg-3);
+    border: 1px solid var(--border-1);
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-2);
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 150ms;
+  }
+
+  .delete-btn {
+    flex: 1;
+    padding: 9px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #f87171;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 150ms;
+  }
+
+  .delete-confirm {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 10px;
+  }
+
+  .delete-confirm-text {
+    font-size: 12px;
+    color: #fca5a5;
+    text-align: center;
+  }
+
+  .delete-confirm-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .delete-confirm-yes {
+    flex: 1;
+    padding: 8px;
+    background: #ef4444;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .delete-confirm-no {
+    flex: 1;
+    padding: 8px;
+    background: var(--bg-3);
+    border: 1px solid var(--border-1);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-2);
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  /* ── Auth note ── */
+  .auth-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 9px 11px;
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.22);
+    border-radius: 9px;
+    font-size: 12px;
+    color: #fcd34d;
+    line-height: 1.5;
+  }
+
+  .auth-note-icon {
+    flex-shrink: 0;
+    font-size: 13px;
+    margin-top: 1px;
   }
 
   /* ── Examples card ── */
