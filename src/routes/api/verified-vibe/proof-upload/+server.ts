@@ -65,12 +65,14 @@ Return ONLY raw JSON — no markdown, no code fences:
   linkedin: `You are reviewing a LinkedIn profile screenshot OR raw CV/resume text for a dating-app career verification step.
 Does this show a GENUINE established professional with clear work history?
 
-Extract UP TO 3 insights — be specific:
-- Current job title and seniority level (e.g. "Senior Product Manager", "Founding Engineer")
-- Current or most recent company / employer name
-- Years of experience or career highlight if clear (e.g. "8 years in tech", "Ex-Google")
+Extract UP TO 3 insights — focus on role, seniority, and career depth ONLY:
+- Current job title and seniority level (e.g. "Senior Product Manager", "Director of Engineering")
+- Industry or domain area (e.g. "ML / Legal Tech", "Fintech", "SaaS") — NEVER a company name
+- Years of experience or career breadth (e.g. "12+ years in tech", "5 startups", "serial founder")
 
-Write one punchy "aggregated" sentence (8–12 words) that would look great on a dating profile.
+IMPORTANT: Do NOT include any company or employer names in the insights or aggregated line.
+
+Write one punchy "aggregated" sentence (8–12 words) that would look great on a dating profile — no company names.
 
 YOU MUST return ONLY raw JSON — no explanation, no preamble, no markdown:
 {"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Senior software engineer'","emoji":"💼"},...],"aggregated":"e.g. 'A senior engineer with a decade of real industry experience'","confidence":0.0-1.0,"reason":"one sentence"}
