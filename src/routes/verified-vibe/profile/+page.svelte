@@ -529,10 +529,19 @@
       const rawDraftRaw = localStorage.getItem('vv_profile_draft');
       const profileDraft = rawDraftRaw ? JSON.parse(rawDraftRaw) : undefined;
 
+      // Include identity fields if the user store has them
+      const identity = ($user as any) ? {
+        firstName:  ($user as any).firstName  ?? undefined,
+        age:        ($user as any).age        ?? undefined,
+        city:       ($user as any).city       ?? undefined,
+        archetype:  ($user as any).archetype  ?? undefined,
+        gender:     ($user as any).gender     ?? undefined,
+      } : undefined;
+
       fetch('/api/verified-vibe/master-profile', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ onboarding, countriesTraveled, generatedProfile, profileDraft, ...extra }),
+        body: JSON.stringify({ onboarding, countriesTraveled, generatedProfile, profileDraft, identity, ...extra }),
       }).catch(() => { /* non-critical */ });
     } catch { /* non-critical */ }
   }
