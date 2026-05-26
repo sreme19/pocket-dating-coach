@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { onMount } from 'svelte';
   import { ShieldCheck, Zap } from 'lucide-svelte';
   import { calculateCGSubscores, calculateCGTotal } from '$lib/verified-vibe/server/trustScore';
   import type { VerificationRecord } from '$lib/verified-vibe/types';
@@ -12,8 +13,48 @@
 
   let { trustScore, verificationRecords, onEditQA = () => {} }: Props = $props();
 
-  const subscores = $derived(calculateCGSubscores(verificationRecords));
-  const cgTotal   = $derived(calculateCGTotal(subscores));
+  // ── Proof insights (from localStorage) ───────────────────────────────────────
+  interface ProofInsight {
+    id: string;
+    category: string;
+    insight_label: string;
+    insight_emoji: string;
+    pts_awarded: number;
+    verified_at: string;
+  }
+
+  let proofInsights = $state<ProofInsight[]>([]);
+
+  onMount(() => {
+    try {
+      proofInsights = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
+    } catch { proofInsights = []; }
+  });
+
+  // ── Score boost from proof insights ──────────────────────────────────────────
+  const PROOF_BOOST: Record<string, { key: keyof ReturnType<typeof calculateCGSubscores>; boost: number }> = {
+    lifestyle:    { key: 'lifestyleDepth',    boost: 30 },
+    hosting:      { key: 'lifestyleDepth',    boost: 20 },
+    discipline:   { key: 'emotionalSafety',   boost: 35 },
+    social_proof: { key: 'socialLegitimacy',  boost: 30 },
+    linkedin:     { key: 'socialLegitimacy',  boost: 50 },
+    habit_tracker:{ key: 'socialLegitimacy',  boost: 20 },
+  };
+
+  const baseSubscores = $derived(calculateCGSubscores(verificationRecords));
+
+  const subscores = $derived.by(() => {
+    const s = { ...baseSubscores };
+    for (const p of proofInsights) {
+      const boost = PROOF_BOOST[p.category];
+      if (boost) {
+        (s[boost.key] as number) = Math.min(100, (s[boost.key] as number) + boost.boost);
+      }
+    }
+    return s;
+  });
+
+  const cgTotal = $derived(calculateCGTotal(subscores));
 
   const fitLabel = $derived(
     cgTotal >= 80 ? 'Strong Casual Generous Alignment' :
@@ -34,15 +75,15 @@
   }
 
   const showOffCategories = [
-    { icon: '🌍', label: 'Lifestyle',    desc: 'Travel, dining, events',      pts: 8, time: '2 min' },
-    { icon: '🍽️', label: 'Hosting',      desc: 'Dinners, celebrations',        pts: 6, time: '2 min' },
-    { icon: '💪', label: 'Discipline',   desc: 'Gym, sleep, reading routines', pts: 4, time: '1 min' },
-    { icon: '🤝', label: 'Social Proof', desc: 'Friends, communities',         pts: 4, time: '2 min' },
+    { icon: '🌍', label: 'Lifestyle',    desc: 'Travel, dining, events',      pts: 8, time: '2 min', category: 'lifestyle'    },
+    { icon: '🍽️', label: 'Hosting',      desc: 'Dinners, celebrations',        pts: 6, time: '2 min', category: 'hosting'      },
+    { icon: '💪', label: 'Discipline',   desc: 'Gym, sleep, reading routines', pts: 4, time: '1 min', category: 'discipline'   },
+    { icon: '🤝', label: 'Social Proof', desc: 'Friends, communities',         pts: 4, time: '2 min', category: 'social_proof' },
   ] as const;
 
   const proofConnections = [
-    { icon: '💼', label: 'LinkedIn',      desc: 'Career stability proof',              pts: 5, time: '1 min' },
-    { icon: '📱', label: 'Habit Tracker', desc: 'Sleep, gym, reading — live proof',     pts: 2, time: '1 min' },
+    { icon: '💼', label: 'LinkedIn',      desc: 'Career stability proof',          pts: 5, time: '1 min', category: 'linkedin'      },
+    { icon: '📱', label: 'Habit Tracker', desc: 'Sleep, gym, reading — live proof', pts: 2, time: '1 min', category: 'habit_tracker' },
   ] as const;
 </script>
 
@@ -206,6 +247,27 @@
   </div>
 </section>
 
+<!-- ── Verified Insights (from proof uploads) ────────────────────────────── -->
+{#if proofInsights.length > 0}
+<section class="section">
+  <div class="section-label">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
+    </svg>
+    Verified Insights
+  </div>
+  <div class="insights-list">
+    {#each proofInsights as insight (insight.id)}
+      <div class="insight-row">
+        <span class="insight-row-emoji">{insight.insight_emoji}</span>
+        <span class="insight-row-label">{insight.insight_label}</span>
+        <span class="insight-row-badge">✓ Verified</span>
+      </div>
+    {/each}
+  </div>
+</section>
+{/if}
+
 <!-- ── Show-Off upload prompts ────────────────────────────────────────────── -->
 <section class="section">
   <div class="section-label">
@@ -217,16 +279,25 @@
   </div>
   <div class="showoff-grid">
     {#each showOffCategories as cat}
-      <button class="showoff-tile" onclick={() => goto('/verified-vibe/verification')}>
+      {@const done = proofInsights.some(p => p.category === cat.category)}
+      <button class="showoff-tile" class:showoff-tile--done={done} onclick={() => goto(`/verified-vibe/proof-upload?category=${cat.category}`)}>
         <div class="showoff-icon">{cat.icon}</div>
         <div class="showoff-body">
           <div class="showoff-label">{cat.label}</div>
-          <div class="showoff-desc">{cat.desc}</div>
+          <div class="showoff-desc">{done ? proofInsights.find(p => p.category === cat.category)?.insight_label ?? cat.desc : cat.desc}</div>
           <div class="showoff-meta">
-            <span class="showoff-time">{cat.time}</span>
+            {#if done}
+              <span class="showoff-done-tag">✓ Verified</span>
+            {:else}
+              <span class="showoff-time">{cat.time}</span>
+            {/if}
           </div>
         </div>
-        <div class="showoff-pts">+{cat.pts}</div>
+        {#if done}
+          <div class="showoff-pts showoff-pts--done">✓</div>
+        {:else}
+          <div class="showoff-pts">+{cat.pts}</div>
+        {/if}
       </button>
     {/each}
   </div>
@@ -282,20 +353,25 @@
   </div>
   <div class="proof-list">
     {#each proofConnections as conn}
-      <div class="proof-tile">
+      {@const done = proofInsights.some(p => p.category === conn.category)}
+      <button class="proof-tile" class:proof-tile--done={done} onclick={() => goto(`/verified-vibe/proof-upload?category=${conn.category}`)}>
         <div class="proof-icon">{conn.icon}</div>
         <div class="proof-body">
           <div class="proof-label">{conn.label}</div>
-          <div class="proof-desc">{conn.desc}</div>
-          <div class="proof-time">{conn.time}</div>
+          <div class="proof-desc">{done ? proofInsights.find(p => p.category === conn.category)?.insight_label ?? conn.desc : conn.desc}</div>
+          <div class="proof-time" class:proof-time--done={done}>{done ? '✓ Verified' : conn.time}</div>
         </div>
         <div class="proof-right">
-          <div class="proof-pts">+{conn.pts}</div>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M9 5l7 7-7 7"/>
-          </svg>
+          {#if done}
+            <div class="proof-pts proof-pts--done">✓</div>
+          {:else}
+            <div class="proof-pts">+{conn.pts}</div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 5l7 7-7 7"/>
+            </svg>
+          {/if}
         </div>
-      </div>
+      </button>
     {/each}
   </div>
 </section>
@@ -629,6 +705,68 @@
     margin: 0;
   }
 
+  /* ── Verified Insights ── */
+  .insights-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: var(--border-1);
+    border: 1px solid var(--border-1);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+  }
+
+  .insight-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 14px;
+    background: var(--bg-2);
+  }
+
+  .insight-row-emoji {
+    font-size: 20px;
+    width: 28px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .insight-row-label {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-1);
+  }
+
+  .insight-row-badge {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-tint);
+    padding: 2px 8px;
+    border-radius: 100px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* ── Show-Off done state ── */
+  .showoff-tile--done {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 6%, var(--bg-2));
+  }
+
+  .showoff-done-tag {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .showoff-pts--done {
+    background: var(--accent);
+    color: #000;
+    font-size: 14px;
+  }
+
   /* ── Proof connections ── */
   .proof-list {
     display: flex;
@@ -644,6 +782,37 @@
     background: var(--bg-2);
     border: 1px solid var(--border-1);
     border-radius: var(--r-lg);
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    font-family: inherit;
+    transition: background 150ms, border-color 150ms;
+  }
+
+  .proof-tile:active {
+    background: var(--bg-3);
+  }
+
+  @media (hover: hover) {
+    .proof-tile:hover {
+      background: var(--bg-3);
+    }
+  }
+
+  .proof-tile--done {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 6%, var(--bg-2));
+  }
+
+  .proof-time--done {
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .proof-pts--done {
+    background: var(--accent);
+    color: #000;
+    font-weight: 700;
   }
 
   .proof-icon {
