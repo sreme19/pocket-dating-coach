@@ -13,7 +13,13 @@
   import { ShieldCheck } from 'lucide-svelte';
 
   // ── auto-route if already signed in ────────────────────────────────────────
+  // Skip auto-route when the user explicitly navigated here via mode=signin
+  // (e.g. the gate's "Already a member? Sign in →" link). Bouncing them back
+  // to gate would look like the link is broken. Show the form instead.
   onMount(async () => {
+    const explicitSignIn = new URLSearchParams(window.location.search).get('mode') === 'signin';
+    if (explicitSignIn) return;
+
     const supabase = getSupabaseClient();
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
