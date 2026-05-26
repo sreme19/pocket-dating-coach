@@ -247,13 +247,23 @@ async function persistInsight(userId: string, category: string, pts: number, dat
     //    ai_assistant_profiles (legacy — keeps auto-fill working)
     try {
       const d = data as Record<string, unknown>;
-      const newEntry = {
+      const newEntry: Record<string, unknown> = {
         category,
         insights:    d.insights   ?? [],
         aggregated:  d.aggregated ?? '',
         locations:   d.locations  ?? [],
         verified_at: new Date().toISOString(),
       };
+      // Persist rich fields so cross-device hydration gets full data
+      if (Array.isArray(d.spendingBreakdown) && (d.spendingBreakdown as unknown[]).length > 0) {
+        newEntry.spendingBreakdown = d.spendingBreakdown;
+      }
+      if (Array.isArray(d.assets) && (d.assets as unknown[]).length > 0) {
+        newEntry.assets = d.assets;
+      }
+      if (d.pts_awarded !== undefined) {
+        newEntry.pts_awarded = d.pts_awarded;
+      }
 
       // ── 2a. user_master_profile (source of truth) ──────────────────────────
       const { data: masterRow } = await db

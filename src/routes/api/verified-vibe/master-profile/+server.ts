@@ -40,21 +40,34 @@ function proofsToLocalStorage(verifiedProofs: unknown[]): object[] {
   const CATEGORY_PTS: Record<string, number> = {
     lifestyle: 8, hosting: 6, discipline: 4, social_proof: 4,
     linkedin: 5, instagram: 3, twitter: 2, habit_tracker: 2,
-    intro: 8, spending: 10, assets: 10,
+    intro: 8, spending: 10, assets: 10, wealth: 12,
   };
-  return verifiedProofs.map((p: any) => ({
-    id:            p.id ?? crypto.randomUUID(),
-    category:      p.category ?? '',
-    insight_label: p.insights?.[0]?.label ?? 'Proof verified',
-    insight_emoji: p.insights?.[0]?.emoji ?? '✅',
-    insights:      p.insights  ?? [],
-    aggregated:    p.aggregated ?? '',
-    photo_count:   p.photo_count ?? 0,
-    pts_awarded:   CATEGORY_PTS[p.category] ?? 4,
-    verified_at:   p.verified_at ?? new Date().toISOString(),
-    showcased:     p.showcased ?? false,
-    // thumbnails intentionally omitted — too large for DB; client keeps locally
-  }));
+  return verifiedProofs.map((p: any) => {
+    const entry: Record<string, unknown> = {
+      id:            p.id ?? crypto.randomUUID(),
+      category:      p.category ?? '',
+      insight_label: p.insights?.[0]?.label ?? 'Proof verified',
+      insight_emoji: p.insights?.[0]?.emoji ?? '✅',
+      insights:      p.insights  ?? [],
+      aggregated:    p.aggregated ?? '',
+      photo_count:   p.photo_count ?? 0,
+      pts_awarded:   p.pts_awarded ?? CATEGORY_PTS[p.category] ?? 4,
+      verified_at:   p.verified_at ?? new Date().toISOString(),
+      showcased:     p.showcased ?? false,
+      // thumbnails intentionally omitted — too large for DB; client keeps locally
+    };
+    // Restore rich fields saved by persistInsight
+    if (Array.isArray(p.spendingBreakdown) && p.spendingBreakdown.length > 0) {
+      entry.spendingBreakdown = p.spendingBreakdown;
+    }
+    if (Array.isArray(p.assets) && p.assets.length > 0) {
+      entry.assets = p.assets;
+    }
+    if (Array.isArray(p.locations) && p.locations.length > 0) {
+      entry.locations = p.locations;
+    }
+    return entry;
+  });
 }
 
 // ── GET ───────────────────────────────────────────────────────────────────────
