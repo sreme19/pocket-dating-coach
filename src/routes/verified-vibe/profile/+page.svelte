@@ -1806,6 +1806,48 @@
         </section>
       {/if}
 
+      <!-- Travel Magnets -->
+      <section class="section travel-magnets-section">
+        <div class="section-label">
+          <span>✈️</span>
+          Travel Magnets
+          {#if countriesTraveled.length > 0}
+            <span class="section-hint">detected from uploads</span>
+          {/if}
+        </div>
+
+        {#if countriesTraveled.length > 0}
+          <div class="magnets-board">
+            {#each countriesTraveled as place, i}
+              {@const col = magnetColor(i)}
+              <div
+                class="magnet"
+                style="
+                  background: {col.bg};
+                  border-color: {col.border};
+                  color: {col.text};
+                  --rot: {magnetRotation(i)};
+                "
+              >
+                <span class="magnet-flag">{placeToFlag(place)}</span>
+                <span class="magnet-name">{place}</span>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <a class="magnets-empty-cta" href="/verified-vibe/proof-upload?category=lifestyle">
+            <div class="magnets-empty-inner">
+              <span class="magnets-empty-icon">🗺️</span>
+              <div>
+                <p class="magnets-empty-title">No destinations yet</p>
+                <p class="magnets-empty-sub">Upload travel photos and we'll detect the countries automatically</p>
+              </div>
+              <span class="magnets-empty-arrow">→</span>
+            </div>
+          </a>
+        {/if}
+      </section>
+
       <!-- Pick Your Lane -->
       {#if $user?.gender !== null}
       <section class="section">
@@ -2072,48 +2114,6 @@
           {/if}
         </section>
       {/if}
-
-      <!-- Travel Magnets — always visible -->
-      <section class="section travel-magnets-section">
-        <div class="section-label">
-          <span>✈️</span>
-          Travel Magnets
-          {#if countriesTraveled.length > 0}
-            <span class="section-hint">detected from uploads</span>
-          {/if}
-        </div>
-
-        {#if countriesTraveled.length > 0}
-          <div class="magnets-board">
-            {#each countriesTraveled as place, i}
-              {@const col = magnetColor(i)}
-              <div
-                class="magnet"
-                style="
-                  background: {col.bg};
-                  border-color: {col.border};
-                  color: {col.text};
-                  --rot: {magnetRotation(i)};
-                "
-              >
-                <span class="magnet-flag">{placeToFlag(place)}</span>
-                <span class="magnet-name">{place}</span>
-              </div>
-            {/each}
-          </div>
-        {:else}
-          <a class="magnets-empty-cta" href="/verified-vibe/proof-upload?category=lifestyle">
-            <div class="magnets-empty-inner">
-              <span class="magnets-empty-icon">🗺️</span>
-              <div>
-                <p class="magnets-empty-title">No destinations yet</p>
-                <p class="magnets-empty-sub">Upload travel photos and we'll detect the countries automatically</p>
-              </div>
-              <span class="magnets-empty-arrow">→</span>
-            </div>
-          </a>
-        {/if}
-      </section>
 
       <!-- CTA to discover -->
       {#if mode === 'public'}
