@@ -1849,14 +1849,17 @@
         </section>
       {/if}
 
-      <!-- Travel Magnets -->
-      {#if countriesTraveled.length > 0}
-        <section class="section travel-magnets-section">
-          <div class="section-label">
-            <span>✈️</span>
-            Travel Magnets
+      <!-- Travel Magnets — always visible -->
+      <section class="section travel-magnets-section">
+        <div class="section-label">
+          <span>✈️</span>
+          Travel Magnets
+          {#if countriesTraveled.length > 0}
             <span class="section-hint">detected from uploads</span>
-          </div>
+          {/if}
+        </div>
+
+        {#if countriesTraveled.length > 0}
           <div class="magnets-board">
             {#each countriesTraveled as place, i}
               {@const col = magnetColor(i)}
@@ -1874,8 +1877,19 @@
               </div>
             {/each}
           </div>
-        </section>
-      {/if}
+        {:else}
+          <a class="magnets-empty-cta" href="/verified-vibe/proof-upload?category=lifestyle">
+            <div class="magnets-empty-inner">
+              <span class="magnets-empty-icon">🗺️</span>
+              <div>
+                <p class="magnets-empty-title">No destinations yet</p>
+                <p class="magnets-empty-sub">Upload travel photos and we'll detect the countries automatically</p>
+              </div>
+              <span class="magnets-empty-arrow">→</span>
+            </div>
+          </a>
+        {/if}
+      </section>
 
       <!-- CTA to discover -->
       {#if mode === 'public'}
@@ -4431,5 +4445,62 @@
     text-transform: uppercase;
     white-space: nowrap;
     line-height: 1;
+  }
+
+  /* ── Travel Magnets empty state ─────────────────────────────────────────── */
+
+  .magnets-empty-cta {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+    border: 1.5px dashed rgba(255, 255, 255, 0.18);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 16px 18px;
+    transition: background 0.18s ease, border-color 0.18s ease;
+  }
+
+  .magnets-empty-cta:hover {
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.32);
+  }
+
+  .magnets-empty-inner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .magnets-empty-icon {
+    font-size: 28px;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+
+  .magnets-empty-title {
+    margin: 0 0 3px;
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .magnets-empty-sub {
+    margin: 0;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.45);
+    line-height: 1.4;
+  }
+
+  .magnets-empty-arrow {
+    margin-left: auto;
+    flex-shrink: 0;
+    font-size: 18px;
+    color: rgba(255, 255, 255, 0.35);
+    transition: transform 0.18s ease, color 0.18s ease;
+  }
+
+  .magnets-empty-cta:hover .magnets-empty-arrow {
+    transform: translateX(4px);
+    color: rgba(255, 255, 255, 0.7);
   }
 </style>
