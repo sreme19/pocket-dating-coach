@@ -23,20 +23,20 @@
     discipline:   '🔒 Private by default. Your proofs strengthen trust, verify authenticity, and help you get better matches.',
     social_proof: '🔒 Nothing here is public. These signals confirm your lifestyle and improve compatibility.',
     linkedin:     '🔒 Your uploads are never shared publicly. Used only to verify authenticity and improve your Trust Score.',
-    habit_tracker:'🔒 Show, don\'t fake. Everything stays private while we verify your vibe — boosting your Trust Score.',
-    intro:        '🔒 Your voice & video stay completely private — never shown publicly. They make women feel safe messaging you first.',
+    habit_tracker:'🔒 Show, don\'t fake. Everything stays private while we verify your vibe. Boosts your Trust Score.',
+    intro:        '🔒 Your voice and video stay completely private. Never shown publicly. They make women feel safe messaging you first.',
   };
 
   const CONFIGS: Record<Category, CategoryConfig> = {
     lifestyle: {
       icon: '🌍',
       title: 'Lifestyle Proof',
-      subtitle: 'Show your real world — travel, dining, experiences',
+      subtitle: 'Show your real world: travel, dining, experiences',
       examples: [
         'Hotel or flight booking screenshots',
         'Restaurant / bar photos with context',
         'Event or concert tickets',
-        'Travel photos — show locations & moments',
+        'Travel photos with locations and moments visible',
       ],
       maxFiles: 3,
       hintLine: 'Mix photos + booking screenshots for strongest signal.',
@@ -89,18 +89,18 @@
       title: 'LinkedIn Verification',
       subtitle: 'Screenshot your LinkedIn to prove career stability',
       examples: [
-        'Profile screenshot — name, title, company visible',
+        'Profile screenshot with name, title and company visible',
         'Work experience section clearly shown',
         'Profile photo + headline visible',
       ],
       maxFiles: 1,
-      hintLine: 'Blur sensitive details if needed — we only check role & company.',
+      hintLine: 'Blur sensitive details if needed. We only check your role and company.',
       accept: 'image/*',
     },
     habit_tracker: {
       icon: '📱',
       title: 'Habit Tracker',
-      subtitle: 'Screenshot your habit app — show real streaks',
+      subtitle: 'Screenshot your habit app and show real streaks',
       examples: [
         'Streak screen from Habitica, Streaks, or similar',
         'Sleep data from Oura / Apple Health',
@@ -108,7 +108,7 @@
         'Reading progress from Goodreads or Kindle',
       ],
       maxFiles: 2,
-      hintLine: 'Any habit app works — consistency is what matters.',
+      hintLine: 'Any habit app works. Consistency is what matters.',
       accept: 'image/*',
     },
     intro: {
@@ -116,10 +116,10 @@
       title: 'Voice & Video Intro',
       subtitle: 'A short intro makes women feel safe messaging you first',
       examples: [
-        '30–60 second voice memo — introduce yourself naturally',
+        '30–60 second voice memo, introduce yourself naturally',
         'Short video clip (face visible, no filters needed)',
         'Talk about what you\'re looking for, your vibe',
-        'Natural beats scripted — just be yourself',
+        'Natural beats scripted. Just be yourself.',
       ],
       maxFiles: 2,
       hintLine: 'One voice + one video is the ideal combo.',
@@ -393,7 +393,7 @@
     <div class="state-card state-card--analyzing">
       <div class="spinner"></div>
       <div class="state-title">{category === 'intro' ? 'Submitting your intro…' : 'Reviewing your proof…'}</div>
-      <div class="state-sub">{category === 'intro' ? 'Confirming your upload — just a moment.' : 'Claude is analysing your files. Usually 5–10 seconds.'}</div>
+      <div class="state-sub">{category === 'intro' ? 'Confirming your upload. Just a moment.' : 'Claude is analysing your files. Usually 5–10 seconds.'}</div>
     </div>
 
   {:else if step === 'success' && result}
