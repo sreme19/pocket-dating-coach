@@ -3,7 +3,7 @@
   import { goto } from '$app/navigation';
   import { getSupabaseClient } from '$lib/client/supabase';
 
-  type Category = 'lifestyle' | 'hosting' | 'discipline' | 'social_proof' | 'linkedin' | 'instagram' | 'twitter' | 'habit_tracker' | 'intro' | 'spending';
+  type Category = 'lifestyle' | 'hosting' | 'discipline' | 'social_proof' | 'linkedin' | 'instagram' | 'twitter' | 'habit_tracker' | 'intro' | 'spending' | 'assets';
   type Step = 'upload' | 'analyzing' | 'success' | 'failed';
 
   interface CategoryConfig {
@@ -17,6 +17,10 @@
     hasUrlInput?: boolean;
     urlLabel?: string;
     urlPlaceholder?: string;
+    hasOAuthConnect?: boolean;
+    connectLabel?: string;
+    connectUrl?: string;
+    connectColor?: string;
   }
 
   const PRIVACY_COPY: Record<string, string> = {
@@ -30,6 +34,7 @@
     habit_tracker:'🔒 Show, don\'t fake. Everything stays private while we verify your vibe. Boosts your Trust Score.',
     intro:        '🔒 Your voice and video stay completely private. Never shown publicly. They make women feel safe messaging you first.',
     spending:     '🔒 Your receipts stay completely private. We only check that your generosity signals are genuine.',
+    assets:       '🔒 Your documents stay completely private. We only verify ownership. Your name on the document must match your profile name.',
   };
 
   const CONFIGS: Record<Category, CategoryConfig> = {
@@ -111,33 +116,41 @@
       title: 'Instagram',
       subtitle: 'Connect your Instagram to verify social presence',
       examples: [
-        'Paste your Instagram URL below for instant verification',
-        'Or screenshot your profile showing username, posts, and followers',
-        'Shows you are active and genuine online',
-        'Your personal posts stay private — we only check the profile page',
+        'Tap "Connect Instagram" to open Instagram and sign in',
+        'Copy your profile URL from the browser and paste it below',
+        'Or upload a screenshot of your profile page',
+        'We only check your username, posts, and followers — nothing private',
       ],
       maxFiles: 1,
-      hintLine: 'Profile URL is the quickest way. Screenshot also works.',
+      hintLine: 'Connecting takes 30 seconds. Screenshot also works.',
       accept: 'image/*',
+      hasOAuthConnect: true,
+      connectLabel: 'Connect Instagram',
+      connectUrl: 'https://www.instagram.com/accounts/login/',
+      connectColor: '#E1306C',
       hasUrlInput: true,
-      urlLabel: 'Instagram URL',
+      urlLabel: 'Your Instagram profile URL',
       urlPlaceholder: 'instagram.com/yourhandle',
     },
     twitter: {
       icon: '🐦',
       title: 'Twitter / X',
-      subtitle: 'Connect your Twitter to show real interests',
+      subtitle: 'Connect your Twitter / X to show real interests',
       examples: [
-        'Paste your Twitter / X URL below for instant verification',
-        'Or screenshot your profile showing your bio and activity',
-        'Shows genuine engagement with topics you care about',
-        'Your DMs and private tweets stay completely private',
+        'Tap "Connect X" to open Twitter and sign in',
+        'Copy your profile URL from the browser and paste it below',
+        'Or screenshot your profile showing your bio and recent activity',
+        'Your DMs and private posts stay completely private',
       ],
       maxFiles: 1,
-      hintLine: 'Profile URL is the quickest way. Screenshot also works.',
+      hintLine: 'Connecting takes 30 seconds. Screenshot also works.',
       accept: 'image/*',
+      hasOAuthConnect: true,
+      connectLabel: 'Connect X (Twitter)',
+      connectUrl: 'https://x.com/i/flow/login',
+      connectColor: '#000000',
       hasUrlInput: true,
-      urlLabel: 'Twitter / X URL',
+      urlLabel: 'Your X / Twitter profile URL',
       urlPlaceholder: 'x.com/yourhandle',
     },
     habit_tracker: {
@@ -182,6 +195,20 @@
       hintLine: 'Blur any sensitive account or card numbers before uploading.',
       accept: 'image/*',
     },
+    assets: {
+      icon: '🏠',
+      title: 'Assets',
+      subtitle: 'Verify car, property or company ownership',
+      examples: [
+        'Car registration document — your name must be visible',
+        'Property deed or mortgage statement — name match required',
+        'Company registration or ownership certificate',
+        'Screenshot of ownership portal or app — name clearly shown',
+      ],
+      maxFiles: 5,
+      hintLine: '⚠️ Name match is compulsory — your name on the document must match your profile. Screenshots are accepted.',
+      accept: 'image/*,.pdf',
+    },
   };
 
   interface StoredInsight {
@@ -207,7 +234,79 @@
   let failReason      = $state('');
   let dragOver        = $state(false);
   let existingInsight = $state<StoredInsight | null>(null);
+
+  // ── Live recording (intro category only) ─────────────────────────────────
+  let recordMode    = $state<'audio' | 'video' | null>(null);
+  let recordState   = $state<'idle' | 'recording' | 'stopping'>('idle');
+  let recordTimer   = $state(0);
+  let liveStream    = $state<MediaStream | null>(null);
+  let mediaRecorder: MediaRecorder | null = null;
+  let recordedChunks: BlobPart[] = [];
+  let timerInterval: ReturnType<typeof setInterval> | null = null;
+
+  function attachLiveStream(node: HTMLVideoElement, stream: MediaStream | null) {
+    if (stream) node.srcObject = stream;
+    return {
+      update(s: MediaStream | null) { node.srcObject = s; },
+      destroy() { node.srcObject = null; }
+    };
+  }
+
+  async function startRecording(mode: 'audio' | 'video') {
+    recordState = 'recording';
+    recordMode  = mode;
+    recordTimer = 0;
+    recordedChunks = [];
+    try {
+      const constraints = mode === 'audio'
+        ? { audio: true }
+        : { audio: true, video: { facingMode: 'user' as const, width: { ideal: 720 } } };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      liveStream = stream;
+
+      const audioMime = ['audio/webm;codecs=opus','audio/webm','audio/ogg','audio/mp4']
+        .find(t => MediaRecorder.isTypeSupported(t)) ?? '';
+      const videoMime = ['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm','video/mp4']
+        .find(t => MediaRecorder.isTypeSupported(t)) ?? '';
+      const mimeType  = mode === 'audio' ? audioMime : videoMime;
+
+      mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+      mediaRecorder.onstop = () => {
+        const type = mimeType || (mode === 'audio' ? 'audio/webm' : 'video/webm');
+        const blob = new Blob(recordedChunks, { type });
+        const file = new File([blob], `intro-${mode}-${Date.now()}.webm`, { type });
+        files   = [...files, file];
+        previews = [...previews, URL.createObjectURL(blob)];
+        stream.getTracks().forEach(t => t.stop());
+        liveStream  = null;
+        recordMode  = null;
+        recordState = 'idle';
+        if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+        recordTimer = 0;
+      };
+      mediaRecorder.start(100);
+      timerInterval = setInterval(() => { recordTimer++; }, 1000);
+    } catch (err) {
+      console.error('[record]', err);
+      liveStream  = null;
+      recordMode  = null;
+      recordState = 'idle';
+      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+    }
+  }
+
+  function stopRecording() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+    recordState = 'stopping';
+    mediaRecorder?.stop();
+  }
+
+  function fmtTime(s: number) {
+    return `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
+  }
   let confirmDelete   = $state(false);
+  let connectOpened   = $state(false); // tracks if user has clicked the OAuth connect button
 
   onMount(() => {
     const cat = (new URLSearchParams(window.location.search).get('category') ?? 'lifestyle') as Category;
@@ -361,7 +460,7 @@
   }
 
   function goBack() {
-    goto('/verified-vibe/profile');
+    goto('/verified-vibe/profile?tab=boost');
   }
 </script>
 
@@ -458,13 +557,51 @@
       {#if category !== 'intro'}
         <div class="auth-note">
           <span class="auth-note-icon">👤</span>
-          <span>Your face should be clearly visible in at least one photo, or your name should appear on any document, so we can authenticate the proof.</span>
+          <span>Your face should be clearly visible in all photos, or your name should appear on any document, so we can authenticate the proof.</span>
         </div>
       {/if}
     </div>
 
-    <!-- URL input for social / professional categories -->
-    {#if config.hasUrlInput}
+    <!-- OAuth connect UI for Instagram / Twitter -->
+    {#if config.hasOAuthConnect}
+      <div class="connect-card">
+        <button
+          class="connect-platform-btn"
+          style="background:{config.connectColor ?? '#000'}"
+          onclick={() => { connectOpened = true; window.open(config.connectUrl, '_blank'); }}
+          type="button"
+        >
+          <span class="connect-platform-icon">{config.icon}</span>
+          {config.connectLabel}
+        </button>
+
+        {#if connectOpened}
+          <div class="connect-paste-area">
+            <div class="connect-paste-label">Paste your profile URL after signing in:</div>
+            <div class="url-input-row">
+              <input
+                class="url-input"
+                type="url"
+                placeholder={config.urlPlaceholder}
+                bind:value={profileUrl}
+              />
+              {#if profileUrl.trim()}
+                <button class="url-clear" onclick={() => profileUrl = ''} aria-label="Clear URL">✕</button>
+              {/if}
+            </div>
+            {#if profileUrl.trim()}
+              <span class="connect-url-confirmed">✓ URL captured</span>
+            {/if}
+          </div>
+        {:else}
+          <p class="connect-hint">Tap Connect → sign in → copy your profile URL → come back and paste it</p>
+        {/if}
+
+        <div class="connect-divider">or upload a screenshot instead</div>
+      </div>
+
+    <!-- URL input for LinkedIn only (no branded connect) -->
+    {:else if config.hasUrlInput}
       <div class="url-input-card">
         <div class="url-input-label">{config.urlLabel}</div>
         <div class="url-input-row">
@@ -482,42 +619,12 @@
       </div>
     {/if}
 
-    <!-- Upload area -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div
-      class="drop-zone"
-      class:drop-zone--over={dragOver}
-      class:drop-zone--has-files={files.length > 0}
-      ondragover={onDragOver}
-      ondragleave={onDragLeave}
-      ondrop={onDrop}
-    >
-      {#if files.length === 0}
-        <div class="drop-empty">
-          {#if category === 'intro'}
-            <div class="intro-icons">🎙️<span class="intro-plus">+</span>🎥</div>
-            <p class="drop-hint">Tap to add voice or video</p>
-            <p class="drop-hint-sub">Up to {config.maxFiles} files · MP3, M4A, MP4, MOV</p>
-            <label class="pick-btn">
-              Choose Files
-              <input type="file" accept="audio/*,video/*" multiple={config.maxFiles > 1} onchange={e => addFiles(e.currentTarget.files)} hidden />
-            </label>
-          {:else}
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4">
-              <rect x="3" y="3" width="18" height="18" rx="2"/>
-              <path d="M8 12h8M12 8v8"/>
-            </svg>
-            <p class="drop-hint">{config.hasUrlInput ? 'Or upload a screenshot' : 'Tap to select photos'}</p>
-            <p class="drop-hint-sub">Up to {config.maxFiles} {config.maxFiles === 1 ? 'file' : 'files'} · JPEG / PNG{category === 'linkedin' ? ' / PDF' : ''}</p>
-            <label class="pick-btn">
-              Choose Photos
-              <input type="file" accept={config.accept} multiple={config.maxFiles > 1} onchange={e => addFiles(e.currentTarget.files)} hidden />
-            </label>
-          {/if}
-        </div>
-      {:else}
-        <!-- Preview grid / media player -->
-        {#if category === 'intro'}
+    <!-- Live recording UI — intro category only -->
+    {#if category === 'intro'}
+      <div class="intro-recorder">
+
+        <!-- Recorded clips preview -->
+        {#if files.length > 0}
           <div class="media-previews">
             {#each files as f, i}
               <div class="media-item">
@@ -529,21 +636,83 @@
                 {#if f.type.startsWith('audio/')}
                   <!-- svelte-ignore a11y_media_has_caption -->
                   <audio class="media-audio" src={previews[i]} controls></audio>
-                {:else if f.type.startsWith('video/')}
+                {:else}
                   <!-- svelte-ignore a11y_media_has_caption -->
                   <video class="media-video" src={previews[i]} controls muted playsinline></video>
                 {/if}
               </div>
             {/each}
-            {#if files.length < config.maxFiles}
-              <label class="media-add-btn">
-                <span>{files.some(f => f.type.startsWith('audio/')) ? '+ Add Video' : '+ Add Voice Memo'}</span>
-                <input type="file" accept="audio/*,video/*" onchange={e => addFiles(e.currentTarget.files)} hidden />
-              </label>
-            {/if}
           </div>
-        {:else}
-          <div class="preview-grid">
+        {/if}
+
+        <!-- Active recording UI -->
+        {#if recordState === 'recording' || recordState === 'stopping'}
+          <div class="live-recording">
+            {#if recordMode === 'video' && liveStream}
+              <!-- svelte-ignore a11y_media_has_caption -->
+              <video class="live-video-preview" use:attachLiveStream={liveStream} autoplay muted playsinline></video>
+            {:else}
+              <div class="live-audio-viz">
+                {#each Array(12) as _, wi}
+                  <div class="wave-bar" style="animation-delay:{wi*0.08}s"></div>
+                {/each}
+              </div>
+            {/if}
+            <div class="recording-bar">
+              <span class="rec-pill">
+                <span class="rec-dot"></span>
+                REC {fmtTime(recordTimer)}
+              </span>
+              <button class="stop-btn" onclick={stopRecording} disabled={recordState === 'stopping'}>
+                {recordState === 'stopping' ? 'Processing…' : '⏹ Stop'}
+              </button>
+            </div>
+          </div>
+
+        <!-- Record buttons (idle, room for more) -->
+        {:else if files.length < config.maxFiles}
+          <div class="record-buttons">
+            <button class="record-btn" onclick={() => startRecording('audio')} type="button">
+              <span class="record-btn-icon">🎙️</span>
+              <span class="record-btn-label">Record Voice</span>
+              <span class="record-btn-sub">30–60 sec</span>
+            </button>
+            <button class="record-btn" onclick={() => startRecording('video')} type="button">
+              <span class="record-btn-icon">🎥</span>
+              <span class="record-btn-label">Record Video</span>
+              <span class="record-btn-sub">30–60 sec</span>
+            </button>
+          </div>
+        {/if}
+
+      </div>
+
+    <!-- Upload area — all other categories -->
+    {:else}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="drop-zone"
+      class:drop-zone--over={dragOver}
+      class:drop-zone--has-files={files.length > 0}
+      ondragover={onDragOver}
+      ondragleave={onDragLeave}
+      ondrop={onDrop}
+    >
+      {#if files.length === 0}
+        <div class="drop-empty">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <path d="M8 12h8M12 8v8"/>
+            </svg>
+            <p class="drop-hint">{config.hasUrlInput ? 'Or upload a screenshot' : 'Tap to select photos'}</p>
+            <p class="drop-hint-sub">Up to {config.maxFiles} {config.maxFiles === 1 ? 'file' : 'files'} · JPEG / PNG{category === 'linkedin' ? ' / PDF' : ''}</p>
+            <label class="pick-btn">
+              Choose Photos
+              <input type="file" accept={config.accept} multiple={config.maxFiles > 1} onchange={e => addFiles(e.currentTarget.files)} hidden />
+            </label>
+        </div>
+      {:else}
+        <div class="preview-grid">
             {#each previews as src, i}
               <div class="preview-item">
                 {#if src}
@@ -570,9 +739,9 @@
               </label>
             {/if}
           </div>
-        {/if}
       {/if}
     </div>
+    {/if}<!-- end intro/else -->
 
     <button
       class="analyze-btn"
@@ -604,6 +773,24 @@
       {#if result.reason}
         <div class="success-reason">{result.reason}</div>
       {/if}
+    </div>
+
+    <div class="wingman-block">
+      <div class="wingman-header">
+        <span class="wingman-icon">🤖</span>
+        <span class="wingman-title">AI Wingman has detected this…</span>
+      </div>
+      {#if result.reason}
+        <p class="wingman-reason">{result.reason}</p>
+      {/if}
+      <div class="wingman-chips">
+        {#each result.insights as ins}
+          <div class="wingman-chip">
+            <span class="wingman-chip-emoji">{ins.emoji}</span>
+            <span class="wingman-chip-text">{ins.label}</span>
+          </div>
+        {/each}
+      </div>
     </div>
 
     <div class="insight-preview">
@@ -778,6 +965,74 @@
     color: var(--text-4);
     text-align: center;
     margin: 2px 0 0;
+  }
+
+  /* ── OAuth connect card ── */
+  .connect-card {
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    border-radius: 16px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .connect-platform-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    cursor: pointer;
+    font-family: inherit;
+    letter-spacing: -0.01em;
+    transition: opacity 150ms;
+  }
+
+  .connect-platform-btn:hover { opacity: 0.88; }
+  .connect-platform-btn:active { opacity: 0.75; }
+
+  .connect-platform-icon { font-size: 20px; }
+
+  .connect-hint {
+    font-size: 12px;
+    color: var(--text-3);
+    text-align: center;
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  .connect-paste-area {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .connect-paste-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+
+  .connect-url-confirmed {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .connect-divider {
+    font-size: 11px;
+    color: var(--text-4);
+    text-align: center;
+    padding-top: 4px;
+    border-top: 1px solid var(--border-1);
   }
 
   /* ── Already uploaded card ── */
@@ -1263,6 +1518,65 @@
     background: rgba(245, 158, 11, 0.05);
   }
 
+  /* ── AI Wingman block ── */
+  .wingman-block {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    background: rgba(99, 102, 241, 0.07);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-radius: 16px;
+  }
+
+  .wingman-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .wingman-icon { font-size: 18px; }
+
+  .wingman-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #a5b4fc;
+    letter-spacing: -0.01em;
+  }
+
+  .wingman-reason {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-2);
+    line-height: 1.55;
+    font-style: italic;
+  }
+
+  .wingman-chips {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .wingman-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: 10px;
+  }
+
+  .wingman-chip-emoji { font-size: 16px; line-height: 1; }
+
+  .wingman-chip-text {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-1);
+    flex: 1;
+  }
+
   /* ── Insight preview chips ── */
   .insight-preview {
     display: flex;
@@ -1314,21 +1628,7 @@
     flex-shrink: 0;
   }
 
-  /* ── Intro category — media upload ── */
-  .intro-icons {
-    font-size: 36px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    line-height: 1;
-  }
-
-  .intro-plus {
-    font-size: 20px;
-    color: var(--text-4);
-    font-style: normal;
-  }
-
+  /* ── Intro category — media previews ── */
   .media-previews {
     display: flex;
     flex-direction: column;
@@ -1391,19 +1691,138 @@
     background: #000;
   }
 
-  .media-add-btn {
+
+  /* ── Live recorder ── */
+  .intro-recorder {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 12px;
-    border: 2px dashed var(--border-1);
-    border-radius: 12px;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--accent);
-    transition: border-color 150ms;
+    flex-direction: column;
+    gap: 14px;
+    padding: 4px 0;
   }
 
-  .media-add-btn:hover { border-color: var(--accent); }
+  .record-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .record-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 22px 12px;
+    border-radius: 14px;
+    border: 1.5px solid var(--border-2);
+    background: var(--bg-2);
+    cursor: pointer;
+    transition: border-color 150ms, background 150ms;
+    font-family: inherit;
+  }
+
+  .record-btn:hover:not(:disabled) {
+    border-color: var(--accent-bright);
+    background: var(--accent-tint);
+  }
+
+  .record-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .record-btn-icon { font-size: 28px; line-height: 1; }
+
+  .record-btn-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-1);
+  }
+
+  .record-btn-sub {
+    font-size: 11px;
+    color: var(--text-4);
+  }
+
+  /* Live recording state */
+  .live-recording {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 16px;
+    border-radius: 14px;
+    border: 1.5px solid rgba(239,68,68,0.4);
+    background: rgba(239,68,68,0.06);
+  }
+
+  .live-video-preview {
+    width: 100%;
+    max-height: 240px;
+    border-radius: 10px;
+    object-fit: cover;
+    background: #000;
+  }
+
+  .live-audio-viz {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 48px;
+    padding: 4px 8px;
+  }
+
+  .wave-bar {
+    width: 5px;
+    border-radius: 3px;
+    background: var(--accent-bright);
+    animation: wavePulse 0.8s ease-in-out infinite alternate;
+    min-height: 6px;
+  }
+
+  @keyframes wavePulse {
+    0%   { height: 8px;  opacity: 0.5; }
+    100% { height: 40px; opacity: 1; }
+  }
+
+  .recording-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 12px;
+  }
+
+  .rec-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #ef4444;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rec-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ef4444;
+    animation: blink 1s step-start infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  .stop-btn {
+    padding: 9px 18px;
+    border-radius: 999px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    transition: opacity 150ms;
+    white-space: nowrap;
+  }
+
+  .stop-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 </style>
