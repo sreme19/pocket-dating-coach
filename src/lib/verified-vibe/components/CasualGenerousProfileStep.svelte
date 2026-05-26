@@ -25,6 +25,26 @@
 
   const questions: Question[] = [
     {
+      id: 'relationship_energy',
+      type: 'multi-select',
+      question: '✨ What kind of energy are you drawn to in a partner?',
+      subtitle: 'Select all that apply',
+      options: [
+        { value: 'feminine_energy',            label: '🌹 Feminine energy' },
+        { value: 'affectionate',               label: '💋 Affectionate' },
+        { value: 'flirty_playful',             label: '😏 Flirty & playful' },
+        { value: 'confident',                  label: '✨ Confident' },
+        { value: 'emotionally_warm',           label: '🥰 Emotionally warm' },
+        { value: 'well_traveled',              label: '🌍 Well-traveled' },
+        { value: 'glamorous',                  label: '💃 Glamorous' },
+        { value: 'adventurous',               label: '🎭 Adventurous' },
+        { value: 'passionate',                 label: '🔥 Passionate' },
+        { value: 'magnetic_presence',          label: '🧲 Magnetic presence' },
+        { value: 'sensual',                    label: '🕯 Sensual' },
+        { value: 'discreet',                   label: '🔒 Discreet' }
+      ]
+    },
+    {
       id: 'shared_experiences',
       type: 'multi-select',
       question: '✨ What kind of experiences do you enjoy sharing with a partner?',
@@ -81,26 +101,6 @@
         { value: 'physical_affection',         label: '🥰 Physical affection matters' }
       ]
     },
-    {
-      id: 'relationship_energy',
-      type: 'multi-select',
-      question: '✨ What kind of energy are you drawn to in a partner?',
-      subtitle: 'Select all that apply',
-      options: [
-        { value: 'feminine_energy',            label: '🌹 Feminine energy' },
-        { value: 'affectionate',               label: '💋 Affectionate' },
-        { value: 'flirty_playful',             label: '😏 Flirty & playful' },
-        { value: 'confident',                  label: '✨ Confident' },
-        { value: 'emotionally_warm',           label: '🥰 Emotionally warm' },
-        { value: 'well_traveled',              label: '🌍 Well-traveled' },
-        { value: 'glamorous',                  label: '💃 Glamorous' },
-        { value: 'adventurous',                label: '🎭 Adventurous' },
-        { value: 'passionate',                 label: '🔥 Passionate' },
-        { value: 'magnetic_presence',          label: '🧲 Magnetic presence' },
-        { value: 'sensual',                    label: '🕯 Sensual' },
-        { value: 'discreet',                   label: '🔒 Discreet' }
-      ]
-    }
   ];
 
   const totalQuestions = questions.length;
@@ -352,19 +352,21 @@
   .options-grid { display: grid; grid-template-columns: 1fr; gap: 0.5rem; }
 
   .options-grid.chips {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     gap: 8px;
   }
 
   .options-grid.chips .option-button {
-    flex: none;
-    padding: 7px 16px;
+    padding: 7px 12px;
     border-radius: 100px;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     min-height: 36px;
     justify-content: center;
-    white-space: nowrap;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.3;
+    width: 100%;
   }
 
   .options-grid.chips .checkmark { display: none; }
