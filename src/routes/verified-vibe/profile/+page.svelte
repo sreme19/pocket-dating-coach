@@ -65,8 +65,10 @@
   }
 
   let moneyMatters   = $state<MoneyMatters>({});
-  let editingMoney   = $state(false);
-  let moneyDraft     = $state<MoneyMatters>({});
+  let editingMoney        = $state(false);
+  let moneyDraft          = $state<MoneyMatters>({});
+  let editingMoneyChips   = $state(false); // pencil edit mode for wealth insight chips
+  let editingCareerChips  = $state(false); // pencil edit mode for career insight chips
   let spendingData   = $state<SpendingCategory[]>([]);
 
   // Wealth proof insights — derived from uploaded bank statements / ITR / investments
@@ -1623,6 +1625,18 @@
           <div class="section-label">
             <span>💼</span>
             Career Highlights
+            <button
+              class="section-edit-btn {editingCareerChips ? 'section-edit-btn--active' : ''}"
+              onclick={() => editingCareerChips = !editingCareerChips}
+              aria-label={editingCareerChips ? 'Done editing' : 'Edit chips'}
+              type="button"
+            >
+              {#if editingCareerChips}
+                <Check size={11} />
+              {:else}
+                <Pencil size={11} />
+              {/if}
+            </button>
           </div>
           <div class="career-card">
             {#if careerHighlights.aggregated}
@@ -1630,25 +1644,28 @@
             {/if}
             <div class="career-chips">
               {#each careerHighlights.insights as ins}
-                <span class="career-chip">
+                <span class="career-chip {editingCareerChips ? 'career-chip--editing' : ''}">
                   <span class="career-chip-emoji">{ins.emoji}</span>
                   {ins.label}
-                  <button
-                    class="chip-remove-btn"
-                    type="button"
-                    aria-label="Remove {ins.label}"
-                    onclick={() => {
-                      const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
-                      const updated = all.map((p: any) => {
-                        if (p.category !== 'linkedin') return p;
-                        const filtered = (p.insights ?? []).filter((i: { label: string }) => i.label !== ins.label);
-                        return filtered.length ? { ...p, insights: filtered } : null;
-                      }).filter(Boolean);
-                      localStorage.setItem('vv_proof_insights', JSON.stringify(updated));
-                      const lEntry = updated.find((p: any) => p.category === 'linkedin') as any;
-                      careerHighlights = lEntry?.insights?.length ? { insights: lEntry.insights, aggregated: lEntry.aggregated ?? '' } : null;
-                    }}
-                  >×</button>
+                  {#if editingCareerChips}
+                    <button
+                      class="chip-remove-btn"
+                      type="button"
+                      aria-label="Remove {ins.label}"
+                      onclick={() => {
+                        const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
+                        const updated = all.map((p: any) => {
+                          if (p.category !== 'linkedin') return p;
+                          const filtered = (p.insights ?? []).filter((i: { label: string }) => i.label !== ins.label);
+                          return filtered.length ? { ...p, insights: filtered } : null;
+                        }).filter(Boolean);
+                        localStorage.setItem('vv_proof_insights', JSON.stringify(updated));
+                        const lEntry = updated.find((p: any) => p.category === 'linkedin') as any;
+                        careerHighlights = lEntry?.insights?.length ? { insights: lEntry.insights, aggregated: lEntry.aggregated ?? '' } : null;
+                        if (!careerHighlights) editingCareerChips = false;
+                      }}
+                    >×</button>
+                  {/if}
                 </span>
               {/each}
             </div>
@@ -1668,6 +1685,20 @@
           <div class="section-label">
             <span>💰</span>
             Money Matters
+            {#if wealthInsights}
+              <button
+                class="section-edit-btn {editingMoneyChips ? 'section-edit-btn--active' : ''}"
+                onclick={() => editingMoneyChips = !editingMoneyChips}
+                aria-label={editingMoneyChips ? 'Done editing' : 'Edit chips'}
+                type="button"
+              >
+                {#if editingMoneyChips}
+                  <Check size={11} />
+                {:else}
+                  <Pencil size={11} />
+                {/if}
+              </button>
+            {/if}
           </div>
 
           <div class="money-card">
@@ -1706,25 +1737,28 @@
                   {/if}
                   <div class="money-wealth-chips">
                     {#each wealthInsights.insights as ins}
-                      <span class="money-wealth-chip">
+                      <span class="money-wealth-chip {editingMoneyChips ? 'money-wealth-chip--editing' : ''}">
                         <span class="money-wealth-chip-emoji">{ins.emoji}</span>
                         {ins.label}
-                        <button
-                          class="chip-remove-btn chip-remove-btn--gold"
-                          type="button"
-                          aria-label="Remove {ins.label}"
-                          onclick={() => {
-                            const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
-                            const updated = all.map((p: any) => {
-                              if (p.category !== 'wealth') return p;
-                              const filtered = (p.insights ?? []).filter((i: { label: string }) => i.label !== ins.label);
-                              return filtered.length ? { ...p, insights: filtered } : null;
-                            }).filter(Boolean);
-                            localStorage.setItem('vv_proof_insights', JSON.stringify(updated));
-                            const wEntry = updated.find((p: any) => p.category === 'wealth') as any;
-                            wealthInsights = wEntry?.insights?.length ? { insights: wEntry.insights, aggregated: wEntry.aggregated ?? '' } : null;
-                          }}
-                        >×</button>
+                        {#if editingMoneyChips}
+                          <button
+                            class="chip-remove-btn chip-remove-btn--gold"
+                            type="button"
+                            aria-label="Remove {ins.label}"
+                            onclick={() => {
+                              const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
+                              const updated = all.map((p: any) => {
+                                if (p.category !== 'wealth') return p;
+                                const filtered = (p.insights ?? []).filter((i: { label: string }) => i.label !== ins.label);
+                                return filtered.length ? { ...p, insights: filtered } : null;
+                              }).filter(Boolean);
+                              localStorage.setItem('vv_proof_insights', JSON.stringify(updated));
+                              const wEntry = updated.find((p: any) => p.category === 'wealth') as any;
+                              wealthInsights = wEntry?.insights?.length ? { insights: wEntry.insights, aggregated: wEntry.aggregated ?? '' } : null;
+                              if (!wealthInsights) editingMoneyChips = false;
+                            }}
+                          >×</button>
+                        {/if}
                       </span>
                     {/each}
                   </div>
@@ -3473,6 +3507,23 @@
     transition: color 130ms;
   }
   .section-edit-btn:hover { color: var(--accent-bright); }
+  .section-edit-btn--active {
+    color: var(--accent-bright);
+    background: rgba(99,102,241,0.12);
+    border-radius: 6px;
+  }
+
+  /* Chips in edit mode get a subtle shake to signal "removable" */
+  .career-chip--editing,
+  .money-wealth-chip--editing {
+    animation: chip-wiggle 0.25s ease;
+  }
+  @keyframes chip-wiggle {
+    0%   { transform: rotate(0deg); }
+    25%  { transform: rotate(-1.5deg); }
+    75%  { transform: rotate(1.5deg); }
+    100% { transform: rotate(0deg); }
+  }
 
   /* Inline edit card */
   .inline-edit-card {
