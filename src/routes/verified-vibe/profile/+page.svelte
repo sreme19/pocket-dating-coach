@@ -8,6 +8,8 @@
   import { unregisterPushNotifications } from '$lib/push-notifications';
   import { ShieldCheck, Pencil, Check, X, MapPin, Sparkles, Wand2, LogOut, Heart, Zap } from 'lucide-svelte';
   import CasualGenerousBoostTab from '$lib/verified-vibe/components/CasualGenerousBoostTab.svelte';
+  import WingmanChat from '$lib/verified-vibe/components/WingmanChat.svelte';
+  import type { WingmanAction } from '$lib/verified-vibe/components/WingmanChat.svelte';
   import { ARCHETYPES, ARCHETYPES_BY_GENDER } from '$lib/verified-vibe/constants';
   import type { Archetype } from '$lib/verified-vibe/types';
   import type { ProfileIntakeData } from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
@@ -1259,6 +1261,129 @@
     editLifestyle = val.split(',').map(t => t.trim()).filter(Boolean);
   }
 
+  // ── AI Wingman ─────────────────────────────────────────────────────────────
+
+  // Build a snapshot of the current profile state to send with each wingman request
+  const wingmanSnapshot = $derived({
+    about,
+    personalityTags,
+    lifestyleTags,
+    intentTags,
+    archetype: $user?.archetype ?? '',
+    hardNos,
+    countriesTraveled,
+    moneyMatters,
+    proofCategories: (() => {
+      try {
+        const raw = localStorage.getItem('vv_proof_insights');
+        if (!raw) return [];
+        return (JSON.parse(raw) as Array<{ category: string }>).map(p => p.category);
+      } catch { return []; }
+    })(),
+  });
+
+  function handleWingmanAction(action: WingmanAction) {
+    switch (action.action) {
+      case 'update_field': {
+        const val = action.value;
+        switch (action.field) {
+          case 'about': {
+            const updated = { ...generated, about: val as string } as GeneratedProfile;
+            generated = updated;
+            localStorage.setItem('vv_profile', JSON.stringify(updated));
+            break;
+          }
+          case 'personalityTags': {
+            const tags = Array.isArray(val) ? val as string[] : String(val).split(',').map(s => s.trim()).filter(Boolean);
+            const updated = { ...generated, personalityDescriptors: tags } as GeneratedProfile;
+            generated = updated;
+            localStorage.setItem('vv_profile', JSON.stringify(updated));
+            break;
+          }
+          case 'lifestyleTags': {
+            const tags = Array.isArray(val) ? val as string[] : String(val).split(',').map(s => s.trim()).filter(Boolean);
+            const updated = { ...generated, lifestyleTags: tags } as GeneratedProfile;
+            generated = updated;
+            localStorage.setItem('vv_profile', JSON.stringify(updated));
+            break;
+          }
+          case 'intentTags': {
+            const tags = Array.isArray(val) ? val as string[] : String(val).split(',').map(s => s.trim()).filter(Boolean);
+            const updated = { ...generated, intentStatement: tags.join(', ') } as GeneratedProfile;
+            generated = updated;
+            localStorage.setItem('vv_profile', JSON.stringify(updated));
+            break;
+          }
+          case 'archetype': {
+            if ($user) user.set({ ...$user, archetype: val as Archetype });
+            break;
+          }
+          case 'hardNos': {
+            hardNos = Array.isArray(val) ? val as string[] : [String(val)];
+            break;
+          }
+          case 'moneyMatters.annualIncome': {
+            moneyMatters = { ...moneyMatters, annualIncome: String(val) };
+            localStorage.setItem('vv_money_matters', JSON.stringify(moneyMatters));
+            break;
+          }
+          case 'moneyMatters.netWorth': {
+            moneyMatters = { ...moneyMatters, netWorth: String(val) };
+            localStorage.setItem('vv_money_matters', JSON.stringify(moneyMatters));
+            break;
+          }
+        }
+        break;
+      }
+
+      case 'remove_proof': {
+        if (!action.category) break;
+        const existing: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
+        localStorage.setItem('vv_proof_insights', JSON.stringify(existing.filter((p: any) => p.category !== action.category)));
+        break;
+      }
+
+      case 'remove_country': {
+        if (!action.country) break;
+        const target = action.country.toLowerCase();
+        countriesTraveled = countriesTraveled.filter(c => c.toLowerCase() !== target);
+        localStorage.setItem('vv_countries_traveled', JSON.stringify(countriesTraveled));
+        break;
+      }
+
+      case 'remove_tag': {
+        if (!action.tag || !action.field) break;
+        const tag = action.tag.toLowerCase();
+        switch (action.field) {
+          case 'personalityTags': {
+            const updated = { ...generated, personalityDescriptors: personalityTags.filter(t => t.toLowerCase() !== tag) } as GeneratedProfile;
+            generated = updated;
+            localStorage.setItem('vv_profile', JSON.stringify(updated));
+            break;
+          }
+          case 'lifestyleTags': {
+            const updated = { ...generated, lifestyleTags: lifestyleTags.filter(t => t.toLowerCase() !== tag) } as GeneratedProfile;
+            generated = updated;
+            localStorage.setItem('vv_profile', JSON.stringify(updated));
+            break;
+          }
+          case 'hardNos': {
+            hardNos = hardNos.filter(t => t.toLowerCase() !== tag);
+            break;
+          }
+        }
+        break;
+      }
+    }
+
+    // Fire-and-forget sync to Supabase
+    try {
+      getSupabaseClient().auth.getSession().then(({ data: { session } }) => {
+        if (session?.access_token) pushMasterProfile(session.access_token);
+      });
+    } catch { /* non-critical */ }
+  }
+
   // ── Auto-fill ──────────────────────────────────────────────────────────────
   async function autoFill(field: 'about' | 'personality' | 'looking' | 'lifestyle') {
     if (generatingField) return;
@@ -2331,6 +2456,14 @@
   </div>
   {/if}
 </div>
+
+<!-- AI Wingman — fixed floating chat bubble, always visible on profile -->
+{#if $user}
+  <WingmanChat
+    profileSnapshot={wingmanSnapshot}
+    onAction={handleWingmanAction}
+  />
+{/if}
 
 <!-- Edit Q&A Modal -->
 {#if showEditQAModal}
