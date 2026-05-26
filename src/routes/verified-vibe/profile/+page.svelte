@@ -807,17 +807,35 @@
     const rawGenerated = localStorage.getItem('vv_profile');
     const rawPhotos = localStorage.getItem('vv_photos');
     const rawAiPhotos = localStorage.getItem('vv_ai_photos');
-    // Build countriesTraveled from two sources and union them:
+    // Build countriesTraveled from three sources and union them:
     // 1. vv_countries_traveled (fast path, always written on new uploads)
-    // 2. locations[] inside each stored insight (fallback — handles proofs uploaded before the separate key existed)
+    // 2. locations[] stored inside each insight (new uploads going forward)
+    // 3. Text-scan of insight labels + aggregated against PLACE_TO_ISO keys
+    //    — catches proofs uploaded before the locations field existed (e.g. existing Bali proof)
     try {
       const fromKey: string[] = JSON.parse(localStorage.getItem('vv_countries_traveled') ?? '[]');
       const rawInsightsForLoc = localStorage.getItem('vv_proof_insights');
-      const fromInsights: string[] = rawInsightsForLoc
-        ? (JSON.parse(rawInsightsForLoc) as Array<{ locations?: string[] }>)
-            .flatMap(i => i.locations ?? [])
-        : [];
-      const merged = Array.from(new Set([...fromKey, ...fromInsights])).filter(Boolean);
+      const parsedInsights: Array<{
+        locations?: string[];
+        insights?: Array<{ label: string }>;
+        insight_label?: string;
+        aggregated?: string;
+      }> = rawInsightsForLoc ? JSON.parse(rawInsightsForLoc) : [];
+
+      const fromLocationsField = parsedInsights.flatMap(i => i.locations ?? []);
+
+      // Text-scan: collect all label/aggregated text, then match against every known place name
+      const allText = parsedInsights
+        .flatMap(i => [
+          i.aggregated ?? '',
+          i.insight_label ?? '',
+          ...(i.insights ?? []).map(ins => ins.label),
+        ])
+        .join(' ')
+        .toLowerCase();
+      const fromText = Object.keys(PLACE_TO_ISO).filter(place => allText.includes(place));
+
+      const merged = Array.from(new Set([...fromKey, ...fromLocationsField, ...fromText])).filter(Boolean);
       if (merged.length > 0) {
         countriesTraveled = merged;
         localStorage.setItem('vv_countries_traveled', JSON.stringify(merged));
