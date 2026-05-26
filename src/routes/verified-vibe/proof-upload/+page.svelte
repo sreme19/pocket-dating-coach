@@ -127,22 +127,72 @@
     },
   };
 
-  let category    = $state<Category>('lifestyle');
-  let config      = $state<CategoryConfig>(CONFIGS.lifestyle);
-  let privacyCopy = $state('');
-  let files       = $state<File[]>([]);
-  let previews    = $state<string[]>([]);  // dataURL for images, objectURL for audio/video
-  let step        = $state<Step>('upload');
-  let result      = $state<{ insight_label: string; insight_emoji: string; pts_awarded: number; reason: string } | null>(null);
-  let failReason  = $state('');
-  let dragOver    = $state(false);
+  interface StoredInsight {
+    id: string;
+    category: string;
+    insight_label: string;
+    insight_emoji: string;
+    pts_awarded: number;
+    verified_at: string;
+    thumbnails?: string[]; // compressed base64 thumbnails (images only)
+  }
+
+  let category      = $state<Category>('lifestyle');
+  let config        = $state<CategoryConfig>(CONFIGS.lifestyle);
+  let privacyCopy   = $state('');
+  let files         = $state<File[]>([]);
+  let previews      = $state<string[]>([]);  // dataURL for images, objectURL for audio/video
+  let step          = $state<Step>('upload');
+  let result        = $state<{ insight_label: string; insight_emoji: string; pts_awarded: number; reason: string } | null>(null);
+  let failReason    = $state('');
+  let dragOver      = $state(false);
+  let existingInsight = $state<StoredInsight | null>(null);
+  let confirmDelete = $state(false);
 
   onMount(() => {
     const cat = (new URLSearchParams(window.location.search).get('category') ?? 'lifestyle') as Category;
     category    = CONFIGS[cat] ? cat : 'lifestyle';
     config      = CONFIGS[category];
     privacyCopy = PRIVACY_COPY[category] ?? PRIVACY_COPY.lifestyle;
+
+    // Load any existing verified proof for this category
+    try {
+      const all: StoredInsight[] = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
+      existingInsight = all.find(p => p.category === category) ?? null;
+    } catch { existingInsight = null; }
   });
+
+  // Generate a compressed 160×160 thumbnail from an image File
+  async function makeThumbnail(file: File): Promise<string> {
+    return new Promise(resolve => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const SIZE = 160;
+        const canvas = document.createElement('canvas');
+        canvas.width  = SIZE;
+        canvas.height = SIZE;
+        const ctx = canvas.getContext('2d')!;
+        const ratio = Math.max(SIZE / img.width, SIZE / img.height);
+        const w = img.width  * ratio;
+        const h = img.height * ratio;
+        ctx.drawImage(img, (SIZE - w) / 2, (SIZE - h) / 2, w, h);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL('image/jpeg', 0.55));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(''); };
+      img.src = url;
+    });
+  }
+
+  function deleteProof() {
+    try {
+      const all: StoredInsight[] = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
+      localStorage.setItem('vv_proof_insights', JSON.stringify(all.filter(p => p.category !== category)));
+    } catch {}
+    existingInsight = null;
+    confirmDelete   = false;
+  }
 
   function addFiles(incoming: FileList | null) {
     if (!incoming) return;
@@ -212,18 +262,30 @@
         return;
       }
 
-      // Persist insight in localStorage
-      const existing: object[] = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
-      const filtered = (existing as any[]).filter((p: any) => p.category !== category);
-      filtered.push({
+      // Generate thumbnails for image files (compressed, ~15KB each)
+      const thumbnails: string[] = [];
+      for (const f of files) {
+        if (f.type.startsWith('image/')) {
+          const thumb = await makeThumbnail(f);
+          if (thumb) thumbnails.push(thumb);
+        }
+      }
+
+      // Persist insight + thumbnails in localStorage
+      const existing: StoredInsight[] = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
+      const filtered = existing.filter(p => p.category !== category);
+      const newInsight: StoredInsight = {
         id:            crypto.randomUUID(),
         category,
         insight_label: data.insight_label,
         insight_emoji: data.insight_emoji,
         pts_awarded:   data.pts_awarded,
         verified_at:   new Date().toISOString(),
-      });
+        thumbnails:    thumbnails.length > 0 ? thumbnails : undefined,
+      };
+      filtered.push(newInsight);
       localStorage.setItem('vv_proof_insights', JSON.stringify(filtered));
+      existingInsight = newInsight;
 
       result = data;
       step   = 'success';
@@ -269,7 +331,44 @@
     </div>
   {/if}
 
-  {#if step === 'upload'}
+  <!-- ── Already uploaded ──────────────────────────────────────────────── -->
+  {#if existingInsight && step === 'upload'}
+    <div class="uploaded-card">
+      <div class="uploaded-header">
+        <span class="uploaded-emoji">{existingInsight.insight_emoji}</span>
+        <div class="uploaded-meta">
+          <span class="uploaded-label">{existingInsight.insight_label}</span>
+          <span class="uploaded-date">Verified {new Date(existingInsight.verified_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+        </div>
+        <span class="uploaded-badge">✓</span>
+      </div>
+
+      {#if existingInsight.thumbnails && existingInsight.thumbnails.length > 0}
+        <div class="uploaded-thumbs">
+          {#each existingInsight.thumbnails as thumb}
+            <img class="uploaded-thumb" src={thumb} alt="Uploaded proof" />
+          {/each}
+        </div>
+      {/if}
+
+      {#if confirmDelete}
+        <div class="delete-confirm">
+          <span class="delete-confirm-text">Remove this proof? Your score will drop.</span>
+          <div class="delete-confirm-actions">
+            <button class="delete-confirm-yes" onclick={deleteProof}>Yes, remove</button>
+            <button class="delete-confirm-no" onclick={() => confirmDelete = false}>Keep it</button>
+          </div>
+        </div>
+      {:else}
+        <div class="uploaded-actions">
+          <button class="reupload-btn" onclick={() => { existingInsight = null; }}>Re-upload</button>
+          <button class="delete-btn" onclick={() => confirmDelete = true}>Remove proof</button>
+        </div>
+      {/if}
+    </div>
+  {/if}
+
+  {#if step === 'upload' && !existingInsight}
     <!-- What to upload -->
     <div class="examples-card">
       <div class="examples-label">What works</div>
@@ -515,6 +614,154 @@
     color: #a5b4fc;
     line-height: 1.5;
     font-weight: 500;
+  }
+
+  /* ── Already uploaded card ── */
+  .uploaded-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+    background: var(--bg-2);
+    border: 1px solid var(--accent);
+    border-radius: 16px;
+  }
+
+  .uploaded-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .uploaded-emoji {
+    font-size: 24px;
+    flex-shrink: 0;
+  }
+
+  .uploaded-meta {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .uploaded-label {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-1);
+    letter-spacing: -0.01em;
+  }
+
+  .uploaded-date {
+    font-size: 11px;
+    color: var(--text-4);
+  }
+
+  .uploaded-badge {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #000;
+    font-size: 12px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+
+  .uploaded-thumbs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .uploaded-thumb {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 10px;
+    border: 1px solid var(--border-1);
+  }
+
+  .uploaded-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .reupload-btn {
+    flex: 1;
+    padding: 9px;
+    background: var(--bg-3);
+    border: 1px solid var(--border-1);
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-2);
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 150ms;
+  }
+
+  .delete-btn {
+    flex: 1;
+    padding: 9px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #f87171;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 150ms;
+  }
+
+  .delete-confirm {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 10px;
+  }
+
+  .delete-confirm-text {
+    font-size: 12px;
+    color: #fca5a5;
+    text-align: center;
+  }
+
+  .delete-confirm-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .delete-confirm-yes {
+    flex: 1;
+    padding: 8px;
+    background: #ef4444;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .delete-confirm-no {
+    flex: 1;
+    padding: 8px;
+    background: var(--bg-3);
+    border: 1px solid var(--border-1);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-2);
+    cursor: pointer;
+    font-family: inherit;
   }
 
   /* ── Auth note ── */
