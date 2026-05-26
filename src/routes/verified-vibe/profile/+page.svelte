@@ -28,7 +28,7 @@
     label: string;
   }
 
-  const PHOTO_SLOTS = ['lead', 'warmth', 'lifestyle', 'conversation', 'social'];
+  const PHOTO_SLOTS = ['lead', 'warmth', 'lifestyle'];
   const ARCHETYPE_LABELS: Record<string, string> = {
     casual_man: 'Casual',
     marriage_minded_man: 'Marriage-Minded',
@@ -42,6 +42,8 @@
   let generated = $state<GeneratedProfile | null>(null);
   let photos = $state<PhotoEntry[]>([]);
   let aiPhotos = $state<PhotoEnhanceResult[]>([]);
+  // Photos the user marked as "not the right representation" — fed back as negative prompt
+  let rejectedPhotos = $state<Array<{ role: string; scene: string }>>([]);
   let enhancing = $state(false);
   let enhanceError = $state<string | null>(null);
   let generationProgress = $state(0); // 0-5 for number of photos generated
@@ -728,11 +730,11 @@
           const dataUrl = e.target.result;
 
           // Add photo if we haven't reached max
-          if (photos.length < 5) {
+          if (photos.length < 3) {
             photos = [...photos, { dataUrl, label: PHOTO_SLOTS[photos.length] ?? `photo-${photos.length + 1}` }];
             localStorage.setItem('vv_photos', JSON.stringify(photos));
           } else {
-            alert('Maximum 5 photos allowed');
+            alert('Maximum 3 photos allowed');
           }
         }
       };
@@ -1105,7 +1107,8 @@
         body: JSON.stringify({
           referenceDataUrl: reference.dataUrl,
           archetype: $user?.archetype ?? 'casual_man',
-          count: 2 // dev: limit to 2 to conserve credits
+          count: 3,
+          rejectedPhotos, // feed back removed photos so AI avoids their styles
         })
       });
 
@@ -1195,6 +1198,16 @@
 
   const hasRealPhotos = $derived(photos.length > 0);
   const hasAiPhotos = $derived(aiPhotos.length > 0);
+
+  /** Mark an AI photo as "not the right representation" — removes it and adds scene to reject list */
+  function removeAiPhoto(role: string) {
+    const photo = aiPhotos.find(p => p.role === role);
+    if (photo) {
+      rejectedPhotos = [...rejectedPhotos, { role: photo.role, scene: photo.scene }];
+    }
+    aiPhotos = aiPhotos.filter(p => p.role !== role);
+    localStorage.setItem('vv_ai_photos', JSON.stringify(aiPhotos));
+  }
 
   function enterEnhance() {
     editAbout = about;
@@ -2083,15 +2096,15 @@
       <section class="section">
         <div class="section-label">
           Photo Story
-          <span class="section-count">{hasAiPhotos ? aiPhotos.length : photos.length}/5</span>
+          <span class="section-count">{hasAiPhotos ? aiPhotos.length : photos.length}/3</span>
           {#if hasAiPhotos}
             <span class="ai-tag" style="margin-left: auto">AI-enhanced</span>
           {/if}
         </div>
-        
+
         {#if enhancing}
           <div class="generation-progress">
-            <div class="progress-text">Generating photos: {generationProgress}/5</div>
+            <div class="progress-text">Generating photos: {generationProgress}/3</div>
             <div class="progress-bar">
               <div class="progress-fill" style="width: {(generationProgress / 5) * 100}%"></div>
             </div>
@@ -2107,6 +2120,13 @@
                 <span class="photo-label">{slot}</span>
                 {#if aiPhotosByRole[slot]}
                   <span class="ai-photo-badge">✨</span>
+                  <button
+                    class="photo-remove-btn"
+                    onclick={() => removeAiPhoto(slot)}
+                    title="Not the right representation"
+                    aria-label="Remove this photo"
+                    type="button"
+                  >✕</button>
                 {/if}
               </div>
             {:else if enhancing && i < generationProgress}
@@ -2165,6 +2185,9 @@
             {:else}
               <Wand2 size={13} />
               Regenerate photos
+              {#if rejectedPhotos.length > 0}
+                <span class="regenerate-feedback-hint">· avoiding {rejectedPhotos.length} removed</span>
+              {/if}
             {/if}
           </button>
         {/if}
@@ -3730,10 +3753,34 @@
 
   .ai-photo-badge {
     position: absolute;
-    top: 4px;
-    right: 5px;
+    top: 6px;
+    right: 30px;
     font-size: 11px;
     filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+  }
+
+  .photo-remove-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.65);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #fff;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    line-height: 1;
+    transition: background 0.15s;
+    z-index: 2;
+  }
+  .photo-remove-btn:hover {
+    background: rgba(239,68,68,0.85);
+    border-color: transparent;
   }
 
   .enhance-photos-btn {
@@ -3876,6 +3923,13 @@
   .regenerate-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .regenerate-feedback-hint {
+    font-size: 10px;
+    font-weight: 400;
+    color: rgba(167,139,250,0.7);
+    margin-left: 2px;
   }
 
   /* Enhance mode inputs */
