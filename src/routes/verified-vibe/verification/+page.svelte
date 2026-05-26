@@ -1015,6 +1015,9 @@
     clearError();
     loading = true;
 
+    // Persist QA responses to localStorage so the profile page can read them
+    localStorage.setItem('vv_qa_responses', JSON.stringify(data.responses));
+
     try {
       // Submit to API
       const response = await fetch('/api/verified-vibe/verify-step', {
