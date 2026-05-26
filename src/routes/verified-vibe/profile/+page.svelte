@@ -878,10 +878,17 @@
     try {
       const rawInsights = localStorage.getItem('vv_proof_insights');
       if (rawInsights) {
-        const allInsights: Array<{ category: string; assets?: Array<Record<string, string>> }> = JSON.parse(rawInsights);
+        const allInsights: Array<{
+          category: string;
+          assets?: Array<Record<string, string>>;
+          insights?: Array<{ label: string; emoji: string }>;
+          insight_label?: string;
+          aggregated?: string;
+        }> = JSON.parse(rawInsights);
         const assetsInsight = allInsights.find(i => i.category === 'assets');
-        if (assetsInsight?.assets) {
-          garageCars = assetsInsight.assets
+        if (assetsInsight) {
+          // Primary: structured assets array
+          const fromAssets: GarageCar[] = (assetsInsight.assets ?? [])
             .filter((a) => a.type === 'car' && a.make)
             .map((a) => ({
               make: a.make ?? '',
@@ -890,6 +897,46 @@
               color: a.color,
               vehicleType: a.vehicleType,
             }));
+
+          if (fromAssets.length > 0) {
+            garageCars = fromAssets;
+          } else {
+            // Fallback: parse make from insight labels using known brand list
+            const brandKeys = Object.keys(BRAND_COLORS); // e.g. ['bmw','mg','tesla',...]
+            const allLabels = [
+              assetsInsight.insight_label ?? '',
+              ...(assetsInsight.insights ?? []).map(i => i.label),
+              assetsInsight.aggregated ?? '',
+            ].filter(Boolean);
+
+            const carsFromText: GarageCar[] = [];
+            for (const label of allLabels) {
+              const lower = label.toLowerCase();
+              const matchedBrand = brandKeys.find(b => lower.includes(b));
+              if (matchedBrand) {
+                // Strip the matched brand and trailing ownership words to get model
+                const brandDisplay = matchedBrand.charAt(0).toUpperCase() + matchedBrand.slice(1);
+                const modelRaw = label
+                  .replace(new RegExp(matchedBrand, 'gi'), '')
+                  .replace(/\b(owner|ownership|verified|car|vehicle)\b/gi, '')
+                  .trim();
+                // Try to detect vehicleType from label text
+                const lv = lower;
+                const vtype = lv.includes('suv') ? 'SUV'
+                  : lv.includes('ev') || lv.includes('electric') ? 'EV'
+                  : lv.includes('sedan') ? 'sedan'
+                  : lv.includes('hatchback') ? 'hatchback'
+                  : lv.includes('coupe') ? 'coupe'
+                  : lv.includes('convertible') ? 'convertible'
+                  : lv.includes('motorcycle') || lv.includes('bike') ? 'motorcycle'
+                  : 'car';
+                if (!carsFromText.some(c => c.make.toLowerCase() === matchedBrand)) {
+                  carsFromText.push({ make: brandDisplay, model: modelRaw, vehicleType: vtype });
+                }
+              }
+            }
+            if (carsFromText.length > 0) garageCars = carsFromText;
+          }
         }
       }
     } catch { /* non-critical */ }
