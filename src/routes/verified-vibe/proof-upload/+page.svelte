@@ -219,6 +219,7 @@
       subtitle: 'Verify income, savings and investments privately',
       examples: [
         'Bank statement (PDF or screenshot) — name + balance visible',
+        'Credit card statement — shows spending patterns & lifestyle',
         'Salary slip or payslip — name, employer, net pay shown',
         'Investment portfolio screenshot (Zerodha, Groww, etc.)',
         'Tax return (ITR) or Form 16 — income section visible',
@@ -486,12 +487,15 @@
         ? data.insights
         : (data.insight_label ? [{ label: data.insight_label, emoji: data.insight_emoji ?? '✅' }] : [{ label: 'Proof verified', emoji: '✅' }]);
 
-      // Generate thumbnails for image files (compressed, ~15 KB each)
+      // Generate thumbnails: real image for image files, empty-string placeholder for PDFs/docs
+      // We always produce one entry per file so the manage-docs panel shows the correct count.
       const thumbnails: string[] = [];
       for (const f of files.slice(0, 20)) {
         if (f.type.startsWith('image/')) {
           const thumb = await makeThumbnail(f);
-          if (thumb) thumbnails.push(thumb);
+          thumbnails.push(thumb ?? '');   // push empty string if thumbnail fails
+        } else {
+          thumbnails.push('');            // placeholder for PDF / non-image
         }
       }
 
@@ -510,7 +514,7 @@
         photo_count:   data.photo_count ?? files.length,
         pts_awarded:   data.pts_awarded,
         verified_at:   new Date().toISOString(),
-        thumbnails:    thumbnails.length > 0 ? thumbnails : undefined,
+        thumbnails:    thumbnails.length > 0 ? thumbnails : undefined,  // always has one entry per uploaded file
         locations:     locationsArr.length > 0 ? locationsArr : undefined,
         assets:            Array.isArray(data.assets)            && data.assets.length > 0            ? data.assets            : undefined,
         spendingBreakdown: Array.isArray(data.spendingBreakdown) && data.spendingBreakdown.length > 0 ? data.spendingBreakdown : undefined,
