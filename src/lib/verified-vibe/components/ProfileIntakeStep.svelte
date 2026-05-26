@@ -138,39 +138,59 @@
   // Voice input — tracks which field is actively listening
   let listeningFor = $state<'about' | null>(null);
   let voiceSupported = $state(false);
+  let voiceLiveText = $state('');
   let recognition: any = null;
 
   $effect(() => {
     if (typeof window !== 'undefined') {
       const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       voiceSupported = !!SR;
-      if (SR) {
-        recognition = new SR();
-        recognition.continuous = false;
-        recognition.interimResults = false;
-        recognition.lang = 'en-US';
-        recognition.onresult = (e: any) => {
-          const transcript = e.results[0][0].transcript;
-          if (listeningFor === 'about') {
-            about = about ? about.trimEnd() + ' ' + transcript : transcript;
-          }
-          listeningFor = null;
-        };
-        recognition.onerror = () => { listeningFor = null; };
-        recognition.onend = () => { listeningFor = null; };
-      }
     }
   });
 
   function toggleVoice(target: 'about') {
-    if (!recognition) return;
     if (listeningFor) {
-      recognition.stop();
-      listeningFor = null;
-    } else {
-      listeningFor = target;
-      recognition.start();
+      recognition?.stop();
+      return;
     }
+
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+
+    recognition = new SR();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-IN';
+
+    const baseText = about ? about.trimEnd() + ' ' : '';
+    let finalChunk = '';
+    voiceLiveText = '';
+
+    recognition.onresult = (e: any) => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) {
+          finalChunk += e.results[i][0].transcript + ' ';
+        } else {
+          interim += e.results[i][0].transcript;
+        }
+      }
+      voiceLiveText = (finalChunk + interim).trimStart();
+      about = (baseText + voiceLiveText).trimStart();
+    };
+
+    recognition.onerror = () => {
+      listeningFor = null;
+      voiceLiveText = '';
+    };
+
+    recognition.onend = () => {
+      listeningFor = null;
+      voiceLiveText = '';
+    };
+
+    recognition.start();
+    listeningFor = target;
   }
 
   const isValid = $derived(

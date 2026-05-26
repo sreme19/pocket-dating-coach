@@ -7,6 +7,7 @@
   import { getSupabaseClient } from '$lib/client/supabase';
   import { unregisterPushNotifications } from '$lib/push-notifications';
   import { ShieldCheck, Pencil, Check, X, MapPin, Sparkles, Wand2, LogOut, Heart, Zap } from 'lucide-svelte';
+  import CasualGenerousBoostTab from '$lib/verified-vibe/components/CasualGenerousBoostTab.svelte';
   import { ARCHETYPES, ARCHETYPES_BY_GENDER } from '$lib/verified-vibe/constants';
   import type { Archetype } from '$lib/verified-vibe/types';
   import type { ProfileIntakeData } from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
@@ -60,18 +61,190 @@
     { name: 'Stability', level: 'High', description: 'Grounded, reliable, shows up consistently.', percentage: 78 }
   ]);
 
-  // Vibe tags
-  const vibeTags = ['Calm', 'Decisive', 'Generous', 'Curious', 'Direct'];
-  const highlightedVibeTag = 'Calm';
+  // Archetype QA data — all keys loaded in onMount, rendered per archetype
+  let archetypeStore = $state<Record<string, Record<string, string | string[]>>>({});
 
-  // What He Brings
-  const whatBrings = [
-    'Financial stability',
-    'Generosity on dates',
-    'Time he actually gives you',
-    'Privacy & discretion',
-    'Real opinions, gently held'
-  ];
+  const ARCHETYPE_BRINGS: Record<string, string[]> = {
+    casual_man:               ['Easy energy', 'Honest intentions', 'Good conversation', 'Low pressure', 'Quality time'],
+    casual_generous_man:      ['Financial stability', 'Generosity on dates', 'Time he actually gives you', 'Privacy & discretion', 'Real opinions, gently held'],
+    forever_focused_man:      ['Emotional depth', 'Long-term clarity', 'Shared values', 'Consistent presence', 'Real commitment'],
+    hopeless_romantic_man:    ['Romantic thoughtfulness', 'Emotional availability', 'Deep connection', 'All-in energy', 'Genuine gestures'],
+    traditional_matrimony_man:['Family values', 'Stability', 'Cultural alignment', 'Clear life plan', 'Lifelong respect'],
+    second_chapter_man:       ['Hard-earned wisdom', 'Emotional maturity', 'Clarity on what he wants', 'Grounded presence', 'Real partnership'],
+    untouched_heart_man:      ['Authenticity', 'Fresh perspective', 'Open heart', 'Curiosity', 'No baggage'],
+    just_friends_man:         ['Good company', 'Zero pressure', 'Easy conversation', 'Genuine connection', 'Consistent energy'],
+    rebound_healing_man:      ['Honest intentions', 'Light touch', 'Fun energy', 'Present focus', 'Real moments'],
+  };
+
+  const OPTION_LABELS: Record<string, string> = {
+    // spending
+    budget: 'Budget-conscious', moderate: 'Moderate spender', generous: 'Generous spender', luxury: 'Luxury spender',
+    // dating intent
+    casual: 'Casual', relationship: 'Serious relationship', marriage: 'Marriage-minded', exploring: 'Still exploring',
+    // timeline
+    asap: 'Ready now', months: 'In a few months', year: 'Within a year or two', no_rush: 'No rush',
+    // relationship goal
+    marriage_eventually: 'Marriage eventually', long_term_partnership: 'Long-term partnership',
+    serious_first: 'Serious relationship first', open_to_commitment: 'Open to commitment with the right person',
+    // relationship style
+    traditional: 'Traditional dating', open_cohabitation: 'Open to living together before marriage',
+    independent_committed: 'Independent but deeply committed', figuring_out: 'Still figuring out',
+    // emotional availability
+    emotional_maturity: 'Emotional maturity', consistent_communication: 'Consistent communication',
+    reliability_presence: 'Reliability & presence', passion_chemistry: 'Passion & chemistry',
+    // life stage
+    building_career: 'Building career & future', ready_to_settle: 'Ready to settle down soon',
+    balancing: 'Balancing ambition & life', // 'exploring' already defined above
+    // family involvement
+    fully_involved: 'Fully — family leads', guided: 'Guided — family approves',
+    informed: 'I decide, family knows', independent: 'My choice, my way',
+    // wedding vision
+    intimate: 'Intimate ceremony', destination: 'Destination wedding', big: 'Grand event',
+    // relationship energy
+    romantic: 'Romantic', caring_present: 'Caring & present', confident: 'Confident',
+    provider_mindset: 'Provider mindset', playful_fun: 'Playful & fun', deep_connection: 'Deep connection',
+    // connection pace
+    slow_deep: 'Slow & deep', casual_fun: 'Casual & fun', open_see: 'Open — see where it goes',
+    // dating experience
+    first_experience: 'First real dating experience', some_experience: 'Some experience', several: 'A few relationships', rich: 'Rich experience',
+    // relationship pace
+    slow_organic: 'Slow & organic', moderate_pace: 'Steady pace', whenever_ready: 'When it feels right', fast_natural: 'Fast when natural',
+    // friendship / social
+    genuine_friends: 'Genuine friends', hang_casual: 'Casual hangouts', networking: 'Networking', deep_conversations: 'Deep conversations',
+  };
+
+  function resolveLabel(val: string): string {
+    return OPTION_LABELS[val] ?? val.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  function resolveValue(val: string | string[]): string {
+    if (Array.isArray(val)) return val.map(resolveLabel).join(', ');
+    return resolveLabel(val);
+  }
+
+  interface ProfileSection {
+    icon: string;
+    label: string;
+    value: string;
+    type: 'chip' | 'text';
+  }
+
+  function getArchetypeSections(
+    archetype: string | undefined,
+    store: Record<string, Record<string, string | string[]>>
+  ): ProfileSection[] {
+    const out: ProfileSection[] = [];
+    if (!archetype) return out;
+
+    const push = (icon: string, label: string, raw: string | string[] | undefined, type: 'chip' | 'text' = 'chip') => {
+      if (!raw) return;
+      const str = Array.isArray(raw) ? raw.join('').trim() : String(raw).trim();
+      if (!str) return;
+      out.push({ icon, label, value: resolveValue(raw), type });
+    };
+
+    const qa   = store['vv_qa_responses'] ?? {};
+
+    switch (archetype) {
+      case 'casual_man':
+        push('💸', 'On dates', qa.spending_comfort);
+        push('🎯', 'Here for', qa.dating_intent);
+        push('🌿', 'What I value', qa.lifestyle_values, 'text');
+        push('🗓️', 'Timeline', qa.relationship_timeline);
+        push('🚫', 'Non-starters', qa.deal_breakers, 'text');
+        break;
+
+      case 'casual_generous_man': {
+        const p    = store['vv_casual_generous_profile'] ?? {};
+        const pref = store['vv_casual_generous_preferences'] ?? {};
+        push('✨', 'Energy in a relationship', qa.relationship_energy ?? p.relationship_energy);
+        push('🌹', 'My relationship vibe', qa.relationship_vibe);
+        push('💼', 'My lifestyle', pref.lifestyle_profile);
+        push('💰', 'Annual income', pref.income_range);
+        push('🔥', 'Chemistry', qa.chemistry_type ?? p.chemistry_preferences);
+        push('🌿', 'What I value', qa.lifestyle_values, 'text');
+        break;
+      }
+
+      case 'forever_focused_man': {
+        const intent = store['vv_forever_intent'] ?? {};
+        push('💫', 'Looking for', intent.relationship_goal);
+        push('🏠', 'Relationship style', intent.relationship_style);
+        push('🫶', 'Emotional priority', intent.emotional_availability);
+        push('⚖️', 'Stage of life', intent.life_stage_alignment);
+        push('🚫', 'Non-negotiables', intent.non_negotiables, 'text');
+        break;
+      }
+
+      case 'hopeless_romantic_man': {
+        const intent = store['vv_romantic_intent'] ?? {};
+        const p      = store['vv_romantic_profile'] ?? {};
+        push('💞', 'Love language energy', intent.love_language_energy);
+        push('🔥', 'Relationship intensity', intent.relationship_intensity);
+        push('✨', 'Dating energy', intent.dating_energy);
+        push('🤝', 'Attachment style', p.attachment_energy);
+        push('💬', 'Conflict style', p.conflict_style);
+        break;
+      }
+
+      case 'traditional_matrimony_man': {
+        push('💍', 'Wedding vision', qa.wedding_vision);
+        push('👨‍👩‍👧‍👦', 'Family role', qa.family_involvement);
+        push('🌿', 'Lifestyle values', qa.lifestyle_values, 'text');
+        push('🗓️', 'Timeline', qa.relationship_timeline);
+        push('🚫', 'Deal-breakers', qa.deal_breakers, 'text');
+        break;
+      }
+
+      case 'second_chapter_man': {
+        const intent = store['vv_second_chapter_intent'] ?? {};
+        const p      = store['vv_second_chapter_profile'] ?? {};
+        push('🌱', 'Here because', intent.relationship_readiness);
+        push('⏳', 'Pace that feels right', intent.relationship_pace);
+        push('⚖️', 'What matters most now', intent.current_priorities);
+        push('🧠', 'Emotional state', p.emotional_state);
+        push('✍️', 'What I now know about love', intent.lessons_learned, 'text');
+        break;
+      }
+
+      case 'untouched_heart_man': {
+        const intent = store['vv_untouched_heart_intent'] ?? {};
+        push('🌱', 'Dating journey', intent.dating_experience);
+        push('⏳', 'Preferred pace', intent.relationship_pace);
+        push('✨', 'What matters while dating', intent.dating_energy);
+        push('💝', 'What I hope to experience', intent.relationship_hopes, 'text');
+        break;
+      }
+
+      case 'just_friends_man': {
+        const intent = store['vv_just_friends_intent'] ?? {};
+        push('🌿', 'Here for', intent.friendship_goal);
+        push('✨', 'Social energy', intent.social_energy);
+        push('🫶', 'What matters in a friendship', intent.pressure_preference);
+        push('⏳', 'How I build connections', intent.friendship_pace);
+        push('✍️', 'Makes someone great to be around', intent.connection_meaning, 'text');
+        break;
+      }
+
+      case 'rebound_healing_man': {
+        const data = store['vv_rebound_healing'] ?? {};
+        push('✨', 'Connection open to', data.connection_pace);
+        push('❤️', 'What I value most', data.emotional_values);
+        push('✨', 'Energy I look for', data.relationship_energy);
+        push('🌙', 'How I am in relationships', data.healing_vibe);
+        push('🔥', 'Chemistry style', data.chemistry_style);
+        break;
+      }
+    }
+
+    return out;
+  }
+
+  // What He Brings — archetype-specific
+  const whatBrings = $derived(ARCHETYPE_BRINGS[$user?.archetype ?? ''] ?? ['Good energy', 'Honest intentions', 'Genuine connection', 'Respect', 'Presence']);
+
+  // Archetype insight sections derived from stored QA data
+  const archetypeSections = $derived(getArchetypeSections($user?.archetype, archetypeStore));
 
   // Pick Your Lane (archetype) — editable, reactive to the user's gender
   const laneOptions = $derived(
@@ -225,6 +398,25 @@
     if (rawGenerated) generated = JSON.parse(rawGenerated);
     if (rawPhotos) photos = JSON.parse(rawPhotos);
     if (rawAiPhotos) aiPhotos = JSON.parse(rawAiPhotos);
+
+    // Load all archetype-specific QA data
+    const archetypeKeys = [
+      'vv_qa_responses',
+      'vv_casual_generous_profile', 'vv_casual_generous_preferences',
+      'vv_matrimony_profile', 'vv_matrimony_preferences',
+      'vv_forever_intent', 'vv_forever_profile', 'vv_forever_preferences',
+      'vv_romantic_intent', 'vv_romantic_profile', 'vv_romantic_preferences',
+      'vv_second_chapter_intent', 'vv_second_chapter_profile', 'vv_second_chapter_preferences',
+      'vv_untouched_heart_intent', 'vv_untouched_heart_profile', 'vv_untouched_heart_preferences',
+      'vv_just_friends_intent', 'vv_just_friends_profile', 'vv_just_friends_preferences',
+      'vv_rebound_healing',
+    ];
+    const loaded: Record<string, Record<string, string | string[]>> = {};
+    for (const key of archetypeKeys) {
+      const raw = localStorage.getItem(key);
+      if (raw) { try { loaded[key] = JSON.parse(raw); } catch { /* ignore */ } }
+    }
+    archetypeStore = loaded;
 
     // If no local photos but user has an avatar from Supabase, use it as hero
     if (photos.length === 0 && $user?.avatar) {
@@ -407,7 +599,12 @@
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ field })
+        body: JSON.stringify({
+          field,
+          gender: $user?.gender ?? 'man',
+          archetype: $user?.archetype,
+          currentAbout: field === 'about' ? editAbout : undefined
+        })
       });
 
       const data = await res.json();
@@ -450,7 +647,7 @@
       </div>
     </div>
   {:else}
-  <!-- Mode toggle header -->
+  <!-- Header -->
   <div class="profile-header">
     <button class="back-btn" onclick={() => goto('/verified-vibe/discover')} aria-label="Go to discover">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -458,12 +655,7 @@
       </svg>
     </button>
     <span class="header-label">My Profile</span>
-    {#if mode === 'public'}
-      <button class="edit-btn" onclick={enterEnhance}>
-        <Pencil size={15} />
-        Enhance
-      </button>
-    {:else}
+    {#if mode === 'enhance'}
       <div class="edit-actions">
         <button class="icon-btn cancel" onclick={cancelEnhance} aria-label="Cancel">
           <X size={18} />
@@ -472,6 +664,8 @@
           <Check size={18} />
         </button>
       </div>
+    {:else}
+      <div style="width:32px"></div>
     {/if}
   </div>
 
@@ -535,7 +729,7 @@
     {#if activeTab === 'public'}
       <div class="profile-sections">
       <!-- The Vibe in Three Words -->
-      {#if $user?.gender === 'man' || $user?.gender === null}
+      {#if ($user?.gender === 'man' || $user?.gender === null) && personalityTags.length > 0}
       <section class="section">
         <div class="section-label">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -544,8 +738,8 @@
           The Vibe in Three Words (or Five)
         </div>
         <div class="vibe-tags">
-          {#each vibeTags as tag}
-            <span class="vibe-tag {tag === highlightedVibeTag ? 'highlighted' : ''}">
+          {#each personalityTags as tag, i}
+            <span class="vibe-tag {i === 0 ? 'highlighted' : ''}">
               {tag}
             </span>
           {/each}
@@ -560,6 +754,11 @@
           About
           {#if generated}
             <span class="ai-tag">AI-crafted</span>
+          {/if}
+          {#if mode === 'public'}
+            <button class="section-edit-btn" onclick={enterEnhance} aria-label="Edit about">
+              <Pencil size={11} />
+            </button>
           {/if}
         </div>
         {#if mode === 'enhance'}
@@ -583,6 +782,33 @@
           <p class="about-text">{about || 'Your story goes here.'}</p>
         {/if}
       </section>
+
+      <!-- Archetype-specific onboarding answers -->
+      {#if archetypeSections.length > 0}
+      <section class="section">
+        <div class="section-label">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
+          </svg>
+          {currentArchetype?.name ?? 'My Dating Style'}
+        </div>
+        <div class="archetype-qa-list">
+          {#each archetypeSections as s}
+            <div class="archetype-qa-item">
+              <span class="archetype-qa-icon">{s.icon}</span>
+              <div class="archetype-qa-body">
+                <span class="archetype-qa-label">{s.label}</span>
+                {#if s.type === 'chip'}
+                  <span class="archetype-qa-chip">{s.value}</span>
+                {:else}
+                  <span class="archetype-qa-text">{s.value}</span>
+                {/if}
+              </div>
+            </div>
+          {/each}
+        </div>
+      </section>
+      {/if}
 
       <!-- Personality Reads -->
       {#if $user?.gender === 'man' || $user?.gender === null}
@@ -949,108 +1175,117 @@
       <!-- Trust & Boost Tab Content -->
       <div class="profile-sections">
 
-        <!-- Trust Score Section -->
-        <section class="section">
-          <div class="section-label">
-            <ShieldCheck size={13} />
-            Your Trust Score
-          </div>
-          <div class="trust-gauge-container">
-            <div class="gauge-visual">
-              <svg viewBox="0 0 200 200" class="radial-gauge">
-                <circle cx="100" cy="100" r="90" fill="none" stroke="var(--bg-3)" stroke-width="12" />
-                <circle
-                  cx="100"
-                  cy="100"
-                  r="90"
-                  fill="none"
-                  stroke="var(--accent)"
-                  stroke-width="12"
-                  stroke-dasharray="{(trustScore / 100) * 565} 565"
-                  stroke-linecap="round"
-                  transform="rotate(-90 100 100)"
-                />
-                <text x="100" y="100" text-anchor="middle" dy="0.3em" class="gauge-text">
-                  <tspan class="gauge-number">{trustScore}</tspan>
-                  <tspan x="100" dy="1.2em" class="gauge-label-small">/ 100</tspan>
-                </text>
+        {#if $user?.archetype === 'casual_generous_man'}
+          <!-- ── Casual Generous archetype — full upgrade ── -->
+          <CasualGenerousBoostTab
+            {trustScore}
+            verificationRecords={$userVerification || []}
+            onEditQA={() => (showEditQAModal = true)}
+          />
+        {:else}
+          <!-- ── Generic boost tab for all other archetypes ── -->
+          <section class="section">
+            <div class="section-label">
+              <ShieldCheck size={13} />
+              Your Trust Score
+            </div>
+            <div class="trust-gauge-container">
+              <div class="gauge-visual">
+                <svg viewBox="0 0 200 200" class="radial-gauge">
+                  <circle cx="100" cy="100" r="90" fill="none" stroke="var(--bg-3)" stroke-width="12" />
+                  <circle
+                    cx="100"
+                    cy="100"
+                    r="90"
+                    fill="none"
+                    stroke="var(--accent)"
+                    stroke-width="12"
+                    stroke-dasharray="{(trustScore / 100) * 565} 565"
+                    stroke-linecap="round"
+                    transform="rotate(-90 100 100)"
+                  />
+                  <text x="100" y="100" text-anchor="middle" dy="0.3em" class="gauge-text">
+                    <tspan class="gauge-number">{trustScore}</tspan>
+                    <tspan x="100" dy="1.2em" class="gauge-label-small">/ 100</tspan>
+                  </text>
+                </svg>
+              </div>
+              <p class="trust-label-text">{trustLabel}</p>
+              <div class="breakdown">
+                {#each trustBreakdown as item}
+                  <div class="breakdown-item">
+                    <div class="breakdown-header">
+                      <span class="breakdown-name">{item.category}</span>
+                      <span class="breakdown-score">{Math.round(item.score)}/{item.max}</span>
+                    </div>
+                    <div class="breakdown-bar">
+                      <div class="breakdown-fill" style="width: {(item.score / item.max) * 100}%"></div>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+              <button class="btn btn-secondary full edit-qa-btn" onclick={() => showEditQAModal = true}>
+                Edit Q&A to boost score
+              </button>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-label">
+              <Zap size={13} />
+              What Each Tier Unlocks
+            </div>
+            <div class="tier-list">
+              <div class="tier-item {trustScore >= 60 ? 'unlocked' : 'locked'}">
+                {#if trustScore >= 60}<div class="tier-check">✓</div>{:else}<div class="tier-number">60</div>{/if}
+                <div class="tier-content">
+                  <div class="tier-title">60 · Visible</div>
+                  <div class="tier-desc">You start showing up in pools.</div>
+                </div>
+              </div>
+              <div class="tier-item {trustScore >= 70 ? 'unlocked' : 'locked'}">
+                {#if trustScore >= 70}<div class="tier-check">✓</div>{:else}<div class="tier-number">70</div>{/if}
+                <div class="tier-content">
+                  <div class="tier-title">70 · Featured</div>
+                  <div class="tier-desc">Spoilt Women see you in their "Live now"{trustScore >= 70 ? ' ← you\'re here' : ''}.</div>
+                </div>
+              </div>
+              <div class="tier-item {trustScore >= 85 ? 'unlocked' : 'locked'}">
+                {#if trustScore >= 85}<div class="tier-check">✓</div>{:else}<div class="tier-number">85</div>{/if}
+                <div class="tier-content">
+                  <div class="tier-title">85 · Priority</div>
+                  <div class="tier-desc">You appear first. Marriage-Minded matches open up.</div>
+                </div>
+              </div>
+              <div class="tier-item {trustScore >= 95 ? 'unlocked' : 'locked'}">
+                {#if trustScore >= 95}<div class="tier-check">✓</div>{:else}<div class="tier-number">95</div>{/if}
+                <div class="tier-content">
+                  <div class="tier-title">95 · Elite</div>
+                  <div class="tier-desc">Safety-First Women can see you. Their pool is exclusive.</div>
+                </div>
+              </div>
+            </div>
+            <p class="tier-note">🔒 Everything here stays private. Matches only</p>
+          </section>
+
+          <section class="section">
+            <div class="section-label">
+              <Heart size={13} />
+              Connect a habit tracker
+            </div>
+            <div class="habit-tracker-cta">
+              <div class="habit-icon">+<br/>2</div>
+              <div class="habit-content">
+                <div class="habit-title">Connect a habit tracker</div>
+                <div class="habit-desc">Sleep, gym, reading — proves the lifestyle isn't fiction.</div>
+                <div class="habit-time">1 min</div>
+              </div>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 5l7 7-7 7"/>
               </svg>
             </div>
-            <p class="trust-label-text">{trustLabel}</p>
-            <div class="breakdown">
-              {#each trustBreakdown as item}
-                <div class="breakdown-item">
-                  <div class="breakdown-header">
-                    <span class="breakdown-name">{item.category}</span>
-                    <span class="breakdown-score">{Math.round(item.score)}/{item.max}</span>
-                  </div>
-                  <div class="breakdown-bar">
-                    <div class="breakdown-fill" style="width: {(item.score / item.max) * 100}%"></div>
-                  </div>
-                </div>
-              {/each}
-            </div>
-            <button class="btn btn-secondary full edit-qa-btn" onclick={() => showEditQAModal = true}>
-              Edit Q&A to boost score
-            </button>
-          </div>
-        </section>
-
-        <section class="section">
-          <div class="section-label">
-            <Zap size={13} />
-            What Each Tier Unlocks
-          </div>
-          <div class="tier-list">
-            <div class="tier-item unlocked">
-              <div class="tier-check">✓</div>
-              <div class="tier-content">
-                <div class="tier-title">60 · Visible</div>
-                <div class="tier-desc">You start showing up in pools.</div>
-              </div>
-            </div>
-            <div class="tier-item unlocked">
-              <div class="tier-check">✓</div>
-              <div class="tier-content">
-                <div class="tier-title">70 · Featured</div>
-                <div class="tier-desc">Spoilt Women see you in their "Live now" ← you're here</div>
-              </div>
-            </div>
-            <div class="tier-item locked">
-              <div class="tier-number">85</div>
-              <div class="tier-content">
-                <div class="tier-title">85 · Priority</div>
-                <div class="tier-desc">You appear first. Marriage-Minded matches open up.</div>
-              </div>
-            </div>
-            <div class="tier-item locked">
-              <div class="tier-number">95</div>
-              <div class="tier-content">
-                <div class="tier-title">95 · Elite</div>
-                <div class="tier-desc">Safety-First Women can see you. Their pool is exclusive.</div>
-              </div>
-            </div>
-          </div>
-          <p class="tier-note">🔒 Everything here stays private. Matches only</p>
-        </section>
-
-        <section class="section">
-          <div class="section-label">
-            <Heart size={13} />
-            Connect a habit tracker
-          </div>
-          <div class="habit-tracker-cta">
-            <div class="habit-icon">+<br/>2</div>
-            <div class="habit-content">
-              <div class="habit-title">Connect a habit tracker</div>
-              <div class="habit-desc">Sleep, gym, reading — proves the lifestyle isn't fiction.</div>
-              <div class="habit-time">1 min</div>
-            </div>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 5l7 7-7 7"/>
-            </svg>
-          </div>
-        </section>
+          </section>
+        {/if}
 
         <!-- AI Bestie — female users only, in Trust & Boost tab -->
         {#if $user?.gender === 'woman'}
@@ -2904,5 +3139,62 @@
     .profile-sections {
       padding: 20px 16px 48px;
     }
+  }
+
+  /* Archetype QA sections */
+  .archetype-qa-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .archetype-qa-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+  }
+
+  .archetype-qa-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+    line-height: 1.4;
+  }
+
+  .archetype-qa-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .archetype-qa-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-4);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .archetype-qa-chip {
+    display: inline-block;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent-bright);
+    background: var(--accent-tint);
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(52,211,153,0.2);
+    width: fit-content;
+  }
+
+  .archetype-qa-text {
+    font-size: 13px;
+    color: var(--text-1);
+    line-height: 1.5;
   }
 </style>
