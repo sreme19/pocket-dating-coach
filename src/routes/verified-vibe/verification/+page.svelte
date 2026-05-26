@@ -167,21 +167,6 @@
     },
   ];
 
-  // Fixed card shown on step 3 (Photo Story) — women to men only
-  const photoStepCard: MotivationCard = {
-    profile: {
-      id: 'anjali', name: 'Anjali', age: 25, gender: 'woman',
-      archetypeId: 'traditional_matrimony_woman',
-      photoUrl: '/female_profiles/anjali_Traditional_Family_First_g3s7mn/photos/Anjali_1.jpg',
-      bio: 'Pharmacist. Family-first, not by default — by choice.',
-      isOnline: true, lastActive: 'online',
-    },
-    quoteBefore: '"I want to see your world a little — not just your face. The energy you bring. The life you\'ve built. The experiences you enjoy. A man who\'s ',
-    highlight: 'generous with his attention, effort, and presence',
-    quoteAfter: ' stands out for me."',
-    profession: 'Pharmacist',
-  };
-
   const viewerGender = $derived.by(() => {
     if ($user?.gender) return $user.gender;
     if (typeof window !== 'undefined') {
@@ -195,35 +180,409 @@
     return pool[Math.floor(Math.random() * pool.length)];
   });
 
-  // Fixed card shown on step 4 (Spending Proof) — women to men only
-  const spendingStepCard: MotivationCard = {
-    profile: {
-      id: 'priya', name: 'Priya', age: 30, gender: 'woman',
-      archetypeId: 'forever_focused_woman',
-      photoUrl: '/female_profiles/priya_High_Value_Feminist_f2k7zt/photos/Priya_2.jpg',
-      bio: 'UX researcher. Feminist who still wants the fairytale — without the compromise.',
-      isOnline: true, lastActive: 'online',
-    },
-    quoteBefore: '"Most men won\'t do this step. Which is exactly why the ones who do ',
-    highlight: 'immediately move to the top of my list',
-    quoteAfter: '. It\'s that simple."',
-    profession: 'UX Researcher',
-  };
+  // ── Per-archetype step cards (steps 3–6) ─────────────────────────────────────
+  // Returns cards for the current archetype + viewer gender.
+  // step3 = Photo Story, step4 = Intent/Spending, step5 = Profile/About,
+  // step6 = Preferences/Partner. Undefined means no card for that step.
+  const archetypeCards = $derived.by((): Partial<Record<'step3'|'step4'|'step5'|'step6', MotivationCard>> => {
+    const isMale = viewerGender !== 'woman';
 
-  // Fixed card shown on step 6 (Lifestyle & Standards) — women to men only
-  const sharedExperiencesCard: MotivationCard = {
-    profile: {
-      id: 'sarah', name: 'Sarah', age: 24, gender: 'woman',
-      archetypeId: 'forever_focused_woman',
-      photoUrl: '/female_profiles/sarah_Tech_Founder_045db3/photos/Sarah_1.jpg',
-      bio: 'Tech founder. Knows what she\'s building and who belongs in it.',
+    // ── Reusable seed profiles ──────────────────────────────────────────────
+    const pPriya  = womenMotivationCards[0].profile;
+    const pAnjali = womenMotivationCards[1].profile;
+    const pSarah  = womenMotivationCards[2].profile;
+    const pMarcus = menMotivationCards[0].profile;
+    const pTim    = menMotivationCards[1].profile;
+    const pKaran  = menMotivationCards[2].profile;
+
+    const pNeha: SeedCarouselProfile = {
+      id: 'neha', name: 'Neha', age: 27, gender: 'woman',
+      archetypeId: 'traditional_matrimony_woman',
+      photoUrl: '/female_profiles/neha_NRI_Diaspora_x5r2vd/photos/Neha_1.jpg',
+      bio: 'Navigating two cultures with equal pride. Knows exactly what she\'s building.',
       isOnline: true, lastActive: 'online',
-    },
-    quoteBefore: '"I don\'t care about a man\'s résumé. I care about what he\'d do with a free weekend. ',
-    highlight: 'That\'s what tells me everything',
-    quoteAfter: '."',
-    profession: 'Tech Founder',
-  };
+    };
+    const pZara: SeedCarouselProfile = {
+      id: 'zara', name: 'Zara', age: 26, gender: 'woman',
+      archetypeId: 'forever_focused_woman',
+      photoUrl: '/female_profiles/zara_Soft_Life_Seeker_m4p9rx/photos/fenomen-zara-1.jpg',
+      bio: 'Works smart and values quality in everything — including the people around her.',
+      isOnline: true, lastActive: 'online',
+    };
+    const pRyan: SeedCarouselProfile = {
+      id: 'ryan', name: 'Ryan', age: 28, gender: 'man',
+      archetypeId: 'forever_focused_man',
+      photoUrl: '/male_profiles/ryan_Serial_Dater_f4m2px/photos/Ryan_1.jpg',
+      bio: 'Took the long way to knowing what he wanted. Got there.',
+      isOnline: true, lastActive: 'online',
+    };
+    const pJohn: SeedCarouselProfile = {
+      id: 'john', name: 'John', age: 23, gender: 'man',
+      archetypeId: 'untouched_heart_man',
+      photoUrl: '/male_profiles/john_Young_Student_nsysor/photos/John_1.jpg',
+      bio: 'First-generation achiever. More emotional intelligence than most men twice his age.',
+      isOnline: true, lastActive: 'online',
+    };
+
+    // ── Step 3 — Photo Story (universal, gender-split) ──────────────────────
+    const step3: MotivationCard = isMale ? {
+      profile: pAnjali,
+      quoteBefore: '"I want to see your world a little — not just your face. The energy you bring. The life you\'ve built. A man who\'s ',
+      highlight: 'generous with his attention, effort, and presence',
+      quoteAfter: ' stands out for me."',
+      profession: 'Pharmacist',
+    } : {
+      profile: pRyan,
+      quoteBefore: '"I\'m not looking for a perfect shot. I\'m looking for someone willing to show me ',
+      highlight: 'who they actually are',
+      quoteAfter: '. That\'s what makes me pay attention."',
+      profession: 'Marketing Lead',
+    };
+
+    // ── casual_generous_man ─────────────────────────────────────────────────
+    if ($user?.archetype === 'casual_generous_man') return {
+      step3,
+      step4: {
+        profile: pPriya,
+        quoteBefore: '"Most men won\'t do this step. Which is exactly why the ones who do ',
+        highlight: 'immediately move to the top of my list',
+        quoteAfter: '. It\'s that simple."',
+        profession: 'UX Researcher',
+      },
+      step5: {
+        profile: pAnjali,
+        quoteBefore: '"The most interesting men I\'ve matched with weren\'t showing off. They were just ',
+        highlight: 'genuinely sure of what they enjoy',
+        quoteAfter: '. That\'s the real flex."',
+        profession: 'Pharmacist',
+      },
+      step6: {
+        profile: pSarah,
+        quoteBefore: '"I don\'t care about a man\'s résumé. I care about what he\'d do with a free weekend. ',
+        highlight: 'That\'s what tells me everything',
+        quoteAfter: '."',
+        profession: 'Tech Founder',
+      },
+    };
+
+    // ── traditional_matrimony ───────────────────────────────────────────────
+    if (isMatrimonyArchetype) return isMale ? {
+      step3,
+      step4: {
+        profile: pAnjali,
+        quoteBefore: '"The men who take this seriously aren\'t just filling in forms. They\'re already ',
+        highlight: 'showing me who they are',
+        quoteAfter: '. That matters."',
+        profession: 'Pharmacist',
+      },
+      step5: {
+        profile: pNeha,
+        quoteBefore: '"Your profile is the first conversation we\'ll have. I read every word — ',
+        highlight: 'what you say here tells me more than the photos',
+        quoteAfter: '."',
+        profession: 'Strategy Consultant',
+      },
+      step6: {
+        profile: pAnjali,
+        quoteBefore: '"A man who knows what he\'s looking for isn\'t intimidating. ',
+        highlight: 'He\'s a relief',
+        quoteAfter: '."',
+        profession: 'Pharmacist',
+      },
+    } : {
+      step3,
+      step4: {
+        profile: pKaran,
+        quoteBefore: '"She completed every step — I noticed. ',
+        highlight: 'That level of seriousness tells me everything I need to know',
+        quoteAfter: '."',
+        profession: 'Product Manager',
+      },
+      step5: {
+        profile: pKaran,
+        quoteBefore: '"I\'ve read profiles that said nothing. The ones that said something real — ',
+        highlight: 'I still think about those women',
+        quoteAfter: '."',
+        profession: 'Product Manager',
+      },
+      step6: {
+        profile: pKaran,
+        quoteBefore: '"A woman who knows what she\'s looking for doesn\'t intimidate me. ',
+        highlight: 'She inspires me',
+        quoteAfter: '."',
+        profession: 'Product Manager',
+      },
+    };
+
+    // ── forever_focused ─────────────────────────────────────────────────────
+    if (isForeverFocusedArchetype) return isMale ? {
+      step3,
+      step4: {
+        profile: pPriya,
+        quoteBefore: '"I can tell in five minutes if someone actually knows what they want. The ones who do? ',
+        highlight: 'I don\'t let them go',
+        quoteAfter: '."',
+        profession: 'UX Researcher',
+      },
+      step5: {
+        profile: pSarah,
+        quoteBefore: '"I\'m not reading a profile to see how impressive you are. I\'m reading it to feel ',
+        highlight: 'whether I\'d actually want to talk to you',
+        quoteAfter: '."',
+        profession: 'Tech Founder',
+      },
+      step6: {
+        profile: pNeha,
+        quoteBefore: '"Knowing what you want isn\'t demanding. It\'s ',
+        highlight: 'the most attractive thing about a person',
+        quoteAfter: '."',
+        profession: 'Strategy Consultant',
+      },
+    } : {
+      step3,
+      step4: {
+        profile: pMarcus,
+        quoteBefore: '"I stopped swiping when I found someone serious enough to verify. ',
+        highlight: 'That\'s my filter now',
+        quoteAfter: '."',
+        profession: 'Entrepreneur',
+      },
+      step5: {
+        profile: pMarcus,
+        quoteBefore: '"Your profile is where I decide if I\'m curious. ',
+        highlight: 'Don\'t waste it on the obvious stuff',
+        quoteAfter: '."',
+        profession: 'Entrepreneur',
+      },
+      step6: {
+        profile: pTim,
+        quoteBefore: '"The women I\'ve stayed interested in always knew ',
+        highlight: 'exactly what they needed',
+        quoteAfter: '. That clarity is everything."',
+        profession: 'VC Founder',
+      },
+    };
+
+    // ── hopeless_romantic ───────────────────────────────────────────────────
+    if (isRomanticArchetype) return isMale ? {
+      step3,
+      step4: {
+        profile: pZara,
+        quoteBefore: '"I stopped matching with men who \'kind of\' wanted something real. I need to know ',
+        highlight: 'you feel it too',
+        quoteAfter: '."',
+        profession: 'Art Director',
+      },
+      step5: {
+        profile: pZara,
+        quoteBefore: '"I\'m not looking for a highlight reel. I want to know ',
+        highlight: 'who you actually are at 7pm on a Tuesday',
+        quoteAfter: '."',
+        profession: 'Art Director',
+      },
+      step6: {
+        profile: pZara,
+        quoteBefore: '"I know exactly what I\'m drawn to in a person. ',
+        highlight: 'I need you to know it too',
+        quoteAfter: '."',
+        profession: 'Art Director',
+      },
+    } : {
+      step3,
+      step4: {
+        profile: pRyan,
+        quoteBefore: '"I never thought I\'d care about verification. Then I met someone who\'d done all of it — ',
+        highlight: 'it told me she was real before I even said hello',
+        quoteAfter: '."',
+        profession: 'Marketing Lead',
+      },
+      step5: {
+        profile: pRyan,
+        quoteBefore: '"I want to feel something from a profile. Not be impressed — just feel like ',
+        highlight: 'I already know you a little',
+        quoteAfter: '."',
+        profession: 'Marketing Lead',
+      },
+      step6: {
+        profile: pRyan,
+        quoteBefore: '"I\'ve learned to stop guessing what someone wants. ',
+        highlight: 'The ones who tell me — those are the ones I remember',
+        quoteAfter: '."',
+        profession: 'Marketing Lead',
+      },
+    };
+
+    // ── second_chapter ──────────────────────────────────────────────────────
+    if (isSecondChapterArchetype) return isMale ? {
+      step3,
+      step4: {
+        profile: pNeha,
+        quoteBefore: '"I\'ve been through enough to know — a man who\'s thought this through is worth ',
+        highlight: 'ten who haven\'t',
+        quoteAfter: '."',
+        profession: 'Strategy Consultant',
+      },
+      step5: {
+        profile: pNeha,
+        quoteBefore: '"At this point in my life, I can\'t afford to guess at who someone is. ',
+        highlight: 'Your profile is the first real honesty',
+        quoteAfter: '."',
+        profession: 'Strategy Consultant',
+      },
+      step6: {
+        profile: pPriya,
+        quoteBefore: '"I spent years with someone who never quite knew what he wanted. ',
+        highlight: 'I won\'t make that mistake again',
+        quoteAfter: '."',
+        profession: 'UX Researcher',
+      },
+    } : {
+      step3,
+      step4: {
+        profile: pTim,
+        quoteBefore: '"There\'s a difference between a woman who\'s ready and one who\'s just available. ',
+        highlight: 'How she shows up here tells me which one',
+        quoteAfter: '."',
+        profession: 'VC Founder',
+      },
+      step5: {
+        profile: pTim,
+        quoteBefore: '"After a difficult few years, I appreciate directness more than anything. Your profile is ',
+        highlight: 'the first place I look for it',
+        quoteAfter: '."',
+        profession: 'VC Founder',
+      },
+      step6: {
+        profile: pMarcus,
+        quoteBefore: '"I don\'t have time for guesswork anymore. A woman who knows what she wants ',
+        highlight: 'makes the whole thing easier',
+        quoteAfter: '."',
+        profession: 'Entrepreneur',
+      },
+    };
+
+    // ── rebound_healing (5 steps — step 4 only) ─────────────────────────────
+    if (isReboundHealingArchetype) return isMale ? {
+      step3,
+      step4: {
+        profile: pZara,
+        quoteBefore: '"I don\'t need someone who has it all figured out. I need someone who\'s ',
+        highlight: 'being honest about where they are',
+        quoteAfter: '."',
+        profession: 'Art Director',
+      },
+    } : {
+      step3,
+      step4: {
+        profile: pJohn,
+        quoteBefore: '"I\'m not looking for someone who has everything sorted. I\'m looking for someone who\'s ',
+        highlight: 'genuinely present with where they are',
+        quoteAfter: '."',
+        profession: 'Graduate Engineer',
+      },
+    };
+
+    // ── untouched_heart ─────────────────────────────────────────────────────
+    if (isUntouchedHeartArchetype) return isMale ? {
+      step3,
+      step4: {
+        profile: pSarah,
+        quoteBefore: '"There\'s something quietly attractive about someone who doesn\'t pretend to have ',
+        highlight: 'more experience than they do',
+        quoteAfter: '. It\'s refreshing."',
+        profession: 'Tech Founder',
+      },
+      step5: {
+        profile: pNeha,
+        quoteBefore: '"The best profile I ever saw was two sentences. Both of them ',
+        highlight: 'told me everything I needed to know',
+        quoteAfter: '."',
+        profession: 'Strategy Consultant',
+      },
+      step6: {
+        profile: pAnjali,
+        quoteBefore: '"You don\'t need a list. Just knowing ',
+        highlight: 'what actually matters to you',
+        quoteAfter: ' — that\'s everything."',
+        profession: 'Pharmacist',
+      },
+    } : {
+      step3,
+      step4: {
+        profile: pJohn,
+        quoteBefore: '"She hadn\'t been on many dates. But the way she showed up to this — ',
+        highlight: 'that told me more than any experience could',
+        quoteAfter: '."',
+        profession: 'Graduate Engineer',
+      },
+      step5: {
+        profile: pJohn,
+        quoteBefore: '"I don\'t need a polished story. I need to feel like ',
+        highlight: 'you\'re actually talking to me',
+        quoteAfter: '."',
+        profession: 'Graduate Engineer',
+      },
+      step6: {
+        profile: pKaran,
+        quoteBefore: '"When she knew what she was looking for, it made everything ',
+        highlight: 'so much clearer for both of us',
+        quoteAfter: '."',
+        profession: 'Product Manager',
+      },
+    };
+
+    // ── just_friends ────────────────────────────────────────────────────────
+    if (isJustFriendsArchetype) return isMale ? {
+      step3,
+      step4: {
+        profile: pZara,
+        quoteBefore: '"The best connections I\'ve made started with someone just being ',
+        highlight: 'honest about what they were looking for',
+        quoteAfter: '. No performance. Just real."',
+        profession: 'Art Director',
+      },
+      step5: {
+        profile: pNeha,
+        quoteBefore: '"I can tell in three sentences whether someone would be ',
+        highlight: 'genuinely fun to be around',
+        quoteAfter: '. Make yours count."',
+        profession: 'Strategy Consultant',
+      },
+      step6: {
+        profile: pSarah,
+        quoteBefore: '"The connections that stuck were the ones where both people knew ',
+        highlight: 'exactly what kind of thing they were building',
+        quoteAfter: '."',
+        profession: 'Tech Founder',
+      },
+    } : {
+      step3,
+      step4: {
+        profile: pRyan,
+        quoteBefore: '"The women I\'ve stayed close with were always the ones who were ',
+        highlight: 'upfront about the kind of connection they wanted',
+        quoteAfter: '. No confusion, no awkward pivots."',
+        profession: 'Marketing Lead',
+      },
+      step5: {
+        profile: pRyan,
+        quoteBefore: '"A good profile makes me feel like ',
+        highlight: 'we\'d already have something to talk about',
+        quoteAfter: '."',
+        profession: 'Marketing Lead',
+      },
+      step6: {
+        profile: pKaran,
+        quoteBefore: '"The best friendships started with someone who said exactly ',
+        highlight: 'what kind of people they were looking for',
+        quoteAfter: '. Saves everyone time."',
+        profession: 'Product Manager',
+      },
+    };
+
+    // ── default fallback ────────────────────────────────────────────────────
+    return { step3 };
+  });
 
   // ── Archetype derived booleans ──────────────────────────────────────────────
 
@@ -1690,85 +2049,40 @@
   </button>
   {/if}
 
-  {#if currentStep === 4 && viewerGender !== 'woman'}
-  <button
-    class="motivation-card"
-    onclick={() => { openedMotivationProfile = spendingStepCard.profile; }}
-    aria-label="View {spendingStepCard.profile.name}'s profile"
-    transition:fade={{ duration: 300, delay: 200 }}
-  >
-    <div class="motivation-avatar-wrap">
-      <img
-        class="motivation-avatar"
-        src={spendingStepCard.profile.photoUrl}
-        alt={spendingStepCard.profile.name}
-      />
-      <span class="motivation-verified-badge">✓</span>
-    </div>
-    <div class="motivation-body">
-      <p class="motivation-quote">
-        {spendingStepCard.quoteBefore}<em class="motivation-highlight">{spendingStepCard.highlight}</em>{spendingStepCard.quoteAfter}
-      </p>
-      <p class="motivation-meta">
-        {spendingStepCard.profile.name}, {spendingStepCard.profile.age} · {spendingStepCard.profession}
-      </p>
-    </div>
-    <span class="motivation-chevron">›</span>
-  </button>
+  {#if currentStep === 3 && archetypeCards.step3}
+    {@const card = archetypeCards.step3}
+    <button class="motivation-card motivation-card--tall" onclick={() => { openedMotivationProfile = card.profile; }} aria-label="View {card.profile.name}'s profile" transition:fade={{ duration: 300, delay: 200 }}>
+      <div class="motivation-avatar-wrap"><img class="motivation-avatar" src={card.profile.photoUrl} alt={card.profile.name} /><span class="motivation-verified-badge">✓</span></div>
+      <div class="motivation-body"><p class="motivation-quote">{card.quoteBefore}<em class="motivation-highlight">{card.highlight}</em>{card.quoteAfter}</p><p class="motivation-meta">{card.profile.name}, {card.profile.age} · {card.profession}</p></div>
+      <span class="motivation-chevron">›</span>
+    </button>
   {/if}
 
-  {#if currentStep === 3 && viewerGender !== 'woman'}
-  <button
-    class="motivation-card motivation-card--tall"
-    onclick={() => { openedMotivationProfile = photoStepCard.profile; }}
-    aria-label="View {photoStepCard.profile.name}'s profile"
-    transition:fade={{ duration: 300, delay: 200 }}
-  >
-    <div class="motivation-avatar-wrap">
-      <img
-        class="motivation-avatar"
-        src={photoStepCard.profile.photoUrl}
-        alt={photoStepCard.profile.name}
-      />
-      <span class="motivation-verified-badge">✓</span>
-    </div>
-    <div class="motivation-body">
-      <p class="motivation-quote">
-        {photoStepCard.quoteBefore}<em class="motivation-highlight">{photoStepCard.highlight}</em>{photoStepCard.quoteAfter}
-      </p>
-      <p class="motivation-meta">
-        {photoStepCard.profile.name}, {photoStepCard.profile.age} · {photoStepCard.profession}
-      </p>
-    </div>
-    <span class="motivation-chevron">›</span>
-  </button>
+  {#if currentStep === 4 && archetypeCards.step4}
+    {@const card = archetypeCards.step4}
+    <button class="motivation-card motivation-card--tall" onclick={() => { openedMotivationProfile = card.profile; }} aria-label="View {card.profile.name}'s profile" transition:fade={{ duration: 300, delay: 200 }}>
+      <div class="motivation-avatar-wrap"><img class="motivation-avatar" src={card.profile.photoUrl} alt={card.profile.name} /><span class="motivation-verified-badge">✓</span></div>
+      <div class="motivation-body"><p class="motivation-quote">{card.quoteBefore}<em class="motivation-highlight">{card.highlight}</em>{card.quoteAfter}</p><p class="motivation-meta">{card.profile.name}, {card.profile.age} · {card.profession}</p></div>
+      <span class="motivation-chevron">›</span>
+    </button>
   {/if}
 
-  {#if currentStep === 6 && $user?.archetype === 'casual_generous_man' && viewerGender !== 'woman'}
-  <button
-    class="motivation-card motivation-card--tall"
-    onclick={() => { openedMotivationProfile = sharedExperiencesCard.profile; }}
-    aria-label="View {sharedExperiencesCard.profile.name}'s profile"
-    transition:fade={{ duration: 300, delay: 200 }}
-  >
-    <div class="motivation-avatar-wrap">
-      <img
-        class="motivation-avatar"
-        src={sharedExperiencesCard.profile.photoUrl}
-        alt={sharedExperiencesCard.profile.name}
-      />
-      <span class="motivation-verified-badge">✓</span>
-    </div>
-    <div class="motivation-body">
-      <p class="motivation-quote">
-        {sharedExperiencesCard.quoteBefore}<em class="motivation-highlight">{sharedExperiencesCard.highlight}</em>{sharedExperiencesCard.quoteAfter}
-      </p>
-      <p class="motivation-meta">
-        {sharedExperiencesCard.profile.name}, {sharedExperiencesCard.profile.age} · {sharedExperiencesCard.profession}
-      </p>
-    </div>
-    <span class="motivation-chevron">›</span>
-  </button>
+  {#if currentStep === 5 && archetypeCards.step5}
+    {@const card = archetypeCards.step5}
+    <button class="motivation-card motivation-card--tall" onclick={() => { openedMotivationProfile = card.profile; }} aria-label="View {card.profile.name}'s profile" transition:fade={{ duration: 300, delay: 200 }}>
+      <div class="motivation-avatar-wrap"><img class="motivation-avatar" src={card.profile.photoUrl} alt={card.profile.name} /><span class="motivation-verified-badge">✓</span></div>
+      <div class="motivation-body"><p class="motivation-quote">{card.quoteBefore}<em class="motivation-highlight">{card.highlight}</em>{card.quoteAfter}</p><p class="motivation-meta">{card.profile.name}, {card.profile.age} · {card.profession}</p></div>
+      <span class="motivation-chevron">›</span>
+    </button>
+  {/if}
+
+  {#if currentStep === 6 && archetypeCards.step6}
+    {@const card = archetypeCards.step6}
+    <button class="motivation-card motivation-card--tall" onclick={() => { openedMotivationProfile = card.profile; }} aria-label="View {card.profile.name}'s profile" transition:fade={{ duration: 300, delay: 200 }}>
+      <div class="motivation-avatar-wrap"><img class="motivation-avatar" src={card.profile.photoUrl} alt={card.profile.name} /><span class="motivation-verified-badge">✓</span></div>
+      <div class="motivation-body"><p class="motivation-quote">{card.quoteBefore}<em class="motivation-highlight">{card.highlight}</em>{card.quoteAfter}</p><p class="motivation-meta">{card.profile.name}, {card.profile.age} · {card.profession}</p></div>
+      <span class="motivation-chevron">›</span>
+    </button>
   {/if}
 </div>
 
