@@ -33,6 +33,12 @@
   import SecondChapterProfileStep from '$lib/verified-vibe/components/SecondChapterProfileStep.svelte';
   import SecondChapterPreferencesStep from '$lib/verified-vibe/components/SecondChapterPreferencesStep.svelte';
   import ReboundHealingStep from '$lib/verified-vibe/components/ReboundHealingStep.svelte';
+  import UntouchedHeartIntentStep from '$lib/verified-vibe/components/UntouchedHeartIntentStep.svelte';
+  import UntouchedHeartProfileStep from '$lib/verified-vibe/components/UntouchedHeartProfileStep.svelte';
+  import UntouchedHeartPreferencesStep from '$lib/verified-vibe/components/UntouchedHeartPreferencesStep.svelte';
+  import JustFriendsIntentStep from '$lib/verified-vibe/components/JustFriendsIntentStep.svelte';
+  import JustFriendsProfileStep from '$lib/verified-vibe/components/JustFriendsProfileStep.svelte';
+  import JustFriendsPreferencesStep from '$lib/verified-vibe/components/JustFriendsPreferencesStep.svelte';
   import CasualGenerousProfileStep from '$lib/verified-vibe/components/CasualGenerousProfileStep.svelte';
   import CasualGenerousPreferencesStep from '$lib/verified-vibe/components/CasualGenerousPreferencesStep.svelte';
   import TrustPointsBadge from '$lib/verified-vibe/components/TrustPointsBadge.svelte';
@@ -89,6 +95,16 @@
     $user?.archetype === 'rebound_healing_woman'
   );
 
+  const isUntouchedHeartArchetype = $derived(
+    $user?.archetype === 'untouched_heart_man' ||
+    $user?.archetype === 'untouched_heart_woman'
+  );
+
+  const isJustFriendsArchetype = $derived(
+    $user?.archetype === 'just_friends_man' ||
+    $user?.archetype === 'just_friends_woman'
+  );
+
   const steps = $derived((() => {
     const base = [
       { number: 1, name: 'Government ID', description: "Prove you're actually you.", icon: '🆔', stepType: 'id' as VerificationStepType, time: '~30 sec', points: 30 },
@@ -96,9 +112,9 @@
       { number: 3, name: 'Photo story', description: 'Five photos. One face.', icon: '📸', stepType: 'photos' as VerificationStepType, time: '~45 sec', points: 55 },
       {
         number: 4,
-        name: $user?.archetype === 'casual_generous_man' ? 'Spending proof' : isForeverFocusedArchetype ? 'Relationship Intent' : isRomanticArchetype ? 'Love & Connection' : isSecondChapterArchetype ? 'Reflection & Readiness' : isReboundHealingArchetype ? 'Connection Style' : 'Intent check',
-        description: $user?.archetype === 'casual_generous_man' ? 'Where the money lands.' : isForeverFocusedArchetype ? 'Your relationship goals.' : isRomanticArchetype ? 'What love means to you.' : isSecondChapterArchetype ? 'Your journey so far.' : isReboundHealingArchetype ? 'How you connect now.' : 'Tell us the truth.',
-        icon: $user?.archetype === 'casual_generous_man' ? '💰' : isForeverFocusedArchetype ? '💫' : isRomanticArchetype ? '❤️' : isSecondChapterArchetype ? '🌱' : isReboundHealingArchetype ? '🌙' : '💬',
+        name: $user?.archetype === 'casual_generous_man' ? 'Spending proof' : isForeverFocusedArchetype ? 'Relationship Intent' : isRomanticArchetype ? 'Love & Connection' : isSecondChapterArchetype ? 'Reflection & Readiness' : isReboundHealingArchetype ? 'Connection Style' : isUntouchedHeartArchetype ? 'Openness & Intent' : isJustFriendsArchetype ? 'Social Intent' : 'Intent check',
+        description: $user?.archetype === 'casual_generous_man' ? 'Where the money lands.' : isForeverFocusedArchetype ? 'Your relationship goals.' : isRomanticArchetype ? 'What love means to you.' : isSecondChapterArchetype ? 'Your journey so far.' : isReboundHealingArchetype ? 'How you connect now.' : isUntouchedHeartArchetype ? 'Your dating journey.' : isJustFriendsArchetype ? 'What you\'re looking for.' : 'Tell us the truth.',
+        icon: $user?.archetype === 'casual_generous_man' ? '💰' : isForeverFocusedArchetype ? '💫' : isRomanticArchetype ? '❤️' : isSecondChapterArchetype ? '🌱' : isReboundHealingArchetype ? '🌙' : isUntouchedHeartArchetype ? '🌿' : isJustFriendsArchetype ? '🤝' : '💬',
         stepType: 'spending_or_qa' as VerificationStepType,
         time: '~2 min',
         points: 80
@@ -133,6 +149,22 @@
         ...base,
         { number: 5, name: 'About You', description: 'Where you are today.', icon: '🌤️', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
         { number: 6, name: 'Partner Preferences', description: 'What you need now.', icon: '💝', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
+        { number: 7, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
+      ];
+    }
+    if (isUntouchedHeartArchetype) {
+      return [
+        ...base,
+        { number: 5, name: 'About You', description: 'How you connect and what you value.', icon: '🌱', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
+        { number: 6, name: 'Partner Preferences', description: 'The kind of person you\'re hoping to find.', icon: '💝', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
+        { number: 7, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
+      ];
+    }
+    if (isJustFriendsArchetype) {
+      return [
+        ...base,
+        { number: 5, name: 'About You', description: 'Your social style and what you enjoy.', icon: '😊', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
+        { number: 6, name: 'Friend Preferences', description: 'The kind of people you click with.', icon: '🌿', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
         { number: 7, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
       ];
     }
@@ -881,6 +913,156 @@
     }
   }
 
+  async function handleJustFriendsIntentSubmit(data: { intent: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+    loading = true;
+    try {
+      localStorage.setItem('vv_just_friends_intent', JSON.stringify(data.intent));
+      completedSteps.add(currentStep);
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+      updateTrustScoreAfterVerification();
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleJustFriendsProfileSubmit(data: { profile: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+    loading = true;
+    try {
+      localStorage.setItem('vv_just_friends_profile', JSON.stringify(data.profile));
+      completedSteps.add(currentStep);
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+      updateTrustScoreAfterVerification();
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleJustFriendsPrefsSubmit(data: { preferences: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+    loading = true;
+    try {
+      localStorage.setItem('vv_just_friends_preferences', JSON.stringify(data.preferences));
+      completedSteps.add(currentStep);
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+      updateTrustScoreAfterVerification();
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleUntouchedHeartIntentSubmit(data: { intent: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+    loading = true;
+    try {
+      localStorage.setItem('vv_untouched_heart_intent', JSON.stringify(data.intent));
+      completedSteps.add(currentStep);
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+      updateTrustScoreAfterVerification();
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleUntouchedHeartProfileSubmit(data: { profile: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+    loading = true;
+    try {
+      localStorage.setItem('vv_untouched_heart_profile', JSON.stringify(data.profile));
+      completedSteps.add(currentStep);
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+      updateTrustScoreAfterVerification();
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleUntouchedHeartPrefsSubmit(data: { preferences: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+    loading = true;
+    try {
+      localStorage.setItem('vv_untouched_heart_preferences', JSON.stringify(data.preferences));
+      completedSteps.add(currentStep);
+      const progress = (completedSteps.size / totalSteps) * 100;
+      verificationProgress.set(progress);
+      updateTrustScoreAfterVerification();
+      if (currentStep < totalSteps) {
+        currentStep++;
+        verificationStep.set(currentStep);
+      } else {
+        setPhase('app');
+        goto('/verified-vibe/discover');
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
   async function handleProfileIntakeSubmit(data: ProfileIntakeData) {
     loading = true;
     error = null;
@@ -1193,6 +1375,16 @@
             onSubmit={handleReboundHealingSubmit}
             onCancel={handleBack}
           />
+        {:else if isUntouchedHeartArchetype}
+          <UntouchedHeartIntentStep
+            onSubmit={handleUntouchedHeartIntentSubmit}
+            onCancel={handleBack}
+          />
+        {:else if isJustFriendsArchetype}
+          <JustFriendsIntentStep
+            onSubmit={handleJustFriendsIntentSubmit}
+            onCancel={handleBack}
+          />
         {:else}
           <SpendingQAStep
             gender={$user?.gender}
@@ -1251,6 +1443,26 @@
           onSubmit={handleSecondChapterPrefsSubmit}
           onCancel={handleBack}
         />
+      {:else if currentStep === 5 && isUntouchedHeartArchetype}
+        <UntouchedHeartProfileStep
+          onSubmit={handleUntouchedHeartProfileSubmit}
+          onCancel={handleBack}
+        />
+      {:else if currentStep === 6 && isUntouchedHeartArchetype}
+        <UntouchedHeartPreferencesStep
+          onSubmit={handleUntouchedHeartPrefsSubmit}
+          onCancel={handleBack}
+        />
+      {:else if currentStep === 5 && isJustFriendsArchetype}
+        <JustFriendsProfileStep
+          onSubmit={handleJustFriendsProfileSubmit}
+          onCancel={handleBack}
+        />
+      {:else if currentStep === 6 && isJustFriendsArchetype}
+        <JustFriendsPreferencesStep
+          onSubmit={handleJustFriendsPrefsSubmit}
+          onCancel={handleBack}
+        />
       {:else if currentStep === 5 || currentStep === 6 || currentStep === 7}
         <ProfileIntakeStep
           onSubmit={handleProfileIntakeSubmit}
@@ -1291,6 +1503,25 @@
     <button class="btn btn-secondary" onclick={handleSkipClick} disabled={loading}>
       Skip this step
     </button>
+  </div>
+  {/if}
+
+  {#if currentStep === 1}
+  <div class="testimonial-card" transition:fade={{ duration: 300, delay: 200 }}>
+    <div class="testimonial-avatar-wrap">
+      <img
+        class="testimonial-avatar"
+        src="/female_profiles/jessica_Ambitious_Professional_e89f0f/photos/Jessica_3.jpg"
+        alt="Jessica"
+      />
+      <span class="testimonial-verified-badge">✓</span>
+    </div>
+    <div class="testimonial-body">
+      <p class="testimonial-quote">
+        "I get a lot of attention. <em class="testimonial-highlight">Verified men</em> instantly feel safer, more serious, and worth responding to."
+      </p>
+      <p class="testimonial-meta">Jessica, 28 · <span class="meta-verified">verified</span> · Ambitious Professional</p>
+    </div>
   </div>
   {/if}
 </div>
@@ -1945,5 +2176,84 @@
       gap: 16px;
       padding: 20px 28px;
     }
+  }
+
+  /* ── Testimonial card ─────────────────────────────────────────────────────── */
+
+  .testimonial-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin: 0 16px 24px;
+    padding: 14px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    border-radius: 14px;
+  }
+
+  .testimonial-avatar-wrap {
+    position: relative;
+    flex-shrink: 0;
+    width: 52px;
+    height: 52px;
+  }
+
+  .testimonial-avatar {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    object-position: top center;
+    border: 2px solid var(--border-2);
+    display: block;
+  }
+
+  .testimonial-verified-badge {
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--accent-bright);
+    color: #06281e;
+    font-size: 10px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+    border: 2px solid var(--bg-2);
+    line-height: 1;
+  }
+
+  .testimonial-body {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .testimonial-quote {
+    font-size: 13px;
+    color: var(--text-1);
+    line-height: 1.55;
+    margin: 0;
+    font-style: italic;
+  }
+
+  .testimonial-highlight {
+    color: var(--accent-bright);
+    font-style: italic;
+    font-weight: 600;
+  }
+
+  .testimonial-meta {
+    font-size: 11px;
+    color: var(--text-3);
+    margin: 0;
+  }
+
+  .meta-verified {
+    color: var(--accent-bright);
+    font-weight: 600;
   }
 </style>

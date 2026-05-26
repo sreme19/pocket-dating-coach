@@ -247,13 +247,6 @@
     </div>
   </div>
 
-  <div class="carousel-footer">
-    <span class="footer-icon">⚡</span>
-    <p class="footer-text">
-      Finish onboarding and you'll be speaking to a few of them
-      <em class="highlight"> within 20 minutes.</em>
-    </p>
-  </div>
 </div>
 
 <ProfilePreviewSheet
