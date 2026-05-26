@@ -209,9 +209,6 @@
           {#if q.subtitle}
             <p class="question-subtitle">{q.subtitle}</p>
           {/if}
-          {#if q.note}
-            <p class="question-note">💡 {q.note}</p>
-          {/if}
 
           <div class="options-grid" class:chips={q.options && q.options.length > 6}>
             {#each q.options as opt (opt.value)}
@@ -333,14 +330,6 @@
 
   .question-text { font-size: 1.1rem; font-weight: 500; color: var(--text-1); margin: 0; }
   .question-subtitle { font-size: 0.85rem; color: var(--text-3); margin: 0; }
-  .question-note {
-    font-size: 0.8rem;
-    color: var(--accent-bright);
-    margin: 0;
-    padding: 0.5rem 0.75rem;
-    background-color: var(--accent-tint);
-    border-radius: 6px;
-  }
 
   .optional-note {
     font-size: 0.8rem;
@@ -352,21 +341,21 @@
   .options-grid { display: grid; grid-template-columns: 1fr; gap: 0.5rem; }
 
   .options-grid.chips {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    display: flex;
+    flex-wrap: wrap;
     gap: 8px;
   }
 
   .options-grid.chips .option-button {
-    padding: 7px 12px;
+    padding: 8px 14px;
     border-radius: 100px;
-    font-size: 0.8rem;
-    min-height: 36px;
+    font-size: 0.82rem;
+    min-height: unset;
+    width: auto;
+    flex: 0 0 auto;
     justify-content: center;
-    white-space: normal;
-    text-align: center;
-    line-height: 1.3;
-    width: 100%;
+    white-space: nowrap;
+    line-height: 1.4;
   }
 
   .options-grid.chips .checkmark { display: none; }
