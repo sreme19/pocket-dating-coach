@@ -217,10 +217,12 @@
     insight_label: string;   // primary label (backward compat)
     insight_emoji: string;   // primary emoji (backward compat)
     insights?: Array<{ label: string; emoji: string }>; // all insights
+    aggregated?: string;     // one-line AI summary of all insights
     photo_count?: number;
     pts_awarded: number;
     verified_at: string;
     thumbnails?: string[];
+    showcased?: boolean;     // whether shown on public profile
   }
 
   let category        = $state<Category>('lifestyle');
@@ -230,7 +232,7 @@
   let files           = $state<File[]>([]);
   let previews        = $state<string[]>([]);
   let step            = $state<Step>('upload');
-  let result          = $state<{ insights: Array<{ label: string; emoji: string }>; pts_awarded: number; reason: string; locations?: string[] } | null>(null);
+  let result          = $state<{ insights: Array<{ label: string; emoji: string }>; pts_awarded: number; reason: string; locations?: string[]; aggregated?: string } | null>(null);
   let failReason      = $state('');
   let dragOver        = $state(false);
   let existingInsight = $state<StoredInsight | null>(null);
@@ -351,6 +353,16 @@
     confirmDelete   = false;
   }
 
+  function showcaseProof() {
+    if (!existingInsight) return;
+    existingInsight = { ...existingInsight, showcased: true };
+    try {
+      const all: StoredInsight[] = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
+      const idx = all.findIndex(p => p.category === category);
+      if (idx >= 0) { all[idx] = existingInsight; localStorage.setItem('vv_proof_insights', JSON.stringify(all)); }
+    } catch {}
+  }
+
   function removeThumb(index: number) {
     if (!existingInsight?.thumbnails) return;
     const updated = existingInsight.thumbnails.filter((_, i) => i !== index);
@@ -443,6 +455,7 @@
         insight_label: insightsArr[0]?.label ?? 'Proof verified',
         insight_emoji: insightsArr[0]?.emoji ?? '✅',
         insights:      insightsArr,
+        aggregated:    data.aggregated ?? '',
         photo_count:   data.photo_count ?? files.length,
         pts_awarded:   data.pts_awarded,
         verified_at:   new Date().toISOString(),
@@ -462,7 +475,7 @@
         } catch { /* ignore */ }
       }
 
-      result = { insights: insightsArr, pts_awarded: data.pts_awarded, reason: data.reason ?? '', locations: locationsArr };
+      result = { insights: insightsArr, pts_awarded: data.pts_awarded, reason: data.reason ?? '', locations: locationsArr, aggregated: data.aggregated ?? '' };
       step   = 'success';
     } catch (e) {
       console.error('proof upload failed:', e);
@@ -552,6 +565,15 @@
         </div>
       {/if}
 
+      <!-- Aggregated AI insight -->
+      {#if existingInsight.aggregated}
+        <div class="aggregated-block">
+          <span class="aggregated-icon">✨</span>
+          <span class="aggregated-text">"{existingInsight.aggregated}"</span>
+        </div>
+      {/if}
+
+      <!-- Show off / delete actions -->
       {#if confirmDelete}
         <div class="delete-confirm">
           <span class="delete-confirm-text">Remove this proof? Your score will drop.</span>
@@ -561,6 +583,13 @@
           </div>
         </div>
       {:else}
+        {#if existingInsight.showcased}
+          <div class="showcased-badge">⭐ Showing on your public profile</div>
+        {:else}
+          <button class="showoff-public-btn" onclick={showcaseProof}>
+            🌟 Show off in public profile
+          </button>
+        {/if}
         <div class="uploaded-actions">
           <button class="reupload-btn" onclick={() => { existingInsight = null; }}>Upload more</button>
           <button class="delete-btn" onclick={() => confirmDelete = true}>Remove proof</button>
@@ -1209,6 +1238,58 @@
   .uploaded-actions {
     display: flex;
     gap: 8px;
+  }
+
+  /* ── Aggregated AI insight ── */
+  .aggregated-block {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px 14px;
+    background: rgba(99, 102, 241, 0.08);
+    border: 1px solid rgba(99, 102, 241, 0.22);
+    border-radius: 12px;
+  }
+
+  .aggregated-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+
+  .aggregated-text {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-1);
+    line-height: 1.5;
+    font-style: italic;
+  }
+
+  /* ── Show off public button ── */
+  .showoff-public-btn {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    cursor: pointer;
+    font-family: inherit;
+    letter-spacing: -0.01em;
+    transition: opacity 150ms;
+  }
+
+  .showoff-public-btn:hover { opacity: 0.88; }
+  .showoff-public-btn:active { opacity: 0.75; }
+
+  .showcased-badge {
+    width: 100%;
+    padding: 12px 14px;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fcd34d;
+    text-align: center;
   }
 
   .reupload-btn {
