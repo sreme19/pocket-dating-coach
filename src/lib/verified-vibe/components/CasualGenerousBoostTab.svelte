@@ -90,14 +90,14 @@
 
   const proofConnections = [
     { icon: '💼', label: 'LinkedIn',      desc: 'Career stability proof',          pts: 5, time: '1 min', category: 'linkedin'      },
-    { icon: '📱', label: 'Habit Tracker', desc: 'Sleep, gym, reading — live proof', pts: 2, time: '1 min', category: 'habit_tracker' },
+    { icon: '📱', label: 'Habit Tracker', desc: 'Sleep, gym, reading. Live proof.', pts: 2, time: '1 min', category: 'habit_tracker' },
   ] as const;
 </script>
 
 <!-- ── Privacy banner ─────────────────────────────────────────────────────── -->
 <div class="privacy-banner">
   <span class="privacy-lock">🔒</span>
-  <span class="privacy-text">Everything here stays private. We only verify that your profile reflects real life — improving your Trust Score and matches.</span>
+  <span class="privacy-text">Everything here stays private. We only verify that your profile reflects real life. This improves your Trust Score and who you match with.</span>
 </div>
 
 <!-- ── Trust Score gauge ──────────────────────────────────────────────────── -->
@@ -153,7 +153,7 @@
       </div>
       {#if subscores.identity < 50}
         <button class="nudge-cta nudge-{ic}" onclick={() => goto('/verified-vibe/verification')}>
-          <span class="nudge-text">Complete ID verification — women only message verified men</span>
+          <span class="nudge-text">Complete ID verification. Women only message verified men.</span>
           <span class="nudge-pts">+50 pts →</span>
         </button>
       {:else if subscores.identity < 75}
@@ -177,7 +177,7 @@
       </div>
       {#if subscores.lifestyleDepth < 50}
         <button class="nudge-cta nudge-{lc}" onclick={() => goto('/verified-vibe/verification')}>
-          <span class="nudge-text">Add lifestyle photos — women want to see your actual world</span>
+          <span class="nudge-text">Add lifestyle photos. Women want to see your actual world.</span>
           <span class="nudge-pts">+25 pts →</span>
         </button>
       {:else if subscores.lifestyleDepth < 75}
@@ -201,7 +201,7 @@
       </div>
       {#if subscores.generositySignals < 50}
         <button class="nudge-cta nudge-{gc}" onclick={() => goto('/verified-vibe/verification')}>
-          <span class="nudge-text">Add a spending snapshot — #1 signal for Casual Generous profiles</span>
+          <span class="nudge-text">Add a spending snapshot. The #1 signal for Casual Generous profiles.</span>
           <span class="nudge-pts">+25 pts →</span>
         </button>
       {:else if subscores.generositySignals < 75}
@@ -249,7 +249,7 @@
       </div>
       {#if subscores.socialLegitimacy < 75}
         <button class="nudge-cta nudge-{sc}">
-          <span class="nudge-text">Connect LinkedIn — proves career stability & legitimacy</span>
+          <span class="nudge-text">Connect LinkedIn. Proves career stability and legitimacy.</span>
           <span class="nudge-pts">+5 pts →</span>
         </button>
       {:else}
