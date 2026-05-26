@@ -1019,21 +1019,21 @@
   }
 
   .options-grid.chips {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    display: flex;
+    flex-wrap: wrap;
     gap: 8px;
   }
 
   .options-grid.chips .option-button {
-    padding: 7px 12px;
+    padding: 8px 14px;
     border-radius: 100px;
-    font-size: 0.8rem;
-    min-height: 36px;
+    font-size: 0.82rem;
+    min-height: unset;
+    width: auto;
+    flex: 0 0 auto;
     justify-content: center;
-    white-space: normal;
-    text-align: center;
-    line-height: 1.3;
-    width: 100%;
+    white-space: nowrap;
+    line-height: 1.4;
   }
 
   .options-grid.chips .checkmark { display: none; }
