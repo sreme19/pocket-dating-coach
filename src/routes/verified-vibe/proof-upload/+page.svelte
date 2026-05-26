@@ -34,7 +34,7 @@
     habit_tracker:'🔒 Show, don\'t fake. Everything stays private while we verify your vibe. Boosts your Trust Score.',
     intro:        '🔒 Your voice and video stay completely private. Never shown publicly. They make women feel safe messaging you first.',
     spending:     '🔒 Your receipts stay completely private. We only check that your generosity signals are genuine.',
-    assets:       '🔒 Your documents stay completely private. We only verify ownership. The name on the document must match your verified government ID — your profile display name can be a pseudonym.',
+    assets:       '🔒 Your documents stay completely private. We only verify ownership. The name on the document must match your verified government ID. No need to match with your profile name.',
   };
 
   const CONFIGS: Record<Category, CategoryConfig> = {
@@ -611,12 +611,6 @@
         {/each}
       </ul>
       <div class="hint-line">{config.hintLine}</div>
-      {#if category !== 'intro'}
-        <div class="auth-note">
-          <span class="auth-note-icon">👤</span>
-          <span>Your face should be clearly visible in all photos, or your name should appear on any document, so we can authenticate the proof.</span>
-        </div>
-      {/if}
     </div>
 
     <!-- OAuth connect UI for Instagram / Twitter -->
