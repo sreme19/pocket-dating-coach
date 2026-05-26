@@ -45,6 +45,106 @@
   let generationProgress = $state(0); // 0-5 for number of photos generated
   let generatingField = $state<'about' | 'personality' | 'looking' | 'lifestyle' | null>(null);
   let autoFillError = $state<string | null>(null);
+  let countriesTraveled = $state<string[]>([]);
+
+  // ── Travel Magnets ─────────────────────────────────────────────────────────
+
+  // Country/place → ISO 3166-1 alpha-2 code for flag emoji generation
+  const PLACE_TO_ISO: Record<string, string> = {
+    // Asia
+    'indonesia': 'ID', 'bali': 'ID', 'jakarta': 'ID', 'java': 'ID', 'lombok': 'ID',
+    'japan': 'JP', 'tokyo': 'JP', 'osaka': 'JP', 'kyoto': 'JP',
+    'thailand': 'TH', 'bangkok': 'TH', 'phuket': 'TH', 'chiang mai': 'TH',
+    'india': 'IN', 'mumbai': 'IN', 'delhi': 'IN', 'goa': 'IN', 'bangalore': 'IN',
+    'singapore': 'SG', 'malaysia': 'MY', 'kuala lumpur': 'MY',
+    'vietnam': 'VN', 'hanoi': 'VN', 'ho chi minh': 'VN', 'da nang': 'VN',
+    'cambodia': 'KH', 'siem reap': 'KH', 'maldives': 'MV', 'sri lanka': 'LK',
+    'nepal': 'NP', 'kathmandu': 'NP', 'bhutan': 'BT', 'myanmar': 'MM',
+    'philippines': 'PH', 'manila': 'PH', 'cebu': 'PH', 'palawan': 'PH',
+    'hong kong': 'HK', 'macau': 'MO', 'taiwan': 'TW', 'taipei': 'TW',
+    'south korea': 'KR', 'korea': 'KR', 'seoul': 'KR', 'busan': 'KR',
+    'china': 'CN', 'beijing': 'CN', 'shanghai': 'CN',
+    // Middle East
+    'dubai': 'AE', 'abu dhabi': 'AE', 'uae': 'AE',
+    'saudi arabia': 'SA', 'riyadh': 'SA', 'jeddah': 'SA',
+    'qatar': 'QA', 'doha': 'QA', 'bahrain': 'BH', 'oman': 'OM', 'kuwait': 'KW',
+    'turkey': 'TR', 'istanbul': 'TR', 'turkey': 'TR',
+    'israel': 'IL', 'tel aviv': 'IL', 'jordan': 'JO', 'petra': 'JO',
+    'egypt': 'EG', 'cairo': 'EG', 'luxor': 'EG',
+    'morocco': 'MA', 'marrakech': 'MA', 'casablanca': 'MA',
+    // Europe
+    'uk': 'GB', 'united kingdom': 'GB', 'england': 'GB', 'london': 'GB',
+    'scotland': 'GB', 'edinburgh': 'GB', 'wales': 'GB',
+    'france': 'FR', 'paris': 'FR', 'nice': 'FR', 'lyon': 'FR',
+    'italy': 'IT', 'rome': 'IT', 'milan': 'IT', 'florence': 'IT', 'venice': 'IT',
+    'spain': 'ES', 'madrid': 'ES', 'barcelona': 'ES', 'ibiza': 'ES', 'seville': 'ES',
+    'portugal': 'PT', 'lisbon': 'PT', 'porto': 'PT',
+    'germany': 'DE', 'berlin': 'DE', 'munich': 'DE', 'frankfurt': 'DE',
+    'netherlands': 'NL', 'amsterdam': 'NL', 'rotterdam': 'NL',
+    'switzerland': 'CH', 'zurich': 'CH', 'geneva': 'CH',
+    'austria': 'AT', 'vienna': 'AT', 'salzburg': 'AT',
+    'greece': 'GR', 'athens': 'GR', 'santorini': 'GR', 'mykonos': 'GR',
+    'croatia': 'HR', 'dubrovnik': 'HR', 'split': 'HR',
+    'czech republic': 'CZ', 'prague': 'CZ', 'hungary': 'HU', 'budapest': 'HU',
+    'poland': 'PL', 'warsaw': 'PL', 'krakow': 'PL',
+    'scandinavia': 'NO', 'norway': 'NO', 'oslo': 'NO',
+    'sweden': 'SE', 'stockholm': 'SE', 'denmark': 'DK', 'copenhagen': 'DK',
+    'finland': 'FI', 'helsinki': 'FI', 'iceland': 'IS', 'reykjavik': 'IS',
+    'ireland': 'IE', 'dublin': 'IE', 'belgium': 'BE', 'brussels': 'BE',
+    'russia': 'RU', 'moscow': 'RU', 'st. petersburg': 'RU',
+    // Africa
+    'south africa': 'ZA', 'cape town': 'ZA', 'johannesburg': 'ZA',
+    'kenya': 'KE', 'nairobi': 'KE', 'zanzibar': 'TZ', 'tanzania': 'TZ',
+    'nigeria': 'NG', 'lagos': 'NG', 'ghana': 'GH', 'accra': 'GH',
+    'ethiopia': 'ET', 'addis ababa': 'ET', 'rwanda': 'RW',
+    'mauritius': 'MU', 'seychelles': 'SC',
+    // Americas
+    'usa': 'US', 'united states': 'US', 'new york': 'US', 'los angeles': 'US',
+    'miami': 'US', 'chicago': 'US', 'las vegas': 'US', 'san francisco': 'US',
+    'canada': 'CA', 'toronto': 'CA', 'vancouver': 'CA', 'montreal': 'CA',
+    'mexico': 'MX', 'cancun': 'MX', 'mexico city': 'MX',
+    'brazil': 'BR', 'rio de janeiro': 'BR', 'sao paulo': 'BR',
+    'argentina': 'AR', 'buenos aires': 'AR', 'colombia': 'CO', 'medellin': 'CO',
+    'peru': 'PE', 'lima': 'PE', 'machu picchu': 'PE', 'chile': 'CL', 'santiago': 'CL',
+    'costa rica': 'CR', 'cuba': 'CU', 'havana': 'CU',
+    'caribbean': 'BB', 'barbados': 'BB', 'jamaica': 'JM',
+    // Oceania
+    'australia': 'AU', 'sydney': 'AU', 'melbourne': 'AU', 'brisbane': 'AU',
+    'new zealand': 'NZ', 'auckland': 'NZ', 'queenstown': 'NZ',
+    'fiji': 'FJ', 'hawaii': 'US',
+  };
+
+  // Watercolor-inspired magnet palette — warm, illustrated feel
+  const MAGNET_COLORS = [
+    { bg: '#FFE8D6', border: '#F4A97A', text: '#7A3A10' },  // peach
+    { bg: '#D6EEFF', border: '#7AB8F4', text: '#1A4A7A' },  // sky blue
+    { bg: '#D6F5E8', border: '#6EC9A0', text: '#1A5A3A' },  // mint
+    { bg: '#EDE0FF', border: '#B08AF4', text: '#4A1A7A' },  // lavender
+    { bg: '#FFF3C4', border: '#E8C94A', text: '#5A4010' },  // golden
+    { bg: '#FFD6E8', border: '#F47AB0', text: '#7A1A4A' },  // rose
+    { bg: '#D6F0FF', border: '#6AB8E8', text: '#1A3A5A' },  // periwinkle
+    { bg: '#E8FFD6', border: '#8AC96A', text: '#2A5A1A' },  // sage
+    { bg: '#FFE0D6', border: '#F49A7A', text: '#7A2A10' },  // coral
+    { bg: '#D6FFFA', border: '#6ACDC4', text: '#1A5A55' },  // teal
+  ];
+
+  const MAGNET_ROTATIONS = [-3, 2, -1.5, 3, -2.5, 1, -3.5, 2.5, -1, 3];
+
+  function placeToFlag(place: string): string {
+    const iso = PLACE_TO_ISO[place.toLowerCase()];
+    if (!iso) return '🌍';
+    return iso.toUpperCase().replace(/./g, (c: string) =>
+      String.fromCodePoint(c.charCodeAt(0) + 127397)
+    );
+  }
+
+  function magnetColor(index: number) {
+    return MAGNET_COLORS[index % MAGNET_COLORS.length];
+  }
+
+  function magnetRotation(index: number): string {
+    return `${MAGNET_ROTATIONS[index % MAGNET_ROTATIONS.length]}deg`;
+  }
 
   // Personality reads data
   interface PersonalityRead {
@@ -502,6 +602,13 @@
       // Hydrate countries traveled if missing locally
       if (master.countriesTraveled.length > 0 && !localStorage.getItem('vv_countries_traveled')) {
         localStorage.setItem('vv_countries_traveled', JSON.stringify(master.countriesTraveled));
+        countriesTraveled = master.countriesTraveled;
+      } else if (master.countriesTraveled.length > 0) {
+        // Merge DB + local (DB may have places from other devices)
+        const localArr: string[] = JSON.parse(localStorage.getItem('vv_countries_traveled') ?? '[]');
+        const merged = Array.from(new Set([...localArr, ...master.countriesTraveled]));
+        countriesTraveled = merged;
+        localStorage.setItem('vv_countries_traveled', JSON.stringify(merged));
       }
 
       // Hydrate proof insights if missing locally (from verifiedProofs in DB)
@@ -560,6 +667,8 @@
     const rawGenerated = localStorage.getItem('vv_profile');
     const rawPhotos = localStorage.getItem('vv_photos');
     const rawAiPhotos = localStorage.getItem('vv_ai_photos');
+    const rawCountries = localStorage.getItem('vv_countries_traveled');
+    if (rawCountries) { try { countriesTraveled = JSON.parse(rawCountries); } catch { /* ignore */ } }
 
     if (rawDraft) draft = JSON.parse(rawDraft);
     if (rawGenerated) generated = JSON.parse(rawGenerated);
@@ -1349,6 +1458,34 @@
               {/each}
             </div>
           {/if}
+        </section>
+      {/if}
+
+      <!-- Travel Magnets -->
+      {#if countriesTraveled.length > 0}
+        <section class="section travel-magnets-section">
+          <div class="section-label">
+            <span>✈️</span>
+            Travel Magnets
+            <span class="section-hint">detected from uploads</span>
+          </div>
+          <div class="magnets-board">
+            {#each countriesTraveled as place, i}
+              {@const col = magnetColor(i)}
+              <div
+                class="magnet"
+                style="
+                  background: {col.bg};
+                  border-color: {col.border};
+                  color: {col.text};
+                  --rot: {magnetRotation(i)};
+                "
+              >
+                <span class="magnet-flag">{placeToFlag(place)}</span>
+                <span class="magnet-name">{place}</span>
+              </div>
+            {/each}
+          </div>
         </section>
       {/if}
 
@@ -3412,5 +3549,74 @@
     font-size: 13px;
     color: var(--text-2);
     line-height: 1.5;
+  }
+
+  /* ── Travel Magnets ───────────────────────────────────────────────────────── */
+
+  .travel-magnets-section {
+    overflow: visible; /* allow rotated magnets to bleed */
+  }
+
+  .magnets-board {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 10px;
+    padding: 8px 4px 12px;
+  }
+
+  .magnet {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 14px 8px;
+    border-radius: 10px;
+    border: 3px solid;          /* colour set inline */
+    box-shadow:
+      0 3px 8px rgba(0,0,0,0.18),
+      inset 0 0 0 1.5px rgba(255,255,255,0.7);
+    transform: rotate(var(--rot));
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    cursor: default;
+    min-width: 68px;
+    position: relative;
+  }
+
+  /* Subtle paper-grain texture overlay */
+  .magnet::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 8px;
+    background: repeating-linear-gradient(
+      135deg,
+      rgba(255,255,255,0.06) 0px,
+      rgba(255,255,255,0.06) 1px,
+      transparent 1px,
+      transparent 4px
+    );
+    pointer-events: none;
+  }
+
+  .magnet:hover {
+    transform: rotate(0deg) scale(1.08);
+    box-shadow:
+      0 6px 18px rgba(0,0,0,0.22),
+      inset 0 0 0 1.5px rgba(255,255,255,0.8);
+    z-index: 2;
+  }
+
+  .magnet-flag {
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  .magnet-name {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    line-height: 1;
   }
 </style>
