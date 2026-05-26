@@ -1626,6 +1626,7 @@
                       <div>
                         <p class="money-stat-label">Annual Income</p>
                         <p class="money-stat-value">{moneyMatters.annualIncome}</p>
+                        <p class="money-stat-declared">Self declared</p>
                       </div>
                     </div>
                   {/if}
@@ -1635,6 +1636,7 @@
                       <div>
                         <p class="money-stat-label">Net Worth</p>
                         <p class="money-stat-value">{moneyMatters.netWorth}</p>
+                        <p class="money-stat-declared">Self declared</p>
                       </div>
                     </div>
                   {/if}
@@ -4304,6 +4306,15 @@
     color: #F5D485;
     margin: 0;
     letter-spacing: 0.01em;
+  }
+
+  .money-stat-declared {
+    font-size: 9.5px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.28);
+    margin: 2px 0 0;
   }
 
   /* Wealth proof signals block */
