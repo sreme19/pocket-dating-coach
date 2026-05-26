@@ -26,6 +26,13 @@
   const tier85 = $derived(cgTotal >= 85);
   const tier95 = $derived(cgTotal >= 95);
 
+  // Color tier for a subscore
+  function scoreColor(s: number): 'red' | 'amber' | 'green' {
+    if (s < 50)  return 'red';
+    if (s < 75)  return 'amber';
+    return 'green';
+  }
+
   const showOffCategories = [
     { icon: '🌍', label: 'Lifestyle',    desc: 'Travel, dining, events',      pts: 8, time: '2 min' },
     { icon: '🍽️', label: 'Hosting',      desc: 'Dinners, celebrations',        pts: 6, time: '2 min' },
@@ -82,83 +89,117 @@
   <div class="breakdown">
 
     <!-- Identity -->
+    {@const ic = scoreColor(subscores.identity)}
     <div class="breakdown-item">
       <div class="breakdown-header">
         <span class="breakdown-name">Identity</span>
-        <span class="breakdown-score">{subscores.identity}/100</span>
+        <span class="breakdown-score score-{ic}">{subscores.identity}/100</span>
       </div>
       <div class="breakdown-bar">
-        <div class="breakdown-fill" style="width: {subscores.identity}%"></div>
+        <div class="breakdown-fill fill-{ic}" style="width: {subscores.identity}%"></div>
       </div>
-      <div class="breakdown-subs">ID verified · Face matched</div>
+      {#if subscores.identity < 50}
+        <button class="nudge-cta nudge-{ic}" onclick={() => goto('/verified-vibe/verification')}>
+          <span class="nudge-text">Complete ID verification — women only message verified men</span>
+          <span class="nudge-pts">+50 pts →</span>
+        </button>
+      {:else if subscores.identity < 75}
+        <button class="nudge-cta nudge-{ic}" onclick={() => goto('/verified-vibe/verification')}>
+          <span class="nudge-text">Complete face match to maximise identity score</span>
+          <span class="nudge-pts">boost →</span>
+        </button>
+      {:else}
+        <div class="breakdown-subs">✓ ID verified · Face matched</div>
+      {/if}
     </div>
 
     <!-- Lifestyle Depth -->
+    {@const lc = scoreColor(subscores.lifestyleDepth)}
     <div class="breakdown-item">
       <div class="breakdown-header">
         <span class="breakdown-name">Lifestyle Depth</span>
-        <span class="breakdown-score">{subscores.lifestyleDepth}/100</span>
+        <span class="breakdown-score score-{lc}">{subscores.lifestyleDepth}/100</span>
       </div>
       <div class="breakdown-bar">
-        <div class="breakdown-fill" style="width: {subscores.lifestyleDepth}%"></div>
+        <div class="breakdown-fill fill-{lc}" style="width: {subscores.lifestyleDepth}%"></div>
       </div>
-      <div class="breakdown-subs">Photo story · Real-world moments</div>
+      {#if subscores.lifestyleDepth < 50}
+        <button class="nudge-cta nudge-{lc}" onclick={() => goto('/verified-vibe/verification')}>
+          <span class="nudge-text">Add lifestyle photos — women want to see your actual world</span>
+          <span class="nudge-pts">+25 pts →</span>
+        </button>
+      {:else if subscores.lifestyleDepth < 75}
+        <button class="nudge-cta nudge-{lc}" onclick={() => goto('/verified-vibe/verification')}>
+          <span class="nudge-text">More real-world moments strengthen this signal</span>
+          <span class="nudge-pts">boost →</span>
+        </button>
+      {:else}
+        <div class="breakdown-subs">✓ Photo story verified</div>
+      {/if}
     </div>
 
     <!-- Generosity Signals -->
+    {@const gc = scoreColor(subscores.generositySignals)}
     <div class="breakdown-item">
       <div class="breakdown-header">
         <span class="breakdown-name">Generosity Signals</span>
-        <span class="breakdown-score">{subscores.generositySignals}/100</span>
+        <span class="breakdown-score score-{gc}">{subscores.generositySignals}/100</span>
       </div>
       <div class="breakdown-bar">
-        <div class="breakdown-fill" style="width: {subscores.generositySignals}%"></div>
+        <div class="breakdown-fill fill-{gc}" style="width: {subscores.generositySignals}%"></div>
       </div>
-      {#if subscores.generositySignals === 0}
-        <button class="nudge-cta" onclick={() => goto('/verified-vibe/verification')}>
+      {#if subscores.generositySignals < 50}
+        <button class="nudge-cta nudge-{gc}" onclick={() => goto('/verified-vibe/verification')}>
           <span class="nudge-text">Add a spending snapshot — #1 signal for Casual Generous profiles</span>
           <span class="nudge-pts">+25 pts →</span>
         </button>
+      {:else if subscores.generositySignals < 75}
+        <button class="nudge-cta nudge-{gc}" onclick={() => goto('/verified-vibe/verification')}>
+          <span class="nudge-text">Add more spending proof to push this signal higher</span>
+          <span class="nudge-pts">boost →</span>
+        </button>
       {:else}
-        <div class="breakdown-subs">Spending proof verified</div>
+        <div class="breakdown-subs">✓ Spending proof verified</div>
       {/if}
     </div>
 
     <!-- Emotional Safety -->
+    {@const ec = scoreColor(subscores.emotionalSafety)}
     <div class="breakdown-item">
       <div class="breakdown-header">
         <span class="breakdown-name">Emotional Safety</span>
-        <span class="breakdown-score">{subscores.emotionalSafety}/100</span>
+        <span class="breakdown-score score-{ec}">{subscores.emotionalSafety}/100</span>
       </div>
       <div class="breakdown-bar">
-        <div class="breakdown-fill" style="width: {subscores.emotionalSafety}%"></div>
+        <div class="breakdown-fill fill-{ec}" style="width: {subscores.emotionalSafety}%"></div>
       </div>
-      {#if subscores.emotionalSafety === 0}
-        <button class="nudge-cta" onclick={onEditQA}>
-          <span class="nudge-text">Voice intro unlocks +8 pts — makes women feel safer messaging</span>
+      {#if subscores.emotionalSafety < 75}
+        <button class="nudge-cta nudge-{ec}" onclick={onEditQA}>
+          <span class="nudge-text">Voice intro makes women feel safe messaging you first</span>
           <span class="nudge-pts">+8 pts →</span>
         </button>
       {:else}
-        <div class="breakdown-subs">Verified safe</div>
+        <div class="breakdown-subs">✓ Voice intro verified</div>
       {/if}
     </div>
 
     <!-- Social Legitimacy -->
+    {@const sc = scoreColor(subscores.socialLegitimacy)}
     <div class="breakdown-item">
       <div class="breakdown-header">
         <span class="breakdown-name">Social Legitimacy</span>
-        <span class="breakdown-score">{subscores.socialLegitimacy}/100</span>
+        <span class="breakdown-score score-{sc}">{subscores.socialLegitimacy}/100</span>
       </div>
       <div class="breakdown-bar">
-        <div class="breakdown-fill" style="width: {subscores.socialLegitimacy}%"></div>
+        <div class="breakdown-fill fill-{sc}" style="width: {subscores.socialLegitimacy}%"></div>
       </div>
-      {#if subscores.socialLegitimacy === 0}
-        <button class="nudge-cta nudge-linkedin">
-          <span class="nudge-text">Connect LinkedIn — proves career stability</span>
+      {#if subscores.socialLegitimacy < 75}
+        <button class="nudge-cta nudge-{sc}">
+          <span class="nudge-text">Connect LinkedIn — proves career stability & legitimacy</span>
           <span class="nudge-pts">+5 pts →</span>
         </button>
       {:else}
-        <div class="breakdown-subs">Proof connected</div>
+        <div class="breakdown-subs">✓ LinkedIn connected</div>
       {/if}
     </div>
 
@@ -338,17 +379,17 @@
   .breakdown {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 10px;
     background: var(--bg-2);
     border: 1px solid var(--border-1);
     border-radius: var(--r-lg);
-    padding: 16px;
+    padding: 12px;
   }
 
   .breakdown-item {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
   }
 
   .breakdown-header {
@@ -364,13 +405,18 @@
 
   .breakdown-score {
     font-size: 11px;
-    color: var(--text-3);
     font-family: var(--font-mono);
+    font-weight: 700;
   }
+
+  /* Score color variants */
+  .score-red   { color: #ef4444; }
+  .score-amber { color: #f59e0b; }
+  .score-green { color: var(--accent); }
 
   .breakdown-bar {
     width: 100%;
-    height: 5px;
+    height: 4px;
     background: var(--bg-3);
     border-radius: 3px;
     overflow: hidden;
@@ -378,10 +424,14 @@
 
   .breakdown-fill {
     height: 100%;
-    background: var(--accent);
     border-radius: 3px;
     transition: width 500ms ease;
   }
+
+  /* Fill color variants */
+  .fill-red   { background: #ef4444; }
+  .fill-amber { background: #f59e0b; }
+  .fill-green { background: var(--accent); }
 
   .breakdown-subs {
     font-size: 11px;
@@ -393,13 +443,25 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 8px 10px;
-    background: var(--bg-3);
-    border: 1px solid var(--border-1);
+    padding: 7px 10px;
     border-radius: 8px;
     cursor: pointer;
     text-align: left;
     width: 100%;
+    transition: opacity 150ms;
+  }
+
+  .nudge-cta:active { opacity: 0.75; }
+
+  /* Nudge CTA color variants */
+  .nudge-red {
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+  }
+
+  .nudge-amber {
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.25);
   }
 
   .nudge-text {
@@ -416,6 +478,9 @@
     white-space: nowrap;
     flex-shrink: 0;
   }
+
+  .nudge-red   .nudge-pts { color: #ef4444; }
+  .nudge-amber .nudge-pts { color: #f59e0b; }
 
   /* ── Show-Off ── */
   .showoff-grid {

@@ -111,6 +111,9 @@
     slow_organic: 'Slow & organic', moderate_pace: 'Steady pace', whenever_ready: 'When it feels right', fast_natural: 'Fast when natural',
     // friendship / social
     genuine_friends: 'Genuine friends', hang_casual: 'Casual hangouts', networking: 'Networking', deep_conversations: 'Deep conversations',
+    // income ranges (Casual Generous)
+    under_25l: 'Under ₹25L', '25l_50l': '₹25L – ₹50L', '50l_1cr': '₹50L – ₹1Cr',
+    '1cr_3cr': '₹1Cr – ₹3Cr', '3cr_10cr': '₹3Cr – ₹10Cr', '10cr_plus': '₹10Cr+',
   };
 
   function resolveLabel(val: string): string {
@@ -799,7 +802,11 @@
               <div class="archetype-qa-body">
                 <span class="archetype-qa-label">{s.label}</span>
                 {#if s.type === 'chip'}
-                  <span class="archetype-qa-chip">{s.value}</span>
+                  <div class="archetype-qa-chips">
+                    {#each s.value.split(/,\s*/).filter(v => v.trim()) as chip}
+                      <span class="archetype-qa-chip">{chip.trim()}</span>
+                    {/each}
+                  </div>
                 {:else}
                   <span class="archetype-qa-text">{s.value}</span>
                 {/if}
@@ -3145,23 +3152,32 @@
   .archetype-qa-list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 0;
   }
 
   .archetype-qa-item {
     display: flex;
     align-items: flex-start;
     gap: 10px;
-    padding: 12px 14px;
-    border-radius: 10px;
-    background: var(--bg-2);
-    border: 1px solid var(--border-2);
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-1);
+  }
+
+  .archetype-qa-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .archetype-qa-item:first-child {
+    padding-top: 4px;
   }
 
   .archetype-qa-icon {
-    font-size: 16px;
+    font-size: 15px;
     flex-shrink: 0;
-    line-height: 1.4;
+    line-height: 1.5;
+    margin-top: 1px;
+    opacity: 0.85;
   }
 
   .archetype-qa-body {
@@ -3169,32 +3185,37 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 5px;
   }
 
   .archetype-qa-label {
     font-size: 10px;
-    font-weight: 700;
-    color: var(--text-4);
+    font-weight: 600;
+    color: var(--text-3);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
+  }
+
+  .archetype-qa-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
   }
 
   .archetype-qa-chip {
     display: inline-block;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--accent-bright);
     background: var(--accent-tint);
-    padding: 2px 8px;
+    padding: 2px 9px;
     border-radius: 999px;
-    border: 1px solid rgba(52,211,153,0.2);
-    width: fit-content;
+    border: 1px solid rgba(52,211,153,0.18);
   }
 
   .archetype-qa-text {
     font-size: 13px;
-    color: var(--text-1);
+    color: var(--text-2);
     line-height: 1.5;
   }
 </style>
