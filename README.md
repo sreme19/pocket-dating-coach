@@ -3,7 +3,7 @@
 SvelteKit dating coach app powered by Claude, Supabase, pgvector, and Voyage AI embeddings.
 
 **Project Management:** [Plane board](https://app.plane.so/woam/projects/bdb013db-8e4f-4bf3-bfb0-07e23c4589ea/issues/)
-**Latest:** main (post-v2.7.0) — archetype overhaul, Traditional Matrimony flow, Spoiled Casual / Casual Generous archetype QA sets, Security Advisor RLS fixes, CI green (`npm run check` 0 errors)
+**Latest:** main (post-v2.7.0) — Profile Wingman editor (FAB + drawer), pencil edit mode for Career Highlights / Money Matters / Garage / Travel Magnets, AI chip generation from existing proof, inline chip removal, 16-archetype system, Traditional Matrimony flow, Security Advisor RLS fixes
 
 ## Features
 
@@ -12,9 +12,15 @@ SvelteKit dating coach app powered by Claude, Supabase, pgvector, and Voyage AI 
 - **Archetype-specific verification flows:** each archetype has a tailored QA set. Traditional Matrimony collects marital status, religion, education, lifestyle, and INR income via `MatrimonyProfileStep` / `MatrimonyPreferencesStep`. Spoiled Casual and Casual Generous have their own question sets.
 - **Rich Messages list:** NEW MATCHES horizontal bubble strip, archetype chips, trust score pills, filter tabs (All / Unread), real unread badge counts
 - **AI Bestie:** per-match coaching mode with `[DRAFT:MatchName]` actionable reply blocks; standalone advisor with match summaries, fresh insights, configure page
-- **AI Wingman:** male coaching + impersonation mode
+- **Profile Wingman:** floating FAB on the male profile page — interprets plain-English edit requests, enforces proof gating rules, and can derive new insight chips from already-uploaded documents without re-uploading. Uses `POST /api/verified-vibe/wingman` (Claude-backed).
+- **Pencil edit mode:** inline chip removal (×) and AI chip generation (✨ Suggest 3 more) for Career Highlights and Money Matters; pencil-toggle removal for Garage cars and Travel Magnets
+- **In-Chat Wingman:** male coaching + impersonation mode in conversation view
+- **Proof-gated insight chips:** Career Highlights (LinkedIn) and Money Matters (spending/wealth) chips derived from uploaded documents; shown on profile with section-level edit controls
+- **Spending patterns:** bank statement / receipt uploads produce a spending breakdown by category (Fine Dining, Travel, etc.) in the Money Matters section
+- **Annual income self-declared badge:** income set via Wingman chat or Trust & Boost tab displays "Self declared" sub-label on the public profile
 - **Trust scoring:** 0–100 across 4 verification steps (ID, Liveness, Photos, Spending/QA) at 25 pts each
 - **Secret Admirer:** women can send an anonymous attention message to any discovered profile
+- **Background Verification:** stub section in Trust & Boost tab (stub page at `/verified-vibe/background-check`, coming soon)
 - **Unread tracking:** `user1_last_read_at` / `user2_last_read_at` per match; badges clear on open
 - **Security Advisor RLS:** typing indicators, function `SECURITY DEFINER` and `search_path` fixes applied
 
@@ -130,6 +136,7 @@ Project notes and implementation artifacts live in [`docs/`](docs/README.md):
 | `POST /api/verified-vibe/ai-bestie/feedback` | Store 👍/👎 rating on a Bestie response |
 | `POST /api/verified-vibe/ai-bestie/opening-message` | Generate a first message to a new match |
 | `GET /api/verified-vibe/match-profile/[id]` | Rich profile: trait scores, vibe words, archetype |
+| `POST /api/verified-vibe/wingman` | Profile Wingman: interpret plain-English edit, enforce proof rules, derive insight chips |
 | `GET /api/ai-bestie/configure` | Load structured preference probes |
 | `DELETE /api/ai-bestie/configure` | Remove a single preference item |
 
