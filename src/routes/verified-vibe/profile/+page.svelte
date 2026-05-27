@@ -71,6 +71,7 @@
   let editingCareerChips       = $state(false); // pencil edit mode for career insight chips
   let editingLifestyleChips    = $state(false); // pencil edit mode for lifestyle signal chips
   let editingHealthFitnessChips = $state(false); // pencil edit mode for health & fitness chips
+  let editingSocialProofChips  = $state(false); // pencil edit mode for social life chips
   let editingGarage          = $state(false); // pencil edit mode for garage cars
   let editingMagnets         = $state(false); // pencil edit mode for travel magnets
 
@@ -79,19 +80,23 @@
   let pendingCareerInsights        = $state<Array<{ label: string; emoji: string }>>([]);
   let pendingLifestyleInsights     = $state<Array<{ label: string; emoji: string }>>([]);
   let pendingHealthFitnessInsights = $state<Array<{ label: string; emoji: string }>>([]);
-  let generatingWealth       = $state(false);
-  let generatingCareer       = $state(false);
-  let generatingLifestyle    = $state(false);
+  let pendingSocialProofInsights   = $state<Array<{ label: string; emoji: string }>>([]);
+  let generatingWealth        = $state(false);
+  let generatingCareer        = $state(false);
+  let generatingLifestyle     = $state(false);
   let generatingHealthFitness = $state(false);
+  let generatingSocialProof   = $state(false);
 
-  async function generateMoreInsights(category: 'wealth' | 'linkedin' | 'lifestyle' | 'discipline') {
+  async function generateMoreInsights(category: 'wealth' | 'linkedin' | 'lifestyle' | 'discipline' | 'social_proof') {
     const isWealth       = category === 'wealth';
     const isLifestyle    = category === 'lifestyle';
     const isDiscipline   = category === 'discipline';
-    if (isWealth)          generatingWealth        = true;
-    else if (isLifestyle)  generatingLifestyle     = true;
-    else if (isDiscipline) generatingHealthFitness = true;
-    else                   generatingCareer        = true;
+    const isSocialProof  = category === 'social_proof';
+    if (isWealth)           generatingWealth        = true;
+    else if (isLifestyle)   generatingLifestyle     = true;
+    else if (isDiscipline)  generatingHealthFitness = true;
+    else if (isSocialProof) generatingSocialProof   = true;
+    else                    generatingCareer        = true;
 
     try {
       const { getSupabaseClient: _sb } = await import('$lib/client/supabase');
@@ -121,7 +126,7 @@
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          message: `Suggest 3 more insight chips from my ${isWealth ? 'wealth / financial' : isLifestyle ? 'lifestyle / travel / experience' : isDiscipline ? 'health / fitness / discipline' : 'LinkedIn / career'} documents. Existing labels to avoid: ${existingLabels.join(', ')}. Aggregated data: ${aggregated}`,
+          message: `Suggest 3 more insight chips from my ${isWealth ? 'wealth / financial' : isLifestyle ? 'lifestyle / travel / experience' : isDiscipline ? 'health / fitness / discipline' : isSocialProof ? 'social life / friendships / social activities' : 'LinkedIn / career'} documents. Existing labels to avoid: ${existingLabels.join(', ')}. Aggregated data: ${aggregated}`,
           profileSnapshot: snapshot,
         }),
       });
@@ -134,6 +139,7 @@
         if (isWealth)           pendingWealthInsights        = toAdd;
         else if (isLifestyle)   pendingLifestyleInsights     = toAdd;
         else if (isDiscipline)  pendingHealthFitnessInsights = toAdd;
+        else if (isSocialProof) pendingSocialProofInsights   = toAdd;
         else                    pendingCareerInsights        = toAdd;
       }
     } catch { /* non-critical */ }
@@ -141,14 +147,16 @@
       if (isWealth)           generatingWealth        = false;
       else if (isLifestyle)   generatingLifestyle     = false;
       else if (isDiscipline)  generatingHealthFitness = false;
+      else if (isSocialProof) generatingSocialProof   = false;
       else                    generatingCareer        = false;
     }
   }
 
-  function commitPendingInsights(category: 'wealth' | 'linkedin' | 'lifestyle' | 'discipline') {
-    const pending = category === 'wealth'     ? pendingWealthInsights
-                  : category === 'lifestyle'  ? pendingLifestyleInsights
-                  : category === 'discipline' ? pendingHealthFitnessInsights
+  function commitPendingInsights(category: 'wealth' | 'linkedin' | 'lifestyle' | 'discipline' | 'social_proof') {
+    const pending = category === 'wealth'        ? pendingWealthInsights
+                  : category === 'lifestyle'     ? pendingLifestyleInsights
+                  : category === 'discipline'    ? pendingHealthFitnessInsights
+                  : category === 'social_proof'  ? pendingSocialProofInsights
                   : pendingCareerInsights;
     if (!pending.length) return;
 
@@ -177,6 +185,11 @@
       healthFitnessSignals = hf?.insights?.length ? { insights: hf.insights, aggregated: hf.aggregated ?? '' } : null;
       pendingHealthFitnessInsights = [];
       editingHealthFitnessChips = false;
+    } else if (category === 'social_proof') {
+      const sp = updated.find((p: any) => p.category === 'social_proof') as any;
+      socialProofSignals = sp?.insights?.length ? { insights: sp.insights, aggregated: sp.aggregated ?? '' } : null;
+      pendingSocialProofInsights = [];
+      editingSocialProofChips = false;
     } else {
       const l = updated.find((p: any) => p.category === 'linkedin') as any;
       careerHighlights = l?.insights?.length ? { insights: l.insights, aggregated: l.aggregated ?? '' } : null;
@@ -194,6 +207,12 @@
 
   // Health & Fitness signals — derived from uploaded discipline proof photos
   let healthFitnessSignals = $state<{
+    insights: Array<{ label: string; emoji: string }>;
+    aggregated: string;
+  } | null>(null);
+
+  // Social Life signals — derived from uploaded social_proof photos
+  let socialProofSignals = $state<{
     insights: Array<{ label: string; emoji: string }>;
     aggregated: string;
   } | null>(null);
@@ -1185,6 +1204,14 @@
             aggregated: disciplineInsight.aggregated ?? '',
           };
         }
+
+        const socialProofInsight = allI.find(i => i.category === 'social_proof');
+        if (socialProofInsight?.insights?.length) {
+          socialProofSignals = {
+            insights: socialProofInsight.insights,
+            aggregated: socialProofInsight.aggregated ?? '',
+          };
+        }
       }
     } catch { /* non-critical */ }
 
@@ -2061,6 +2088,99 @@
                 <path d="M20 6L9 17l-5-5"/>
               </svg>
               <span>AI verified via fitness photos</span>
+            </div>
+          </div>
+        </section>
+      {/if}
+
+      <!-- Social Life — derived from social_proof photos -->
+      {#if socialProofSignals}
+        <section class="section career-section">
+          <div class="section-label">
+            <span>🤝</span>
+            Social Life
+            <button
+              class="section-edit-btn {editingSocialProofChips ? 'section-edit-btn--active' : ''}"
+              onclick={() => {
+                if (editingSocialProofChips) commitPendingInsights('social_proof');
+                else editingSocialProofChips = true;
+              }}
+              aria-label={editingSocialProofChips ? 'Done editing' : 'Edit chips'}
+              type="button"
+            >
+              {#if editingSocialProofChips}
+                <Check size={11} />
+              {:else}
+                <Pencil size={11} />
+              {/if}
+            </button>
+          </div>
+          <div class="career-card">
+            <div class="signal-grid">
+              {#each socialProofSignals.insights as ins}
+                <div class="signal-tile {editingSocialProofChips ? 'signal-tile--editing' : ''}">
+                  {#if editingSocialProofChips}
+                    <button
+                      class="signal-tile-remove"
+                      type="button"
+                      aria-label="Remove {ins.label}"
+                      onclick={() => {
+                        const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
+                        const updated = all.map((p: any) => {
+                          if (p.category !== 'social_proof') return p;
+                          const filtered = (p.insights ?? []).filter((i: { label: string }) => i.label !== ins.label);
+                          return filtered.length ? { ...p, insights: filtered } : null;
+                        }).filter(Boolean);
+                        localStorage.setItem('vv_proof_insights', JSON.stringify(updated));
+                        const spEntry = updated.find((p: any) => p.category === 'social_proof') as any;
+                        socialProofSignals = spEntry?.insights?.length ? { insights: spEntry.insights, aggregated: spEntry.aggregated ?? '' } : null;
+                        if (!socialProofSignals) editingSocialProofChips = false;
+                      }}
+                    >×</button>
+                  {/if}
+                  <span class="signal-tile-emoji">{ins.emoji}</span>
+                  <span class="signal-tile-label">{ins.label}</span>
+                </div>
+              {/each}
+
+              {#each pendingSocialProofInsights as ins}
+                <div class="signal-tile signal-tile--pending">
+                  <button
+                    class="signal-tile-remove"
+                    type="button"
+                    aria-label="Dismiss {ins.label}"
+                    onclick={() => { pendingSocialProofInsights = pendingSocialProofInsights.filter(p => p.label !== ins.label); }}
+                  >×</button>
+                  <span class="signal-tile-emoji">{ins.emoji}</span>
+                  <span class="signal-tile-label">{ins.label}</span>
+                </div>
+              {/each}
+            </div>
+
+            {#if socialProofSignals.aggregated}
+              <p class="signal-summary">{socialProofSignals.aggregated}</p>
+            {/if}
+
+            {#if editingSocialProofChips}
+              <button
+                class="chip-gen-btn chip-gen-btn--blue {generatingSocialProof ? 'chip-gen-btn--loading' : ''}"
+                type="button"
+                disabled={generatingSocialProof}
+                onclick={() => generateMoreInsights('social_proof')}
+              >
+                {#if generatingSocialProof}
+                  <span class="chip-gen-spinner"></span>Generating…
+                {:else}
+                  ✨ Suggest 3 more
+                {/if}
+              </button>
+            {/if}
+
+            <div class="career-verified-row">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+              <span>AI verified via social photos</span>
             </div>
           </div>
         </section>
