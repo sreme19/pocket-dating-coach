@@ -2122,17 +2122,12 @@
               <!-- AI-verified wealth signals from bank statement / ITR / investments -->
               {#if wealthInsights}
                 <div class="money-wealth-block">
-                  {#if wealthInsights.aggregated}
-                    <p class="money-wealth-summary">{wealthInsights.aggregated}</p>
-                  {/if}
-                  <div class="money-wealth-chips">
+                  <div class="signal-grid">
                     {#each wealthInsights.insights as ins}
-                      <span class="money-wealth-chip {editingMoneyChips ? 'money-wealth-chip--editing' : ''}">
-                        <span class="money-wealth-chip-emoji">{ins.emoji}</span>
-                        {ins.label}
+                      <div class="signal-tile {editingMoneyChips ? 'signal-tile--editing' : ''}">
                         {#if editingMoneyChips}
                           <button
-                            class="chip-remove-btn chip-remove-btn--gold"
+                            class="signal-tile-remove"
                             type="button"
                             aria-label="Remove {ins.label}"
                             onclick={() => {
@@ -2149,39 +2144,46 @@
                             }}
                           >×</button>
                         {/if}
-                      </span>
+                        <span class="signal-tile-emoji">{ins.emoji}</span>
+                        <span class="signal-tile-label">{ins.label}</span>
+                      </div>
                     {/each}
 
-                    <!-- Pending (AI-generated, not yet saved) wealth chips -->
+                    <!-- Pending (AI-generated, not yet saved) wealth tiles -->
                     {#each pendingWealthInsights as ins}
-                      <span class="money-wealth-chip money-wealth-chip--pending">
-                        <span class="money-wealth-chip-emoji">{ins.emoji}</span>
-                        {ins.label}
+                      <div class="signal-tile signal-tile--pending">
                         <button
-                          class="chip-remove-btn chip-remove-btn--gold"
+                          class="signal-tile-remove"
                           type="button"
                           aria-label="Dismiss {ins.label}"
                           onclick={() => { pendingWealthInsights = pendingWealthInsights.filter(p => p.label !== ins.label); }}
                         >×</button>
-                      </span>
+                        <span class="signal-tile-emoji">{ins.emoji}</span>
+                        <span class="signal-tile-label">{ins.label}</span>
+                      </div>
                     {/each}
-
-                    <!-- Generate more button — visible in edit mode -->
-                    {#if editingMoneyChips}
-                      <button
-                        class="chip-gen-btn {generatingWealth ? 'chip-gen-btn--loading' : ''}"
-                        type="button"
-                        disabled={generatingWealth}
-                        onclick={() => generateMoreInsights('wealth')}
-                      >
-                        {#if generatingWealth}
-                          <span class="chip-gen-spinner"></span>Generating…
-                        {:else}
-                          ✨ Suggest 3 more
-                        {/if}
-                      </button>
-                    {/if}
                   </div>
+
+                  {#if wealthInsights.aggregated}
+                    <p class="signal-summary">{wealthInsights.aggregated}</p>
+                  {/if}
+
+                  <!-- Generate more button — visible in edit mode -->
+                  {#if editingMoneyChips}
+                    <button
+                      class="chip-gen-btn {generatingWealth ? 'chip-gen-btn--loading' : ''}"
+                      type="button"
+                      disabled={generatingWealth}
+                      onclick={() => generateMoreInsights('wealth')}
+                    >
+                      {#if generatingWealth}
+                        <span class="chip-gen-spinner"></span>Generating…
+                      {:else}
+                        ✨ Suggest 3 more
+                      {/if}
+                    </button>
+                  {/if}
+
                   <div class="money-wealth-verified">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.55">
                       <path d="M20 6L9 17l-5-5"/>
