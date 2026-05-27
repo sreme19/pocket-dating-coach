@@ -43,9 +43,10 @@ export const POST: RequestHandler = async ({ request }) => {
 
   try {
     const body = await request.json();
-    const { referenceImageUrl, personalityTraits } = body as {
+    const { referenceImageUrl, personalityTraits, sceneOverride } = body as {
       referenceImageUrl: string;
       personalityTraits: PersonalityTrait[];
+      sceneOverride?: string;
     };
 
     if (!referenceImageUrl) {
@@ -54,7 +55,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
     fal.config({ credentials: FAL_KEY });
 
-    const scenePrompt = buildScenePrompt(personalityTraits ?? []);
+    const scenePrompt = sceneOverride ?? buildScenePrompt(personalityTraits ?? []);
 
     const result = await fal.run('fal-ai/flux-pulid', {
       input: {
