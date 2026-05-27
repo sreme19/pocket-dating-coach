@@ -22,7 +22,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { queueIntelligenceReport } from '$lib/server/matchmaker-service';
 import { getSupabase } from '$lib/server/supabase';
-import { touchLastActive } from '$lib/server/pool-registry';
+import { touchLastActive, refreshWingmanPoolEntry, refreshBestiePoolEntry } from '$lib/server/pool-registry';
 import { MATCHMAKER_RUN_SECRET } from '$env/static/private';
 
 // This endpoint awaits the /process dispatch — give it enough headroom for
@@ -63,8 +63,14 @@ export const POST: RequestHandler = async ({ request, url }) => {
 
     if (!user) return json({ error: 'User not found' }, { status: 404 });
 
-    // Touch last_active
+    // Touch last_active and ensure pool entry exists (auto-enroll if missing,
+    // e.g. seed users who bypassed the verification flow)
     await touchLastActive(userId);
+    if (user.gender === 'man') {
+      await refreshWingmanPoolEntry(userId);
+    } else if (user.gender === 'woman') {
+      await refreshBestiePoolEntry(userId);
+    }
 
     // Guard: don't queue duplicate pending reports of same type
     const { data: existing } = await db
