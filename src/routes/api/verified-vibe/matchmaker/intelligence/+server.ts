@@ -25,6 +25,10 @@ import { getSupabase } from '$lib/server/supabase';
 import { touchLastActive } from '$lib/server/pool-registry';
 import { MATCHMAKER_RUN_SECRET } from '$env/static/private';
 
+// This endpoint awaits the /process dispatch — give it enough headroom for
+// Claude generation (typically 15–30 s) plus DB writes.
+export const config = { maxDuration: 60 };
+
 export const POST: RequestHandler = async ({ request, url }) => {
   try {
     const body = await request.json() as {
@@ -81,24 +85,32 @@ export const POST: RequestHandler = async ({ request, url }) => {
     // Queue the report
     const reportId = await queueIntelligenceReport(userId, reportType, triggerType);
 
-    // Kick off processing in a separate Vercel invocation so it isn't killed
-    // when this response is sent. The /process endpoint awaits the full Claude
-    // generation and DB writes in its own Lambda lifecycle.
+    // Dispatch processing to /process endpoint and await it.
+    // Node.js lambdas don't support fire-and-forget after response — the
+    // function exits when it returns. We await the fetch so this Lambda
+    // stays alive until the Claude generation and DB writes complete.
+    // Both endpoints are configured with maxDuration: 60.
     const processUrl = new URL('/api/verified-vibe/matchmaker/intelligence/process', url).toString();
-    fetch(processUrl, {
+    const processRes = await fetch(processUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-matchmaker-secret': MATCHMAKER_RUN_SECRET,
       },
       body: JSON.stringify({ reportId }),
-    }).catch((err) => {
-      console.error('[intelligence] failed to dispatch process request', reportId, err);
     });
+
+    if (!processRes.ok) {
+      console.error('[intelligence] process endpoint returned', processRes.status, reportId);
+      return json({
+        reportId,
+        message: 'Report queued but processing encountered an issue. It will be retried shortly.',
+      });
+    }
 
     return json({
       reportId,
-      message: 'Your intelligence report is being prepared. You\'ll get a notification and in-chat summary when it\'s ready — usually within a minute.',
+      message: 'Your intelligence report is ready. Check your Wingman chat for your personalised summary.',
     });
 
   } catch (err) {
