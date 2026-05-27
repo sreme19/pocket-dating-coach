@@ -2617,6 +2617,7 @@
           <div class="garage-showroom">
             {#each garageCars as car, i}
               {@const brand = getBrandStyle(car.make)}
+              {@const carKey = `${car.make}_${car.model}`.replace(/\s+/g, '_')}
               <div class="garage-card {garageActiveIdx === i ? 'garage-card-active' : 'garage-card-hidden'}">
                 <!-- Brand accent bar -->
                 <div class="garage-brand-bar" style="background: {brand.accent}"></div>
@@ -2625,7 +2626,6 @@
                 <div class="garage-grid-overlay"></div>
 
                 <!-- Car hero — real image from Wikipedia or fallback SVG -->
-                {@const carKey = `${car.make}_${car.model}`.replace(/\s+/g, '_')}
                 <div class="garage-hero">
                   {#if carImages[carKey]}
                     <img class="garage-car-img" src={carImages[carKey]} alt="{car.make} {car.model}" />
