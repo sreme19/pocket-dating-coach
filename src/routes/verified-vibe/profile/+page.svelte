@@ -1923,93 +1923,6 @@
       </section>
       {/if}
 
-      <!-- Personality Reads -->
-      {#if $user?.gender === 'man' || $user?.gender === null}
-      <section class="section">
-        <div class="section-label">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/>
-          </svg>
-          Personality Reads
-          <span class="section-hint">inferred from Q&A + lifestyle</span>
-        </div>
-        <div class="personality-reads">
-          {#each personalityReads as read}
-            {@const r = 26}
-            {@const circ = 2 * Math.PI * r}
-            {@const dash = (read.percentage / 100) * circ}
-            <div class="read-item">
-              <svg class="read-ring" viewBox="0 0 68 68" width="68" height="68">
-                <circle cx="34" cy="34" r={r} fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="5"/>
-                <circle
-                  cx="34" cy="34" r={r}
-                  fill="none"
-                  stroke="var(--accent-bright)"
-                  stroke-width="5"
-                  stroke-linecap="round"
-                  stroke-dasharray="{dash} {circ}"
-                  transform="rotate(-90 34 34)"
-                />
-                <text x="34" y="38" text-anchor="middle" class="read-ring-pct">{read.percentage}%</text>
-              </svg>
-              <span class="read-name">{read.name}</span>
-              <span class="read-level">{read.level}</span>
-            </div>
-          {/each}
-        </div>
-      </section>
-      {/if}
-
-      <!-- AI Personality Portrait — generated from reference photo + personality traits -->
-      {#if ($user?.gender === 'man' || $user?.gender === null) && ($user?.avatar || photos.length > 0)}
-        <section class="section portrait-section">
-          <div class="section-label">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-            </svg>
-            AI Portrait
-            <span class="section-hint">generated from your photos</span>
-          </div>
-
-          {#if personalityPortraitUrl}
-            <div class="portrait-wrap">
-              <img class="portrait-img" src={personalityPortraitUrl} alt="AI-generated portrait" />
-              <div class="portrait-gradient"></div>
-              <div class="portrait-footer">
-                <span class="portrait-label">✨ Generated from your verified photos</span>
-                <button
-                  class="portrait-regen-btn"
-                  type="button"
-                  disabled={generatingPortrait}
-                  onclick={() => { personalityPortraitUrl = null; localStorage.removeItem('vv_personality_portrait'); generatePersonalityPortrait(); }}
-                >
-                  {generatingPortrait ? 'Regenerating…' : '↺ Regenerate'}
-                </button>
-              </div>
-            </div>
-          {:else if generatingPortrait}
-            <div class="portrait-loading">
-              <div class="portrait-spinner"></div>
-              <p class="portrait-loading-text">Generating your portrait…</p>
-              <p class="portrait-loading-sub">This takes about 20–30 seconds</p>
-            </div>
-          {:else if portraitError && portraitError.includes('not configured')}
-            <!-- FAL_KEY not set — silently hide -->
-          {:else}
-            <button class="portrait-generate-btn" type="button" onclick={generatePersonalityPortrait}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-              </svg>
-              Generate AI Portrait
-              <span class="portrait-generate-hint">Based on your verified photos + personality</span>
-            </button>
-            {#if portraitError}
-              <p class="portrait-error">{portraitError}</p>
-            {/if}
-          {/if}
-        </section>
-      {/if}
-
       <!-- Money Matters — read-only in public view -->
       {#if $user?.gender === 'man' || $user?.gender === null}
         <section class="section money-section">
@@ -2145,6 +2058,93 @@
               </button>
             {/if}
           </div>
+        </section>
+      {/if}
+
+      <!-- Personality Reads -->
+      {#if $user?.gender === 'man' || $user?.gender === null}
+      <section class="section">
+        <div class="section-label">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/>
+          </svg>
+          Personality Reads
+          <span class="section-hint">inferred from Q&A + lifestyle</span>
+        </div>
+        <div class="personality-reads">
+          {#each personalityReads as read}
+            {@const r = 26}
+            {@const circ = 2 * Math.PI * r}
+            {@const dash = (read.percentage / 100) * circ}
+            <div class="read-item">
+              <svg class="read-ring" viewBox="0 0 68 68" width="68" height="68">
+                <circle cx="34" cy="34" r={r} fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="5"/>
+                <circle
+                  cx="34" cy="34" r={r}
+                  fill="none"
+                  stroke="var(--accent-bright)"
+                  stroke-width="5"
+                  stroke-linecap="round"
+                  stroke-dasharray="{dash} {circ}"
+                  transform="rotate(-90 34 34)"
+                />
+                <text x="34" y="38" text-anchor="middle" class="read-ring-pct">{read.percentage}%</text>
+              </svg>
+              <span class="read-name">{read.name}</span>
+              <span class="read-level">{read.level}</span>
+            </div>
+          {/each}
+        </div>
+      </section>
+      {/if}
+
+      <!-- AI Personality Portrait — generated from reference photo + personality traits -->
+      {#if ($user?.gender === 'man' || $user?.gender === null) && ($user?.avatar || photos.length > 0)}
+        <section class="section portrait-section">
+          <div class="section-label">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+            AI Portrait
+            <span class="section-hint">generated from your photos</span>
+          </div>
+
+          {#if personalityPortraitUrl}
+            <div class="portrait-wrap">
+              <img class="portrait-img" src={personalityPortraitUrl} alt="AI-generated portrait" />
+              <div class="portrait-gradient"></div>
+              <div class="portrait-footer">
+                <span class="portrait-label">✨ Generated from your verified photos</span>
+                <button
+                  class="portrait-regen-btn"
+                  type="button"
+                  disabled={generatingPortrait}
+                  onclick={() => { personalityPortraitUrl = null; localStorage.removeItem('vv_personality_portrait'); generatePersonalityPortrait(); }}
+                >
+                  {generatingPortrait ? 'Regenerating…' : '↺ Regenerate'}
+                </button>
+              </div>
+            </div>
+          {:else if generatingPortrait}
+            <div class="portrait-loading">
+              <div class="portrait-spinner"></div>
+              <p class="portrait-loading-text">Generating your portrait…</p>
+              <p class="portrait-loading-sub">This takes about 20–30 seconds</p>
+            </div>
+          {:else if portraitError && portraitError.includes('not configured')}
+            <!-- FAL_KEY not set — silently hide -->
+          {:else}
+            <button class="portrait-generate-btn" type="button" onclick={generatePersonalityPortrait}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+              Generate AI Portrait
+              <span class="portrait-generate-hint">Based on your verified photos + personality</span>
+            </button>
+            {#if portraitError}
+              <p class="portrait-error">{portraitError}</p>
+            {/if}
+          {/if}
         </section>
       {/if}
 
