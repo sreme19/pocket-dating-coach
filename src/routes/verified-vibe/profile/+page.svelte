@@ -3021,40 +3021,6 @@
       {/if}
 
       <!-- Lifestyle tags -->
-      {#if lifestyleTags.length > 0 || mode === 'enhance'}
-        <section class="section">
-          <div class="section-label">
-            Lifestyle
-            {#if mode === 'enhance'}
-              <button class="autofill-btn" onclick={() => autoFill('lifestyle')} disabled={!!generatingField} title="Auto-generate from your profile">
-                {#if generatingField === 'lifestyle'}
-                  <span class="autofill-spinner"></span>
-                {:else}
-                  ✨
-                {/if}
-                Auto-fill
-              </button>
-            {/if}
-          </div>
-          {#if mode === 'enhance'}
-            <input
-              class="edit-input"
-              type="text"
-              value={editLifestyle.join(', ')}
-              onchange={handleLifestyleEdit}
-              placeholder="Travel, Fitness, Food & Dining"
-            />
-            <p class="edit-hint">Comma-separated, up to 6 tags</p>
-          {:else}
-            <div class="tag-row">
-              {#each lifestyleTags as tag}
-                <span class="tag lifestyle">{tag}</span>
-              {/each}
-            </div>
-          {/if}
-        </section>
-      {/if}
-
       <!-- Sign Out Button -->
       <button class="sign-out-btn" onclick={handleSignOut} title="Sign out">
         <LogOut size={16} />
