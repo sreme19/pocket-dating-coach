@@ -292,19 +292,21 @@
   async function fetchCarImage(make: string, model: string) {
     const key = `${make}_${model}`.replace(/\s+/g, '_');
     if (key in carImages) return;
-    carImages = { ...carImages, [key]: '' }; // mark as pending
+    carImages = { ...carImages, [key]: '' }; // mark as pending / no image yet
     try {
-      const cached = localStorage.getItem(`vv_car_img_${key}`);
-      if (cached !== null) { carImages = { ...carImages, [key]: cached }; return; }
-      const title = encodeURIComponent(`${make} ${model}`);
-      const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`);
+      // v2 prefix busts any stale empty-string entries from the old client-side fetch
+      const cacheKey = `vv_car_img_v2_${key}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) { carImages = { ...carImages, [key]: cached }; return; }
+      const res = await fetch(`/api/verified-vibe/car-image?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}`);
       if (res.ok) {
-        const json = await res.json();
-        const url: string = json.thumbnail?.source ?? '';
-        carImages = { ...carImages, [key]: url };
-        localStorage.setItem(`vv_car_img_${key}`, url);
+        const data = await res.json() as { imageUrl: string | null };
+        if (data.imageUrl) {
+          carImages = { ...carImages, [key]: data.imageUrl };
+          localStorage.setItem(cacheKey, data.imageUrl);
+        }
       }
-    } catch { /* no image */ }
+    } catch { /* no image, SVG fallback stays */ }
   }
 
   $effect(() => {
