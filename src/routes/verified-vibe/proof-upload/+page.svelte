@@ -679,11 +679,17 @@
                 </div>
               {/each}
             {:else}
-              <!-- No thumbnails stored (e.g. URL-only or legacy entry) -->
-              <div class="manage-doc-row">
-                <div class="manage-doc-icon">📋</div>
-                <span class="manage-doc-label">Verified proof (no file preview)</span>
-              </div>
+              <!-- No thumbnails stored — show one placeholder row per uploaded file -->
+              {#each { length: existingInsight.photo_count ?? 1 } as _, pi}
+                <div class="manage-doc-row">
+                  <div class="manage-doc-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                  </div>
+                  <span class="manage-doc-label">Photo {pi + 1} · re-upload to see preview</span>
+                </div>
+              {/each}
             {/if}
           </div>
 
