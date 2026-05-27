@@ -63,6 +63,7 @@
   }
 
   let currentStep = $state(1);
+  let returnTo = $state('');
   let loading = $state(false);
   let openedMotivationProfile = $state<SeedCarouselProfile | null>(null);
   let error = $state<string | null>(null);
@@ -702,6 +703,13 @@
 
   const totalSteps = $derived(steps.length);
 
+  // When editing from profile: redirect back instead of entering the Profile step
+  $effect(() => {
+    if (returnTo && currentStep === totalSteps) {
+      goto(returnTo);
+    }
+  });
+
   onMount(() => {
     // Initialize from store
     verificationStep.subscribe(step => {
@@ -716,16 +724,20 @@
       }
     });
 
-    // Jump to a specific step when coming from a boost CTA (e.g. ?step=liveness)
+    // Jump to a specific step when coming from a boost CTA or profile edit
     const urlStep = get(page).url.searchParams.get('step');
     if (urlStep) {
-      const STEP_MAP: Record<string, number> = { id: 1, liveness: 2 };
+      const STEP_MAP: Record<string, number> = { id: 1, liveness: 2, archetype_qa: 4 };
       const target = STEP_MAP[urlStep];
       if (target) {
         currentStep = target;
         verificationStep.set(target);
       }
     }
+
+    // Store returnTo so we can navigate back after archetype steps complete
+    const returnToParam = get(page).url.searchParams.get('returnTo');
+    if (returnToParam) returnTo = returnToParam;
 
     // If the user store has no archetype (e.g. direct navigation or hydration
     // race), recover from localStorage so the correct archetype-specific steps
