@@ -265,8 +265,14 @@ async function persistInsight(userId: string, category: string, pts: number, dat
       if (Array.isArray(d.assets) && (d.assets as unknown[]).length > 0) {
         newEntry.assets = d.assets;
       }
+      if (Array.isArray(d.thumbnail_urls) && (d.thumbnail_urls as unknown[]).length > 0) {
+        newEntry.thumbnail_urls = d.thumbnail_urls;
+      }
       if (d.pts_awarded !== undefined) {
         newEntry.pts_awarded = d.pts_awarded;
+      }
+      if (d.photo_count !== undefined) {
+        newEntry.photo_count = d.photo_count;
       }
 
       // ── 2a. user_master_profile (source of truth) ──────────────────────────
@@ -637,9 +643,41 @@ export const POST: RequestHandler = async ({ request }) => {
     const spendingBreakdown = Array.isArray(result.spendingBreakdown) ? result.spendingBreakdown : [];
     if (insights.length === 0 && verified) insights.push({ label: 'Proof verified', emoji: '✅' });
 
+    let thumbnailUrls: string[] = [];
+
     if (verified) {
       const userId = await getUserIdFromRequest(request);
-      if (userId) await persistInsight(userId, category, pts, { insights, locations, aggregated, assets, spendingBreakdown, confidence: result.confidence, reason: result.reason, pts_awarded: pts, photo_count: files.length });
+
+      // Upload image files to Supabase Storage so thumbnails survive cross-device restore
+      if (userId) {
+        try {
+          const supabase = getSupabase();
+          const db = supabase as any;
+          const mimeToExt: Record<string, string> = {
+            'image/jpeg': 'jpg', 'image/jpg': 'jpg',
+            'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif',
+          };
+          const ts = Date.now();
+          for (let i = 0; i < files.slice(0, 8).length; i++) {
+            const file = files[i];
+            if (!file.type.startsWith('image/')) continue;
+            const ext  = mimeToExt[file.type] ?? 'jpg';
+            const path = `proof-uploads/${userId}/${category}/${ts}_${i}.${ext}`;
+            const buf  = Buffer.from(await file.arrayBuffer());
+            const { error: uploadErr } = await db.storage
+              .from('profiles')
+              .upload(path, buf, { contentType: file.type, upsert: true });
+            if (!uploadErr) {
+              const { data: urlData } = db.storage.from('profiles').getPublicUrl(path);
+              if (urlData?.publicUrl) thumbnailUrls.push(urlData.publicUrl);
+            }
+          }
+        } catch (e) {
+          console.warn('proof thumbnail upload failed (non-fatal):', e);
+        }
+      }
+
+      if (userId) await persistInsight(userId, category, pts, { insights, locations, aggregated, assets, spendingBreakdown, confidence: result.confidence, reason: result.reason, pts_awarded: pts, photo_count: files.length, thumbnail_urls: thumbnailUrls });
     }
 
     return json({
@@ -649,10 +687,11 @@ export const POST: RequestHandler = async ({ request }) => {
       aggregated,
       assets,
       spendingBreakdown,
-      pts_awarded:  verified ? pts : 0,
-      photo_count:  files.length,
-      confidence:   result.confidence ?? 0,
-      reason:       result.reason ?? '',
+      pts_awarded:    verified ? pts : 0,
+      photo_count:    files.length,
+      confidence:     result.confidence ?? 0,
+      reason:         result.reason ?? '',
+      thumbnail_urls: thumbnailUrls,
     });
 
   } catch (error) {

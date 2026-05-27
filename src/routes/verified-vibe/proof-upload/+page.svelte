@@ -487,15 +487,19 @@
         ? data.insights
         : (data.insight_label ? [{ label: data.insight_label, emoji: data.insight_emoji ?? '✅' }] : [{ label: 'Proof verified', emoji: '✅' }]);
 
-      // Generate thumbnails: real image for image files, empty-string placeholder for PDFs/docs
-      // We always produce one entry per file so the manage-docs panel shows the correct count.
-      const thumbnails: string[] = [];
-      for (const f of files.slice(0, 20)) {
-        if (f.type.startsWith('image/')) {
-          const thumb = await makeThumbnail(f);
-          thumbnails.push(thumb ?? '');   // push empty string if thumbnail fails
-        } else {
-          thumbnails.push('');            // placeholder for PDF / non-image
+      // Use server-returned storage URLs if available; fall back to client-side base64 thumbnails.
+      // Storage URLs survive cross-device restore; base64 thumbnails are localStorage-only.
+      let thumbnails: string[] = [];
+      if (Array.isArray(data.thumbnail_urls) && data.thumbnail_urls.length > 0) {
+        thumbnails = data.thumbnail_urls;
+      } else {
+        for (const f of files.slice(0, 20)) {
+          if (f.type.startsWith('image/')) {
+            const thumb = await makeThumbnail(f);
+            thumbnails.push(thumb ?? '');
+          } else {
+            thumbnails.push('');
+          }
         }
       }
 
@@ -514,7 +518,7 @@
         photo_count:   data.photo_count ?? files.length,
         pts_awarded:   data.pts_awarded,
         verified_at:   new Date().toISOString(),
-        thumbnails:    thumbnails.length > 0 ? thumbnails : undefined,  // always has one entry per uploaded file
+        thumbnails:    thumbnails.length > 0 ? thumbnails : undefined,
         locations:     locationsArr.length > 0 ? locationsArr : undefined,
         assets:            Array.isArray(data.assets)            && data.assets.length > 0            ? data.assets            : undefined,
         spendingBreakdown: Array.isArray(data.spendingBreakdown) && data.spendingBreakdown.length > 0 ? data.spendingBreakdown : undefined,

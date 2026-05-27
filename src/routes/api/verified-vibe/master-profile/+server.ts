@@ -54,7 +54,8 @@ function proofsToLocalStorage(verifiedProofs: unknown[]): object[] {
       pts_awarded:   p.pts_awarded ?? CATEGORY_PTS[p.category] ?? 4,
       verified_at:   p.verified_at ?? new Date().toISOString(),
       showcased:     p.showcased ?? false,
-      // thumbnails intentionally omitted — too large for DB; client keeps locally
+      // thumbnails: storage URLs restored from DB (base64 thumbnails from old uploads stay client-local)
+      ...(Array.isArray(p.thumbnail_urls) && p.thumbnail_urls.length > 0 ? { thumbnails: p.thumbnail_urls } : {}),
     };
     // Restore rich fields saved by persistInsight
     if (Array.isArray(p.spendingBreakdown) && p.spendingBreakdown.length > 0) {
