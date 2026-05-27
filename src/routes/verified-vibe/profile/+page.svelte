@@ -287,6 +287,29 @@
 
   let garageCars = $state<GarageCar[]>([]);
   let garageActiveIdx = $state(0);
+  let carImages = $state<Record<string, string>>({});
+
+  async function fetchCarImage(make: string, model: string) {
+    const key = `${make}_${model}`.replace(/\s+/g, '_');
+    if (key in carImages) return;
+    carImages = { ...carImages, [key]: '' }; // mark as pending
+    try {
+      const cached = localStorage.getItem(`vv_car_img_${key}`);
+      if (cached !== null) { carImages = { ...carImages, [key]: cached }; return; }
+      const title = encodeURIComponent(`${make} ${model}`);
+      const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${title}`);
+      if (res.ok) {
+        const json = await res.json();
+        const url: string = json.thumbnail?.source ?? '';
+        carImages = { ...carImages, [key]: url };
+        localStorage.setItem(`vv_car_img_${key}`, url);
+      }
+    } catch { /* no image */ }
+  }
+
+  $effect(() => {
+    for (const car of garageCars) fetchCarImage(car.make, car.model);
+  });
 
   // Career Highlights — derived from LinkedIn / CV proof insights
   let careerHighlights = $state<{
@@ -1148,7 +1171,10 @@
         .toLowerCase();
       const fromText = Object.keys(PLACE_TO_ISO).filter(place => allText.includes(place));
 
-      const merged = Array.from(new Set([...fromKey, ...fromLocationsField, ...fromText])).filter(Boolean);
+      const removedSet = new Set<string>(JSON.parse(localStorage.getItem('vv_countries_removed') ?? '[]'));
+      const merged = Array.from(new Set([...fromKey, ...fromLocationsField, ...fromText]))
+        .filter(Boolean)
+        .filter(p => !removedSet.has(p));
       if (merged.length > 0) {
         countriesTraveled = merged;
         localStorage.setItem('vv_countries_traveled', JSON.stringify(merged));
@@ -2598,11 +2624,16 @@
                 <!-- Showroom floor grid -->
                 <div class="garage-grid-overlay"></div>
 
-                <!-- Car hero — SVG silhouette tinted with brand accent -->
+                <!-- Car hero — real image from Wikipedia or fallback SVG -->
+                {@const carKey = `${car.make}_${car.model}`.replace(/\s+/g, '_')}
                 <div class="garage-hero">
+                  {#if carImages[carKey]}
+                    <img class="garage-car-img" src={carImages[carKey]} alt="{car.make} {car.model}" />
+                  {:else}
                   <div class="garage-car-svg">
                     {@html getCarSVG(car, brand.accent)}
                   </div>
+                  {/if}
                   <div class="garage-light-sweep"></div>
                   <!-- Remove button for this car — visible in edit mode -->
                   {#if editingGarage}
@@ -2722,6 +2753,8 @@
                     type="button"
                     aria-label="Remove {place}"
                     onclick={() => {
+                      const removed: string[] = JSON.parse(localStorage.getItem('vv_countries_removed') ?? '[]');
+                      if (!removed.includes(place)) { removed.push(place); localStorage.setItem('vv_countries_removed', JSON.stringify(removed)); }
                       countriesTraveled = countriesTraveled.filter((_, idx) => idx !== i);
                       localStorage.setItem('vv_countries_traveled', JSON.stringify(countriesTraveled));
                       if (countriesTraveled.length === 0) editingMagnets = false;
@@ -5787,6 +5820,18 @@
     max-width: 320px;
     filter: drop-shadow(0 10px 28px rgba(0,0,0,0.55));
     animation: garageFloat 4s ease-in-out infinite;
+  }
+
+  .garage-car-img {
+    position: relative;
+    z-index: 1;
+    width: 88%;
+    max-width: 320px;
+    height: 200px;
+    object-fit: cover;
+    object-position: center;
+    border-radius: 12px;
+    filter: drop-shadow(0 10px 28px rgba(0,0,0,0.55));
   }
 
   :global(.car-svg-el) {
