@@ -21,11 +21,11 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { queueIntelligenceReport } from '$lib/server/matchmaker-service';
-import { processIntelligenceReport } from '$lib/server/intelligence-report-processor';
 import { getSupabase } from '$lib/server/supabase';
 import { touchLastActive } from '$lib/server/pool-registry';
+import { MATCHMAKER_RUN_SECRET } from '$env/static/private';
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, url }) => {
   try {
     const body = await request.json() as {
       userId?:      string;
@@ -81,9 +81,19 @@ export const POST: RequestHandler = async ({ request }) => {
     // Queue the report
     const reportId = await queueIntelligenceReport(userId, reportType, triggerType);
 
-    // Process asynchronously — don't await, respond immediately
-    processIntelligenceReport(reportId).catch((err) => {
-      console.error('[intelligence] processing failed', reportId, err);
+    // Kick off processing in a separate Vercel invocation so it isn't killed
+    // when this response is sent. The /process endpoint awaits the full Claude
+    // generation and DB writes in its own Lambda lifecycle.
+    const processUrl = new URL('/api/verified-vibe/matchmaker/intelligence/process', url).toString();
+    fetch(processUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-matchmaker-secret': MATCHMAKER_RUN_SECRET,
+      },
+      body: JSON.stringify({ reportId }),
+    }).catch((err) => {
+      console.error('[intelligence] failed to dispatch process request', reportId, err);
     });
 
     return json({
