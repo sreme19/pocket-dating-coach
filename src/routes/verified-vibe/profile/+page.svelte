@@ -288,6 +288,7 @@
   let garageCars = $state<GarageCar[]>([]);
   let garageActiveIdx = $state(0);
   let carImages = $state<Record<string, string>>({});
+  let carUploadingKey = $state<string | null>(null); // key of the car currently being uploaded/enhanced
 
   async function fetchCarImage(make: string, model: string) {
     const key = `${make}_${model}`.replace(/\s+/g, '_');
@@ -307,6 +308,26 @@
         }
       }
     } catch { /* no image, SVG fallback stays */ }
+  }
+
+  async function uploadCarPhoto(make: string, model: string, file: File) {
+    const key = `${make}_${model}`.replace(/\s+/g, '_');
+    carUploadingKey = key;
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('make', make);
+      fd.append('model', model);
+      const res = await fetch('/api/verified-vibe/car-image', { method: 'POST', body: fd });
+      const data = await res.json() as { imageUrl?: string; error?: string };
+      if (data.imageUrl) {
+        carImages = { ...carImages, [key]: data.imageUrl };
+        // Bust old cache so fresh URL is used on next load
+        localStorage.setItem(`vv_car_img_v3_${key}`, data.imageUrl);
+      }
+    } catch { /* non-critical */ } finally {
+      carUploadingKey = null;
+    }
   }
 
   $effect(() => {
@@ -2641,6 +2662,31 @@
                   </div>
                   {/if}
                   <div class="garage-light-sweep"></div>
+
+                  <!-- Upload your car photo — always visible -->
+                  {#if carUploadingKey === carKey}
+                    <div class="garage-upload-spinner" aria-label="Enhancing photo…">
+                      <div class="garage-upload-spin-ring"></div>
+                      <span class="garage-upload-spin-label">AI enhancing…</span>
+                    </div>
+                  {:else}
+                    <label class="garage-upload-btn" aria-label="Upload your own photo of this car">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                        <circle cx="12" cy="13" r="4"/>
+                      </svg>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        class="garage-upload-input"
+                        onchange={(e) => {
+                          const f = (e.target as HTMLInputElement).files?.[0];
+                          if (f) uploadCarPhoto(car.make, car.model, f);
+                        }}
+                      />
+                    </label>
+                  {/if}
+
                   <!-- Remove button for this car — visible in edit mode -->
                   {#if editingGarage}
                     <button
@@ -5875,6 +5921,62 @@
     font-size: 11px;
     color: rgba(255,255,255,0.55);
     text-transform: capitalize;
+  }
+
+  /* Camera upload button — bottom-right corner */
+  .garage-upload-btn {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    z-index: 10;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.55);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: rgba(255,255,255,0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.12s;
+  }
+  .garage-upload-btn:hover {
+    background: rgba(52,211,153,0.35);
+    border-color: #34d399;
+    color: #34d399;
+    transform: scale(1.1);
+  }
+  .garage-upload-input {
+    display: none;
+  }
+
+  /* AI enhancing spinner */
+  .garage-upload-spinner {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .garage-upload-spin-ring {
+    width: 24px;
+    height: 24px;
+    border: 2px solid rgba(52,211,153,0.25);
+    border-top-color: #34d399;
+    border-radius: 50%;
+    animation: spin 0.75s linear infinite;
+  }
+  .garage-upload-spin-label {
+    font-size: 9px;
+    color: #34d399;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
   }
 
   /* Garage × remove button — top-right corner of the car hero area */

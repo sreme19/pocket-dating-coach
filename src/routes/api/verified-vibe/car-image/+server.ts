@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
 import { fal } from '@fal-ai/client';
+import { getSupabase } from '$lib/server/supabase';
 
 const INTERIOR_KEYWORDS = ['interior', 'dashboard', 'cockpit', 'cabin', 'seat', 'steering', 'instrument', 'inside'];
 
@@ -10,11 +11,102 @@ function isInterior(text: string): boolean {
   return INTERIOR_KEYWORDS.some(kw => lower.includes(kw));
 }
 
+function carStorageKey(make: string, model: string): string {
+  return `car-images/${make.toLowerCase().replace(/\s+/g, '-')}_${model.toLowerCase().replace(/\s+/g, '-')}.jpg`;
+}
+
+// ── POST: upload user photo → AI enhance → store in shared bucket ────────────
+
+export const POST: RequestHandler = async ({ request }) => {
+  try {
+    const formData = await request.formData();
+    const file  = formData.get('file') as File | null;
+    const make  = (formData.get('make')  as string | null ?? '').trim();
+    const model = (formData.get('model') as string | null ?? '').trim();
+
+    if (!file || !make || !model) {
+      return json({ error: 'file, make and model are required' }, { status: 400 });
+    }
+
+    const FAL_KEY = env.FAL_KEY;
+    let enhancedUrl: string | null = null;
+
+    if (FAL_KEY) {
+      try {
+        fal.config({ credentials: FAL_KEY });
+
+        // Upload raw photo to fal.ai CDN so img2img can read it
+        const buf = Buffer.from(await file.arrayBuffer());
+        const blob = new Blob([buf], { type: file.type || 'image/jpeg' });
+        const uploadedUrl = await fal.storage.upload(blob as any);
+
+        // img2img: transform into professional showroom shot while preserving car identity
+        const result = await fal.run('fal-ai/flux/dev/image-to-image', {
+          input: {
+            image_url: uploadedUrl,
+            prompt: `professional automotive photography of this exact ${make} ${model}, luxury showroom background, dramatic studio lighting, front three-quarter angle, ultra realistic, high detail, cinematic, car advertisement quality`,
+            negative_prompt: 'people, text, watermark, blurry, low quality, cartoon, interior, dashboard',
+            strength: 0.55,
+            num_inference_steps: 28,
+            guidance_scale: 3.5,
+            num_images: 1,
+            image_size: 'landscape_4_3',
+          } as any,
+        }) as { data: { images: Array<{ url: string }> } };
+
+        enhancedUrl = result.data.images[0]?.url ?? null;
+      } catch (e) {
+        console.error('fal.ai img2img failed:', e);
+      }
+    }
+
+    // If enhancement failed, use the original upload directly
+    const sourceUrl = enhancedUrl;
+    if (!sourceUrl) {
+      return json({ error: 'AI enhancement failed — please try again' }, { status: 500 });
+    }
+
+    // Fetch the enhanced image and upload to Supabase Storage
+    const imgRes = await fetch(sourceUrl);
+    if (!imgRes.ok) return json({ error: 'Could not fetch enhanced image' }, { status: 500 });
+    const imgBuf = Buffer.from(await imgRes.arrayBuffer());
+
+    const supabase = getSupabase() as any;
+    const storagePath = carStorageKey(make, model);
+    const { error: uploadErr } = await supabase.storage
+      .from('profiles')
+      .upload(storagePath, imgBuf, { contentType: 'image/jpeg', upsert: true });
+
+    if (uploadErr) {
+      console.error('Storage upload failed:', uploadErr);
+      return json({ error: 'Failed to save image' }, { status: 500 });
+    }
+
+    const { data: { publicUrl } } = supabase.storage.from('profiles').getPublicUrl(storagePath);
+    return json({ imageUrl: publicUrl, enhanced: true });
+
+  } catch (err) {
+    console.error('car-image upload error:', err);
+    return json({ error: 'Internal server error' }, { status: 500 });
+  }
+};
+
+// ── GET: check user-contributed storage → Wikipedia → Commons → fal.ai ───────
+
 export const GET: RequestHandler = async ({ url }) => {
   const make  = (url.searchParams.get('make')  ?? '').trim();
   const model = (url.searchParams.get('model') ?? '').trim();
 
   if (!make || !model) return json({ imageUrl: null });
+
+  // 0. User-contributed image in Supabase Storage (shared across all users with same car)
+  try {
+    const supabase = getSupabase() as any;
+    const storagePath = carStorageKey(make, model);
+    const { data: { publicUrl } } = supabase.storage.from('profiles').getPublicUrl(storagePath);
+    const headRes = await fetch(publicUrl, { method: 'HEAD' });
+    if (headRes.ok) return json({ imageUrl: publicUrl, source: 'user' });
+  } catch { /* fall through */ }
 
   const UA = 'PocketDatingCoach/1.0';
 
