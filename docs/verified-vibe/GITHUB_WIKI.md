@@ -1,6 +1,6 @@
 # Verified Vibe — GitHub Wiki
 
-**Last updated:** 2026-05-22 · **Current release:** v2.2.0
+**Last updated:** 2026-05-27 · **Current release:** post-v2.7.0
 
 ---
 
@@ -12,6 +12,7 @@
 4. [Feature Areas](#feature-areas)
    - [Messaging & Chat List](#messaging--chat-list)
    - [AI Bestie](#ai-bestie)
+   - [Profile Wingman](#profile-wingman)
    - [Match Profiles](#match-profiles)
    - [Discovery](#discovery)
 5. [API Reference](#api-reference)
@@ -57,7 +58,9 @@ SvelteKit API routes (src/routes/api/verified-vibe/)
     ├── ai-bestie/feedback          → store 👍/👎 rating
     ├── ai-bestie/opening-message   → generate first message for new match
     ├── ai-bestie/activate          → flip ai_bestie_active on match row
-    └── match-profile/[profileId]  → rich profile (traits, vibe, brings, here-for)
+    ├── match-profile/[profileId]  → rich profile (traits, vibe, brings, here-for)
+    └── wingman                    → Profile Wingman: interpret plain-English edits,
+                                     enforce proof rules, derive insight chips
 
 Supabase (PostgreSQL + RLS)
     └── See Database Schema section
@@ -278,6 +281,51 @@ Each item has a hover-reveal × delete button. Deleting calls `DELETE /api/ai-be
 
 ---
 
+### Profile Wingman
+
+**Route:** `/verified-vibe/profile` (floating FAB)
+**API:** `POST /api/verified-vibe/wingman`
+
+The Profile Wingman is a floating chat bubble (✏️ FAB) on the male profile page. It lets the user edit his profile by typing plain English — no navigating into form fields.
+
+**Proof gating rules:**
+
+| Request type | Allowed? | Action |
+|---|---|---|
+| Remove anything | Yes | Executed immediately |
+| Update non-proof fields (bio, tags, archetype, income) | Yes | Executed immediately |
+| Add new proof content (career, assets, spending, travel) | No | Redirect tile shown with upload URL |
+| Suggest more chips from *existing* proof | Yes | `add_derived_insights` action |
+
+**Action types returned by Claude:**
+- `update_field` — updates `about`, `personalityTags`, `lifestyleTags`, `intentTags`, `archetype`, `hardNos`, or `moneyMatters.annualIncome`
+- `remove_proof` — removes an entire proof category from localStorage
+- `remove_insight` — strips one specific chip label from a proof category
+- `add_derived_insights` — reads existing proof text and generates 2–4 new `{label, emoji}` chips
+- `remove_country` — removes a country from the travel magnets list
+- `remove_tag` — removes a tag from a tag array
+- `redirect_upload` — proof upload required; client shows a redirect tile
+
+**Annual income note:** `moneyMatters.annualIncome` is the only money field settable without proof. It shows a "Self declared" sub-label on the public profile. Net worth and wealth insight chips require uploaded documents.
+
+**Pencil edit mode (in-page, separate from the FAB):**
+
+| Section | Edit mode behaviour |
+|---|---|
+| Career Highlights | × to remove chips; "✨ Suggest 3 more" calls Wingman API to derive new chips from LinkedIn proof |
+| Money Matters wealth chips | × to remove chips; "✨ Suggest 3 more" from spending/wealth proof |
+| Garage | × on active car; removing last car auto-exits edit mode |
+| Travel Magnets | × on each magnet; magnets flatten (no rotation) in edit mode; removal updates `vv_countries_traveled` in localStorage |
+
+Pending chips (from "Suggest 3 more") appear with a dashed border. × dismisses individually; ✓ commits all to localStorage.
+
+**Files:**
+- `src/routes/api/verified-vibe/wingman/+server.ts` — Claude interpreter, proof rules
+- `src/lib/verified-vibe/components/WingmanChat.svelte` — FAB + drawer UI
+- `src/routes/verified-vibe/profile/+page.svelte` — `handleWingmanAction`, pencil edit state
+
+---
+
 ### Match Profiles
 
 **Route:** `/verified-vibe/match-profile/[profileId]`
@@ -371,6 +419,25 @@ Body: `{ conversationId, matchName }`
 
 Returns `{ message }` — a natural first message to send.
 
+#### `POST /api/verified-vibe/wingman`
+Auth: Bearer token (required)
+
+Body:
+```json
+{
+  "message": "string",
+  "profileSnapshot": {
+    "about": "string",
+    "personalityTags": ["string"],
+    "moneyMatters": { "annualIncome": "string" },
+    "proofInsights": [{ "category": "linkedin", "labels": ["..."], "aggregated": "..." }]
+  }
+}
+```
+
+Returns one of the action objects described in [Profile Wingman](#profile-wingman) above.
+All responses include a `confirmation` string (6–10 words) for display in the chat.
+
 #### `GET /api/ai-bestie/configure?userId=<uuid>`
 Returns:
 ```json
@@ -414,6 +481,13 @@ See `supabase/migrations/KIRO_SUPABASE_HANDOFF.md` for full SQL + RLS policies.
 | `20260523_create_device_tokens.sql` | `device_tokens` + RLS |
 | `20260522_ai_bestie_feedback.sql` | `ai_bestie_feedback` + RLS |
 | `20260522_add_last_read_to_matches.sql` | `user1_last_read_at`, `user2_last_read_at` |
+| `20260523_archetype_overhaul.sql` | Seeds 43 profiles with the 8+8 archetype keys |
+| `20260523_attention_messages.sql` | `attention_messages` table (Secret Admirer) |
+| `20260523_here_for_hard_nos.sql` | `here_for` and `hard_nos` columns on `verified_vibe_users` |
+| `20260523_profile_tips.sql` | `profile_tips` table |
+| `20260523_user_artifacts.sql` | `user_artifacts` table |
+| `20260523_create_device_tokens.sql` | `device_tokens` + RLS (FCM push notification tokens) |
+| `20260525_security_advisor_fixes.sql` | RLS on typing indicators; `SECURITY DEFINER` + `search_path` fixes |
 
 **Note on defensive coding:** Any query that selects new columns should wrap the
 unread/optional logic in a try/catch that defaults to a safe value. This prevents
@@ -455,6 +529,16 @@ Preferences context injected: dealbreakers, emotional signals, boundaries, matur
 Format instructions: `**bold**` for names, `- bullets` for lists, emoji sparingly
 (🟢 🔴 💡 💬 ✨ 💛), short paragraphs.
 
+### Profile Wingman (`/api/verified-vibe/wingman`)
+
+Model: `claude-sonnet-4-6`.
+
+System prompt instructs Claude to interpret a plain-English request against the `profileSnapshot` and return a single structured action JSON. The profile snapshot includes `proofInsights` — an array of `{ category, labels, aggregated }` objects so Claude can distinguish "proof category exists" (→ `add_derived_insights`) from "proof category missing" (→ `redirect_upload`).
+
+For `add_derived_insights`, Claude reads the `aggregated` text (raw proof content summary) plus the existing `labels` array and generates 2–4 new chip objects that are not already shown.
+
+Claude is instructed to return raw JSON with no code fences. The server still strips fences as a safety measure (see below).
+
 ### JSON parsing (Claude 4.x note)
 Claude 4.x wraps JSON responses in markdown code fences even when instructed not to.
 All JSON responses are stripped before parsing:
@@ -466,6 +550,39 @@ parsed = JSON.parse(raw);
 ---
 
 ## Release History
+
+### post-v2.7.0 — Profile Wingman & Pencil Edit Mode (2026-05-27)
+- Profile Wingman: floating ✏️ FAB on the male profile page — plain-English profile editing with Claude enforcing proof rules
+- Pencil edit mode for Career Highlights and Money Matters: × per chip, "✨ Suggest 3 more" calls Wingman API to derive new chips from existing uploads
+- Pencil edit mode for Garage: × removes active car, section hides when empty
+- Pencil edit mode for Travel Magnets: × per magnet, magnets flatten in edit mode
+- Inline chip removal: Career and Money Matters chips get × button in edit mode (wiggle animation on enter)
+- AI chip generation: pending chips shown with dashed border, committed on ✓
+- `add_derived_insights` Wingman action: Claude reads aggregated proof text and returns 2–4 new chips not already present
+- `remove_insight` Wingman action: strip one chip label from a proof category
+- Annual income self-declared badge on public profile tab
+- WingmanChat textarea auto-expands vertically (max 5 lines / 160px)
+- Verified Insights section: 2 chips shown as comma-separated inline text with "+N more" expand
+
+### v2.7.x — Archetype Overhaul & Traditional Matrimony (2026-05-25)
+- 16-archetype system (8 male / 8 female) with tailored QA sets per archetype
+- Traditional Matrimony flow: `MatrimonyProfileStep` / `MatrimonyPreferencesStep` collecting marital status, religion, education, lifestyle, INR income
+- Spoiled Casual and Casual Generous archetype-specific QA sets
+- Security Advisor RLS fixes: typing indicators, `SECURITY DEFINER` and `search_path` on functions
+- CI green: `npm run check` passes with 0 errors
+- AI Wingman initial release (in-chat coaching + impersonation mode)
+- 3-photo grid (lead / warmth / lifestyle) with X-to-remove and rejected-scene feedback to AI
+- Spending patterns in Money Matters from bank statement and receipt uploads
+- Background Verification stub section in Trust & Boost tab
+- Verified Insights section moved to bottom of Trust & Boost tab, collapsed to 4 chips with expand
+- Travel Magnets moved above Pick Your Lane
+- Cross-device hydration: `spendingBreakdown`, `assets`, and `pts_awarded` persisted to `user_master_profile`
+- Credit card statement support in the manage-docs panel
+
+### v2.5.0 — AI Bestie Draft Messages (2026-05-23)
+- One-tap draft message action cards — AI Bestie resolves `[DRAFT:MatchName]` blocks, client shows a "Send to [Name] →" card
+- Server-side `nameToMatchId` resolution, markers stripped from visible reply
+- Guard: Claude only emits `[DRAFT]` when Neha has explicitly confirmed she wants to send
 
 ### v2.2.0 — Verified Vibe Messaging UX (2026-05-22)
 - Rich Messages list: NEW MATCHES strip, archetype chips, trust scores, filter tabs, real unread counts
