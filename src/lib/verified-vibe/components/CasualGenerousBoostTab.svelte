@@ -298,16 +298,16 @@
         </div>
       </div>
 
-      <!-- Tier dots -->
+      <!-- Tier dots — odd indexes label above, even below to prevent overlap -->
       <div class="tier-dots-row">
-        {#each [{v:60,label:'Visible'},{v:70,label:'Featured'},{v:85,label:'Priority'},{v:95,label:'Elite'}] as t}
+        {#each [{v:60,label:'Visible'},{v:70,label:'Featured'},{v:85,label:'Priority'},{v:95,label:'Elite'}] as t, i}
           {@const reached = cgTotal >= t.v}
           {@const color = t.v >= 85 ? 'var(--accent)' : t.v >= 60 ? '#f4b95c' : '#ef4444'}
-          <div class="tier-dot-item" style="left: {t.v}%">
+          <div class="tier-dot-item {i % 2 === 1 ? 'tier-dot-item--above' : ''}" style="left: {t.v}%">
+            <span class="tier-dot-label" style="color: {reached ? color : 'var(--text-3)'}">{t.label}</span>
             <div class="tier-dot" style="background: {reached ? color : 'var(--bg-3)'}; border-color: {reached ? color : 'var(--border-1)'}">
               {#if reached}<svg width="6" height="6" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>{/if}
             </div>
-            <span class="tier-dot-label" style="color: {reached ? color : 'var(--text-3)'}">{t.label}</span>
           </div>
         {/each}
       </div>
@@ -762,16 +762,20 @@
   .tier-zone--green .tier-zone-fill { background: var(--accent); }
   .tier-dots-row {
     position: relative;
-    height: 40px;
-    margin: 8px 0 4px;
+    height: 52px;
+    margin: 0 0 4px;
   }
   .tier-dot-item {
     position: absolute;
-    transform: translateX(-50%);
+    top: 50%;
+    transform: translate(-50%, -50%);
     display: flex;
-    flex-direction: column;
+    flex-direction: column-reverse;
     align-items: center;
-    gap: 4px;
+    gap: 3px;
+  }
+  .tier-dot-item--above {
+    flex-direction: column;
   }
   .tier-dot {
     width: 11px;
@@ -781,7 +785,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-top: -5px;
+    flex-shrink: 0;
   }
   .tier-dot-label {
     font-size: 10px;

@@ -160,7 +160,6 @@
                   : category === 'discipline'    ? pendingHealthFitnessInsights
                   : category === 'social_proof'  ? pendingSocialProofInsights
                   : pendingCareerInsights;
-    if (!pending.length) return;
 
     const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
     const updated = all.map((p: any) => {
@@ -968,6 +967,7 @@
   let editHardNos     = $state<string[]>([]);
   let newHardNo       = $state('');
   let savingHardNos   = $state(false);
+  let cleaningHardNo  = $state(false);
 
   function startEditHardNos() {
     editHardNos = [...hardNos];
@@ -975,10 +975,29 @@
     editingHardNos = true;
   }
 
-  function addHardNo() {
-    const v = newHardNo.trim();
-    if (v && !editHardNos.includes(v)) editHardNos = [...editHardNos, v];
+  async function addHardNo() {
+    const raw = newHardNo.trim();
+    if (!raw || editHardNos.includes(raw)) { newHardNo = ''; return; }
     newHardNo = '';
+
+    cleaningHardNo = true;
+    try {
+      const { getSupabaseClient: _sb } = await import('$lib/client/supabase');
+      const { data: { session } } = await _sb().auth.getSession();
+      const token = session?.access_token ?? '';
+      const res = await fetch('/api/verified-vibe/cleanup-text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ text: raw }),
+      });
+      const { cleaned } = res.ok ? await res.json() : { cleaned: raw };
+      const v = (cleaned ?? raw).trim();
+      if (v && !editHardNos.includes(v)) editHardNos = [...editHardNos, v];
+    } catch {
+      if (!editHardNos.includes(raw)) editHardNos = [...editHardNos, raw];
+    } finally {
+      cleaningHardNo = false;
+    }
   }
 
   function removeHardNo(i: number) {
@@ -1498,6 +1517,22 @@
   // intentStatement stored as comma-separated string in GeneratedProfile; we split to array here
   const intentTags = $derived(
     (() => {
+      // CG archetype: pull relationship standards from onboarding preferences
+      if ($user?.archetype === 'casual_generous_man') {
+        const cgPref = (archetypeStore['vv_casual_generous_preferences'] ?? {}) as Record<string, string | string[]>;
+        const disc = cgPref.boundaries_discretion as string[] | undefined;
+        if (disc?.length) {
+          const labelMap: Record<string, string> = {
+            discretion_matters:   'Discretion',            honest_communication: 'Honest communication',
+            emotional_maturity:   'Emotional maturity',   mutual_respect:       'Mutual respect',
+            clear_expectations:   'Clear expectations',   safety_trust_first:   'Safety & trust first',
+            drama_free:           'Drama-free energy',    consistency_matters:  'Consistency',
+            verified_profiles:    'Verified profiles',    no_manipulation:      'No games',
+            privacy_respected:    'Privacy respected',    respect_boundaries:   'Respect for limits',
+          };
+          return disc.map(v => labelMap[v] ?? v).filter(Boolean);
+        }
+      }
       const raw = generated?.intentStatement ?? draft?.lookingFor ?? $user?.looking ?? '';
       if (!raw) return [];
       return raw.split(',').map((s: string) => s.trim()).filter(Boolean);
@@ -2109,73 +2144,7 @@
         </section>
       {/if}
 
-      <!-- Personality Reads -->
-      {#if $user?.gender === 'man' || $user?.gender === null}
-      <section class="section">
-        <div class="section-label">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/>
-          </svg>
-          Personality Reads
-          <span class="section-hint">inferred from Q&A + lifestyle</span>
-        </div>
-        <div class="personality-constellation">
-          <svg viewBox="0 0 280 280" width="100%" style="display:block; max-height: 260px;">
-            <!-- Background radial gradient -->
-            <defs>
-              <radialGradient id="constGrad" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stop-color="rgba(52,211,153,0.08)"/>
-                <stop offset="100%" stop-color="transparent"/>
-              </radialGradient>
-            </defs>
-            <circle cx="140" cy="140" r="130" fill="url(#constGrad)"/>
-            {#each [0.25, 0.5, 0.75, 1.0] as ring}
-              {@const rpts = personalityReads.map((_, i) => {
-                const a = (Math.PI * 2 * i) / personalityReads.length - Math.PI / 2;
-                return [140 + Math.cos(a) * 96 * ring, 140 + Math.sin(a) * 96 * ring];
-              })}
-              <path d={rpts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' ') + ' Z'} fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
-            {/each}
-            {#each personalityReads as _, i}
-              {@const a = (Math.PI * 2 * i) / personalityReads.length - Math.PI / 2}
-              <line x1="140" y1="140" x2={140 + Math.cos(a) * 96} y2={140 + Math.sin(a) * 96} stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
-            {/each}
-            <path
-              d={personalityReads.map((t, i) => {
-                const a = (Math.PI * 2 * i) / personalityReads.length - Math.PI / 2;
-                const r2 = 96 * (t.percentage / 100);
-                return (i === 0 ? 'M' : 'L') + (140 + Math.cos(a) * r2) + ',' + (140 + Math.sin(a) * r2);
-              }).join(' ') + ' Z'}
-              fill="rgba(52,211,153,0.16)" stroke="var(--accent-bright)" stroke-width="1.5" stroke-linejoin="round"
-            />
-            {#each personalityReads as t, i}
-              {@const a = (Math.PI * 2 * i) / personalityReads.length - Math.PI / 2}
-              {@const r2 = 96 * (t.percentage / 100)}
-              {@const px = 140 + Math.cos(a) * r2}
-              {@const py = 140 + Math.sin(a) * r2}
-              {@const lx = 140 + Math.cos(a) * 120}
-              {@const ly = 140 + Math.sin(a) * 120}
-              {@const ta2 = a * 180 / Math.PI}
-              <circle cx={px} cy={py} r="3.5" fill="var(--accent-bright)" stroke="var(--bg-1)" stroke-width="2"/>
-              <text
-                x={lx} y={ly - 3}
-                text-anchor={ta2 > -85 && ta2 < 85 ? 'start' : ta2 > 95 || ta2 < -95 ? 'end' : 'middle'}
-                fill="rgba(255,255,255,0.85)" font-size="11" font-weight="600"
-                font-family="inherit"
-              >{t.name}</text>
-              <text
-                x={lx} y={ly + 11}
-                text-anchor={ta2 > -85 && ta2 < 85 ? 'start' : ta2 > 95 || ta2 < -95 ? 'end' : 'middle'}
-                fill="var(--accent-bright)" font-size="10"
-                font-family="inherit"
-              >{t.percentage}</text>
-            {/each}
-          </svg>
-          <p class="constellation-sig">"Decisive and warm — moves fast, lands soft."</p>
-        </div>
-      </section>
-      {/if}
-
+      <!-- Personality Reads — placeholder, moved to end; actual block is after What I'm About -->
       <!-- AI Personality Portrait — generated from reference photo + personality traits -->
       {#if ($user?.gender === 'man' || $user?.gender === null) && ($user?.avatar || photos.length > 0)}
         <section class="section portrait-section">
@@ -2803,7 +2772,9 @@
                   bind:value={newHardNo}
                   onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addHardNo(); } }}
                 />
-                <button class="hard-no-add-btn" onclick={addHardNo} type="button">+ Add</button>
+                <button class="hard-no-add-btn" onclick={addHardNo} type="button" disabled={cleaningHardNo}>
+                  {cleaningHardNo ? '✦' : '+ Add'}
+                </button>
               </div>
               <div class="inline-edit-actions">
                 <button class="inline-save-btn" onclick={saveHardNos} disabled={savingHardNos}>{savingHardNos ? 'Saving…' : 'Save'}</button>
@@ -2837,6 +2808,73 @@
 
       </section>
       {/if}
+
+      <!-- Personality Reads — last section -->
+      {#if $user?.gender === 'man' || $user?.gender === null}
+      <section class="section">
+        <div class="section-label">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/>
+          </svg>
+          Personality Reads
+          <span class="section-hint">inferred from Q&A + lifestyle</span>
+        </div>
+        <div class="personality-constellation">
+          <svg viewBox="0 0 280 280" width="100%" style="display:block; max-height: 260px;">
+            <defs>
+              <radialGradient id="constGrad" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="rgba(52,211,153,0.08)"/>
+                <stop offset="100%" stop-color="transparent"/>
+              </radialGradient>
+            </defs>
+            <circle cx="140" cy="140" r="130" fill="url(#constGrad)"/>
+            {#each [0.25, 0.5, 0.75, 1.0] as ring}
+              {@const rpts = personalityReads.map((_, i) => {
+                const a = (Math.PI * 2 * i) / personalityReads.length - Math.PI / 2;
+                return [140 + Math.cos(a) * 96 * ring, 140 + Math.sin(a) * 96 * ring];
+              })}
+              <path d={rpts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' ') + ' Z'} fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+            {/each}
+            {#each personalityReads as _, i}
+              {@const a = (Math.PI * 2 * i) / personalityReads.length - Math.PI / 2}
+              <line x1="140" y1="140" x2={140 + Math.cos(a) * 96} y2={140 + Math.sin(a) * 96} stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+            {/each}
+            <path
+              d={personalityReads.map((t, i) => {
+                const a = (Math.PI * 2 * i) / personalityReads.length - Math.PI / 2;
+                const r2 = 96 * (t.percentage / 100);
+                return (i === 0 ? 'M' : 'L') + (140 + Math.cos(a) * r2) + ',' + (140 + Math.sin(a) * r2);
+              }).join(' ') + ' Z'}
+              fill="rgba(52,211,153,0.16)" stroke="var(--accent-bright)" stroke-width="1.5" stroke-linejoin="round"
+            />
+            {#each personalityReads as t, i}
+              {@const a = (Math.PI * 2 * i) / personalityReads.length - Math.PI / 2}
+              {@const r2 = 96 * (t.percentage / 100)}
+              {@const px = 140 + Math.cos(a) * r2}
+              {@const py = 140 + Math.sin(a) * r2}
+              {@const lx = 140 + Math.cos(a) * 120}
+              {@const ly = 140 + Math.sin(a) * 120}
+              {@const ta2 = a * 180 / Math.PI}
+              <circle cx={px} cy={py} r="3.5" fill="var(--accent-bright)" stroke="var(--bg-1)" stroke-width="2"/>
+              <text
+                x={lx} y={ly - 3}
+                text-anchor={ta2 > -85 && ta2 < 85 ? 'start' : ta2 > 95 || ta2 < -95 ? 'end' : 'middle'}
+                fill="rgba(255,255,255,0.85)" font-size="11" font-weight="600"
+                font-family="inherit"
+              >{t.name}</text>
+              <text
+                x={lx} y={ly + 11}
+                text-anchor={ta2 > -85 && ta2 < 85 ? 'start' : ta2 > 95 || ta2 < -95 ? 'end' : 'middle'}
+                fill="var(--accent-bright)" font-size="10"
+                font-family="inherit"
+              >{t.percentage}</text>
+            {/each}
+          </svg>
+          <p class="constellation-sig">"Decisive and warm — moves fast, lands soft."</p>
+        </div>
+      </section>
+      {/if}
+
       <section class="section">
         <div class="section-label">
           Photo Story
