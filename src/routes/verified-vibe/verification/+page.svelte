@@ -735,6 +735,10 @@
       }
     }
 
+    // Restore idPhotoBase64 from sessionStorage in case user refreshed on step 2
+    const cachedIdPhoto = sessionStorage.getItem('vv_id_photo_b64');
+    if (cachedIdPhoto) idPhotoBase64 = cachedIdPhoto;
+
     // Store returnTo so we can navigate back after archetype steps complete
     const returnToParam = get(page).url.searchParams.get('returnTo');
     if (returnToParam) returnTo = returnToParam;
@@ -771,8 +775,9 @@
     error = null;
     clearError();
     loading = true;
-    // Store base64 ID photo for use in liveness step
+    // Store base64 ID photo for use in liveness step (also persist so step 2 survives a refresh)
     idPhotoBase64 = data.idImage;
+    sessionStorage.setItem('vv_id_photo_b64', data.idImage);
 
     try {
       // Submit to API

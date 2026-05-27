@@ -176,9 +176,9 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
       );
     }
 
-    // Check photo consistency using Claude (bypass in dev with VITE_SKIP_VERIFICATION=true)
+    // Check photo consistency using Claude (bypass in dev or when only 1 photo uploaded)
     const skipVerification = import.meta.env.VITE_SKIP_VERIFICATION === 'true';
-    const consistencyResult = skipVerification
+    const consistencyResult = skipVerification || data.images.length < 2
       ? { consistent: true, confidence: 0.99 }
       : await checkPhotoConsistencyWithClaude(data.images, data.mimeTypes[0] || 'image/jpeg');
 

@@ -245,11 +245,10 @@ async function handlePhotoVerification(data: any) {
       );
     }
 
-    // Check photo consistency using Claude
-    const consistencyResult = await checkPhotoConsistencyWithClaude(
-      data.images,
-      data.mimeTypes[0] || 'image/jpeg'
-    );
+    // Check photo consistency using Claude (skip if only 1 photo)
+    const consistencyResult = data.images.length < 2
+      ? { consistent: true, confidence: 0.99 }
+      : await checkPhotoConsistencyWithClaude(data.images, data.mimeTypes[0] || 'image/jpeg');
 
     // If photos are not consistent, return error
     if (!consistencyResult.consistent) {

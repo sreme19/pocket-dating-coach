@@ -274,13 +274,13 @@
   </div>
 </section>
 
-<!-- ── CG Subscores ───────────────────────────────────────────────────────── -->
+<!-- ── Basic Fit ───────────────────────────────────────────────────────── -->
 <section class="section">
   <div class="section-label">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
     </svg>
-    Casual Generous Fit
+    Basic Fit
   </div>
   <div class="breakdown">
 
@@ -308,54 +308,6 @@
       {/if}
     </div>
 
-    <!-- Lifestyle Depth -->
-    <div class="breakdown-item">
-      <div class="breakdown-header">
-        <span class="breakdown-name">Lifestyle Depth</span>
-        <span class="breakdown-score score-{lc}">{subscores.lifestyleDepth}/100</span>
-      </div>
-      <div class="breakdown-bar">
-        <div class="breakdown-fill fill-{lc}" style="width: {subscores.lifestyleDepth}%"></div>
-      </div>
-      {#if subscores.lifestyleDepth < 50}
-        <button class="nudge-cta nudge-{lc}" onclick={() => goto('/verified-vibe/proof-upload?category=lifestyle')}>
-          <span class="nudge-text">Add lifestyle photos. Women want to see your actual world.</span>
-          <span class="nudge-pts">+30 pts →</span>
-        </button>
-      {:else if subscores.lifestyleDepth < 75}
-        <button class="nudge-cta nudge-{lc}" onclick={() => goto('/verified-vibe/proof-upload?category=lifestyle')}>
-          <span class="nudge-text">More real-world moments strengthen this signal</span>
-          <span class="nudge-pts">boost →</span>
-        </button>
-      {:else}
-        <div class="breakdown-subs">✓ Photo story verified</div>
-      {/if}
-    </div>
-
-    <!-- Generosity Signals -->
-    <div class="breakdown-item">
-      <div class="breakdown-header">
-        <span class="breakdown-name">Generosity Signals</span>
-        <span class="breakdown-score score-{gc}">{subscores.generositySignals}/100</span>
-      </div>
-      <div class="breakdown-bar">
-        <div class="breakdown-fill fill-{gc}" style="width: {subscores.generositySignals}%"></div>
-      </div>
-      {#if subscores.generositySignals < 50}
-        <button class="nudge-cta nudge-{gc}" onclick={() => goto('/verified-vibe/proof-upload?category=spending')}>
-          <span class="nudge-text">Upload a spending receipt. The #1 signal for Casual Generous profiles.</span>
-          <span class="nudge-pts">+10 pts →</span>
-        </button>
-      {:else if subscores.generositySignals < 75}
-        <button class="nudge-cta nudge-{gc}" onclick={() => goto('/verified-vibe/proof-upload?category=spending')}>
-          <span class="nudge-text">Add more spending proof to push this signal higher</span>
-          <span class="nudge-pts">boost →</span>
-        </button>
-      {:else}
-        <div class="breakdown-subs">✓ Spending proof verified</div>
-      {/if}
-    </div>
-
     <!-- Emotional Safety -->
     <div class="breakdown-item">
       <div class="breakdown-header">
@@ -377,25 +329,6 @@
         </button>
       {:else}
         <div class="breakdown-subs">✓ Voice &amp; video intro verified</div>
-      {/if}
-    </div>
-
-    <!-- Social Legitimacy -->
-    <div class="breakdown-item">
-      <div class="breakdown-header">
-        <span class="breakdown-name">Social Legitimacy</span>
-        <span class="breakdown-score score-{sc}">{subscores.socialLegitimacy}/100</span>
-      </div>
-      <div class="breakdown-bar">
-        <div class="breakdown-fill fill-{sc}" style="width: {subscores.socialLegitimacy}%"></div>
-      </div>
-      {#if subscores.socialLegitimacy < 75}
-        <button class="nudge-cta nudge-{sc}" onclick={() => goto('/verified-vibe/proof-upload?category=linkedin')}>
-          <span class="nudge-text">Connect LinkedIn. Proves career stability and legitimacy.</span>
-          <span class="nudge-pts">+5 pts →</span>
-        </button>
-      {:else}
-        <div class="breakdown-subs">✓ Social presence verified</div>
       {/if}
     </div>
 
