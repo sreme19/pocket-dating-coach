@@ -1903,17 +1903,12 @@
             </button>
           </div>
           <div class="career-card">
-            {#if lifestyleSignals.aggregated}
-              <p class="career-summary">{lifestyleSignals.aggregated}</p>
-            {/if}
-            <div class="career-chips">
+            <div class="signal-grid">
               {#each lifestyleSignals.insights as ins}
-                <span class="career-chip {editingLifestyleChips ? 'career-chip--editing' : ''}">
-                  <span class="career-chip-emoji">{ins.emoji}</span>
-                  {ins.label}
+                <div class="signal-tile {editingLifestyleChips ? 'signal-tile--editing' : ''}">
                   {#if editingLifestyleChips}
                     <button
-                      class="chip-remove-btn"
+                      class="signal-tile-remove"
                       type="button"
                       aria-label="Remove {ins.label}"
                       onclick={() => {
@@ -1930,39 +1925,44 @@
                       }}
                     >×</button>
                   {/if}
-                </span>
+                  <span class="signal-tile-emoji">{ins.emoji}</span>
+                  <span class="signal-tile-label">{ins.label}</span>
+                </div>
               {/each}
 
-              <!-- Pending (AI-generated, not yet saved) lifestyle chips -->
               {#each pendingLifestyleInsights as ins}
-                <span class="career-chip career-chip--pending">
-                  <span class="career-chip-emoji">{ins.emoji}</span>
-                  {ins.label}
+                <div class="signal-tile signal-tile--pending">
                   <button
-                    class="chip-remove-btn"
+                    class="signal-tile-remove"
                     type="button"
                     aria-label="Dismiss {ins.label}"
                     onclick={() => { pendingLifestyleInsights = pendingLifestyleInsights.filter(p => p.label !== ins.label); }}
                   >×</button>
-                </span>
+                  <span class="signal-tile-emoji">{ins.emoji}</span>
+                  <span class="signal-tile-label">{ins.label}</span>
+                </div>
               {/each}
-
-              <!-- Generate more button — visible in edit mode -->
-              {#if editingLifestyleChips}
-                <button
-                  class="chip-gen-btn chip-gen-btn--blue {generatingLifestyle ? 'chip-gen-btn--loading' : ''}"
-                  type="button"
-                  disabled={generatingLifestyle}
-                  onclick={() => generateMoreInsights('lifestyle')}
-                >
-                  {#if generatingLifestyle}
-                    <span class="chip-gen-spinner"></span>Generating…
-                  {:else}
-                    ✨ Suggest 3 more
-                  {/if}
-                </button>
-              {/if}
             </div>
+
+            {#if lifestyleSignals.aggregated}
+              <p class="signal-summary">{lifestyleSignals.aggregated}</p>
+            {/if}
+
+            {#if editingLifestyleChips}
+              <button
+                class="chip-gen-btn chip-gen-btn--blue {generatingLifestyle ? 'chip-gen-btn--loading' : ''}"
+                type="button"
+                disabled={generatingLifestyle}
+                onclick={() => generateMoreInsights('lifestyle')}
+              >
+                {#if generatingLifestyle}
+                  <span class="chip-gen-spinner"></span>Generating…
+                {:else}
+                  ✨ Suggest 3 more
+                {/if}
+              </button>
+            {/if}
+
             <div class="career-verified-row">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6">
                 <path d="M20 6L9 17l-5-5"/>
@@ -1996,17 +1996,12 @@
             </button>
           </div>
           <div class="career-card">
-            {#if healthFitnessSignals.aggregated}
-              <p class="career-summary">{healthFitnessSignals.aggregated}</p>
-            {/if}
-            <div class="career-chips">
+            <div class="signal-grid">
               {#each healthFitnessSignals.insights as ins}
-                <span class="career-chip {editingHealthFitnessChips ? 'career-chip--editing' : ''}">
-                  <span class="career-chip-emoji">{ins.emoji}</span>
-                  {ins.label}
+                <div class="signal-tile {editingHealthFitnessChips ? 'signal-tile--editing' : ''}">
                   {#if editingHealthFitnessChips}
                     <button
-                      class="chip-remove-btn"
+                      class="signal-tile-remove"
                       type="button"
                       aria-label="Remove {ins.label}"
                       onclick={() => {
@@ -2023,37 +2018,44 @@
                       }}
                     >×</button>
                   {/if}
-                </span>
+                  <span class="signal-tile-emoji">{ins.emoji}</span>
+                  <span class="signal-tile-label">{ins.label}</span>
+                </div>
               {/each}
 
               {#each pendingHealthFitnessInsights as ins}
-                <span class="career-chip career-chip--pending">
-                  <span class="career-chip-emoji">{ins.emoji}</span>
-                  {ins.label}
+                <div class="signal-tile signal-tile--pending">
                   <button
-                    class="chip-remove-btn"
+                    class="signal-tile-remove"
                     type="button"
                     aria-label="Dismiss {ins.label}"
                     onclick={() => { pendingHealthFitnessInsights = pendingHealthFitnessInsights.filter(p => p.label !== ins.label); }}
                   >×</button>
-                </span>
+                  <span class="signal-tile-emoji">{ins.emoji}</span>
+                  <span class="signal-tile-label">{ins.label}</span>
+                </div>
               {/each}
-
-              {#if editingHealthFitnessChips}
-                <button
-                  class="chip-gen-btn chip-gen-btn--blue {generatingHealthFitness ? 'chip-gen-btn--loading' : ''}"
-                  type="button"
-                  disabled={generatingHealthFitness}
-                  onclick={() => generateMoreInsights('discipline')}
-                >
-                  {#if generatingHealthFitness}
-                    <span class="chip-gen-spinner"></span>Generating…
-                  {:else}
-                    ✨ Suggest 3 more
-                  {/if}
-                </button>
-              {/if}
             </div>
+
+            {#if healthFitnessSignals.aggregated}
+              <p class="signal-summary">{healthFitnessSignals.aggregated}</p>
+            {/if}
+
+            {#if editingHealthFitnessChips}
+              <button
+                class="chip-gen-btn chip-gen-btn--blue {generatingHealthFitness ? 'chip-gen-btn--loading' : ''}"
+                type="button"
+                disabled={generatingHealthFitness}
+                onclick={() => generateMoreInsights('discipline')}
+              >
+                {#if generatingHealthFitness}
+                  <span class="chip-gen-spinner"></span>Generating…
+                {:else}
+                  ✨ Suggest 3 more
+                {/if}
+              </button>
+            {/if}
+
             <div class="career-verified-row">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6">
                 <path d="M20 6L9 17l-5-5"/>
@@ -5783,5 +5785,79 @@
   .magnets-empty-cta:hover .magnets-empty-arrow {
     transform: translateX(4px);
     color: rgba(255, 255, 255, 0.7);
+  }
+
+  /* ── Signal grid (Lifestyle Signals & Health & Fitness) ── */
+  .signal-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+
+  .signal-tile {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 12px;
+    padding: 12px 8px 10px;
+    text-align: center;
+    transition: border-color 0.15s;
+  }
+
+  .signal-tile--editing {
+    border-color: rgba(52, 211, 153, 0.3);
+  }
+
+  .signal-tile--pending {
+    border: 1px dashed rgba(52, 211, 153, 0.45);
+    background: rgba(52, 211, 153, 0.05);
+  }
+
+  .signal-tile-emoji {
+    font-size: 28px;
+    line-height: 1;
+  }
+
+  .signal-tile-label {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.65);
+    line-height: 1.3;
+    word-break: break-word;
+  }
+
+  .signal-tile-remove {
+    position: absolute;
+    top: 4px;
+    right: 5px;
+    background: rgba(255, 255, 255, 0.12);
+    border: none;
+    border-radius: 50%;
+    width: 17px;
+    height: 17px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+  }
+
+  .signal-tile-remove:hover {
+    background: rgba(239, 68, 68, 0.3);
+    color: #fff;
+  }
+
+  .signal-summary {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.45);
+    line-height: 1.55;
+    font-style: italic;
+    margin: 0;
   }
 </style>
