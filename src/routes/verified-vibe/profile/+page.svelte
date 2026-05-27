@@ -1174,9 +1174,13 @@
       const fromText = Object.keys(PLACE_TO_ISO).filter(place => allText.includes(place));
 
       const removedSet = new Set<string>(JSON.parse(localStorage.getItem('vv_countries_removed') ?? '[]'));
-      const merged = Array.from(new Set([...fromKey, ...fromLocationsField, ...fromText]))
+      const raw = Array.from(new Set([...fromKey, ...fromLocationsField, ...fromText]))
         .filter(Boolean)
         .filter(p => !removedSet.has(p));
+      // Drop any entry that is a pure substring of a longer entry (e.g. "Jaipur" when "Jaipur, India" exists)
+      const merged = raw.filter(p =>
+        !raw.some(q => q !== p && q.toLowerCase().includes(p.toLowerCase()))
+      );
       if (merged.length > 0) {
         countriesTraveled = merged;
         localStorage.setItem('vv_countries_traveled', JSON.stringify(merged));

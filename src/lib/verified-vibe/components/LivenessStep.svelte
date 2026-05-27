@@ -161,6 +161,11 @@
       return;
     }
 
+    if (!idPhotoBase64) {
+      error = 'ID photo not found — please go back and complete the ID verification step first.';
+      return;
+    }
+
     loading = true;
     error = null;
 
