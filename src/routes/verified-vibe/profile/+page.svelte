@@ -548,9 +548,19 @@
   let portraitError            = $state<string | null>(null);
   let garagePortraitError      = $state<string | null>(null);
 
+  function getLeadPhotoForPortrait(): { url?: string; base64?: string; mimeType?: string } {
+    if ($user?.avatar) return { url: $user.avatar };
+    const lead = photos.find(p => p.label === 'lead') ?? photos[0];
+    if (lead?.dataUrl) {
+      const mime = lead.dataUrl.match(/data:([^;]+);/)?.[1] ?? 'image/jpeg';
+      return { base64: lead.dataUrl, mimeType: mime };
+    }
+    return {};
+  }
+
   async function generatePersonalityPortrait() {
-    const avatarUrl = $user?.avatar;
-    if (!avatarUrl || generatingPortrait) return;
+    const ref = getLeadPhotoForPortrait();
+    if ((!ref.url && !ref.base64) || generatingPortrait) return;
     generatingPortrait = true;
     portraitError = null;
     try {
@@ -561,7 +571,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
-          referenceImageUrl: avatarUrl,
+          ...(ref.url ? { referenceImageUrl: ref.url } : { referenceImageBase64: ref.base64, mimeType: ref.mimeType }),
           personalityTraits: personalityReads.map(r => ({ name: r.name, level: r.level, percentage: r.percentage })),
         }),
       });
@@ -577,8 +587,8 @@
   }
 
   async function generateGaragePortrait() {
-    const avatarUrl = $user?.avatar;
-    if (!avatarUrl || generatingGaragePortrait) return;
+    const ref = getLeadPhotoForPortrait();
+    if ((!ref.url && !ref.base64) || generatingGaragePortrait) return;
     generatingGaragePortrait = true;
     garagePortraitError = null;
     try {
@@ -589,7 +599,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
-          referenceImageUrl: avatarUrl,
+          ...(ref.url ? { referenceImageUrl: ref.url } : { referenceImageBase64: ref.base64, mimeType: ref.mimeType }),
           personalityTraits: personalityReads.map(r => ({ name: r.name, level: r.level, percentage: r.percentage })),
           sceneOverride: 'confident man in smart casual attire, evening city setting, luxury lifestyle atmosphere, golden hour lighting, urban outdoor environment, sophisticated and relaxed',
         }),
@@ -1923,7 +1933,7 @@
       {/if}
 
       <!-- AI Personality Portrait — generated from reference photo + personality traits -->
-      {#if ($user?.gender === 'man' || $user?.gender === null) && $user?.avatar}
+      {#if ($user?.gender === 'man' || $user?.gender === null) && ($user?.avatar || photos.length > 0)}
         <section class="section portrait-section">
           <div class="section-label">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -2509,7 +2519,7 @@
       {/if}
 
       <!-- AI Lifestyle Portrait — above garage section -->
-      {#if ($user?.gender === 'man' || $user?.gender === null) && $user?.avatar}
+      {#if ($user?.gender === 'man' || $user?.gender === null) && ($user?.avatar || photos.length > 0)}
         <section class="section portrait-section">
           <div class="section-label">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

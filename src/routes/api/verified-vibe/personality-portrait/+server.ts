@@ -29,7 +29,6 @@ function buildScenePrompt(traits: PersonalityTrait[]): string {
 
   if (stability >= 75) parts.push('grounded assured presence');
 
-  // Scene: upscale but relaxed
   parts.push('sophisticated urban setting, soft natural side lighting, shallow depth of field, photorealistic, 85mm portrait lens, high-end magazine photography');
 
   return parts.join(', ');
@@ -43,23 +42,42 @@ export const POST: RequestHandler = async ({ request }) => {
 
   try {
     const body = await request.json();
-    const { referenceImageUrl, personalityTraits, sceneOverride } = body as {
-      referenceImageUrl: string;
+    const { referenceImageUrl, referenceImageBase64, mimeType, personalityTraits, sceneOverride } = body as {
+      referenceImageUrl?: string;
+      referenceImageBase64?: string;
+      mimeType?: string;
       personalityTraits: PersonalityTrait[];
       sceneOverride?: string;
     };
 
-    if (!referenceImageUrl) {
-      return json({ error: 'Reference image URL is required' }, { status: 400 });
+    if (!referenceImageUrl && !referenceImageBase64) {
+      return json({ error: 'Reference image is required' }, { status: 400 });
     }
 
     fal.config({ credentials: FAL_KEY });
+
+    // Resolve to an HTTP URL fal.ai can fetch
+    let resolvedUrl: string;
+    if (referenceImageUrl) {
+      resolvedUrl = referenceImageUrl;
+    } else {
+      const mime = mimeType ?? 'image/jpeg';
+      const ext  = mime.split('/')[1] ?? 'jpg';
+      const dataUrl = referenceImageBase64!.startsWith('data:')
+        ? referenceImageBase64!
+        : `data:${mime};base64,${referenceImageBase64}`;
+      const b64    = dataUrl.split(',')[1];
+      const binary = Buffer.from(b64, 'base64');
+      const blob   = new Blob([binary], { type: mime });
+      const file   = new File([blob], `reference.${ext}`, { type: mime });
+      resolvedUrl  = await fal.storage.upload(file);
+    }
 
     const scenePrompt = sceneOverride ?? buildScenePrompt(personalityTraits ?? []);
 
     const result = await fal.run('fal-ai/flux-pulid', {
       input: {
-        reference_image_url: referenceImageUrl,
+        reference_image_url: resolvedUrl,
         prompt: `photorealistic portrait, ${scenePrompt}, professional photography, high quality, sharp focus`,
         negative_prompt: 'blurry, low quality, distorted face, ugly, bad anatomy, watermark, text, logo, cartoon, illustration',
         num_inference_steps: 28,
