@@ -414,12 +414,13 @@
   <div class="showoff-grid">
     {#each showOffCategories as cat}
       {@const done = proofInsights.some(p => p.category === cat.category)}
+      {@const pi = proofInsights.find(p => p.category === cat.category)}
+      {@const docCount = pi?.photo_count ?? (pi ? 1 : 0)}
       <button class="showoff-tile" class:showoff-tile--done={done} onclick={() => goto(`/verified-vibe/proof-upload?category=${cat.category}`)}>
         <div class="showoff-icon">{cat.icon}</div>
         <div class="showoff-body">
           <div class="showoff-label">{cat.label}</div>
           {#if done}
-            {@const pi = proofInsights.find(p => p.category === cat.category)}
             <div class="showoff-desc">{pi?.insights?.[0]?.label ?? pi?.insight_label ?? cat.desc}</div>
           {:else}
             <div class="showoff-desc">{cat.desc}</div>
@@ -427,6 +428,10 @@
           <div class="showoff-meta">
             {#if done}
               <span class="showoff-done-tag">✓ Verified</span>
+              {#if docCount > 0}
+                <span class="showoff-doc-count">{docCount} {docCount === 1 ? 'photo' : 'photos'}</span>
+              {/if}
+              <span class="showoff-add-more">+ Add more</span>
             {:else}
               <span class="showoff-time">{cat.time}</span>
             {/if}
@@ -1086,6 +1091,23 @@
     font-size: 11px;
     font-weight: 700;
     color: var(--accent);
+  }
+
+  .showoff-doc-count {
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.07);
+    border-radius: 8px;
+    padding: 1px 6px;
+  }
+
+  .showoff-add-more {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent);
+    opacity: 0.75;
+    letter-spacing: 0.02em;
   }
 
   .showoff-pts--done {
