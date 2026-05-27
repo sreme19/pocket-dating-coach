@@ -32,7 +32,7 @@ export const POST: RequestHandler = async ({ request }) => {
     if (!userId || !matchedUserId || !matchId || !outcome)
       return json({ error: 'userId, matchedUserId, matchId, outcome are required' }, { status: 400 });
 
-    const validOutcomes = ['unmatched', 'blocked', 'no_messages'];
+    const validOutcomes = ['unmatched', 'blocked', 'no_messages', 'converted'];
     if (!validOutcomes.includes(outcome))
       return json({ error: 'Invalid outcome' }, { status: 400 });
 

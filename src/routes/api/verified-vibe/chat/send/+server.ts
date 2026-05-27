@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
+import { getTrustScoreBand } from '$lib/server/pool-registry';
 import type { Message } from '$lib/verified-vibe/types';
 
 interface SendMessageRequest {
@@ -228,6 +229,45 @@ export const POST: RequestHandler = async ({ request }) => {
         message
       }
     };
+
+    // Check for 'converted' milestone: fires exactly once when message count reaches 5
+    // Direct DB write — more reliable than a fire-and-forget HTTP call on Vercel
+    const { count: msgCount } = await supabase
+      .from('verified_vibe_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('match_id', body.conversationId);
+
+    if (msgCount === 5) {
+      // Record 'converted' outcome signal — just DB writes so fast enough to await
+      try {
+        const matchedUserId = match.user1_id === user.id ? match.user2_id : match.user1_id;
+        const db = getSupabase() as any;
+        const { data: users } = await db
+          .from('verified_vibe_users')
+          .select('id, gender, archetype, trust_score')
+          .in('id', [user.id, matchedUserId]);
+
+        const maleUser   = users?.find((u: any) => u.gender === 'man');
+        const femaleUser = users?.find((u: any) => u.gender === 'woman');
+
+        if (maleUser && femaleUser) {
+          await db.from('vv_match_outcome_signals').insert({
+            match_id:            body.conversationId,
+            male_user_id:        maleUser.id,
+            female_user_id:      femaleUser.id,
+            outcome:             'converted',
+            initiated_by_gender: null,   // both parties engaged
+            compatibility_score: null,
+            male_archetype:      maleUser.archetype,
+            female_archetype:    femaleUser.archetype,
+            male_trust_band:     getTrustScoreBand(maleUser.trust_score ?? 0),
+            outcome_at:          new Date().toISOString(),
+          });
+        }
+      } catch (err) {
+        console.error('[converted-signal] non-critical failure:', err);
+      }
+    }
 
     // Fire-and-forget insight extraction (non-blocking)
     extractAndUpdatePreferences(user.id, body.content.trim())
