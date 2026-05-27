@@ -159,6 +159,12 @@
   }
   let spendingData   = $state<SpendingCategory[]>([]);
 
+  // Lifestyle signals — derived from uploaded lifestyle proof photos
+  let lifestyleSignals = $state<{
+    insights: Array<{ label: string; emoji: string }>;
+    aggregated: string;
+  } | null>(null);
+
   // Wealth proof insights — derived from uploaded bank statements / ITR / investments
   let wealthInsights = $state<{
     insights: Array<{ label: string; emoji: string }>;
@@ -619,7 +625,6 @@
         push('✨', 'Energy in a relationship', qa.relationship_energy ?? p.relationship_energy);
         push('🌹', 'My relationship vibe', qa.relationship_vibe);
         push('💼', 'My lifestyle', pref.lifestyle_profile);
-        push('💰', 'Annual income', pref.income_range, 'chip', true);
         push('🔥', 'Chemistry', qa.chemistry_type ?? p.chemistry_preferences);
         push('🌿', 'What I value', qa.lifestyle_values, 'text');
         break;
@@ -1131,6 +1136,14 @@
             aggregated: wealthInsight.aggregated ?? '',
           };
         }
+
+        const lifestyleInsight = allI.find(i => i.category === 'lifestyle');
+        if (lifestyleInsight?.insights?.length) {
+          lifestyleSignals = {
+            insights: lifestyleInsight.insights,
+            aggregated: lifestyleInsight.aggregated ?? '',
+          };
+        }
       }
     } catch { /* non-critical */ }
 
@@ -1627,20 +1640,6 @@
         {/if}
       </section>
 
-      <!-- Annual Income (self-declared, set via wingman or Trust & Boost tab) -->
-      {#if moneyMatters.annualIncome && moneyMatters.annualIncome !== 'Prefer not to say' && mode === 'public'}
-      <section class="section income-row-section">
-        <div class="income-row">
-          <span class="income-icon">💼</span>
-          <div class="income-body">
-            <span class="income-label">Annual Income</span>
-            <span class="income-value">{moneyMatters.annualIncome}</span>
-          </div>
-          <span class="archetype-qa-declared">Self declared</span>
-        </div>
-      </section>
-      {/if}
-
       <!-- Archetype-specific onboarding answers -->
       {#if archetypeSections.length > 0}
       <section class="section">
@@ -1649,6 +1648,14 @@
             <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
           </svg>
           {currentArchetype?.name ?? 'My Dating Style'}
+          <button
+            class="section-edit-btn"
+            onclick={() => goto('/verified-vibe/verification?step=archetype_qa&returnTo=/verified-vibe/profile')}
+            aria-label="Edit dating style answers"
+            type="button"
+          >
+            <Pencil size={11} />
+          </button>
         </div>
         <div class="archetype-qa-list">
           {#each archetypeSections as s}
@@ -1719,6 +1726,14 @@
         <div class="section-label">
           <Heart size={13} />
           What He Brings
+          <button
+            class="section-edit-btn"
+            onclick={() => goto('/verified-vibe/verification?step=archetype_qa&returnTo=/verified-vibe/profile')}
+            aria-label="Edit what you bring"
+            type="button"
+          >
+            <Pencil size={11} />
+          </button>
         </div>
         <div class="brings-list">
           {#each whatBrings as item}
@@ -1819,6 +1834,43 @@
                 <path d="M20 6L9 17l-5-5"/>
               </svg>
               <span>AI verified via CV / LinkedIn</span>
+            </div>
+          </div>
+        </section>
+      {/if}
+
+      <!-- Lifestyle Signals — derived from lifestyle proof photos -->
+      {#if lifestyleSignals}
+        <section class="section career-section">
+          <div class="section-label">
+            <span>🌍</span>
+            Lifestyle Signals
+            <button
+              class="section-edit-btn"
+              onclick={() => goto('/verified-vibe/proof-upload?category=lifestyle')}
+              aria-label="Update lifestyle proof"
+              type="button"
+            >
+              <Pencil size={11} />
+            </button>
+          </div>
+          <div class="career-card">
+            {#if lifestyleSignals.aggregated}
+              <p class="career-summary">{lifestyleSignals.aggregated}</p>
+            {/if}
+            <div class="career-chips">
+              {#each lifestyleSignals.insights as ins}
+                <span class="career-chip">
+                  <span class="career-chip-emoji">{ins.emoji}</span>
+                  {ins.label}
+                </span>
+              {/each}
+            </div>
+            <div class="career-verified-row">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+              <span>AI verified via lifestyle photos</span>
             </div>
           </div>
         </section>

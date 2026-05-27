@@ -47,12 +47,15 @@ Return ONLY raw JSON — no markdown, no code fences:
 {"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Hosts dinner parties'","emoji":"single emoji"},...],"aggregated":"e.g. 'Hosts intimate dinners and celebrations with a real eye for detail'","confidence":0.0-1.0,"reason":"one sentence"}`,
 
   discipline: `You are reviewing 1–20 proof photos for a dating-app "Show-Off: Discipline" section.
-Analyse ALL images. Look for gym sessions, fitness tracking, reading streaks, sleep data, learning logs.
+A single photo is enough to verify. Accept ANY visual evidence of physical or mental discipline — gym selfies, sport or training shots (swimming, running, cycling, martial arts, etc.), workout equipment at home, a book or course in progress, a clean workspace, meal prep, early morning scenes, or fitness app screenshots. You do NOT need tracking data, streaks, or logs — the activity itself is proof.
+
+Set verified=true whenever the image clearly shows someone engaged in or prepared for a disciplined activity. Only set verified=false if the image has zero connection to any form of discipline or routine.
+
 Extract UP TO 5 distinct discipline signals.
 Write one punchy "aggregated" sentence (10–15 words) combining ALL insights into a profile-ready statement.
 
 Return ONLY raw JSON — no markdown, no code fences:
-{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Consistent gym goer'","emoji":"single emoji"},...],"aggregated":"e.g. 'Trains consistently, tracks his sleep, and reads daily — habits that show'","confidence":0.0-1.0,"reason":"one sentence"}`,
+{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Consistent gym goer'","emoji":"single emoji"},...],"aggregated":"e.g. 'Trains consistently and shows up for himself every day'","confidence":0.0-1.0,"reason":"one sentence"}`,
 
   social_proof: `You are reviewing 1–20 proof photos for a dating-app "Show-Off: Social Proof" section.
 Analyse ALL images. Look for real friendships, social activities, group events, community involvement.
@@ -65,10 +68,11 @@ Return ONLY raw JSON — no markdown, no code fences:
   linkedin: `You are reviewing a LinkedIn profile screenshot OR raw CV/resume text for a dating-app career verification step.
 Does this show a GENUINE established professional with clear work history?
 
-Extract UP TO 3 insights — focus on role, seniority, and career depth ONLY:
+Extract UP TO 4 insights in this priority order:
 - Current job title and seniority level (e.g. "Senior Product Manager", "Director of Engineering")
 - Industry or domain area (e.g. "ML / Legal Tech", "Fintech", "SaaS") — NEVER a company name
 - Years of experience or career breadth (e.g. "12+ years in tech", "5 startups", "serial founder")
+- Education: ONLY include this if the person attended one of these exact Ivy League schools — Harvard, Yale, Princeton, Columbia, UPenn, Brown, Dartmouth, Cornell. If Ivy League, use a label like "Harvard alumnus" or "Yale graduate" with emoji 🎓. If the school is NOT in this list, OMIT education entirely.
 
 IMPORTANT: Do NOT include any company or employer names in the insights or aggregated line.
 

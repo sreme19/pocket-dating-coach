@@ -199,10 +199,53 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
     }
 
     const trustPoints = getTrustPoints('photos');
+
+    // Upload photos to Supabase Storage and set avatar_url
+    let avatarUrl: string | null = null;
+    if (userId) {
+      try {
+        const supabase = getSupabase();
+        const mimeToExt: Record<string, string> = {
+          'image/jpeg': 'jpg', 'image/jpg': 'jpg',
+          'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif'
+        };
+
+        // Find which index is the 'lead' photo (fall back to index 0)
+        const labels: Record<string, string> = data.labels ?? {};
+        const leadIndex = Object.entries(labels).find(([, v]) => v === 'lead')?.[0] ?? '0';
+
+        for (let i = 0; i < data.images.length; i++) {
+          const mime = data.mimeTypes[i] ?? 'image/jpeg';
+          const ext = mimeToExt[mime] ?? 'jpg';
+          const path = `users/${userId}/photo_${i}.${ext}`;
+          const buffer = Buffer.from(data.images[i], 'base64');
+
+          const { error: uploadErr } = await supabase.storage
+            .from('profiles')
+            .upload(path, buffer, { contentType: mime, upsert: true });
+
+          if (!uploadErr && String(i) === String(leadIndex)) {
+            const { data: urlData } = supabase.storage.from('profiles').getPublicUrl(path);
+            avatarUrl = urlData.publicUrl;
+          }
+        }
+
+        if (avatarUrl) {
+          await supabase
+            .from('verified_vibe_users')
+            .update({ avatar_url: avatarUrl })
+            .eq('id', userId);
+        }
+      } catch (uploadErr) {
+        console.error('Photo storage upload error (non-fatal):', uploadErr);
+      }
+    }
+
     const stepData = {
       confidence: consistencyResult.confidence,
       consistent: true,
-      photoCount: data.images.length
+      photoCount: data.images.length,
+      ...(avatarUrl && { avatarUrl })
     };
 
     if (userId) {
