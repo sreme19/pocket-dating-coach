@@ -294,8 +294,8 @@
     if (key in carImages) return;
     carImages = { ...carImages, [key]: '' }; // mark as pending / no image yet
     try {
-      // v2 prefix busts any stale empty-string entries from the old client-side fetch
-      const cacheKey = `vv_car_img_v2_${key}`;
+      // v3 prefix busts cached interior shots from the v2 Commons search
+      const cacheKey = `vv_car_img_v3_${key}`;
       const cached = localStorage.getItem(cacheKey);
       if (cached) { carImages = { ...carImages, [key]: cached }; return; }
       const res = await fetch(`/api/verified-vibe/car-image?make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}`);
