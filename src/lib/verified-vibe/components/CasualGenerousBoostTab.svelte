@@ -205,12 +205,12 @@
   const sc = $derived(scoreColor(subscores.socialLegitimacy));
 
   const showOffCategories = [
-    { icon: '🌍', label: 'Lifestyle',    desc: 'Travel, dining, events',               pts: 8,  time: '2 min', category: 'lifestyle'    },
-    { icon: '🍽️', label: 'Hosting',      desc: 'Dinners, celebrations',                 pts: 6,  time: '2 min', category: 'hosting'      },
-    { icon: '💪', label: 'Discipline',   desc: 'Gym, sleep, reading routines',          pts: 4,  time: '1 min', category: 'discipline'   },
-    { icon: '🤝', label: 'Social Proof', desc: 'Friends, communities',                  pts: 4,  time: '2 min', category: 'social_proof' },
-    { icon: '💰', label: 'Wealth',       desc: 'Bank statements, salary, investments',  pts: 12, time: '2 min', category: 'wealth'       },
-    { icon: '🏠', label: 'Assets',       desc: 'Car, property, company ownership',      pts: 10, time: '2 min', category: 'assets'       },
+    { icon: '🌍', label: 'Lifestyle',    desc: 'Travel, dining, events',               pts: 8,  time: '2 min', category: 'lifestyle',    powers: 'Lifestyle Signals · Travel Magnets' },
+    { icon: '🍽️', label: 'Hosting',      desc: 'Dinners, celebrations',                 pts: 6,  time: '2 min', category: 'hosting',      powers: 'Lifestyle Signals'                  },
+    { icon: '💪', label: 'Discipline',   desc: 'Gym, sleep, reading routines',          pts: 4,  time: '1 min', category: 'discipline',   powers: 'Health & Fitness'                   },
+    { icon: '🤝', label: 'Social Proof', desc: 'Friends, communities',                  pts: 4,  time: '2 min', category: 'social_proof', powers: 'Social Life'                        },
+    { icon: '💰', label: 'Wealth',       desc: 'Bank statements, salary, investments',  pts: 12, time: '2 min', category: 'wealth',       powers: 'Money Matters'                      },
+    { icon: '🏠', label: 'Assets',       desc: 'Car, property, company ownership',      pts: 10, time: '2 min', category: 'assets',       powers: 'In the Garage · Money Matters'      },
   ] as const;
 
   // Social platforms grouped into one card
@@ -251,18 +251,22 @@
   <div class="trust-gauge-container">
     <div class="gauge-visual">
       <svg viewBox="0 0 200 200" class="radial-gauge">
-        <circle cx="100" cy="100" r="90" fill="none" stroke="var(--bg-3)" stroke-width="12" />
+        <defs>
+          <linearGradient id="trustRingGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#5BF0BA"/>
+            <stop offset="100%" stop-color="#0F8A5E"/>
+          </linearGradient>
+        </defs>
+        <circle cx="100" cy="100" r="90" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="12" />
         <circle
           cx="100" cy="100" r="90"
-          fill="none" stroke="var(--accent)" stroke-width="12"
+          fill="none" stroke="url(#trustRingGrad)" stroke-width="12"
           stroke-dasharray="{(cgTotal / 100) * 565} 565"
           stroke-linecap="round"
           transform="rotate(-90 100 100)"
         />
-        <text x="100" y="100" text-anchor="middle" dy="0.3em" class="gauge-text">
-          <tspan class="gauge-number">{cgTotal}</tspan>
-          <tspan x="100" dy="1.2em" class="gauge-label-small">/ 100</tspan>
-        </text>
+        <text x="100" y="92" text-anchor="middle" class="gauge-number-serif">{cgTotal}</text>
+        <text x="100" y="116" text-anchor="middle" class="gauge-label-small">/ 100</text>
       </svg>
     </div>
 
@@ -271,16 +275,60 @@
       <span class="fit-dot"></span>
       {fitLabel}
     </div>
+
+    <!-- Tier ladder with color zones -->
+    <div class="tier-ladder">
+      <div class="tier-ladder-header">
+        <span class="tier-ladder-title">Score progress</span>
+        <span class="tier-ladder-next">
+          {#if cgTotal < 60}+{60 - cgTotal} → Visible{:else if cgTotal < 70}+{70 - cgTotal} → Featured{:else if cgTotal < 85}+{85 - cgTotal} → Priority{:else if cgTotal < 95}+{95 - cgTotal} → Elite{:else}🏆 Elite tier{/if}
+        </span>
+      </div>
+
+      <!-- Zoned bar -->
+      <div class="tier-zone-bar">
+        <div class="tier-zone tier-zone--red" style="flex: 60">
+          <div class="tier-zone-fill" style="width: {Math.min(100, (Math.max(0, cgTotal) / 60) * 100)}%"></div>
+        </div>
+        <div class="tier-zone tier-zone--amber" style="flex: 25">
+          <div class="tier-zone-fill" style="width: {cgTotal >= 60 ? Math.min(100, ((cgTotal - 60) / 25) * 100) : 0}%"></div>
+        </div>
+        <div class="tier-zone tier-zone--green" style="flex: 15">
+          <div class="tier-zone-fill" style="width: {cgTotal >= 85 ? Math.min(100, ((cgTotal - 85) / 15) * 100) : 0}%"></div>
+        </div>
+      </div>
+
+      <!-- Tier dots -->
+      <div class="tier-dots-row">
+        {#each [{v:60,label:'Visible'},{v:70,label:'Featured'},{v:85,label:'Priority'},{v:95,label:'Elite'}] as t}
+          {@const reached = cgTotal >= t.v}
+          {@const color = t.v >= 85 ? 'var(--accent)' : t.v >= 60 ? '#f4b95c' : '#ef4444'}
+          <div class="tier-dot-item" style="left: {t.v}%">
+            <div class="tier-dot" style="background: {reached ? color : 'var(--bg-3)'}; border-color: {reached ? color : 'var(--border-1)'}">
+              {#if reached}<svg width="6" height="6" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>{/if}
+            </div>
+            <span class="tier-dot-label" style="color: {reached ? color : 'var(--text-3)'}">{t.label}</span>
+          </div>
+        {/each}
+      </div>
+
+      <!-- Zone legend -->
+      <div class="tier-zone-legend">
+        <span class="tier-zone-leg" class:tier-zone-leg--active={cgTotal < 60} style="--zc: #ef4444">At Risk</span>
+        <span class="tier-zone-leg" class:tier-zone-leg--active={cgTotal >= 60 && cgTotal < 85} style="--zc: #f4b95c">In Progress</span>
+        <span class="tier-zone-leg" class:tier-zone-leg--active={cgTotal >= 85} style="--zc: var(--accent)">Trusted</span>
+      </div>
+    </div>
   </div>
 </section>
 
-<!-- ── Basic Fit ───────────────────────────────────────────────────────── -->
+<!-- ── Safety Check ───────────────────────────────────────────────────────── -->
 <section class="section">
   <div class="section-label">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
     </svg>
-    Basic Fit
+    Safety Check
   </div>
   <div class="breakdown">
 
@@ -368,6 +416,10 @@
             {:else}
               <span class="showoff-time">{cat.time}</span>
             {/if}
+          </div>
+          <div class="showoff-powers">
+            <span class="showoff-powers-dot"></span>
+            Powers: <span class="showoff-powers-list">{cat.powers}</span>
           </div>
         </div>
         {#if done}
@@ -629,13 +681,12 @@
   }
 
   .radial-gauge {
-    width: 140px;
-    height: 140px;
+    width: 180px;
+    height: 180px;
   }
 
-  .gauge-text { font-family: var(--font-mono); }
-  .gauge-number { font-size: 44px; font-weight: 700; fill: var(--text-1); }
-  .gauge-label-small { font-size: 12px; fill: var(--text-3); }
+  .gauge-number-serif { font-size: 56px; font-style: italic; font-weight: 400; fill: #fff; font-family: var(--font-serif, "Georgia", serif); }
+  .gauge-label-small { font-size: 13px; fill: var(--text-3); font-family: inherit; }
 
   .fit-badge {
     display: flex;
@@ -655,6 +706,117 @@
     border-radius: 50%;
     background: var(--accent);
     flex-shrink: 0;
+    box-shadow: 0 0 10px var(--accent);
+    animation: pulse-fit 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse-fit {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+  /* Tier ladder */
+  .tier-ladder {
+    width: 100%;
+    padding: 14px 0 2px;
+    border-top: 1px solid var(--border-1);
+    margin-top: 14px;
+  }
+  .tier-ladder-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .tier-ladder-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-3);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .tier-ladder-next {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-2);
+  }
+  .tier-zone-bar {
+    display: flex;
+    gap: 2px;
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .tier-zone {
+    position: relative;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.05);
+  }
+  .tier-zone-fill {
+    position: absolute;
+    inset: 0;
+    border-radius: 3px;
+    transition: width 0.5s ease;
+  }
+  .tier-zone--red .tier-zone-fill { background: #ef4444; }
+  .tier-zone--amber .tier-zone-fill { background: #f4b95c; }
+  .tier-zone--green .tier-zone-fill { background: var(--accent); }
+  .tier-dots-row {
+    position: relative;
+    height: 40px;
+    margin: 8px 0 4px;
+  }
+  .tier-dot-item {
+    position: absolute;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .tier-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    border: 2px solid;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: -5px;
+  }
+  .tier-dot-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  .tier-zone-legend {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-1);
+    margin-top: 6px;
+  }
+  .tier-zone-leg {
+    font-size: 9.5px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    opacity: 0.55;
+  }
+  .tier-zone-leg::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--zc);
+  }
+  .tier-zone-leg--active {
+    color: var(--zc);
+    opacity: 1;
   }
 
   /* ── Subscores ── */
@@ -1041,6 +1203,26 @@
     color: var(--accent);
     opacity: 0.75;
     letter-spacing: 0.02em;
+  }
+
+  .showoff-powers {
+    font-size: 10.5px;
+    color: var(--text-3);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 3px;
+  }
+  .showoff-powers-dot {
+    display: inline-block;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--text-3);
+    flex-shrink: 0;
+  }
+  .showoff-powers-list {
+    color: var(--text-2);
   }
 
   .showoff-pts--done {
