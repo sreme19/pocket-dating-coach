@@ -519,6 +519,39 @@
     { name: 'Stability', level: 'High', description: 'Grounded, reliable, shows up consistently.', percentage: 78 }
   ]);
 
+  // AI Personality Portrait
+  let personalityPortraitUrl   = $state<string | null>(null);
+  let generatingPortrait       = $state(false);
+  let portraitError            = $state<string | null>(null);
+
+  async function generatePersonalityPortrait() {
+    const avatarUrl = $user?.avatar_url;
+    if (!avatarUrl || generatingPortrait) return;
+    generatingPortrait = true;
+    portraitError = null;
+    try {
+      const { getSupabaseClient: _sb } = await import('$lib/client/supabase');
+      const { data: { session } } = await _sb().auth.getSession();
+      const token = session?.access_token ?? '';
+      const res = await fetch('/api/verified-vibe/personality-portrait', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({
+          referenceImageUrl: avatarUrl,
+          personalityTraits: personalityReads.map(r => ({ name: r.name, level: r.level, percentage: r.percentage })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error ?? 'Generation failed');
+      personalityPortraitUrl = data.imageUrl;
+      localStorage.setItem('vv_personality_portrait', data.imageUrl);
+    } catch (e) {
+      portraitError = e instanceof Error ? e.message : 'Could not generate portrait';
+    } finally {
+      generatingPortrait = false;
+    }
+  }
+
   // Archetype QA data — all keys loaded in onMount, rendered per archetype
   let archetypeStore = $state<Record<string, Record<string, string | string[]>>>({});
 
@@ -1058,6 +1091,10 @@
         localStorage.setItem('vv_countries_traveled', JSON.stringify(merged));
       }
     } catch { /* ignore */ }
+
+    // Load cached personality portrait
+    const cachedPortrait = localStorage.getItem('vv_personality_portrait');
+    if (cachedPortrait) personalityPortraitUrl = cachedPortrait;
 
     // Load money matters
     try {
@@ -1788,6 +1825,57 @@
         </div>
       </section>
       {/if}
+
+      <!-- AI Personality Portrait — generated from reference photo + personality traits -->
+      {#if ($user?.gender === 'man' || $user?.gender === null) && $user?.avatar_url}
+        <section class="section portrait-section">
+          <div class="section-label">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+            AI Portrait
+            <span class="section-hint">generated from your photos</span>
+          </div>
+
+          {#if personalityPortraitUrl}
+            <div class="portrait-wrap">
+              <img class="portrait-img" src={personalityPortraitUrl} alt="AI-generated portrait" />
+              <div class="portrait-gradient"></div>
+              <div class="portrait-footer">
+                <span class="portrait-label">✨ Generated from your verified photos</span>
+                <button
+                  class="portrait-regen-btn"
+                  type="button"
+                  disabled={generatingPortrait}
+                  onclick={() => { personalityPortraitUrl = null; localStorage.removeItem('vv_personality_portrait'); generatePersonalityPortrait(); }}
+                >
+                  {generatingPortrait ? 'Regenerating…' : '↺ Regenerate'}
+                </button>
+              </div>
+            </div>
+          {:else if generatingPortrait}
+            <div class="portrait-loading">
+              <div class="portrait-spinner"></div>
+              <p class="portrait-loading-text">Generating your portrait…</p>
+              <p class="portrait-loading-sub">This takes about 20–30 seconds</p>
+            </div>
+          {:else if portraitError && portraitError.includes('not configured')}
+            <!-- FAL_KEY not set — silently hide -->
+          {:else}
+            <button class="portrait-generate-btn" type="button" onclick={generatePersonalityPortrait}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+              Generate AI Portrait
+              <span class="portrait-generate-hint">Based on your verified photos + personality</span>
+            </button>
+            {#if portraitError}
+              <p class="portrait-error">{portraitError}</p>
+            {/if}
+          {/if}
+        </section>
+      {/if}
+
       <!-- What He Brings -->
       {#if $user?.gender === 'man' || $user?.gender === null}
       <section class="section">
@@ -5980,6 +6068,131 @@
     color: rgba(255, 255, 255, 0.45);
     line-height: 1.55;
     font-style: italic;
+    margin: 0;
+  }
+
+  /* ── AI Personality Portrait ─────────────────────────────────────────────── */
+  .portrait-section { gap: 12px; }
+
+  .portrait-wrap {
+    position: relative;
+    width: 100%;
+    border-radius: 16px;
+    overflow: hidden;
+    aspect-ratio: 3/4;
+    max-height: 460px;
+    background: #1a2030;
+  }
+
+  .portrait-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .portrait-gradient {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, transparent 55%, rgba(13,17,23,0.88) 100%);
+    pointer-events: none;
+  }
+
+  .portrait-footer {
+    position: absolute;
+    bottom: 14px;
+    left: 14px;
+    right: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .portrait-label {
+    font-size: 11px;
+    color: rgba(255,255,255,0.55);
+  }
+
+  .portrait-regen-btn {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    background: rgba(52,211,153,0.12);
+    border: 1px solid rgba(52,211,153,0.25);
+    border-radius: 20px;
+    padding: 4px 10px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .portrait-regen-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .portrait-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 40px 20px;
+    background: rgba(255,255,255,0.03);
+    border: 1px dashed rgba(255,255,255,0.12);
+    border-radius: 16px;
+  }
+
+  .portrait-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(255,255,255,0.1);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  .portrait-loading-text {
+    font-size: 14px;
+    color: rgba(255,255,255,0.7);
+    margin: 0;
+    font-weight: 600;
+  }
+
+  .portrait-loading-sub {
+    font-size: 12px;
+    color: rgba(255,255,255,0.35);
+    margin: 0;
+  }
+
+  .portrait-generate-btn {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 20px 16px;
+    background: rgba(52,211,153,0.06);
+    border: 1.5px dashed rgba(52,211,153,0.3);
+    border-radius: 16px;
+    color: var(--accent);
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .portrait-generate-btn:hover {
+    background: rgba(52,211,153,0.1);
+    border-color: rgba(52,211,153,0.5);
+  }
+
+  .portrait-generate-hint {
+    font-size: 11px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.4);
+  }
+
+  .portrait-error {
+    font-size: 12px;
+    color: rgba(239,68,68,0.8);
+    text-align: center;
     margin: 0;
   }
 </style>
