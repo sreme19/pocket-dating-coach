@@ -519,13 +519,37 @@
     { name: 'Stability', level: 'High', description: 'Grounded, reliable, shows up consistently.', percentage: 78 }
   ]);
 
+  // Hero edit (name / age / city)
+  let editingHero  = $state(false);
+  let heroDraft    = $state<{ firstName: string; age: string; city: string }>({ firstName: '', age: '', city: '' });
+
+  async function saveHero() {
+    if (!$user) return;
+    const firstName = heroDraft.firstName.trim() || $user.firstName;
+    const age       = parseInt(heroDraft.age) || $user.age;
+    const city      = heroDraft.city.trim() || $user.city;
+    user.set({ ...$user, firstName, age, city });
+    editingHero = false;
+    try {
+      const { getSupabaseClient: _sb } = await import('$lib/client/supabase');
+      const sb = _sb();
+      const { data: { session } } = await sb.auth.getSession();
+      if (session && $user?.id) {
+        await sb.from('verified_vibe_users').update({ first_name: firstName, age, city }).eq('id', $user.id);
+      }
+    } catch { /* non-critical */ }
+  }
+
   // AI Personality Portrait
   let personalityPortraitUrl   = $state<string | null>(null);
+  let garagePortraitUrl        = $state<string | null>(null);
   let generatingPortrait       = $state(false);
+  let generatingGaragePortrait = $state(false);
   let portraitError            = $state<string | null>(null);
+  let garagePortraitError      = $state<string | null>(null);
 
   async function generatePersonalityPortrait() {
-    const avatarUrl = $user?.avatar_url;
+    const avatarUrl = $user?.avatar;
     if (!avatarUrl || generatingPortrait) return;
     generatingPortrait = true;
     portraitError = null;
@@ -549,6 +573,35 @@
       portraitError = e instanceof Error ? e.message : 'Could not generate portrait';
     } finally {
       generatingPortrait = false;
+    }
+  }
+
+  async function generateGaragePortrait() {
+    const avatarUrl = $user?.avatar;
+    if (!avatarUrl || generatingGaragePortrait) return;
+    generatingGaragePortrait = true;
+    garagePortraitError = null;
+    try {
+      const { getSupabaseClient: _sb } = await import('$lib/client/supabase');
+      const { data: { session } } = await _sb().auth.getSession();
+      const token = session?.access_token ?? '';
+      const res = await fetch('/api/verified-vibe/personality-portrait', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({
+          referenceImageUrl: avatarUrl,
+          personalityTraits: personalityReads.map(r => ({ name: r.name, level: r.level, percentage: r.percentage })),
+          sceneOverride: 'confident man in smart casual attire, evening city setting, luxury lifestyle atmosphere, golden hour lighting, urban outdoor environment, sophisticated and relaxed',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error ?? 'Generation failed');
+      garagePortraitUrl = data.imageUrl;
+      localStorage.setItem('vv_garage_portrait', data.imageUrl);
+    } catch (e) {
+      garagePortraitError = e instanceof Error ? e.message : 'Could not generate portrait';
+    } finally {
+      generatingGaragePortrait = false;
     }
   }
 
@@ -1092,9 +1145,11 @@
       }
     } catch { /* ignore */ }
 
-    // Load cached personality portrait
+    // Load cached portraits
     const cachedPortrait = localStorage.getItem('vv_personality_portrait');
     if (cachedPortrait) personalityPortraitUrl = cachedPortrait;
+    const cachedGaragePortrait = localStorage.getItem('vv_garage_portrait');
+    if (cachedGaragePortrait) garagePortraitUrl = cachedGaragePortrait;
 
     // Load money matters
     try {
@@ -1642,23 +1697,64 @@
 
       <!-- Identity overlay -->
       <div class="hero-identity">
-        <div class="hero-name-row">
-          <h1 class="hero-name">{displayName}{displayAge ? `, ${displayAge}` : ''}</h1>
-          {#if trustScore > 0}
-            <div class="trust-badge">
-              <ShieldCheck size={13} />
-              {trustScore}
+        {#if editingHero}
+          <div class="hero-edit-form">
+            <div class="hero-edit-row">
+              <input
+                class="hero-edit-input hero-edit-name"
+                type="text"
+                placeholder={displayName}
+                bind:value={heroDraft.firstName}
+                maxlength={40}
+              />
+              <input
+                class="hero-edit-input hero-edit-age"
+                type="number"
+                placeholder={displayAge ? String(displayAge) : 'Age'}
+                bind:value={heroDraft.age}
+                min={18}
+                max={99}
+              />
+            </div>
+            <input
+              class="hero-edit-input hero-edit-city"
+              type="text"
+              placeholder={displayCity ?? 'City, Country'}
+              bind:value={heroDraft.city}
+              maxlength={60}
+            />
+            <div class="hero-edit-actions">
+              <button class="hero-edit-save" type="button" onclick={saveHero}>Save</button>
+              <button class="hero-edit-cancel" type="button" onclick={() => editingHero = false}>Cancel</button>
+            </div>
+          </div>
+        {:else}
+          <div class="hero-name-row">
+            <h1 class="hero-name">{displayName}{displayAge ? `, ${displayAge}` : ''}</h1>
+            {#if trustScore > 0}
+              <div class="trust-badge">
+                <ShieldCheck size={13} />
+                {trustScore}
+              </div>
+            {/if}
+            <button
+              class="hero-edit-btn"
+              type="button"
+              aria-label="Edit name, age and city"
+              onclick={() => { heroDraft = { firstName: displayName, age: displayAge ? String(displayAge) : '', city: displayCity ?? '' }; editingHero = true; }}
+            >
+              <Pencil size={11} />
+            </button>
+          </div>
+          {#if displayCity}
+            <div class="hero-city">
+              <MapPin size={12} />
+              {displayCity}
             </div>
           {/if}
-        </div>
-        {#if displayCity}
-          <div class="hero-city">
-            <MapPin size={12} />
-            {displayCity}
-          </div>
-        {/if}
-        {#if displayArchetype}
-          <div class="archetype-badge">{displayArchetype}</div>
+          {#if displayArchetype}
+            <div class="archetype-badge">{displayArchetype}</div>
+          {/if}
         {/if}
       </div>
     </div>
@@ -1827,7 +1923,7 @@
       {/if}
 
       <!-- AI Personality Portrait — generated from reference photo + personality traits -->
-      {#if ($user?.gender === 'man' || $user?.gender === null) && $user?.avatar_url}
+      {#if ($user?.gender === 'man' || $user?.gender === null) && $user?.avatar}
         <section class="section portrait-section">
           <div class="section-label">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1873,6 +1969,144 @@
               <p class="portrait-error">{portraitError}</p>
             {/if}
           {/if}
+        </section>
+      {/if}
+
+      <!-- Money Matters — read-only in public view -->
+      {#if $user?.gender === 'man' || $user?.gender === null}
+        <section class="section money-section">
+          <div class="section-label">
+            <span>💰</span>
+            Money Matters
+            {#if wealthInsights}
+              <button
+                class="section-edit-btn {editingMoneyChips ? 'section-edit-btn--active' : ''}"
+                onclick={() => {
+                  if (editingMoneyChips) commitPendingInsights('wealth');
+                  else editingMoneyChips = true;
+                }}
+                aria-label={editingMoneyChips ? 'Done editing' : 'Edit chips'}
+                type="button"
+              >
+                {#if editingMoneyChips}
+                  <Check size={11} />
+                {:else}
+                  <Pencil size={11} />
+                {/if}
+              </button>
+            {/if}
+          </div>
+
+          <div class="money-card">
+            {#if moneyMatters.annualIncome || moneyMatters.netWorth || wealthInsights}
+              {#if moneyMatters.annualIncome || moneyMatters.netWorth}
+                <div class="money-stats-row">
+                  {#if moneyMatters.annualIncome}
+                    <div class="money-stat">
+                      <span class="money-stat-icon">💼</span>
+                      <div>
+                        <p class="money-stat-label">Annual Income</p>
+                        <p class="money-stat-value">{moneyMatters.annualIncome}</p>
+                        <p class="money-stat-declared">Self declared</p>
+                      </div>
+                    </div>
+                  {/if}
+                  {#if moneyMatters.netWorth}
+                    <div class="money-stat">
+                      <span class="money-stat-icon">📈</span>
+                      <div>
+                        <p class="money-stat-label">Net Worth</p>
+                        <p class="money-stat-value">{moneyMatters.netWorth}</p>
+                        <p class="money-stat-declared">Self declared</p>
+                      </div>
+                    </div>
+                  {/if}
+                </div>
+              {/if}
+              {#if wealthInsights}
+                <div class="money-wealth-block">
+                  <div class="signal-grid">
+                    {#each wealthInsights.insights as ins}
+                      <div class="signal-tile {editingMoneyChips ? 'signal-tile--editing' : ''}">
+                        {#if editingMoneyChips}
+                          <button
+                            class="signal-tile-remove"
+                            type="button"
+                            aria-label="Remove {ins.label}"
+                            onclick={() => {
+                              const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
+                              const updated = all.map((p: any) => {
+                                if (p.category !== 'wealth') return p;
+                                const filtered = (p.insights ?? []).filter((i: { label: string }) => i.label !== ins.label);
+                                return filtered.length ? { ...p, insights: filtered } : null;
+                              }).filter(Boolean);
+                              localStorage.setItem('vv_proof_insights', JSON.stringify(updated));
+                              const wEntry = updated.find((p: any) => p.category === 'wealth') as any;
+                              wealthInsights = wEntry?.insights?.length ? { insights: wEntry.insights, aggregated: wEntry.aggregated ?? '' } : null;
+                              if (!wealthInsights) editingMoneyChips = false;
+                            }}
+                          >×</button>
+                        {/if}
+                        <span class="signal-tile-emoji">{ins.emoji}</span>
+                        <span class="signal-tile-label">{ins.label}</span>
+                      </div>
+                    {/each}
+                    {#each pendingWealthInsights as ins}
+                      <div class="signal-tile signal-tile--pending">
+                        <button class="signal-tile-remove" type="button" aria-label="Dismiss {ins.label}" onclick={() => { pendingWealthInsights = pendingWealthInsights.filter(p => p.label !== ins.label); }}>×</button>
+                        <span class="signal-tile-emoji">{ins.emoji}</span>
+                        <span class="signal-tile-label">{ins.label}</span>
+                      </div>
+                    {/each}
+                  </div>
+                  {#if wealthInsights.aggregated}
+                    <p class="signal-summary">{wealthInsights.aggregated}</p>
+                  {/if}
+                  {#if editingMoneyChips}
+                    <button class="chip-gen-btn {generatingWealth ? 'chip-gen-btn--loading' : ''}" type="button" disabled={generatingWealth} onclick={() => generateMoreInsights('wealth')}>
+                      {#if generatingWealth}<span class="chip-gen-spinner"></span>Generating…{:else}✨ Suggest 3 more{/if}
+                    </button>
+                  {/if}
+                  <div class="money-wealth-verified">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"><path d="M20 6L9 17l-5-5"/></svg>
+                    <span>AI verified via bank statement / financial document</span>
+                  </div>
+                </div>
+              {/if}
+              {#if spendingData.length > 0}
+                {@const hasReceipts = spendingData.some(s => s.verified)}
+                <div class="money-spend-header">
+                  <span class="money-spend-title">Spending patterns</span>
+                  <span class="money-spend-verified">{hasReceipts ? '✅ Receipt verified' : '🏦 Bank statement'}</span>
+                </div>
+                <div class="money-spend-list">
+                  {#each spendingData as item}
+                    {@const pct = Math.round(((item.estimatedMonthly ?? 0) / maxMonthly(spendingData)) * 100)}
+                    <div class="money-spend-row">
+                      <div class="money-spend-meta">
+                        <span class="money-spend-emoji">{item.emoji}</span>
+                        <div class="money-spend-info">
+                          <span class="money-spend-cat">{item.category}</span>
+                          <span class="money-spend-amt">{item.amountLabel}</span>
+                        </div>
+                      </div>
+                      <div class="money-spend-bar-track">
+                        <div class="money-spend-bar-fill" style="width: {pct}%; background: {spendColor(item.category)}"></div>
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              {:else if wealthInsights}
+                <a class="money-spend-nudge" href="/verified-vibe/proof-upload?category=spending">
+                  <span>🧾</span><span>Upload receipts to show spending patterns →</span>
+                </a>
+              {/if}
+            {:else}
+              <button class="money-empty-cta" onclick={() => activeTab = 'boost'} type="button">
+                <span>💳</span><span>Set this up in Trust &amp; Boost →</span>
+              </button>
+            {/if}
+          </div>
         </section>
       {/if}
 
@@ -2274,181 +2508,52 @@
         </section>
       {/if}
 
-      <!-- Money Matters — read-only in public view -->
-      {#if $user?.gender === 'man' || $user?.gender === null}
-        <section class="section money-section">
+      <!-- AI Lifestyle Portrait — above garage section -->
+      {#if ($user?.gender === 'man' || $user?.gender === null) && $user?.avatar}
+        <section class="section portrait-section">
           <div class="section-label">
-            <span>💰</span>
-            Money Matters
-            {#if wealthInsights}
-              <button
-                class="section-edit-btn {editingMoneyChips ? 'section-edit-btn--active' : ''}"
-                onclick={() => {
-                  if (editingMoneyChips) commitPendingInsights('wealth');
-                  else editingMoneyChips = true;
-                }}
-                aria-label={editingMoneyChips ? 'Done editing' : 'Edit chips'}
-                type="button"
-              >
-                {#if editingMoneyChips}
-                  <Check size={11} />
-                {:else}
-                  <Pencil size={11} />
-                {/if}
-              </button>
-            {/if}
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+            AI Lifestyle Portrait
+            <span class="section-hint">generated from your photos</span>
           </div>
-
-          <div class="money-card">
-            {#if moneyMatters.annualIncome || moneyMatters.netWorth || wealthInsights}
-              <!-- Self-reported income + net worth header stats -->
-              {#if moneyMatters.annualIncome || moneyMatters.netWorth}
-                <div class="money-stats-row">
-                  {#if moneyMatters.annualIncome}
-                    <div class="money-stat">
-                      <span class="money-stat-icon">💼</span>
-                      <div>
-                        <p class="money-stat-label">Annual Income</p>
-                        <p class="money-stat-value">{moneyMatters.annualIncome}</p>
-                        <p class="money-stat-declared">Self declared</p>
-                      </div>
-                    </div>
-                  {/if}
-                  {#if moneyMatters.netWorth}
-                    <div class="money-stat">
-                      <span class="money-stat-icon">📈</span>
-                      <div>
-                        <p class="money-stat-label">Net Worth</p>
-                        <p class="money-stat-value">{moneyMatters.netWorth}</p>
-                        <p class="money-stat-declared">Self declared</p>
-                      </div>
-                    </div>
-                  {/if}
-                </div>
-              {/if}
-
-              <!-- AI-verified wealth signals from bank statement / ITR / investments -->
-              {#if wealthInsights}
-                <div class="money-wealth-block">
-                  <div class="signal-grid">
-                    {#each wealthInsights.insights as ins}
-                      <div class="signal-tile {editingMoneyChips ? 'signal-tile--editing' : ''}">
-                        {#if editingMoneyChips}
-                          <button
-                            class="signal-tile-remove"
-                            type="button"
-                            aria-label="Remove {ins.label}"
-                            onclick={() => {
-                              const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
-                              const updated = all.map((p: any) => {
-                                if (p.category !== 'wealth') return p;
-                                const filtered = (p.insights ?? []).filter((i: { label: string }) => i.label !== ins.label);
-                                return filtered.length ? { ...p, insights: filtered } : null;
-                              }).filter(Boolean);
-                              localStorage.setItem('vv_proof_insights', JSON.stringify(updated));
-                              const wEntry = updated.find((p: any) => p.category === 'wealth') as any;
-                              wealthInsights = wEntry?.insights?.length ? { insights: wEntry.insights, aggregated: wEntry.aggregated ?? '' } : null;
-                              if (!wealthInsights) editingMoneyChips = false;
-                            }}
-                          >×</button>
-                        {/if}
-                        <span class="signal-tile-emoji">{ins.emoji}</span>
-                        <span class="signal-tile-label">{ins.label}</span>
-                      </div>
-                    {/each}
-
-                    <!-- Pending (AI-generated, not yet saved) wealth tiles -->
-                    {#each pendingWealthInsights as ins}
-                      <div class="signal-tile signal-tile--pending">
-                        <button
-                          class="signal-tile-remove"
-                          type="button"
-                          aria-label="Dismiss {ins.label}"
-                          onclick={() => { pendingWealthInsights = pendingWealthInsights.filter(p => p.label !== ins.label); }}
-                        >×</button>
-                        <span class="signal-tile-emoji">{ins.emoji}</span>
-                        <span class="signal-tile-label">{ins.label}</span>
-                      </div>
-                    {/each}
-                  </div>
-
-                  {#if wealthInsights.aggregated}
-                    <p class="signal-summary">{wealthInsights.aggregated}</p>
-                  {/if}
-
-                  <!-- Generate more button — visible in edit mode -->
-                  {#if editingMoneyChips}
-                    <button
-                      class="chip-gen-btn {generatingWealth ? 'chip-gen-btn--loading' : ''}"
-                      type="button"
-                      disabled={generatingWealth}
-                      onclick={() => generateMoreInsights('wealth')}
-                    >
-                      {#if generatingWealth}
-                        <span class="chip-gen-spinner"></span>Generating…
-                      {:else}
-                        ✨ Suggest 3 more
-                      {/if}
-                    </button>
-                  {/if}
-
-                  <div class="money-wealth-verified">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.55">
-                      <path d="M20 6L9 17l-5-5"/>
-                    </svg>
-                    <span>AI verified via bank statement / financial document</span>
-                  </div>
-                </div>
-              {/if}
-
-              <!-- Spending patterns — from receipts and/or bank statement -->
-              {#if spendingData.length > 0}
-                {@const hasReceipts = spendingData.some(s => s.verified)}
-                <div class="money-spend-header">
-                  <span class="money-spend-title">Spending patterns</span>
-                  <span class="money-spend-verified">
-                    {hasReceipts ? '✅ Receipt verified' : '🏦 Bank statement'}
-                  </span>
-                </div>
-                <div class="money-spend-list">
-                  {#each spendingData as item}
-                    {@const pct = Math.round(((item.estimatedMonthly ?? 0) / maxMonthly(spendingData)) * 100)}
-                    <div class="money-spend-row">
-                      <div class="money-spend-meta">
-                        <span class="money-spend-emoji">{item.emoji}</span>
-                        <div class="money-spend-info">
-                          <span class="money-spend-cat">{item.category}</span>
-                          <span class="money-spend-amt">{item.amountLabel}</span>
-                        </div>
-                      </div>
-                      <div class="money-spend-bar-track">
-                        <div
-                          class="money-spend-bar-fill"
-                          style="width: {pct}%; background: {spendColor(item.category)}"
-                        ></div>
-                      </div>
-                    </div>
-                  {/each}
-                </div>
-              {:else if wealthInsights}
-                <!-- Has wealth proof but no spending breakdown extracted — nudge -->
-                <a class="money-spend-nudge" href="/verified-vibe/proof-upload?category=spending">
-                  <span>🧾</span>
-                  <span>Upload receipts to show spending patterns →</span>
-                </a>
-              {/if}
-            {:else}
-              <!-- Empty — direct to Trust & Boost -->
-              <button
-                class="money-empty-cta"
-                onclick={() => activeTab = 'boost'}
-                type="button"
-              >
-                <span>💳</span>
-                <span>Set this up in Trust &amp; Boost →</span>
-              </button>
+          {#if garagePortraitUrl}
+            <div class="portrait-wrap">
+              <img class="portrait-img" src={garagePortraitUrl} alt="AI-generated lifestyle portrait" />
+              <div class="portrait-gradient"></div>
+              <div class="portrait-footer">
+                <span class="portrait-label">✨ Generated from your verified photos</span>
+                <button
+                  class="portrait-regen-btn"
+                  type="button"
+                  disabled={generatingGaragePortrait}
+                  onclick={() => { garagePortraitUrl = null; localStorage.removeItem('vv_garage_portrait'); generateGaragePortrait(); }}
+                >
+                  {generatingGaragePortrait ? 'Regenerating…' : '↺ Regenerate'}
+                </button>
+              </div>
+            </div>
+          {:else if generatingGaragePortrait}
+            <div class="portrait-loading">
+              <div class="portrait-spinner"></div>
+              <p class="portrait-loading-text">Generating your portrait…</p>
+              <p class="portrait-loading-sub">This takes about 20–30 seconds</p>
+            </div>
+          {:else if garagePortraitError && garagePortraitError.includes('not configured')}
+            <!-- FAL_KEY not set — silently hide -->
+          {:else}
+            <button class="portrait-generate-btn" type="button" onclick={generateGaragePortrait}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+              Generate AI Lifestyle Portrait
+              <span class="portrait-generate-hint">Evening city setting · Different scene from first portrait</span>
+            </button>
+            {#if garagePortraitError}
+              <p class="portrait-error">{garagePortraitError}</p>
             {/if}
-          </div>
+          {/if}
         </section>
       {/if}
 
@@ -6069,6 +6174,82 @@
     line-height: 1.55;
     font-style: italic;
     margin: 0;
+  }
+
+  /* ── Hero identity edit ─────────────────────────────────────────────────── */
+  .hero-edit-btn {
+    background: rgba(255,255,255,0.12);
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.7);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s;
+  }
+
+  .hero-edit-btn:hover { background: rgba(255,255,255,0.22); }
+
+  .hero-edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 4px 0;
+  }
+
+  .hero-edit-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .hero-edit-input {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 10px;
+    color: #fff;
+    font-size: 14px;
+    padding: 8px 12px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .hero-edit-input:focus { border-color: var(--accent); }
+  .hero-edit-input::placeholder { color: rgba(255,255,255,0.4); }
+
+  .hero-edit-name { flex: 1; }
+  .hero-edit-age  { width: 70px; }
+  .hero-edit-city { width: 100%; }
+
+  .hero-edit-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .hero-edit-save {
+    flex: 1;
+    background: var(--accent);
+    border: none;
+    border-radius: 10px;
+    color: #000;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 8px;
+    cursor: pointer;
+  }
+
+  .hero-edit-cancel {
+    flex: 1;
+    background: rgba(255,255,255,0.1);
+    border: none;
+    border-radius: 10px;
+    color: rgba(255,255,255,0.7);
+    font-size: 13px;
+    padding: 8px;
+    cursor: pointer;
   }
 
   /* ── AI Personality Portrait ─────────────────────────────────────────────── */
