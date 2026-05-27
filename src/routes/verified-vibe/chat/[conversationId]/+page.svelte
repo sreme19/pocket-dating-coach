@@ -43,6 +43,12 @@
   let currentUserId = $state<string | null>(null);
   let currentUserGender = $state<string | null>(null);
 
+  // ── Unmatch / Block state ────────────────────────────────────────────────
+  let showOptionsMenu = $state(false);
+  let showUnmatchConfirm = $state(false);
+  let showBlockConfirm = $state(false);
+  let isUnmatching = $state(false);
+
   interface CoachingCard { signal: string; read: string; }
   let coachingCards = $state<Map<string, CoachingCard>>(new Map());
 
@@ -1023,6 +1029,92 @@
       console.error('Failed to deactivate assistant:', err);
     }
   }
+
+  // ── Unmatch / Block handlers ─────────────────────────────────────────────
+
+  function toggleOptionsMenu() {
+    showOptionsMenu = !showOptionsMenu;
+  }
+
+  function closeOptionsMenu() {
+    showOptionsMenu = false;
+  }
+
+  async function handleUnmatch() {
+    if (!$currentMatch || !conversationId || isUnmatching) return;
+    isUnmatching = true;
+    showUnmatchConfirm = false;
+    showOptionsMenu = false;
+
+    try {
+      const { getSupabaseClient } = await import('$lib/client/supabase');
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const response = await fetch('/api/verified-vibe/unmatch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`,
+        },
+        body: JSON.stringify({
+          matchedUserId: $currentMatch.id,
+          matchId: conversationId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to unmatch');
+      }
+
+      // Navigate back to chat list
+      goto('/verified-vibe/chat');
+    } catch (err) {
+      console.error('Unmatch error:', err);
+      error = err instanceof Error ? err.message : 'Failed to unmatch';
+    } finally {
+      isUnmatching = false;
+    }
+  }
+
+  async function handleBlock() {
+    if (!$currentMatch || isUnmatching) return;
+    isUnmatching = true;
+    showBlockConfirm = false;
+    showOptionsMenu = false;
+
+    try {
+      const { getSupabaseClient } = await import('$lib/client/supabase');
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const response = await fetch('/api/verified-vibe/block-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`,
+        },
+        body: JSON.stringify({
+          blockedUserId: $currentMatch.id,
+          matchId: conversationId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to block user');
+      }
+
+      // Navigate back to chat list
+      goto('/verified-vibe/chat');
+    } catch (err) {
+      console.error('Block error:', err);
+      error = err instanceof Error ? err.message : 'Failed to block user';
+    } finally {
+      isUnmatching = false;
+    }
+  }
 </script>
 
 <div class="chat-interface-screen">
@@ -1078,7 +1170,38 @@
       {/if}
     </div>
 
-    <div class="header-spacer"></div>
+    <!-- Options menu (unmatch/block) -->
+    <div class="header-options">
+      <button
+        class="options-btn"
+        onclick={toggleOptionsMenu}
+        aria-label="Conversation options"
+        aria-expanded={showOptionsMenu}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/>
+        </svg>
+      </button>
+
+      {#if showOptionsMenu}
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="options-backdrop" onclick={closeOptionsMenu}></div>
+        <div class="options-dropdown" transition:fade={{ duration: 150 }}>
+          <button class="options-item" onclick={() => { showUnmatchConfirm = true; showOptionsMenu = false; }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+            <span>Unmatch</span>
+          </button>
+          <button class="options-item options-item--danger" onclick={() => { showBlockConfirm = true; showOptionsMenu = false; }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><path d="M4.93 4.93l14.14 14.14"/>
+            </svg>
+            <span>Block</span>
+          </button>
+        </div>
+      {/if}
+    </div>
   </div>
 
   <!-- Error Banner -->
@@ -1376,6 +1499,48 @@
     </div>
   </div>
 </div>
+
+<!-- Unmatch confirmation modal -->
+{#if showUnmatchConfirm}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="modal-backdrop" onclick={() => showUnmatchConfirm = false} transition:fade={{ duration: 150 }}>
+    <div class="modal-card" onclick={(e) => e.stopPropagation()}>
+      <h3 class="modal-title">Unmatch?</h3>
+      <p class="modal-text">
+        This will remove your match with {$currentMatch?.firstName ?? 'this person'}. You won't be able to message each other, but they may still appear in your discovery feed.
+      </p>
+      <div class="modal-actions">
+        <button class="modal-btn modal-btn--cancel" onclick={() => showUnmatchConfirm = false} disabled={isUnmatching}>
+          Cancel
+        </button>
+        <button class="modal-btn modal-btn--danger" onclick={handleUnmatch} disabled={isUnmatching}>
+          {isUnmatching ? 'Removing…' : 'Unmatch'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Block confirmation modal -->
+{#if showBlockConfirm}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="modal-backdrop" onclick={() => showBlockConfirm = false} transition:fade={{ duration: 150 }}>
+    <div class="modal-card" onclick={(e) => e.stopPropagation()}>
+      <h3 class="modal-title">Block {$currentMatch?.firstName ?? 'this person'}?</h3>
+      <p class="modal-text">
+        They won't be able to see your profile or contact you. This also removes your match. This action cannot be undone.
+      </p>
+      <div class="modal-actions">
+        <button class="modal-btn modal-btn--cancel" onclick={() => showBlockConfirm = false} disabled={isUnmatching}>
+          Cancel
+        </button>
+        <button class="modal-btn modal-btn--danger" onclick={handleBlock} disabled={isUnmatching}>
+          {isUnmatching ? 'Blocking…' : 'Block'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .chat-interface-screen {
@@ -2454,5 +2619,145 @@
     .loading-state {
       padding: 30px 16px;
     }
+  }
+
+  /* ── Options menu (unmatch/block) ── */
+  .header-options {
+    position: relative;
+  }
+
+  .options-btn {
+    background: none;
+    border: none;
+    color: var(--text-2);
+    padding: 8px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .options-btn:hover {
+    background: var(--bg-2);
+  }
+
+  .options-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+  }
+
+  .options-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    z-index: 100;
+    background: var(--bg-1);
+    border: 1px solid var(--border-1);
+    border-radius: 12px;
+    padding: 6px;
+    min-width: 160px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  }
+
+  .options-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 14px;
+    border: none;
+    background: none;
+    color: var(--text-1);
+    font-size: 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .options-item:hover {
+    background: var(--bg-2);
+  }
+
+  .options-item--danger {
+    color: #ef4444;
+  }
+
+  .options-item--danger:hover {
+    background: rgba(239, 68, 68, 0.1);
+  }
+
+  /* ── Confirmation modals ── */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .modal-card {
+    background: var(--bg-1);
+    border: 1px solid var(--border-1);
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 340px;
+    width: 100%;
+  }
+
+  .modal-title {
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-1);
+  }
+
+  .modal-text {
+    margin: 0 0 20px;
+    font-size: 14px;
+    color: var(--text-2);
+    line-height: 1.5;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+
+  .modal-btn {
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+  }
+
+  .modal-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .modal-btn--cancel {
+    background: var(--bg-2);
+    color: var(--text-1);
+  }
+
+  .modal-btn--cancel:hover:not(:disabled) {
+    background: var(--bg-3, var(--bg-2));
+  }
+
+  .modal-btn--danger {
+    background: #ef4444;
+    color: white;
+  }
+
+  .modal-btn--danger:hover:not(:disabled) {
+    background: #dc2626;
   }
 </style>

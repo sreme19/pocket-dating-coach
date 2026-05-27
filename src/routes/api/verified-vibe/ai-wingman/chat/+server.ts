@@ -19,6 +19,26 @@ import type { RequestHandler } from './$types';
 import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
 import { getSupabase } from '$lib/server/supabase';
 import { loadPersonality } from '$lib/server/profile-service';
+import { touchLastActive } from '$lib/server/pool-registry';
+import { popPendingChatMessage } from '$lib/server/intelligence-report-processor';
+import { queueIntelligenceReport } from '$lib/server/matchmaker-service';
+import { processIntelligenceReport } from '$lib/server/intelligence-report-processor';
+
+// Phrases that indicate the user wants competitive/improvement intelligence
+const INTELLIGENCE_INTENTS = [
+  'how can i improve', 'how do i improve', 'how to improve',
+  'better matches', 'get better matches', 'more matches',
+  'improve my ranking', 'my ranking', 'how do i rank',
+  'beat the competition', 'compete', 'how am i doing',
+  'improve my fit', 'better fit', 'fit with her',
+  'what should i work on', 'what can i do better',
+  'how can i win', 'how do i win',
+];
+
+function detectsIntelligenceIntent(message: string): boolean {
+  const lower = message.toLowerCase();
+  return INTELLIGENCE_INTENTS.some((phrase) => lower.includes(phrase));
+}
 
 export const POST: RequestHandler = async ({ request }) => {
 	try {
@@ -31,6 +51,9 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		const userId = (body.userId ?? '').trim();
 		if (!userId) return json({ error: 'userId is required' }, { status: 400 });
+
+		// Touch last_active and check for pending intelligence reports (fire-and-forget for active touch)
+		touchLastActive(userId).catch(() => {});
 
 		const intent = body.intent ?? 'chat';
 		const rawMessage = (body.message ?? '').trim();
@@ -46,6 +69,22 @@ export const POST: RequestHandler = async ({ request }) => {
 				return json({ error: 'message is required for chat intent' }, { status: 400 });
 			}
 		}
+
+		// ── Intelligence intent detection ─────────────────────────────────────
+		// If the user is asking how to improve/compete, queue an intelligence report
+		// and return an acknowledgement immediately so Claude can respond naturally.
+		if (detectsIntelligenceIntent(userMessage)) {
+			const reportId = await queueIntelligenceReport(userId, 'per_match_ranking', 'user_driven');
+			processIntelligenceReport(reportId).catch(() => {});
+		}
+
+		// ── Pending report injection ──────────────────────────────────────────
+		// If a previously generated report is waiting, inject it into the conversation
+		// as additional context so Claude acknowledges and summarises it.
+		const pendingReport = await popPendingChatMessage(userId).catch(() => null);
+		const pendingReportContext = pendingReport
+			? `\n\n--- INTELLIGENCE REPORT READY ---\nThe following competitive intelligence report was just generated for this user. Acknowledge it warmly and summarise the key action points before responding to his message:\n${pendingReport}\n--- END REPORT ---\n`
+			: '';
 
 		const supabase = getSupabase();
 
@@ -309,7 +348,7 @@ Your role:
 
 Tone: like your most trusted, insightful friend who genuinely believes in you and wants to see you win. Warm and uplifting first, tactical second. Never dismissive or cold. Short paragraphs. Practical but encouraging.
 Format: use **bold** for names and key points. Use bullets (- item) for multi-point info. Use emoji warmly — 🟢 going well, 💡 tip, ⚡ opportunity, ✨ highlight, 💪 strength. Keep it mobile-friendly and motivating.
-${personalityContext}${masterProfileContext}${artifactsContext}${admirerContext}${matchContext}`;
+${personalityContext}${masterProfileContext}${artifactsContext}${admirerContext}${matchContext}${pendingReportContext}`;
 
 		// ── Call Claude ────────────────────────────────────────────────────────
 		const client = getClaudeClient();
