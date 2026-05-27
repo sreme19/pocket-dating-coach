@@ -36,6 +36,8 @@
 
   let mode = $state<'public' | 'enhance'>('public');
   let activeTab = $state<'public' | 'boost'>('public');
+  let verifiedSignalsTab = $state<'career' | 'lifestyle' | 'health' | 'social'>('career');
+  let whatImAboutTab = $state<'lane' | 'nos' | 'looking'>('lane');
   let draft = $state<ProfileIntakeData | null>(null);
   let generated = $state<GeneratedProfile | null>(null);
   let photos = $state<PhotoEntry[]>([]);
@@ -1822,6 +1824,27 @@
       </div>
     </div>
 
+    <!-- Stats strip — trust · profile · verified -->
+    <div class="hero-stats-strip">
+      <div class="hero-stat">
+        <div class="hero-stat-label">Trust</div>
+        <div class="hero-stat-value hero-stat-value--mint" style="font-family: var(--font-serif); font-style: italic;">{trustScore > 0 ? trustScore : '—'}</div>
+        <div class="hero-stat-hint">{trustScore > 0 ? trustLabel : 'not yet'}</div>
+      </div>
+      <div class="hero-stat-divider"></div>
+      <div class="hero-stat">
+        <div class="hero-stat-label">Profile</div>
+        <div class="hero-stat-value hero-stat-value--amber" style="font-family: var(--font-serif); font-style: italic;">{about ? '✓' : '—'}</div>
+        <div class="hero-stat-hint">complete</div>
+      </div>
+      <div class="hero-stat-divider"></div>
+      <div class="hero-stat">
+        <div class="hero-stat-label">Verified</div>
+        <div class="hero-stat-value hero-stat-value--mint" style="font-family: var(--font-serif); font-style: italic;">{(careerHighlights ? 1 : 0) + (wealthInsights ? 1 : 0) + (lifestyleSignals ? 1 : 0) + (healthFitnessSignals ? 1 : 0) + (socialProofSignals ? 1 : 0) + (garageCars.length > 0 ? 1 : 0)}</div>
+        <div class="hero-stat-hint">proofs</div>
+      </div>
+    </div>
+
     <!-- Tab Content -->
     {#if activeTab === 'public'}
       <div class="profile-sections">
@@ -2096,29 +2119,59 @@
           Personality Reads
           <span class="section-hint">inferred from Q&A + lifestyle</span>
         </div>
-        <div class="personality-reads">
-          {#each personalityReads as read}
-            {@const r = 26}
-            {@const circ = 2 * Math.PI * r}
-            {@const dash = (read.percentage / 100) * circ}
-            <div class="read-item">
-              <svg class="read-ring" viewBox="0 0 68 68" width="68" height="68">
-                <circle cx="34" cy="34" r={r} fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="5"/>
-                <circle
-                  cx="34" cy="34" r={r}
-                  fill="none"
-                  stroke="var(--accent-bright)"
-                  stroke-width="5"
-                  stroke-linecap="round"
-                  stroke-dasharray="{dash} {circ}"
-                  transform="rotate(-90 34 34)"
-                />
-                <text x="34" y="38" text-anchor="middle" class="read-ring-pct">{read.percentage}%</text>
-              </svg>
-              <span class="read-name">{read.name}</span>
-              <span class="read-level">{read.level}</span>
-            </div>
-          {/each}
+        <div class="personality-constellation">
+          <svg viewBox="0 0 280 280" width="100%" style="display:block; max-height: 260px;">
+            <!-- Background radial gradient -->
+            <defs>
+              <radialGradient id="constGrad" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="rgba(52,211,153,0.08)"/>
+                <stop offset="100%" stop-color="transparent"/>
+              </radialGradient>
+            </defs>
+            <circle cx="140" cy="140" r="130" fill="url(#constGrad)"/>
+            {#each [0.25, 0.5, 0.75, 1.0] as ring}
+              {@const rpts = personalityReads.map((_, i) => {
+                const a = (Math.PI * 2 * i) / personalityReads.length - Math.PI / 2;
+                return [140 + Math.cos(a) * 96 * ring, 140 + Math.sin(a) * 96 * ring];
+              })}
+              <path d={rpts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' ') + ' Z'} fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+            {/each}
+            {#each personalityReads as _, i}
+              {@const a = (Math.PI * 2 * i) / personalityReads.length - Math.PI / 2}
+              <line x1="140" y1="140" x2={140 + Math.cos(a) * 96} y2={140 + Math.sin(a) * 96} stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+            {/each}
+            <path
+              d={personalityReads.map((t, i) => {
+                const a = (Math.PI * 2 * i) / personalityReads.length - Math.PI / 2;
+                const r2 = 96 * (t.percentage / 100);
+                return (i === 0 ? 'M' : 'L') + (140 + Math.cos(a) * r2) + ',' + (140 + Math.sin(a) * r2);
+              }).join(' ') + ' Z'}
+              fill="rgba(52,211,153,0.16)" stroke="var(--accent-bright)" stroke-width="1.5" stroke-linejoin="round"
+            />
+            {#each personalityReads as t, i}
+              {@const a = (Math.PI * 2 * i) / personalityReads.length - Math.PI / 2}
+              {@const r2 = 96 * (t.percentage / 100)}
+              {@const px = 140 + Math.cos(a) * r2}
+              {@const py = 140 + Math.sin(a) * r2}
+              {@const lx = 140 + Math.cos(a) * 120}
+              {@const ly = 140 + Math.sin(a) * 120}
+              {@const ta2 = a * 180 / Math.PI}
+              <circle cx={px} cy={py} r="3.5" fill="var(--accent-bright)" stroke="var(--bg-1)" stroke-width="2"/>
+              <text
+                x={lx} y={ly - 3}
+                text-anchor={ta2 > -85 && ta2 < 85 ? 'start' : ta2 > 95 || ta2 < -95 ? 'end' : 'middle'}
+                fill="rgba(255,255,255,0.85)" font-size="11" font-weight="600"
+                font-family="inherit"
+              >{t.name}</text>
+              <text
+                x={lx} y={ly + 11}
+                text-anchor={ta2 > -85 && ta2 < 85 ? 'start' : ta2 > 95 || ta2 < -95 ? 'end' : 'middle'}
+                fill="var(--accent-bright)" font-size="10"
+                font-family="inherit"
+              >{t.percentage}</text>
+            {/each}
+          </svg>
+          <p class="constellation-sig">"Decisive and warm — moves fast, lands soft."</p>
         </div>
       </section>
       {/if}
@@ -2188,40 +2241,64 @@
             <Pencil size={11} />
           </button>
         </div>
-        <div class="brings-list">
-          {#each whatBrings as item}
-            <span class="brings-item">
-              <span class="brings-emoji">{item.emoji}</span>
-              <span class="brings-text">{item.text}</span>
-            </span>
+        <div class="brings-pillar-list">
+          {#each whatBrings as item, i}
+            <div class="brings-pillar-item" style="{i > 0 ? 'border-top: 1px solid var(--border-1);' : ''}">
+              <div class="brings-pillar-icon">{item.emoji}</div>
+              <div class="brings-pillar-text">{item.text}</div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-bright)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M20 6L9 17l-5-5"/></svg>
+            </div>
           {/each}
         </div>
       </section>
       {/if}
 
-      <!-- Career Highlights — derived from LinkedIn / CV -->
-      {#if careerHighlights}
-        <section class="section career-section">
-          <div class="section-label">
-            <span>💼</span>
-            Career Highlights
-            <button
-              class="section-edit-btn {editingCareerChips ? 'section-edit-btn--active' : ''}"
-              onclick={() => {
-                  if (editingCareerChips) commitPendingInsights('linkedin');
-                  else editingCareerChips = true;
-                }}
-              aria-label={editingCareerChips ? 'Done editing' : 'Edit chips'}
-              type="button"
-            >
-              {#if editingCareerChips}
-                <Check size={11} />
-              {:else}
-                <Pencil size={11} />
-              {/if}
+      <!-- Verified Signals — Career / Lifestyle / Health / Social tabbed -->
+      {#if careerHighlights || lifestyleSignals || healthFitnessSignals || socialProofSignals}
+      <section class="section">
+        <div class="section-label">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/></svg>
+          Verified Signals
+          <span class="section-hint">AI-read from uploads</span>
+        </div>
+
+        <!-- Category tabs -->
+        <div class="vs-tab-row">
+          {#if careerHighlights}
+            <button class="vs-tab {verifiedSignalsTab === 'career' ? 'vs-tab--active' : ''}" onclick={() => verifiedSignalsTab = 'career'} type="button">
+              💼 Career
             </button>
-          </div>
+          {/if}
+          {#if lifestyleSignals}
+            <button class="vs-tab {verifiedSignalsTab === 'lifestyle' ? 'vs-tab--active' : ''}" onclick={() => verifiedSignalsTab = 'lifestyle'} type="button">
+              🌍 Lifestyle
+            </button>
+          {/if}
+          {#if healthFitnessSignals}
+            <button class="vs-tab {verifiedSignalsTab === 'health' ? 'vs-tab--active' : ''}" onclick={() => verifiedSignalsTab = 'health'} type="button">
+              💪 Health
+            </button>
+          {/if}
+          {#if socialProofSignals}
+            <button class="vs-tab {verifiedSignalsTab === 'social' ? 'vs-tab--active' : ''}" onclick={() => verifiedSignalsTab = 'social'} type="button">
+              🤝 Social
+            </button>
+          {/if}
+        </div>
+
+        <!-- Career panel -->
+        {#if verifiedSignalsTab === 'career' && careerHighlights}
           <div class="career-card">
+            <div class="career-card-header">
+              <button
+                class="section-edit-btn {editingCareerChips ? 'section-edit-btn--active' : ''}"
+                onclick={() => { if (editingCareerChips) commitPendingInsights('linkedin'); else editingCareerChips = true; }}
+                aria-label={editingCareerChips ? 'Done editing' : 'Edit chips'}
+                type="button"
+              >
+                {#if editingCareerChips}<Check size={11} />{:else}<Pencil size={11} />{/if}
+              </button>
+            </div>
             {#if careerHighlights.aggregated}
               <p class="career-summary">{careerHighlights.aggregated}</p>
             {/if}
@@ -2231,344 +2308,154 @@
                   <span class="career-chip-emoji">{ins.emoji}</span>
                   {ins.label}
                   {#if editingCareerChips}
-                    <button
-                      class="chip-remove-btn"
-                      type="button"
-                      aria-label="Remove {ins.label}"
-                      onclick={() => {
-                        const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
-                        const updated = all.map((p: any) => {
-                          if (p.category !== 'linkedin') return p;
-                          const filtered = (p.insights ?? []).filter((i: { label: string }) => i.label !== ins.label);
-                          return filtered.length ? { ...p, insights: filtered } : null;
-                        }).filter(Boolean);
-                        localStorage.setItem('vv_proof_insights', JSON.stringify(updated));
-                        const lEntry = updated.find((p: any) => p.category === 'linkedin') as any;
-                        careerHighlights = lEntry?.insights?.length ? { insights: lEntry.insights, aggregated: lEntry.aggregated ?? '' } : null;
-                        if (!careerHighlights) editingCareerChips = false;
-                      }}
-                    >×</button>
+                    <button class="chip-remove-btn" type="button" aria-label="Remove {ins.label}" onclick={() => {
+                      const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
+                      const updated = all.map((p: any) => { if (p.category !== 'linkedin') return p; const filtered = (p.insights ?? []).filter((i: { label: string }) => i.label !== ins.label); return filtered.length ? { ...p, insights: filtered } : null; }).filter(Boolean);
+                      localStorage.setItem('vv_proof_insights', JSON.stringify(updated));
+                      const lEntry = updated.find((p: any) => p.category === 'linkedin') as any;
+                      careerHighlights = lEntry?.insights?.length ? { insights: lEntry.insights, aggregated: lEntry.aggregated ?? '' } : null;
+                      if (!careerHighlights) editingCareerChips = false;
+                    }}>×</button>
                   {/if}
                 </span>
               {/each}
-
-              <!-- Pending (AI-generated, not yet saved) career chips -->
               {#each pendingCareerInsights as ins}
                 <span class="career-chip career-chip--pending">
                   <span class="career-chip-emoji">{ins.emoji}</span>
                   {ins.label}
-                  <button
-                    class="chip-remove-btn"
-                    type="button"
-                    aria-label="Dismiss {ins.label}"
-                    onclick={() => { pendingCareerInsights = pendingCareerInsights.filter(p => p.label !== ins.label); }}
-                  >×</button>
+                  <button class="chip-remove-btn" type="button" aria-label="Dismiss {ins.label}" onclick={() => { pendingCareerInsights = pendingCareerInsights.filter(p => p.label !== ins.label); }}>×</button>
                 </span>
               {/each}
-
-              <!-- Generate more button — visible in edit mode -->
               {#if editingCareerChips}
-                <button
-                  class="chip-gen-btn chip-gen-btn--blue {generatingCareer ? 'chip-gen-btn--loading' : ''}"
-                  type="button"
-                  disabled={generatingCareer}
-                  onclick={() => generateMoreInsights('linkedin')}
-                >
-                  {#if generatingCareer}
-                    <span class="chip-gen-spinner"></span>Generating…
-                  {:else}
-                    ✨ Suggest 3 more
-                  {/if}
+                <button class="chip-gen-btn chip-gen-btn--blue {generatingCareer ? 'chip-gen-btn--loading' : ''}" type="button" disabled={generatingCareer} onclick={() => generateMoreInsights('linkedin')}>
+                  {#if generatingCareer}<span class="chip-gen-spinner"></span>Generating…{:else}✨ Suggest 3 more{/if}
                 </button>
               {/if}
             </div>
             <div class="career-verified-row">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6">
-                <path d="M20 6L9 17l-5-5"/>
-              </svg>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"><path d="M20 6L9 17l-5-5"/></svg>
               <span>AI verified via CV / LinkedIn</span>
             </div>
           </div>
-        </section>
-      {/if}
+        {/if}
 
-      <!-- Lifestyle Signals — derived from lifestyle proof photos -->
-      {#if lifestyleSignals}
-        <section class="section career-section">
-          <div class="section-label">
-            <span>🌍</span>
-            Lifestyle Signals
-            <button
-              class="section-edit-btn {editingLifestyleChips ? 'section-edit-btn--active' : ''}"
-              onclick={() => {
-                if (editingLifestyleChips) commitPendingInsights('lifestyle');
-                else editingLifestyleChips = true;
-              }}
-              aria-label={editingLifestyleChips ? 'Done editing' : 'Edit chips'}
-              type="button"
-            >
-              {#if editingLifestyleChips}
-                <Check size={11} />
-              {:else}
-                <Pencil size={11} />
-              {/if}
-            </button>
-          </div>
+        <!-- Lifestyle panel -->
+        {#if verifiedSignalsTab === 'lifestyle' && lifestyleSignals}
           <div class="career-card">
+            <div class="career-card-header">
+              <button class="section-edit-btn {editingLifestyleChips ? 'section-edit-btn--active' : ''}" onclick={() => { if (editingLifestyleChips) commitPendingInsights('lifestyle'); else editingLifestyleChips = true; }} aria-label={editingLifestyleChips ? 'Done editing' : 'Edit chips'} type="button">
+                {#if editingLifestyleChips}<Check size={11} />{:else}<Pencil size={11} />{/if}
+              </button>
+            </div>
             <div class="signal-grid">
               {#each lifestyleSignals.insights as ins}
                 <div class="signal-tile {editingLifestyleChips ? 'signal-tile--editing' : ''}">
                   {#if editingLifestyleChips}
-                    <button
-                      class="signal-tile-remove"
-                      type="button"
-                      aria-label="Remove {ins.label}"
-                      onclick={() => {
-                        const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
-                        const updated = all.map((p: any) => {
-                          if (p.category !== 'lifestyle') return p;
-                          const filtered = (p.insights ?? []).filter((i: { label: string }) => i.label !== ins.label);
-                          return filtered.length ? { ...p, insights: filtered } : null;
-                        }).filter(Boolean);
-                        localStorage.setItem('vv_proof_insights', JSON.stringify(updated));
-                        const lsEntry = updated.find((p: any) => p.category === 'lifestyle') as any;
-                        lifestyleSignals = lsEntry?.insights?.length ? { insights: lsEntry.insights, aggregated: lsEntry.aggregated ?? '' } : null;
-                        if (!lifestyleSignals) editingLifestyleChips = false;
-                      }}
-                    >×</button>
+                    <button class="signal-tile-remove" type="button" aria-label="Remove {ins.label}" onclick={() => { const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]'); const updated = all.map((p: any) => { if (p.category !== 'lifestyle') return p; const filtered = (p.insights ?? []).filter((i: { label: string }) => i.label !== ins.label); return filtered.length ? { ...p, insights: filtered } : null; }).filter(Boolean); localStorage.setItem('vv_proof_insights', JSON.stringify(updated)); const lsEntry = updated.find((p: any) => p.category === 'lifestyle') as any; lifestyleSignals = lsEntry?.insights?.length ? { insights: lsEntry.insights, aggregated: lsEntry.aggregated ?? '' } : null; if (!lifestyleSignals) editingLifestyleChips = false; }}>×</button>
                   {/if}
                   <span class="signal-tile-emoji">{ins.emoji}</span>
                   <span class="signal-tile-label">{ins.label}</span>
                 </div>
               {/each}
-
               {#each pendingLifestyleInsights as ins}
                 <div class="signal-tile signal-tile--pending">
-                  <button
-                    class="signal-tile-remove"
-                    type="button"
-                    aria-label="Dismiss {ins.label}"
-                    onclick={() => { pendingLifestyleInsights = pendingLifestyleInsights.filter(p => p.label !== ins.label); }}
-                  >×</button>
+                  <button class="signal-tile-remove" type="button" aria-label="Dismiss {ins.label}" onclick={() => { pendingLifestyleInsights = pendingLifestyleInsights.filter(p => p.label !== ins.label); }}>×</button>
                   <span class="signal-tile-emoji">{ins.emoji}</span>
                   <span class="signal-tile-label">{ins.label}</span>
                 </div>
               {/each}
             </div>
-
-            {#if lifestyleSignals.aggregated}
-              <p class="signal-summary">{lifestyleSignals.aggregated}</p>
-            {/if}
-
+            {#if lifestyleSignals.aggregated}<p class="signal-summary">{lifestyleSignals.aggregated}</p>{/if}
             {#if editingLifestyleChips}
-              <button
-                class="chip-gen-btn chip-gen-btn--blue {generatingLifestyle ? 'chip-gen-btn--loading' : ''}"
-                type="button"
-                disabled={generatingLifestyle}
-                onclick={() => generateMoreInsights('lifestyle')}
-              >
-                {#if generatingLifestyle}
-                  <span class="chip-gen-spinner"></span>Generating…
-                {:else}
-                  ✨ Suggest 3 more
-                {/if}
+              <button class="chip-gen-btn chip-gen-btn--blue {generatingLifestyle ? 'chip-gen-btn--loading' : ''}" type="button" disabled={generatingLifestyle} onclick={() => generateMoreInsights('lifestyle')}>
+                {#if generatingLifestyle}<span class="chip-gen-spinner"></span>Generating…{:else}✨ Suggest 3 more{/if}
               </button>
             {/if}
-
             <div class="career-verified-row">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6">
-                <path d="M20 6L9 17l-5-5"/>
-              </svg>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"><path d="M20 6L9 17l-5-5"/></svg>
               <span>AI verified via lifestyle photos</span>
             </div>
           </div>
-        </section>
-      {/if}
+        {/if}
 
-      <!-- Health & Fitness — derived from discipline proof photos -->
-      {#if healthFitnessSignals}
-        <section class="section career-section">
-          <div class="section-label">
-            <span>💪</span>
-            Health & Fitness
-            <button
-              class="section-edit-btn {editingHealthFitnessChips ? 'section-edit-btn--active' : ''}"
-              onclick={() => {
-                if (editingHealthFitnessChips) commitPendingInsights('discipline');
-                else editingHealthFitnessChips = true;
-              }}
-              aria-label={editingHealthFitnessChips ? 'Done editing' : 'Edit chips'}
-              type="button"
-            >
-              {#if editingHealthFitnessChips}
-                <Check size={11} />
-              {:else}
-                <Pencil size={11} />
-              {/if}
-            </button>
-          </div>
+        <!-- Health panel -->
+        {#if verifiedSignalsTab === 'health' && healthFitnessSignals}
           <div class="career-card">
+            <div class="career-card-header">
+              <button class="section-edit-btn {editingHealthFitnessChips ? 'section-edit-btn--active' : ''}" onclick={() => { if (editingHealthFitnessChips) commitPendingInsights('discipline'); else editingHealthFitnessChips = true; }} aria-label={editingHealthFitnessChips ? 'Done editing' : 'Edit chips'} type="button">
+                {#if editingHealthFitnessChips}<Check size={11} />{:else}<Pencil size={11} />{/if}
+              </button>
+            </div>
             <div class="signal-grid">
               {#each healthFitnessSignals.insights as ins}
                 <div class="signal-tile {editingHealthFitnessChips ? 'signal-tile--editing' : ''}">
                   {#if editingHealthFitnessChips}
-                    <button
-                      class="signal-tile-remove"
-                      type="button"
-                      aria-label="Remove {ins.label}"
-                      onclick={() => {
-                        const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
-                        const updated = all.map((p: any) => {
-                          if (p.category !== 'discipline') return p;
-                          const filtered = (p.insights ?? []).filter((i: { label: string }) => i.label !== ins.label);
-                          return filtered.length ? { ...p, insights: filtered } : null;
-                        }).filter(Boolean);
-                        localStorage.setItem('vv_proof_insights', JSON.stringify(updated));
-                        const hfEntry = updated.find((p: any) => p.category === 'discipline') as any;
-                        healthFitnessSignals = hfEntry?.insights?.length ? { insights: hfEntry.insights, aggregated: hfEntry.aggregated ?? '' } : null;
-                        if (!healthFitnessSignals) editingHealthFitnessChips = false;
-                      }}
-                    >×</button>
+                    <button class="signal-tile-remove" type="button" aria-label="Remove {ins.label}" onclick={() => { const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]'); const updated = all.map((p: any) => { if (p.category !== 'discipline') return p; const filtered = (p.insights ?? []).filter((i: { label: string }) => i.label !== ins.label); return filtered.length ? { ...p, insights: filtered } : null; }).filter(Boolean); localStorage.setItem('vv_proof_insights', JSON.stringify(updated)); const hfEntry = updated.find((p: any) => p.category === 'discipline') as any; healthFitnessSignals = hfEntry?.insights?.length ? { insights: hfEntry.insights, aggregated: hfEntry.aggregated ?? '' } : null; if (!healthFitnessSignals) editingHealthFitnessChips = false; }}>×</button>
                   {/if}
                   <span class="signal-tile-emoji">{ins.emoji}</span>
                   <span class="signal-tile-label">{ins.label}</span>
                 </div>
               {/each}
-
               {#each pendingHealthFitnessInsights as ins}
                 <div class="signal-tile signal-tile--pending">
-                  <button
-                    class="signal-tile-remove"
-                    type="button"
-                    aria-label="Dismiss {ins.label}"
-                    onclick={() => { pendingHealthFitnessInsights = pendingHealthFitnessInsights.filter(p => p.label !== ins.label); }}
-                  >×</button>
+                  <button class="signal-tile-remove" type="button" aria-label="Dismiss {ins.label}" onclick={() => { pendingHealthFitnessInsights = pendingHealthFitnessInsights.filter(p => p.label !== ins.label); }}>×</button>
                   <span class="signal-tile-emoji">{ins.emoji}</span>
                   <span class="signal-tile-label">{ins.label}</span>
                 </div>
               {/each}
             </div>
-
-            {#if healthFitnessSignals.aggregated}
-              <p class="signal-summary">{healthFitnessSignals.aggregated}</p>
-            {/if}
-
+            {#if healthFitnessSignals.aggregated}<p class="signal-summary">{healthFitnessSignals.aggregated}</p>{/if}
             {#if editingHealthFitnessChips}
-              <button
-                class="chip-gen-btn chip-gen-btn--blue {generatingHealthFitness ? 'chip-gen-btn--loading' : ''}"
-                type="button"
-                disabled={generatingHealthFitness}
-                onclick={() => generateMoreInsights('discipline')}
-              >
-                {#if generatingHealthFitness}
-                  <span class="chip-gen-spinner"></span>Generating…
-                {:else}
-                  ✨ Suggest 3 more
-                {/if}
+              <button class="chip-gen-btn chip-gen-btn--blue {generatingHealthFitness ? 'chip-gen-btn--loading' : ''}" type="button" disabled={generatingHealthFitness} onclick={() => generateMoreInsights('discipline')}>
+                {#if generatingHealthFitness}<span class="chip-gen-spinner"></span>Generating…{:else}✨ Suggest 3 more{/if}
               </button>
             {/if}
-
             <div class="career-verified-row">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6">
-                <path d="M20 6L9 17l-5-5"/>
-              </svg>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"><path d="M20 6L9 17l-5-5"/></svg>
               <span>AI verified via fitness photos</span>
             </div>
           </div>
-        </section>
-      {/if}
+        {/if}
 
-      <!-- Social Life — derived from social_proof photos -->
-      {#if socialProofSignals}
-        <section class="section career-section">
-          <div class="section-label">
-            <span>🤝</span>
-            Social Life
-            <button
-              class="section-edit-btn {editingSocialProofChips ? 'section-edit-btn--active' : ''}"
-              onclick={() => {
-                if (editingSocialProofChips) commitPendingInsights('social_proof');
-                else editingSocialProofChips = true;
-              }}
-              aria-label={editingSocialProofChips ? 'Done editing' : 'Edit chips'}
-              type="button"
-            >
-              {#if editingSocialProofChips}
-                <Check size={11} />
-              {:else}
-                <Pencil size={11} />
-              {/if}
-            </button>
-          </div>
+        <!-- Social panel -->
+        {#if verifiedSignalsTab === 'social' && socialProofSignals}
           <div class="career-card">
+            <div class="career-card-header">
+              <button class="section-edit-btn {editingSocialProofChips ? 'section-edit-btn--active' : ''}" onclick={() => { if (editingSocialProofChips) commitPendingInsights('social_proof'); else editingSocialProofChips = true; }} aria-label={editingSocialProofChips ? 'Done editing' : 'Edit chips'} type="button">
+                {#if editingSocialProofChips}<Check size={11} />{:else}<Pencil size={11} />{/if}
+              </button>
+            </div>
             <div class="signal-grid">
               {#each socialProofSignals.insights as ins}
                 <div class="signal-tile {editingSocialProofChips ? 'signal-tile--editing' : ''}">
                   {#if editingSocialProofChips}
-                    <button
-                      class="signal-tile-remove"
-                      type="button"
-                      aria-label="Remove {ins.label}"
-                      onclick={() => {
-                        const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]');
-                        const updated = all.map((p: any) => {
-                          if (p.category !== 'social_proof') return p;
-                          const filtered = (p.insights ?? []).filter((i: { label: string }) => i.label !== ins.label);
-                          return filtered.length ? { ...p, insights: filtered } : null;
-                        }).filter(Boolean);
-                        localStorage.setItem('vv_proof_insights', JSON.stringify(updated));
-                        const spEntry = updated.find((p: any) => p.category === 'social_proof') as any;
-                        socialProofSignals = spEntry?.insights?.length ? { insights: spEntry.insights, aggregated: spEntry.aggregated ?? '' } : null;
-                        if (!socialProofSignals) editingSocialProofChips = false;
-                      }}
-                    >×</button>
+                    <button class="signal-tile-remove" type="button" aria-label="Remove {ins.label}" onclick={() => { const all: Array<Record<string, unknown>> = JSON.parse(localStorage.getItem('vv_proof_insights') ?? '[]'); const updated = all.map((p: any) => { if (p.category !== 'social_proof') return p; const filtered = (p.insights ?? []).filter((i: { label: string }) => i.label !== ins.label); return filtered.length ? { ...p, insights: filtered } : null; }).filter(Boolean); localStorage.setItem('vv_proof_insights', JSON.stringify(updated)); const spEntry = updated.find((p: any) => p.category === 'social_proof') as any; socialProofSignals = spEntry?.insights?.length ? { insights: spEntry.insights, aggregated: spEntry.aggregated ?? '' } : null; if (!socialProofSignals) editingSocialProofChips = false; }}>×</button>
                   {/if}
                   <span class="signal-tile-emoji">{ins.emoji}</span>
                   <span class="signal-tile-label">{ins.label}</span>
                 </div>
               {/each}
-
               {#each pendingSocialProofInsights as ins}
                 <div class="signal-tile signal-tile--pending">
-                  <button
-                    class="signal-tile-remove"
-                    type="button"
-                    aria-label="Dismiss {ins.label}"
-                    onclick={() => { pendingSocialProofInsights = pendingSocialProofInsights.filter(p => p.label !== ins.label); }}
-                  >×</button>
+                  <button class="signal-tile-remove" type="button" aria-label="Dismiss {ins.label}" onclick={() => { pendingSocialProofInsights = pendingSocialProofInsights.filter(p => p.label !== ins.label); }}>×</button>
                   <span class="signal-tile-emoji">{ins.emoji}</span>
                   <span class="signal-tile-label">{ins.label}</span>
                 </div>
               {/each}
             </div>
-
-            {#if socialProofSignals.aggregated}
-              <p class="signal-summary">{socialProofSignals.aggregated}</p>
-            {/if}
-
+            {#if socialProofSignals.aggregated}<p class="signal-summary">{socialProofSignals.aggregated}</p>{/if}
             {#if editingSocialProofChips}
-              <button
-                class="chip-gen-btn chip-gen-btn--blue {generatingSocialProof ? 'chip-gen-btn--loading' : ''}"
-                type="button"
-                disabled={generatingSocialProof}
-                onclick={() => generateMoreInsights('social_proof')}
-              >
-                {#if generatingSocialProof}
-                  <span class="chip-gen-spinner"></span>Generating…
-                {:else}
-                  ✨ Suggest 3 more
-                {/if}
+              <button class="chip-gen-btn chip-gen-btn--blue {generatingSocialProof ? 'chip-gen-btn--loading' : ''}" type="button" disabled={generatingSocialProof} onclick={() => generateMoreInsights('social_proof')}>
+                {#if generatingSocialProof}<span class="chip-gen-spinner"></span>Generating…{:else}✨ Suggest 3 more{/if}
               </button>
             {/if}
-
             <div class="career-verified-row">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6">
-                <path d="M20 6L9 17l-5-5"/>
-              </svg>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"><path d="M20 6L9 17l-5-5"/></svg>
               <span>AI verified via social photos</span>
             </div>
           </div>
-        </section>
+        {/if}
+      </section>
       {/if}
 
       <!-- AI Lifestyle Portrait — above garage section -->
@@ -2839,111 +2726,115 @@
         {/if}
       </section>
 
-      <!-- Pick Your Lane -->
+      <!-- What I'm About — Lane / Hard Nos / Looking For tabbed -->
       {#if $user?.gender !== null}
       <section class="section">
         <div class="section-label">
           <Heart size={13} />
-          Pick Your Lane
-          <button class="section-edit-btn" onclick={startEditLane} aria-label="Change lane">
-            <Pencil size={11} />
-          </button>
+          What I'm About
+          {#if whatImAboutTab === 'lane' && !editingLane && currentArchetype}
+            <button class="section-edit-btn" onclick={startEditLane} aria-label="Change lane"><Pencil size={11} /></button>
+          {:else if whatImAboutTab === 'nos'}
+            <button class="section-edit-btn" onclick={startEditHardNos} aria-label="Edit Hard Nos"><Pencil size={11} /></button>
+          {/if}
         </div>
 
-        {#if editingLane}
-          <!-- Lane picker — radio cards -->
-          <div class="lane-picker">
-            {#each laneOptions as opt (opt.id)}
-              <button
-                class="lane-option {selectedLane === opt.id ? 'lane-option-selected' : ''}"
-                onclick={() => selectedLane = opt.id}
-                type="button"
-              >
-                <span class="lane-option-emoji">{opt.emoji}</span>
-                <div class="lane-option-body">
-                  <span class="lane-option-name">{opt.name}</span>
-                  <span class="lane-option-tag">{opt.tag}</span>
-                </div>
-                {#if selectedLane === opt.id}
-                  <span class="lane-option-check">✓</span>
-                {/if}
-              </button>
-            {/each}
-            {#if laneError}
-              <p class="lane-error">{laneError}</p>
-            {/if}
-            <div class="inline-edit-actions">
-              <button class="inline-save-btn" onclick={saveLane} disabled={savingLane || !selectedLane}>
-                {savingLane ? 'Saving…' : 'Save Lane'}
-              </button>
-              <button class="inline-cancel-btn" onclick={() => editingLane = false}>Cancel</button>
+        <div class="vs-tab-row">
+          <button class="vs-tab {whatImAboutTab === 'lane' ? 'vs-tab--active' : ''}" onclick={() => whatImAboutTab = 'lane'} type="button">💸 My lane</button>
+          <button class="vs-tab {whatImAboutTab === 'nos' ? 'vs-tab--active' : ''}" onclick={() => whatImAboutTab = 'nos'} type="button">✕ Hard nos</button>
+          {#if intentTags.length > 0 || mode === 'enhance'}
+            <button class="vs-tab {whatImAboutTab === 'looking' ? 'vs-tab--active' : ''}" onclick={() => whatImAboutTab = 'looking'} type="button">✨ Looking for</button>
+          {/if}
+        </div>
+
+        {#if whatImAboutTab === 'lane'}
+          {#if editingLane}
+            <div class="lane-picker">
+              {#each laneOptions as opt (opt.id)}
+                <button
+                  class="lane-option {selectedLane === opt.id ? 'lane-option-selected' : ''}"
+                  onclick={() => selectedLane = opt.id}
+                  type="button"
+                >
+                  <span class="lane-option-emoji">{opt.emoji}</span>
+                  <div class="lane-option-body">
+                    <span class="lane-option-name">{opt.name}</span>
+                    <span class="lane-option-tag">{opt.tag}</span>
+                  </div>
+                  {#if selectedLane === opt.id}<span class="lane-option-check">✓</span>{/if}
+                </button>
+              {/each}
+              {#if laneError}<p class="lane-error">{laneError}</p>{/if}
+              <div class="inline-edit-actions">
+                <button class="inline-save-btn" onclick={saveLane} disabled={savingLane || !selectedLane}>{savingLane ? 'Saving…' : 'Save Lane'}</button>
+                <button class="inline-cancel-btn" onclick={() => editingLane = false}>Cancel</button>
+              </div>
             </div>
-          </div>
-        {:else if currentArchetype}
-          <!-- Current lane display -->
-          <div class="here-for-card">
-            <div class="here-for-icon">{currentArchetype.emoji}</div>
-            <div class="here-for-content">
-              <h3 class="here-for-title">{currentArchetype.name}</h3>
-              <p class="here-for-desc">{currentArchetype.tag}</p>
+          {:else if currentArchetype}
+            <div class="here-for-card">
+              <div class="here-for-icon">{currentArchetype.emoji}</div>
+              <div class="here-for-content">
+                <h3 class="here-for-title">{currentArchetype.name}</h3>
+                <p class="here-for-desc">{currentArchetype.tag}</p>
+              </div>
             </div>
-          </div>
-        {:else}
-          <button class="lane-empty-cta" onclick={startEditLane} type="button">
-            <span>🏁</span>
-            <span>Tap to pick your lane</span>
-          </button>
+          {:else}
+            <button class="lane-empty-cta" onclick={startEditLane} type="button">
+              <span>🏁</span><span>Tap to pick your lane</span>
+            </button>
+          {/if}
         {/if}
-      </section>
-      {/if}
 
-      <!-- Hard Nos -->
-      {#if $user?.gender === 'man' || $user?.gender === null}
-      <section class="section">
-        <div class="section-label">
-          <X size={13} />
-          Hard Nos
-          <button class="section-edit-btn" onclick={startEditHardNos} aria-label="Edit Hard Nos">
-            <Pencil size={11} />
-          </button>
-        </div>
-
-        {#if editingHardNos}
-          <div class="inline-edit-card">
-            <div class="hard-nos-edit-list">
-              {#each editHardNos as item, i}
-                <div class="hard-no-edit-item">
+        {#if whatImAboutTab === 'nos'}
+          {#if editingHardNos}
+            <div class="inline-edit-card">
+              <div class="hard-nos-edit-list">
+                {#each editHardNos as item, i}
+                  <div class="hard-no-edit-item">
+                    <span class="hard-no-text">{item}</span>
+                    <button class="hard-no-remove" onclick={() => removeHardNo(i)} aria-label="Remove">✕</button>
+                  </div>
+                {/each}
+              </div>
+              <div class="hard-no-add-row">
+                <input
+                  class="inline-edit-input"
+                  placeholder="Add a dealbreaker…"
+                  bind:value={newHardNo}
+                  onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addHardNo(); } }}
+                />
+                <button class="hard-no-add-btn" onclick={addHardNo} type="button">+ Add</button>
+              </div>
+              <div class="inline-edit-actions">
+                <button class="inline-save-btn" onclick={saveHardNos} disabled={savingHardNos}>{savingHardNos ? 'Saving…' : 'Save'}</button>
+                <button class="inline-cancel-btn" onclick={() => editingHardNos = false}>Cancel</button>
+              </div>
+            </div>
+          {:else}
+            <div class="hard-nos-list">
+              {#each hardNos as item}
+                <div class="hard-no-item">
+                  <span class="hard-no-x">✕</span>
                   <span class="hard-no-text">{item}</span>
-                  <button class="hard-no-remove" onclick={() => removeHardNo(i)} aria-label="Remove">✕</button>
                 </div>
               {/each}
             </div>
-            <div class="hard-no-add-row">
-              <input
-                class="inline-edit-input"
-                placeholder="Add a dealbreaker…"
-                bind:value={newHardNo}
-                onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addHardNo(); } }}
-              />
-              <button class="hard-no-add-btn" onclick={addHardNo} type="button">+ Add</button>
-            </div>
-            <div class="inline-edit-actions">
-              <button class="inline-save-btn" onclick={saveHardNos} disabled={savingHardNos}>
-                {savingHardNos ? 'Saving…' : 'Save'}
-              </button>
-              <button class="inline-cancel-btn" onclick={() => editingHardNos = false}>Cancel</button>
-            </div>
-          </div>
-        {:else}
-          <div class="hard-nos-list">
-            {#each hardNos as item}
-              <div class="hard-no-item">
-                <span class="hard-no-x">✕</span>
-                <span class="hard-no-text">{item}</span>
-              </div>
-            {/each}
-          </div>
+          {/if}
         {/if}
+
+        {#if whatImAboutTab === 'looking'}
+          {#if mode === 'enhance'}
+            <input class="edit-input" type="text" value={editIntent.join(', ')} onchange={handleLookingEdit} placeholder="Serious long-term, Culturally aligned, ..."/>
+            <p class="edit-hint">Comma-separated, up to 6 points</p>
+          {:else}
+            <div class="tag-row">
+              {#each intentTags as tag}
+                <span class="tag looking">{tag}</span>
+              {/each}
+            </div>
+          {/if}
+        {/if}
+
       </section>
       {/if}
       <section class="section">
@@ -3046,40 +2937,6 @@
         {/if}
       </section>
 
-      <!-- Looking for / Intent — chip-based (5-6 points) -->
-      {#if intentTags.length > 0 || mode === 'enhance'}
-        <section class="section">
-          <div class="section-label">
-            Looking for
-            {#if mode === 'enhance'}
-              <button class="autofill-btn" onclick={() => autoFill('looking')} disabled={!!generatingField} title="Auto-generate from your profile">
-                {#if generatingField === 'looking'}
-                  <span class="autofill-spinner"></span>
-                {:else}
-                  ✨
-                {/if}
-                Auto-fill
-              </button>
-            {/if}
-          </div>
-          {#if mode === 'enhance'}
-            <input
-              class="edit-input"
-              type="text"
-              value={editIntent.join(', ')}
-              onchange={handleLookingEdit}
-              placeholder="Serious long-term, Culturally aligned, ..."
-            />
-            <p class="edit-hint">Comma-separated, up to 6 points</p>
-          {:else}
-            <div class="tag-row">
-              {#each intentTags as tag}
-                <span class="tag looking">{tag}</span>
-              {/each}
-            </div>
-          {/if}
-        </section>
-      {/if}
 
       <!-- Lifestyle tags -->
       <!-- Sign Out Button -->
@@ -3533,9 +3390,11 @@
   }
 
   .tab-btn.active {
-    background: var(--accent-tint);
+    background: var(--accent-bright);
     border-color: var(--accent-bright);
-    color: var(--accent-bright);
+    color: #052819;
+    font-weight: 600;
+    box-shadow: 0 0 20px rgba(52,211,153,0.22);
   }
 
   @media (min-width: 768px) {
@@ -3572,7 +3431,8 @@
   }
 
   .tab-btn.active .boost-badge {
-    background: var(--accent-bright);
+    background: rgba(5,40,25,0.85);
+    color: var(--accent-bright);
   }
 
   /* Trust score within Trust & Boost tab */
@@ -3850,11 +3710,13 @@
 
   .hero-name {
     font-family: var(--font-serif);
-    font-size: 26px;
+    font-size: 40px;
     font-style: italic;
+    font-weight: 400;
     color: #fff;
-    margin: 0;
-    line-height: 1;
+    margin: 0 0 6px;
+    line-height: 0.95;
+    letter-spacing: -0.01em;
   }
 
   .trust-badge {
@@ -3893,6 +3755,48 @@
     text-transform: uppercase;
   }
 
+  /* Hero stats strip */
+  .hero-stats-strip {
+    display: grid;
+    grid-template-columns: 1fr 1px 1fr 1px 1fr;
+    padding: 14px 18px;
+    background: var(--bg-1);
+    border-bottom: 1px solid var(--border-1);
+    gap: 6px;
+    align-items: stretch;
+  }
+  .hero-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0 4px;
+  }
+  .hero-stat-label {
+    font-size: 9.5px;
+    font-weight: 700;
+    color: var(--text-3);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+  .hero-stat-value {
+    font-size: 24px;
+    line-height: 1;
+    color: var(--text-1);
+  }
+  .hero-stat-value--mint { color: var(--accent-bright); }
+  .hero-stat-value--amber { color: #f4b95c; }
+  .hero-stat-hint {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-3);
+    margin-top: 1px;
+  }
+  .hero-stat-divider {
+    background: var(--border-1);
+    margin: 4px 0;
+  }
+
   @media (min-width: 768px) {
     .hero-wrap {
       max-height: 480px;
@@ -3919,7 +3823,7 @@
     }
 
     .hero-name {
-      font-size: 32px;
+      font-size: 46px;
     }
 
     .trust-badge {
@@ -4168,34 +4072,53 @@
     text-align: center;
   }
 
-  /* What He Brings — bubble chips */
-  .brings-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .brings-item {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 7px 13px;
-    border-radius: 999px;
+  /* Personality Constellation */
+  .personality-constellation {
     background: var(--bg-2);
-    border: 1px solid var(--border-2);
+    border: 1px solid var(--border-1);
+    border-radius: 18px;
+    padding: 10px 4px 14px;
+    overflow: hidden;
+  }
+  .constellation-sig {
+    text-align: center;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 14px;
+    color: rgba(255,255,255,0.7);
+    margin: 4px 16px 0;
+    line-height: 1.4;
   }
 
-  .brings-emoji {
-    font-size: 15px;
-    line-height: 1;
+  /* What He Brings — pillar list */
+  .brings-pillar-list {
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .brings-pillar-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 14px;
+  }
+  .brings-pillar-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: rgba(52,211,153,0.10);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
     flex-shrink: 0;
   }
-
-  .brings-text {
-    font-size: 13px;
-    font-weight: 500;
+  .brings-pillar-text {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 600;
     color: var(--text-1);
-    white-space: nowrap;
   }
 
   /* Pick Your Lane — display card */
@@ -6350,6 +6273,41 @@
     line-height: 1.55;
     font-style: italic;
     margin: 0;
+  }
+
+  /* Verified Signals tabs */
+  .vs-tab-row {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .vs-tab-row::-webkit-scrollbar { display: none; }
+  .vs-tab {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: transparent;
+    border: 1px solid var(--border-1);
+    color: var(--text-3);
+    font: 500 12px/1 inherit;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .vs-tab--active {
+    background: rgba(52,211,153,0.10);
+    border-color: rgba(52,211,153,0.32);
+    color: var(--accent-bright);
+  }
+  .career-card-header {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 6px;
   }
 
   /* ── Hero identity edit ─────────────────────────────────────────────────── */
