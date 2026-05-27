@@ -8,6 +8,7 @@ import {
   analyzeSpendingPatternWithClaude,
   evaluateQAResponsesWithClaude
 } from '$lib/verified-vibe/server/verification';
+import { enrollInPoolIfVerified } from '$lib/server/pool-registry';
 
 /**
  * POST /api/verified-vibe/verify-step
@@ -129,6 +130,8 @@ export const POST: RequestHandler = async ({ request }) => {
 
     if (userId) {
       await persistVerificationStep(userId, step, trustPoints, stepData);
+      // Fire-and-forget: enroll in matchmaker pool once all 4 steps are complete
+      enrollInPoolIfVerified(userId).catch(() => {});
     }
 
     const response = {

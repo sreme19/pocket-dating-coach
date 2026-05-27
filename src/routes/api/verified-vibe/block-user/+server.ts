@@ -1,107 +1,133 @@
-import { json } from '@sveltejs/kit';
-import type { RequestHandler } from '@sveltejs/kit';
-
-interface BlockUserRequest {
-  blockedUserId: string;
-}
-
-interface BlockUserResponse {
-  data: {
-    success: boolean;
-    message: string;
-    blockedUserId: string;
-  };
-}
-
 /**
  * POST /api/verified-vibe/block-user
  *
- * Blocks a user from appearing in the discovery feed.
- * The blocked user will not be able to see the current user's profile either.
+ * Blocks a user. If they are currently matched, also removes the match
+ * and records an outcome signal for the Matchmaker feedback loop.
  *
  * Request body:
  * {
- *   blockedUserId: string
+ *   blockedUserId: string   — the user to block
+ *   matchId?:      string   — optional match ID (if blocking from a conversation)
  * }
  *
- * Response:
- * {
- *   data: {
- *     success: boolean,
- *     message: string,
- *     blockedUserId: string
- *   }
- * }
- *
- * Status codes:
- * - 200: User successfully blocked
- * - 400: Invalid request (missing blockedUserId)
- * - 401: Unauthorized (not authenticated)
- * - 500: Internal server error
+ * Auth: Bearer token required
  */
-export const POST: RequestHandler = async ({ request, locals }) => {
+
+import { json } from '@sveltejs/kit';
+import type { RequestHandler } from '@sveltejs/kit';
+import { getSupabase } from '$lib/server/supabase';
+import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
+import { createClient } from '@supabase/supabase-js';
+
+export const POST: RequestHandler = async ({ request }) => {
   try {
-    // Check authentication
-    // In production, this would check the session/JWT token
-    // For now, we'll assume authentication is handled by middleware
-
-    // Parse request body
-    const body = await request.json() as BlockUserRequest;
-
-    // Validate input
-    if (!body.blockedUserId) {
-      return json(
-        { error: 'blockedUserId is required' },
-        { status: 400 }
-      );
+    // Authenticate via Bearer token
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (typeof body.blockedUserId !== 'string') {
-      return json(
-        { error: 'blockedUserId must be a string' },
-        { status: 400 }
-      );
+    const token = authHeader.replace('Bearer ', '');
+    const authClient = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY);
+    const { data: { user }, error: authError } = await authClient.auth.getUser(token);
+
+    if (authError || !user) {
+      return json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // In production, this would:
-    // 1. Get the current user ID from the session
-    // 2. Create a block record in the database
-    // 3. Remove the blocked user from the current user's discovery feed
-    // 4. Remove the current user from the blocked user's discovery feed
+    const userId = user.id;
 
-    // Mock implementation
-    const currentUserId = 'current-user-id'; // Would come from session
-    const blockedUserId = body.blockedUserId;
+    // Parse body
+    const body = await request.json() as {
+      blockedUserId?: string;
+      matchId?: string;
+    };
 
-    // Validate that user is not blocking themselves
-    if (currentUserId === blockedUserId) {
-      return json(
-        { error: 'Cannot block yourself' },
-        { status: 400 }
-      );
+    const blockedUserId = (body.blockedUserId ?? '').trim();
+    const matchId = (body.matchId ?? '').trim();
+
+    if (!blockedUserId) {
+      return json({ error: 'blockedUserId is required' }, { status: 400 });
     }
 
-    // In production, save to database:
-    // await db.blockedUsers.create({
-    //   userId: currentUserId,
-    //   blockedUserId: blockedUserId,
-    //   createdAt: new Date()
-    // });
+    if (typeof blockedUserId !== 'string') {
+      return json({ error: 'blockedUserId must be a string' }, { status: 400 });
+    }
 
-    const response: BlockUserResponse = {
+    if (userId === blockedUserId) {
+      return json({ error: 'Cannot block yourself' }, { status: 400 });
+    }
+
+    const db = getSupabase() as any;
+
+    // 1. Record the block in verified_vibe_passes (reuse pass table as block store)
+    //    This prevents the blocked user from appearing in discovery
+    await db.from('verified_vibe_passes').upsert(
+      {
+        user_id: userId,
+        passed_user_id: blockedUserId,
+        reason: 'blocked',
+        created_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,passed_user_id' }
+    );
+
+    // Also block in reverse direction so blocked user can't see blocker
+    await db.from('verified_vibe_passes').upsert(
+      {
+        user_id: blockedUserId,
+        passed_user_id: userId,
+        reason: 'blocked_reverse',
+        created_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id,passed_user_id' }
+    );
+
+    // 2. If there's an active match, remove it and record outcome signal
+    let resolvedMatchId = matchId;
+
+    if (!resolvedMatchId) {
+      // Try to find the match between these two users
+      const { data: match } = await db
+        .from('verified_vibe_matches')
+        .select('id')
+        .or(`and(user1_id.eq.${userId},user2_id.eq.${blockedUserId}),and(user1_id.eq.${blockedUserId},user2_id.eq.${userId})`)
+        .maybeSingle();
+
+      resolvedMatchId = match?.id;
+    }
+
+    if (resolvedMatchId) {
+      // Delete the match
+      await db
+        .from('verified_vibe_matches')
+        .delete()
+        .eq('id', resolvedMatchId);
+
+      // Record outcome signal for Matchmaker feedback loop (fire-and-forget)
+      fetch(new URL('/api/verified-vibe/matchmaker/unmatch', request.url).toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          matchedUserId: blockedUserId,
+          matchId: resolvedMatchId,
+          outcome: 'blocked',
+        }),
+      }).catch(() => { /* non-critical */ });
+    }
+
+    return json({
       data: {
         success: true,
         message: `User ${blockedUserId} has been blocked`,
-        blockedUserId
-      }
-    };
+        blockedUserId,
+        matchRemoved: !!resolvedMatchId,
+      },
+    });
 
-    return json(response);
-  } catch (error) {
-    console.error('Block user error:', error);
-    return json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+  } catch (err) {
+    console.error('[block-user]', err);
+    return json({ error: 'Internal server error' }, { status: 500 });
   }
 };

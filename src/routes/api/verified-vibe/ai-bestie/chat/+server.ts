@@ -4,6 +4,25 @@ import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
 import { getSupabase } from '$lib/server/supabase';
 import { loadPreferences, updatePreferences } from '$lib/server/profile-service';
 import type { PreferencesProfile } from '$lib/server/profile-service';
+import { touchLastActive } from '$lib/server/pool-registry';
+import { popPendingChatMessage } from '$lib/server/intelligence-report-processor';
+import { queueIntelligenceReport } from '$lib/server/matchmaker-service';
+import { processIntelligenceReport } from '$lib/server/intelligence-report-processor';
+
+const INTELLIGENCE_INTENTS_FEMALE = [
+  'how can i improve', 'how do i improve', 'how to improve',
+  'better matches', 'get better matches', 'attract better',
+  'high value men', 'high-value men', 'quality men',
+  'improve my profile', 'stand out', 'compete',
+  'how am i doing', 'my ranking', 'how do i rank',
+  'what should i work on', 'what can i do better',
+  'beat other women', 'get his attention', 'get noticed',
+];
+
+function detectsFemaleIntelligenceIntent(message: string): boolean {
+  const lower = message.toLowerCase();
+  return INTELLIGENCE_INTENTS_FEMALE.some((phrase) => lower.includes(phrase));
+}
 
 /**
  * POST /api/verified-vibe/ai-bestie/chat
@@ -44,6 +63,9 @@ export const POST: RequestHandler = async ({ request }) => {
 			return json({ error: 'userId is required' }, { status: 400 });
 		}
 
+		// Touch last_active
+		touchLastActive(userId).catch(() => {});
+
 		const intent = body.intent ?? 'chat';
 		const rawMessage = (body.message ?? '').trim();
 		const history = body.history ?? [];
@@ -61,6 +83,18 @@ export const POST: RequestHandler = async ({ request }) => {
 				return json({ error: 'message is required for chat intent' }, { status: 400 });
 			}
 		}
+
+		// ── Intelligence intent detection ─────────────────────────────────────
+		if (detectsFemaleIntelligenceIntent(userMessage)) {
+			const reportId = await queueIntelligenceReport(userId, 'female_competitive', 'user_driven');
+			processIntelligenceReport(reportId).catch(() => {});
+		}
+
+		// ── Pending report injection ──────────────────────────────────────────
+		const pendingReport = await popPendingChatMessage(userId).catch(() => null);
+		const pendingReportContext = pendingReport
+			? `\n\n--- INTELLIGENCE REPORT READY ---\nThe following competitive intelligence report was just generated for this user. Acknowledge it warmly, summarise the key action points as her bestie would, then respond to her message:\n${pendingReport}\n--- END REPORT ---\n`
+			: '';
 
 		// ── Load preferences ─────────────────────────────────────────────────
 		let prefsContext = '';
@@ -196,7 +230,7 @@ DRAFT MESSAGES: When Neha explicitly asks you to draft a message to send to a sp
 message text here
 [/DRAFT]
 Use this ONLY for finalized messages Neha has confirmed she wants to send — not for examples, suggestions, or openers you're proposing. One [DRAFT] block per match. Place draft blocks after your reply text, each on its own line. Use the exact first name as shown in the match list above.
-${prefsContext}${matchContext}`;
+${prefsContext}${matchContext}${pendingReportContext}`;
 
 		// ── Call Claude ───────────────────────────────────────────────────────
 		const client = getClaudeClient();
