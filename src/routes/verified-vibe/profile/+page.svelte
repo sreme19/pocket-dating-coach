@@ -6,7 +6,7 @@
   import { upsertProfile } from '$lib/verified-vibe/services/profileService';
   import { getSupabaseClient } from '$lib/client/supabase';
   import { unregisterPushNotifications } from '$lib/push-notifications';
-  import { ShieldCheck, Pencil, Check, X, MapPin, Sparkles, Wand2, LogOut, Heart, Zap } from 'lucide-svelte';
+  import { ShieldCheck, Pencil, Check, X, MapPin, Sparkles, Wand2, LogOut, Heart, Zap, Share2 } from 'lucide-svelte';
   import CasualGenerousBoostTab from '$lib/verified-vibe/components/CasualGenerousBoostTab.svelte';
   import { ARCHETYPES, ARCHETYPES_BY_GENDER } from '$lib/verified-vibe/constants';
   import type { Archetype } from '$lib/verified-vibe/types';
@@ -1420,6 +1420,24 @@
       generatingField = null;
     }
   }
+
+  // Share public profile URL
+  let linkCopied = $state(false);
+
+  async function copyShareLink() {
+    const supabase = getSupabaseClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user?.id) return;
+    const url = `${window.location.origin}/verified-vibe/profile/${session.user.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      linkCopied = true;
+      setTimeout(() => { linkCopied = false; }, 2000);
+    } catch {
+      // Fallback for browsers that block clipboard without user gesture
+      prompt('Copy your profile link:', url);
+    }
+  }
 </script>
 
 <div class="profile-page">
@@ -1461,7 +1479,13 @@
         </button>
       </div>
     {:else}
-      <div style="width:32px"></div>
+      <button class="icon-btn share-btn" onclick={copyShareLink} aria-label="Copy share link" title="Copy public profile link">
+        {#if linkCopied}
+          <Check size={18} />
+        {:else}
+          <Share2 size={18} />
+        {/if}
+      </button>
     {/if}
   </div>
 
@@ -3128,6 +3152,11 @@
     background: var(--accent-bright);
     color: var(--bg-1);
     border-color: var(--accent-bright);
+  }
+
+  .icon-btn.share-btn {
+    background: var(--bg-2);
+    color: var(--text-2);
   }
 
   /* Hero */
