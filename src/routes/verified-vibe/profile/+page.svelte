@@ -2621,11 +2621,11 @@
       {/if}
 
       <!-- What My Garage Looks Like -->
-      {#if garageCars.length > 0}
-        <section class="section garage-section">
-          <div class="section-label">
-            <span>🏎️</span>
-            What My Garage Looks Like
+      <section class="section garage-section">
+        <div class="section-label">
+          <span>🏎️</span>
+          What My Garage Looks Like
+          {#if garageCars.length > 0}
             <button
               class="section-edit-btn {editingGarage ? 'section-edit-btn--active' : ''}"
               onclick={() => editingGarage = !editingGarage}
@@ -2638,8 +2638,10 @@
                 <Pencil size={11} />
               {/if}
             </button>
-          </div>
+          {/if}
+        </div>
 
+        {#if garageCars.length > 0}
           <!-- Showroom card -->
           <div class="garage-showroom">
             {#each garageCars as car, i}
@@ -2759,8 +2761,15 @@
             </div>
             <p class="garage-counter">{garageActiveIdx + 1} of {garageCars.length} in the garage</p>
           {/if}
-        </section>
-      {/if}
+        {:else}
+          <!-- Empty garage slot -->
+          <a class="garage-empty-slot" href="/verified-vibe/proof-upload?category=assets">
+            <div class="garage-empty-icon">🚗</div>
+            <p class="garage-empty-label">Add your first car</p>
+            <p class="garage-empty-hint">Upload ownership proof to verify your garage</p>
+          </a>
+        {/if}
+      </section>
 
       <!-- Travel Magnets -->
       <section class="section travel-magnets-section">
@@ -6071,6 +6080,44 @@
     font-size: 11px;
     color: var(--text-4);
     margin: 4px 0 0;
+  }
+
+  .garage-empty-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    aspect-ratio: 4/3;
+    max-height: 260px;
+    border-radius: 16px;
+    border: 1.5px dashed rgba(255,255,255,0.12);
+    background: linear-gradient(160deg, #0d0d0d 0%, #1a1a2e 45%, #0d0d1a 100%);
+    text-decoration: none;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .garage-empty-slot:hover {
+    border-color: rgba(255,255,255,0.26);
+    background: linear-gradient(160deg, #111 0%, #1e1e35 45%, #111 100%);
+  }
+  .garage-empty-icon {
+    font-size: 32px;
+    opacity: 0.45;
+  }
+  .garage-empty-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-2, #ccc);
+    margin: 0;
+  }
+  .garage-empty-hint {
+    font-size: 11px;
+    color: var(--text-4, #666);
+    margin: 0;
+    text-align: center;
+    padding: 0 24px;
   }
 
   /* ── Travel Magnets ───────────────────────────────────────────────────────── */
