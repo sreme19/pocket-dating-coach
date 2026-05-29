@@ -36,8 +36,8 @@
     }
   });
 
-  // Countdown — starts at 14:59 and counts down
-  let secondsLeft = $state(19 * 60 + 59);
+  // Countdown — starts at 9:59 and counts down
+  let secondsLeft = $state(9 * 60 + 59);
   const timerDisplay = $derived(() => {
     const m = Math.floor(secondsLeft / 60).toString().padStart(2, '0');
     const s = (secondsLeft % 60).toString().padStart(2, '0');

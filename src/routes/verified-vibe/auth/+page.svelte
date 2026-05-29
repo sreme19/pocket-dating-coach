@@ -366,8 +366,8 @@
         {#if isDevMode}
           <div class="dev-hint">
             <p class="dev-hint-label">⚡ Dev shortcuts (no OTP needed)</p>
-            <button class="dev-pill" onclick={() => { email = 'male@test.vv'; sendOtp(); }}>male@test.vv</button>
-            <button class="dev-pill" onclick={() => { email = 'female@test.vv'; sendOtp(); }}>female@test.vv</button>
+            <button class="dev-pill" onclick={() => devLogin('male@test.vv')}>male@test.vv</button>
+            <button class="dev-pill" onclick={() => devLogin('female@test.vv')}>female@test.vv</button>
           </div>
         {/if}
       </div>

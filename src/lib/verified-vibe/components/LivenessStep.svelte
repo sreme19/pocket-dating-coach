@@ -27,6 +27,8 @@
   let isDragging = $state(false);
   let step = $state<'upload' | 'result' | 'confirmed'>('upload');
   let cameraActive = $state(false);
+  let cameraPermissionDenied = $state(false);
+  let fallbackInputEl = $state<HTMLInputElement | null>(null);
   let videoElement = $state<HTMLVideoElement | null>(null);
   let canvasElement = $state<HTMLCanvasElement | null>(null);
   let fileInputEl = $state<HTMLInputElement | null>(null);
@@ -96,6 +98,7 @@
    */
   async function startCamera() {
     error = null;
+    cameraPermissionDenied = false;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
@@ -109,11 +112,15 @@
       }
     } catch (err: any) {
       cameraActive = false;
-      error = err?.name === 'NotAllowedError'
-        ? 'Camera permission denied. Please allow camera access and try again.'
-        : err?.name === 'NotFoundError'
-        ? 'No camera found on this device.'
-        : 'Unable to access camera. Use "Upload Photo" instead.';
+      if (err?.name === 'NotAllowedError') {
+        cameraPermissionDenied = true;
+        error = 'Camera access was denied. Tap the button below to take a selfie using your device camera.';
+      } else if (err?.name === 'NotFoundError') {
+        error = 'No camera found on this device.';
+      } else {
+        error = 'Unable to access camera. Please try the button below.';
+        cameraPermissionDenied = true;
+      }
     }
   }
 
@@ -331,13 +338,35 @@
 
       <!-- Camera prompt when not yet active -->
       {#if !cameraActive}
-        <button
-          class="btn btn-primary"
-          onclick={startCamera}
-          aria-label="Open camera to take selfie"
-        >
-          📷 Open Camera
-        </button>
+        {#if cameraPermissionDenied}
+          <!-- Fallback: native file picker with front camera hint -->
+          <button
+            class="btn btn-primary"
+            onclick={() => fallbackInputEl?.click()}
+            aria-label="Take selfie using device camera"
+          >
+            📷 Take Selfie
+          </button>
+          <input
+            bind:this={fallbackInputEl}
+            type="file"
+            accept="image/*"
+            capture="user"
+            class="hidden-input"
+            onchange={(e) => {
+              const file = (e.target as HTMLInputElement).files?.[0];
+              if (file) { processFile(file); (e.target as HTMLInputElement).value = ''; }
+            }}
+          />
+        {:else}
+          <button
+            class="btn btn-primary"
+            onclick={startCamera}
+            aria-label="Open camera to take selfie"
+          >
+            📷 Open Camera
+          </button>
+        {/if}
       {/if}
 
       <!-- Error Message -->
@@ -543,6 +572,10 @@
   }
 
   .hidden-canvas {
+    display: none;
+  }
+
+  .hidden-input {
     display: none;
   }
 

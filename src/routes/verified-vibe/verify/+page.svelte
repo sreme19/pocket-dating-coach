@@ -45,10 +45,9 @@
   const archetypeData = $derived(archetype ? ARCHETYPES[archetype] : null);
 
   const steps = [
-    { num: '01', name: 'Government ID',    sub: 'prove you\'re real',         time: '~30 sec' },
-    { num: '02', name: '5+ photos',        sub: 'prove it\'s really you',     time: '~60 sec' },
-    { num: '03', name: 'Lifestyle Choices', sub: 'prove you\'re solid',        time: '~45 sec' },
-    { num: '04', name: 'Q&A responses',    sub: 'prove your intent',          time: '~2 min'  }
+    { num: '01', name: 'Government ID',      sub: 'prove you\'re real',        time: '~30 sec' },
+    { num: '02', name: 'Lifestyle Choices',  sub: 'prove you\'re solid',       time: '~45 sec' },
+    { num: '03', name: 'Match Preferences',  sub: 'tell us who you want',      time: '~3 min'  },
   ];
 
   function handleBack() {
@@ -85,7 +84,7 @@
 
     <div class="step-total">
       <span class="total-icon">⚡</span>
-      <span class="total-label">Total time · <strong>~10 min</strong></span>
+      <span class="total-label">Total time · <strong>~5 min</strong></span>
       <span class="total-pause">Pause anytime</span>
     </div>
   </div>
