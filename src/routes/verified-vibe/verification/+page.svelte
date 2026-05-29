@@ -2069,12 +2069,14 @@
         />
       {:else if currentStep === 2}
         <DrawnToStep
+          archetype={$user?.archetype}
           onSubmit={handleDrawnToSubmit}
           onCancel={handleBack}
           onSkip={handleSkipClick}
         />
       {:else if currentStep === 3}
         <HowYouLiveStep
+          archetype={$user?.archetype}
           onSubmit={handleHowYouLiveSubmit}
           onCancel={handleBack}
           onSkip={handleSkipClick}
