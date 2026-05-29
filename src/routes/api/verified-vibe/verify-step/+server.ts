@@ -4,6 +4,8 @@ import { getSupabase } from '$lib/server/supabase';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { createClient } from '@supabase/supabase-js';
 import {
+  extractIDWithClaude,
+  checkLivenessWithClaude,
   checkPhotoConsistencyWithClaude,
   analyzeSpendingPatternWithClaude,
   evaluateQAResponsesWithClaude
@@ -107,42 +109,17 @@ export const POST: RequestHandler = async ({ request }) => {
     const userId = await getUserIdFromRequest(request);
 
     // Process verification based on step
-    if (step === 'photos') {
+    if (step === 'id') {
+      return await handleIDVerification(data, userId);
+    } else if (step === 'liveness') {
+      return await handleLivenessVerification(data, userId);
+    } else if (step === 'photos') {
       return await handlePhotoVerification(data, userId);
     } else if (step === 'spending_or_qa') {
       return await handleSpendingOrQAVerification(data, userId);
     }
 
-    // For id/liveness steps, return mock response and persist
-    const trustPoints = getTrustPoints(step);
-    const stepData = {
-      ...(step === 'id' && {
-        idNumber: 'DL123456',
-        idName: 'Alexander Smith',
-        idDOB: '1998-03-15',
-        idExpiration: '2028-03-15'
-      }),
-      ...(step === 'liveness' && {
-        confidence: 92,
-        match: true
-      })
-    };
-
-    if (userId) {
-      await persistVerificationStep(userId, step, trustPoints, stepData);
-      // Fire-and-forget: enroll in matchmaker pool once all 4 steps are complete
-      enrollInPoolIfVerified(userId).catch(() => {});
-    }
-
-    const response = {
-      status: 'completed',
-      step,
-      data: stepData,
-      trustPoints,
-      createdAt: new Date().toISOString()
-    };
-
-    return json(response, { status: 201 });
+    return json({ error: 'Invalid verification step' }, { status: 400 });
   } catch (error) {
     console.error('Verification step error:', error);
     return json(
@@ -151,6 +128,68 @@ export const POST: RequestHandler = async ({ request }) => {
     );
   }
 };
+
+/**
+ * Handle ID extraction step — calls Claude Vision to extract name, DOB, gender, ID number
+ */
+async function handleIDVerification(data: any, userId: string | null = null) {
+  if (!data.image || !data.mimeType) {
+    return json({ error: 'Image and mimeType are required' }, { status: 400 });
+  }
+
+  const skipVerification = import.meta.env.VITE_SKIP_VERIFICATION === 'true';
+
+  try {
+    const result = skipVerification
+      ? { idNumber: 'DEV-SKIP', idName: 'Dev User', idDOB: '01/01/1990', idGender: undefined, expirationDate: undefined }
+      : await extractIDWithClaude(data.image, data.mimeType);
+
+    const trustPoints = getTrustPoints('id');
+    if (userId && !skipVerification) {
+      await persistVerificationStep(userId, 'id', trustPoints, result as any);
+      enrollInPoolIfVerified(userId).catch(() => {});
+    }
+    return json({ status: 'completed', step: 'id', data: result, trustPoints });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'ID extraction failed';
+    return json({ error: message }, { status: 422 });
+  }
+}
+
+/**
+ * Handle liveness check — compares selfie against the ID photo using Claude Vision
+ */
+async function handleLivenessVerification(data: any, userId: string | null = null) {
+  if (!data.selfieImage || !data.idPhotoBase64) {
+    return json({ error: 'Selfie and ID photo are required' }, { status: 400 });
+  }
+  try {
+    const skipVerification = import.meta.env.VITE_SKIP_VERIFICATION === 'true';
+    const result = skipVerification
+      ? { confidence: 99, match: true }
+      : await checkLivenessWithClaude(data.selfieImage, data.idPhotoBase64, data.mimeType ?? 'image/jpeg');
+
+    if (!result.match) {
+      return json(
+        { status: 'failed', data: { confidence: result.confidence, match: false }, trustPoints: 0 },
+        { status: 400 }
+      );
+    }
+
+    const trustPoints = getTrustPoints('liveness');
+    const stepData = { confidence: result.confidence, match: true };
+
+    if (userId) {
+      await persistVerificationStep(userId, 'liveness', trustPoints, stepData);
+      enrollInPoolIfVerified(userId).catch(() => {});
+    }
+
+    return json({ status: 'completed', step: 'liveness', data: stepData, trustPoints }, { status: 201 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Liveness check failed';
+    return json({ error: message }, { status: 422 });
+  }
+}
 
 /**
  * Handle photo verification step
