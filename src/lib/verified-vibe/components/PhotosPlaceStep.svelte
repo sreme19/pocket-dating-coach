@@ -19,6 +19,8 @@
   let city = $state('');
   let openToTravel = $state(false);
   let fileInputEl = $state<HTMLInputElement | null>(null);
+  let detecting = $state(false);
+  let detectError = $state('');
 
   const ready = $derived(photos.length >= MIN_PHOTOS && city.trim().length > 0);
   const photosFilled = $derived(photos.length >= MIN_PHOTOS);
@@ -147,26 +149,49 @@
       />
       <button
         class="detect-btn"
-        onclick={() => {
-          if (typeof navigator !== 'undefined' && navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-              async (pos) => {
-                try {
-                  const res = await fetch(
-                    `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`
-                  );
-                  const data = await res.json();
-                  city = data.address?.city || data.address?.town || data.address?.county || '';
-                } catch {}
-              },
-              () => {}
-            );
+        class:detect-btn--loading={detecting}
+        disabled={detecting}
+        onclick={async () => {
+          if (typeof navigator === 'undefined' || !navigator.geolocation) {
+            detectError = 'Geolocation not supported on this device.';
+            return;
           }
+          detecting = true;
+          detectError = '';
+          navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+              try {
+                const res = await fetch(
+                  `https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`
+                );
+                const data = await res.json();
+                city = data.address?.city || data.address?.town || data.address?.state_district || data.address?.suburb || data.address?.village || data.address?.county || '';
+                if (!city) detectError = 'Could not determine your city. Please type it manually.';
+              } catch {
+                detectError = 'Failed to fetch location. Please type your city.';
+              } finally {
+                detecting = false;
+              }
+            },
+            () => {
+              detectError = 'Location access denied. Please type your city manually.';
+              detecting = false;
+            },
+            { timeout: 10000 }
+          );
         }}
       >
-        ◎ Detect
+        {#if detecting}
+          ◌ Detecting…
+        {:else}
+          ◎ Detect
+        {/if}
       </button>
     </div>
+
+    {#if detectError}
+      <p class="detect-error">{detectError}</p>
+    {/if}
 
     <!-- Open to travel toggle -->
     <button
@@ -489,6 +514,16 @@
   }
   .detect-btn:active {
     opacity: 0.75;
+  }
+  .detect-btn--loading {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .detect-error {
+    font-size: 11.5px;
+    color: #f87171;
+    margin: -6px 0 10px;
+    padding: 0 2px;
   }
 
   /* Travel toggle */

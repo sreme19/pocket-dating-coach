@@ -301,7 +301,7 @@
   <div class="chat-list-content">
 
     <!-- AI Bestie pinned row — female users only -->
-    {#if $user?.gender === 'woman'}
+    {#if $user?.gender === 'woman' || $user?.archetype?.endsWith('_woman')}
       <button class="bestie-row" onclick={() => goto('/verified-vibe/chat/ai-bestie')}>
         <BestieAvatar size={48} />
         <div class="bestie-text">
@@ -316,7 +316,7 @@
     {/if}
 
     <!-- AI Wingman pinned row — male users only -->
-    {#if $user?.gender === 'man'}
+    {#if $user?.gender === 'man' || $user?.archetype?.endsWith('_man')}
       <button class="bestie-row wingman-row" onclick={() => goto('/verified-vibe/chat/ai-wingman')}>
         <div class="wingman-avatar">🛡️</div>
         <div class="bestie-text">

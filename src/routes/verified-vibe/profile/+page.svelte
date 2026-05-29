@@ -3168,7 +3168,12 @@
             onEditQA={() => (showEditQAModal = true)}
           />
         {:else}
-          <!-- ── Generic boost tab for all other archetypes ── -->
+          <!-- ── Generic boost tab — modern design ── -->
+          <div class="privacy-banner" style="display:flex;align-items:flex-start;gap:10px;padding:12px 16px;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.18);border-radius:14px;margin-bottom:4px;">
+            <span>🔒</span>
+            <span style="font-size:12.5px;color:var(--text-3);line-height:1.5;">Everything here stays private. We only verify that your profile reflects real life. This improves your Trust Score and who you match with.</span>
+          </div>
+
           <section class="section">
             <div class="section-label">
               <ShieldCheck size={13} />
@@ -3177,44 +3182,91 @@
             <div class="trust-gauge-container">
               <div class="gauge-visual">
                 <svg viewBox="0 0 200 200" class="radial-gauge">
-                  <circle cx="100" cy="100" r="90" fill="none" stroke="var(--bg-3)" stroke-width="12" />
+                  <defs>
+                    <linearGradient id="trustRingGradGen" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stop-color="#5BF0BA"/>
+                      <stop offset="100%" stop-color="#0F8A5E"/>
+                    </linearGradient>
+                  </defs>
+                  <circle cx="100" cy="100" r="90" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="12" />
                   <circle
-                    cx="100"
-                    cy="100"
-                    r="90"
-                    fill="none"
-                    stroke="var(--accent)"
-                    stroke-width="12"
+                    cx="100" cy="100" r="90"
+                    fill="none" stroke="url(#trustRingGradGen)" stroke-width="12"
                     stroke-dasharray="{(trustScore / 100) * 565} 565"
                     stroke-linecap="round"
                     transform="rotate(-90 100 100)"
                   />
-                  <text x="100" y="100" text-anchor="middle" dy="0.3em" class="gauge-text">
-                    <tspan class="gauge-number">{trustScore}</tspan>
-                    <tspan x="100" dy="1.2em" class="gauge-label-small">/ 100</tspan>
-                  </text>
+                  <text x="100" y="92" text-anchor="middle" style="font-size:52px;font-weight:700;fill:var(--text-1);font-family:var(--font-mono)">{trustScore}</text>
+                  <text x="100" y="116" text-anchor="middle" style="font-size:14px;fill:var(--text-3);">/ 100</text>
                 </svg>
               </div>
-              <p class="trust-label-text">{trustLabel}</p>
-              <div class="breakdown">
-                {#each trustBreakdown as item}
-                  <div class="breakdown-item">
-                    <div class="breakdown-header">
-                      <span class="breakdown-name">{item.category}</span>
-                      <span class="breakdown-score">{Math.round(item.score)}/{item.max}</span>
-                    </div>
-                    <div class="breakdown-bar">
-                      <div class="breakdown-fill" style="width: {(item.score / item.max) * 100}%"></div>
-                    </div>
-                  </div>
-                {/each}
+
+              <!-- Fit badge -->
+              <div style="display:flex;justify-content:center;">
+                <div style="display:inline-flex;align-items:center;gap:7px;padding:6px 14px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:999px;">
+                  <span style="width:7px;height:7px;border-radius:50%;background:var(--accent-bright);display:inline-block;flex-shrink:0;"></span>
+                  <span style="font-size:12.5px;font-weight:600;color:var(--accent-bright);">{trustLabel}</span>
+                </div>
               </div>
-              <button class="btn btn-secondary full edit-qa-btn" onclick={() => showEditQAModal = true}>
-                Edit Q&A to boost score
-              </button>
+
+              <!-- Tier zone bar -->
+              <div style="display:flex;flex-direction:column;gap:8px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                  <span style="font-size:12px;font-weight:600;color:var(--text-3);">Score progress</span>
+                  <span style="font-size:11.5px;color:var(--accent-bright);font-weight:600;">
+                    {#if trustScore < 60}+{60 - trustScore} → Visible{:else if trustScore < 70}+{70 - trustScore} → Featured{:else if trustScore < 85}+{85 - trustScore} → Priority{:else if trustScore < 95}+{95 - trustScore} → Elite{:else}🏆 Elite tier{/if}
+                  </span>
+                </div>
+                <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;gap:2px;">
+                  <div style="flex:60;background:rgba(239,68,68,0.18);border-radius:4px;overflow:hidden;">
+                    <div style="height:100%;background:#ef4444;width:{Math.min(100,(Math.max(0,trustScore)/60)*100)}%;transition:width 400ms ease;"></div>
+                  </div>
+                  <div style="flex:25;background:rgba(244,185,92,0.18);border-radius:4px;overflow:hidden;">
+                    <div style="height:100%;background:#f4b95c;width:{trustScore>=60?Math.min(100,((trustScore-60)/25)*100):0}%;transition:width 400ms ease;"></div>
+                  </div>
+                  <div style="flex:15;background:rgba(16,185,129,0.18);border-radius:4px;overflow:hidden;">
+                    <div style="height:100%;background:var(--accent);width:{trustScore>=85?Math.min(100,((trustScore-85)/15)*100):0}%;transition:width 400ms ease;"></div>
+                  </div>
+                </div>
+                <div style="display:flex;gap:12px;">
+                  <span style="font-size:11px;font-weight:600;color:{trustScore<60?'#ef4444':'var(--text-4)'};">At Risk</span>
+                  <span style="font-size:11px;font-weight:600;color:{trustScore>=60&&trustScore<85?'#f4b95c':'var(--text-4)'};">In Progress</span>
+                  <span style="font-size:11px;font-weight:600;color:{trustScore>=85?'var(--accent)':'var(--text-4)'};">Trusted</span>
+                </div>
+              </div>
             </div>
           </section>
 
+          <!-- Breakdown -->
+          <section class="section">
+            <div class="section-label">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
+              </svg>
+              Safety Check
+            </div>
+            <div class="breakdown">
+              {#each trustBreakdown as item}
+                {@const pct = (item.score / item.max) * 100}
+                {@const barColor = item.score < 50 ? '#ef4444' : item.score < 75 ? '#f4b95c' : 'var(--accent-bright)'}
+                {@const scoreColor = item.score < 50 ? '#ef4444' : item.score < 75 ? '#f4b95c' : 'var(--accent-bright)'}
+                <div class="breakdown-item">
+                  <div class="breakdown-header">
+                    <span class="breakdown-name">{item.category}</span>
+                    <span class="breakdown-score" style="color:{scoreColor};">{Math.round(item.score)}/{item.max}</span>
+                  </div>
+                  <div class="breakdown-bar">
+                    <div class="breakdown-fill" style="width:{pct}%;background:{barColor};"></div>
+                  </div>
+                </div>
+              {/each}
+            </div>
+            <button class="btn btn-secondary full edit-qa-btn" style="margin-top:8px;" onclick={() => showEditQAModal = true}>
+              Edit Q&A to boost score
+            </button>
+          </section>
+
+          <!-- Tier unlocks -->
           <section class="section">
             <div class="section-label">
               <Zap size={13} />
@@ -3225,21 +3277,21 @@
                 {#if trustScore >= 60}<div class="tier-check">✓</div>{:else}<div class="tier-number">60</div>{/if}
                 <div class="tier-content">
                   <div class="tier-title">60 · Visible</div>
-                  <div class="tier-desc">You start showing up in pools.</div>
+                  <div class="tier-desc">You start showing up in match pools.</div>
                 </div>
               </div>
               <div class="tier-item {trustScore >= 70 ? 'unlocked' : 'locked'}">
                 {#if trustScore >= 70}<div class="tier-check">✓</div>{:else}<div class="tier-number">70</div>{/if}
                 <div class="tier-content">
                   <div class="tier-title">70 · Featured</div>
-                  <div class="tier-desc">Spoilt Women see you in their "Live now"{trustScore >= 70 ? ' ← you\'re here' : ''}.</div>
+                  <div class="tier-desc">Lifestyle-Oriented Women see you in their "Live now"{trustScore >= 70 ? ' ← you\'re here' : ''}.</div>
                 </div>
               </div>
               <div class="tier-item {trustScore >= 85 ? 'unlocked' : 'locked'}">
                 {#if trustScore >= 85}<div class="tier-check">✓</div>{:else}<div class="tier-number">85</div>{/if}
                 <div class="tier-content">
                   <div class="tier-title">85 · Priority</div>
-                  <div class="tier-desc">You appear first. Marriage-Minded matches open up.</div>
+                  <div class="tier-desc">You appear first. Spoilt Women's pool fully unlocked.</div>
                 </div>
               </div>
               <div class="tier-item {trustScore >= 95 ? 'unlocked' : 'locked'}">
