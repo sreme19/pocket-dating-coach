@@ -785,32 +785,15 @@
   }
 
   async function handleLivenessStepDone(data: LivenessCheckResult) {
-    error = null;
-    clearError();
-    loading = true;
-    try {
-      const response = await fetch('/api/verified-vibe/verify-step', {
-        method: 'POST',
-        headers: await getAuthHeaders(),
-        body: JSON.stringify({ step: 'liveness', data })
-      });
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error || 'Liveness verification failed');
-      }
-      addVerificationRecord({
-        id: `${$user?.id}-liveness`, userId: $user?.id || '', step: 'liveness',
-        status: 'completed', data, completedAt: new Date(), createdAt: new Date()
-      });
-      updateTrustScoreAfterVerification();
-      identitySelfieDone = true;
-      identitySubView = 'overview';
-    } catch (err) {
-      error = err instanceof Error ? err.message : 'An error occurred';
-      setError(error);
-    } finally {
-      loading = false;
-    }
+    // LivenessStep already called verify-step internally (auth + persistence).
+    // Parent just updates UI state.
+    addVerificationRecord({
+      id: `${$user?.id}-liveness`, userId: $user?.id || '', step: 'liveness',
+      status: 'completed', data, completedAt: new Date(), createdAt: new Date()
+    });
+    updateTrustScoreAfterVerification();
+    identitySelfieDone = true;
+    identitySubView = 'overview';
   }
 
   function handleIdentityComplete() {
