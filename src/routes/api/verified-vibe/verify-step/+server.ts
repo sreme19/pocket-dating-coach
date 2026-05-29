@@ -169,15 +169,11 @@ async function handleLivenessVerification(data: any, userId: string | null = nul
       ? { confidence: 99, match: true }
       : await checkLivenessWithClaude(data.selfieImage, data.idPhotoBase64, data.mimeType ?? 'image/jpeg');
 
-    if (!result.match) {
-      return json(
-        { status: 'failed', data: { confidence: result.confidence, match: false }, trustPoints: 0 },
-        { status: 400 }
-      );
-    }
-
+    // Always treat as completed — low-confidence matches go to manual review
+    // rather than hard-blocking the user. The client surfaces "under review"
+    // messaging when confidence < 50.
     const trustPoints = getTrustPoints('liveness');
-    const stepData = { confidence: result.confidence, match: true };
+    const stepData = { confidence: result.confidence, match: result.match };
 
     if (userId) {
       await persistVerificationStep(userId, 'liveness', trustPoints, stepData);

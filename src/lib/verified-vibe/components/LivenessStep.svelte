@@ -13,18 +13,20 @@
 
   // ── State machine ────────────────────────────────────────────────────────────
   type Phase =
-    | 'idle'        // pre-camera — show guide + "Start" button
-    | 'opening'     // waiting for getUserMedia permission
-    | 'ready'       // camera live, ring visible, waiting 2 s before fill
-    | 'filling'     // ring animating 0→100 %
-    | 'verifying'   // Claude running (camera block already gone)
-    | 'failed';     // mismatch or error
+    | 'idle'          // pre-camera — show guide + "Start" button
+    | 'opening'       // waiting for getUserMedia permission
+    | 'ready'         // camera live, ring visible, waiting 2 s before fill
+    | 'filling'       // ring animating 0→100 %
+    | 'verifying'     // Claude running (camera block already gone)
+    | 'under_review'  // low confidence — passes but flagged for manual review
+    | 'failed';       // network / server error only
 
-  let phase      = $state<Phase>('idle');
-  let fillPct    = $state(0);        // 0–100 for ring progress
-  let flashOn    = $state(false);    // white flash on capture
-  let errMsg     = $state<string | null>(null);
-  let permDenied = $state(false);
+  let phase          = $state<Phase>('idle');
+  let fillPct        = $state(0);        // 0–100 for ring progress
+  let flashOn        = $state(false);    // white flash on capture
+  let errMsg         = $state<string | null>(null);
+  let permDenied     = $state(false);
+  let matchPct       = $state(0);        // confidence from server (0–100)
 
   let videoEl      = $state<HTMLVideoElement | null>(null);
   let canvasEl     = $state<HTMLCanvasElement | null>(null);
@@ -183,16 +185,23 @@
 
       const json = await res.json();
 
-      if (!res.ok || json.status === 'failed') {
+      if (!res.ok) {
         phase  = 'failed';
-        errMsg = json.data?.match === false
-          ? "Face doesn't match your ID — please try again in better lighting."
-          : json.error || 'Verification failed — please try again.';
+        errMsg = json.error || 'Verification failed — please try again.';
         return;
       }
 
-      // Success — hand off to parent
-      if (onSubmit) await onSubmit(json.data as LivenessCheckResult);
+      // Always completed — check confidence to decide which success screen to show
+      const confidence = json.data?.confidence ?? 0;
+      matchPct = Math.round(confidence);
+
+      if (confidence < 50) {
+        // Low confidence → show "under review" screen; user can still continue
+        phase = 'under_review';
+      } else {
+        // High confidence → hand off to parent immediately
+        if (onSubmit) await onSubmit(json.data as LivenessCheckResult);
+      }
 
     } catch (e) {
       phase  = 'failed';
@@ -207,6 +216,8 @@
     fillPct    = 0;
     errMsg     = null;
     permDenied = false;
+    capturedB64 = null;
+    matchPct   = 0;
   }
 
   function cancel() {
@@ -314,6 +325,22 @@
       <div class="spinner-ring"></div>
       <p class="status-text">Verifying face match…</p>
       <p class="status-sub">Comparing against your ID</p>
+    </div>
+  {/if}
+
+  <!-- ── UNDER REVIEW ─────────────────────────────────────────────── -->
+  {#if phase === 'under_review'}
+    <div class="status-screen">
+      <div class="review-badge">
+        <span class="review-pct">{matchPct}%</span>
+        <span class="review-label">match</span>
+      </div>
+      <p class="status-text">Under review</p>
+      <p class="status-sub">Your identity will be verified within 24 hours. You can continue setting up your profile in the meantime.</p>
+      <button class="cta" onclick={async () => { if (onSubmit) await onSubmit({ confidence: matchPct, match: false } as any); }}>
+        Continue
+      </button>
+      <button class="cancel-link" onclick={cancel}>Cancel</button>
     </div>
   {/if}
 
@@ -577,5 +604,34 @@
     color: #f87171;
     text-align: center;
     max-width: 300px;
+  }
+
+  /* ── Under-review badge ──────────────────────────────────────────────────── */
+  .review-badge {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    background: rgba(251, 191, 36, 0.12);
+    border: 2px solid rgba(251, 191, 36, 0.45);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+  }
+
+  .review-pct {
+    font-size: 22px;
+    font-weight: 800;
+    color: #fbbf24;
+    line-height: 1;
+  }
+
+  .review-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(251, 191, 36, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
   }
 </style>
