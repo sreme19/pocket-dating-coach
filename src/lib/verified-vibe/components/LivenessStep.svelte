@@ -17,8 +17,7 @@
     | 'opening'     // waiting for getUserMedia permission
     | 'ready'       // camera live, ring visible, waiting 2 s before fill
     | 'filling'     // ring animating 0→100 %
-    | 'captured'    // flash frame, starting API call
-    | 'verifying'   // Claude running
+    | 'verifying'   // Claude running (camera block already gone)
     | 'failed';     // mismatch or error
 
   let phase      = $state<Phase>('idle');
@@ -27,9 +26,11 @@
   let errMsg     = $state<string | null>(null);
   let permDenied = $state(false);
 
-  let videoEl   = $state<HTMLVideoElement | null>(null);
-  let canvasEl  = $state<HTMLCanvasElement | null>(null);
-  let fallbackEl = $state<HTMLInputElement | null>(null);
+  let videoEl      = $state<HTMLVideoElement | null>(null);
+  let canvasEl     = $state<HTMLCanvasElement | null>(null);
+  let fallbackEl   = $state<HTMLInputElement | null>(null);
+  // Captured JPEG base64 stored before phase changes so canvas unbind doesn't matter
+  let capturedB64  = $state<string | null>(null);
 
   let fillTimer:  ReturnType<typeof setInterval>  | null = null;
   let delayTimer: ReturnType<typeof setTimeout>   | null = null;
@@ -96,12 +97,24 @@
     ctx.drawImage(videoEl, 0, 0);
     stopStream();
 
-    // brief white flash
-    flashOn = true;
-    setTimeout(() => { flashOn = false; }, 250);
-
-    phase = 'captured';
-    setTimeout(() => runVerification(), 300);
+    // Extract base64 NOW — before phase change unmounts the canvas block
+    // and rebinds canvasEl to null.
+    canvasEl.toBlob(blob => {
+      if (!blob) {
+        phase  = 'failed';
+        errMsg = 'Capture failed — please try again.';
+        return;
+      }
+      const fr = new FileReader();
+      fr.onload = e => {
+        capturedB64 = (e.target!.result as string).split(',')[1];
+        flashOn = true;
+        setTimeout(() => { flashOn = false; }, 250);
+        phase = 'verifying';   // camera block unmounts here — that's fine
+        runVerification();
+      };
+      fr.readAsDataURL(blob);
+    }, 'image/jpeg', 0.92);
   }
 
   function stopStream() {
@@ -120,29 +133,27 @@
     if (!file) return;
     (e.target as HTMLInputElement).value = '';
     const reader = new FileReader();
-    reader.onload = async () => {
+    reader.onload = () => {
       const dataUrl = reader.result as string;
-      // draw onto canvas so runVerification can read it
-      const img = new Image();
-      img.onload = async () => {
-        if (!canvasEl) return;
-        canvasEl.width  = img.naturalWidth;
-        canvasEl.height = img.naturalHeight;
-        canvasEl.getContext('2d')!.drawImage(img, 0, 0);
-        phase = 'captured';
-        await tick();
-        runVerification();
-      };
-      img.src = dataUrl;
+      // Store base64 directly — no canvas round-trip needed
+      capturedB64 = dataUrl.split(',')[1];
+      phase = 'verifying';
+      runVerification();
     };
     reader.readAsDataURL(file);
   }
 
   // ── Liveness check ───────────────────────────────────────────────────────────
   async function runVerification() {
-    if (!canvasEl) return;
-    phase  = 'verifying';
+    // capturedB64 must be set before this is called (by doCapture or handleFallbackFile)
+    if (!capturedB64) {
+      phase  = 'failed';
+      errMsg = 'Capture failed — please try again.';
+      return;
+    }
     errMsg = null;
+
+    const selfieBase64 = capturedB64;   // snapshot; phase changes won't clear this
 
     try {
       // Get auth token (best-effort; server still works without it)
@@ -152,16 +163,6 @@
         const { data: { session } } = await sb.auth.getSession();
         token = session?.access_token ?? '';
       } catch { /* non-critical */ }
-
-      // Encode canvas to base64
-      const selfieBase64 = await new Promise<string>((resolve, reject) => {
-        canvasEl!.toBlob(blob => {
-          if (!blob) return reject(new Error('Capture failed'));
-          const fr = new FileReader();
-          fr.onload = e => resolve((e.target!.result as string).split(',')[1]);
-          fr.readAsDataURL(blob);
-        }, 'image/jpeg', 0.92);
-      });
 
       // Call the verify-step endpoint so auth + persistence happen in one shot
       const res = await fetch('/api/verified-vibe/verify-step', {
@@ -255,14 +256,13 @@
   {/if}
 
   <!-- ── CAMERA LIVE (ready / filling) ──────────────────────────────── -->
-  {#if phase === 'ready' || phase === 'filling' || phase === 'captured'}
+  {#if phase === 'ready' || phase === 'filling'}
     <div class="camera-screen">
 
       <!-- Video -->
-      <video bind:this={videoEl} autoplay playsinline muted
-        class="cam-video" class:hidden={phase === 'captured'}></video>
+      <video bind:this={videoEl} autoplay playsinline muted class="cam-video"></video>
 
-      <!-- Canvas (hidden; used to grab frame) -->
+      <!-- Canvas (hidden; used to grab frame before phase changes) -->
       <canvas bind:this={canvasEl} class="sr-only"></canvas>
 
       <!-- Capture flash -->
@@ -299,10 +299,8 @@
         <div class="instruction" class:instruction--go={phase === 'filling'}>
           {#if phase === 'ready'}
             Centre your face in the ring
-          {:else if phase === 'filling'}
-            Hold still…
           {:else}
-            ✓ Captured
+            Hold still…
           {/if}
         </div>
       </div>
@@ -313,7 +311,6 @@
   <!-- ── VERIFYING ──────────────────────────────────────────────────── -->
   {#if phase === 'verifying'}
     <div class="status-screen">
-      <canvas bind:this={canvasEl} class="sr-only"></canvas>
       <div class="spinner-ring"></div>
       <p class="status-text">Verifying face match…</p>
       <p class="status-sub">Comparing against your ID</p>
@@ -323,7 +320,6 @@
   <!-- ── FAILED ─────────────────────────────────────────────────────── -->
   {#if phase === 'failed'}
     <div class="status-screen">
-      <canvas bind:this={canvasEl} class="sr-only"></canvas>
       <div class="fail-icon">✕</div>
       <p class="status-text">Match failed</p>
       <p class="status-sub">{errMsg ?? 'Please try again in better lighting.'}</p>
