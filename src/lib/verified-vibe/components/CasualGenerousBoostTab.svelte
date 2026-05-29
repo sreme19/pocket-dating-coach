@@ -408,18 +408,10 @@
           {/if}
           <div class="showoff-meta">
             {#if done}
-              <span class="showoff-done-tag">✓ Verified</span>
-              {#if docCount > 0}
-                <span class="showoff-doc-count">{docCount} {docCount === 1 ? 'photo' : 'photos'}</span>
-              {/if}
-              <span class="showoff-add-more">+ Add more</span>
+              <span class="showoff-done-tag">✓ Verified{docCount > 0 ? ` · ${docCount} ${docCount === 1 ? 'photo' : 'photos'}` : ''}</span>
             {:else}
               <span class="showoff-time">{cat.time}</span>
             {/if}
-          </div>
-          <div class="showoff-powers">
-            <span class="showoff-powers-dot"></span>
-            Powers: <span class="showoff-powers-list">{cat.powers}</span>
           </div>
         </div>
         {#if done}
@@ -1192,42 +1184,6 @@
     color: var(--accent);
   }
 
-  .showoff-doc-count {
-    font-size: 10px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.4);
-    background: rgba(255, 255, 255, 0.07);
-    border-radius: 8px;
-    padding: 1px 6px;
-  }
-
-  .showoff-add-more {
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--accent);
-    opacity: 0.75;
-    letter-spacing: 0.02em;
-  }
-
-  .showoff-powers {
-    font-size: 10.5px;
-    color: var(--text-3);
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-top: 3px;
-  }
-  .showoff-powers-dot {
-    display: inline-block;
-    width: 3px;
-    height: 3px;
-    border-radius: 50%;
-    background: var(--text-3);
-    flex-shrink: 0;
-  }
-  .showoff-powers-list {
-    color: var(--text-2);
-  }
 
   .showoff-pts--done {
     background: var(--accent);
