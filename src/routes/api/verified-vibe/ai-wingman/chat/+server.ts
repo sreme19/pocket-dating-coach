@@ -23,6 +23,7 @@ import { touchLastActive } from '$lib/server/pool-registry';
 import { popPendingChatMessage } from '$lib/server/intelligence-report-processor';
 import { queueIntelligenceReport } from '$lib/server/matchmaker-service';
 import { processIntelligenceReport } from '$lib/server/intelligence-report-processor';
+import { complianceGate } from '$lib/server/ai-compliance';
 
 // Phrases that indicate the user wants competitive/improvement intelligence
 const INTELLIGENCE_INTENTS = [
@@ -363,7 +364,11 @@ ${personalityContext}${masterProfileContext}${artifactsContext}${admirerContext}
 		});
 
 		const block = response.content[0];
-		const reply = block.type === 'text' ? block.text.trim() : '';
+		const rawReply = block.type === 'text' ? block.text.trim() : '';
+
+		// Compliance gate — PII regex + Haiku validator
+		const compliance = await complianceGate({ text: rawReply, userId, assistantType: 'wingman' });
+		const reply = compliance.text;
 
 		return json({ reply });
 	} catch (err) {

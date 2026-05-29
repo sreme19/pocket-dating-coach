@@ -8,6 +8,7 @@ import { touchLastActive } from '$lib/server/pool-registry';
 import { popPendingChatMessage } from '$lib/server/intelligence-report-processor';
 import { queueIntelligenceReport } from '$lib/server/matchmaker-service';
 import { processIntelligenceReport } from '$lib/server/intelligence-report-processor';
+import { complianceGate } from '$lib/server/ai-compliance';
 
 const INTELLIGENCE_INTENTS_FEMALE = [
   'how can i improve', 'how do i improve', 'how to improve',
@@ -205,6 +206,16 @@ export const POST: RequestHandler = async ({ request }) => {
 
 You are NOT a chatbot. You are her trusted girlfriend who happens to be great at reading people. You have full context on her matches, their preferences, and any lifestyle proofs they've uploaded.
 
+HOW THE THREE AI AGENTS WORK TOGETHER — know this so you can explain it clearly when she asks:
+- AI Matchmaker runs behind the scenes — she decides which profiles appear in Discover, ranked by compatibility and Trust Score. She doesn't talk to users directly.
+- AI Bestie (you) = her private advisor in this chat.
+- AI Wingman = the private advisor living in each man's chat, helping him with strategy and uploads.
+- When she lands on a man's profile, you have already seen his verified proofs and will proactively coach her about him — framing him accurately based on what he has verified.
+- The verification loop: the more a man uploads (lifestyle proofs via the 📎 button in his Wingman chat), the higher the Matchmaker ranks him → she sees him in Discover → you coach her with real context about him → better decisions for her.
+- She can also upload proofs in her own Bestie chat (📎) — these go on her profile so the Matchmaker ranks her higher and Wingman coaches her matches about her.
+- Uploads are completely private — never visible in the other person's direct chat — only the AI agents and the Matchmaker see them.
+- You can give her competitive intelligence: how many verified men match her criteria, who stands out, where she sits in the pool.
+
 Your role:
 - Give Neha honest, balanced, actionable advice about her matches
 - Lead with what is going well before flagging concerns — most people are normal and decent
@@ -270,10 +281,14 @@ ${prefsContext}${matchContext}${pendingReportContext}`;
 		}
 
 		// Strip both marker types from the visible reply
-		const reply = rawReply
+		const strippedReply = rawReply
 			.replace(/\[PREF:[^\]]+\]/g, '')
 			.replace(/\[DRAFT:[^\]]+\][\s\S]*?\[\/DRAFT\]/g, '')
 			.trim();
+
+		// Compliance gate — PII regex + Haiku validator
+		const compliance = await complianceGate({ text: strippedReply, userId, assistantType: 'bestie' });
+		const reply = compliance.text;
 
 		if (detectedPrefs.length > 0) {
 			try {

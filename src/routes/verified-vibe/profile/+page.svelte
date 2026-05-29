@@ -602,6 +602,8 @@
 
   // Hero edit (name / age / city)
   let editingHero  = $state(false);
+  let savingHero   = $state(false);
+  let heroSaveErr  = $state<string | null>(null);
   let heroDraft    = $state<{ firstName: string; age: string; city: string }>({ firstName: '', age: '', city: '' });
 
   async function saveHero() {
@@ -609,15 +611,15 @@
     const age       = parseInt(String(heroDraft.age)) || $user?.age || 0;
     const city      = heroDraft.city.trim() || $user?.city || '';
 
-    // Close the form immediately regardless of store/DB state
-    editingHero = false;
+    heroSaveErr  = null;
+    savingHero   = true;
 
-    // Update the store if the user object is available
+    // 1. Optimistically update the in-memory store so the UI responds immediately
     if ($user) {
       user.set({ ...$user, firstName, age, city });
     }
 
-    // Always persist to localStorage draft so values survive a refresh
+    // 2. Persist to localStorage draft so values survive a hard refresh even if DB fails
     try {
       const pd = JSON.parse(localStorage.getItem('vv_profile_draft') ?? '{}');
       if (firstName) pd.firstName = firstName;
@@ -627,20 +629,42 @@
       draft = pd as typeof draft;
     } catch { /* non-critical */ }
 
-    // Persist to DB — use session.user.id (always available) rather than $user?.id
+    // 3. Persist to DB via upsertProfile() — the authoritative write path.
+    //    Uses the session from the Supabase client, upserts to handle missing rows.
     try {
-      const sb = getSupabaseClient();
-      const { data: { session } } = await sb.auth.getSession();
-      if (session?.user?.id) {
-        const dbUpdate: Record<string, unknown> = {};
-        if (firstName) dbUpdate.first_name = firstName;
-        if (age)       dbUpdate.age         = age;
-        if (city)      dbUpdate.city        = city;
-        if (Object.keys(dbUpdate).length > 0) {
-          await sb.from('verified_vibe_users').update(dbUpdate).eq('id', session.user.id);
+      const dbUpdate: Parameters<typeof upsertProfile>[0] = {};
+      if (firstName) (dbUpdate as any).first_name = firstName;
+      if (age)       (dbUpdate as any).age         = age;
+      if (city)      (dbUpdate as any).city        = city;
+
+      if (Object.keys(dbUpdate).length > 0) {
+        const saved = await upsertProfile(dbUpdate);
+        if (saved) {
+          // Reconcile the store with the authoritative DB response
+          user.set({
+            id:         saved.id,
+            gender:     saved.gender || ($user?.gender ?? 'man'),
+            archetype:  (saved.archetype as any) || ($user?.archetype ?? 'casual_man'),
+            firstName:  saved.first_name || firstName,
+            age:        saved.age || age,
+            city:       saved.city || city,
+            avatar:     saved.avatar_url || $user?.avatar || null,
+            about:      saved.about || $user?.about || null,
+            looking:    saved.looking || $user?.looking || null,
+            trustScore: saved.trust_score || $user?.trustScore || 0,
+            createdAt:  $user?.createdAt ?? new Date(),
+            updatedAt:  new Date(),
+          });
         }
       }
-    } catch { /* non-critical */ }
+      editingHero = false;
+    } catch (e) {
+      console.error('[saveHero] DB write failed:', e);
+      heroSaveErr = 'Saved locally — will sync when connection is restored.';
+      editingHero = false;
+    } finally {
+      savingHero = false;
+    }
   }
 
   // AI Personality Portrait
@@ -1964,9 +1988,18 @@
               maxlength={60}
             />
             <div class="hero-edit-actions">
-              <button class="hero-edit-save" type="button" onclick={saveHero}>Save</button>
-              <button class="hero-edit-cancel" type="button" onclick={() => editingHero = false}>Cancel</button>
+              <button class="hero-edit-save" type="button" onclick={saveHero} disabled={savingHero}>
+                {#if savingHero}
+                  <span class="hero-save-spinner"></span> Saving…
+                {:else}
+                  Save
+                {/if}
+              </button>
+              <button class="hero-edit-cancel" type="button" onclick={() => editingHero = false} disabled={savingHero}>Cancel</button>
             </div>
+            {#if heroSaveErr}
+              <p class="hero-save-err">{heroSaveErr}</p>
+            {/if}
           </div>
         {:else}
           <div class="hero-name-row">
@@ -6551,6 +6584,29 @@
     font-size: 13px;
     padding: 8px;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: opacity 150ms;
+  }
+  .hero-edit-save:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .hero-save-spinner {
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(0,0,0,0.25);
+    border-top-color: #000;
+    border-radius: 50%;
+    animation: hspin 0.6s linear infinite;
+  }
+  @keyframes hspin { to { transform: rotate(360deg); } }
+
+  .hero-save-err {
+    font-size: 11px;
+    color: #f59e0b;
+    margin: 4px 0 0;
+    line-height: 1.4;
   }
 
   .hero-edit-cancel {
@@ -6563,6 +6619,7 @@
     padding: 8px;
     cursor: pointer;
   }
+  .hero-edit-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
 
   /* ── AI Personality Portrait ─────────────────────────────────────────────── */
   .portrait-section { gap: 12px; }

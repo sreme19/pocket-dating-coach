@@ -3,7 +3,9 @@
   import { goto } from '$app/navigation';
   import { fly } from 'svelte/transition';
   import { user } from '$lib/verified-vibe/stores';
+  import { getSupabaseClient } from '$lib/client/supabase';
   import VoiceDictation from '$lib/components/VoiceDictation.svelte';
+  import EcosystemExplainer from '$lib/components/EcosystemExplainer.svelte';
 
   interface ChatMessage {
     role: 'user' | 'assistant';
@@ -77,6 +79,105 @@
 
   let showUploadSuggestions = $state(false);
   let pendingClaimTag = $state('general');
+  let showEcosystemExplainer = $state(false);
+
+  // ── Proactive greeting state ──────────────────────────────────────────────────
+  interface Greeting {
+    id: string;
+    content: string;
+    mode: number;
+    topicTags: string[];
+  }
+  let greeting = $state<Greeting | null>(null);
+  let greetingFeedback = $state<'up' | 'down' | null>(null);
+  let greetingFeedbackDone = $state(false);
+  let showReasonChips = $state(false);
+  let selectedReasonChip = $state<string | null>(null);
+  let feedbackNote = $state('');
+  let showFeedbackNote = $state(false);
+  let submittingFeedback = $state(false);
+
+  const REASON_CHIPS = [
+    { key: 'too_generic',   label: 'Too generic' },
+    { key: 'not_relevant',  label: 'Not relevant' },
+    { key: 'wrong_tone',    label: 'Wrong tone' },
+    { key: 'factually_off', label: 'Factually off' },
+    { key: 'other',         label: 'Other' },
+  ];
+
+  async function fetchGreeting() {
+    try {
+      const sb = getSupabaseClient();
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session?.access_token) return;
+
+      const res = await fetch('/api/verified-vibe/ai-greeting', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) return;
+      const data = await res.json() as { isNew: boolean; greetingId?: string; content?: string; mode?: number; topicTags?: string[] };
+      if (data.isNew && data.greetingId && data.content) {
+        greeting = {
+          id: data.greetingId,
+          content: data.content,
+          mode: data.mode ?? 0,
+          topicTags: data.topicTags ?? [],
+        };
+      }
+    } catch { /* greeting is non-critical */ }
+  }
+
+  async function submitGreetingFeedback(rating: 'up' | 'down') {
+    if (greetingFeedbackDone || !greeting) return;
+    greetingFeedback = rating;
+
+    if (rating === 'down') {
+      showReasonChips = true;
+      return; // Wait for reason chip selection before submitting
+    }
+
+    await doSubmitFeedback(1, null, null);
+  }
+
+  async function submitWithReason() {
+    if (!greeting || submittingFeedback) return;
+    const chip = selectedReasonChip;
+    const note = feedbackNote.trim() || null;
+    await doSubmitFeedback(-1, chip, note);
+    showReasonChips = false;
+    showFeedbackNote = false;
+  }
+
+  async function doSubmitFeedback(rating: 1 | -1, chip: string | null, note: string | null) {
+    if (!greeting || submittingFeedback) return;
+    submittingFeedback = true;
+    try {
+      const sb = getSupabaseClient();
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session?.access_token) return;
+
+      await fetch('/api/verified-vibe/ai-feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          greetingId: greeting.id,
+          rating,
+          reasonChip: chip,
+          feedbackText: note,
+        }),
+      });
+      greetingFeedbackDone = true;
+    } catch { /* fail silently */ }
+    finally { submittingFeedback = false; }
+  }
 
   onMount(async () => {
     user.hydrate();
@@ -90,6 +191,8 @@
         timestamp: new Date()
       }];
     }
+    // Fetch proactive greeting in parallel (non-blocking)
+    fetchGreeting();
     await scrollToBottom();
   });
 
@@ -241,6 +344,16 @@
     <div class="header-actions">
       <button
         class="config-btn"
+        onclick={() => showEcosystemExplainer = true}
+        title="How the AI agents work"
+        aria-label="How the AI agents work"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+      </button>
+      <button
+        class="config-btn"
         onclick={() => { if (confirm('Clear chat history?')) clearHistory(); }}
         title="Clear history"
         aria-label="Clear chat history"
@@ -252,8 +365,77 @@
     </div>
   </div>
 
+  <EcosystemExplainer open={showEcosystemExplainer} perspective="man" onClose={() => showEcosystemExplainer = false} />
+
   <!-- Messages -->
   <div class="messages-area">
+    <!-- Proactive greeting bubble -->
+    {#if greeting}
+      <div class="msg-row assistant" transition:fly={{ y: 8, duration: 260 }}>
+        <div class="wm-bubble-avatar">🛡️</div>
+        <div class="assistant-col">
+          <div class="greeting-badge">✨ New from AI Wingman</div>
+          <div class="bubble assistant greeting-bubble">
+            {@html renderMarkdown(greeting.content)}
+          </div>
+
+          {#if !greetingFeedbackDone}
+            {#if !showReasonChips}
+              <div class="feedback-row">
+                <span class="feedback-label">Helpful?</span>
+                <button
+                  class="thumb-btn {greetingFeedback === 'up' ? 'active up' : ''}"
+                  onclick={() => submitGreetingFeedback('up')}
+                  disabled={submittingFeedback}
+                  aria-label="Helpful"
+                >👍</button>
+                <button
+                  class="thumb-btn {greetingFeedback === 'down' ? 'active down' : ''}"
+                  onclick={() => submitGreetingFeedback('down')}
+                  disabled={submittingFeedback}
+                  aria-label="Not helpful"
+                >👎</button>
+              </div>
+            {:else}
+              <div class="reason-chips-panel" transition:fly={{ y: 6, duration: 180 }}>
+                <p class="reason-prompt">What was off?</p>
+                <div class="reason-chips">
+                  {#each REASON_CHIPS as rc}
+                    <button
+                      class="reason-chip {selectedReasonChip === rc.key ? 'selected' : ''}"
+                      onclick={() => {
+                        selectedReasonChip = rc.key;
+                        showFeedbackNote = rc.key === 'other';
+                      }}
+                    >{rc.label}</button>
+                  {/each}
+                </div>
+                {#if showFeedbackNote || selectedReasonChip}
+                  <textarea
+                    class="feedback-note"
+                    placeholder="Optional — tell us more…"
+                    bind:value={feedbackNote}
+                    rows="2"
+                  ></textarea>
+                {/if}
+                <div class="reason-actions">
+                  <button class="reason-skip" onclick={() => { showReasonChips = false; greetingFeedbackDone = true; doSubmitFeedback(-1, null, null); }}>Skip</button>
+                  <button
+                    class="reason-submit"
+                    disabled={!selectedReasonChip || submittingFeedback}
+                    onclick={submitWithReason}
+                  >{submittingFeedback ? 'Sending…' : 'Send'}</button>
+                </div>
+              </div>
+            {/if}
+          {:else}
+            <div class="feedback-done">Thanks for the feedback 👍</div>
+          {/if}
+        </div>
+      </div>
+      <div class="greeting-divider"><span>Your messages</span></div>
+    {/if}
+
     {#each messages as msg, i (i)}
       <div class="msg-row {msg.role}" transition:fly={{ y: 8, duration: 200 }}>
         {#if msg.role === 'assistant'}
@@ -397,6 +579,139 @@
     height: 100%;
     background: var(--bg-1);
     overflow: hidden;
+  }
+
+  /* ── Greeting bubble ── */
+  .greeting-badge {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent-bright);
+    margin-bottom: 4px;
+  }
+
+  .greeting-bubble {
+    border-color: var(--accent-bright) !important;
+    border-width: 1.5px !important;
+  }
+
+  .greeting-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 4px 0 2px;
+    color: var(--text-3);
+    font-size: 11px;
+  }
+  .greeting-divider::before,
+  .greeting-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-1);
+  }
+
+  .feedback-label {
+    font-size: 11px;
+    color: var(--text-3);
+    margin-right: 4px;
+  }
+
+  /* ── Reason chips ── */
+  .reason-chips-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 6px;
+    padding: 10px 12px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    border-radius: 12px;
+    max-width: 78vw;
+  }
+
+  .reason-prompt {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-2);
+    margin: 0;
+  }
+
+  .reason-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .reason-chip {
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border-2);
+    background: var(--bg-1);
+    color: var(--text-2);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 130ms;
+  }
+  .reason-chip:hover { border-color: var(--accent-bright); color: var(--accent-bright); }
+  .reason-chip.selected {
+    border-color: var(--accent-bright);
+    background: var(--accent-tint);
+    color: var(--accent-bright);
+    font-weight: 600;
+  }
+
+  .feedback-note {
+    width: 100%;
+    background: var(--bg-1);
+    border: 1px solid var(--border-1);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    color: var(--text-1);
+    font-family: inherit;
+    resize: none;
+    line-height: 1.5;
+    box-sizing: border-box;
+  }
+  .feedback-note:focus { outline: none; border-color: var(--accent-bright); }
+
+  .reason-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
+  .reason-skip {
+    background: none;
+    border: none;
+    color: var(--text-3);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 4px 8px;
+    font-family: inherit;
+  }
+
+  .reason-submit {
+    background: var(--accent-bright);
+    border: none;
+    color: #06281e;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 5px 14px;
+    border-radius: 999px;
+    font-family: inherit;
+    transition: opacity 150ms;
+  }
+  .reason-submit:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .feedback-done {
+    font-size: 11px;
+    color: var(--text-3);
+    padding: 2px 0;
   }
 
   /* Header */
