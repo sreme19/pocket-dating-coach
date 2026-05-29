@@ -19,30 +19,13 @@
   import { upsertProfile } from '$lib/verified-vibe/services/profileService';
   import PhotoUploadStep from '$lib/verified-vibe/components/PhotoUploadStep.svelte';
   import SpendingQAStep from '$lib/verified-vibe/components/SpendingQAStep.svelte';
-  import SpendingUploadStep from '$lib/verified-vibe/components/SpendingUploadStep.svelte';
   import IDExtractionStep from '$lib/verified-vibe/components/IDExtractionStep.svelte';
   import LivenessStep from '$lib/verified-vibe/components/LivenessStep.svelte';
+  import IdentityCheckStep from '$lib/verified-vibe/components/IdentityCheckStep.svelte';
   import ProfileIntakeStep from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
-  import MatrimonyPreferencesStep from '$lib/verified-vibe/components/MatrimonyPreferencesStep.svelte';
-  import MatrimonyProfileStep from '$lib/verified-vibe/components/MatrimonyProfileStep.svelte';
-  import ForeverIntentStep from '$lib/verified-vibe/components/ForeverIntentStep.svelte';
-  import ForeverProfileStep from '$lib/verified-vibe/components/ForeverProfileStep.svelte';
-  import ForeverPreferencesStep from '$lib/verified-vibe/components/ForeverPreferencesStep.svelte';
-  import RomanticIntentStep from '$lib/verified-vibe/components/RomanticIntentStep.svelte';
-  import RomanticProfileStep from '$lib/verified-vibe/components/RomanticProfileStep.svelte';
-  import RomanticPreferencesStep from '$lib/verified-vibe/components/RomanticPreferencesStep.svelte';
-  import SecondChapterIntentStep from '$lib/verified-vibe/components/SecondChapterIntentStep.svelte';
-  import SecondChapterProfileStep from '$lib/verified-vibe/components/SecondChapterProfileStep.svelte';
-  import SecondChapterPreferencesStep from '$lib/verified-vibe/components/SecondChapterPreferencesStep.svelte';
-  import ReboundHealingStep from '$lib/verified-vibe/components/ReboundHealingStep.svelte';
-  import UntouchedHeartIntentStep from '$lib/verified-vibe/components/UntouchedHeartIntentStep.svelte';
-  import UntouchedHeartProfileStep from '$lib/verified-vibe/components/UntouchedHeartProfileStep.svelte';
-  import UntouchedHeartPreferencesStep from '$lib/verified-vibe/components/UntouchedHeartPreferencesStep.svelte';
-  import JustFriendsIntentStep from '$lib/verified-vibe/components/JustFriendsIntentStep.svelte';
-  import JustFriendsProfileStep from '$lib/verified-vibe/components/JustFriendsProfileStep.svelte';
-  import JustFriendsPreferencesStep from '$lib/verified-vibe/components/JustFriendsPreferencesStep.svelte';
-  import CasualGenerousProfileStep from '$lib/verified-vibe/components/CasualGenerousProfileStep.svelte';
-  import CasualGenerousPreferencesStep from '$lib/verified-vibe/components/CasualGenerousPreferencesStep.svelte';
+  import DrawnToStep from '$lib/verified-vibe/components/DrawnToStep.svelte';
+  import HowYouLiveStep from '$lib/verified-vibe/components/HowYouLiveStep.svelte';
+  import PhotosPlaceStep from '$lib/verified-vibe/components/PhotosPlaceStep.svelte';
   import TrustPointsBadge from '$lib/verified-vibe/components/TrustPointsBadge.svelte';
   import ProfilePreviewSheet from '$lib/verified-vibe/components/ProfilePreviewSheet.svelte';
   import type { SeedCarouselProfile } from '$lib/verified-vibe/components/LiveWomenCarousel.svelte';
@@ -72,9 +55,13 @@
   let showSkipWarning = $state(false);
   let stepData = $state<Record<number, any>>({});
   let idPhotoBase64 = $state('');
+  let identitySubView = $state<'overview' | 'liveness'>('overview');
+  let identityIdDone = $state(false);
+  let identitySelfieDone = $state(false);
   // Extracted from ID step — pre-fills profile intake
   let extractedName = $state('');
   let extractedAge = $state(0);
+  let extractedIDFields = $state<{ name: string; dob: string; gender?: string; idNumber: string } | null>(null);
 
   // ── Motivation cards ────────────────────────────────────────────────────────
 
@@ -246,20 +233,13 @@
     if ($user?.archetype === 'casual_generous_man') return {
       step3,
       step4: {
-        profile: pPriya,
-        quoteBefore: '"Most men won\'t do this step. Which is exactly why the ones who do ',
-        highlight: 'immediately move to the top of my list',
-        quoteAfter: '. It\'s that simple."',
-        profession: 'UX Researcher',
-      },
-      step5: {
         profile: pAnjali,
         quoteBefore: '"The most interesting men I\'ve matched with weren\'t showing off. They were just ',
         highlight: 'genuinely sure of what they enjoy',
         quoteAfter: '. That\'s the real flex."',
         profession: 'Pharmacist',
       },
-      step6: {
+      step5: {
         profile: pSarah,
         quoteBefore: '"I don\'t care about a man\'s résumé. I care about what he\'d do with a free weekend. ',
         highlight: 'That\'s what tells me everything',
@@ -624,82 +604,12 @@
     $user?.archetype === 'just_friends_woman'
   );
 
-  const steps = $derived((() => {
-    const base = [
-      { number: 1, name: 'Government ID', description: "Prove you're actually you.", icon: '🆔', stepType: 'id' as VerificationStepType, time: '~30 sec', points: 30 },
-      { number: 2, name: 'Selfie check', description: 'Same face as your ID.', icon: '🤳', stepType: 'liveness' as VerificationStepType, time: '~60 sec', points: 35 },
-      { number: 3, name: 'Photo story', description: 'Five photos. One face.', icon: '📸', stepType: 'photos' as VerificationStepType, time: '~45 sec', points: 55 },
-      {
-        number: 4,
-        name: $user?.archetype === 'casual_generous_man' ? 'Spending proof' : isForeverFocusedArchetype ? 'Relationship Intent' : isRomanticArchetype ? 'Love & Connection' : isSecondChapterArchetype ? 'Reflection & Readiness' : isReboundHealingArchetype ? 'Connection Style' : isUntouchedHeartArchetype ? 'Openness & Intent' : isJustFriendsArchetype ? 'Social Intent' : 'Intent check',
-        description: $user?.archetype === 'casual_generous_man' ? 'Where the money lands.' : isForeverFocusedArchetype ? 'Your relationship goals.' : isRomanticArchetype ? 'What love means to you.' : isSecondChapterArchetype ? 'Your journey so far.' : isReboundHealingArchetype ? 'How you connect now.' : isUntouchedHeartArchetype ? 'Your dating journey.' : isJustFriendsArchetype ? 'What you\'re looking for.' : 'Tell us the truth.',
-        icon: $user?.archetype === 'casual_generous_man' ? '💰' : isForeverFocusedArchetype ? '💫' : isRomanticArchetype ? '❤️' : isSecondChapterArchetype ? '🌱' : isReboundHealingArchetype ? '🌙' : isUntouchedHeartArchetype ? '🌿' : isJustFriendsArchetype ? '🤝' : '💬',
-        stepType: 'spending_or_qa' as VerificationStepType,
-        time: '~2 min',
-        points: 80
-      }
-    ];
-    if (isMatrimonyArchetype) {
-      return [
-        ...base,
-        { number: 5, name: 'About You', description: 'Your background & values.', icon: '👤', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
-        { number: 6, name: 'Partner Preferences', description: 'Your ideal partner.', icon: '💍', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
-        { number: 7, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
-      ];
-    }
-    if (isForeverFocusedArchetype) {
-      return [
-        ...base,
-        { number: 5, name: 'About You', description: 'Your values & priorities.', icon: '👤', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
-        { number: 6, name: 'Partner Preferences', description: 'Your ideal partner.', icon: '💝', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
-        { number: 7, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
-      ];
-    }
-    if (isRomanticArchetype) {
-      return [
-        ...base,
-        { number: 5, name: 'About You', description: 'Your love language & values.', icon: '🫀', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
-        { number: 6, name: 'Partner Preferences', description: 'Who your heart falls for.', icon: '💝', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
-        { number: 7, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
-      ];
-    }
-    if (isSecondChapterArchetype) {
-      return [
-        ...base,
-        { number: 5, name: 'About You', description: 'Where you are today.', icon: '🌤️', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
-        { number: 6, name: 'Partner Preferences', description: 'What you need now.', icon: '💝', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
-        { number: 7, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
-      ];
-    }
-    if (isUntouchedHeartArchetype) {
-      return [
-        ...base,
-        { number: 5, name: 'About You', description: 'How you connect and what you value.', icon: '🌱', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
-        { number: 6, name: 'Partner Preferences', description: 'The kind of person you\'re hoping to find.', icon: '💝', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
-        { number: 7, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
-      ];
-    }
-    if (isJustFriendsArchetype) {
-      return [
-        ...base,
-        { number: 5, name: 'About You', description: 'Your social style and what you enjoy.', icon: '😊', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
-        { number: 6, name: 'Friend Preferences', description: 'The kind of people you click with.', icon: '🌿', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
-        { number: 7, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
-      ];
-    }
-    if ($user?.archetype === 'casual_generous_man') {
-      return [
-        ...base,
-        { number: 5, name: 'Taste & Experiences', description: 'What you\'re drawn to.', icon: '💎', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
-        { number: 6, name: 'Lifestyle & Standards', description: 'How you live and what you value.', icon: '🔒', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min', points: 20 },
-        { number: 7, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
-      ];
-    }
-    return [
-      ...base,
-      { number: 5, name: 'Your Profile', description: 'Earn your profile.', icon: '✨', stepType: 'id' as VerificationStepType, time: '~10 min', points: 0 }
-    ];
-  })());
+  const steps = $derived([
+    { number: 1, name: 'Identity Check', description: "Prove you're actually you.", icon: '🪪', stepType: 'id'            as VerificationStepType, time: '~90 sec', points: 65 },
+    { number: 2, name: 'Drawn To',       description: "What you're drawn to.",      icon: '✨', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min',  points: 80 },
+    { number: 3, name: 'How You Live',   description: 'Your lifestyle & standards.', icon: '💼', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min',  points: 80 },
+    { number: 4, name: 'Photos & Place', description: 'Almost there.',              icon: '📸', stepType: 'photos'         as VerificationStepType, time: '~60 sec', points: 55 },
+  ]);
 
   const totalSteps = $derived(steps.length);
 
@@ -727,7 +637,7 @@
     // Jump to a specific step when coming from a boost CTA or profile edit
     const urlStep = get(page).url.searchParams.get('step');
     if (urlStep) {
-      const STEP_MAP: Record<string, number> = { id: 1, liveness: 2, archetype_qa: 4 };
+      const STEP_MAP: Record<string, number> = { id: 1, archetype_qa: 3 };
       const target = STEP_MAP[urlStep];
       if (target) {
         currentStep = target;
@@ -770,6 +680,144 @@
       }).catch(e => console.error('[verify] pending profile flush failed:', e));
     }
   });
+
+  async function handleIDStepDone(data: { idImage: string; mimeType: string }) {
+    error = null;
+    clearError();
+    loading = true;
+    idPhotoBase64 = data.idImage;
+    sessionStorage.setItem('vv_id_photo_b64', data.idImage);
+    try {
+      const response = await fetch('/api/verified-vibe/verify-step', {
+        method: 'POST',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({ step: 'id', data: { image: data.idImage, mimeType: data.mimeType } })
+      });
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || 'ID verification failed');
+      }
+      const result = await response.json();
+
+      // Quality gate: if key fields couldn't be extracted the photo is unclear
+      const hasValidExtraction = !!(result.data?.idName?.trim() && result.data?.idNumber?.trim());
+      if (!hasValidExtraction) {
+        error = 'ID photo is unclear — please retake with better lighting and hold the card flat.';
+        setError(error);
+        return;
+      }
+
+      if (result.data?.idName) {
+        extractedName = result.data.idName.split(' ')[0];
+        // Persist first name to profile draft so profile page shows it immediately
+        try {
+          const existingDraft = localStorage.getItem('vv_profile_draft');
+          const profileDraft = existingDraft ? JSON.parse(existingDraft) : {};
+          if (!profileDraft.firstName) {
+            profileDraft.firstName = extractedName;
+            localStorage.setItem('vv_profile_draft', JSON.stringify(profileDraft));
+          }
+        } catch {}
+        // Also update user store
+        if ($user) user.update(u => u ? { ...u, firstName: extractedName } : u);
+      }
+      if (result.data) {
+        extractedIDFields = {
+          name: result.data.idName ?? '',
+          dob: result.data.idDOB ?? '',
+          gender: result.data.idGender ?? undefined,
+          idNumber: result.data.idNumber ?? ''
+        };
+      }
+      addVerificationRecord({
+        id: `${$user?.id}-id`, userId: $user?.id || '', step: 'id',
+        status: 'completed', data: result.data, completedAt: new Date(), createdAt: new Date()
+      });
+      updateTrustScoreAfterVerification();
+      identityIdDone = true;
+      identitySubView = 'overview';
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleSelfieCapture(data: { selfieImage: string; mimeType: string }) {
+    error = null;
+    clearError();
+    loading = true;
+    try {
+      const response = await fetch('/api/verified-vibe/verify-step', {
+        method: 'POST',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({
+          step: 'liveness',
+          data: { selfieImage: data.selfieImage, idPhotoBase64: idPhotoBase64, mimeType: data.mimeType }
+        })
+      });
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || 'Face match failed — please retake your selfie');
+      }
+      const result = await response.json();
+      addVerificationRecord({
+        id: `${$user?.id}-liveness`, userId: $user?.id || '', step: 'liveness',
+        status: 'completed', data: result.data, completedAt: new Date(), createdAt: new Date()
+      });
+      updateTrustScoreAfterVerification();
+      identitySelfieDone = true;
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  async function handleLivenessStepDone(data: LivenessCheckResult) {
+    error = null;
+    clearError();
+    loading = true;
+    try {
+      const response = await fetch('/api/verified-vibe/verify-step', {
+        method: 'POST',
+        headers: await getAuthHeaders(),
+        body: JSON.stringify({ step: 'liveness', data })
+      });
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || 'Liveness verification failed');
+      }
+      addVerificationRecord({
+        id: `${$user?.id}-liveness`, userId: $user?.id || '', step: 'liveness',
+        status: 'completed', data, completedAt: new Date(), createdAt: new Date()
+      });
+      updateTrustScoreAfterVerification();
+      identitySelfieDone = true;
+      identitySubView = 'overview';
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'An error occurred';
+      setError(error);
+    } finally {
+      loading = false;
+    }
+  }
+
+  function handleIdentityComplete() {
+    completedSteps.add(currentStep);
+    const progress = (completedSteps.size / totalSteps) * 100;
+    verificationProgress.set(progress);
+    updateTrustScoreAfterVerification();
+    if (currentStep < totalSteps) {
+      currentStep++;
+      verificationStep.set(currentStep);
+    } else {
+      setPhase('app');
+      goto('/verified-vibe/discover');
+    }
+  }
 
   async function handleIDSubmit(data: { idImage: string; mimeType: string }) {
     error = null;
@@ -1052,72 +1100,152 @@
     }
   }
 
-  async function handleQASubmit(data: { responses: Record<string, string | string[]> }) {
+  async function handleDrawnToSubmit(picks: Record<string, string[]>) {
+    return handleQASubmit({ responses: picks as Record<string, string | string[]> });
+  }
+
+  async function handleHowYouLiveSubmit(data: Record<string, string[]>) {
+    localStorage.setItem('vv_how_you_live', JSON.stringify(data));
+    return handleQASubmit({ responses: data as Record<string, string | string[]> });
+  }
+
+  async function handlePhotosPlaceSubmit(data: { photos: File[]; city: string; openToTravel: boolean }) {
     error = null;
     clearError();
     loading = true;
-
-    // Persist QA responses to localStorage so the profile page can read them
-    localStorage.setItem('vv_qa_responses', JSON.stringify(data.responses));
-
     try {
-      // Submit to API
+      // Convert photos to base64 + data URLs
+      const photoResults = await Promise.all(
+        data.photos.map(file => new Promise<{ base64: string; dataUrl: string }>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const dataUrl = reader.result as string;
+            resolve({ base64: dataUrl.split(',')[1], dataUrl });
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        }))
+      );
+
+      // Persist city to profile draft so profile page shows it
+      if (data.city) {
+        try {
+          const existingDraft = localStorage.getItem('vv_profile_draft');
+          const profileDraft = existingDraft ? JSON.parse(existingDraft) : {};
+          profileDraft.city = data.city;
+          localStorage.setItem('vv_profile_draft', JSON.stringify(profileDraft));
+        } catch {}
+        if ($user) user.update(u => u ? { ...u, city: data.city } : u);
+      }
+
+      // Persist to localStorage for profile page
+      localStorage.setItem('vv_photos', JSON.stringify(
+        photoResults.map((r, i) => ({ dataUrl: r.dataUrl, label: i === 0 ? 'main' : 'photo' }))
+      ));
+      localStorage.setItem('vv_city', data.city);
+      localStorage.setItem('vv_open_to_travel', String(data.openToTravel));
+
+      // Persist city to profile
+      if ($user) {
+        await upsertProfile({
+          gender: $user?.gender ?? null,
+          archetype: $user?.archetype ?? null,
+          city: data.city
+        });
+      }
+
+      // Submit photos step to API
       const response = await fetch('/api/verified-vibe/verify-step', {
         method: 'POST',
         headers: await getAuthHeaders(),
         body: JSON.stringify({
-          step: 'spending_or_qa',
+          step: 'photos',
           data: {
-            responses: data.responses,
-            gender: $user?.gender,
-            archetype: $user?.archetype
+            images: photoResults.map(r => r.base64),
+            mimeTypes: data.photos.map(f => f.type),
+            labels: Object.fromEntries(data.photos.map((_, i) => [i, i === 0 ? 'main' : 'photo'])),
+            city: data.city,
+            openToTravel: data.openToTravel
           }
         })
       });
 
       if (!response.ok) {
         const result = await response.json();
-        throw new Error(result.error || 'Q&A verification failed');
+        throw new Error(result.error || 'Photo submission failed');
       }
 
       const result = await response.json();
-
-      // Store verification record
       addVerificationRecord({
-        id: `${$user?.id}-spending_or_qa`,
+        id: `${$user?.id}-photos`,
         userId: $user?.id || '',
-        step: 'spending_or_qa',
+        step: 'photos',
         status: 'completed',
         data: result.data,
         completedAt: new Date(),
         createdAt: new Date()
       });
-
-      // Mark step as completed
       completedSteps.add(currentStep);
-
-      // Update progress
       const progress = (completedSteps.size / totalSteps) * 100;
       verificationProgress.set(progress);
-
-      // Update trust score
       updateTrustScoreAfterVerification();
 
-      // Move to next step or complete
-      if (currentStep < totalSteps) {
-        currentStep++;
-        verificationStep.set(currentStep);
-      } else {
-        // All steps complete
-        setPhase('app');
-        goto('/verified-vibe/discover');
-      }
+      // Last step — go to profile
+      setPhase('app');
+      goto('/verified-vibe/profile');
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
       setError(error);
     } finally {
       loading = false;
     }
+  }
+
+  async function handleQASubmit(data: { responses: Record<string, string | string[]> }) {
+    error = null;
+    clearError();
+
+    // Persist locally immediately
+    localStorage.setItem('vv_qa_responses', JSON.stringify(data.responses));
+
+    // Mark step done and advance — do not gate on API success
+    completedSteps.add(currentStep);
+    const progress = (completedSteps.size / totalSteps) * 100;
+    verificationProgress.set(progress);
+    updateTrustScoreAfterVerification();
+
+    if (currentStep < totalSteps) {
+      currentStep++;
+      verificationStep.set(currentStep);
+    } else {
+      setPhase('app');
+      goto('/verified-vibe/discover');
+    }
+
+    // Fire-and-forget background sync
+    getAuthHeaders().then(headers =>
+      fetch('/api/verified-vibe/verify-step', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          step: 'spending_or_qa',
+          data: { responses: data.responses, gender: $user?.gender, archetype: $user?.archetype }
+        })
+      }).then(async res => {
+        if (res.ok) {
+          const result = await res.json();
+          addVerificationRecord({
+            id: `${$user?.id}-spending_or_qa`,
+            userId: $user?.id || '',
+            step: 'spending_or_qa',
+            status: 'completed',
+            data: result.data,
+            completedAt: new Date(),
+            createdAt: new Date()
+          });
+        }
+      }).catch(() => {/* silent — local data already saved */})
+    );
   }
 
   async function handleMatrimonyProfileSubmit(data: { profile: Record<string, string | string[]> }) {
@@ -1837,8 +1965,8 @@
     <div class="header-spacer"></div>
   </div>
 
-  <!-- Step Navigation Indicator -->
-  <div class="step-navigation" transition:slide={{ duration: 400, delay: 50, axis: 'y' }}>
+  <!-- Step indicators -->
+  <div class="step-navigation">
     <div class="step-indicators">
       {#each steps as step (step.number)}
         {@const completed = isStepCompleted(step.number)}
@@ -1846,15 +1974,16 @@
         {@const active = currentStep === step.number}
         <div class="step-indicator {active ? 'active' : ''} {completed ? 'completed' : ''} {skipped ? 'skipped' : ''}">
           <div class="step-number">
-            {#if completed}
+            {#if completed || skipped}
               <span class="checkmark">✓</span>
-            {:else if skipped}
-              <span class="skip-mark">⊘</span>
             {:else}
               {step.number}
             {/if}
           </div>
         </div>
+        {#if step.number < steps.length}
+          <div class="step-connector {completed ? 'step-connector--done' : ''}"></div>
+        {/if}
       {/each}
     </div>
   </div>
@@ -1864,7 +1993,6 @@
     <div class="progress-bar">
       <div class="progress-fill" style="width: {getProgressPercentage()}%"></div>
     </div>
-    <div class="progress-text">Step {currentStep} of {totalSteps}</div>
   </div>
 
   <!-- Error message -->
@@ -1879,158 +2007,43 @@
   <!-- Step content -->
   {#key currentStep}
   <div class="verification-content">
-    <div class="step-header" transition:fade={{ duration: 300 }}>
-      <div class="step-header-top">
-        <div class="step-meta">
-          <span class="step-label">STEP {currentStep} OF {totalSteps}</span>
-          <span class="step-label-divider">·</span>
-          <span class="step-name">{steps[currentStep - 1].name}</span>
-        </div>
-        <TrustPointsBadge points={steps[currentStep - 1].points} size="md" variant="badge" />
-      </div>
-      <h2 class="step-title">{steps[currentStep - 1].description}</h2>
-      <p class="step-time">⏱️ {steps[currentStep - 1].time}</p>
-    </div>
-
     <!-- Step-specific content -->
     <div class="step-body" transition:slide={{ duration: 300, axis: 'y' }}>
-      {#if currentStep === 1}
-        <IDExtractionStep
-          onSubmit={handleIDSubmit}
-          onCancel={handleBack}
+      {#if currentStep === 1 && identitySubView === 'overview'}
+        <IdentityCheckStep
+          idDone={identityIdDone}
+          selfieDone={identitySelfieDone}
+          idFields={extractedIDFields}
+          {loading}
+          onIDFileSelected={handleIDStepDone}
+          onSelfieFileSelected={handleSelfieCapture}
+          onStartSelfie={() => { identitySubView = 'liveness'; }}
+          onComplete={handleIdentityComplete}
+          onSkip={handleSkipClick}
         />
-      {:else if currentStep === 2}
+      {:else if currentStep === 1 && identitySubView === 'liveness'}
         <LivenessStep
           {idPhotoBase64}
-          onSubmit={handleLivenessSubmit}
+          onSubmit={handleLivenessStepDone}
+          onCancel={() => { identitySubView = 'overview'; }}
+        />
+      {:else if currentStep === 2}
+        <DrawnToStep
+          onSubmit={handleDrawnToSubmit}
           onCancel={handleBack}
+          onSkip={handleSkipClick}
         />
       {:else if currentStep === 3}
-        <PhotoUploadStep
-          onSubmit={handlePhotoSubmit}
+        <HowYouLiveStep
+          onSubmit={handleHowYouLiveSubmit}
           onCancel={handleBack}
+          onSkip={handleSkipClick}
         />
       {:else if currentStep === 4}
-        {#if $user?.archetype === 'casual_generous_man'}
-          <SpendingUploadStep
-            onSubmit={handleSpendingSubmit}
-            onCancel={handleBack}
-          />
-        {:else if isForeverFocusedArchetype}
-          <ForeverIntentStep
-            onSubmit={handleForeverIntentSubmit}
-            onCancel={handleBack}
-          />
-        {:else if isRomanticArchetype}
-          <RomanticIntentStep
-            onSubmit={handleRomanticIntentSubmit}
-            onCancel={handleBack}
-          />
-        {:else if isSecondChapterArchetype}
-          <SecondChapterIntentStep
-            onSubmit={handleSecondChapterIntentSubmit}
-            onCancel={handleBack}
-          />
-        {:else if isReboundHealingArchetype}
-          <ReboundHealingStep
-            onSubmit={handleReboundHealingSubmit}
-            onCancel={handleBack}
-          />
-        {:else if isUntouchedHeartArchetype}
-          <UntouchedHeartIntentStep
-            onSubmit={handleUntouchedHeartIntentSubmit}
-            onCancel={handleBack}
-          />
-        {:else if isJustFriendsArchetype}
-          <JustFriendsIntentStep
-            onSubmit={handleJustFriendsIntentSubmit}
-            onCancel={handleBack}
-          />
-        {:else}
-          <SpendingQAStep
-            gender={$user?.gender}
-            archetype={$user?.archetype}
-            onSubmit={handleQASubmit}
-            onCancel={handleBack}
-          />
-        {/if}
-      {:else if currentStep === 5 && $user?.archetype === 'casual_generous_man'}
-        <CasualGenerousProfileStep
-          onSubmit={handleCasualGenerousProfileSubmit}
+        <PhotosPlaceStep
+          onSubmit={handlePhotosPlaceSubmit}
           onCancel={handleBack}
-        />
-      {:else if currentStep === 6 && $user?.archetype === 'casual_generous_man'}
-        <CasualGenerousPreferencesStep
-          onSubmit={handleCasualGenerousPrefsSubmit}
-          onCancel={handleBack}
-        />
-      {:else if currentStep === 5 && isMatrimonyArchetype}
-        <MatrimonyProfileStep
-          onSubmit={handleMatrimonyProfileSubmit}
-          onCancel={handleBack}
-        />
-      {:else if currentStep === 6 && isMatrimonyArchetype}
-        <MatrimonyPreferencesStep
-          onSubmit={handleMatrimonyPrefsSubmit}
-          onCancel={handleBack}
-        />
-      {:else if currentStep === 5 && isForeverFocusedArchetype}
-        <ForeverProfileStep
-          onSubmit={handleForeverProfileSubmit}
-          onCancel={handleBack}
-        />
-      {:else if currentStep === 6 && isForeverFocusedArchetype}
-        <ForeverPreferencesStep
-          onSubmit={handleForeverPrefsSubmit}
-          onCancel={handleBack}
-        />
-      {:else if currentStep === 5 && isRomanticArchetype}
-        <RomanticProfileStep
-          onSubmit={handleRomanticProfileSubmit}
-          onCancel={handleBack}
-        />
-      {:else if currentStep === 6 && isRomanticArchetype}
-        <RomanticPreferencesStep
-          onSubmit={handleRomanticPrefsSubmit}
-          onCancel={handleBack}
-        />
-      {:else if currentStep === 5 && isSecondChapterArchetype}
-        <SecondChapterProfileStep
-          onSubmit={handleSecondChapterProfileSubmit}
-          onCancel={handleBack}
-        />
-      {:else if currentStep === 6 && isSecondChapterArchetype}
-        <SecondChapterPreferencesStep
-          onSubmit={handleSecondChapterPrefsSubmit}
-          onCancel={handleBack}
-        />
-      {:else if currentStep === 5 && isUntouchedHeartArchetype}
-        <UntouchedHeartProfileStep
-          onSubmit={handleUntouchedHeartProfileSubmit}
-          onCancel={handleBack}
-        />
-      {:else if currentStep === 6 && isUntouchedHeartArchetype}
-        <UntouchedHeartPreferencesStep
-          onSubmit={handleUntouchedHeartPrefsSubmit}
-          onCancel={handleBack}
-        />
-      {:else if currentStep === 5 && isJustFriendsArchetype}
-        <JustFriendsProfileStep
-          onSubmit={handleJustFriendsProfileSubmit}
-          onCancel={handleBack}
-        />
-      {:else if currentStep === 6 && isJustFriendsArchetype}
-        <JustFriendsPreferencesStep
-          onSubmit={handleJustFriendsPrefsSubmit}
-          onCancel={handleBack}
-        />
-      {:else if currentStep === 5 || currentStep === 6 || currentStep === 7}
-        <ProfileIntakeStep
-          onSubmit={handleProfileIntakeSubmit}
-          onCancel={handleBack}
-          initialName={extractedName}
-          initialAge={extractedAge}
-          archetype={$user?.archetype}
+          onSkip={handleSkipClick}
         />
       {/if}
     </div>
@@ -2058,14 +2071,7 @@
     </div>
   {/if}
 
-  <!-- Each step component handles its own primary action; only Skip is shown externally -->
-  {#if currentStep >= 1 && currentStep <= (isMatrimonyArchetype ? 6 : 4)}
-  <div class="verification-actions single" transition:slide={{ duration: 400, delay: 100, axis: 'y' }}>
-    <button class="btn btn-secondary" onclick={handleSkipClick} disabled={loading}>
-      Skip this step
-    </button>
-  </div>
-  {/if}
+  <!-- Each step component handles its own CTA and skip button -->
 
   {#if currentStep === 1 && motivationCard}
   <button
@@ -2094,7 +2100,7 @@
   </button>
   {/if}
 
-  {#if currentStep === 3 && archetypeCards.step3}
+  {#if currentStep === 2 && archetypeCards.step3}
     {@const card = archetypeCards.step3}
     <button class="motivation-card motivation-card--tall" onclick={() => { openedMotivationProfile = card.profile; }} aria-label="View {card.profile.name}'s profile" transition:fade={{ duration: 300, delay: 200 }}>
       <div class="motivation-avatar-wrap"><img class="motivation-avatar" src={card.profile.photoUrl} alt={card.profile.name} /><span class="motivation-verified-badge">✓</span></div>
@@ -2103,7 +2109,7 @@
     </button>
   {/if}
 
-  {#if currentStep === 4 && archetypeCards.step4}
+  {#if currentStep === 3 && archetypeCards.step4}
     {@const card = archetypeCards.step4}
     <button class="motivation-card motivation-card--tall" onclick={() => { openedMotivationProfile = card.profile; }} aria-label="View {card.profile.name}'s profile" transition:fade={{ duration: 300, delay: 200 }}>
       <div class="motivation-avatar-wrap"><img class="motivation-avatar" src={card.profile.photoUrl} alt={card.profile.name} /><span class="motivation-verified-badge">✓</span></div>
@@ -2112,7 +2118,7 @@
     </button>
   {/if}
 
-  {#if currentStep === 5 && archetypeCards.step5}
+  {#if currentStep === 4 && archetypeCards.step5}
     {@const card = archetypeCards.step5}
     <button class="motivation-card motivation-card--tall" onclick={() => { openedMotivationProfile = card.profile; }} aria-label="View {card.profile.name}'s profile" transition:fade={{ duration: 300, delay: 200 }}>
       <div class="motivation-avatar-wrap"><img class="motivation-avatar" src={card.profile.photoUrl} alt={card.profile.name} /><span class="motivation-verified-badge">✓</span></div>
@@ -2121,7 +2127,7 @@
     </button>
   {/if}
 
-  {#if currentStep === 6 && archetypeCards.step6}
+  {#if currentStep === 5 && archetypeCards.step6}
     {@const card = archetypeCards.step6}
     <button class="motivation-card motivation-card--tall" onclick={() => { openedMotivationProfile = card.profile; }} aria-label="View {card.profile.name}'s profile" transition:fade={{ duration: 300, delay: 200 }}>
       <div class="motivation-avatar-wrap"><img class="motivation-avatar" src={card.profile.photoUrl} alt={card.profile.name} /><span class="motivation-verified-badge">✓</span></div>
