@@ -720,6 +720,14 @@
         } catch {}
         // Also update user store
         if ($user) user.update(u => u ? { ...u, firstName: extractedName } : u);
+        // Persist first_name to Supabase so it survives page refreshes
+        if ($user) {
+          upsertProfile({
+            gender: $user?.gender ?? null,
+            archetype: $user?.archetype ?? null,
+            first_name: extractedName
+          } as any).catch(() => {});
+        }
       }
       if (result.data) {
         extractedIDFields = {

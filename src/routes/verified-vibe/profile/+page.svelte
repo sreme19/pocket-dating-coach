@@ -1434,6 +1434,70 @@
     // Wait for hydration, then push current state up (idempotent upsert)
     await hydratePromise;
     pushMasterProfile(session.access_token);
+
+    // ── Backfill name/city from verification step data (for users who verified
+    //    before the profile-draft persistence fix was deployed) ─────────────────
+    try {
+      if (!$user?.firstName) {
+        // Pull ID step data to get the extracted name
+        const { data: idStep } = await supabase
+          .from('verified_vibe_verification')
+          .select('data')
+          .eq('user_id', session.user.id)
+          .eq('step', 'id')
+          .maybeSingle();
+        if (idStep?.data) {
+          const stepData = idStep.data as any;
+          const extractedFirst = (stepData.idName as string | undefined)?.split(' ')[0]?.trim();
+          if (extractedFirst && extractedFirst !== 'DEV-SKIP' && extractedFirst !== 'Dev') {
+            // Update user store
+            user.update(u => u ? { ...u, firstName: extractedFirst } : u);
+            // Persist to vv_profile_draft
+            try {
+              const existing = localStorage.getItem('vv_profile_draft');
+              const pd = existing ? JSON.parse(existing) : {};
+              if (!pd.firstName) {
+                pd.firstName = extractedFirst;
+                localStorage.setItem('vv_profile_draft', JSON.stringify(pd));
+                draft = draft ? { ...draft, firstName: extractedFirst } : { firstName: extractedFirst } as any;
+              }
+            } catch { /* ignore */ }
+            // Save to DB so future refreshes don't need this fallback
+            await supabase
+              .from('verified_vibe_users')
+              .update({ first_name: extractedFirst })
+              .eq('id', session.user.id);
+          }
+        }
+      }
+      if (!$user?.city) {
+        const { data: photosStep } = await supabase
+          .from('verified_vibe_verification')
+          .select('data')
+          .eq('user_id', session.user.id)
+          .eq('step', 'photos')
+          .maybeSingle();
+        if (photosStep?.data) {
+          const stepData = photosStep.data as any;
+          // city may be stored inside photos step data or in vv_city localStorage
+          const cityFromStep = (stepData.city as string | undefined)?.trim();
+          const cityFromLocal = localStorage.getItem('vv_city')?.trim();
+          const city = cityFromStep || cityFromLocal;
+          if (city) {
+            user.update(u => u ? { ...u, city } : u);
+            try {
+              const existing = localStorage.getItem('vv_profile_draft');
+              const pd = existing ? JSON.parse(existing) : {};
+              if (!pd.city) {
+                pd.city = city;
+                localStorage.setItem('vv_profile_draft', JSON.stringify(pd));
+                draft = draft ? { ...draft, city } : { city } as any;
+              }
+            } catch { /* ignore */ }
+          }
+        }
+      }
+    } catch { /* non-critical */ }
   });
 
   async function handleEnhancePhotos() {
