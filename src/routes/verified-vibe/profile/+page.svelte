@@ -3168,10 +3168,10 @@
             onEditQA={() => (showEditQAModal = true)}
           />
         {:else}
-          <!-- ── Generic boost tab — modern design ── -->
-          <div class="privacy-banner" style="display:flex;align-items:flex-start;gap:10px;padding:12px 16px;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.18);border-radius:14px;margin-bottom:4px;">
-            <span>🔒</span>
-            <span style="font-size:12.5px;color:var(--text-3);line-height:1.5;">Everything here stays private. We only verify that your profile reflects real life. This improves your Trust Score and who you match with.</span>
+          <!-- ── Generic boost tab — premium design ── -->
+          <div class="gen-privacy-banner">
+            <span class="gen-privacy-lock">🔒</span>
+            <span class="gen-privacy-text">Everything here stays private. We only verify that your profile reflects real life. This improves your Trust Score and who you match with.</span>
           </div>
 
           <section class="section">
@@ -3202,42 +3202,58 @@
               </div>
 
               <!-- Fit badge -->
-              <div style="display:flex;justify-content:center;">
-                <div style="display:inline-flex;align-items:center;gap:7px;padding:6px 14px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:999px;">
-                  <span style="width:7px;height:7px;border-radius:50%;background:var(--accent-bright);display:inline-block;flex-shrink:0;"></span>
-                  <span style="font-size:12.5px;font-weight:600;color:var(--accent-bright);">{trustLabel}</span>
-                </div>
+              <div class="gen-fit-badge">
+                <span class="gen-fit-dot"></span>
+                {trustLabel}
               </div>
 
-              <!-- Tier zone bar -->
-              <div style="display:flex;flex-direction:column;gap:8px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                  <span style="font-size:12px;font-weight:600;color:var(--text-3);">Score progress</span>
-                  <span style="font-size:11.5px;color:var(--accent-bright);font-weight:600;">
+              <!-- Premium tier ladder with dots -->
+              <div class="gen-tier-ladder">
+                <div class="gen-tier-ladder-header">
+                  <span class="gen-tier-ladder-title">Score progress</span>
+                  <span class="gen-tier-ladder-next">
                     {#if trustScore < 60}+{60 - trustScore} → Visible{:else if trustScore < 70}+{70 - trustScore} → Featured{:else if trustScore < 85}+{85 - trustScore} → Priority{:else if trustScore < 95}+{95 - trustScore} → Elite{:else}🏆 Elite tier{/if}
                   </span>
                 </div>
-                <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;gap:2px;">
-                  <div style="flex:60;background:rgba(239,68,68,0.18);border-radius:4px;overflow:hidden;">
-                    <div style="height:100%;background:#ef4444;width:{Math.min(100,(Math.max(0,trustScore)/60)*100)}%;transition:width 400ms ease;"></div>
+
+                <!-- 3-zone progress bar -->
+                <div class="gen-tier-zone-bar">
+                  <div class="gen-tier-zone gen-tier-zone--red" style="flex: 60">
+                    <div class="gen-tier-zone-fill" style="width: {Math.min(100, (Math.max(0, trustScore) / 60) * 100)}%"></div>
                   </div>
-                  <div style="flex:25;background:rgba(244,185,92,0.18);border-radius:4px;overflow:hidden;">
-                    <div style="height:100%;background:#f4b95c;width:{trustScore>=60?Math.min(100,((trustScore-60)/25)*100):0}%;transition:width 400ms ease;"></div>
+                  <div class="gen-tier-zone gen-tier-zone--amber" style="flex: 25">
+                    <div class="gen-tier-zone-fill" style="width: {trustScore >= 60 ? Math.min(100, ((trustScore - 60) / 25) * 100) : 0}%"></div>
                   </div>
-                  <div style="flex:15;background:rgba(16,185,129,0.18);border-radius:4px;overflow:hidden;">
-                    <div style="height:100%;background:var(--accent);width:{trustScore>=85?Math.min(100,((trustScore-85)/15)*100):0}%;transition:width 400ms ease;"></div>
+                  <div class="gen-tier-zone gen-tier-zone--green" style="flex: 15">
+                    <div class="gen-tier-zone-fill" style="width: {trustScore >= 85 ? Math.min(100, ((trustScore - 85) / 15) * 100) : 0}%"></div>
                   </div>
                 </div>
-                <div style="display:flex;gap:12px;">
-                  <span style="font-size:11px;font-weight:600;color:{trustScore<60?'#ef4444':'var(--text-4)'};">At Risk</span>
-                  <span style="font-size:11px;font-weight:600;color:{trustScore>=60&&trustScore<85?'#f4b95c':'var(--text-4)'};">In Progress</span>
-                  <span style="font-size:11px;font-weight:600;color:{trustScore>=85?'var(--accent)':'var(--text-4)'};">Trusted</span>
+
+                <!-- Tier milestone dots, alternating label above/below -->
+                <div class="gen-tier-dots-row">
+                  {#each [{v:60,label:'Visible'},{v:70,label:'Featured'},{v:85,label:'Priority'},{v:95,label:'Elite'}] as t, i}
+                    {@const reached = trustScore >= t.v}
+                    {@const dotColor = t.v >= 85 ? 'var(--accent)' : '#f4b95c'}
+                    <div class="gen-tier-dot-item {i % 2 === 1 ? 'gen-tier-dot-item--above' : ''}" style="left: {t.v}%">
+                      <span class="gen-tier-dot-label" style="color: {reached ? dotColor : 'var(--text-3)'}">{t.label}</span>
+                      <div class="gen-tier-dot" style="background: {reached ? dotColor : 'var(--bg-3)'}; border-color: {reached ? dotColor : 'var(--border-1)'}">
+                        {#if reached}<svg width="6" height="6" viewBox="0 0 24 24" fill="none" stroke="#0a0a0a" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>{/if}
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+
+                <!-- Zone legend -->
+                <div class="gen-tier-zone-legend">
+                  <span class="gen-tier-zone-leg" class:gen-tier-zone-leg--active={trustScore < 60} style="--zc: #ef4444">At Risk</span>
+                  <span class="gen-tier-zone-leg" class:gen-tier-zone-leg--active={trustScore >= 60 && trustScore < 85} style="--zc: #f4b95c">In Progress</span>
+                  <span class="gen-tier-zone-leg" class:gen-tier-zone-leg--active={trustScore >= 85} style="--zc: var(--accent)">Trusted</span>
                 </div>
               </div>
             </div>
           </section>
 
-          <!-- Breakdown -->
+          <!-- Safety Check with nudge CTAs -->
           <section class="section">
             <div class="section-label">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -3245,11 +3261,12 @@
               </svg>
               Safety Check
             </div>
-            <div class="breakdown">
+            <div class="gen-breakdown">
               {#each trustBreakdown as item}
                 {@const pct = (item.score / item.max) * 100}
                 {@const barColor = item.score < 50 ? '#ef4444' : item.score < 75 ? '#f4b95c' : 'var(--accent-bright)'}
                 {@const scoreColor = item.score < 50 ? '#ef4444' : item.score < 75 ? '#f4b95c' : 'var(--accent-bright)'}
+                {@const nudgeVariant = item.score < 50 ? 'red' : 'amber'}
                 <div class="breakdown-item">
                   <div class="breakdown-header">
                     <span class="breakdown-name">{item.category}</span>
@@ -3258,51 +3275,92 @@
                   <div class="breakdown-bar">
                     <div class="breakdown-fill" style="width:{pct}%;background:{barColor};"></div>
                   </div>
+                  {#if item.score >= 75}
+                    <div class="gen-breakdown-ok">✓ {item.category} verified</div>
+                  {:else if item.category === 'Identity'}
+                    <button class="gen-nudge-cta gen-nudge-{nudgeVariant}" onclick={() => goto('/verified-vibe/verification?step=id&standalone=1')} type="button">
+                      <span class="gen-nudge-text">{item.score < 50 ? 'Verify your identity — required to appear in search' : 'Complete face match to maximise identity score'}</span>
+                      <span class="gen-nudge-pts">{item.score < 50 ? '+50 pts →' : 'boost →'}</span>
+                    </button>
+                  {:else if item.category === 'Lifestyle'}
+                    <button class="gen-nudge-cta gen-nudge-{nudgeVariant}" onclick={() => goto('/verified-vibe/proof-upload?category=lifestyle')} type="button">
+                      <span class="gen-nudge-text">{item.score < 50 ? 'Upload photos to verify your lifestyle and stand out' : 'Add more photos to complete your lifestyle score'}</span>
+                      <span class="gen-nudge-pts">{item.score < 50 ? '+8 pts →' : 'boost →'}</span>
+                    </button>
+                  {:else if item.category === 'Intent'}
+                    <button class="gen-nudge-cta gen-nudge-{nudgeVariant}" onclick={() => showEditQAModal = true} type="button">
+                      <span class="gen-nudge-text">{item.score < 50 ? 'Answer Q&A questions — reveals your real intentions' : 'Add more answers to complete your intent signal'}</span>
+                      <span class="gen-nudge-pts">{item.score < 50 ? '+12 pts →' : 'boost →'}</span>
+                    </button>
+                  {/if}
                 </div>
               {/each}
             </div>
-            <button class="btn btn-secondary full edit-qa-btn" style="margin-top:8px;" onclick={() => showEditQAModal = true}>
-              Edit Q&A to boost score
-            </button>
           </section>
 
-          <!-- Tier unlocks -->
+          <!-- Prove It — verification action tiles -->
           <section class="section">
             <div class="section-label">
-              <Zap size={13} />
-              What Each Tier Unlocks
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8M12 8v8"/>
+              </svg>
+              Prove It
+              <span class="gen-section-hint">verify, don't just claim</span>
             </div>
-            <div class="tier-list">
-              <div class="tier-item {trustScore >= 60 ? 'unlocked' : 'locked'}">
-                {#if trustScore >= 60}<div class="tier-check">✓</div>{:else}<div class="tier-number">60</div>{/if}
-                <div class="tier-content">
-                  <div class="tier-title">60 · Visible</div>
-                  <div class="tier-desc">You start showing up in match pools.</div>
-                </div>
-              </div>
-              <div class="tier-item {trustScore >= 70 ? 'unlocked' : 'locked'}">
-                {#if trustScore >= 70}<div class="tier-check">✓</div>{:else}<div class="tier-number">70</div>{/if}
-                <div class="tier-content">
-                  <div class="tier-title">70 · Featured</div>
-                  <div class="tier-desc">Lifestyle-Oriented Women see you in their "Live now"{trustScore >= 70 ? ' ← you\'re here' : ''}.</div>
-                </div>
-              </div>
-              <div class="tier-item {trustScore >= 85 ? 'unlocked' : 'locked'}">
-                {#if trustScore >= 85}<div class="tier-check">✓</div>{:else}<div class="tier-number">85</div>{/if}
-                <div class="tier-content">
-                  <div class="tier-title">85 · Priority</div>
-                  <div class="tier-desc">You appear first. Spoilt Women's pool fully unlocked.</div>
-                </div>
-              </div>
-              <div class="tier-item {trustScore >= 95 ? 'unlocked' : 'locked'}">
-                {#if trustScore >= 95}<div class="tier-check">✓</div>{:else}<div class="tier-number">95</div>{/if}
-                <div class="tier-content">
-                  <div class="tier-title">95 · Elite</div>
-                  <div class="tier-desc">Safety-First Women can see you. Their pool is exclusive.</div>
-                </div>
-              </div>
+            <div class="gen-showoff-grid">
+              {#each [
+                { icon: '📸', label: 'Lifestyle Photos', desc: 'Travel, dining, events',       pts: 8, time: '2 min', href: '/verified-vibe/proof-upload?category=lifestyle' },
+                { icon: '🎙️', label: 'Voice Intro',      desc: 'Let them hear you first',      pts: 8, time: '1 min', href: '/verified-vibe/proof-upload?category=intro' },
+                { icon: '💪', label: 'Discipline',       desc: 'Gym, sleep, reading routines', pts: 4, time: '1 min', href: '/verified-vibe/proof-upload?category=discipline' },
+                { icon: '🤝', label: 'Social Proof',     desc: 'Friends & communities',        pts: 4, time: '2 min', href: '/verified-vibe/proof-upload?category=social_proof' },
+              ] as tile}
+                <button class="gen-showoff-tile" onclick={() => goto(tile.href)} type="button">
+                  <div class="gen-showoff-icon">{tile.icon}</div>
+                  <div class="gen-showoff-body">
+                    <div class="gen-showoff-label">{tile.label}</div>
+                    <div class="gen-showoff-desc">{tile.desc}</div>
+                    <div class="gen-showoff-meta"><span class="gen-showoff-time">{tile.time}</span></div>
+                  </div>
+                  <div class="gen-showoff-pts">+{tile.pts}</div>
+                </button>
+              {/each}
             </div>
-            <p class="tier-note">🔒 Everything here stays private. Matches only</p>
+          </section>
+
+          <!-- Socials -->
+          <section class="section">
+            <div class="section-label">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+              </svg>
+              Socials
+              <span class="gen-section-hint">connect to verify</span>
+            </div>
+            <div class="gen-socials-card">
+              {#each [
+                { category: 'linkedin',  label: 'LinkedIn',    pts: 5 },
+                { category: 'instagram', label: 'Instagram',   pts: 3 },
+                { category: 'twitter',   label: 'Twitter / X', pts: 2 },
+              ] as sp}
+                <button class="gen-social-btn" onclick={() => goto(`/verified-vibe/proof-upload?category=${sp.category}`)} type="button" title={sp.label}>
+                  {#if sp.category === 'linkedin'}
+                    <svg class="gen-social-logo" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                    </svg>
+                  {:else if sp.category === 'instagram'}
+                    <svg class="gen-social-logo" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/>
+                    </svg>
+                  {:else}
+                    <svg class="gen-social-logo" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                    </svg>
+                  {/if}
+                  <span class="gen-social-pts">+{sp.pts}</span>
+                </button>
+              {/each}
+            </div>
           </section>
 
           <!-- ── Money Matters — edit lives here in Trust & Boost ── -->
@@ -6796,5 +6854,266 @@
     color: rgba(239,68,68,0.8);
     text-align: center;
     margin: 0;
+  }
+
+  /* ── Generic boost tab premium styles ── */
+  .gen-privacy-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 13px;
+    background: rgba(99,102,241,0.09);
+    border: 1px solid rgba(99,102,241,0.22);
+    border-radius: 12px;
+  }
+  .gen-privacy-lock { font-size: 13px; flex-shrink: 0; margin-top: 1px; }
+  .gen-privacy-text { font-size: 12px; color: #a5b4fc; line-height: 1.5; font-weight: 500; }
+
+  .gen-fit-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    padding: 6px 14px;
+    background: var(--accent-tint);
+    border-radius: 20px;
+  }
+  .gen-fit-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+    box-shadow: 0 0 10px var(--accent);
+    animation: gen-pulse-fit 2.4s ease-in-out infinite;
+  }
+  @keyframes gen-pulse-fit {
+    0%, 100% { opacity: 0.5; }
+    50%       { opacity: 1; }
+  }
+
+  .gen-tier-ladder {
+    width: 100%;
+    padding: 14px 0 2px;
+    border-top: 1px solid var(--border-1);
+    margin-top: 14px;
+  }
+  .gen-tier-ladder-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .gen-tier-ladder-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-3);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .gen-tier-ladder-next {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-2);
+  }
+  .gen-tier-zone-bar {
+    display: flex;
+    gap: 2px;
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .gen-tier-zone {
+    position: relative;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.05);
+  }
+  .gen-tier-zone-fill {
+    position: absolute;
+    inset: 0;
+    border-radius: 3px;
+    transition: width 0.5s ease;
+  }
+  .gen-tier-zone--red   .gen-tier-zone-fill { background: #ef4444; }
+  .gen-tier-zone--amber .gen-tier-zone-fill { background: #f4b95c; }
+  .gen-tier-zone--green .gen-tier-zone-fill { background: var(--accent); }
+
+  .gen-tier-dots-row {
+    position: relative;
+    height: 52px;
+    margin: 0 0 4px;
+  }
+  .gen-tier-dot-item {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: 3px;
+  }
+  .gen-tier-dot-item--above { flex-direction: column; }
+  .gen-tier-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    border: 2px solid;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .gen-tier-dot-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  .gen-tier-zone-legend {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-1);
+    margin-top: 6px;
+  }
+  .gen-tier-zone-leg {
+    font-size: 9.5px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    opacity: 0.55;
+  }
+  .gen-tier-zone-leg::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--zc);
+  }
+  .gen-tier-zone-leg--active { color: var(--zc); opacity: 1; }
+
+  .gen-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    border-radius: var(--r-lg);
+    padding: 12px;
+  }
+  .gen-breakdown-ok {
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .gen-nudge-cta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    transition: opacity 150ms;
+  }
+  .gen-nudge-cta:active { opacity: 0.75; }
+  .gen-nudge-red   { background: rgba(239,68,68,0.08);  border: 1px solid rgba(239,68,68,0.25); }
+  .gen-nudge-amber { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25); }
+  .gen-nudge-text  { font-size: 11px; color: var(--text-2); line-height: 1.4; flex: 1; }
+  .gen-nudge-pts   { font-size: 11px; font-weight: 700; color: var(--accent); white-space: nowrap; flex-shrink: 0; }
+  .gen-nudge-red   .gen-nudge-pts { color: #ef4444; }
+  .gen-nudge-amber .gen-nudge-pts { color: #f59e0b; }
+
+  .gen-section-hint {
+    font-weight: 400;
+    font-size: 11px;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--text-3);
+    opacity: 0.7;
+    margin-left: 2px;
+  }
+
+  .gen-showoff-grid { display: flex; flex-direction: column; gap: 8px; }
+  .gen-showoff-tile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    border-radius: var(--r-lg);
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    transition: background 150ms;
+  }
+  .gen-showoff-tile:active { background: var(--bg-3); }
+  @media (hover: hover) { .gen-showoff-tile:hover { background: var(--bg-3); } }
+  .gen-showoff-icon {
+    font-size: 22px;
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    background: var(--bg-3);
+    border-radius: 10px;
+  }
+  .gen-showoff-body { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .gen-showoff-label { font-size: 13px; font-weight: 600; }
+  .gen-showoff-desc  { font-size: 11px; color: var(--text-3); }
+  .gen-showoff-meta  { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+  .gen-showoff-time  { font-size: 11px; font-weight: 600; color: var(--accent); }
+  .gen-showoff-pts {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-tint);
+    padding: 4px 10px;
+    border-radius: 20px;
+    flex-shrink: 0;
+  }
+
+  .gen-socials-card { display: flex; gap: 10px; }
+  .gen-social-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 10px 10px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-2);
+    border-radius: 14px;
+    cursor: pointer;
+    color: rgba(255,255,255,0.55);
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .gen-social-btn:active { background: var(--bg-3); }
+  @media (hover: hover) {
+    .gen-social-btn:hover {
+      background: var(--bg-3);
+      border-color: var(--border-1);
+      color: rgba(255,255,255,0.85);
+    }
+  }
+  .gen-social-logo { width: 26px; height: 26px; flex-shrink: 0; }
+  .gen-social-pts {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent);
+    background: rgba(52,211,153,0.12);
+    padding: 2px 6px;
+    border-radius: 100px;
   }
 </style>
