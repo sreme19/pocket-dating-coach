@@ -3,6 +3,51 @@ import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
 import { fal } from '@fal-ai/client';
 
+/**
+ * Use Claude Vision to check if the person in the image has bald or noticeably
+ * thinning hair. Returns true when a hat/cap should be added to the portrait.
+ */
+async function detectBaldness(imageUrl: string, imageBase64?: string, mimeType?: string): Promise<boolean> {
+  try {
+    const ANTHROPIC_API_KEY = env.ANTHROPIC_API_KEY;
+    if (!ANTHROPIC_API_KEY) return false;
+
+    const imageContent = imageBase64
+      ? { type: 'base64' as const, media_type: (mimeType ?? 'image/jpeg') as any, data: imageBase64 }
+      : { type: 'url' as const, url: imageUrl };
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 16,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: imageContent },
+            {
+              type: 'text',
+              text: 'Look at the hair on top of this person\'s head. Is the person bald or does their hair appear very thin / noticeably receding on the crown? Answer only "yes" or "no".'
+            }
+          ]
+        }]
+      })
+    });
+
+    if (!res.ok) return false;
+    const data = await res.json() as { content: { text: string }[] };
+    const answer = data.content?.[0]?.text?.toLowerCase().trim() ?? '';
+    return answer.startsWith('yes');
+  } catch {
+    return false; // non-critical — never block portrait generation
+  }
+}
+
 interface PersonalityTrait {
   name: string;
   level: string;
@@ -73,7 +118,18 @@ export const POST: RequestHandler = async ({ request }) => {
       resolvedUrl  = await fal.storage.upload(file);
     }
 
-    const scenePrompt = sceneOverride ?? buildScenePrompt(personalityTraits ?? []);
+    // Detect bald/thinning hair — add a stylish cap to the scene if so
+    const isBald = await detectBaldness(
+      resolvedUrl,
+      referenceImageBase64?.startsWith('data:') ? referenceImageBase64.split(',')[1] : referenceImageBase64,
+      mimeType
+    );
+
+    let scenePrompt = sceneOverride ?? buildScenePrompt(personalityTraits ?? []);
+    if (isBald) {
+      // Prepend so the model sees it early in the prompt
+      scenePrompt = `wearing a stylish fitted cap, ${scenePrompt}`;
+    }
 
     const result = await fal.run('fal-ai/flux-pulid', {
       input: {
