@@ -224,6 +224,7 @@ export interface IDExtractionResult {
   idNumber: string;
   idName: string;
   idDOB: string;
+  idGender?: string;
   expirationDate?: string;
 }
 

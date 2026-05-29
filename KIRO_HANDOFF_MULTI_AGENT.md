@@ -396,11 +396,17 @@ CHECKLIST BEFORE GOING LIVE
     (Three-dot menu in chat header → Unmatch/Block modals, wired to /api/verified-vibe/unmatch
      and /api/verified-vibe/block-user which both fire matchmaker outcome signals)
 [x] Make /api/verified-vibe/block-user real (was a stub — now writes to DB and signals Matchmaker)
-[ ] Generate MATCHMAKER_RUN_SECRET and set it in Vercel env vars
-[ ] Set MATCHMAKER_RUN_SECRET, APP_URL, CITY_SCOPED=false in Supabase Edge Function env
-    (Dashboard > Edge Functions > matchmaker-nightly > Secrets)
-[ ] Enable pg_net extension in Supabase (Dashboard > Database > Extensions > pg_net)
-[ ] Create cron job in Supabase Dashboard targeting the Edge Function (0 2 * * *)
-[ ] Redeploy SvelteKit to Vercel
+[x] Generate MATCHMAKER_RUN_SECRET — value: c4f69dae7948c4fb3d70a4e62153e0b15c464e2055c5dd37ab1f699cd3dccc99
+    Set in .env.local. STILL NEEDED: set in Vercel Dashboard > Project > Settings > Environment Variables
+[x] Set MATCHMAKER_RUN_SECRET, APP_URL, CITY_SCOPED=false in Supabase Edge Function env
+    (Set via CLI: supabase secrets set, project stikoktiaxqtcsohcxzp, 2026-05-27)
+[x] Enable pg_net extension (enabled 2026-05-27, v0.20.0)
+[x] Enable pg_cron extension (enabled 2026-05-27, v1.6.4)
+[x] Create cron job (jobid=1, schedule "0 2 * * *", live in cron.job table)
+[x] Push to GitHub — commit 4f18597, Vercel auto-deploy triggered
+[ ] Set MATCHMAKER_RUN_SECRET in Vercel Dashboard (last manual step)
+    Go to vercel.com > pocket-dating-coach > Settings > Environment Variables
+    Add: MATCHMAKER_RUN_SECRET = c4f69dae7948c4fb3d70a4e62153e0b15c464e2055c5dd37ab1f699cd3dccc99
+    Redeploy after adding it (or it takes effect on next auto-deploy)
 [ ] Smoke test: POST to /api/verified-vibe/matchmaker/intelligence with a valid userId
     and verify a vv_intelligence_reports row is created and processed
