@@ -605,18 +605,40 @@
   let heroDraft    = $state<{ firstName: string; age: string; city: string }>({ firstName: '', age: '', city: '' });
 
   async function saveHero() {
-    if (!$user) return;
-    const firstName = heroDraft.firstName.trim() || $user.firstName;
-    const age       = parseInt(heroDraft.age) || $user.age;
-    const city      = heroDraft.city.trim() || $user.city;
-    user.set({ ...$user, firstName, age, city });
+    const firstName = heroDraft.firstName.trim() || $user?.firstName || '';
+    const age       = parseInt(String(heroDraft.age)) || $user?.age || 0;
+    const city      = heroDraft.city.trim() || $user?.city || '';
+
+    // Close the form immediately regardless of store/DB state
     editingHero = false;
+
+    // Update the store if the user object is available
+    if ($user) {
+      user.set({ ...$user, firstName, age, city });
+    }
+
+    // Always persist to localStorage draft so values survive a refresh
     try {
-      const { getSupabaseClient: _sb } = await import('$lib/client/supabase');
-      const sb = _sb();
+      const pd = JSON.parse(localStorage.getItem('vv_profile_draft') ?? '{}');
+      if (firstName) pd.firstName = firstName;
+      if (age)       pd.age       = age;
+      if (city)      pd.city      = city;
+      localStorage.setItem('vv_profile_draft', JSON.stringify(pd));
+      draft = pd as typeof draft;
+    } catch { /* non-critical */ }
+
+    // Persist to DB — use session.user.id (always available) rather than $user?.id
+    try {
+      const sb = getSupabaseClient();
       const { data: { session } } = await sb.auth.getSession();
-      if (session && $user?.id) {
-        await sb.from('verified_vibe_users').update({ first_name: firstName, age, city }).eq('id', $user.id);
+      if (session?.user?.id) {
+        const dbUpdate: Record<string, unknown> = {};
+        if (firstName) dbUpdate.first_name = firstName;
+        if (age)       dbUpdate.age         = age;
+        if (city)      dbUpdate.city        = city;
+        if (Object.keys(dbUpdate).length > 0) {
+          await sb.from('verified_vibe_users').update(dbUpdate).eq('id', session.user.id);
+        }
       }
     } catch { /* non-critical */ }
   }
