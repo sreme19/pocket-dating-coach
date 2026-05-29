@@ -186,7 +186,8 @@
     /* Mobile-first: constrain to mobile viewport */
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    /* dvh tracks the dynamic viewport (adjusts for browser chrome/keyboard on mobile) */
+    height: 100dvh;
     width: 100%;
     max-width: 100%;
     background: var(--bg-1);
@@ -199,7 +200,7 @@
   @media (min-width: 768px) {
     .verified-vibe-container {
       max-width: 430px;
-      height: 100vh;
+      height: 100dvh;
       margin: 0 auto;
       border-left: 1px solid var(--border-1);
       border-right: 1px solid var(--border-1);
