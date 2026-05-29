@@ -66,17 +66,19 @@ export async function extractIDWithClaude(
                 {
                   type: 'text',
                   text: `Extract the following information from this government ID image:
-1. ID Number (driver's license number, passport number, etc.)
+1. ID Number (driver's license number, passport number, Aadhaar number, etc.)
 2. Full Name (as shown on the ID)
-3. Date of Birth (in MM/DD/YYYY format)
-4. Expiration Date (in MM/DD/YYYY format, if visible)
+3. Date of Birth (in DD/MM/YYYY format)
+4. Gender (M/F/Male/Female/Other as printed on the ID, or null if not present)
+5. Expiration Date (in DD/MM/YYYY format, if visible)
 
 Return ONLY a JSON object with these exact keys:
 {
   "idNumber": "...",
   "idName": "...",
   "idDOB": "...",
-  "expirationDate": "..." (optional, null if not visible)
+  "idGender": "..." or null,
+  "expirationDate": "..." or null
 }
 
 If the image is not a valid government ID or the information is not clearly readable, respond with:
@@ -163,6 +165,7 @@ Do not include any other text or explanation.`
         idNumber: parsedResponse.idNumber.trim(),
         idName: parsedResponse.idName.trim(),
         idDOB: parsedResponse.idDOB.trim(),
+        idGender: parsedResponse.idGender ? parsedResponse.idGender.trim() : undefined,
         expirationDate: parsedResponse.expirationDate ? parsedResponse.expirationDate.trim() : undefined
       };
     } catch (fetchError) {
@@ -213,14 +216,42 @@ export async function checkLivenessWithClaude(
       },
       body: JSON.stringify({
         model: CLAUDE_MODEL,
-        max_tokens: 512,
+        max_tokens: 1024,
         messages: [
           {
             role: 'user',
             content: [
               {
                 type: 'text',
-                text: 'Compare these two photos. The first is from a government ID, the second is a selfie. Are they the same person?'
+                text: `You are performing identity verification by comparing a government ID photo (Image 1) with a current selfie (Image 2).
+
+CRITICAL CONTEXT:
+- Government ID photos are often 5–20+ years old. The person WILL look older, may have different hair, gained/lost weight, and grown or shaved facial hair.
+- Your job is to compare BONE STRUCTURE and FIXED GEOMETRY only — not appearance.
+
+FOCUS ONLY on these immutable structural features:
+1. Interpupillary distance (how far apart the eyes are)
+2. Nose shape: bridge width, tip shape, nostril width
+3. Face shape: overall outline (oval / square / round / heart)
+4. Jaw and chin shape
+5. Cheekbone prominence and position
+6. Ear shape (if visible)
+7. Brow ridge and forehead proportions
+
+COMPLETELY IGNORE (these change over time or with camera angle):
+- Hair color, length, or style
+- Facial hair (beard, stubble, mustache) — the selfie person may have grown a beard since the ID photo
+- Skin tone or texture (lighting differences)
+- Weight or puffiness
+- Glasses or accessories
+- Photo quality, resolution, or angle differences
+- Expression
+
+Carefully study the fixed bone structure in both photos and determine if they are the same person photographed years apart.`
+              },
+              {
+                type: 'text',
+                text: 'Image 1 — Government ID photo (may be many years old):'
               },
               {
                 type: 'image',
@@ -229,6 +260,10 @@ export async function checkLivenessWithClaude(
                   media_type: mimeType,
                   data: idPhotoBase64
                 }
+              },
+              {
+                type: 'text',
+                text: 'Image 2 — Current selfie:'
               },
               {
                 type: 'image',
@@ -240,13 +275,17 @@ export async function checkLivenessWithClaude(
               },
               {
                 type: 'text',
-                text: `Rate your confidence that these are the same person on a scale of 0-100.
+                text: `Based on structural facial geometry alone (ignoring age, hair, beard, and appearance changes), what is your confidence these are the same person?
+
+A score of 60+ means the structural features are consistent and this should pass verification.
+A score below 40 means clearly different people.
+Scores 40–59 indicate uncertainty — only fail if you are confident these are different people.
 
 Return ONLY a JSON object:
 {
   "confidence": <number 0-100>,
   "match": <boolean>,
-  "reasoning": "<brief explanation>"
+  "reasoning": "<brief explanation focusing on specific structural features compared>"
 }
 
 Do not include any other text.`
@@ -278,9 +317,14 @@ Do not include any other text.`
       throw new Error('Invalid response format from Claude API');
     }
 
+    // Use 55 as the pass threshold (not 80) — ID photos can be 10-20 years old,
+    // so a confident structural match rarely scores above 75.
+    const confidence = parsedResponse.confidence ?? 0;
+    const match = parsedResponse.match === true || confidence >= 55;
+
     return {
-      confidence: parsedResponse.confidence || 0,
-      match: parsedResponse.match || parsedResponse.confidence >= 80
+      confidence,
+      match
     };
   } catch (error) {
     if (error instanceof Error) {
