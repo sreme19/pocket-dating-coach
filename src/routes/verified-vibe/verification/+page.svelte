@@ -1162,12 +1162,12 @@
             const dataUrl = reader.result as string;
             resolve({ base64: dataUrl.split(',')[1], dataUrl });
           };
-          reader.onerror = reject;
+          reader.onerror = (e) => reject(new Error('Failed to read photo file'));
           reader.readAsDataURL(file);
         }))
       );
 
-      // Persist city to profile draft so profile page shows it
+      // ── Persist everything locally first — user should always reach profile ─
       if (data.city) {
         try {
           const existingDraft = localStorage.getItem('vv_profile_draft');
@@ -1177,65 +1177,69 @@
         } catch {}
         if ($user) user.update(u => u ? { ...u, city: data.city } : u);
       }
-
-      // Persist to localStorage for profile page
       localStorage.setItem('vv_photos', JSON.stringify(
         photoResults.map((r, i) => ({ dataUrl: r.dataUrl, label: i === 0 ? 'main' : 'photo' }))
       ));
       localStorage.setItem('vv_city', data.city);
       localStorage.setItem('vv_open_to_travel', String(data.openToTravel));
 
-      // Persist city to profile
-      if ($user) {
-        await upsertProfile({
-          gender: $user?.gender ?? null,
-          archetype: $user?.archetype ?? null,
-          city: data.city
-        });
-      }
-
-      // Submit photos step to API
-      const response = await fetch('/api/verified-vibe/verify-step', {
-        method: 'POST',
-        headers: await getAuthHeaders(),
-        body: JSON.stringify({
-          step: 'photos',
-          data: {
-            images: photoResults.map(r => r.base64),
-            mimeTypes: data.photos.map(f => f.type),
-            labels: Object.fromEntries(data.photos.map((_, i) => [i, i === 0 ? 'main' : 'photo'])),
-            city: data.city,
-            openToTravel: data.openToTravel
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error || 'Photo submission failed');
-      }
-
-      const result = await response.json();
-      addVerificationRecord({
-        id: `${$user?.id}-photos`,
-        userId: $user?.id || '',
-        step: 'photos',
-        status: 'completed',
-        data: result.data,
-        completedAt: new Date(),
-        createdAt: new Date()
-      });
+      // Mark step complete locally and navigate immediately
       completedSteps.add(currentStep);
-      const progress = (completedSteps.size / totalSteps) * 100;
-      verificationProgress.set(progress);
+      verificationProgress.set((completedSteps.size / totalSteps) * 100);
       updateTrustScoreAfterVerification();
-
-      // Last step — go to profile
       setPhase('app');
+
+      // ── Fire-and-forget background sync (city to DB + photo upload to API) ─
+      const syncInBackground = async () => {
+        // Persist city to DB (non-critical)
+        if ($user) {
+          upsertProfile({
+            gender: $user?.gender ?? null,
+            archetype: $user?.archetype ?? null,
+            city: data.city
+          } as any).catch(e => console.warn('[photos] city upsert failed (non-critical):', e));
+        }
+
+        // Upload photos to API for Supabase Storage + trust score
+        try {
+          const headers = await getAuthHeaders();
+          const response = await fetch('/api/verified-vibe/verify-step', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              step: 'photos',
+              data: {
+                images: photoResults.map(r => r.base64),
+                mimeTypes: data.photos.map(f => f.type),
+                labels: Object.fromEntries(data.photos.map((_, i) => [i, i === 0 ? 'main' : 'photo'])),
+                city: data.city,
+                openToTravel: data.openToTravel
+              }
+            })
+          });
+          if (response.ok) {
+            const result = await response.json();
+            addVerificationRecord({
+              id: `${$user?.id}-photos`,
+              userId: $user?.id || '',
+              step: 'photos',
+              status: 'completed',
+              data: result.data,
+              completedAt: new Date(),
+              createdAt: new Date()
+            });
+          }
+        } catch (e) {
+          console.warn('[photos] background upload failed (non-critical):', e);
+        }
+      };
+
+      syncInBackground(); // fire and forget
       goto('/verified-vibe/profile');
     } catch (err) {
-      error = err instanceof Error ? err.message : 'An error occurred';
-      setError(error);
+      const msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
+      error = msg;
+      setError(msg);
     } finally {
       loading = false;
     }
