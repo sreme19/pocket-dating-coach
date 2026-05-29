@@ -89,6 +89,40 @@
   let generatingHealthFitness = $state(false);
   let generatingSocialProof   = $state(false);
 
+  /**
+   * Parse a date-of-birth string from a government ID and return current age.
+   * Handles: DD/MM/YYYY  DD-MM-YYYY  YYYY-MM-DD  YYYY/MM/DD  DD.MM.YYYY
+   */
+  function parseDOBtoAge(dob: string | undefined | null): number | null {
+    if (!dob) return null;
+    const s = dob.trim();
+    let day = 0, month = 0, year = 0;
+    const isoMatch = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+    if (isoMatch) {
+      year  = parseInt(isoMatch[1], 10);
+      month = parseInt(isoMatch[2], 10);
+      day   = parseInt(isoMatch[3], 10);
+    } else {
+      const dmyMatch = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+      if (dmyMatch) {
+        day   = parseInt(dmyMatch[1], 10);
+        month = parseInt(dmyMatch[2], 10);
+        year  = parseInt(dmyMatch[3], 10);
+      }
+    }
+    if (!year || year < 1900 || year > new Date().getFullYear()) return null;
+    if (!month || month < 1 || month > 12) return null;
+    if (!day   || day   < 1 || day   > 31) return null;
+    const today    = new Date();
+    const birthday = new Date(year, month - 1, day);
+    let age = today.getFullYear() - birthday.getFullYear();
+    const hadBirthday =
+      today.getMonth() > birthday.getMonth() ||
+      (today.getMonth() === birthday.getMonth() && today.getDate() >= birthday.getDate());
+    if (!hadBirthday) age--;
+    return age > 0 && age < 120 ? age : null;
+  }
+
   async function generateMoreInsights(category: 'wealth' | 'linkedin' | 'lifestyle' | 'discipline' | 'social_proof') {
     const isWealth       = category === 'wealth';
     const isLifestyle    = category === 'lifestyle';
@@ -1435,11 +1469,11 @@
     await hydratePromise;
     pushMasterProfile(session.access_token);
 
-    // ── Backfill name/city from verification step data (for users who verified
+    // ── Backfill name/age/city from verification step data (for users who verified
     //    before the profile-draft persistence fix was deployed) ─────────────────
     try {
-      if (!$user?.firstName) {
-        // Pull ID step data to get the extracted name
+      if (!$user?.firstName || !$user?.age) {
+        // Pull ID step data to get the extracted name + DOB
         const { data: idStep } = await supabase
           .from('verified_vibe_verification')
           .select('data')
@@ -1448,12 +1482,14 @@
           .maybeSingle();
         if (idStep?.data) {
           const stepData = idStep.data as any;
-          const extractedFirst = (stepData.idName as string | undefined)?.split(' ')[0]?.trim();
           const MOCK_NAMES = ['Alexander', 'Smith', 'Dev', 'DEV-SKIP', 'Test', 'User'];
-          if (extractedFirst && !MOCK_NAMES.includes(extractedFirst)) {
-            // Update user store
+          const extractedFirst = (stepData.idName as string | undefined)?.split(' ')[0]?.trim();
+          const extractedAge   = parseDOBtoAge(stepData.idDOB as string | undefined);
+
+          const dbUpdate: Record<string, unknown> = {};
+
+          if (extractedFirst && !MOCK_NAMES.includes(extractedFirst) && !$user?.firstName) {
             user.update(u => u ? { ...u, firstName: extractedFirst } : u);
-            // Persist to vv_profile_draft
             try {
               const existing = localStorage.getItem('vv_profile_draft');
               const pd = existing ? JSON.parse(existing) : {};
@@ -1463,10 +1499,27 @@
                 draft = draft ? { ...draft, firstName: extractedFirst } : { firstName: extractedFirst } as any;
               }
             } catch { /* ignore */ }
-            // Save to DB so future refreshes don't need this fallback
+            dbUpdate.first_name = extractedFirst;
+          }
+
+          if (extractedAge && !$user?.age) {
+            user.update(u => u ? { ...u, age: extractedAge } : u);
+            try {
+              const existing = localStorage.getItem('vv_profile_draft');
+              const pd = existing ? JSON.parse(existing) : {};
+              if (!pd.age) {
+                pd.age = extractedAge;
+                localStorage.setItem('vv_profile_draft', JSON.stringify(pd));
+                draft = draft ? { ...draft, age: extractedAge } : { age: extractedAge } as any;
+              }
+            } catch { /* ignore */ }
+            dbUpdate.age = extractedAge;
+          }
+
+          if (Object.keys(dbUpdate).length > 0) {
             await supabase
               .from('verified_vibe_users')
-              .update({ first_name: extractedFirst })
+              .update(dbUpdate)
               .eq('id', session.user.id);
           }
         }
