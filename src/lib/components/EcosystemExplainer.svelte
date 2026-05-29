@@ -130,6 +130,7 @@
     z-index: 200;
     display: flex;
     align-items: flex-end;
+    justify-content: center;
     backdrop-filter: blur(2px);
     animation: fade-in 180ms ease;
   }
@@ -138,6 +139,7 @@
 
   .sheet {
     width: 100%;
+    max-width: 480px;
     max-height: 88vh;
     background: var(--bg-1);
     border-radius: 20px 20px 0 0;
