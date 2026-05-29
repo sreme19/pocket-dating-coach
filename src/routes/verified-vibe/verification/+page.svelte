@@ -45,6 +45,47 @@
     };
   }
 
+  /**
+   * Parse a date-of-birth string from a government ID and return the person's
+   * current age. Handles the common Indian DL formats:
+   *   DD/MM/YYYY  DD-MM-YYYY  YYYY-MM-DD  YYYY/MM/DD  DD.MM.YYYY
+   */
+  function parseDOBtoAge(dob: string | undefined | null): number | null {
+    if (!dob) return null;
+    const s = dob.trim();
+
+    let day = 0, month = 0, year = 0;
+
+    // Try YYYY-MM-DD or YYYY/MM/DD
+    const isoMatch = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+    if (isoMatch) {
+      year  = parseInt(isoMatch[1], 10);
+      month = parseInt(isoMatch[2], 10);
+      day   = parseInt(isoMatch[3], 10);
+    } else {
+      // Try DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY
+      const dmyMatch = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+      if (dmyMatch) {
+        day   = parseInt(dmyMatch[1], 10);
+        month = parseInt(dmyMatch[2], 10);
+        year  = parseInt(dmyMatch[3], 10);
+      }
+    }
+
+    if (!year || year < 1900 || year > new Date().getFullYear()) return null;
+    if (!month || month < 1 || month > 12) return null;
+    if (!day   || day   < 1 || day   > 31) return null;
+
+    const today    = new Date();
+    const birthday = new Date(year, month - 1, day);
+    let age = today.getFullYear() - birthday.getFullYear();
+    const hadBirthday =
+      today.getMonth() > birthday.getMonth() ||
+      (today.getMonth() === birthday.getMonth() && today.getDate() >= birthday.getDate());
+    if (!hadBirthday) age--;
+    return age > 0 && age < 120 ? age : null;
+  }
+
   let currentStep = $state(1);
   let returnTo = $state('');
   let loading = $state(false);
@@ -720,12 +761,20 @@
         } catch {}
         // Also update user store
         if ($user) user.update(u => u ? { ...u, firstName: extractedName } : u);
-        // Persist first_name to Supabase so it survives page refreshes
+
+        // Compute age from DOB and persist alongside name
+        const extractedAge = parseDOBtoAge(result.data?.idDOB);
+        if (extractedAge) {
+          if ($user) user.update(u => u ? { ...u, age: extractedAge } : u);
+        }
+
+        // Persist first_name (and age if available) to Supabase
         if ($user) {
           upsertProfile({
             gender: $user?.gender ?? null,
             archetype: $user?.archetype ?? null,
-            first_name: extractedName
+            first_name: extractedName,
+            ...(extractedAge ? { age: extractedAge } : {})
           } as any).catch(() => {});
         }
       }
