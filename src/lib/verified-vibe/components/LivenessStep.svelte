@@ -1,14 +1,7 @@
 <script lang="ts">
-  import { fade, slide, scale } from 'svelte/transition';
-  import { tick } from 'svelte';
+  import { onMount, tick } from 'svelte';
+  import { getSupabaseClient } from '$lib/client/supabase';
   import type { LivenessCheckResult } from '../types';
-
-  /**
-   * LivenessStep Component - Selfie Capture & Liveness Verification
-   *
-   * Handles selfie photo upload and Claude Vision API integration for liveness check.
-   * Compares selfie to ID photo to verify the user is the same person.
-   */
 
   interface Props {
     idPhotoBase64: string;
@@ -18,990 +11,575 @@
 
   let { idPhotoBase64, onSubmit, onCancel }: Props = $props();
 
-  // State management
-  let uploadedFile = $state<File | null>(null);
-  let previewUrl = $state<string | null>(null);
-  let livenessResult = $state<LivenessCheckResult | null>(null);
-  let loading = $state(false);
-  let error = $state<string | null>(null);
-  let isDragging = $state(false);
-  let step = $state<'upload' | 'result' | 'confirmed'>('upload');
-  let cameraActive = $state(false);
-  let cameraPermissionDenied = $state(false);
-  let fallbackInputEl = $state<HTMLInputElement | null>(null);
-  let videoElement = $state<HTMLVideoElement | null>(null);
-  let canvasElement = $state<HTMLCanvasElement | null>(null);
-  let fileInputEl = $state<HTMLInputElement | null>(null);
+  // ── State machine ────────────────────────────────────────────────────────────
+  type Phase =
+    | 'idle'        // pre-camera — show guide + "Start" button
+    | 'opening'     // waiting for getUserMedia permission
+    | 'ready'       // camera live, ring visible, waiting 2 s before fill
+    | 'filling'     // ring animating 0→100 %
+    | 'captured'    // flash frame, starting API call
+    | 'verifying'   // Claude running
+    | 'failed';     // mismatch or error
 
-  /**
-   * Handle file selection from input
-   */
-  function handleFileSelect(event: Event) {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (file) {
-      processFile(file);
-    }
-  }
+  let phase      = $state<Phase>('idle');
+  let fillPct    = $state(0);        // 0–100 for ring progress
+  let flashOn    = $state(false);    // white flash on capture
+  let errMsg     = $state<string | null>(null);
+  let permDenied = $state(false);
 
-  /**
-   * Handle drag and drop
-   */
-  function handleDragOver(event: DragEvent) {
-    event.preventDefault();
-    isDragging = true;
-  }
+  let videoEl   = $state<HTMLVideoElement | null>(null);
+  let canvasEl  = $state<HTMLCanvasElement | null>(null);
+  let fallbackEl = $state<HTMLInputElement | null>(null);
 
-  function handleDragLeave() {
-    isDragging = false;
-  }
+  let fillTimer:  ReturnType<typeof setInterval>  | null = null;
+  let delayTimer: ReturnType<typeof setTimeout>   | null = null;
 
-  function handleDrop(event: DragEvent) {
-    event.preventDefault();
-    isDragging = false;
-    const file = event.dataTransfer?.files?.[0];
-    if (file) {
-      processFile(file);
-    }
-  }
+  // ── Ring geometry (SVG circle, CSS scaleY → oval) ───────────────────────────
+  const R           = 108;
+  const CIRCUMF     = +(2 * Math.PI * R).toFixed(1);   // ≈ 678.6
+  const ringOffset  = $derived(CIRCUMF * (1 - fillPct / 100));
+  const ringStroke  = $derived(fillPct > 0 ? '#34D399' : 'rgba(255,255,255,0.55)');
 
-  /**
-   * Process uploaded file
-   */
-  function processFile(file: File) {
-    error = null;
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      error = 'Please upload an image file';
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      error = 'File size must be less than 5MB';
-      return;
-    }
-
-    uploadedFile = file;
-
-    // Create preview
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      previewUrl = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  }
-
-  /**
-   * Start camera capture
-   */
-  async function startCamera() {
-    error = null;
-    cameraPermissionDenied = false;
+  // ── Camera helpers ───────────────────────────────────────────────────────────
+  async function openCamera() {
+    phase     = 'opening';
+    errMsg    = null;
+    permDenied = false;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }
       });
-      // Render the video element first, then wire up the stream
-      cameraActive = true;
+      phase = 'ready';
       await tick();
-      if (videoElement) {
-        videoElement.srcObject = stream;
-        await videoElement.play().catch(() => {});
+      if (videoEl) {
+        videoEl.srcObject = stream;
+        await videoEl.play().catch(() => {});
       }
-    } catch (err: any) {
-      cameraActive = false;
-      if (err?.name === 'NotAllowedError') {
-        cameraPermissionDenied = true;
-        error = 'Camera access was denied. Tap the button below to take a selfie using your device camera.';
-      } else if (err?.name === 'NotFoundError') {
-        error = 'No camera found on this device.';
+      scheduleAutoCapture();
+    } catch (e: any) {
+      phase = 'idle';
+      if (e?.name === 'NotAllowedError') {
+        permDenied = true;
+        errMsg = 'Camera access denied. Use the button below to take a selfie.';
       } else {
-        error = 'Unable to access camera. Please try the button below.';
-        cameraPermissionDenied = true;
+        permDenied = true;
+        errMsg = 'Camera unavailable. Use the button below to take a selfie.';
       }
     }
   }
 
-  /**
-   * Capture photo from camera and immediately run liveness check
-   */
-  function capturePhoto() {
-    if (!videoElement || !canvasElement) return;
-
-    const context = canvasElement.getContext('2d');
-    if (!context) return;
-
-    canvasElement.width = videoElement.videoWidth;
-    canvasElement.height = videoElement.videoHeight;
-    context.drawImage(videoElement, 0, 0);
-
-    canvasElement.toBlob((blob) => {
-      if (blob) {
-        const file = new File([blob], 'selfie.jpg', { type: 'image/jpeg' });
-        processFile(file);
-        stopCamera();
-        // Auto-trigger liveness check after capture
-        setTimeout(() => checkLiveness(), 200);
-      }
-    }, 'image/jpeg', 0.95);
+  function scheduleAutoCapture() {
+    // 2 s pause so user can centre face, then ring fills over 1.5 s
+    delayTimer = setTimeout(() => {
+      phase     = 'filling';
+      fillPct   = 0;
+      const TOTAL   = 1500;   // ms for full fill
+      const TICK    = 30;     // ms per interval
+      const STEP    = 100 / (TOTAL / TICK);
+      fillTimer = setInterval(() => {
+        fillPct = Math.min(100, fillPct + STEP);
+        if (fillPct >= 100) {
+          clearInterval(fillTimer!);
+          fillTimer = null;
+          doCapture();
+        }
+      }, TICK);
+    }, 2000);
   }
 
-  /**
-   * Stop camera
-   */
-  function stopCamera() {
-    if (videoElement && videoElement.srcObject) {
-      const stream = videoElement.srcObject as MediaStream;
-      stream.getTracks().forEach((track) => track.stop());
-      cameraActive = false;
-    }
+  function doCapture() {
+    if (!videoEl || !canvasEl) return;
+    const ctx = canvasEl.getContext('2d');
+    if (!ctx) return;
+    canvasEl.width  = videoEl.videoWidth;
+    canvasEl.height = videoEl.videoHeight;
+    ctx.drawImage(videoEl, 0, 0);
+    stopStream();
+
+    // brief white flash
+    flashOn = true;
+    setTimeout(() => { flashOn = false; }, 250);
+
+    phase = 'captured';
+    setTimeout(() => runVerification(), 300);
   }
 
-  /**
-   * Send selfie + ID photo to Claude API for liveness check
-   */
-  async function checkLiveness() {
-    if (!uploadedFile || !previewUrl) {
-      error = 'Please upload a selfie first';
-      return;
+  function stopStream() {
+    if (videoEl?.srcObject) {
+      (videoEl.srcObject as MediaStream).getTracks().forEach(t => t.stop());
     }
+    clearTimeout(delayTimer!);
+    clearInterval(fillTimer!);
+    delayTimer = null;
+    fillTimer  = null;
+  }
 
-    if (!idPhotoBase64) {
-      error = 'ID photo not found — please go back and complete the ID verification step first.';
-      return;
-    }
+  // ── Fallback: file input (permission denied) ─────────────────────────────────
+  function handleFallbackFile(e: Event) {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    (e.target as HTMLInputElement).value = '';
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      // draw onto canvas so runVerification can read it
+      const img = new Image();
+      img.onload = async () => {
+        if (!canvasEl) return;
+        canvasEl.width  = img.naturalWidth;
+        canvasEl.height = img.naturalHeight;
+        canvasEl.getContext('2d')!.drawImage(img, 0, 0);
+        phase = 'captured';
+        await tick();
+        runVerification();
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  }
 
-    loading = true;
-    error = null;
-
-    // Create abort controller for timeout (30 seconds)
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+  // ── Liveness check ───────────────────────────────────────────────────────────
+  async function runVerification() {
+    if (!canvasEl) return;
+    phase  = 'verifying';
+    errMsg = null;
 
     try {
-      // Convert image to base64
-      const base64Image = previewUrl.split(',')[1];
+      // Get auth token (best-effort; server still works without it)
+      let token = '';
+      try {
+        const sb = getSupabaseClient();
+        const { data: { session } } = await sb.auth.getSession();
+        token = session?.access_token ?? '';
+      } catch { /* non-critical */ }
 
-      // Call API endpoint with timeout
-      const response = await fetch('/api/verified-vibe/check-liveness', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          selfie: base64Image,
-          idPhoto: idPhotoBase64,
-          mimeType: uploadedFile.type
-        }),
-        signal: controller.signal
+      // Encode canvas to base64
+      const selfieBase64 = await new Promise<string>((resolve, reject) => {
+        canvasEl!.toBlob(blob => {
+          if (!blob) return reject(new Error('Capture failed'));
+          const fr = new FileReader();
+          fr.onload = e => resolve((e.target!.result as string).split(',')[1]);
+          fr.readAsDataURL(blob);
+        }, 'image/jpeg', 0.92);
       });
 
-      clearTimeout(timeoutId);
+      // Call the verify-step endpoint so auth + persistence happen in one shot
+      const res = await fetch('/api/verified-vibe/verify-step', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          step: 'liveness',
+          data: {
+            selfieImage:   selfieBase64,
+            idPhotoBase64: idPhotoBase64,
+            mimeType:      'image/jpeg'
+          }
+        })
+      });
 
-      if (!response.ok) {
-        let errorMessage = 'Failed to check liveness';
-        try {
-          const data = await response.json();
-          errorMessage = data.error || errorMessage;
-        } catch {
-          // If response is not JSON, use generic message
-          errorMessage = `Server error (${response.status}). Please try again.`;
-        }
-        throw new Error(errorMessage);
+      const json = await res.json();
+
+      if (!res.ok || json.status === 'failed') {
+        phase  = 'failed';
+        errMsg = json.data?.match === false
+          ? "Face doesn't match your ID — please try again in better lighting."
+          : json.error || 'Verification failed — please try again.';
+        return;
       }
 
-      let result;
-      try {
-        result = await response.json();
-      } catch {
-        throw new Error('Invalid response from server. Please try again.');
-      }
+      // Success — hand off to parent
+      if (onSubmit) await onSubmit(json.data as LivenessCheckResult);
 
-      // Validate response structure
-      if (!result.data || typeof result.data.confidence !== 'number' || typeof result.data.match !== 'boolean') {
-        throw new Error('Invalid response format. Please try again.');
-      }
-
-      // Validate confidence score range (0-100)
-      if (result.data.confidence < 0 || result.data.confidence > 100) {
-        throw new Error('Invalid confidence score. Please try again.');
-      }
-
-      livenessResult = result.data;
-      step = 'result';
-    } catch (err) {
-      clearTimeout(timeoutId);
-      
-      // Handle timeout
-      if (err instanceof Error && err.name === 'AbortError') {
-        error = 'Request took too long. Please check your connection and try again.';
-      } else {
-        error = err instanceof Error ? err.message : 'Failed to check liveness. Please try again.';
-      }
-    } finally {
-      loading = false;
+    } catch (e) {
+      phase  = 'failed';
+      errMsg = 'Network error — please check your connection and retry.';
     }
   }
 
-  /**
-   * Handle re-upload
-   */
-  function handleReupload() {
-    uploadedFile = null;
-    previewUrl = null;
-    livenessResult = null;
-    error = null;
-    step = 'upload';
+  // ── Retry ────────────────────────────────────────────────────────────────────
+  function retry() {
+    stopStream();
+    phase      = 'idle';
+    fillPct    = 0;
+    errMsg     = null;
+    permDenied = false;
   }
 
-  /**
-   * Handle confirm
-   */
-  async function handleConfirm() {
-    if (!livenessResult) return;
-
-    loading = true;
-    error = null;
-
-    try {
-      if (onSubmit) {
-        await onSubmit(livenessResult);
-      }
-      step = 'confirmed';
-    } catch (err) {
-      error = err instanceof Error ? err.message : 'Failed to save data';
-    } finally {
-      loading = false;
-    }
+  function cancel() {
+    stopStream();
+    onCancel?.();
   }
 
-  /**
-   * Handle cancel
-   */
-  function handleCancel() {
-    stopCamera();
-    if (onCancel) {
-      onCancel();
-    }
-  }
-
-  /**
-   * Cleanup on unmount
-   */
-  function cleanup() {
-    stopCamera();
-  }
+  onMount(() => { return () => stopStream(); });
 </script>
 
-<svelte:window onunload={cleanup} />
+<div class="liveness-wrap">
 
-<div class="liveness-step" transition:fade={{ duration: 300 }}>
-  <!-- Upload Step -->
-  {#if step === 'upload'}
-    <div class="step-content" transition:slide={{ duration: 300, axis: 'y' }}>
-      <div class="step-header">
-        <h3 class="step-title">Selfie Verification</h3>
-        <p class="step-description">Take a selfie to verify you're the same person as your ID</p>
+  <!-- ── IDLE — guide screen ─────────────────────────────────────────── -->
+  {#if phase === 'idle'}
+    <div class="guide-screen">
+      <div class="guide-oval-preview">
+        <svg viewBox="0 0 240 300" class="guide-svg">
+          <ellipse cx="120" cy="148" rx="95" ry="120"
+            fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="2.5" stroke-dasharray="6 5" />
+          <!-- face silhouette hint -->
+          <ellipse cx="120" cy="130" rx="38" ry="46" fill="rgba(255,255,255,0.05)" />
+        </svg>
+        <div class="guide-label">Position your face here</div>
       </div>
 
-      <!-- Camera View -->
-      {#if cameraActive}
-        <div class="camera-section" transition:slide={{ duration: 300, axis: 'y' }}>
-          <video
-            bind:this={videoElement}
-            autoplay
-            playsinline
-            class="camera-video"
-            aria-label="Camera preview"
-          ></video>
-          <canvas bind:this={canvasElement} class="hidden-canvas"></canvas>
-          <div class="camera-controls">
-            <button
-              class="btn btn-primary"
-              onclick={capturePhoto}
-              disabled={loading}
-              aria-label="Capture photo"
-            >
-              📸 Capture
-            </button>
-            <button
-              class="btn btn-secondary"
-              onclick={stopCamera}
-              disabled={loading}
-              aria-label="Close camera"
-            >
-              ✕ Close
-            </button>
-          </div>
-        </div>
+      <p class="guide-hint">Look straight into the camera and hold still.<br>We'll auto-capture once your face is centred.</p>
+
+      {#if errMsg}
+        <div class="err-row">⚠️ {errMsg}</div>
       {/if}
 
-      <!-- Camera prompt when not yet active -->
-      {#if !cameraActive}
-        {#if cameraPermissionDenied}
-          <!-- Fallback: native file picker with front camera hint -->
-          <button
-            class="btn btn-primary"
-            onclick={() => fallbackInputEl?.click()}
-            aria-label="Take selfie using device camera"
-          >
-            📷 Take Selfie
-          </button>
-          <input
-            bind:this={fallbackInputEl}
-            type="file"
-            accept="image/*"
-            capture="user"
-            class="hidden-input"
-            onchange={(e) => {
-              const file = (e.target as HTMLInputElement).files?.[0];
-              if (file) { processFile(file); (e.target as HTMLInputElement).value = ''; }
-            }}
-          />
-        {:else}
-          <button
-            class="btn btn-primary"
-            onclick={startCamera}
-            aria-label="Open camera to take selfie"
-          >
-            📷 Open Camera
-          </button>
-        {/if}
+      {#if permDenied}
+        <!-- Fallback button -->
+        <button class="cta" onclick={() => fallbackEl?.click()}>
+          📷 Take Selfie
+        </button>
+        <input bind:this={fallbackEl} type="file" accept="image/*" capture="user"
+          class="sr-only" onchange={handleFallbackFile} />
+      {:else}
+        <button class="cta" onclick={openCamera} disabled={phase === 'opening'}>
+          {phase === 'opening' ? 'Opening camera…' : '📷 Start'}
+        </button>
       {/if}
 
-      <!-- Error Message -->
-      {#if error}
-        <div class="error-message" transition:slide={{ duration: 300, axis: 'y' }} role="alert">
-          <span class="error-icon">⚠️</span>
-          <span class="error-text">{error}</span>
-        </div>
-      {/if}
-
-      <!-- Preview -->
-      {#if previewUrl}
-        <div class="preview-section" transition:slide={{ duration: 300, axis: 'y' }}>
-          <h4 class="preview-title">Preview</h4>
-          <img src={previewUrl} alt="Selfie preview" class="preview-image" />
-          <button
-            class="btn btn-secondary"
-            onclick={handleReupload}
-            disabled={loading}
-            aria-label="Upload a different photo"
-          >
-            Upload Different Photo
-          </button>
-        </div>
-      {/if}
-
-      <!-- Loading state while liveness check runs after capture -->
-      {#if loading}
-        <div class="actions">
-          <button class="btn btn-primary" disabled aria-label="Checking liveness">
-            <span class="loading-spinner"></span>
-            Checking…
-          </button>
-        </div>
-      {/if}
+      <button class="cancel-link" onclick={cancel}>Cancel</button>
     </div>
   {/if}
 
-  <!-- Result Step -->
-  {#if step === 'result'}
-    <div class="step-content" transition:slide={{ duration: 300, axis: 'y' }}>
-      <div class="step-header">
-        <h3 class="step-title">Verification Result</h3>
-        <p class="step-description">Here's how well your selfie matches your ID</p>
-      </div>
+  <!-- ── CAMERA LIVE (ready / filling) ──────────────────────────────── -->
+  {#if phase === 'ready' || phase === 'filling' || phase === 'captured'}
+    <div class="camera-screen">
 
-      {#if livenessResult}
-        <div class="result-card" transition:scale={{ duration: 300 }}>
-          <div class="confidence-display">
-            <div class="confidence-score">{livenessResult.confidence}%</div>
-            <div class="confidence-label">Match Confidence</div>
-          </div>
+      <!-- Video -->
+      <video bind:this={videoEl} autoplay playsinline muted
+        class="cam-video" class:hidden={phase === 'captured'}></video>
 
-          <div class="result-status">
-            {#if livenessResult.match}
-              <div class="status-passed">
-                <span class="status-icon">✓</span>
-                <span class="status-text">Face Match Verified</span>
-              </div>
-              <p class="status-description">Your selfie matches your ID photo</p>
-            {:else}
-              <div class="status-failed">
-                <span class="status-icon">✗</span>
-                <span class="status-text">Face Doesn't Match</span>
-              </div>
-              <p class="status-description">Please retake your selfie and try again</p>
-            {/if}
-          </div>
+      <!-- Canvas (hidden; used to grab frame) -->
+      <canvas bind:this={canvasEl} class="sr-only"></canvas>
 
-          <div class="confidence-bar">
-            <div class="bar-fill" style="width: {livenessResult.confidence}%"></div>
-          </div>
-        </div>
+      <!-- Capture flash -->
+      {#if flashOn}
+        <div class="flash-overlay"></div>
+      {/if}
 
-        <!-- Error Message -->
-        {#if error}
-          <div class="error-message" transition:slide={{ duration: 300, axis: 'y' }} role="alert">
-            <span class="error-icon">⚠️</span>
-            <span class="error-text">{error}</span>
-          </div>
-        {/if}
+      <!-- Ring overlay -->
+      <div class="ring-container">
+        <svg class="ring-svg" viewBox="0 0 240 240" aria-hidden="true">
+          <!-- dim track -->
+          <circle cx="120" cy="120" r={R}
+            fill="none"
+            stroke="rgba(255,255,255,0.18)"
+            stroke-width="3"
+          />
+          <!-- progress arc -->
+          <circle cx="120" cy="120" r={R}
+            fill="none"
+            stroke={ringStroke}
+            stroke-width="4"
+            stroke-linecap="round"
+            stroke-dasharray={CIRCUMF}
+            stroke-dashoffset={ringOffset}
+            transform="rotate(-90 120 120)"
+            style="transition: stroke-dashoffset 0.03s linear, stroke 0.4s ease"
+          />
+        </svg>
 
-        <!-- Actions -->
-        <div class="actions">
-          <button
-            class="btn btn-secondary"
-            onclick={handleReupload}
-            disabled={loading}
-            aria-label="Retake selfie"
-          >
-            Retake Selfie
-          </button>
-          {#if livenessResult.match}
-            <button
-              class="btn btn-primary"
-              onclick={handleConfirm}
-              disabled={loading}
-              aria-label="Confirm and continue"
-            >
-              {#if loading}
-                <span class="loading-spinner"></span>
-                Confirming...
-              {:else}
-                Confirm
-              {/if}
-            </button>
+        <!-- Corner close button -->
+        <button class="close-btn" onclick={cancel} aria-label="Cancel">✕</button>
+
+        <!-- Instruction bubble -->
+        <div class="instruction" class:instruction--go={phase === 'filling'}>
+          {#if phase === 'ready'}
+            Centre your face in the ring
+          {:else if phase === 'filling'}
+            Hold still…
+          {:else}
+            ✓ Captured
           {/if}
         </div>
-      {/if}
+      </div>
+
     </div>
   {/if}
 
-  <!-- Confirmed Step -->
-  {#if step === 'confirmed'}
-    <div class="step-content" transition:slide={{ duration: 300, axis: 'y' }}>
-      <div class="success-message" transition:scale={{ duration: 300 }}>
-        <div class="success-icon">✓</div>
-        <h3 class="success-title">Liveness Verified</h3>
-        <p class="success-description">Your face has been verified against your ID</p>
-      </div>
+  <!-- ── VERIFYING ──────────────────────────────────────────────────── -->
+  {#if phase === 'verifying'}
+    <div class="status-screen">
+      <canvas bind:this={canvasEl} class="sr-only"></canvas>
+      <div class="spinner-ring"></div>
+      <p class="status-text">Verifying face match…</p>
+      <p class="status-sub">Comparing against your ID</p>
     </div>
   {/if}
+
+  <!-- ── FAILED ─────────────────────────────────────────────────────── -->
+  {#if phase === 'failed'}
+    <div class="status-screen">
+      <canvas bind:this={canvasEl} class="sr-only"></canvas>
+      <div class="fail-icon">✕</div>
+      <p class="status-text">Match failed</p>
+      <p class="status-sub">{errMsg ?? 'Please try again in better lighting.'}</p>
+      <button class="cta" onclick={retry}>Try again</button>
+      <button class="cancel-link" onclick={cancel}>Cancel</button>
+    </div>
+  {/if}
+
 </div>
 
 <style>
-  .liveness-step {
+  /* ── Container ───────────────────────────────────────────────────────────── */
+  .liveness-wrap {
     display: flex;
     flex-direction: column;
-    gap: var(--gap-lg);
+    align-items: center;
     width: 100%;
+    min-height: 420px;
   }
 
-  .step-content {
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    overflow: hidden; clip: rect(0,0,0,0);
+  }
+
+  /* ── Guide screen ────────────────────────────────────────────────────────── */
+  .guide-screen {
     display: flex;
     flex-direction: column;
-    gap: var(--gap-lg);
-  }
-
-  /* Header */
-  .step-header {
-    text-align: center;
-  }
-
-  .step-title {
-    font-size: var(--font-size-xl);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-vibe-text-1);
-    margin: 0 0 var(--gap-sm);
-  }
-
-  .step-description {
-    font-size: var(--font-size-base);
-    color: var(--color-vibe-text-2);
-    margin: 0;
-    line-height: var(--line-height-relaxed);
-  }
-
-  /* Tabs */
-  .upload-tabs {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--gap-md);
-  }
-
-  .tab-button {
-    padding: var(--spacing-md);
-    border: 2px solid var(--color-vibe-border);
-    border-radius: var(--radius-lg);
-    background: var(--color-vibe-bg-2);
-    color: var(--color-vibe-text-2);
-    font-size: var(--font-size-base);
-    font-weight: var(--font-weight-semibold);
-    cursor: pointer;
-    transition: all 200ms ease;
-    min-height: 44px;
-  }
-
-  .tab-button.active {
-    border-color: var(--color-vibe-emerald);
-    background: rgba(16, 185, 129, 0.1);
-    color: var(--color-vibe-emerald);
-  }
-
-  @media (hover: hover) {
-    .tab-button:hover:not(:disabled) {
-      border-color: var(--color-vibe-emerald);
-    }
-  }
-
-  /* Camera Section */
-  .camera-section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--gap-md);
-  }
-
-  .camera-video {
+    align-items: center;
+    gap: 18px;
     width: 100%;
-    border-radius: var(--radius-lg);
-    background: #000;
-    aspect-ratio: 1;
-    object-fit: cover;
+    padding: 8px 0 4px;
   }
 
-  .hidden-canvas {
-    display: none;
+  .guide-oval-preview {
+    position: relative;
+    width: 200px;
+    height: 250px;
   }
 
-  .hidden-input {
-    display: none;
-  }
-
-  .camera-controls {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--gap-md);
-  }
-
-  /* Upload Area */
-  .upload-area {
-    border: 2px dashed var(--color-vibe-border);
-    border-radius: var(--radius-lg);
-    padding: var(--spacing-xl);
-    text-align: center;
-    cursor: pointer;
-    transition: all 200ms ease;
-    background: var(--color-vibe-bg-2);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--gap-md);
-    will-change: border-color, background-color;
-  }
-
-  @media (hover: hover) {
-    .upload-area:hover {
-      border-color: var(--color-vibe-emerald);
-      background: rgba(16, 185, 129, 0.05);
-    }
-  }
-
-  .upload-area.dragging {
-    border-color: var(--color-vibe-emerald);
-    background: rgba(16, 185, 129, 0.1);
-  }
-
-  .upload-area:focus-within {
-    outline: 2px solid var(--color-vibe-emerald);
-    outline-offset: 2px;
-  }
-
-  .upload-icon {
-    font-size: 48px;
-    line-height: 1;
-  }
-
-  .upload-text {
-    font-size: var(--font-size-base);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-vibe-text-1);
-    margin: 0;
-  }
-
-  .upload-hint {
-    font-size: var(--font-size-sm);
-    color: var(--color-vibe-text-3);
-    margin: 0;
-  }
-
-  .file-input {
-    display: none;
-  }
-
-  /* Requirements */
-  .requirements {
-    background: var(--color-vibe-bg-2);
-    border-radius: var(--radius-md);
-    padding: var(--spacing-lg);
-  }
-
-  .requirements-title {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-vibe-text-1);
-    margin: 0 0 var(--gap-md);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .requirements-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: var(--gap-sm);
-  }
-
-  .requirements-list li {
-    font-size: var(--font-size-sm);
-    color: var(--color-vibe-text-2);
-    display: flex;
-    align-items: center;
-    gap: var(--gap-sm);
-  }
-
-  .requirements-list li::before {
-    content: '✓';
-    color: var(--color-vibe-emerald);
-    font-weight: var(--font-weight-bold);
-    flex-shrink: 0;
-  }
-
-  /* Error Message */
-  .error-message {
-    display: flex;
-    align-items: center;
-    gap: var(--gap-md);
-    padding: var(--spacing-md);
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    border-radius: var(--radius-md);
-    color: #ef4444;
-  }
-
-  .error-icon {
-    font-size: 20px;
-    flex-shrink: 0;
-  }
-
-  .error-text {
-    font-size: var(--font-size-sm);
-    flex: 1;
-  }
-
-  /* Preview Section */
-  .preview-section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--gap-md);
-  }
-
-  .preview-title {
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-vibe-text-1);
-    margin: 0;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .preview-image {
+  .guide-svg {
     width: 100%;
-    max-height: 300px;
-    object-fit: cover;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--color-vibe-border);
-  }
-
-  /* Result Card */
-  .result-card {
-    display: flex;
-    flex-direction: column;
-    gap: var(--gap-lg);
-    background: var(--color-vibe-bg-2);
-    border-radius: var(--radius-lg);
-    padding: var(--spacing-lg);
-  }
-
-  .confidence-display {
-    text-align: center;
-  }
-
-  .confidence-score {
-    font-size: 48px;
-    font-weight: var(--font-weight-bold);
-    color: var(--color-vibe-emerald);
-    margin: 0 0 var(--gap-sm);
-  }
-
-  .confidence-label {
-    font-size: var(--font-size-sm);
-    color: var(--color-vibe-text-2);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
-
-  .result-status {
-    text-align: center;
-  }
-
-  .status-passed,
-  .status-failed {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--gap-md);
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-semibold);
-    margin: 0 0 var(--gap-sm);
-  }
-
-  .status-passed {
-    color: var(--color-vibe-emerald);
-  }
-
-  .status-failed {
-    color: #ef4444;
-  }
-
-  .status-icon {
-    font-size: 24px;
-  }
-
-  .status-description {
-    font-size: var(--font-size-sm);
-    color: var(--color-vibe-text-2);
-    margin: 0;
-  }
-
-  .confidence-bar {
-    height: 8px;
-    background: var(--color-vibe-bg-1);
-    border-radius: 4px;
-    overflow: hidden;
-  }
-
-  .bar-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--color-vibe-emerald), var(--color-vibe-mint));
-    transition: width 500ms ease;
   }
 
-  /* Success Message */
-  .success-message {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--gap-md);
-    padding: var(--spacing-xl);
+  .guide-label {
+    position: absolute;
+    bottom: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: var(--text-3);
+    white-space: nowrap;
+    letter-spacing: 0.04em;
+  }
+
+  .guide-hint {
+    font-size: 14px;
+    color: var(--text-3);
     text-align: center;
-  }
-
-  .success-icon {
-    font-size: 64px;
-    line-height: 1;
-    color: var(--color-vibe-emerald);
-  }
-
-  .success-title {
-    font-size: var(--font-size-xl);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-vibe-text-1);
+    line-height: 1.5;
     margin: 0;
+    max-width: 300px;
   }
 
-  .success-description {
-    font-size: var(--font-size-base);
-    color: var(--color-vibe-text-2);
-    margin: 0;
+  /* ── Camera screen ───────────────────────────────────────────────────────── */
+  .camera-screen {
+    position: relative;
+    width: 100%;
+    /* square viewport */
+    aspect-ratio: 1 / 1;
+    border-radius: 20px;
+    overflow: hidden;
+    background: #000;
   }
 
-  /* Actions */
-  .actions {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: var(--gap-md);
+  .cam-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* Mirror for selfie feel */
+    transform: scaleX(-1);
   }
 
-  .btn {
-    padding: var(--spacing-md) var(--spacing-lg);
-    border-radius: var(--radius-lg);
-    border: none;
-    font-size: var(--font-size-base);
-    font-weight: var(--font-weight-semibold);
-    cursor: pointer;
-    transition: all 200ms ease;
+  .cam-video.hidden {
+    visibility: hidden;
+  }
+
+  .flash-overlay {
+    position: absolute;
+    inset: 0;
+    background: #fff;
+    opacity: 0.85;
+    pointer-events: none;
+    animation: flash-fade 250ms ease-out forwards;
+  }
+
+  @keyframes flash-fade {
+    from { opacity: 0.85; }
+    to   { opacity: 0; }
+  }
+
+  /* Ring overlay */
+  .ring-container {
+    position: absolute;
+    inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: var(--gap-sm);
+    pointer-events: none;
+  }
+
+  .ring-svg {
+    /* Scale horizontally so the circle becomes an oval matching a face shape */
+    width: 82%;
+    height: 82%;
+    transform: scaleY(1.28);
+    /* Re-enable pointer-events only for the close button */
+  }
+
+  .close-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0,0,0,0.45);
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    pointer-events: all;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .instruction {
+    position: absolute;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(6px);
+    padding: 7px 18px;
+    border-radius: 999px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.9);
+    white-space: nowrap;
+    pointer-events: none;
+    transition: background 0.3s;
+  }
+
+  .instruction--go {
+    background: rgba(52, 211, 153, 0.35);
+    color: #d1fae5;
+  }
+
+  /* ── Status screens ──────────────────────────────────────────────────────── */
+  .status-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 32px 16px;
+    width: 100%;
+    text-align: center;
+  }
+
+  /* Spinner */
+  .spinner-ring {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: 4px solid rgba(52, 211, 153, 0.18);
+    border-top-color: #34D399;
+    animation: spin 0.9s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .fail-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: rgba(239,68,68,0.12);
+    border: 2px solid rgba(239,68,68,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: #ef4444;
+    font-weight: 700;
+  }
+
+  .status-text {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text-1);
+    margin: 0;
+  }
+
+  .status-sub {
+    font-size: 13.5px;
+    color: var(--text-3);
+    margin: 0;
+    max-width: 280px;
+    line-height: 1.4;
+  }
+
+  /* ── CTA button ──────────────────────────────────────────────────────────── */
+  .cta {
+    width: 100%;
+    max-width: 300px;
+    padding: 15px 20px;
+    background: var(--accent-bright);
+    border: none;
+    border-radius: 14px;
+    color: #052819;
+    font-size: 15px;
+    font-weight: 700;
     font-family: inherit;
-    min-height: 44px;
-    touch-action: manipulation;
-    will-change: opacity, transform;
+    cursor: pointer;
+    transition: opacity 0.2s;
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .btn {
-      transition: none;
-      will-change: auto;
-    }
-  }
-
-  .btn-primary {
-    background: var(--color-vibe-emerald);
-    color: white;
-  }
-
-  @media (hover: hover) {
-    .btn-primary:hover:not(:disabled) {
-      opacity: 0.9;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-    }
-  }
-
-  .btn-primary:active:not(:disabled) {
-    transform: translateY(0);
-  }
-
-  .btn-secondary {
-    background: var(--color-vibe-bg-2);
-    color: var(--color-vibe-text-1);
-    border: 1px solid var(--color-vibe-border);
-  }
-
-  @media (hover: hover) {
-    .btn-secondary:hover:not(:disabled) {
-      background: var(--color-vibe-bg-3);
-      border-color: var(--color-vibe-border);
-    }
-  }
-
-  .btn-secondary:active:not(:disabled) {
-    opacity: 0.8;
-  }
-
-  .btn:disabled {
+  .cta:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
 
-  .btn:focus-visible {
-    outline: 2px solid var(--color-vibe-emerald);
-    outline-offset: 2px;
+  .cta:active:not(:disabled) {
+    opacity: 0.85;
+    transform: scale(0.98);
   }
 
-  .loading-spinner {
-    display: inline-block;
-    width: 14px;
-    height: 14px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-top-color: white;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+  .cancel-link {
+    background: transparent;
+    border: none;
+    color: var(--text-3);
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 6px 12px;
   }
 
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  /* Mobile Responsive */
-  @media (max-width: 767px) {
-    .step-title {
-      font-size: var(--font-size-lg);
-    }
-
-    .step-description {
-      font-size: var(--font-size-sm);
-    }
-
-    .upload-area {
-      padding: var(--spacing-lg);
-      gap: var(--gap-md);
-    }
-
-    .upload-icon {
-      font-size: 40px;
-    }
-
-    .upload-text {
-      font-size: var(--font-size-sm);
-    }
-
-    .upload-hint {
-      font-size: var(--font-size-xs);
-    }
-
-    .preview-image {
-      max-height: 250px;
-    }
-
-    .result-card {
-      padding: var(--spacing-md);
-      gap: var(--gap-md);
-    }
-
-    .confidence-score {
-      font-size: 40px;
-    }
-
-    .actions {
-      grid-template-columns: 1fr;
-    }
-
-    .btn {
-      padding: var(--spacing-md);
-      font-size: var(--font-size-sm);
-    }
-
-    .success-icon {
-      font-size: 56px;
-    }
-
-    .success-title {
-      font-size: var(--font-size-lg);
-    }
-
-    .success-description {
-      font-size: var(--font-size-sm);
-    }
-  }
-
-  /* Tablet Responsive */
-  @media (min-width: 768px) and (max-width: 1023px) {
-    .actions {
-      grid-template-columns: 1fr 1fr;
-    }
-
-    .camera-controls {
-      grid-template-columns: 1fr 1fr;
-    }
-  }
-
-  /* Desktop Responsive */
-  @media (min-width: 1024px) {
-    .actions {
-      grid-template-columns: 1fr 1fr;
-    }
-
-    .camera-controls {
-      grid-template-columns: 1fr 1fr;
-    }
+  .err-row {
+    font-size: 13px;
+    color: #f87171;
+    text-align: center;
+    max-width: 300px;
   }
 </style>
