@@ -1449,7 +1449,8 @@
         if (idStep?.data) {
           const stepData = idStep.data as any;
           const extractedFirst = (stepData.idName as string | undefined)?.split(' ')[0]?.trim();
-          if (extractedFirst && extractedFirst !== 'DEV-SKIP' && extractedFirst !== 'Dev') {
+          const MOCK_NAMES = ['Alexander', 'Smith', 'Dev', 'DEV-SKIP', 'Test', 'User'];
+          if (extractedFirst && !MOCK_NAMES.includes(extractedFirst)) {
             // Update user store
             user.update(u => u ? { ...u, firstName: extractedFirst } : u);
             // Persist to vv_profile_draft
