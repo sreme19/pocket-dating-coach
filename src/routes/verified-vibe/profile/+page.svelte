@@ -1109,11 +1109,31 @@
     fileInput?.click();
   }
 
-  // Persist the lead photo to the DB avatar_url so matches see it in chat/discover.
-  async function persistAvatar(dataUrl: string) {
+  // Persist the lead photo to Supabase Storage (not raw base64 in the DB) and
+  // write the resulting public URL to avatar_url so matches see it in chat/discover.
+  async function persistAvatar(photo: string) {
     try {
-      await upsertProfile({ avatar_url: dataUrl } as any);
-      user.update((u) => (u ? { ...u, avatar: dataUrl } : u));
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+
+      // base64 dataURLs get uploaded to Storage; already-hosted URLs (AI photos)
+      // are stored as-is.
+      const isHosted = /^https?:\/\//.test(photo);
+      const res = await fetch('/api/verified-vibe/upload-avatar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify(isHosted ? { imageUrl: photo } : { dataUrl: photo })
+      });
+      if (!res.ok) {
+        console.error('Failed to persist avatar:', await res.text());
+        return;
+      }
+      const { avatarUrl } = await res.json() as { avatarUrl: string };
+      user.update((u) => (u ? { ...u, avatar: avatarUrl } : u));
     } catch (e) {
       console.error('Failed to persist avatar:', e);
     }
