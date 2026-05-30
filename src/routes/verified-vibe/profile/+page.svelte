@@ -1109,6 +1109,16 @@
     fileInput?.click();
   }
 
+  // Persist the lead photo to the DB avatar_url so matches see it in chat/discover.
+  async function persistAvatar(dataUrl: string) {
+    try {
+      await upsertProfile({ avatar_url: dataUrl } as any);
+      user.update((u) => (u ? { ...u, avatar: dataUrl } : u));
+    } catch (e) {
+      console.error('Failed to persist avatar:', e);
+    }
+  }
+
   function handleFileSelect(event: Event) {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
@@ -1121,8 +1131,11 @@
 
           // Add photo if we haven't reached max
           if (photos.length < 3) {
+            const isFirstPhoto = photos.length === 0;
             photos = [...photos, { dataUrl, label: PHOTO_SLOTS[photos.length] ?? `photo-${photos.length + 1}` }];
             localStorage.setItem('vv_photos', JSON.stringify(photos));
+            // Persist the lead photo to avatar_url so it shows for matches in chat/discover
+            if (isFirstPhoto) persistAvatar(dataUrl);
           } else {
             alert('Maximum 3 photos allowed');
           }
@@ -1477,6 +1490,13 @@
     if (rawGenerated) generated = JSON.parse(rawGenerated);
     if (rawPhotos) photos = JSON.parse(rawPhotos);
     if (rawAiPhotos) aiPhotos = JSON.parse(rawAiPhotos);
+
+    // Backfill: if a lead photo exists locally but the DB avatar was never set,
+    // persist it now so matches can see it in chat/discover.
+    if (!$user?.avatar) {
+      const leadDataUrl = photos[0]?.dataUrl;
+      if (leadDataUrl) persistAvatar(leadDataUrl);
+    }
 
     // Load all archetype-specific QA data from localStorage
     const loaded: Record<string, Record<string, string | string[]>> = {};
