@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { get } from 'svelte/store';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { fade, slide } from 'svelte/transition';
@@ -361,12 +362,19 @@
           });
 
           // If AI Bestie is active, auto-respond — but only to messages from the
-          // other person AND only if Bestie didn't send this message itself.
+          // other person AND only if this wasn't an AI-sent message.
+          // The 1.5 s delay gives Mekhala a window to type herself; if she does,
+          // the poller's manual-reply guard will cancel the response.
           if (activeAssistant === 'bestie' &&
               message.senderId !== $user?.id &&
-              !bestieMessageIds.has(message.id)) {
+              !message.isAi) {
             setTimeout(() => {
-              generateAndSendAIBestieResponse(message.content, message.id);
+              // Re-check: if Mekhala manually replied in the last 1.5 s, skip
+              const msgs = get(messages);
+              const manualReply = msgs.some(m =>
+                m.senderId === $user?.id && !m.isAi && m.createdAt > message.createdAt
+              );
+              if (!manualReply) generateAndSendAIBestieResponse(message.content, message.id);
             }, 1500);
           }
 
@@ -842,22 +850,33 @@
         });
         // Auto-respond to the latest unresponded message from the other person.
         // Guards:
-        // 1. Only messages from the other user (not Mekhala / Bestie-sent)
-        // 2. Never respond to a message that Bestie itself sent (bestieMessageIds)
-        // 3. Only respond to messages received in the last 10 minutes (avoids
-        //    replying to old history on first load and prevents runaway loops
-        //    if Wingman replies faster than the 5-second poll interval)
+        // 1. Only messages from the other user (not AI-flagged messages)
+        // 2. Only respond to messages received in the last 10 minutes
+        // 3. Step back if Mekhala has manually replied AFTER the latest received
+        //    message — she's handling it herself, Bestie should stay quiet
         const TEN_MINUTES = 10 * 60 * 1000;
         const now = Date.now();
         const latest = fetched
           .filter(m =>
             m.senderId !== $user?.id &&
-            !bestieMessageIds.has(m.id) &&
+            !m.isAi &&
             (now - m.createdAt.getTime()) < TEN_MINUTES
           )
           .at(-1);
         if (latest && !respondedToMessageIds.has(latest.id)) {
-          await generateAndSendAIBestieResponse(latest.content, latest.id);
+          // Check if Mekhala manually replied after this message
+          const manualReplyAfter = fetched.some(m =>
+            m.senderId === $user?.id &&
+            !m.isAi &&
+            m.createdAt > latest.createdAt
+          );
+          if (!manualReplyAfter) {
+            await generateAndSendAIBestieResponse(latest.content, latest.id);
+          } else {
+            // Mekhala took over — mark as responded so Bestie doesn't retry
+            respondedToMessageIds = new Set([...respondedToMessageIds, latest.id]);
+            persistRespondedIds();
+          }
         }
       } catch (err) {
         console.error('Bestie poller error:', err);
