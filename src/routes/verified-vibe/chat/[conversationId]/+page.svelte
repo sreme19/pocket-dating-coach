@@ -1336,17 +1336,17 @@
       <div class="messages-list" transition:fade={{ duration: 300 }}>
         {#each $messages as message, index (message.id)}
           {@const isSent = isSentMessage(message)}
+          {@const isBestie = message.isAi || bestieMessageIds.has(message.id)}
           {@const senderName = isSent
-            ? (message.isAi ? 'AI Bestie' : ($user?.firstName ?? 'You'))
+            ? (isBestie ? 'AI Bestie' : ($user?.firstName ?? 'You'))
             : ($currentMatch?.firstName ?? 'Them')}
           {@const senderInitial = senderName.charAt(0).toUpperCase()}
           {@const senderAvatar = isSent ? null : $currentMatch?.avatar}
-          {@const showAvatar = !isSent || true}
           <div
             class="message-group"
             class:sent={isSent}
             class:received={!isSent}
-            class:bestie-sent={message.isAi}
+            class:bestie-sent={isBestie}
             class:optimistic={message.id.startsWith('optimistic-')}
             transition:slide={{ duration: 300 }}
           >
@@ -1363,7 +1363,7 @@
 
             <div class="msg-body">
               <!-- Sender name -->
-              <span class="msg-sender-name" class:msg-sender-name--sent={isSent} class:msg-sender-name--bestie={message.isAi}>
+              <span class="msg-sender-name" class:msg-sender-name--sent={isSent && !isBestie} class:msg-sender-name--bestie={isBestie}>
                 {senderName}
               </span>
               <div class="message-bubble">
@@ -1375,7 +1375,7 @@
             <!-- Sent avatar (right side) -->
             {#if isSent}
               <div class="msg-avatar msg-avatar--sent">
-                {#if message.isAi}
+                {#if isBestie}
                   <span class="msg-avatar-initial msg-avatar-initial--bestie">✨</span>
                 {:else}
                   <span class="msg-avatar-initial msg-avatar-initial--user">{($user?.firstName ?? 'Y').charAt(0).toUpperCase()}</span>
