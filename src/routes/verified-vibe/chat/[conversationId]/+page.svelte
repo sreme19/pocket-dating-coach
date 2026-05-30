@@ -214,7 +214,16 @@
       const data = await response.json();
       const { matchedUser, messages: initialMessages, aiBestieActive: bestieActive } = data.data;
 
-      aiBestieActive = bestieActive ?? false;
+      aiBestieActive = bestieActive ?? true;
+
+      // If bestie is active in the DB, restore activeAssistant + poller
+      // (localStorage may have been cleared; DB is the source of truth)
+      if (aiBestieActive && !activeAssistant) {
+        activeAssistant = 'bestie';
+        localStorage.setItem(`ai-bestie-active-${conversationId}`, 'true');
+        loadRespondedIds();
+        startBestiePoller();
+      }
 
       // Set current match in store
       setCurrentMatch(conversationId, matchedUser);
