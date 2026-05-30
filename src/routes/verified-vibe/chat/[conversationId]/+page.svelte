@@ -360,8 +360,11 @@
             return msgs;
           });
 
-          // If AI Bestie is active and this is a message from Adrian, auto-respond
-          if (activeAssistant === 'bestie' && message.senderId !== $user?.id) {
+          // If AI Bestie is active, auto-respond — but only to messages from the
+          // other person AND only if Bestie didn't send this message itself.
+          if (activeAssistant === 'bestie' &&
+              message.senderId !== $user?.id &&
+              !bestieMessageIds.has(message.id)) {
             setTimeout(() => {
               generateAndSendAIBestieResponse(message.content, message.id);
             }, 1500);
@@ -836,8 +839,22 @@
           if (newMsgs.length > 0) scrollToBottom();
           return [...existing, ...newMsgs];
         });
-        // Auto-respond to the latest unresponded message from Adrian
-        const latest = fetched.filter(m => m.senderId !== $user?.id).at(-1);
+        // Auto-respond to the latest unresponded message from the other person.
+        // Guards:
+        // 1. Only messages from the other user (not Mekhala / Bestie-sent)
+        // 2. Never respond to a message that Bestie itself sent (bestieMessageIds)
+        // 3. Only respond to messages received in the last 10 minutes (avoids
+        //    replying to old history on first load and prevents runaway loops
+        //    if Wingman replies faster than the 5-second poll interval)
+        const TEN_MINUTES = 10 * 60 * 1000;
+        const now = Date.now();
+        const latest = fetched
+          .filter(m =>
+            m.senderId !== $user?.id &&
+            !bestieMessageIds.has(m.id) &&
+            (now - m.createdAt.getTime()) < TEN_MINUTES
+          )
+          .at(-1);
         if (latest && !respondedToMessageIds.has(latest.id)) {
           await generateAndSendAIBestieResponse(latest.content, latest.id);
         }
