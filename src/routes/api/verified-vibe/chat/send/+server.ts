@@ -204,7 +204,8 @@ export const POST: RequestHandler = async ({ request }) => {
         match_id: body.conversationId,
         sender_id: user.id,
         content: body.content.trim(),
-        is_ai: body.isAi === true
+        // Only include is_ai if the column exists (migration may not have run yet)
+        ...(body.isAi === true ? { is_ai: true } : {})
       })
       .select()
       .single();
