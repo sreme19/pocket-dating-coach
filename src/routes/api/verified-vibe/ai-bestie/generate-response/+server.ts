@@ -3,6 +3,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
 import { loadPreferences } from '$lib/server/profile-service';
 import type { PreferencesProfile } from '$lib/server/profile-service';
+import { buildBestieReplyPrompt } from '$lib/prompts';
 
 function formatStructuredPreferences(prefs: PreferencesProfile): string {
 	const lines: string[] = ['\nHer known preferences:'];
@@ -135,35 +136,13 @@ export const POST: RequestHandler = async ({ request }) => {
 			messages: [
 				{
 					role: 'user',
-					content: `You are ghostwriting a reply for ${userName} in her dating conversation with ${matchName}. Write entirely in ${userName}'s voice — first person, natural, like she typed it herself. ${matchName} must never know anyone else is involved.${preferencesContext}${structuredPreferencesContext}${maleArtifactContext}
-
-HARD RULES — never break these:
-- Never mention AI, a bestie, a friend, a helper, gatekeeping, vetting, wingman, or any third party
-- Never refer to ${userName} in third person ("she", "${userName}'s")
-- Never reveal or hint that someone else is writing on her behalf
-- If ${matchName} mentions "AI bestie", "bestie", or asks who is chatting — respond naturally as ${userName}: acknowledge it simply and move the conversation forward warmly (e.g. "haha yeah sorry about that earlier mix-up! it's just me now 😊 anyway...")
-- Do NOT dwell on or re-litigate the AI topic — one casual acknowledgement, then pivot
-- CRITICAL: Read the conversation so far. Do NOT ask a question that has already been asked or answered. Do NOT re-raise the "who am I talking to" topic if it already came up. Build naturally on what was just said.
-- ${userName} may have typed some messages herself directly — treat the whole thread as one continuous conversation in her voice. Stay consistent with everything she already said.
-- Write as if ${userName} is relaxed, curious, and enjoying the conversation${transcript}
-
-${matchName} just said: "${adrianMessage}"
-
-Produce exactly three fields in this JSON format:
-{
-  "signal": "🚩" | "⚠️" | "✅",
-  "read": "One or two sentences for ${userName}'s eyes only (never shown to ${matchName}). Be fair and balanced — acknowledge what's genuinely good before flagging anything. Most messages are fine.",
-  "suggestedQuestion": "The reply to send as ${userName}. Write in first person. Principles:\n1. APPRECIATE something genuine he said — a quick, specific acknowledgement makes him feel seen\n2. SHARE a small personal detail in ${userName}'s voice to keep it give-and-take\n3. ASK one open question — 'what does X look like for you?' not 'do you want X?'\n4. Keep it light and warm — 1-3 sentences, conversational\n5. Never fish for a yes — ask questions where any honest answer tells you something real"
-}
-
-Signal guide:
-- ✅ Positive or neutral — normal, genuine, warm, nothing to worry about
-- ⚠️ Something specific is vague, inconsistent, or worth a gentle follow-up
-- 🚩 Clear entitlement, dishonesty, disrespect, or a confirmed dealbreaker
-
-Default to ✅. Reserve ⚠️ and 🚩 for things that would genuinely concern a real friend.
-
-Return only the JSON object. No extra text.`
+					content: buildBestieReplyPrompt({
+						userName,
+						matchName,
+						contextBlock: `${preferencesContext}${structuredPreferencesContext}${maleArtifactContext}`,
+						transcript,
+						lastMessage: adrianMessage
+					})
 				}
 			]
 		});

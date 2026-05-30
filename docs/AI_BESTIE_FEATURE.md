@@ -335,6 +335,14 @@ Return only the JSON object. No extra text.
 **Critical voice rule:**  
 `suggestedQuestion` must read as the AI Bestie speaking *about* Neha, not *as* Neha.
 
+> **As of v3.2.0 (2026-05-30):** this persona is the canonical, single source of
+> truth and lives in `buildBestieReplyPrompt` (`src/lib/prompts.ts`). Both the
+> server-side responder (`src/lib/server/bestie-responder.ts`) and the
+> `generate-response` endpoint build their prompt from it. A v3.2.0 rewrite had
+> briefly inverted this into a first-person "ghostwrite as her / never reveal the
+> bestie" prompt — that impersonation model has been removed. The Bestie always
+> represents the woman openly and never pretends to be her.
+
 ❌ Wrong: `"I appreciate the honesty, but I'm looking for something long-term."`  
 ✅ Correct: `"I appreciate the honesty, but my bestie Neha is looking for something long-term from the start. Would you agree you're not on the same page?"`
 

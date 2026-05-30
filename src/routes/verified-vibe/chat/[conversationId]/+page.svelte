@@ -866,7 +866,8 @@
       isSending = true;
       console.log('Sending AI Bestie opening message to:', $currentMatch.firstName);
 
-      // Generate opening message from AI Bestie impersonating the female user
+      // Generate opening message from AI Bestie speaking on behalf of the female
+      // user (in the bestie's own voice — never impersonating her)
       const { getSupabaseClient } = await import('$lib/client/supabase');
       const supabase = getSupabaseClient();
       const { data: { session } } = await supabase.auth.getSession();
@@ -881,7 +882,8 @@
         },
         body: JSON.stringify({
           conversationId: conversationId,
-          matchName: $currentMatch.firstName
+          matchName: $currentMatch.firstName,
+          ownerName: $user.firstName
         })
       });
 
