@@ -140,9 +140,19 @@
     busy = true;
     try {
       const supabase = getSupabaseClient();
+      // Write gender/archetype into user_metadata so the server can always
+      // recover them even if the post-auth upsertProfile call loses the race.
+      const pendingGender    = localStorage.getItem('verified_vibe_pending_gender');
+      const pendingArchetype = localStorage.getItem('verified_vibe_pending_archetype');
       const { error: authError } = await supabase.auth.signInWithOtp({
         email: normalised,
-        options: { shouldCreateUser: true }
+        options: {
+          shouldCreateUser: true,
+          data: {
+            ...(pendingGender    ? { gender:    pendingGender    } : {}),
+            ...(pendingArchetype ? { archetype: pendingArchetype } : {}),
+          },
+        },
       });
       if (authError) throw authError;
       step = 'code';
