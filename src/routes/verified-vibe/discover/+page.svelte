@@ -14,6 +14,7 @@
   import { fade, slide } from 'svelte/transition';
   import MatchOverlay from '$lib/verified-vibe/components/MatchOverlay.svelte';
   import TrustScoreBadge from '$lib/verified-vibe/components/TrustScoreBadge.svelte';
+  import PublicProfileBody from '$lib/verified-vibe/components/PublicProfileBody.svelte';
   import TipSheet from '$lib/verified-vibe/components/TipSheet.svelte';
   import AttentionSheet from '$lib/verified-vibe/components/AttentionSheet.svelte';
   import { swipe } from '$lib/verified-vibe/utils/swipe';
@@ -351,7 +352,7 @@
       const supabase = getSupabaseClient();
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token ?? '';
-      const res = await fetch(`/api/verified-vibe/match-profile/${profile.id}`, {
+      const res = await fetch(`/api/verified-vibe/public-profile/${profile.id}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       const json = await res.json();
@@ -539,146 +540,8 @@
           {/if}
         </div>
 
-        <!-- Here For -->
-        {#if richProfile.hereFor}
-          <section class="profile-section">
-            <h2 class="section-title"><span class="section-icon">💫</span> Here For</h2>
-            <p class="section-body">{richProfile.hereFor}</p>
-          </section>
-        {/if}
 
-        <!-- Vibe Words -->
-        {#if richProfile.vibeWords.length > 0}
-          <section class="profile-section">
-            <h2 class="section-title"><span class="section-icon">✨</span> The Vibe in Three Words</h2>
-            <div class="vibe-pills">
-              {#each richProfile.vibeWords as word}
-                <span class="vibe-pill">{word}</span>
-              {/each}
-            </div>
-          </section>
-        {/if}
-
-        <!-- Personality Reads -->
-        <section class="profile-section">
-          <h2 class="section-title"><span class="section-icon">🧠</span> Personality Reads</h2>
-          <div class="trait-bars">
-            {#each [
-              { label: 'Decisiveness', score: richProfile.traitScores.decisiveness, low: 'Goes with the flow', high: 'Takes the lead' },
-              { label: 'Warmth',       score: richProfile.traitScores.warmth,       low: 'Reserved',          high: 'Openly caring' },
-              { label: 'Openness',     score: richProfile.traitScores.openness,     low: 'Traditional',       high: 'Adventurous' },
-              { label: 'Pace',         score: richProfile.traitScores.pace,         low: 'Patient & slow',    high: 'Fast-paced' },
-            ] as trait}
-              <div class="trait-row">
-                <div class="trait-meta">
-                  <span class="trait-label">{trait.label}</span>
-                  {#if traitLabel(trait.score, trait.low, trait.high)}
-                    <span class="trait-hint">{traitLabel(trait.score, trait.low, trait.high)}</span>
-                  {/if}
-                </div>
-                <div class="bar-track">
-                  <div class="bar-fill" style="width:{barWidth(trait.score)}"></div>
-                </div>
-              </div>
-            {/each}
-          </div>
-        </section>
-
-        <!-- What He Brings -->
-        {#if richProfile.brings.length > 0}
-          <section class="profile-section">
-            <h2 class="section-title"><span class="section-icon">🎁</span> What He Brings</h2>
-            <ul class="brings-list">
-              {#each richProfile.brings.slice(0, 6) as item}
-                <li class="brings-item"><span class="brings-check">✓</span><span>{item}</span></li>
-              {/each}
-            </ul>
-          </section>
-        {/if}
-
-        <!-- Archetype chip groups (energy, chemistry, lifestyle, etc.) -->
-        {#if richProfile.archetypeChips.length > 0}
-          <section class="profile-section">
-            <h2 class="section-title"><span class="section-icon">🎭</span> {richProfile.archetypeName}</h2>
-            {#each richProfile.archetypeChips as group}
-              <div class="chip-group">
-                <p class="chip-group-label">{group.label}</p>
-                <div class="chip-row">
-                  {#each group.chips as chip}
-                    <span class="profile-chip">{chip}</span>
-                  {/each}
-                </div>
-              </div>
-            {/each}
-          </section>
-        {/if}
-
-        <!-- About -->
-        {#if richProfile.about}
-          <section class="profile-section">
-            <h2 class="section-title"><span class="section-icon">📝</span> About</h2>
-            <p class="section-body">{richProfile.about}</p>
-          </section>
-        {/if}
-
-        <!-- Communication Style -->
-        {#if richProfile.communicationStyle}
-          <section class="profile-section">
-            <h2 class="section-title"><span class="section-icon">💬</span> Communication Style</h2>
-            <p class="section-body">{richProfile.communicationStyle}</p>
-          </section>
-        {/if}
-
-        <!-- Matters Most -->
-        {#if richProfile.mattersMost}
-          <section class="profile-section">
-            <h2 class="section-title"><span class="section-icon">❤️</span> What Matters Most</h2>
-            <p class="section-body">{richProfile.mattersMost}</p>
-          </section>
-        {/if}
-
-        <!-- Money Matters (wealth proof) -->
-        {#if richProfile.wealthProof}
-          {@const wp = richProfile.wealthProof}
-          <section class="profile-section money-section">
-            <h2 class="section-title"><span class="section-icon">💰</span> Money Matters</h2>
-            <div class="money-card">
-              {#if richProfile.linkedinProof}
-                {@const lp = richProfile.linkedinProof}
-                <div class="money-role">
-                  {#each (lp.insights as Array<{emoji:string;label:string}> ?? []).slice(0,2) as ins}
-                    <span class="money-role-line">{ins.emoji} {ins.label}</span>
-                  {/each}
-                </div>
-              {/if}
-              <div class="money-badges">
-                {#each (wp.insights as Array<{emoji:string;label:string}> ?? []) as ins}
-                  <div class="money-badge">
-                    <span class="money-badge-emoji">{ins.emoji}</span>
-                    <span class="money-badge-label">{ins.label}</span>
-                  </div>
-                {/each}
-              </div>
-              <p class="money-verified">✓ AI verified via bank statement / financial document</p>
-            </div>
-          </section>
-        {/if}
-
-        <!-- AI Portraits -->
-        {#if richProfile.personalityPortraitUrl || richProfile.garagePortraitUrl}
-          <section class="profile-section">
-            <h2 class="section-title"><span class="section-icon">✨</span> AI Portrait</h2>
-            <p class="portrait-sub">Generated from verified photos</p>
-            <div class="portrait-grid">
-              {#if richProfile.personalityPortraitUrl}
-                <img class="portrait-img-pub" src={richProfile.personalityPortraitUrl} alt="AI portrait" />
-              {/if}
-              {#if richProfile.garagePortraitUrl}
-                <img class="portrait-img-pub" src={richProfile.garagePortraitUrl} alt="AI portrait 2" />
-              {/if}
-            </div>
-          </section>
-        {/if}
+        <PublicProfileBody profile={richProfile} />
 
         <!-- Action row -->
         {#if !isViewingSelected}

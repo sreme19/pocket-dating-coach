@@ -740,7 +740,7 @@
       return { sections: SECTIONS_SECOND_CHAPTER, required: REQUIRED_SECOND_CHAPTER };
     if (a === 'just_friends_man' || a === 'just_friends_woman')
       return { sections: SECTIONS_JUST_FRIENDS,   required: REQUIRED_JUST_FRIENDS };
-    return { sections: SECTIONS_CASUAL, required: REQUIRED_CASUAL }; // default
+    return { sections: SECTIONS_CASUAL_MAN, required: REQUIRED_CASUAL_MAN }; // default
   }
 
   const { sections: SECTIONS, required: REQUIRED_KEYS } = $derived(buildSections(archetype));
