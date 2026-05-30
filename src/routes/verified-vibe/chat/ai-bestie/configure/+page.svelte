@@ -21,7 +21,17 @@
   }
 
   const PERSONA_KEY = 'ai_bestie_persona';
-  const DEFAULTS: Persona = { name: 'Bestie', age: 25, gender: 'woman' };
+
+  const BESTIE_NAMES = [
+    'Priya', 'Aisha', 'Maya', 'Zara', 'Nadia', 'Sofia', 'Leila', 'Aria',
+    'Piya', 'Riya', 'Tara', 'Diya', 'Mia', 'Isha', 'Noor', 'Ananya',
+  ];
+
+  function randomBestieName(): string {
+    return BESTIE_NAMES[Math.floor(Math.random() * BESTIE_NAMES.length)];
+  }
+
+  const DEFAULTS: Persona = { name: randomBestieName(), age: 25, gender: 'woman' };
 
   // ── State ──────────────────────────────────────────────────────────────────
   let interviewTopics = $state<string[]>([]);
@@ -45,10 +55,13 @@
   onMount(async () => {
     user.hydrate();
 
-    // Load saved persona
+    // Load saved persona — or seed a random name on first visit and persist it
     const raw = localStorage.getItem(PERSONA_KEY);
     if (raw) {
       try { persona = { ...DEFAULTS, ...JSON.parse(raw) }; } catch { /* keep defaults */ }
+    } else {
+      // First visit: DEFAULTS already has a random name — save it so it stays stable
+      localStorage.setItem(PERSONA_KEY, JSON.stringify(persona));
     }
 
     await loadTopics();
