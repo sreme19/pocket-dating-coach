@@ -1343,9 +1343,8 @@
         {#each $messages as message, index (message.id)}
           {@const isSent = isSentMessage(message)}
           {@const isBestie = message.isAi || bestieMessageIds.has(message.id)}
-          {@const senderName = isSent
-            ? (isBestie ? 'AI Bestie' : ($user?.firstName ?? 'You'))
-            : ($currentMatch?.firstName ?? 'Them')}
+          {@const ownerName = isSent ? ($user?.firstName ?? 'You') : ($currentMatch?.firstName ?? 'Them')}
+          {@const senderName = isBestie ? `${ownerName}'s AI Bestie` : ownerName}
           {@const senderInitial = senderName.charAt(0).toUpperCase()}
           {@const senderAvatar = isSent ? null : $currentMatch?.avatar}
           <div
