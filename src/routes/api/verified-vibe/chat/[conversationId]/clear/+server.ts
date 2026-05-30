@@ -56,14 +56,6 @@ export const DELETE: RequestHandler = async ({ params, request }) => {
       );
     }
 
-    // Check if user is a seed user (email ends with @seed.vv)
-    if (!authUser.email.endsWith('@seed.vv')) {
-      return json(
-        { error: 'Only seed users can clear chat messages' },
-        { status: 403 }
-      );
-    }
-
     const currentUserId = authUser.id;
 
     // Use server-side client to delete messages
