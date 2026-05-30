@@ -1491,12 +1491,6 @@
     if (rawPhotos) photos = JSON.parse(rawPhotos);
     if (rawAiPhotos) aiPhotos = JSON.parse(rawAiPhotos);
 
-    // Backfill: if a lead photo exists locally but the DB avatar was never set,
-    // persist it now so matches can see it in chat/discover.
-    if (!$user?.avatar) {
-      const leadDataUrl = photos[0]?.dataUrl;
-      if (leadDataUrl) persistAvatar(leadDataUrl);
-    }
 
     // Load all archetype-specific QA data from localStorage
     const loaded: Record<string, Record<string, string | string[]>> = {};
@@ -1742,6 +1736,18 @@
   const heroPhoto = $derived(
     aiPhotosByRole['lead'] ?? photosByLabel['lead'] ?? aiPhotos[0]?.url ?? photos[0]?.dataUrl ?? null
   );
+
+  // Keep the DB avatar_url in sync with the displayed hero photo so matches see
+  // it in chat/discover. Fires whenever the resolved hero photo changes and
+  // differs from what's already persisted in the store.
+  let lastPersistedAvatar: string | null = null;
+  $effect(() => {
+    const hero = heroPhoto;
+    if (hero && hero !== $user?.avatar && hero !== lastPersistedAvatar) {
+      lastPersistedAvatar = hero;
+      persistAvatar(hero);
+    }
+  });
 
   const hasRealPhotos = $derived(photos.length > 0);
   const hasAiPhotos = $derived(aiPhotos.length > 0);
