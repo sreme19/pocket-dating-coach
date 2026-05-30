@@ -109,6 +109,7 @@ export interface Message {
   matchId: string;
   senderId: string;
   content: string;
+  isAi?: boolean;
   createdAt: Date;
   imageUrl?: string;
   isDeleted?: boolean;

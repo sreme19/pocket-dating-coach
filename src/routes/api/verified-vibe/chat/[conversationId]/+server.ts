@@ -141,6 +141,7 @@ export const GET: RequestHandler = async ({ params, request }) => {
       matchId: msg.match_id,
       senderId: msg.sender_id,
       content: msg.content,
+      isAi: msg.is_ai ?? false,
       createdAt: new Date(msg.created_at)
     }));
 

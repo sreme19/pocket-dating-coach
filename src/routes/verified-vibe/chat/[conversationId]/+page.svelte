@@ -830,6 +830,7 @@
           matchId: m.matchId || conversationId,
           senderId: m.senderId,
           content: m.content,
+          isAi: m.isAi ?? false,
           createdAt: new Date(m.createdAt)
         }));
         // Merge any new messages into the store
@@ -927,7 +928,7 @@
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session?.access_token || ''}`
           },
-          body: JSON.stringify({ conversationId, content: suggestedQuestion })
+          body: JSON.stringify({ conversationId, content: suggestedQuestion, isAi: true })
         });
 
         if (sendResponse.ok) {
@@ -939,6 +940,7 @@
             matchId: conversationId,
             senderId: $user.id,
             content: suggestedQuestion,
+            isAi: true,
             createdAt: new Date(sentData.data.message.createdAt)
           });
         }
@@ -1318,7 +1320,7 @@
             class="message-group"
             class:sent={isSentMessage(message)}
             class:received={!isSentMessage(message)}
-            class:bestie-sent={isSentMessage(message) && bestieMessageIds.has(message.id)}
+            class:bestie-sent={message.isAi}
             class:optimistic={message.id.startsWith('optimistic-')}
             transition:slide={{ duration: 300 }}
           >
