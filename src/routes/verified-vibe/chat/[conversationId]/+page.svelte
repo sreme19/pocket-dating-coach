@@ -884,6 +884,7 @@
 
   async function generateAndSendAIBestieResponse(adrianMessage: string, messageId: string) {
     if (!$user || !$currentMatch) return;
+    if (currentUserGender !== 'woman') return; // Bestie only operates for female users
     if (respondedToMessageIds.has(messageId)) return;
 
     // Mark as responded immediately to prevent duplicate calls
@@ -1326,7 +1327,7 @@
               <span class="message-time">{formatTime(message.createdAt)}</span>
             </div>
           </div>
-          {#if !isSentMessage(message) && coachingCards.get(message.id)}
+          {#if !isSentMessage(message) && coachingCards.get(message.id) && currentUserGender === 'woman'}
             {@const card = coachingCards.get(message.id)!}
             <div class="bestie-coaching-card" transition:slide={{ duration: 300 }}>
               <div class="bestie-card-header">
