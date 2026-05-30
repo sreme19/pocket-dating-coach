@@ -706,6 +706,7 @@
       if (!res.ok || data.error) throw new Error(data.error ?? 'Generation failed');
       personalityPortraitUrl = data.imageUrl;
       localStorage.setItem('vv_personality_portrait', data.imageUrl);
+      if (token) pushMasterProfile(token, { personalityPortraitUrl: data.imageUrl });
     } catch (e) {
       portraitError = e instanceof Error ? e.message : 'Could not generate portrait';
     } finally {
@@ -735,6 +736,7 @@
       if (!res.ok || data.error) throw new Error(data.error ?? 'Generation failed');
       garagePortraitUrl = data.imageUrl;
       localStorage.setItem('vv_garage_portrait', data.imageUrl);
+      if (token) pushMasterProfile(token, { garagePortraitUrl: data.imageUrl });
     } catch (e) {
       garagePortraitError = e instanceof Error ? e.message : 'Could not generate portrait';
     } finally {
