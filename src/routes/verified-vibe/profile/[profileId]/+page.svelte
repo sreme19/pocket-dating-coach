@@ -4,6 +4,8 @@
   import { goto } from '$app/navigation';
   import { ShieldCheck, MapPin } from 'lucide-svelte';
   import PublicProfileBody from '$lib/verified-vibe/components/PublicProfileBody.svelte';
+  import { user } from '$lib/verified-vibe/stores';
+  import { getSupabaseClient } from '$lib/client/supabase';
 
   const backToDiscover = $derived($page.url.searchParams.get('back') === 'discover');
 
@@ -155,6 +157,32 @@
     } catch { /* SVG fallback */ }
   }
 
+  // ── AI Bestie flags (female viewers only) ────────────────────────────────
+  interface BestieFlag { level: 'orange' | 'red'; title: string; detail: string; }
+  let bestieFlags = $state<BestieFlag[]>([]);
+  let bestieFlagsLoading = $state(false);
+
+  async function fetchBestieFlags(pId: string) {
+    if ($user?.gender !== 'woman') return;
+    bestieFlagsLoading = true;
+    try {
+      const sb = getSupabaseClient();
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch('/api/verified-vibe/bestie-profile-flags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ profileId: pId }),
+      });
+      if (res.ok) {
+        const data = await res.json() as { flags: BestieFlag[] };
+        bestieFlags = data.flags ?? [];
+      }
+    } catch { /* non-critical */ } finally {
+      bestieFlagsLoading = false;
+    }
+  }
+
   onMount(async () => {
     try {
       const res = await fetch(`/api/verified-vibe/public-profile/${profileId}`);
@@ -162,6 +190,8 @@
       if (!res.ok || json.error) throw new Error(json.error ?? 'Profile not found');
       profile = json.data;
       for (const car of (profile?.garageCars ?? [])) fetchCarImage(car.make, car.model);
+      // Fetch bestie flags after profile loads (male profiles only)
+      if (profile?.gender === 'man') fetchBestieFlags(profileId);
     } catch (e) {
       error = e instanceof Error ? e.message : 'Something went wrong';
     } finally {
@@ -229,6 +259,40 @@
 
     <div class="profile-sections">
       <PublicProfileBody {profile} />
+
+      <!-- AI Bestie flags — female viewer + male profile only -->
+      {#if $user?.gender === 'woman' && profile.gender === 'man'}
+        <div class="bestie-section">
+          <div class="bestie-header">
+            <span class="bestie-avatar">💬</span>
+            <div>
+              <p class="bestie-title">Bestie's Take</p>
+              <p class="bestie-sub">What to double-check before you match</p>
+            </div>
+          </div>
+
+          {#if bestieFlagsLoading}
+            <div class="bestie-loading">
+              <div class="bestie-spinner"></div>
+              <span>Bestie is reading his profile…</span>
+            </div>
+          {:else if bestieFlags.length === 0}
+            <p class="bestie-clear">✓ Nothing suspicious — profile claims look consistent with what was verified.</p>
+          {:else}
+            <div class="bestie-flags">
+              {#each bestieFlags as flag}
+                <div class="bestie-flag bestie-flag--{flag.level}">
+                  <span class="bestie-flag-icon">{flag.level === 'red' ? '🚨' : '⚠️'}</span>
+                  <div>
+                    <p class="bestie-flag-title">{flag.title}</p>
+                    <p class="bestie-flag-detail">{flag.detail}</p>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {/if}
 
       <!-- Privacy note -->
       <div class="privacy-note">
@@ -710,4 +774,111 @@
   .garage-dot-active { background: #34d399; transform: scale(1.4); }
 
   .garage-counter { text-align: center; font-size: 11px; color: rgba(255,255,255,0.35); margin: 4px 0 0; }
+
+  /* AI Bestie flags */
+  .bestie-section {
+    background: rgba(255, 180, 60, 0.05);
+    border: 1px solid rgba(255, 180, 60, 0.2);
+    border-radius: 16px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .bestie-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .bestie-avatar {
+    font-size: 24px;
+    flex-shrink: 0;
+  }
+
+  .bestie-title {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fbbf24;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  .bestie-sub {
+    margin: 2px 0 0;
+    font-size: 11.5px;
+    color: rgba(255,255,255,0.45);
+  }
+
+  .bestie-loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: rgba(255,255,255,0.4);
+    padding: 4px 0;
+  }
+
+  .bestie-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(251,191,36,0.2);
+    border-top-color: #fbbf24;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+
+  .bestie-clear {
+    margin: 0;
+    font-size: 13px;
+    color: #34d399;
+  }
+
+  .bestie-flags {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .bestie-flag {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+  }
+
+  .bestie-flag--orange {
+    background: rgba(251, 146, 60, 0.1);
+    border: 1px solid rgba(251, 146, 60, 0.25);
+  }
+
+  .bestie-flag--red {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+  }
+
+  .bestie-flag-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .bestie-flag-title {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.9);
+    line-height: 1.3;
+  }
+
+  .bestie-flag-detail {
+    margin: 3px 0 0;
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+    line-height: 1.5;
+  }
 </style>
