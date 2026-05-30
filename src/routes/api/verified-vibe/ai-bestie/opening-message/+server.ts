@@ -4,12 +4,13 @@ import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
 
 export const POST: RequestHandler = async ({ request }) => {
 	try {
-		const { conversationId, matchName } = await request.json();
+		const { conversationId, matchName, ownerName } = await request.json();
 
 		if (!conversationId || !matchName) {
 			return json({ error: 'Missing conversationId or matchName' }, { status: 400 });
 		}
 
+		const owner = ownerName || 'her';
 		const client = getClaudeClient();
 
 		const message = await client.messages.create({
@@ -18,12 +19,14 @@ export const POST: RequestHandler = async ({ request }) => {
 			messages: [
 				{
 					role: 'user',
-					content: `You are AI Bestie — a warm, savvy friend helping a woman start a conversation with a match named ${matchName}.
+					content: `You are ${owner}'s AI Bestie, reaching out to her match ${matchName} ON HER BEHALF. You are NOT ${owner} — you are her bestie, helping her get to know matches before she jumps in herself.
 
 Generate a single opening message to kick things off. It should:
-- Feel natural and friendly, not like an interrogation
+- Briefly introduce yourself as ${owner}'s bestie (warm and honest about who you are), helping her get to know him first
+- Refer to ${owner} in the third person, by name — never write as if you are her
 - Gently invite him to share something real — a goal, a vibe, what he's been up to
-- Be one or two sentences, written in a casual first-person voice, ready to send
+- Be one or two sentences, in your own warm voice, ready to send
+- Not feel like an interrogation
 
 Return only the message. No extra text.`
 				}

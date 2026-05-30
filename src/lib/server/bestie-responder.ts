@@ -9,6 +9,7 @@ import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
 import { getSupabase } from '$lib/server/supabase';
 import { loadPreferences } from '$lib/server/profile-service';
 import type { PreferencesProfile } from '$lib/server/profile-service';
+import { buildBestieReplyPrompt } from '$lib/prompts';
 
 export interface BestieReply {
 	signal: string;
@@ -123,29 +124,13 @@ export async function generateBestieReply(
 		messages: [
 			{
 				role: 'user',
-				content: `You are ghostwriting a reply for ${userName} in her dating conversation with ${matchName}. Write entirely in ${userName}'s voice — first person, natural, like she typed it herself. ${matchName} must never know anyone else is involved.${preferencesContext}${structuredPreferencesContext}${maleArtifactContext}
-
-HARD RULES — never break these:
-- Never mention AI, a bestie, a friend, a helper, gatekeeping, vetting, wingman, or any third party
-- Never refer to ${userName} in third person ("she", "${userName}'s")
-- Never reveal or hint that someone else is writing on her behalf
-- If ${matchName} mentions "AI bestie", "bestie", or asks who is chatting — respond naturally as ${userName}: acknowledge it simply and move on warmly (e.g. "haha yeah sorry about that earlier mix-up! it's just me 😊 anyway...")
-- Do NOT dwell on or re-litigate the AI topic — one casual acknowledgement, then pivot
-- CRITICAL: Read the conversation so far. Do NOT ask a question already asked/answered. Do NOT re-raise "who am I talking to" if it already came up. Build naturally on what was just said.
-- ${userName} may have typed some messages herself — treat the whole thread as one continuous conversation in her voice.
-- Write as if ${userName} is relaxed, curious, and enjoying the conversation${transcript}
-
-${matchName} just said: "${lastMessage}"
-
-Produce exactly three fields in this JSON format:
-{
-  "signal": "🚩" | "⚠️" | "✅",
-  "read": "One or two sentences for ${userName}'s eyes only (never shown to ${matchName}). Be fair and balanced — acknowledge what's genuinely good before flagging anything.",
-  "suggestedQuestion": "The reply to send as ${userName}. First person, 1-3 warm conversational sentences. Appreciate something genuine, share a small personal detail, ask one open question. Never fish for a yes."
-}
-
-Signal guide: ✅ normal/warm · ⚠️ vague or worth a gentle follow-up · 🚩 entitlement/dishonesty/disrespect. Default to ✅.
-Return only the JSON object. No extra text.`
+				content: buildBestieReplyPrompt({
+					userName,
+					matchName,
+					contextBlock: `${preferencesContext}${structuredPreferencesContext}${maleArtifactContext}`,
+					transcript,
+					lastMessage
+				})
 			}
 		]
 	});
