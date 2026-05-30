@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { get } from 'svelte/store';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { fade, slide } from 'svelte/transition';
@@ -35,7 +34,6 @@
   let activeAssistant = $state<AssistantType | null>(null);
   let lastMessageId = $state<string | null>(null);
   let pollInterval: ReturnType<typeof setInterval> | null = null;
-  let respondedToMessageIds = $state<Set<string>>(new Set());
   // Track message IDs that were auto-sent by AI Bestie (not typed by the user)
   let bestieMessageIds = $state<Set<string>>(new Set());
   let isActivating = false;
@@ -170,9 +168,6 @@
         activeAssistant = 'bestie';
       }
 
-      // Restore which messages AI Bestie already responded to (prevents flooding on page reload)
-      loadRespondedIds();
-
       // Track current user as online
       if ($user) {
         await trackUserOnline($user.id);
@@ -230,7 +225,6 @@
       if (aiBestieActive && !activeAssistant && currentUserGender === 'woman') {
         activeAssistant = 'bestie';
         localStorage.setItem(`ai-bestie-active-${conversationId}`, 'true');
-        loadRespondedIds();
         startBestiePoller();
       }
 
@@ -857,106 +851,10 @@
     }, 5000);
   }
 
-  function persistRespondedIds() {
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(
-        `bestie-responded-${conversationId}`,
-        JSON.stringify([...respondedToMessageIds])
-      );
-    }
-  }
-
-  function loadRespondedIds() {
-    if (typeof localStorage !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(`bestie-responded-${conversationId}`);
-        if (saved) respondedToMessageIds = new Set(JSON.parse(saved));
-      } catch { /* ignore */ }
-    }
-  }
-
-  async function generateAndSendAIBestieResponse(adrianMessage: string, messageId: string) {
-    if (!$user || !$currentMatch) return;
-    if (currentUserGender !== 'woman') return; // Bestie only operates for female users
-    if (respondedToMessageIds.has(messageId)) return;
-
-    // Mark as responded immediately to prevent duplicate calls
-    respondedToMessageIds = new Set([...respondedToMessageIds, messageId]);
-    persistRespondedIds();
-
-    try {
-      const { getSupabaseClient } = await import('$lib/client/supabase');
-      const supabase = getSupabaseClient();
-      const { data: { session } } = await supabase.auth.getSession();
-
-      // Build recent conversation history (last 12 messages) so Bestie has full
-      // context — prevents repeating questions or hallucinating about what's been said.
-      const history = get(messages)
-        .slice(-12)
-        .map((m) => ({
-          role: m.senderId === $user?.id ? 'mekhala' : 'match',
-          fromBestie: m.isAi || bestieMessageIds.has(m.id),
-          content: m.content
-        }));
-
-      // Get signal + read + suggestedQuestion from AI Bestie
-      const response = await fetch('/api/verified-vibe/ai-bestie/generate-response', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token || ''}`
-        },
-        body: JSON.stringify({
-          conversationId,
-          adrianMessage,
-          matchName: $currentMatch.firstName,
-          userId: $user?.id,
-          history
-        })
-      });
-
-      if (!response.ok) throw new Error('Failed to generate AI Bestie response');
-
-      const { signal, read, suggestedQuestion } = await response.json();
-
-      // Store coaching card — persisted to localStorage so it survives navigation
-      coachingCards = new Map(coachingCards.set(messageId, { signal, read }));
-      persistCoachingCards();
-
-      // Auto-send the suggested question to Adrian as a real message
-      if (suggestedQuestion) {
-        const sendResponse = await fetch('/api/verified-vibe/chat/send', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token || ''}`
-          },
-          body: JSON.stringify({ conversationId, content: suggestedQuestion, isAi: true })
-        });
-
-        if (sendResponse.ok) {
-          const sentData = await sendResponse.json();
-          const msgId = sentData.data.message.id;
-          bestieMessageIds = new Set([...bestieMessageIds, msgId]);
-          addMessage({
-            id: msgId,
-            matchId: conversationId,
-            senderId: $user.id,
-            content: suggestedQuestion,
-            isAi: true,
-            createdAt: new Date(sentData.data.message.createdAt)
-          });
-        }
-      }
-
-      scrollToBottom();
-    } catch (err) {
-      console.error('AI Bestie response failed:', err);
-      // Remove from responded set so it can retry
-      respondedToMessageIds.delete(messageId);
-      persistRespondedIds();
-    }
-  }
+  // NOTE: Bestie auto-responses are generated SERVER-SIDE (chat/send endpoint)
+  // so they fire even when this app is closed. The old client-side
+  // generateAndSendAIBestieResponse() was removed — the client only fetches and
+  // displays replies + coaching cards now.
 
   async function sendAIBestieOpeningMessage() {
     try {
