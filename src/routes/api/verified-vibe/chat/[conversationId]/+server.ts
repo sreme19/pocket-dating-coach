@@ -161,7 +161,7 @@ export const GET: RequestHandler = async ({ params, request }) => {
           updatedAt: new Date(matchedUser.updated_at)
         },
         messages,
-        aiBestieActive: match.ai_bestie_active ?? false
+        aiBestieActive: match.ai_bestie_active ?? true
       }
     };
 
