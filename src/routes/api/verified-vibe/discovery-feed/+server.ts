@@ -211,18 +211,12 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
     const compatibleArchetypes: string[] = MATCH_MATRIX[currentUserArchetype] ?? [];
     const targetGender = currentUserGender === 'woman' ? 'man' : 'woman';
 
-    // Always filter by target gender — use archetype refinement on top if available
-    let profileQuery = (supabase as any)
+    // Fetch ALL opposite-gender profiles — archetype compatibility is a ranking signal, not a hard filter
+    const { data: profiles, error: profileError } = await (supabase as any)
       .from('verified_vibe_users')
       .select('*')
       .neq('id', currentUserId)
       .eq('gender', targetGender);
-
-    if (compatibleArchetypes.length > 0) {
-      profileQuery = profileQuery.in('archetype', compatibleArchetypes);
-    }
-
-    const { data: profiles, error: profileError } = await profileQuery;
 
     if (profileError) {
       console.error('Database error:', profileError);
@@ -310,11 +304,15 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
         };
       });
 
-    // Sort: verified profiles first, then by trust score descending
+    // Sort: verified first, then archetype-compatible, then by trust score descending
+    const compatibleSet = new Set(compatibleArchetypes);
     discoveryProfiles.sort((a, b) => {
       const aVerified = a.verified.length > 0 ? 1 : 0;
       const bVerified = b.verified.length > 0 ? 1 : 0;
       if (bVerified !== aVerified) return bVerified - aVerified;
+      const aCompat = compatibleSet.has(a.archetype) ? 1 : 0;
+      const bCompat = compatibleSet.has(b.archetype) ? 1 : 0;
+      if (bCompat !== aCompat) return bCompat - aCompat;
       return b.trustScore - a.trustScore;
     });
 
