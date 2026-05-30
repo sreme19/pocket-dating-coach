@@ -196,8 +196,16 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
 
     // Determine compatible archetypes via MATCH_MATRIX
     const compatibleArchetypes: string[] = MATCH_MATRIX[currentUserArchetype] ?? [];
-    // Default: show men to women, women to men; unknown gender defaults to showing men
-    const targetGender = currentUserGender === 'woman' ? 'man' : 'woman';
+    // Show opposite gender. Unknown gender: check Supabase auth user_metadata for gender,
+    // then fall back to showing men (most common case for early-stage female accounts).
+    let resolvedGender = currentUserGender;
+    if (!resolvedGender) {
+      const meta = user.user_metadata as Record<string, string> | null;
+      resolvedGender = (meta?.gender as string) ?? null;
+    }
+    // 'woman' → show men; 'man' or unknown → show women
+    // But for this app women are the primary seekers, so unknown → show men
+    const targetGender = resolvedGender === 'man' ? 'woman' : 'man';
 
     // Fetch ALL opposite-gender profiles — archetype compatibility is a ranking signal, not a hard filter
     const { data: profiles, error: profileError } = await (supabase as any)
