@@ -145,11 +145,12 @@
     if (conversationId) {
       // Always restore coaching cards — they're visible regardless of active/inactive state
       loadCoachingCards();
+      // currentUserGender may not be set yet at $effect time (it's loaded async in onMount).
+      // We only start Bestie for women — onMount will start it if DB says active.
       const saved = localStorage.getItem(`ai-bestie-active-${conversationId}`);
       if (saved === 'true' && !activeAssistant) {
-        activeAssistant = 'bestie';
-        loadRespondedIds();
-        startBestiePoller();
+        // Defer gender check — onMount sets currentUserGender before starting poller
+        activeAssistant = 'bestie'; // tentative; onMount will clear if male
       }
     }
   });
@@ -199,6 +200,11 @@
           .eq('id', session.user.id)
           .maybeSingle();
         currentUserGender = (userProfile as any)?.gender ?? null;
+        // If gender resolved to non-woman, kill any bestie state set by $effect
+        if (currentUserGender !== 'woman') {
+          activeAssistant = null;
+          localStorage.removeItem(`ai-bestie-active-${conversationId}`);
+        }
       } catch {
         // Non-critical — worst case is the toggle is shown to all users
       }
@@ -220,8 +226,8 @@
       aiBestieActive = bestieActive ?? true;
 
       // If bestie is active in the DB, restore activeAssistant + poller
-      // (localStorage may have been cleared; DB is the source of truth)
-      if (aiBestieActive && !activeAssistant) {
+      // Only for female users — male users never run Bestie on their side
+      if (aiBestieActive && !activeAssistant && currentUserGender === 'woman') {
         activeAssistant = 'bestie';
         localStorage.setItem(`ai-bestie-active-${conversationId}`, 'true');
         loadRespondedIds();
@@ -1281,7 +1287,7 @@
   {/if}
 
   <!-- AI Bestie Intro Card — visible to Adrian (male) only when AI Bestie is active -->
-  {#if aiBestieActive && $currentMatch?.gender === 'woman'}
+  {#if aiBestieActive && $currentMatch?.gender === 'woman' && currentUserGender === 'woman'}
     {@const cleared = Math.min($messages.filter(m => m.senderId === $user?.id).length, 5)}
     {@const total = 5}
     <div class="bestie-intro-card" transition:slide={{ duration: 300, axis: 'y' }}>
