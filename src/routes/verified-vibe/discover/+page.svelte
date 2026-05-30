@@ -39,6 +39,8 @@
     hereFor: string;
     communicationStyle: string | null;
     mattersMost: string | null;
+    archetypeChips: Array<{ label: string; chips: string[] }>;
+    lifestyleTags: string[];
   }
 
   let showMatchOverlay = $state(false);
@@ -339,7 +341,9 @@
       brings: archetypeDef?.brings ?? [],
       hereFor: p.looking ?? archetypeDef?.tag ?? 'A real connection',
       communicationStyle: null,
-      mattersMost: null
+      mattersMost: null,
+      archetypeChips: [],
+      lifestyleTags: [],
     };
   }
 
@@ -594,6 +598,23 @@
                 <li class="brings-item"><span class="brings-check">✓</span><span>{item}</span></li>
               {/each}
             </ul>
+          </section>
+        {/if}
+
+        <!-- Archetype chip groups (energy, chemistry, lifestyle, etc.) -->
+        {#if richProfile.archetypeChips.length > 0}
+          <section class="profile-section">
+            <h2 class="section-title"><span class="section-icon">🎭</span> {richProfile.archetypeName}</h2>
+            {#each richProfile.archetypeChips as group}
+              <div class="chip-group">
+                <p class="chip-group-label">{group.label}</p>
+                <div class="chip-row">
+                  {#each group.chips as chip}
+                    <span class="profile-chip">{chip}</span>
+                  {/each}
+                </div>
+              </div>
+            {/each}
           </section>
         {/if}
 
@@ -969,6 +990,30 @@
   .brings-item { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; color: var(--text-2); }
 
   .brings-check { color: #34d399; font-weight: 700; flex-shrink: 0; }
+
+  /* Archetype chip groups */
+  .chip-group { margin-bottom: 14px; }
+  .chip-group:last-child { margin-bottom: 0; }
+  .chip-group-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin: 0 0 8px;
+  }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .profile-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-2);
+  }
 
   /* Next button */
   .next-wrap {
