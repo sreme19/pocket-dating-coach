@@ -155,6 +155,20 @@ export const GET: RequestHandler = async ({ params, request }) => {
     // Extract rich data from master profile blob
     const masterData = (masterRow?.data as Record<string, unknown>) ?? {};
     const generatedProfile = (masterData.generatedProfile as Record<string, unknown>) ?? {};
+    const personalityPortraitUrl = typeof masterData.personalityPortraitUrl === 'string' ? masterData.personalityPortraitUrl : null;
+    const garagePortraitUrl = typeof masterData.garagePortraitUrl === 'string' ? masterData.garagePortraitUrl : null;
+
+    // Extract verified proofs for public display
+    const verifiedProofs: Array<Record<string, unknown>> = Array.isArray(masterData.verifiedProofs) ? masterData.verifiedProofs as Array<Record<string, unknown>> : [];
+    const wealthProof = verifiedProofs.find(p => p.category === 'wealth') ?? null;
+    const linkedinProof = verifiedProofs.find(p => p.category === 'linkedin') ?? null;
+    const publicProofs = verifiedProofs
+      .filter(p => ['lifestyle', 'discipline', 'social_proof', 'assets'].includes(String(p.category)))
+      .map(p => ({
+        category: p.category,
+        aggregated: p.aggregated,
+        insights: p.insights,
+      }));
     const onboarding = (masterData.onboarding as Record<string, unknown>) ?? {};
     const archetypeKey = `vv_${archetype.replace(/_man$|_woman$/, '').replace(/_/g, '_')}_profile`;
     const archetypeProfile = (onboarding[archetypeKey] as Record<string, unknown>) ?? {};
@@ -233,6 +247,11 @@ export const GET: RequestHandler = async ({ params, request }) => {
         mattersMost: typeof personality?.mattersMost === 'string' ? personality.mattersMost : null,
         archetypeChips,
         lifestyleTags: Array.isArray(generatedProfile.lifestyleTags) ? generatedProfile.lifestyleTags : [],
+        personalityPortraitUrl,
+        garagePortraitUrl,
+        wealthProof,
+        linkedinProof,
+        publicProofs,
       },
     });
   } catch (err) {

@@ -152,9 +152,11 @@ export const POST: RequestHandler = async ({ request }: { request: Request }) =>
     lastSynced:        new Date().toISOString(),
   };
 
-  if (body.identity        !== undefined) updated.identity        = body.identity;
-  if (body.profileDraft    !== undefined) updated.profileDraft    = body.profileDraft;
-  if (body.generatedProfile !== undefined) updated.generatedProfile = body.generatedProfile;
+  if (body.identity              !== undefined) updated.identity              = body.identity;
+  if (body.profileDraft          !== undefined) updated.profileDraft          = body.profileDraft;
+  if (body.generatedProfile      !== undefined) updated.generatedProfile      = body.generatedProfile;
+  if (body.personalityPortraitUrl !== undefined) updated.personalityPortraitUrl = body.personalityPortraitUrl;
+  if (body.garagePortraitUrl      !== undefined) updated.garagePortraitUrl      = body.garagePortraitUrl;
 
   if (existing) {
     await db

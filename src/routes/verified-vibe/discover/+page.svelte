@@ -41,6 +41,11 @@
     mattersMost: string | null;
     archetypeChips: Array<{ label: string; chips: string[] }>;
     lifestyleTags: string[];
+    personalityPortraitUrl: string | null;
+    garagePortraitUrl: string | null;
+    wealthProof: Record<string, unknown> | null;
+    linkedinProof: Record<string, unknown> | null;
+    publicProofs: Array<Record<string, unknown>>;
   }
 
   let showMatchOverlay = $state(false);
@@ -344,6 +349,11 @@
       mattersMost: null,
       archetypeChips: [],
       lifestyleTags: [],
+      personalityPortraitUrl: null,
+      garagePortraitUrl: null,
+      wealthProof: null,
+      linkedinProof: null,
+      publicProofs: [],
     };
   }
 
@@ -639,6 +649,49 @@
           <section class="profile-section">
             <h2 class="section-title"><span class="section-icon">❤️</span> What Matters Most</h2>
             <p class="section-body">{richProfile.mattersMost}</p>
+          </section>
+        {/if}
+
+        <!-- Money Matters (wealth proof) -->
+        {#if richProfile.wealthProof}
+          {@const wp = richProfile.wealthProof}
+          <section class="profile-section money-section">
+            <h2 class="section-title"><span class="section-icon">💰</span> Money Matters</h2>
+            <div class="money-card">
+              {#if richProfile.linkedinProof}
+                {@const lp = richProfile.linkedinProof}
+                <div class="money-role">
+                  {#each (lp.insights as Array<{emoji:string;label:string}> ?? []).slice(0,2) as ins}
+                    <span class="money-role-line">{ins.emoji} {ins.label}</span>
+                  {/each}
+                </div>
+              {/if}
+              <div class="money-badges">
+                {#each (wp.insights as Array<{emoji:string;label:string}> ?? []) as ins}
+                  <div class="money-badge">
+                    <span class="money-badge-emoji">{ins.emoji}</span>
+                    <span class="money-badge-label">{ins.label}</span>
+                  </div>
+                {/each}
+              </div>
+              <p class="money-verified">✓ AI verified via bank statement / financial document</p>
+            </div>
+          </section>
+        {/if}
+
+        <!-- AI Portraits -->
+        {#if richProfile.personalityPortraitUrl || richProfile.garagePortraitUrl}
+          <section class="profile-section">
+            <h2 class="section-title"><span class="section-icon">✨</span> AI Portrait</h2>
+            <p class="portrait-sub">Generated from verified photos</p>
+            <div class="portrait-grid">
+              {#if richProfile.personalityPortraitUrl}
+                <img class="portrait-img-pub" src={richProfile.personalityPortraitUrl} alt="AI portrait" />
+              {/if}
+              {#if richProfile.garagePortraitUrl}
+                <img class="portrait-img-pub" src={richProfile.garagePortraitUrl} alt="AI portrait 2" />
+              {/if}
+            </div>
           </section>
         {/if}
 
@@ -1014,6 +1067,42 @@
     font-weight: 500;
     color: var(--text-2);
   }
+
+  /* Money Matters */
+  .money-section { background: transparent; }
+  .money-card {
+    background: rgba(255, 200, 80, 0.05);
+    border: 1px solid rgba(255, 200, 80, 0.2);
+    border-radius: 16px;
+    padding: 14px;
+  }
+  .money-role { display: flex; flex-direction: column; gap: 3px; margin-bottom: 12px; }
+  .money-role-line { font-size: 13px; color: var(--text-2); font-weight: 500; }
+  .money-badges {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .money-badge {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 10px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    text-align: center;
+  }
+  .money-badge-emoji { font-size: 22px; }
+  .money-badge-label { font-size: 10.5px; color: var(--text-2); font-weight: 500; line-height: 1.2; }
+  .money-verified { font-size: 11px; color: #34d399; margin: 0; }
+
+  /* AI Portraits */
+  .portrait-sub { font-size: 11.5px; color: var(--text-3); margin: -6px 0 10px; }
+  .portrait-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .portrait-img-pub { width: 100%; aspect-ratio: 3/4; object-fit: cover; border-radius: 14px; }
 
   /* Next button */
   .next-wrap {
