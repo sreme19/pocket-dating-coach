@@ -85,25 +85,10 @@
         throw new Error('Not authenticated');
       }
 
-      const response = await fetch(`/api/verified-vibe/profile/${profileId}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Profile not found');
-      }
-
-      const result = await response.json();
-      selectedProfile = result.data;
-      isViewingSelected = true;
+      // Navigate to the full public profile page — it already renders everything correctly
+      goto(`/verified-vibe/profile/${profileId}?back=discover`);
     } catch (err) {
-      console.error('Error loading profile:', err);
-      error = err instanceof Error ? err.message : 'Failed to load profile';
-      setError(error);
-      // Still mark as viewing selected even on error, to hide action buttons
-      isViewingSelected = true;
+      console.error('Error navigating to profile:', err);
     }
   }
 
