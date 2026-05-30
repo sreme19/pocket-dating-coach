@@ -35,6 +35,8 @@
   let lastMessageId = $state<string | null>(null);
   let pollInterval: ReturnType<typeof setInterval> | null = null;
   let respondedToMessageIds = $state<Set<string>>(new Set());
+  // Track message IDs that were auto-sent by AI Bestie (not typed by the user)
+  let bestieMessageIds = $state<Set<string>>(new Set());
   let isActivating = false;
   let aiBestieActive = $state(false);
   let userIsSeed = $state(false);
@@ -912,8 +914,10 @@
 
         if (sendResponse.ok) {
           const sentData = await sendResponse.json();
+          const msgId = sentData.data.message.id;
+          bestieMessageIds = new Set([...bestieMessageIds, msgId]);
           addMessage({
-            id: sentData.data.message.id,
+            id: msgId,
             matchId: conversationId,
             senderId: $user.id,
             content: suggestedQuestion,
@@ -1298,6 +1302,7 @@
             class="message-group"
             class:sent={isSentMessage(message)}
             class:received={!isSentMessage(message)}
+            class:bestie-sent={isSentMessage(message) && bestieMessageIds.has(message.id)}
             class:optimistic={message.id.startsWith('optimistic-')}
             transition:slide={{ duration: 300 }}
           >
@@ -1909,6 +1914,14 @@
     color: var(--text-1);
     border: 1px solid rgba(52, 211, 153, 0.25);
     border-bottom-left-radius: 4px;
+  }
+
+  /* AI Bestie auto-sent messages — purple/pink to distinguish from user's own green bubbles */
+  .message-group.bestie-sent .message-bubble {
+    background: linear-gradient(135deg, #7c3aed, #db2777);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+    box-shadow: 0 2px 10px rgba(139, 92, 246, 0.35);
   }
 
   /* Optimistic message styling */
