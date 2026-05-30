@@ -5,69 +5,124 @@
 	let { data }: { data: PageData } = $props();
 
 	let Chart: typeof import('chart.js').Chart;
+	let chartInstances: Record<string, import('chart.js').Chart> = {};
+	let chartjsReady = $state(false);
 
 	onMount(async () => {
 		const chartjs = await import('chart.js');
 		Chart = chartjs.Chart;
 		Chart.register(...chartjs.registerables);
-		renderCharts();
+		chartjsReady = true;
 	});
 
-	function renderCharts() {
-		renderLine('signups-chart', data.signupsByDay.labels, [
-			{ label: 'Signups', data: data.signupsByDay.counts, borderColor: '#10b981', backgroundColor: '#10b98120' },
+	// ── Client-side data helpers (mirror server-side but run on filteredUsers) ──
+
+	function clientBucketByDay(rows: { joinedAt: string | null }[], days: number) {
+		const labels: string[] = [];
+		const counts: number[] = [];
+		const now = new Date();
+		for (let i = days - 1; i >= 0; i--) {
+			const d = new Date(now);
+			d.setDate(d.getDate() - i);
+			const label = d.toISOString().slice(0, 10);
+			labels.push(label);
+			counts.push(rows.filter((r) => r.joinedAt?.slice(0, 10) === label).length);
+		}
+		return { labels, counts };
+	}
+
+	function clientCountBy<T>(rows: T[], key: (r: T) => string): Record<string, number> {
+		const out: Record<string, number> = {};
+		for (const r of rows) {
+			const k = key(r) ?? 'unknown';
+			out[k] = (out[k] ?? 0) + 1;
+		}
+		return out;
+	}
+
+	// ── Derived chart data — recomputed from filteredUsers on every filter change ──
+
+	let filteredBase = $derived(
+		data.userList.filter((u) => {
+			if (genderFilter !== 'all' && u.gender !== genderFilter) return false;
+			if (typeFilter === 'real' && u.isSeed) return false;
+			if (typeFilter === 'seed' && !u.isSeed) return false;
+			return true;
+		})
+	);
+
+	let filteredSignupsByDay = $derived(clientBucketByDay(filteredBase, 30));
+
+	let filteredGenderCounts = $derived(clientCountBy(filteredBase, (u) => u.gender ?? 'unknown'));
+
+	let filteredTopArchetypes = $derived(
+		Object.entries(clientCountBy(filteredBase, (u) => u.archetype ?? 'unknown'))
+			.sort((a, b) => b[1] - a[1])
+			.slice(0, 8)
+	);
+
+	let filteredTrustBuckets = $derived.by(() => {
+		const buckets = [0, 0, 0, 0, 0];
+		for (const u of filteredBase) {
+			const idx = Math.min(Math.floor((u.trustScore ?? 0) / 20), 4);
+			buckets[idx]++;
+		}
+		return buckets;
+	});
+
+	// ── Reactive chart rendering ──────────────────────────────────────────────
+
+	$effect(() => {
+		if (!chartjsReady) return;
+		// Touch reactive dependencies
+		const signups = filteredSignupsByDay;
+		const genders = filteredGenderCounts;
+		const archetypes = filteredTopArchetypes;
+		const trust = filteredTrustBuckets;
+
+		destroyCharts(['signups-chart', 'gender-chart', 'archetype-chart', 'trust-chart']);
+
+		renderLine('signups-chart', signups.labels, [
+			{ label: 'Signups', data: signups.counts, borderColor: '#10b981', backgroundColor: '#10b98120' },
 		]);
+		renderDoughnut('gender-chart', Object.keys(genders), Object.values(genders), ['#6366f1', '#f472b6', '#94a3b8']);
+		renderBar('archetype-chart', archetypes.map(([k]) => k), archetypes.map(([, v]) => v), '#10b981');
+		renderBar('trust-chart', ['0–20', '21–40', '41–60', '61–80', '81–100'], trust, '#6366f1');
+	});
+
+	// Engagement/messages/events/bestie charts only run once (no user-level data to filter by)
+	$effect(() => {
+		if (!chartjsReady) return;
+
+		destroyCharts(['engagement-chart', 'messages-chart', 'events-chart', 'bestie-chart']);
 
 		renderLine('engagement-chart', data.likesByDay.labels, [
 			{ label: 'Likes', data: data.likesByDay.counts, borderColor: '#6366f1', backgroundColor: '#6366f120' },
 			{ label: 'Passes', data: data.passesByDay.counts, borderColor: '#f59e0b', backgroundColor: '#f59e0b20' },
 		]);
-
 		renderLine('messages-chart', data.messagesByDay.labels, [
 			{ label: 'Messages', data: data.messagesByDay.counts, borderColor: '#3b82f6', backgroundColor: '#3b82f620' },
 		]);
-
-		renderDoughnut('gender-chart', Object.keys(data.genderCounts), Object.values(data.genderCounts), [
-			'#6366f1', '#f472b6', '#94a3b8',
-		]);
-
-		renderBar(
-			'archetype-chart',
-			data.topArchetypes.map(([k]) => k),
-			data.topArchetypes.map(([, v]) => v),
-			'#10b981'
-		);
-
-		renderBar(
-			'trust-chart',
-			['0–20', '21–40', '41–60', '61–80', '81–100'],
-			data.trustBuckets,
-			'#6366f1'
-		);
-
 		if (Object.keys(data.eventCounts).length) {
-			renderDoughnut(
-				'events-chart',
-				Object.keys(data.eventCounts),
-				Object.values(data.eventCounts),
-				['#10b981', '#6366f1', '#f59e0b', '#3b82f6', '#f472b6', '#94a3b8', '#ec4899', '#14b8a6']
-			);
+			renderDoughnut('events-chart', Object.keys(data.eventCounts), Object.values(data.eventCounts),
+				['#10b981', '#6366f1', '#f59e0b', '#3b82f6', '#f472b6', '#94a3b8', '#ec4899', '#14b8a6']);
 		}
-
 		if (Object.keys(data.bestieTypes).length) {
-			renderBar(
-				'bestie-chart',
-				Object.keys(data.bestieTypes),
-				Object.values(data.bestieTypes),
-				'#f472b6'
-			);
+			renderBar('bestie-chart', Object.keys(data.bestieTypes), Object.values(data.bestieTypes), '#f472b6');
+		}
+	});
+
+	function destroyCharts(ids: string[]) {
+		for (const id of ids) {
+			chartInstances[id]?.destroy();
+			delete chartInstances[id];
 		}
 	}
 
 	function renderLine(id: string, labels: string[], datasets: { label: string; data: number[]; borderColor: string; backgroundColor: string }[]) {
 		const ctx = (document.getElementById(id) as HTMLCanvasElement)?.getContext('2d');
 		if (!ctx) return;
-		new Chart(ctx, {
+		chartInstances[id] = new Chart(ctx, {
 			type: 'line',
 			data: {
 				labels,
@@ -85,7 +140,7 @@
 	function renderBar(id: string, labels: string[], data: number[], color: string) {
 		const ctx = (document.getElementById(id) as HTMLCanvasElement)?.getContext('2d');
 		if (!ctx) return;
-		new Chart(ctx, {
+		chartInstances[id] = new Chart(ctx, {
 			type: 'bar',
 			data: {
 				labels,
@@ -98,7 +153,7 @@
 	function renderDoughnut(id: string, labels: string[], data: number[], colors: string[]) {
 		const ctx = (document.getElementById(id) as HTMLCanvasElement)?.getContext('2d');
 		if (!ctx) return;
-		new Chart(ctx, {
+		chartInstances[id] = new Chart(ctx, {
 			type: 'doughnut',
 			data: { labels, datasets: [{ data, backgroundColor: colors }] },
 			options: {
@@ -134,13 +189,7 @@
 	}
 
 	let filteredUsers = $derived.by(() => {
-		const filtered = data.userList.filter((u) => {
-			if (genderFilter !== 'all' && u.gender !== genderFilter) return false;
-			if (typeFilter === 'real' && u.isSeed) return false;
-			if (typeFilter === 'seed' && !u.isSeed) return false;
-			return true;
-		});
-		return filtered.sort((a, b) => {
+		return filteredBase.slice().sort((a, b) => {
 			const av = a[sortCol] ?? '';
 			const bv = b[sortCol] ?? '';
 			const cmp = typeof av === 'number' && typeof bv === 'number'
@@ -150,9 +199,21 @@
 		});
 	});
 
-	const matchRate = data.totals.matches
-		? ((data.totals.mutualMatches / data.totals.matches) * 100).toFixed(1)
-		: '0';
+	// KPIs — user count is filter-aware; engagement metrics are global (no per-user breakdown available)
+	let filteredTotals = $derived({
+		users: filteredBase.length,
+		likes: data.totals.likes,
+		passes: data.totals.passes,
+		matches: data.totals.matches,
+		mutualMatches: data.totals.mutualMatches,
+		messages: data.totals.messages,
+		femaleProfiles: data.totals.femaleProfiles,
+		approvedFemale: data.totals.approvedFemale,
+	});
+
+	let matchRate = $derived(
+		filteredTotals.matches ? ((filteredTotals.mutualMatches / filteredTotals.matches) * 100).toFixed(1) : '0'
+	);
 
 	const femaleApprovalRate = data.totals.femaleProfiles
 		? ((data.totals.approvedFemale / data.totals.femaleProfiles) * 100).toFixed(1)
@@ -220,14 +281,14 @@
 	<!-- KPI strip -->
 	<div class="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
 		{#each [
-			{ label: 'Users', value: data.totals.users },
-			{ label: 'Likes', value: data.totals.likes },
-			{ label: 'Passes', value: data.totals.passes },
-			{ label: 'Matches', value: data.totals.matches },
-			{ label: 'Mutual', value: data.totals.mutualMatches },
+			{ label: 'Users', value: filteredTotals.users },
+			{ label: 'Likes', value: filteredTotals.likes },
+			{ label: 'Passes', value: filteredTotals.passes },
+			{ label: 'Matches', value: filteredTotals.matches },
+			{ label: 'Mutual', value: filteredTotals.mutualMatches },
 			{ label: 'Match rate', value: matchRate + '%' },
-			{ label: 'Messages', value: data.totals.messages },
-			{ label: 'Her profiles', value: data.totals.femaleProfiles },
+			{ label: 'Messages', value: filteredTotals.messages },
+			{ label: 'Her profiles', value: filteredTotals.femaleProfiles },
 		] as kpi}
 			<div class="rounded-xl border border-white/[0.06] bg-[#0d1522] p-4 text-center">
 				<div class="text-xl font-bold text-emerald-400">{kpi.value}</div>
