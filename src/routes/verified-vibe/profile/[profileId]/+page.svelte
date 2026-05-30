@@ -28,7 +28,19 @@
     archetypeEmoji: string;
     gender: string;
     garageCars: GarageCar[];
+    hereFor: string;
+    vibeWords: string[];
+    brings: string[];
+    archetypeChips: Array<{ label: string; chips: string[] }>;
+    verifiedSignals: Array<{ label: string; items: Array<{ emoji: string; label: string }> }>;
+    travelLocations: string[];
+    wealthProof: Record<string, unknown> | null;
+    linkedinProof: Record<string, unknown> | null;
+    personalityPortraitUrl: string | null;
+    garagePortraitUrl: string | null;
   }
+
+  let activeSignalTab = $state(0);
 
   let profile = $state<PublicProfile | null>(null);
   let loading = $state(true);
@@ -230,23 +242,92 @@
     </div>
 
     <div class="profile-sections">
-      <!-- About -->
-      {#if profile.about}
+      <!-- Here For -->
+      {#if profile.hereFor}
         <section class="section">
-          <div class="section-label">About</div>
-          <p class="about-text">{profile.about}</p>
+          <div class="section-label">💫 Here For</div>
+          <p class="about-text">{profile.hereFor}</p>
         </section>
       {/if}
 
-      <!-- Looking for -->
-      {#if intentTags.length > 0}
+      <!-- Vibe in Three Words -->
+      {#if profile.vibeWords?.length > 0}
         <section class="section">
-          <div class="section-label">Looking for</div>
+          <div class="section-label">✨ The Vibe in Three Words</div>
           <div class="tag-row">
-            {#each intentTags as tag}
-              <span class="tag">{tag}</span>
+            {#each profile.vibeWords as word, i}
+              <span class="vibe-tag {i === 0 ? 'vibe-tag--highlight' : ''}">{word}</span>
             {/each}
           </div>
+        </section>
+      {/if}
+
+      <!-- What He/She Brings -->
+      {#if profile.brings?.length > 0}
+        <section class="section">
+          <div class="section-label">🎁 What {profile.gender === 'woman' ? 'She' : 'He'} Brings</div>
+          <ul class="brings-list">
+            {#each profile.brings as item}
+              <li class="brings-item">
+                <span class="brings-check">✓</span>
+                <span>{item}</span>
+              </li>
+            {/each}
+          </ul>
+        </section>
+      {/if}
+
+      <!-- Verified Signals -->
+      {#if profile.verifiedSignals?.length > 0}
+        <section class="section">
+          <div class="section-label-row">
+            <span class="section-label">🛡 Verified Signals</span>
+            <span class="section-meta">AI-read from uploads</span>
+          </div>
+          <div class="signal-tabs">
+            {#each profile.verifiedSignals as group, i}
+              <button
+                class="signal-tab {activeSignalTab === i ? 'signal-tab--active' : ''}"
+                onclick={() => activeSignalTab = i}
+              >{group.label}</button>
+            {/each}
+          </div>
+          {#if profile.verifiedSignals[activeSignalTab]}
+            <div class="signal-items">
+              {#each profile.verifiedSignals[activeSignalTab].items as item}
+                <div class="signal-item">
+                  <span class="signal-emoji">{item.emoji}</span>
+                  <span class="signal-label">{item.label}</span>
+                </div>
+              {/each}
+            </div>
+            <p class="signal-verified">✓ AI verified via CV / LinkedIn</p>
+          {/if}
+        </section>
+      {/if}
+
+      <!-- Archetype chips -->
+      {#if profile.archetypeChips?.length > 0}
+        <section class="section">
+          <div class="section-label">🎭 {profile.archetypeName}</div>
+          {#each profile.archetypeChips as group}
+            <div class="chip-group">
+              <p class="chip-group-label">{group.label}</p>
+              <div class="chip-row">
+                {#each group.chips as chip}
+                  <span class="chip-pill">{chip}</span>
+                {/each}
+              </div>
+            </div>
+          {/each}
+        </section>
+      {/if}
+
+      <!-- About -->
+      {#if profile.about}
+        <section class="section">
+          <div class="section-label">📝 About</div>
+          <p class="about-text">{profile.about}</p>
         </section>
       {/if}
 
@@ -304,6 +385,66 @@
             </div>
             <p class="garage-counter">{garageActiveIdx + 1} of {profile.garageCars.length} in the garage</p>
           {/if}
+        </section>
+      {/if}
+
+      <!-- Travel Magnets -->
+      {#if profile.travelLocations?.length > 0}
+        <section class="section">
+          <div class="section-label-row">
+            <span class="section-label">✈️ Travel Magnets</span>
+            <span class="section-meta">detected from uploads</span>
+          </div>
+          <div class="travel-grid">
+            {#each profile.travelLocations as loc}
+              <div class="travel-chip">
+                <span class="travel-globe">🌍</span>
+                <span class="travel-name">{loc}</span>
+              </div>
+            {/each}
+          </div>
+        </section>
+      {/if}
+
+      <!-- Money Matters -->
+      {#if profile.wealthProof}
+        {@const wp = profile.wealthProof}
+        <section class="section">
+          <div class="section-label">💰 Money Matters</div>
+          <div class="money-card">
+            {#if profile.linkedinProof}
+              <div class="money-role">
+                {#each ((profile.linkedinProof.insights as Array<{emoji:string;label:string}>) ?? []).slice(0, 2) as ins}
+                  <span class="money-role-line">{ins.emoji} {ins.label}</span>
+                {/each}
+              </div>
+            {/if}
+            <div class="money-badges">
+              {#each ((wp.insights as Array<{emoji:string;label:string}>) ?? []) as ins}
+                <div class="money-badge">
+                  <span class="money-badge-emoji">{ins.emoji}</span>
+                  <span class="money-badge-label">{ins.label}</span>
+                </div>
+              {/each}
+            </div>
+            <p class="money-verified">✓ AI verified via bank statement / financial document</p>
+          </div>
+        </section>
+      {/if}
+
+      <!-- AI Portraits -->
+      {#if profile.personalityPortraitUrl || profile.garagePortraitUrl}
+        <section class="section">
+          <div class="section-label">✨ AI Portrait</div>
+          <p class="portrait-sub">Generated from verified photos</p>
+          <div class="portrait-grid-2">
+            {#if profile.personalityPortraitUrl}
+              <img class="portrait-img" src={profile.personalityPortraitUrl} alt="AI portrait" />
+            {/if}
+            {#if profile.garagePortraitUrl}
+              <img class="portrait-img" src={profile.garagePortraitUrl} alt="AI portrait 2" />
+            {/if}
+          </div>
         </section>
       {/if}
 
@@ -499,6 +640,54 @@
     text-transform: uppercase;
     color: rgba(255,255,255,0.35);
   }
+  .section-label-row { display: flex; align-items: center; justify-content: space-between; }
+  .section-meta { font-size: 10px; font-weight: 500; color: rgba(255,255,255,0.25); letter-spacing: 0.05em; }
+
+  /* Vibe tags */
+  .vibe-tag { padding: 6px 14px; border-radius: 999px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); font-size: 13px; font-weight: 500; color: #e8e8e8; }
+  .vibe-tag--highlight { background: rgba(52,211,153,0.12); border-color: rgba(52,211,153,0.35); color: #34d399; }
+
+  /* Brings */
+  .brings-list { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 0; }
+  .brings-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; margin-bottom: 6px; font-size: 14px; color: #e0e0e0; }
+  .brings-check { color: #34d399; font-weight: 700; flex-shrink: 0; font-size: 15px; }
+
+  /* Verified signals */
+  .signal-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+  .signal-tab { padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.5); font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+  .signal-tab--active { background: rgba(52,211,153,0.12); border-color: rgba(52,211,153,0.4); color: #34d399; }
+  .signal-items { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+  .signal-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: rgba(255,255,255,0.04); border-radius: 10px; }
+  .signal-emoji { font-size: 18px; }
+  .signal-label { font-size: 13.5px; color: #d0d0d0; font-weight: 500; }
+  .signal-verified { font-size: 11px; color: #34d399; margin: 8px 0 0; }
+
+  /* Archetype chips */
+  .chip-group { margin-bottom: 14px; }
+  .chip-group-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.3); margin: 0 0 8px; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip-pill { padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); font-size: 12.5px; color: #c8c8c8; }
+
+  /* Travel magnets */
+  .travel-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .travel-chip { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); }
+  .travel-globe { font-size: 16px; }
+  .travel-name { font-size: 12px; font-weight: 600; color: #d0d0d0; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  /* Money matters */
+  .money-card { background: rgba(255,200,80,0.05); border: 1px solid rgba(255,200,80,0.2); border-radius: 16px; padding: 14px; margin-top: 8px; }
+  .money-role { display: flex; flex-direction: column; gap: 3px; margin-bottom: 12px; }
+  .money-role-line { font-size: 13px; color: #d0d0d0; font-weight: 500; }
+  .money-badges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+  .money-badge { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 10px 8px; display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; }
+  .money-badge-emoji { font-size: 22px; }
+  .money-badge-label { font-size: 10.5px; color: #b0b0b0; font-weight: 500; line-height: 1.2; }
+  .money-verified { font-size: 11px; color: #34d399; margin: 0; }
+
+  /* AI portraits */
+  .portrait-sub { font-size: 11.5px; color: rgba(255,255,255,0.3); margin: 2px 0 10px; }
+  .portrait-grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .portrait-img { width: 100%; aspect-ratio: 3/4; object-fit: cover; border-radius: 14px; }
 
   .about-text {
     font-size: 14px;
