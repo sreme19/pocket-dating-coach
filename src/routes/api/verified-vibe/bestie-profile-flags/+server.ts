@@ -40,50 +40,52 @@ export const POST: RequestHandler = async ({ request }) => {
 		if (!profileId) return json({ error: 'profileId required' }, { status: 400 });
 
 		// Load the male profile
-		const { data: profile } = await (sb as any)
-			.from('verified_vibe_users')
-			.select('id, first_name, gender, archetype, trust_score, about')
-			.eq('id', profileId)
-			.single();
+		const [{ data: profile }, { data: masterRow }] = await Promise.all([
+			(sb as any)
+				.from('verified_vibe_users')
+				.select('id, first_name, gender, archetype, trust_score, about')
+				.eq('id', profileId)
+				.single(),
+			(sb as any)
+				.from('user_master_profile')
+				.select('data')
+				.eq('user_id', profileId)
+				.maybeSingle(),
+		]);
 
 		if (!profile || profile.gender !== 'man') return json({ flags: [] });
 
-		// Load verified proof uploads
-		const { data: proofs } = await (sb as any)
-			.from('verified_vibe_proof_uploads')
-			.select('category, aggregated, insights, locations, assets')
-			.eq('user_id', profileId);
+		// Proof data lives inside user_master_profile.data.verifiedProofs (same source as public-profile API)
+		const masterData: Record<string, unknown> = (masterRow?.data as Record<string, unknown>) ?? {};
+		const verifiedProofs: Array<Record<string, unknown>> = Array.isArray(masterData.verifiedProofs)
+			? masterData.verifiedProofs as Array<Record<string, unknown>>
+			: [];
 
-		const proofList: Array<Record<string, unknown>> = proofs ?? [];
-
-		// Load onboarding answers (travel, lifestyle claims)
-		const { data: onboarding } = await (sb as any)
-			.from('vv_onboarding_answers')
-			.select('answers')
-			.eq('user_id', profileId)
-			.single();
-		const onboardingAnswers: Record<string, unknown> = (onboarding?.answers as Record<string, unknown>) ?? {};
-
-		// Gather archetype description
+		// Archetype description
 		const archetypeDef = ARCHETYPES[profile.archetype as keyof typeof ARCHETYPES];
 		const archetypeName = archetypeDef?.name ?? profile.archetype ?? 'Unknown';
+		const archetypeTag = (archetypeDef as any)?.tag ?? '';
 
-		// Summarise what was actually verified
-		const careerProof = proofList.find(p => p.category === 'linkedin');
-		const lifestyleProof = proofList.find(p => p.category === 'lifestyle');
-		const disciplineProof = proofList.find(p => p.category === 'discipline');
-		const socialProof = proofList.find(p => p.category === 'social_proof');
-		const assetsProof = proofList.find(p => p.category === 'assets');
-		const wealthProof = proofList.find(p => p.category === 'wealth');
+		// Helper
+		const proofByCategory = (cat: string) => verifiedProofs.find(p => p.category === cat) ?? null;
+
+		const careerProof  = proofByCategory('linkedin');
+		const lifestyleProof = proofByCategory('lifestyle');
+		const disciplineProof = proofByCategory('discipline');
+		const socialProof  = proofByCategory('social_proof');
+		const assetsProof  = proofByCategory('assets');
+		const wealthProof  = proofByCategory('wealth');
 
 		const travelLocations: string[] = Array.from(new Set(
-			proofList.flatMap(p => Array.isArray(p.locations) ? p.locations as string[] : [])
+			verifiedProofs.flatMap(p => Array.isArray(p.locations) ? p.locations as string[] : [])
 		)).filter(Boolean);
 
 		const verifiedSummary = {
 			archetypeName,
+			archetypeTag,
 			trustScore: profile.trust_score ?? 0,
 			about: profile.about ?? '',
+			totalVerifiedProofCategories: verifiedProofs.length,
 			career: careerProof ? {
 				aggregated: careerProof.aggregated ?? '',
 				insights: (careerProof.insights as Array<{ label: string }> ?? []).map(i => i.label),
@@ -92,24 +94,12 @@ export const POST: RequestHandler = async ({ request }) => {
 				aggregated: lifestyleProof.aggregated ?? '',
 				insights: (lifestyleProof.insights as Array<{ label: string }> ?? []).map(i => i.label),
 			} : null,
-			health: disciplineProof ? {
-				aggregated: disciplineProof.aggregated ?? '',
-			} : null,
-			social: socialProof ? {
-				aggregated: socialProof.aggregated ?? '',
-			} : null,
-			assets: assetsProof ? {
-				aggregated: assetsProof.aggregated ?? '',
-			} : null,
-			wealth: wealthProof ? {
-				aggregated: wealthProof.aggregated ?? '',
-			} : null,
+			health: disciplineProof ? { aggregated: disciplineProof.aggregated ?? '' } : null,
+			social:  socialProof  ? { aggregated: socialProof.aggregated  ?? '' } : null,
+			assets:  assetsProof  ? { aggregated: assetsProof.aggregated  ?? '' } : null,
+			wealth:  wealthProof  ? { aggregated: wealthProof.aggregated  ?? '' } : null,
 			travelLocations,
 			travelLocationCount: travelLocations.length,
-			onboardingHighlights: Object.entries(onboardingAnswers)
-				.filter(([k]) => k.includes('travel') || k.includes('lifestyle') || k.includes('career') || k.includes('income'))
-				.slice(0, 10)
-				.map(([k, v]) => `${k}: ${JSON.stringify(v)}`),
 		};
 
 		const systemPrompt = `You are "Bestie", a sharp, caring AI advisor for women on Verified Vibe — a dating app that verifies men's lifestyles.
@@ -118,18 +108,24 @@ Your job: given a man's profile summary, identify 2–4 specific orange or red f
 
 Be specific and grounded in the data. Don't invent problems — only flag things that have concrete evidence in the numbers or missing verifications.
 
+Rules:
+- If career/lifestyle/health/social/assets/wealth proof field is null → it was NOT verified at all
+- travelLocationCount shows how many distinct destinations were actually verified from uploads
+- trust_score under 40 is low for someone claiming a high-status lifestyle
+- totalVerifiedProofCategories = 0 means nothing has been verified yet
+
 Examples of good flags:
-- Archetype is "Multi-continent globe-trotter" but only 1 travel location was verified from uploads → orange flag
-- Claims "successful entrepreneur" in bio but no LinkedIn/career proof was uploaded → red flag
-- Trust score is very low (under 30) for someone claiming a high-status lifestyle → orange flag
-- No health/fitness proof but archetype implies active lifestyle → orange flag
+- Archetype is "Multi-continent globe-trotter" but travelLocationCount is 0 or 1 → orange flag
+- Claims senior role in bio but career is null (no LinkedIn uploaded) → red flag
+- Trust score under 30 for a high-lifestyle-claim archetype → orange flag
+- lifestyle proof is null but archetype implies globe-trotter or active lifestyle → orange flag
 
 Return ONLY valid JSON — no markdown, no explanation outside the JSON.
 Format:
 {"flags":[{"level":"orange","title":"Short title","detail":"One specific sentence explaining what was claimed vs what was verified."}]}
 
-Use "orange" for unverified claims / gaps. Use "red" for clear contradictions or missing critical proof for a major lifestyle claim.
-Keep each detail under 25 words. Max 4 flags. If no real flags exist, return {"flags":[]}.`;
+Use "orange" for unverified claims / gaps. Use "red" for clear contradictions or missing critical proof.
+Keep each detail under 25 words. Max 4 flags. If genuinely nothing is suspicious, return {"flags":[]}.`;
 
 		const userMessage = `Analyse this profile for inconsistencies:\n${JSON.stringify(verifiedSummary, null, 2)}`;
 
