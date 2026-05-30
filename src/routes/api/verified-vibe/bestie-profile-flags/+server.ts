@@ -120,12 +120,20 @@ Examples of good flags:
 - Trust score under 30 for a high-lifestyle-claim archetype → orange flag
 - lifestyle proof is null but archetype implies globe-trotter or active lifestyle → orange flag
 
+CRITICAL — writing rules for the detail field:
+- Write in plain English for a female dating app user. NEVER mention raw field names like totalVerifiedProofCategories, travelLocationCount, trust_score, archetype, etc.
+- Instead of "totalVerifiedProofCategories is 0" say "no proof has been uploaded yet"
+- Instead of "travelLocationCount is 0" say "no trips have been verified"
+- Instead of "wealth verification is null" say "wealth hasn't been verified"
+- Instead of "trust_score is 75" say "his trust score is 75"
+- Keep it conversational, specific, and under 25 words.
+
 Return ONLY valid JSON — no markdown, no explanation outside the JSON.
 Format:
 {"flags":[{"level":"orange","title":"Short title","detail":"One specific sentence explaining what was claimed vs what was verified."}]}
 
 Use "orange" for unverified claims / gaps. Use "red" for clear contradictions or missing critical proof.
-Keep each detail under 25 words. Max 4 flags. If genuinely nothing is suspicious, return {"flags":[]}.`;
+Max 4 flags. If genuinely nothing is suspicious, return {"flags":[]}.`;
 
 		const userMessage = `Analyse this profile for inconsistencies:\n${JSON.stringify(verifiedSummary, null, 2)}`;
 
