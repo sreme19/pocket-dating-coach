@@ -3113,7 +3113,7 @@
         </div>
 
         <!-- AI Enhance CTA -->
-        {#if !hasAiPhotos && hasRealPhotos && mode === 'public'}
+        {#if !hasAiPhotos && hasRealPhotos && mode === 'public' && $user?.gender !== 'woman'}
           <button
             class="enhance-photos-btn"
             onclick={handleEnhancePhotos}
