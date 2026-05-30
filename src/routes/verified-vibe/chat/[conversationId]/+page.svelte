@@ -367,22 +367,8 @@
             return msgs;
           });
 
-          // If AI Bestie is active, auto-respond — but only to messages from the
-          // other person AND only if this wasn't an AI-sent message.
-          // The 1.5 s delay gives Mekhala a window to type herself; if she does,
-          // the poller's manual-reply guard will cancel the response.
-          if (activeAssistant === 'bestie' &&
-              message.senderId !== $user?.id &&
-              !message.isAi) {
-            setTimeout(() => {
-              // Re-check: if Mekhala manually replied in the last 1.5 s, skip
-              const msgs = get(messages);
-              const manualReply = msgs.some(m =>
-                m.senderId === $user?.id && !m.isAi && m.createdAt > message.createdAt
-              );
-              if (!manualReply) generateAndSendAIBestieResponse(message.content, message.id);
-            }, 1500);
-          }
+          // AI Bestie auto-responses are generated server-side (chat/send
+          // endpoint) so they fire even when this app is closed. No client send.
 
           scrollToBottom();
           connectionError = false;
@@ -845,45 +831,26 @@
           senderId: m.senderId,
           content: m.content,
           isAi: m.isAi ?? false,
+          aiSignal: m.aiSignal ?? undefined,
+          aiRead: m.aiRead ?? undefined,
           createdAt: new Date(m.createdAt)
         }));
-        // Merge any new messages into the store
+        // Merge new messages AND refresh coaching fields on existing ones
+        // (a male's message may gain ai_read after the server-side Bestie runs).
         messages.update(existing => {
+          const byId = new Map(fetched.map(m => [m.id, m]));
+          const merged = existing.map(m => {
+            const f = byId.get(m.id);
+            return f && (f.aiRead !== m.aiRead || f.aiSignal !== m.aiSignal) ? { ...m, aiRead: f.aiRead, aiSignal: f.aiSignal } : m;
+          });
           const existingIds = new Set(existing.map(m => m.id));
           const newMsgs = fetched.filter(m => !existingIds.has(m.id));
           if (newMsgs.length > 0) scrollToBottom();
-          return [...existing, ...newMsgs];
+          return [...merged, ...newMsgs];
         });
-        // Auto-respond to the latest unresponded message from the other person.
-        // Guards:
-        // 1. Only messages from the other user (not AI-flagged messages)
-        // 2. Only respond to messages received in the last 10 minutes
-        // 3. Step back if Mekhala has manually replied AFTER the latest received
-        //    message — she's handling it herself, Bestie should stay quiet
-        const TEN_MINUTES = 10 * 60 * 1000;
-        const now = Date.now();
-        const latest = fetched
-          .filter(m =>
-            m.senderId !== $user?.id &&
-            !m.isAi &&
-            (now - m.createdAt.getTime()) < TEN_MINUTES
-          )
-          .at(-1);
-        if (latest && !respondedToMessageIds.has(latest.id)) {
-          // Check if Mekhala manually replied after this message
-          const manualReplyAfter = fetched.some(m =>
-            m.senderId === $user?.id &&
-            !m.isAi &&
-            m.createdAt > latest.createdAt
-          );
-          if (!manualReplyAfter) {
-            await generateAndSendAIBestieResponse(latest.content, latest.id);
-          } else {
-            // Mekhala took over — mark as responded so Bestie doesn't retry
-            respondedToMessageIds = new Set([...respondedToMessageIds, latest.id]);
-            persistRespondedIds();
-          }
-        }
+        // NOTE: Bestie auto-responses are now generated SERVER-SIDE (in the chat
+        // /send endpoint) so they fire even when this app is closed. The client
+        // no longer sends replies — it only fetches + displays them.
       } catch (err) {
         console.error('Bestie poller error:', err);
       }
@@ -1399,8 +1366,8 @@
               </div>
             {/if}
           </div>
-          {#if !isSentMessage(message) && coachingCards.get(message.id) && currentUserGender === 'woman'}
-            {@const card = coachingCards.get(message.id)!}
+          {@const card = (message.aiRead ? { signal: message.aiSignal ?? '✅', read: message.aiRead } : coachingCards.get(message.id))}
+          {#if !isSentMessage(message) && card && currentUserGender === 'woman'}
             <div class="bestie-coaching-card" transition:slide={{ duration: 300 }}>
               <div class="bestie-card-header">
                 <span class="bestie-label">✨ AI Bestie</span>
