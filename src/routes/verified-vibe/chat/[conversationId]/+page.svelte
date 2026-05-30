@@ -922,6 +922,16 @@
       const supabase = getSupabaseClient();
       const { data: { session } } = await supabase.auth.getSession();
 
+      // Build recent conversation history (last 12 messages) so Bestie has full
+      // context — prevents repeating questions or hallucinating about what's been said.
+      const history = get(messages)
+        .slice(-12)
+        .map((m) => ({
+          role: m.senderId === $user?.id ? 'mekhala' : 'match',
+          fromBestie: m.isAi || bestieMessageIds.has(m.id),
+          content: m.content
+        }));
+
       // Get signal + read + suggestedQuestion from AI Bestie
       const response = await fetch('/api/verified-vibe/ai-bestie/generate-response', {
         method: 'POST',
@@ -933,7 +943,8 @@
           conversationId,
           adrianMessage,
           matchName: $currentMatch.firstName,
-          userId: $user?.id
+          userId: $user?.id,
+          history
         })
       });
 

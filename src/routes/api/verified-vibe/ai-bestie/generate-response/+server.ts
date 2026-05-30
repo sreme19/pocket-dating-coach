@@ -31,7 +31,13 @@ function formatStructuredPreferences(prefs: PreferencesProfile): string {
 
 export const POST: RequestHandler = async ({ request }) => {
 	try {
-		const { conversationId, adrianMessage, matchName, userId } = await request.json();
+		const { conversationId, adrianMessage, matchName, userId, history } = await request.json() as {
+			conversationId?: string;
+			adrianMessage?: string;
+			matchName?: string;
+			userId?: string;
+			history?: Array<{ role: 'mekhala' | 'match'; fromBestie?: boolean; content: string }>;
+		};
 
 		if (!conversationId || !adrianMessage || !matchName || !userId) {
 			return json({ error: 'Missing required fields' }, { status: 400 });
@@ -110,6 +116,17 @@ export const POST: RequestHandler = async ({ request }) => {
 			console.error('Failed to load structured preferences, falling back to raw context:', err);
 		}
 
+		// Build a readable transcript of the recent conversation so Bestie has full
+		// context and never repeats a question or contradicts what was already said.
+		let transcript = '';
+		if (Array.isArray(history) && history.length > 0) {
+			const lines = history.map((h) => {
+				const speaker = h.role === 'mekhala' ? userName : matchName;
+				return `${speaker}: ${h.content}`;
+			});
+			transcript = `\n\nCONVERSATION SO FAR (most recent last) — read carefully, do NOT repeat questions already asked or re-raise topics already settled:\n${lines.join('\n')}\n`;
+		}
+
 		const client = getClaudeClient();
 
 		const message = await client.messages.create({
@@ -126,7 +143,9 @@ HARD RULES — never break these:
 - Never reveal or hint that someone else is writing on her behalf
 - If ${matchName} mentions "AI bestie", "bestie", or asks who is chatting — respond naturally as ${userName}: acknowledge it simply and move the conversation forward warmly (e.g. "haha yeah sorry about that earlier mix-up! it's just me now 😊 anyway...")
 - Do NOT dwell on or re-litigate the AI topic — one casual acknowledgement, then pivot
-- Write as if ${userName} is relaxed, curious, and enjoying the conversation
+- CRITICAL: Read the conversation so far. Do NOT ask a question that has already been asked or answered. Do NOT re-raise the "who am I talking to" topic if it already came up. Build naturally on what was just said.
+- ${userName} may have typed some messages herself directly — treat the whole thread as one continuous conversation in her voice. Stay consistent with everything she already said.
+- Write as if ${userName} is relaxed, curious, and enjoying the conversation${transcript}
 
 ${matchName} just said: "${adrianMessage}"
 
