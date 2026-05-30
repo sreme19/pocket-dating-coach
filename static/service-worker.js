@@ -3,9 +3,9 @@
  * Handles offline support, caching, and performance optimization
  */
 
-const CACHE_NAME = 'pdc-cache-v1';
-const RUNTIME_CACHE = 'pdc-runtime-v1';
-const IMAGE_CACHE = 'pdc-images-v1';
+const CACHE_NAME = 'pdc-cache-v2';
+const RUNTIME_CACHE = 'pdc-runtime-v2';
+const IMAGE_CACHE = 'pdc-images-v2';
 
 const STATIC_ASSETS = [
 	'/',
@@ -74,7 +74,15 @@ self.addEventListener('fetch', (event) => {
 		return;
 	}
 
-	// Handle image requests with cache-first strategy
+	// Profile photos / user-generated images (Supabase Storage) change over time —
+	// always go network-first so updated avatars show immediately. Falls back to
+	// cache only when offline.
+	if (url.pathname.includes('/storage/v1/object/')) {
+		event.respondWith(networkFirst(request));
+		return;
+	}
+
+	// Handle static image requests with cache-first strategy
 	if (isImageRequest(request)) {
 		event.respondWith(cacheFirstImages(request));
 		return;
