@@ -7,6 +7,7 @@ import type { Message } from '$lib/verified-vibe/types';
 interface SendMessageRequest {
   conversationId: string;
   content: string;
+  isAi?: boolean;
 }
 
 interface SendMessageResponse {
@@ -202,7 +203,8 @@ export const POST: RequestHandler = async ({ request }) => {
       .insert({
         match_id: body.conversationId,
         sender_id: user.id,
-        content: body.content.trim()
+        content: body.content.trim(),
+        is_ai: body.isAi === true
       })
       .select()
       .single();
