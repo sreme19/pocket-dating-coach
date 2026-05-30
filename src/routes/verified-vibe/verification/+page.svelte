@@ -2087,6 +2087,7 @@
         />
       {:else if currentStep === 4}
         <PhotosPlaceStep
+          gender={viewerGender}
           onSubmit={handlePhotosPlaceSubmit}
           onCancel={handleBack}
           onSkip={handleSkipClick}

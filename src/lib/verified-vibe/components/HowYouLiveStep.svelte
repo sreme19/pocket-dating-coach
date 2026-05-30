@@ -26,8 +26,8 @@
 
   let { archetype = '', onSubmit, onCancel, onSkip }: Props = $props();
 
-  // ── Casual / Generous (casual_generous_man, spoiled_casual_woman) ──────────
-  const SECTIONS_CASUAL: Section[] = [
+  // ── Casual Generous Man ───────────────────────────────────────────────────
+  const SECTIONS_CASUAL_MAN: Section[] = [
     {
       key: 'chemistry',
       kind: 'multi',
@@ -105,7 +105,90 @@
       ],
     },
   ];
-  const REQUIRED_CASUAL = ['chemistry', 'lifestyle', 'standards'];
+  const REQUIRED_CASUAL_MAN = ['chemistry', 'lifestyle', 'standards'];
+
+  // ── Spoiled Casual Woman ──────────────────────────────────────────────────
+  const SECTIONS_SPOILED_CASUAL: Section[] = [
+    {
+      key: 'vibe',
+      kind: 'card',
+      icon: '✨',
+      title: 'Your day-to-day vibe',
+      sub: 'Pick the closest match',
+      options: [
+        { emoji: '💅', label: 'Low-key luxury',       sub: 'Selective, private, effortlessly elevated' },
+        { emoji: '🌸', label: 'Social & spontaneous', sub: 'Love going out, meeting people, staying active' },
+        { emoji: '🏠', label: 'Homebody at heart',    sub: 'Comfort-first — cosy > chaotic' },
+        { emoji: '✈️', label: 'Always on the move',  sub: 'Travel, events, never really settling in one place' },
+        { emoji: '🌊', label: 'Balanced & relaxed',   sub: 'Mix of both — depends on the week' },
+      ],
+    },
+    {
+      key: 'how_you_like_to_be_treated',
+      kind: 'multi',
+      icon: '💎',
+      title: 'How you like to be treated',
+      sub: 'Pick up to 4',
+      max: 4,
+      chips: [
+        { emoji: '🎁', label: 'Thoughtful gifting' },
+        { emoji: '🌹', label: 'Consistent romance' },
+        { emoji: '💬', label: 'Undivided attention' },
+        { emoji: '✈️', label: 'Elevated experiences' },
+        { emoji: '🛍', label: 'Generous without being asked' },
+      ],
+      more: [
+        { emoji: '🍾', label: 'Surprise upgrades' },
+        { emoji: '🚗', label: 'Picked up & dropped off' },
+        { emoji: '🏨', label: 'Nice hotels, no questions' },
+        { emoji: '💐', label: 'Small gestures that show effort' },
+      ],
+    },
+    {
+      key: 'standards',
+      kind: 'multi',
+      icon: '🛡',
+      title: 'Standards you hold',
+      sub: 'Pick up to 5',
+      max: 5,
+      chips: [
+        { emoji: '🔒', label: 'Discretion matters' },
+        { emoji: '🧘', label: 'Drama-free only' },
+        { emoji: '💬', label: 'Honest & direct' },
+        { emoji: '🤝', label: 'Mutual respect' },
+        { emoji: '🚫', label: 'No games or pressure' },
+      ],
+      more: [
+        { emoji: '✅', label: 'Clear expectations from the start' },
+        { emoji: '🔐', label: 'Privacy respected' },
+        { emoji: '🛡', label: 'Safety & trust first' },
+        { emoji: '❤️', label: 'Respects my boundaries' },
+        { emoji: '🔍', label: 'Verified profiles preferred' },
+      ],
+    },
+    {
+      key: 'chemistry',
+      kind: 'multi',
+      icon: '💋',
+      title: 'Chemistry & connection',
+      sub: 'Pick any · private to you',
+      privacy: true,
+      chips: [
+        { emoji: '😏', label: 'Playful flirtation' },
+        { emoji: '💋', label: 'Natural affection' },
+        { emoji: '🕯', label: 'Slow-burn tension' },
+        { emoji: '🌹', label: 'Romance over rush' },
+        { emoji: '🔒', label: 'Prefer discretion' },
+      ],
+      more: [
+        { emoji: '⚡', label: 'Instant spark' },
+        { emoji: '🥂', label: 'Good conversation first' },
+        { emoji: '🌌', label: 'Open-minded connection' },
+        { emoji: '💫', label: 'Keep it casual' },
+      ],
+    },
+  ];
+  const REQUIRED_SPOILED_CASUAL = ['vibe', 'standards', 'chemistry'];
 
   // ── Hopeless Romantic ─────────────────────────────────────────────────────
   const SECTIONS_ROMANTIC: Section[] = [
@@ -639,8 +722,10 @@
   const REQUIRED_JUST_FRIENDS = ['social_style', 'what_you_enjoy', 'good_friend_traits'];
 
   function buildSections(a: string): { sections: Section[]; required: string[] } {
-    if (a === 'casual_generous_man' || a === 'spoiled_casual_woman')
-      return { sections: SECTIONS_CASUAL,        required: REQUIRED_CASUAL };
+    if (a === 'casual_generous_man')
+      return { sections: SECTIONS_CASUAL_MAN,        required: REQUIRED_CASUAL_MAN };
+    if (a === 'spoiled_casual_woman')
+      return { sections: SECTIONS_SPOILED_CASUAL,    required: REQUIRED_SPOILED_CASUAL };
     if (a === 'hopeless_romantic_man' || a === 'hopeless_romantic_woman')
       return { sections: SECTIONS_ROMANTIC,       required: REQUIRED_ROMANTIC };
     if (a === 'forever_focused_man' || a === 'forever_focused_woman')
@@ -668,6 +753,7 @@
     if (archetype === 'untouched_heart_man' || archetype === 'untouched_heart_woman') return "Where you're starting from.";
     if (archetype === 'second_chapter_man' || archetype === 'second_chapter_woman') return "What's different this time.";
     if (archetype === 'just_friends_man' || archetype === 'just_friends_woman') return "Your social style and interests.";
+    if (archetype === 'spoiled_casual_woman') return "Your vibe and what you value.";
     return "How you live and what you value."; // casual / default
   });
 

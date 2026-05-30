@@ -190,10 +190,10 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
       );
     }
 
-    // If user doesn't have a profile yet, return seed profiles as a preview
+    // If user doesn't have a profile yet, return male seed profiles as a preview
     if (!currentUserProfile) {
       console.warn('User profile not found for:', currentUserId, '— returning seed profiles');
-      const seedProfiles = buildSeedProfiles('woman', []);
+      const seedProfiles = buildSeedProfiles('man', []);
       return json({
         data: {
           profiles: seedProfiles.slice(0, limit),
@@ -203,23 +203,23 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
       });
     }
 
-    const currentUserGender = currentUserProfile.gender || 'man';
+    // Never default gender to 'man' — if null, treat as unknown and use opposite of 'man' (woman target)
+    const currentUserGender = currentUserProfile.gender ?? null;
     const currentUserArchetype = currentUserProfile.archetype || '';
 
     // Determine compatible archetypes via MATCH_MATRIX (falls back to opposite gender)
     const compatibleArchetypes: string[] = MATCH_MATRIX[currentUserArchetype] ?? [];
-    const targetGender = currentUserGender === 'man' ? 'woman' : 'man';
+    const targetGender = currentUserGender === 'woman' ? 'man' : 'woman';
 
-    // Fetch profiles: filter by compatible archetypes when available, else opposite gender
+    // Always filter by target gender — use archetype refinement on top if available
     let profileQuery = (supabase as any)
       .from('verified_vibe_users')
       .select('*')
-      .neq('id', currentUserId);
+      .neq('id', currentUserId)
+      .eq('gender', targetGender);
 
     if (compatibleArchetypes.length > 0) {
       profileQuery = profileQuery.in('archetype', compatibleArchetypes);
-    } else {
-      profileQuery = profileQuery.eq('gender', targetGender);
     }
 
     const { data: profiles, error: profileError } = await profileQuery;
@@ -310,30 +310,25 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
         };
       });
 
-    // Sort by selected criteria
-    if (sortBy === 'trustScore') {
-      discoveryProfiles.sort((a, b) => b.trustScore - a.trustScore);
-    } else if (sortBy === 'compatibility') {
-      // Compatibility scoring (could be improved with archetype matching)
-      discoveryProfiles.sort((a, b) => {
-        const scoreA = (b.verified.length * 20) + (b.trustScore / 5);
-        const scoreB = (a.verified.length * 20) + (a.trustScore / 5);
-        return scoreB - scoreA;
-      });
-    }
+    // Sort: verified profiles first, then by trust score descending
+    discoveryProfiles.sort((a, b) => {
+      const aVerified = a.verified.length > 0 ? 1 : 0;
+      const bVerified = b.verified.length > 0 ? 1 : 0;
+      if (bVerified !== aVerified) return bVerified - aVerified;
+      return b.trustScore - a.trustScore;
+    });
+
+    // Merge seed profiles as padding after real profiles
+    const seedProfiles = buildSeedProfiles(targetGender, compatibleArchetypes);
+    const seedsNotAlreadyExcluded = seedProfiles.filter(
+      s => !allExcludeIds.has(s.id) && !blockedIds.includes(s.id)
+    );
+    const combinedProfiles = [...discoveryProfiles, ...seedsNotAlreadyExcluded];
 
     // Apply pagination
-    let total = discoveryProfiles.length;
-    let paginatedProfiles = discoveryProfiles.slice(offset, offset + limit);
+    let total = combinedProfiles.length;
+    let paginatedProfiles = combinedProfiles.slice(offset, offset + limit);
     let hasMore = offset + limit < total;
-
-    // When real pool is empty, fall back to seed/demo profiles
-    if (paginatedProfiles.length === 0 && offset === 0) {
-      const seedProfiles = buildSeedProfiles(targetGender, compatibleArchetypes);
-      paginatedProfiles = seedProfiles.slice(0, limit);
-      total = seedProfiles.length;
-      hasMore = false;
-    }
 
     const response: DiscoveryFeedResponse = {
       data: {

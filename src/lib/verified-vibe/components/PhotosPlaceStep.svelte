@@ -5,12 +5,15 @@
   }
 
   interface Props {
+    gender?: 'man' | 'woman' | null;
     onSubmit: (data: { photos: File[]; city: string; openToTravel: boolean }) => void;
     onCancel?: () => void;
     onSkip?: () => void;
   }
 
-  let { onSubmit, onCancel, onSkip }: Props = $props();
+  let { gender = null, onSubmit, onCancel, onSkip }: Props = $props();
+
+  const showAiStrip = $derived(gender !== 'woman');
 
   const MAX_PHOTOS = 3;
   const MIN_PHOTOS = 1;
@@ -121,13 +124,15 @@
       {/each}
     </div>
 
-    <!-- AI portrait strip -->
-    <div class="ai-strip">
-      <div class="ai-strip-icon">✨</div>
-      <p class="ai-strip-text">
-        <em class="ai-strip-em">AI will render</em> two portraits from your verified face — added to your profile.
-      </p>
-    </div>
+    <!-- AI portrait strip — men only -->
+    {#if showAiStrip}
+      <div class="ai-strip">
+        <div class="ai-strip-icon">✨</div>
+        <p class="ai-strip-text">
+          <em class="ai-strip-em">AI will render</em> two portraits from your verified face — added to your profile.
+        </p>
+      </div>
+    {/if}
   </div>
 
   <!-- Location section -->

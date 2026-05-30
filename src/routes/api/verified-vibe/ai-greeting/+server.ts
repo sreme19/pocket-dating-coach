@@ -47,8 +47,8 @@ async function resolveUser(request: Request): Promise<{ userId: string; gender: 
 
     return {
       userId:    user.id,
-      gender:    profile?.gender    ?? 'man',
-      archetype: profile?.archetype ?? 'casual_man',
+      gender:    profile?.gender    ?? null,
+      archetype: profile?.archetype ?? '',
       city:      profile?.city      ?? 'your area',
     };
   } catch { return null; }
@@ -108,22 +108,40 @@ ${shared}`;
 
 // ── Greeting generation ───────────────────────────────────────────────────────
 
-const MODE_GUIDES: Record<number, string> = {
-  0: `This is the FIRST TIME this person has opened the app. Your goal is to make them immediately understand the full power of the three-agent ecosystem and how to take advantage of it.
+const MODE_GUIDES_MAN: Record<number, string> = {
+  0: `This is the FIRST TIME this man has opened the app. Your goal is to make him immediately understand the full power of the three-agent ecosystem and how to take advantage of it.
 
 Explain in a natural, conversational way (not a product tour):
-1. Who you are and what you do as their private advisor
-2. That AI Matchmaker is working behind the scenes — deciding who sees their profile in Discover, based on their Trust Score
-3. The key insight: every proof they upload here gets seen by the AI Bestie or Wingman of every match, who will then coach that match to see them favourably before they even swipe
-4. End with one specific, immediate action they can take right now to trigger this loop
+1. Who you are and what you do as his private advisor
+2. That AI Matchmaker is working behind the scenes — deciding which women see his profile in Discover, based on his Trust Score
+3. The key insight: every lifestyle proof he uploads (via the 📎 button) gets seen by the AI Bestie of every woman who lands on his profile — she'll coach her match to see him favourably before she even swipes
+4. End with one specific, immediate action he can take right now to trigger this loop
 
-Make it feel like a trusted friend pulling them aside to share insider knowledge — not a product walkthrough. Warm, direct, genuinely exciting.`,
+Make it feel like a trusted friend pulling him aside to share insider knowledge — not a product walkthrough. Warm, direct, genuinely exciting.`,
 
-  1: `The user has just returned within their first week. Welcome them back briefly, then offer one specific, concrete thing they can do or check right now — something actionable, not generic. Reference the fact that you've been watching their match activity while they were away. If they haven't uploaded any proofs yet, remind them that the Matchmaker ranking and AI coaching loop only activates fully once they do.`,
+  1: `The user has just returned within his first week. Welcome him back briefly, then offer one specific, concrete thing he can do or check right now — something actionable, not generic. Reference the fact that you've been watching his match activity while he was away. If he hasn't uploaded any lifestyle proofs yet, remind him that the Matchmaker ranking and AI coaching loop only activates fully once he does.`,
 
-  2: `The user is active and established (1–4 weeks in). You now have a real picture of their dating patterns. Lead with an insight about the competitive landscape in their area — how active is the pool, what the trend is, how they are positioned — and offer one strategic nudge. Mention that you're tracking the full pool via the AI Matchmaker. If they have uploaded proofs, acknowledge the advantage it gives them; if not, flag it as a missed opportunity.`,
+  2: `The user is active and established (1–4 weeks in). You now have a real picture of his dating patterns. Lead with an insight about the competitive landscape in his area — how active is the pool, what women are responding to, how he is positioned — and offer one strategic nudge. Mention that you're tracking the full pool via the AI Matchmaker. If he has uploaded proofs, acknowledge the advantage; if not, flag it as a missed opportunity.`,
 
-  3: `The user is a veteran (30+ days). Full competitive intelligence mode. Reference the AI Matchmaker's city-wide scan — profile counts, quality distribution, where this user sits in the ranking. Offer to share a specific strategic advantage or a breakdown of who fits their criteria. Make them feel they have an edge that others don't. If they're a power user of the proof system, acknowledge it. If not, make a direct case for why it still matters at their stage.`,
+  3: `The user is a veteran (30+ days). Full competitive intelligence mode. Reference the AI Matchmaker's city-wide scan — profile counts, quality distribution, where this user sits in the ranking. Offer to share a specific strategic advantage or a breakdown of who fits his criteria. Make him feel he has an edge that others don't. If he's a power user of the proof system, acknowledge it. If not, make a direct case for why it still matters at his stage.`,
+};
+
+const MODE_GUIDES_WOMAN: Record<number, string> = {
+  0: `This is the FIRST TIME this woman has opened the app. Your goal is to make her feel immediately at ease and excited about what's waiting for her.
+
+Explain in a natural, conversational way (not a product tour):
+1. Who you are — her private advisor who has eyes on the whole verified men's pool so she doesn't have to sift alone
+2. That AI Matchmaker is already working for her — surfacing the most verified, serious men in Discover first
+3. The key insight: verified men have uploaded lifestyle proofs (travel, career, finances) that only you (her Bestie) can see — so you'll brief her on who is genuinely worth her time before she even swipes
+4. End with one warm, encouraging action she can take right now — like heading to Discover to see who's already in her pool
+
+Make it feel like a smart girlfriend who's done the research for her. Warm, empowering, no pressure.`,
+
+  1: `The user has just returned within her first week. Welcome her back warmly — briefly reference that you've had your eye on the verified men's pool while she was away. Give her one concrete, encouraging reason to open Discover right now — e.g. a fresh wave of verified profiles, or a nudge about the quality of men currently active. Keep it light and positive, not pushy.`,
+
+  2: `The user is active and established (1–4 weeks in). Give her a genuine sense of where she stands — the quality of men currently in her pool, any patterns you're noticing (e.g. high-verified men are active this week), and one empowering nudge. Frame it as insider intel from your vantage point watching the full pool. No pressure, just signal.`,
+
+  3: `The user is a veteran (30+ days). Full inside-view mode. Share a candid, useful observation about the current pool of verified men in her area — quality distribution, who's newly active, any shifts in the landscape. Position her as someone with a real advantage because she's been consistent. Give her one smart next move based on where things stand.`,
 };
 
 interface GreetingRow {
@@ -141,6 +159,8 @@ async function generateGreeting(opts: {
 }): Promise<{ content: string; topicTags: string[] }> {
   const { assistantType, mode, city, priorMessages, feedbackSummary } = opts;
 
+  const modeGuides = assistantType === 'bestie' ? MODE_GUIDES_WOMAN : MODE_GUIDES_MAN;
+
   // Compact history for the prompt
   const historyLines = priorMessages.slice(0, 20).map(m => {
     const tags = m.topic_tags?.join(', ') || 'general';
@@ -150,7 +170,7 @@ async function generateGreeting(opts: {
 
   const userPrompt = `
 GREETING MODE: ${mode}
-GUIDANCE: ${MODE_GUIDES[mode] ?? MODE_GUIDES[3]}
+GUIDANCE: ${modeGuides[mode] ?? modeGuides[3]}
 
 PRIOR GREETINGS SENT (DO NOT repeat these topics or angles):
 ${historyLines.length ? historyLines.join('\n') : 'None yet — this is the first greeting.'}
@@ -195,6 +215,7 @@ export const POST: RequestHandler = async ({ request }) => {
   if (!resolved) return json({ error: 'Unauthorized' }, { status: 401 });
 
   const { userId, gender, archetype, city } = resolved;
+  // Treat null gender as 'man' only for assistant type — bestie is strictly opt-in for women
   const assistantType: 'wingman' | 'bestie' = gender === 'woman' ? 'bestie' : 'wingman';
   const body = await request.json().catch(() => ({})) as { forceRefresh?: boolean };
   const supabase = getSupabase();
