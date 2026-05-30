@@ -1,7 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
   import { ShieldCheck, MapPin } from 'lucide-svelte';
+
+  const backToDiscover = $derived($page.url.searchParams.get('back') === 'discover');
 
   interface GarageCar {
     make: string;
@@ -174,6 +177,15 @@
 </svelte:head>
 
 <div class="public-profile-page">
+  {#if backToDiscover}
+    <button class="back-bar" onclick={() => goto('/verified-vibe/discover')}>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M19 12H5M12 19l-7-7 7-7"/>
+      </svg>
+      Discover
+    </button>
+  {/if}
+
   {#if loading}
     <div class="loading-state">
       <div class="spinner"></div>
@@ -313,6 +325,27 @@
 </div>
 
 <style>
+  .back-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 16px;
+    background: transparent;
+    border: none;
+    color: #34d399;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    backdrop-filter: blur(12px);
+    background: rgba(13, 17, 23, 0.85);
+    width: 100%;
+    text-align: left;
+  }
+
   .public-profile-page {
     min-height: 100vh;
     background: #0d1117;
