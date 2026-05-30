@@ -109,8 +109,8 @@ export const GET: RequestHandler = async ({ params, request }) => {
 
     const supabase = getSupabase();
 
-    // Fetch basic user profile, personality, and verification steps in parallel
-    const [{ data: profile, error: profileErr }, { data: aiRow }, { data: verificationSteps }] = await Promise.all([
+    // Fetch basic user profile, personality, verification steps, and master profile in parallel
+    const [{ data: profile, error: profileErr }, { data: aiRow }, { data: verificationSteps }, { data: masterRow }] = await Promise.all([
       supabase.from('verified_vibe_users').select('*').eq('id', profileId).single(),
       supabase
         .from('ai_assistant_profiles')
@@ -124,6 +124,11 @@ export const GET: RequestHandler = async ({ params, request }) => {
         .from('verified_vibe_verification')
         .select('step, status')
         .eq('user_id', profileId),
+      (supabase as any)
+        .from('user_master_profile')
+        .select('data')
+        .eq('user_id', profileId)
+        .maybeSingle(),
     ]);
 
     if (profileErr || !profile) return json({ error: 'Profile not found' }, { status: 404 });
@@ -147,24 +152,64 @@ export const GET: RequestHandler = async ({ params, request }) => {
       ? rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase()
       : rawName;
 
+    // Extract rich data from master profile blob
+    const masterData = (masterRow?.data as Record<string, unknown>) ?? {};
+    const generatedProfile = (masterData.generatedProfile as Record<string, unknown>) ?? {};
+    const onboarding = (masterData.onboarding as Record<string, unknown>) ?? {};
+    const archetypeKey = `vv_${archetype.replace(/_man$|_woman$/, '').replace(/_/g, '_')}_profile`;
+    const archetypeProfile = (onboarding[archetypeKey] as Record<string, unknown>) ?? {};
+    const archetypePrefs = (onboarding[`${archetypeKey.replace('_profile', '_preferences')}`] as Record<string, unknown>) ?? {};
+
+    // Helper: snake_case → Title Case
+    function snakeToTitle(s: string): string {
+      return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    // Build archetype chip groups from onboarding data
+    const archetypeChips: Array<{ label: string; chips: string[] }> = [];
+    const energyRaw = archetypeProfile.relationship_energy ?? archetypeProfile.energy;
+    if (Array.isArray(energyRaw) && energyRaw.length > 0) {
+      archetypeChips.push({ label: 'Energy in a relationship', chips: energyRaw.map(snakeToTitle) });
+    }
+    const expRaw = archetypeProfile.shared_experiences ?? archetypeProfile.experiences;
+    if (Array.isArray(expRaw) && expRaw.length > 0) {
+      archetypeChips.push({ label: 'Experiences to share', chips: expRaw.map(snakeToTitle) });
+    }
+    const chemRaw = archetypeProfile.chemistry_preferences ?? archetypeProfile.chemistry;
+    if (Array.isArray(chemRaw) && chemRaw.length > 0) {
+      archetypeChips.push({ label: 'Chemistry', chips: chemRaw.map(snakeToTitle) });
+    }
+    const lifestyleRaw = archetypePrefs.lifestyle_profile;
+    if (lifestyleRaw) {
+      archetypeChips.push({ label: 'My lifestyle', chips: [snakeToTitle(String(lifestyleRaw))] });
+    }
+
     const traitScores = deriveTraitScores(personality, archetype);
-    const vibeWords = deriveVibeWords(personality);
 
-    // "What He Brings" — from archetype definition or personality.mattersMost
-    const brings: string[] = archetypeDef?.brings ?? [
-      'Financial stability',
-      'Respect & safety',
-      'Clear intent',
-    ];
+    // Vibe words: prefer generatedProfile.personalityDescriptors over AI fallback
+    const vibeWords: string[] = Array.isArray(generatedProfile.personalityDescriptors)
+      ? (generatedProfile.personalityDescriptors as string[]).map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      : deriveVibeWords(personality);
 
-    // "Here For" — from the user's looking field
-    const hereFor: string = profile.looking ?? archetypeDef?.tag ?? 'A real connection';
+    // "What He Brings" — from archetype definition
+    const brings: string[] = archetypeDef?.brings ?? ['Financial stability', 'Respect & safety', 'Clear intent'];
 
-    // Communication style label
+    // "Here For" — prefer intentStatement > DB looking > archetype tag
+    const hereFor: string =
+      (typeof generatedProfile.intentStatement === 'string' ? generatedProfile.intentStatement : null)
+      ?? profile.looking
+      ?? archetypeDef?.tag
+      ?? 'A real connection';
+
+    // About — prefer generatedProfile.about over DB about
+    const about: string | null =
+      (typeof generatedProfile.about === 'string' ? generatedProfile.about : null)
+      ?? profile.about
+      ?? null;
+
+    // Communication style
     const communicationStyle =
-      typeof personality?.communicationStyle === 'string'
-        ? personality.communicationStyle
-        : null;
+      typeof personality?.communicationStyle === 'string' ? personality.communicationStyle : null;
 
     return json({
       data: {
@@ -173,21 +218,21 @@ export const GET: RequestHandler = async ({ params, request }) => {
         age: profile.age,
         city: profile.city,
         avatar: profile.avatar_url,
-        about: profile.about,
+        about,
         looking: profile.looking,
         trustScore,
         archetype,
         archetypeName: archetypeDef?.name ?? archetype,
         archetypeEmoji: archetypeDef?.emoji ?? '✨',
         gender: profile.gender,
-        // Rich profile data
         vibeWords,
         traitScores,
         brings,
         hereFor,
         communicationStyle,
-        mattersMost:
-          typeof personality?.mattersMost === 'string' ? personality.mattersMost : null,
+        mattersMost: typeof personality?.mattersMost === 'string' ? personality.mattersMost : null,
+        archetypeChips,
+        lifestyleTags: Array.isArray(generatedProfile.lifestyleTags) ? generatedProfile.lifestyleTags : [],
       },
     });
   } catch (err) {
