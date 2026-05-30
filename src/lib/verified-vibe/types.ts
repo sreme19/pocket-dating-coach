@@ -110,6 +110,8 @@ export interface Message {
   senderId: string;
   content: string;
   isAi?: boolean;
+  aiSignal?: string;  // Bestie coaching signal (✅/⚠️/🚩) attached to a received message
+  aiRead?: string;    // Bestie private coaching note for the female user
   createdAt: Date;
   imageUrl?: string;
   isDeleted?: boolean;

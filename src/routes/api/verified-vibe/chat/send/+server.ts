@@ -206,7 +206,7 @@ export const POST: RequestHandler = async ({ request }) => {
         content: body.content.trim(),
         // Only include is_ai if the column exists (migration may not have run yet)
         ...(body.isAi === true ? { is_ai: true } : {})
-      })
+      } as any)
       .select()
       .single();
 
@@ -232,6 +232,30 @@ export const POST: RequestHandler = async ({ request }) => {
         message
       }
     };
+
+    // ── Server-side AI Bestie auto-response ───────────────────────────────────
+    // If this message was sent TO a woman who has AI Bestie active (and the
+    // message isn't itself AI-generated), Bestie replies on her behalf — server
+    // side, so it works even when her app is closed. Awaited (not fire-and-forget)
+    // because Vercel may freeze the function after the response returns.
+    try {
+      if (body.isAi !== true && (match as any).ai_bestie_active) {
+        const recipientId = match.user1_id === user.id ? match.user2_id : match.user1_id;
+        const { data: recipient } = await supabase
+          .from('verified_vibe_users')
+          .select('gender')
+          .eq('id', recipientId)
+          .single();
+        // Bestie acts for the woman; only respond to messages from the other person.
+        if (recipient?.gender === 'woman') {
+          const { generateAndSendBestieReply } = await import('$lib/server/bestie-responder');
+          await generateAndSendBestieReply(recipientId, body.conversationId, savedMessage.id, body.content.trim());
+        }
+      }
+    } catch (bestieErr) {
+      // Never let Bestie failure break the send.
+      console.error('Server-side Bestie response failed (non-fatal):', bestieErr);
+    }
 
     // Check for 'converted' milestone: fires exactly once when message count reaches 5
     // Direct DB write — more reliable than a fire-and-forget HTTP call on Vercel
