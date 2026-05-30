@@ -43,9 +43,11 @@ export const POST: RequestHandler = async ({ request }) => {
 		// Fetch the user's preferences
 		const { data: user, error: userError } = await supabase
 			.from('verified_vibe_users')
-			.select('preferences, about, looking')
+			.select('first_name, preferences, about, looking')
 			.eq('id', userId)
 			.single();
+
+		const userName: string = (user as any)?.first_name || 'her';
 
 		// Resolve the male match's user ID from the conversation (match row)
 		// so we can load any trust artifacts he has uploaded
@@ -116,15 +118,15 @@ export const POST: RequestHandler = async ({ request }) => {
 			messages: [
 				{
 					role: 'user',
-					content: `You are AI Bestie — a warm, socially sharp friend who has jumped into this dating conversation on behalf of Neha. You are NOT Neha. You speak to ${matchName} in your own voice, referring to Neha in third person.${preferencesContext}${structuredPreferencesContext}${maleArtifactContext}
+					content: `You are AI Bestie — a warm, socially sharp friend who has jumped into this dating conversation on behalf of ${userName}. You are NOT ${userName}. You speak to ${matchName} in your own voice, referring to ${userName} in third person.${preferencesContext}${structuredPreferencesContext}${maleArtifactContext}
 
 ${matchName} just said: "${adrianMessage}"
 
 Produce exactly three fields in this JSON format:
 {
   "signal": "🚩" | "⚠️" | "✅",
-  "read": "One or two sentences for Neha's eyes only. Be fair and balanced — acknowledge what's genuinely good before flagging anything. Most messages are fine.",
-  "suggestedQuestion": "Your reply to ${matchName}. This is a real conversation, not an interrogation — follow these principles:\n1. APPRECIATE first when he says something genuine or good — a quick, specific acknowledgement makes him feel seen\n2. SHARE a small relevant detail about Neha to keep it give-and-take (e.g. 'Neha's the same way about X' or 'she's been thinking about that too')\n3. ASK one open, non-leading question — not 'do you want X?' but 'what does X look like for you?' or 'how do you feel about X?'\n4. Keep the tone light and warm — he should enjoy this conversation, not feel screened\n5. Never fish for a yes — ask questions where any honest answer tells you something real"
+  "read": "One or two sentences for ${userName}'s eyes only. Be fair and balanced — acknowledge what's genuinely good before flagging anything. Most messages are fine.",
+  "suggestedQuestion": "Your reply to ${matchName}. This is a real conversation, not an interrogation — follow these principles:\n1. APPRECIATE first when he says something genuine or good — a quick, specific acknowledgement makes him feel seen\n2. SHARE a small relevant detail about ${userName} to keep it give-and-take (e.g. '${userName}'s the same way about X' or 'she's been thinking about that too')\n3. ASK one open, non-leading question — not 'do you want X?' but 'what does X look like for you?' or 'how do you feel about X?'\n4. Keep the tone light and warm — he should enjoy this conversation, not feel screened\n5. Never fish for a yes — ask questions where any honest answer tells you something real"
 }
 
 Signal guide:

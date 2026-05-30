@@ -67,6 +67,15 @@ export const POST: RequestHandler = async ({ request }) => {
 		// Touch last_active
 		touchLastActive(userId).catch(() => {});
 
+		// ── Resolve the actual user's first name ─────────────────────────────
+		const supabaseForName = getSupabase();
+		const { data: userRow } = await (supabaseForName as any)
+			.from('verified_vibe_users')
+			.select('first_name')
+			.eq('id', userId)
+			.single();
+		const userName: string = userRow?.first_name || 'her';
+
 		const intent = body.intent ?? 'chat';
 		const rawMessage = (body.message ?? '').trim();
 		const history = body.history ?? [];
@@ -112,7 +121,7 @@ export const POST: RequestHandler = async ({ request }) => {
 				parts.push(`Maturity signals she looks for: ${prefs.maturitySignals.join(', ')}`);
 			if (prefs.privateCompatibilityNotes.length)
 				parts.push(`Private notes: ${prefs.privateCompatibilityNotes.join(', ')}`);
-			if (parts.length) prefsContext = `\n\nNeha's preferences:\n${parts.join('\n')}`;
+			if (parts.length) prefsContext = `\n\n${userName}'s preferences:\n${parts.join('\n')}`;
 		} catch {
 			// gracefully skip if preferences not set up yet
 		}
@@ -132,7 +141,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		const nameToMatchId: Record<string, string> = {};
 
 		if (!matches || matches.length === 0) {
-			matchContext = '\n\nNeha has no matches yet.';
+			matchContext = `\n\n${userName} has no matches yet.`;
 		} else {
 			const cutoff = intent === 'insights' ? Date.now() - 48 * 60 * 60 * 1000 : null;
 			const details: string[] = [];
@@ -167,7 +176,7 @@ export const POST: RequestHandler = async ({ request }) => {
 				const msgText =
 					msgs.length > 0
 						? msgs
-								.map((m) => `${m.sender_id === userId ? 'Neha' : otherUser.first_name}: ${m.content}`)
+								.map((m) => `${m.sender_id === userId ? userName : otherUser.first_name}: ${m.content}`)
 								.join('\n')
 						: 'No messages yet';
 
@@ -198,11 +207,11 @@ export const POST: RequestHandler = async ({ request }) => {
 			}
 
 			const remaining = matches.length > 6 ? ` (+${matches.length - 6} more)` : '';
-			matchContext = `\n\nNeha's current matches (${matches.length} total${remaining}):\n\n${details.join('\n\n---\n\n')}`;
+			matchContext = `\n\n${userName}'s current matches (${matches.length} total${remaining}):\n\n${details.join('\n\n---\n\n')}`;
 		}
 
 		// ── Build system prompt ───────────────────────────────────────────────
-		const systemPrompt = `You are AI Bestie — Neha's warm, perceptive personal dating advisor on Verified Vibe.
+		const systemPrompt = `You are AI Bestie — ${userName}'s warm, perceptive personal dating advisor on Verified Vibe.
 
 You are NOT a chatbot. You are her trusted girlfriend who happens to be great at reading people. You have full context on her matches, their preferences, and any lifestyle proofs they've uploaded.
 
@@ -217,7 +226,7 @@ HOW THE THREE AI AGENTS WORK TOGETHER — know this so you can explain it clearl
 - You can give her competitive intelligence: how many verified men match her criteria, who stands out, where she sits in the pool.
 
 Your role:
-- Give Neha honest, balanced, actionable advice about her matches
+- Give ${userName} honest, balanced, actionable advice about her matches
 - Lead with what is going well before flagging concerns — most people are normal and decent
 - When asked for a summary: produce a crisp digest — who has good energy, who's worth more time, any genuine concerns
 - When asked for insights: only flag things that are meaningfully new or worth acting on (no generic filler)
@@ -229,14 +238,14 @@ Your role:
 Tone: like texting your warmest, most grounded girlfriend. Encouraging and real. Short paragraphs. Occasional light humour. Never preachy. Never paranoid. Never generic.
 Format: use **bold** for names and key points. Use bullet lists (- item) for multi-point info. Use emoji sparingly but meaningfully — e.g. 🟢 good sign, 🔴 concern, 💡 tip, 💬 on their messages, ✨ highlight, 💛 warm note. Keep it mobile-friendly and easy to scan.
 
-PREFERENCE DETECTION: If Neha explicitly states a preference, rule, or boundary in her message — e.g. "block guys who…", "I don't want men who…", "that's a dealbreaker for me", "I prefer someone who…" — embed a structured marker at the very end of your reply:
+PREFERENCE DETECTION: If ${userName} explicitly states a preference, rule, or boundary in her message — e.g. "block guys who…", "I don't want men who…", "that's a dealbreaker for me", "I prefer someone who…" — embed a structured marker at the very end of your reply:
 - [PREF:dealbreaker:description] for dealbreakers (things that disqualify a match)
 - [PREF:boundary:description] for hard limits or personal rules
 - [PREF:signal:description] for green/red flags she values or watches for
 - [PREF:note:description] for private compatibility notes
 Keep values concise (max 80 chars). Multiple markers are fine. Only add a marker when she explicitly states a preference — never when you're inferring. Place all markers on a new line after your reply, with no explanation.
 
-DRAFT MESSAGES: When Neha explicitly asks you to draft a message to send to a specific match, or when she approves a suggested message and says she wants to send it — wrap the final send-ready message text in:
+DRAFT MESSAGES: When ${userName} explicitly asks you to draft a message to send to a specific match, or when she approves a suggested message and says she wants to send it — wrap the final send-ready message text in:
 [DRAFT:MatchFirstName]
 message text here
 [/DRAFT]
