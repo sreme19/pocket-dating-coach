@@ -49,7 +49,29 @@ Review the TEXT below. Return JSON only — no prose, no markdown.
 or
 {"violations":["<description>"],"clean":false}`;
 
-export async function haikusValidate(text: string): Promise<{ clean: boolean; violations: string[] }> {
+// Relaxed validator for the PRIVATE advisor chat (Bestie/Wingman talking to
+// their OWN user). Here, discussing the user's own matches by first name and
+// giving candid relationship advice is the whole point — so we only block hard
+// PII leakage and genuinely unsafe content, NOT third-party name/fact mentions.
+const ADVISOR_VALIDATOR_PROMPT = `You are a compliance checker for a private dating-app AI advisor that is talking ONLY to its own user (not to anyone else). Discussing the user's own matches by first name, ranking them, and giving candid dating advice is EXPECTED and allowed.
+
+Only flag the TEXT if it does one of these:
+1. Reveals a phone number, email address, or physical/street address
+2. Reveals a government ID number (Aadhaar, PAN, passport, driving licence)
+3. Reveals someone's bank/financial account details
+4. Produces sexually explicit content
+5. Gives specific medical, legal, or financial-planning advice
+6. Makes an absolute guarantee about a match outcome ("you WILL marry her")
+
+Do NOT flag: mentioning matches by first name, summarising matches, ranking, opinions, or normal dating advice.
+
+Return JSON only — no prose, no markdown.
+{"violations":[],"clean":true} or {"violations":["<description>"],"clean":false}`;
+
+export async function haikusValidate(
+  text: string,
+  context: 'advisor' | 'outbound' = 'outbound'
+): Promise<{ clean: boolean; violations: string[] }> {
   if (!ANTHROPIC_API_KEY) return { clean: true, violations: [] }; // fail open if key missing
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -62,7 +84,7 @@ export async function haikusValidate(text: string): Promise<{ clean: boolean; vi
       body: JSON.stringify({
         model: 'claude-haiku-4-5',
         max_tokens: 120,
-        system: VALIDATOR_PROMPT,
+        system: context === 'advisor' ? ADVISOR_VALIDATOR_PROMPT : VALIDATOR_PROMPT,
         messages: [{ role: 'user', content: `TEXT:\n${text}` }],
       }),
     });
@@ -115,8 +137,9 @@ export async function complianceGate(opts: {
   text: string;
   userId: string | null;
   assistantType: 'wingman' | 'bestie';
+  context?: 'advisor' | 'outbound';
 }): Promise<{ text: string; passed: boolean; violations: string[] }> {
-  const { text, userId, assistantType } = opts;
+  const { text, userId, assistantType, context = 'outbound' } = opts;
 
   // Stage 1: fast regex scan
   const regexHits = piiScan(text);
@@ -129,8 +152,8 @@ export async function complianceGate(opts: {
     return { text: SAFE_FALLBACK, passed: false, violations: regexHits };
   }
 
-  // Stage 2: Haiku semantic check
-  const { clean, violations } = await haikusValidate(text);
+  // Stage 2: Haiku semantic check (relaxed for private advisor chats)
+  const { clean, violations } = await haikusValidate(text, context);
   if (!clean) {
     await logViolation({
       userId, assistantType, originalContent: text,

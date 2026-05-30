@@ -367,7 +367,7 @@ ${personalityContext}${masterProfileContext}${artifactsContext}${admirerContext}
 		const rawReply = block.type === 'text' ? block.text.trim() : '';
 
 		// Compliance gate — PII regex + Haiku validator
-		const compliance = await complianceGate({ text: rawReply, userId, assistantType: 'wingman' });
+		const compliance = await complianceGate({ text: rawReply, userId, assistantType: 'wingman', context: 'advisor' });
 		const reply = compliance.text;
 
 		return json({ reply });

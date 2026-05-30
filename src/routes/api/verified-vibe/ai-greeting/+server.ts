@@ -270,7 +270,7 @@ export const POST: RequestHandler = async ({ request }) => {
   }
 
   // ── Compliance gate (PII regex + Haiku validator) ───────────────────────────
-  const compliance = await complianceGate({ text: content, userId, assistantType });
+  const compliance = await complianceGate({ text: content, userId, assistantType, context: 'advisor' });
   const finalContent = compliance.text; // SAFE_FALLBACK if blocked
 
   // ── Persist to DB ───────────────────────────────────────────────────────────

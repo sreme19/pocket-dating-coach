@@ -296,7 +296,7 @@ ${prefsContext}${matchContext}${pendingReportContext}`;
 			.trim();
 
 		// Compliance gate — PII regex + Haiku validator
-		const compliance = await complianceGate({ text: strippedReply, userId, assistantType: 'bestie' });
+		const compliance = await complianceGate({ text: strippedReply, userId, assistantType: 'bestie', context: 'advisor' });
 		const reply = compliance.text;
 
 		if (detectedPrefs.length > 0) {
