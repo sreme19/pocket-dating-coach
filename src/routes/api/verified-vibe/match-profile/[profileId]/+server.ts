@@ -109,8 +109,8 @@ export const GET: RequestHandler = async ({ params, request }) => {
 
     const supabase = getSupabase();
 
-    // Fetch basic user profile + personality in parallel
-    const [{ data: profile, error: profileErr }, { data: aiRow }] = await Promise.all([
+    // Fetch basic user profile, personality, and verification steps in parallel
+    const [{ data: profile, error: profileErr }, { data: aiRow }, { data: verificationSteps }] = await Promise.all([
       supabase.from('verified_vibe_users').select('*').eq('id', profileId).single(),
       supabase
         .from('ai_assistant_profiles')
@@ -120,13 +120,32 @@ export const GET: RequestHandler = async ({ params, request }) => {
         .order('version', { ascending: false })
         .limit(1)
         .maybeSingle(),
+      supabase
+        .from('verified_vibe_verification')
+        .select('step, status')
+        .eq('user_id', profileId),
     ]);
 
     if (profileErr || !profile) return json({ error: 'Profile not found' }, { status: 404 });
 
+    // Recalculate trust score live from verification steps — DB value can be stale
+    const completedSteps = (verificationSteps ?? []).filter((s: any) => s.status === 'completed');
+    const coreSteps = ['id', 'liveness', 'photos', 'spending_or_qa'];
+    const proofSteps = completedSteps.filter((s: any) => s.step.startsWith('proof_')).length;
+    const coreComplete = completedSteps.filter((s: any) => coreSteps.includes(s.step)).length;
+    // Core steps worth 20 pts each (max 80), proof steps worth 4 pts each (max 20)
+    const liveTrustScore = Math.min(100, coreComplete * 20 + proofSteps * 4);
+    const trustScore = liveTrustScore > 0 ? liveTrustScore : (profile.trust_score ?? 0);
+
     const personality = (aiRow?.data as Record<string, unknown>) ?? null;
     const archetype: string = profile.archetype ?? 'casual_man';
     const archetypeDef = ARCHETYPES[archetype];
+
+    // Title-case the first name (handle ALL_CAPS entries)
+    const rawName: string = profile.first_name ?? 'User';
+    const firstName = rawName === rawName.toUpperCase()
+      ? rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase()
+      : rawName;
 
     const traitScores = deriveTraitScores(personality, archetype);
     const vibeWords = deriveVibeWords(personality);
@@ -150,13 +169,13 @@ export const GET: RequestHandler = async ({ params, request }) => {
     return json({
       data: {
         id: profile.id,
-        firstName: profile.first_name,
+        firstName,
         age: profile.age,
         city: profile.city,
         avatar: profile.avatar_url,
         about: profile.about,
         looking: profile.looking,
-        trustScore: profile.trust_score ?? 0,
+        trustScore,
         archetype,
         archetypeName: archetypeDef?.name ?? archetype,
         archetypeEmoji: archetypeDef?.emoji ?? '✨',
