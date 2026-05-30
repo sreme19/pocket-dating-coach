@@ -3105,7 +3105,7 @@
               >
                 <div class="placeholder-inner">
                   <span class="placeholder-icon">+</span>
-                  <span class="placeholder-text">Add photo<br/><em>AI will enhance</em></span>
+                  <span class="placeholder-text">Add photo{#if $user?.gender !== 'woman'}<br/><em>AI will enhance</em>{/if}</span>
                 </div>
               </button>
             {/if}

@@ -382,6 +382,9 @@ export async function hydrateUserFromSupabase() {
     const trustBreakdown = calculateTrustScore(records);
     userTrust.set(trustBreakdown);
 
+    // Real users (is_seed = false) are grandfathered — skip verification gate.
+    const isRealUser = (profile as any).is_seed === false;
+
     // Calculate phase based on completeness
     const hasId = steps.some(s => s.step === 'id');
     const hasLiveness = steps.some(s => s.step === 'liveness');
@@ -394,7 +397,7 @@ export async function hydrateUserFromSupabase() {
     // accounts don't get stuck on the verification flow.
     const skipVerification = import.meta.env.VITE_SKIP_VERIFICATION === 'true';
     const hasCompleteProfile = !!(profile.gender && profile.archetype && profile.first_name);
-    currentPhase.set((allComplete || (skipVerification && hasCompleteProfile)) ? 'app' : 'verify');
+    currentPhase.set((allComplete || isRealUser || (skipVerification && hasCompleteProfile)) ? 'app' : 'verify');
   } catch (err) {
     console.error('hydrateUserFromSupabase error:', err);
     // Graceful fallback: try localStorage if Supabase fails
