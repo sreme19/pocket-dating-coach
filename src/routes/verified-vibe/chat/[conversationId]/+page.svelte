@@ -1335,18 +1335,53 @@
     {:else}
       <div class="messages-list" transition:fade={{ duration: 300 }}>
         {#each $messages as message, index (message.id)}
+          {@const isSent = isSentMessage(message)}
+          {@const senderName = isSent
+            ? (message.isAi ? 'AI Bestie' : ($user?.firstName ?? 'You'))
+            : ($currentMatch?.firstName ?? 'Them')}
+          {@const senderInitial = senderName.charAt(0).toUpperCase()}
+          {@const senderAvatar = isSent ? null : $currentMatch?.avatar}
+          {@const showAvatar = !isSent || true}
           <div
             class="message-group"
-            class:sent={isSentMessage(message)}
-            class:received={!isSentMessage(message)}
+            class:sent={isSent}
+            class:received={!isSent}
             class:bestie-sent={message.isAi}
             class:optimistic={message.id.startsWith('optimistic-')}
             transition:slide={{ duration: 300 }}
           >
-            <div class="message-bubble">
-              <p class="message-content">{message.content}</p>
-              <span class="message-time">{formatTime(message.createdAt)}</span>
+            <!-- Avatar -->
+            {#if !isSent}
+              <div class="msg-avatar msg-avatar--received">
+                {#if senderAvatar}
+                  <img src={senderAvatar} alt={senderName} class="msg-avatar-img" />
+                {:else}
+                  <span class="msg-avatar-initial">{senderInitial}</span>
+                {/if}
+              </div>
+            {/if}
+
+            <div class="msg-body">
+              <!-- Sender name -->
+              <span class="msg-sender-name" class:msg-sender-name--sent={isSent} class:msg-sender-name--bestie={message.isAi}>
+                {senderName}
+              </span>
+              <div class="message-bubble">
+                <p class="message-content">{message.content}</p>
+                <span class="message-time">{formatTime(message.createdAt)}</span>
+              </div>
             </div>
+
+            <!-- Sent avatar (right side) -->
+            {#if isSent}
+              <div class="msg-avatar msg-avatar--sent">
+                {#if message.isAi}
+                  <span class="msg-avatar-initial msg-avatar-initial--bestie">✨</span>
+                {:else}
+                  <span class="msg-avatar-initial msg-avatar-initial--user">{($user?.firstName ?? 'Y').charAt(0).toUpperCase()}</span>
+                {/if}
+              </div>
+            {/if}
           </div>
           {#if !isSentMessage(message) && coachingCards.get(message.id) && currentUserGender === 'woman'}
             {@const card = coachingCards.get(message.id)!}
@@ -1929,8 +1964,87 @@
     justify-content: flex-start;
   }
 
+  /* WhatsApp-style avatar */
+  .msg-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+
+  .msg-avatar--received { order: 0; }
+  .msg-avatar--sent     { order: 2; }
+
+  .msg-avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .msg-avatar-initial {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-4);
+    color: var(--text-2);
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .msg-avatar-initial--bestie {
+    background: linear-gradient(135deg, #7c3aed, #db2777);
+    color: #fff;
+    font-size: 14px;
+  }
+
+  .msg-avatar-initial--user {
+    background: var(--accent-dim);
+    color: var(--accent-bright);
+  }
+
+  /* Message body wrapper (name + bubble stacked) */
+  .msg-body {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    max-width: 72%;
+    order: 1;
+  }
+
+  .message-group.sent .msg-body {
+    align-items: flex-end;
+  }
+
+  .msg-sender-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-3);
+    letter-spacing: 0.01em;
+    padding: 0 4px;
+  }
+
+  .msg-sender-name--sent {
+    color: var(--accent-bright);
+  }
+
+  .msg-sender-name--bestie {
+    background: linear-gradient(90deg, #a855f7, #ec4899);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
   .message-bubble {
-    max-width: 70%;
+    max-width: 100%;
     padding: 10px 14px;
     border-radius: 12px;
     word-wrap: break-word;
