@@ -109,6 +109,8 @@ export const GET: RequestHandler = async ({ request }: { request: Request }) => 
     onboarding:               masterData.onboarding               ?? null,
     countriesTraveled:        mergedCountries,
     proofInsightsLocalStorage: proofsToLocalStorage(verifiedProofs),
+    photos:                   Array.isArray(masterData.photos)   ? masterData.photos   : [],
+    aiPhotos:                 Array.isArray(masterData.aiPhotos) ? masterData.aiPhotos : [],
     lastSynced:               row?.updated_at ?? null,
   });
 };
@@ -157,6 +159,9 @@ export const POST: RequestHandler = async ({ request }: { request: Request }) =>
   if (body.generatedProfile      !== undefined) updated.generatedProfile      = body.generatedProfile;
   if (body.personalityPortraitUrl !== undefined) updated.personalityPortraitUrl = body.personalityPortraitUrl;
   if (body.garagePortraitUrl      !== undefined) updated.garagePortraitUrl      = body.garagePortraitUrl;
+  // Photos: full-replace (client owns the canonical ordered list of hosted URLs)
+  if (body.photos                !== undefined) updated.photos                = body.photos;
+  if (body.aiPhotos              !== undefined) updated.aiPhotos              = body.aiPhotos;
 
   if (existing) {
     await db

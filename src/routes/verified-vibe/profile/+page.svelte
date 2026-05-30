@@ -1139,26 +1139,104 @@
     }
   }
 
+  let uploadingPhoto = $state(false);
+
+  // Persist the canonical photo list (hosted URLs + labels) to the server so it
+  // survives across devices and sessions. localStorage is just a fast-path cache.
+  async function persistPhotos() {
+    try {
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      await fetch('/api/verified-vibe/master-profile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ photos, aiPhotos })
+      });
+    } catch (e) {
+      console.error('Failed to persist photos:', e);
+    }
+  }
+
+  // Upload a base64 dataURL to Supabase Storage; returns the hosted URL.
+  async function uploadPhotoToStorage(dataUrl: string, label: string): Promise<string | null> {
+    try {
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return null;
+      const res = await fetch('/api/verified-vibe/upload-photo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ dataUrl, label })
+      });
+      if (!res.ok) {
+        console.error('Photo upload failed:', await res.text());
+        return null;
+      }
+      const { url } = await res.json() as { url: string };
+      return url;
+    } catch (e) {
+      console.error('Photo upload error:', e);
+      return null;
+    }
+  }
+
+  // Migrate any base64 photos (legacy localStorage-only) to Storage, replacing
+  // them with hosted URLs and syncing to the server. Runs once on load.
+  async function reconcileLocalPhotos() {
+    const needsUpload = photos.some(p => p.dataUrl?.startsWith('data:'));
+    if (!needsUpload) return;
+    let changed = false;
+    const migrated: PhotoEntry[] = [];
+    for (const p of photos) {
+      if (p.dataUrl?.startsWith('data:')) {
+        const url = await uploadPhotoToStorage(p.dataUrl, p.label);
+        if (url) { migrated.push({ ...p, dataUrl: url }); changed = true; }
+        else migrated.push(p); // keep base64 if upload failed; retry next load
+      } else {
+        migrated.push(p);
+      }
+    }
+    if (changed) {
+      photos = migrated;
+      localStorage.setItem('vv_photos', JSON.stringify(photos));
+      const lead = photos.find(p => p.label === 'lead') ?? photos[0];
+      if (lead?.dataUrl && !lead.dataUrl.startsWith('data:')) {
+        user.update((u) => (u ? { ...u, avatar: lead.dataUrl } : u));
+      }
+      persistPhotos();
+    }
+  }
+
   function handleFileSelect(event: Event) {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
       const file = input.files[0];
       const reader = new FileReader();
 
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         if (e.target?.result && typeof e.target.result === 'string') {
           const dataUrl = e.target.result;
+          if (photos.length >= 3) { alert('Maximum 3 photos allowed'); return; }
 
-          // Add photo if we haven't reached max
-          if (photos.length < 3) {
-            const isFirstPhoto = photos.length === 0;
-            photos = [...photos, { dataUrl, label: PHOTO_SLOTS[photos.length] ?? `photo-${photos.length + 1}` }];
-            localStorage.setItem('vv_photos', JSON.stringify(photos));
-            // Persist the lead photo to avatar_url so it shows for matches in chat/discover
-            if (isFirstPhoto) persistAvatar(dataUrl);
-          } else {
-            alert('Maximum 3 photos allowed');
-          }
+          const label = PHOTO_SLOTS[photos.length] ?? `photo-${photos.length + 1}`;
+          uploadingPhoto = true;
+          // Upload to Storage first — store the hosted URL, never base64.
+          const url = await uploadPhotoToStorage(dataUrl, label);
+          uploadingPhoto = false;
+          if (!url) { alert('Photo upload failed. Please try again.'); return; }
+
+          photos = [...photos, { dataUrl: url, label }];
+          localStorage.setItem('vv_photos', JSON.stringify(photos));
+          if (label === 'lead') user.update((u) => (u ? { ...u, avatar: url } : u));
+          // Persist the full photo list to the server.
+          persistPhotos();
         }
       };
 
@@ -1205,7 +1283,22 @@
         onboarding: Record<string, unknown> | null;
         countriesTraveled: string[];
         proofInsightsLocalStorage: object[];
+        photos?: PhotoEntry[];
+        aiPhotos?: PhotoEnhanceResult[];
       };
+
+      // Photos & AI photos are authoritative from the server (hosted URLs).
+      // Override local cache so they appear on any device.
+      if (Array.isArray(master.photos) && master.photos.length > 0) {
+        photos = master.photos;
+        localStorage.setItem('vv_photos', JSON.stringify(photos));
+        const lead = photos.find(p => p.label === 'lead') ?? photos[0];
+        if (lead?.dataUrl) user.update((u) => (u ? { ...u, avatar: lead.dataUrl } : u));
+      }
+      if (Array.isArray(master.aiPhotos) && master.aiPhotos.length > 0) {
+        aiPhotos = master.aiPhotos;
+        localStorage.setItem('vv_ai_photos', JSON.stringify(aiPhotos));
+      }
 
       // Hydrate profile draft if missing locally
       if (master.profileDraft && !localStorage.getItem('vv_profile_draft')) {
@@ -1551,6 +1644,11 @@
     await hydratePromise;
     pushMasterProfile(session.access_token);
 
+    // ── One-time migration: any photo still stored as a base64 dataURL (from the
+    //    old localStorage-only flow) gets uploaded to Storage and replaced with a
+    //    hosted URL, then persisted server-side. Fixes existing users like Mekhala.
+    reconcileLocalPhotos();
+
     // ── Backfill name/age/city from verification step data (for users who verified
     //    before the profile-draft persistence fix was deployed) ─────────────────
     try {
@@ -1643,14 +1741,26 @@
     generationProgress = 0;
 
     try {
-      // Use the first uploaded photo (lead or index 0) as the reference
+      // Use the first uploaded photo (lead or index 0) as the reference.
+      // Photos are now hosted URLs — fetch and convert to a base64 dataURL since
+      // the enhancement pipeline (fal.ai PuLID) expects a data URL reference.
       const reference = photos.find(p => p.label === 'lead') ?? photos[0];
+      let referenceDataUrl = reference.dataUrl;
+      if (/^https?:\/\//.test(referenceDataUrl)) {
+        const blob = await (await fetch(referenceDataUrl)).blob();
+        referenceDataUrl = await new Promise<string>((resolve, reject) => {
+          const fr = new FileReader();
+          fr.onload = () => resolve(fr.result as string);
+          fr.onerror = reject;
+          fr.readAsDataURL(blob);
+        });
+      }
 
       const response = await fetch('/api/photo-enhance/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          referenceDataUrl: reference.dataUrl,
+          referenceDataUrl,
           archetype: $user?.archetype ?? 'casual_man',
           count: 3,
           rejectedPhotos, // feed back removed photos so AI avoids their styles
@@ -1666,6 +1776,7 @@
       aiPhotos = result.photos;
       generationProgress = result.photos.length;
       localStorage.setItem('vv_ai_photos', JSON.stringify(aiPhotos));
+      persistPhotos(); // sync AI photo URLs to server
 
       if (result.errors.length > 0) {
         enhanceError = `${result.photos.length} photos generated, ${result.errors.length} failed.`;
@@ -1780,6 +1891,7 @@
     }
     aiPhotos = aiPhotos.filter(p => p.role !== role);
     localStorage.setItem('vv_ai_photos', JSON.stringify(aiPhotos));
+    persistPhotos();
   }
 
   function enterEnhance() {
