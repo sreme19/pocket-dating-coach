@@ -3,6 +3,7 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { ShieldCheck, MapPin } from 'lucide-svelte';
+  import PublicProfileBody from '$lib/verified-vibe/components/PublicProfileBody.svelte';
 
   const backToDiscover = $derived($page.url.searchParams.get('back') === 'discover');
 
@@ -14,33 +15,18 @@
     vehicleType?: string;
   }
 
-  interface PublicProfile {
-    id: string;
+  // Loose shape — rendering is delegated to PublicProfileBody; the hero reads the
+  // top-level identity fields. Keep it permissive so the API payload flows through.
+  type PublicProfile = Record<string, any> & {
     firstName: string;
     age: number;
     city: string;
     avatar: string | null;
-    about: string | null;
-    looking: string | null;
     trustScore: number;
-    archetype: string;
     archetypeName: string;
     archetypeEmoji: string;
     gender: string;
-    garageCars: GarageCar[];
-    hereFor: string;
-    vibeWords: string[];
-    brings: string[];
-    archetypeChips: Array<{ label: string; chips: string[] }>;
-    verifiedSignals: Array<{ label: string; items: Array<{ emoji: string; label: string }> }>;
-    travelLocations: string[];
-    wealthProof: Record<string, unknown> | null;
-    linkedinProof: Record<string, unknown> | null;
-    personalityPortraitUrl: string | null;
-    garagePortraitUrl: string | null;
-  }
-
-  let activeSignalTab = $state(0);
+  };
 
   let profile = $state<PublicProfile | null>(null);
   let loading = $state(true);
@@ -242,211 +228,7 @@
     </div>
 
     <div class="profile-sections">
-      <!-- Here For -->
-      {#if profile.hereFor}
-        <section class="section">
-          <div class="section-label">💫 Here For</div>
-          <p class="about-text">{profile.hereFor}</p>
-        </section>
-      {/if}
-
-      <!-- Vibe in Three Words -->
-      {#if profile.vibeWords?.length > 0}
-        <section class="section">
-          <div class="section-label">✨ The Vibe in Three Words</div>
-          <div class="tag-row">
-            {#each profile.vibeWords as word, i}
-              <span class="vibe-tag {i === 0 ? 'vibe-tag--highlight' : ''}">{word}</span>
-            {/each}
-          </div>
-        </section>
-      {/if}
-
-      <!-- What He/She Brings -->
-      {#if profile.brings?.length > 0}
-        <section class="section">
-          <div class="section-label">🎁 What {profile.gender === 'woman' ? 'She' : 'He'} Brings</div>
-          <ul class="brings-list">
-            {#each profile.brings as item}
-              <li class="brings-item">
-                <span class="brings-check">✓</span>
-                <span>{item}</span>
-              </li>
-            {/each}
-          </ul>
-        </section>
-      {/if}
-
-      <!-- Verified Signals -->
-      {#if profile.verifiedSignals?.length > 0}
-        <section class="section">
-          <div class="section-label-row">
-            <span class="section-label">🛡 Verified Signals</span>
-            <span class="section-meta">AI-read from uploads</span>
-          </div>
-          <div class="signal-tabs">
-            {#each profile.verifiedSignals as group, i}
-              <button
-                class="signal-tab {activeSignalTab === i ? 'signal-tab--active' : ''}"
-                onclick={() => activeSignalTab = i}
-              >{group.label}</button>
-            {/each}
-          </div>
-          {#if profile.verifiedSignals[activeSignalTab]}
-            <div class="signal-items">
-              {#each profile.verifiedSignals[activeSignalTab].items as item}
-                <div class="signal-item">
-                  <span class="signal-emoji">{item.emoji}</span>
-                  <span class="signal-label">{item.label}</span>
-                </div>
-              {/each}
-            </div>
-            <p class="signal-verified">✓ AI verified via CV / LinkedIn</p>
-          {/if}
-        </section>
-      {/if}
-
-      <!-- Archetype chips -->
-      {#if profile.archetypeChips?.length > 0}
-        <section class="section">
-          <div class="section-label">🎭 {profile.archetypeName}</div>
-          {#each profile.archetypeChips as group}
-            <div class="chip-group">
-              <p class="chip-group-label">{group.label}</p>
-              <div class="chip-row">
-                {#each group.chips as chip}
-                  <span class="chip-pill">{chip}</span>
-                {/each}
-              </div>
-            </div>
-          {/each}
-        </section>
-      {/if}
-
-      <!-- About -->
-      {#if profile.about}
-        <section class="section">
-          <div class="section-label">📝 About</div>
-          <p class="about-text">{profile.about}</p>
-        </section>
-      {/if}
-
-      <!-- Garage -->
-      {#if (profile.garageCars ?? []).length > 0}
-        <section class="section garage-section">
-          <div class="section-label">🏎️ What My Garage Looks Like</div>
-          <div class="garage-showroom">
-            {#each profile.garageCars as car, i}
-              {@const brand = getBrandStyle(car.make)}
-              {@const carKey = `${car.make}_${car.model}`.replace(/\s+/g, '_')}
-              <div class="garage-card {garageActiveIdx === i ? 'garage-card-active' : 'garage-card-hidden'}">
-                <div class="garage-brand-bar" style="background: {brand.accent}"></div>
-                <div class="garage-grid-overlay"></div>
-                <div class="garage-hero">
-                  {#if carImages[carKey]}
-                    <img class="garage-car-img" src={carImages[carKey]} alt="{car.make} {car.model}" />
-                  {:else}
-                    <div class="garage-car-svg">
-                      {@html getCarSVG(car, brand.accent)}
-                    </div>
-                  {/if}
-                  <div class="garage-light-sweep"></div>
-                </div>
-                <div class="garage-info">
-                  <div class="garage-make-row">
-                    <span class="garage-brand-badge" style="background: {brand.accent}">{brand.logo}</span>
-                    {#if car.year}
-                      <span class="garage-year">{car.year}</span>
-                    {/if}
-                  </div>
-                  <div class="garage-model">{car.make} {car.model}</div>
-                  {#if car.color}
-                    <div class="garage-color-row">
-                      <span class="garage-color-dot" style="background: {car.color.toLowerCase() === 'white' ? '#e8e8e8' : car.color.toLowerCase() === 'silver' ? '#b0b0b0' : car.color.toLowerCase() === 'gold' ? '#d4a017' : car.color.toLowerCase()}"></span>
-                      <span class="garage-color-label">{car.color}</span>
-                    </div>
-                  {/if}
-                  <div class="garage-verified-badge">
-                    <span>✅</span> Ownership Verified
-                  </div>
-                </div>
-              </div>
-            {/each}
-          </div>
-          {#if profile.garageCars.length > 1}
-            <div class="garage-nav">
-              <button class="garage-arrow" onclick={() => garageActiveIdx = (garageActiveIdx - 1 + profile!.garageCars.length) % profile!.garageCars.length} aria-label="Previous car">‹</button>
-              <div class="garage-dots">
-                {#each profile.garageCars as _, i}
-                  <button class="garage-dot {garageActiveIdx === i ? 'garage-dot-active' : ''}" onclick={() => garageActiveIdx = i} aria-label="Car {i + 1}"></button>
-                {/each}
-              </div>
-              <button class="garage-arrow" onclick={() => garageActiveIdx = (garageActiveIdx + 1) % profile!.garageCars.length} aria-label="Next car">›</button>
-            </div>
-            <p class="garage-counter">{garageActiveIdx + 1} of {profile.garageCars.length} in the garage</p>
-          {/if}
-        </section>
-      {/if}
-
-      <!-- Travel Magnets -->
-      {#if profile.travelLocations?.length > 0}
-        <section class="section">
-          <div class="section-label-row">
-            <span class="section-label">✈️ Travel Magnets</span>
-            <span class="section-meta">detected from uploads</span>
-          </div>
-          <div class="travel-grid">
-            {#each profile.travelLocations as loc}
-              <div class="travel-chip">
-                <span class="travel-globe">🌍</span>
-                <span class="travel-name">{loc}</span>
-              </div>
-            {/each}
-          </div>
-        </section>
-      {/if}
-
-      <!-- Money Matters -->
-      {#if profile.wealthProof}
-        {@const wp = profile.wealthProof}
-        <section class="section">
-          <div class="section-label">💰 Money Matters</div>
-          <div class="money-card">
-            {#if profile.linkedinProof}
-              <div class="money-role">
-                {#each ((profile.linkedinProof.insights as Array<{emoji:string;label:string}>) ?? []).slice(0, 2) as ins}
-                  <span class="money-role-line">{ins.emoji} {ins.label}</span>
-                {/each}
-              </div>
-            {/if}
-            <div class="money-badges">
-              {#each ((wp.insights as Array<{emoji:string;label:string}>) ?? []) as ins}
-                <div class="money-badge">
-                  <span class="money-badge-emoji">{ins.emoji}</span>
-                  <span class="money-badge-label">{ins.label}</span>
-                </div>
-              {/each}
-            </div>
-            <p class="money-verified">✓ AI verified via bank statement / financial document</p>
-          </div>
-        </section>
-      {/if}
-
-      <!-- AI Portraits -->
-      {#if profile.personalityPortraitUrl || profile.garagePortraitUrl}
-        <section class="section">
-          <div class="section-label">✨ AI Portrait</div>
-          <p class="portrait-sub">Generated from verified photos</p>
-          <div class="portrait-grid-2">
-            {#if profile.personalityPortraitUrl}
-              <img class="portrait-img" src={profile.personalityPortraitUrl} alt="AI portrait" />
-            {/if}
-            {#if profile.garagePortraitUrl}
-              <img class="portrait-img" src={profile.garagePortraitUrl} alt="AI portrait 2" />
-            {/if}
-          </div>
-        </section>
-      {/if}
+      <PublicProfileBody {profile} />
 
       <!-- Privacy note -->
       <div class="privacy-note">
