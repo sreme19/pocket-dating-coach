@@ -1,7 +1,7 @@
 import type { Handle } from '@sveltejs/kit';
 
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
-const MAX_REQUESTS = 20;
+const MAX_REQUESTS = 500; // per IP per hour — enough for normal app usage
 
 const ipRequestMap = new Map<string, { count: number; resetAt: number }>();
 
