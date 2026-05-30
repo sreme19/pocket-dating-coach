@@ -190,25 +190,13 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
       );
     }
 
-    // If user doesn't have a profile yet, return male seed profiles as a preview
-    if (!currentUserProfile) {
-      console.warn('User profile not found for:', currentUserId, '— returning seed profiles');
-      const seedProfiles = buildSeedProfiles('man', []);
-      return json({
-        data: {
-          profiles: seedProfiles.slice(0, limit),
-          hasMore: false,
-          total: seedProfiles.length
-        }
-      });
-    }
+    // Resolve gender — profile may not exist yet for new/unverified users
+    const currentUserGender = currentUserProfile?.gender ?? null;
+    const currentUserArchetype = currentUserProfile?.archetype ?? '';
 
-    // Never default gender to 'man' — if null, treat as unknown and use opposite of 'man' (woman target)
-    const currentUserGender = currentUserProfile.gender ?? null;
-    const currentUserArchetype = currentUserProfile.archetype || '';
-
-    // Determine compatible archetypes via MATCH_MATRIX (falls back to opposite gender)
+    // Determine compatible archetypes via MATCH_MATRIX
     const compatibleArchetypes: string[] = MATCH_MATRIX[currentUserArchetype] ?? [];
+    // Default: show men to women, women to men; unknown gender defaults to showing men
     const targetGender = currentUserGender === 'woman' ? 'man' : 'woman';
 
     // Fetch ALL opposite-gender profiles — archetype compatibility is a ranking signal, not a hard filter
