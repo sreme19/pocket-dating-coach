@@ -24,6 +24,7 @@ export interface VVProfile {
   about: string | null;
   looking: string | null;
   trust_score: number | null;
+  is_seed: boolean | null;
   here_for_title: string | null;
   here_for_desc: string | null;
   hard_nos: string[] | null;
@@ -87,6 +88,7 @@ export async function upsertProfile(
 
   const row = {
     id: session.user.id,
+    is_seed: false,
     ...updates
   };
 
@@ -214,6 +216,9 @@ export async function getProfileCompleteness(): Promise<ProfileCompleteness> {
   const profile = await getProfile();
   if (!profile || !profile.gender) return 'no_profile';
   if (!profile.archetype) return 'no_archetype';
+
+  // Real users (is_seed = false) are grandfathered — skip verification gate.
+  if (profile.is_seed === false) return 'complete';
 
   const steps = await getVerificationSteps();
   if (!isFullyVerified(steps)) return 'no_verification';
