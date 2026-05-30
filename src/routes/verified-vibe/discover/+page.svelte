@@ -70,6 +70,34 @@
   const likedIds = $state<Set<string>>(new Set());
   let richProfile = $state<RichProfile | null>(null);
   let richProfileLoading = $state(false);
+
+  // AI Bestie flags — shown only to female viewers on male profiles
+  interface BestieFlag { level: 'orange' | 'red'; title: string; detail: string; }
+  let bestieFlags = $state<BestieFlag[]>([]);
+  let bestieFlagsLoading = $state(false);
+
+  async function fetchBestieFlags(profileId: string) {
+    if ($user?.gender !== 'woman') return;
+    bestieFlagsLoading = true;
+    bestieFlags = [];
+    try {
+      const { getSupabaseClient } = await import('$lib/client/supabase');
+      const sb = getSupabaseClient();
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session?.access_token) return;
+      const res = await fetch('/api/verified-vibe/bestie-profile-flags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ profileId }),
+      });
+      if (res.ok) {
+        const data = await res.json() as { flags: BestieFlag[] };
+        bestieFlags = data.flags ?? [];
+      }
+    } catch { /* non-critical */ } finally {
+      bestieFlagsLoading = false;
+    }
+  }
   let showingSeedProfiles = $state(false);
 
   // Get current profile
@@ -361,6 +389,8 @@
       } else {
         richProfile = buildFallbackProfile(profile);
       }
+      // Fetch bestie flags for female viewers after profile loads
+      if (profile.gender === 'man') fetchBestieFlags(profile.id);
     } catch (err) {
       console.error('Failed to load rich profile:', err);
       richProfile = buildFallbackProfile(profile);
@@ -542,6 +572,39 @@
 
 
         <PublicProfileBody profile={richProfile} />
+
+        <!-- AI Bestie flags — female viewer + male profile only -->
+        {#if $user?.gender === 'woman' && currentProfile?.gender === 'man'}
+          <div class="bestie-section">
+            <div class="bestie-header">
+              <span class="bestie-avatar">💬</span>
+              <div>
+                <p class="bestie-title">Bestie's Take</p>
+                <p class="bestie-sub">What to double-check before you match</p>
+              </div>
+            </div>
+            {#if bestieFlagsLoading}
+              <div class="bestie-loading">
+                <div class="bestie-spinner"></div>
+                <span>Bestie is reading his profile…</span>
+              </div>
+            {:else if bestieFlags.length === 0}
+              <p class="bestie-clear">✓ Nothing suspicious — profile claims look consistent with what was verified.</p>
+            {:else}
+              <div class="bestie-flags">
+                {#each bestieFlags as flag}
+                  <div class="bestie-flag bestie-flag--{flag.level}">
+                    <span class="bestie-flag-icon">{flag.level === 'red' ? '🚨' : '⚠️'}</span>
+                    <div>
+                      <p class="bestie-flag-title">{flag.title}</p>
+                      <p class="bestie-flag-detail">{flag.detail}</p>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        {/if}
 
         <!-- Action row -->
         {#if !isViewingSelected}
@@ -1062,4 +1125,21 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 
   .loading-text { font-size: 14px; color: var(--text-2); margin: 0; }
+
+  /* AI Bestie flags */
+  .bestie-section { background: rgba(255,180,60,0.05); border: 1px solid rgba(255,180,60,0.2); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; margin: 4px 16px 0; }
+  .bestie-header { display: flex; align-items: center; gap: 10px; }
+  .bestie-avatar { font-size: 22px; flex-shrink: 0; }
+  .bestie-title { margin: 0; font-size: 12px; font-weight: 700; color: #fbbf24; letter-spacing: 0.05em; text-transform: uppercase; }
+  .bestie-sub { margin: 2px 0 0; font-size: 11px; color: rgba(255,255,255,0.4); }
+  .bestie-loading { display: flex; align-items: center; gap: 8px; font-size: 12px; color: rgba(255,255,255,0.4); }
+  .bestie-spinner { width: 13px; height: 13px; border: 2px solid rgba(251,191,36,0.2); border-top-color: #fbbf24; border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+  .bestie-clear { margin: 0; font-size: 12.5px; color: #34d399; }
+  .bestie-flags { display: flex; flex-direction: column; gap: 8px; }
+  .bestie-flag { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 10px; }
+  .bestie-flag--orange { background: rgba(251,146,60,0.1); border: 1px solid rgba(251,146,60,0.25); }
+  .bestie-flag--red { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); }
+  .bestie-flag-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+  .bestie-flag-title { margin: 0; font-size: 12.5px; font-weight: 600; color: rgba(255,255,255,0.9); line-height: 1.3; }
+  .bestie-flag-detail { margin: 3px 0 0; font-size: 11.5px; color: rgba(255,255,255,0.55); line-height: 1.5; }
 </style>
