@@ -46,6 +46,7 @@
   font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   -webkit-font-smoothing:antialiased;
   text-rendering:optimizeLegibility;
+  overflow-x:hidden;
 }
 .vv-page *{ box-sizing:border-box; }
 
@@ -55,7 +56,7 @@ html{ scroll-behavior:smooth; scroll-padding-top:88px; }
 /* The app shell (app.css) forces a dark body background; the marketing
    page is light. Override only while the landing is mounted, so app
    routes keep their dark shell after navigation. */
-html:has(.vv-page), body:has(.vv-page){ background:#ffffff !important; }
+html:has(.vv-page), body:has(.vv-page){ background:#ffffff !important; overflow-x:hidden; }
 
 /* ============================================================
    IMAGE SLOTS (real <img> replaces the design's drop zones)
@@ -491,6 +492,24 @@ html:has(.vv-page), body:has(.vv-page){ background:#ffffff !important; }
   .footer__top{ grid-template-columns:1fr; }
   .footer__bottom{ flex-direction:column; align-items:flex-start; }
   .safety__foot{ flex-direction:column; align-items:flex-start; }
+  /* tighten nav so it fits without horizontal scroll */
+  .nav__signin{ font-size:14px; padding:8px 4px; white-space:nowrap; }
+  .nav__right .btn{ padding:11px 16px; font-size:14px; gap:7px; }
+}
+@media (max-width:440px){
+  /* further shrink nav elements for narrow phones (~390-440px) */
+  .logo{ gap:8px; }
+  .logo__mark{ width:32px; height:32px; border-radius:9px; }
+  .logo__mark svg{ width:18px; height:18px; }
+  .logo__text{ font-size:16px; }
+  .nav__right{ gap:8px; }
+  .nav__right .btn{ padding:10px 14px; font-size:13.5px; gap:6px; }
+  .nav__right .btn svg{ width:15px; height:15px; }
+}
+@media (max-width:380px){
+  /* on the very smallest phones, drop sign-in — it's reachable from the gate page */
+  .nav__signin{ display:none; }
+  .nav{ padding:12px 14px; }
 }
 
 @media (prefers-reduced-motion:reduce){
