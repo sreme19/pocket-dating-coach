@@ -32,7 +32,7 @@
 	</div>
 
 	<form method="POST" action="?/save" use:enhance>
-		<div class="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
+		<div class="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_480px]">
 			<!-- LEFT: reconstructed conversation -->
 			<div class="space-y-6">
 				<section>
