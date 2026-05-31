@@ -131,7 +131,7 @@ export type Database = {
 					score_tone: number | null;
 					score_safety: number | null;
 					score_helpfulness: number | null;
-					flagged_message_ids: string[];
+					flagged_message_ids: unknown[];
 					comments: string | null;
 					status: string;
 					created_at: string;
@@ -145,7 +145,7 @@ export type Database = {
 					score_tone?: number | null;
 					score_safety?: number | null;
 					score_helpfulness?: number | null;
-					flagged_message_ids?: string[];
+					flagged_message_ids?: unknown[];
 					comments?: string | null;
 					status?: string;
 					created_at?: string;
