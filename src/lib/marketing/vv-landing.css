@@ -491,7 +491,27 @@ html:has(.vv-page), body:has(.vv-page){ background:#ffffff !important; overflow-
   .feature h3{ font-size:26px; }
   .steps4{ grid-template-columns:1fr; }
   .trust,.how,.safety{ padding:60px 0; }
-  .collage{ height:430px; transform:scale(.82); transform-origin:top center; }
+  /* Rebuild the hero collage for narrow screens: a compact, deliberate
+     stack sized to the column instead of a desktop-width layout crammed
+     + scaled down. The two back cards peek only at the top corners (their
+     archetype chip stays visible) while the front card covers everything
+     below them, so no half-clipped name/distance text leaks out. Chips
+     sit clear of the front card's face. */
+  .hero__stage{ min-height:0; margin-top:10px; }
+  .collage{ height:auto; min-height:368px; transform:none; max-width:312px; margin:0 auto; }
+  .collage__c1{ width:176px; height:228px; top:8px; left:0; transform:rotate(-6deg); }
+  .collage__c2{ width:176px; height:228px; top:8px; right:0; bottom:auto; transform:rotate(6deg); }
+  .collage__c3{ width:196px; height:262px; top:74px; left:50%; margin-left:-98px; bottom:auto; transform:rotate(0); z-index:5; }
+  .collage .float-chip{ animation-duration:6s; }
+  .collage .fc-1{ top:-10px; left:50%; right:auto; margin-left:-92px; }
+  .collage .fc-2{ top:128px; bottom:auto; right:-8px; }
+  .collage .fc-3{ bottom:-6px; left:50%; right:auto; margin-left:-96px; }
+  /* Only the front card should read; hide the back cards' name/meta and
+     score badge so nothing half-clipped (a "Priya / Verified", a "…1.1 mi
+     away", or a score pip sliced by the screen edge) leaks past the edges.
+     The archetype chip stays, so each peek still reads as a real profile. */
+  .collage__c1 .pcard__bot,.collage__c2 .pcard__bot,
+  .collage__c1 .trust-badge,.collage__c2 .trust-badge{ display:none; }
   .phone,.buildcard{ width:100%; max-width:340px; }
   .footer__top{ grid-template-columns:1fr; }
   .footer__bottom{ flex-direction:column; align-items:flex-start; }
