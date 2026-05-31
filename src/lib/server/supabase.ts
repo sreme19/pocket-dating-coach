@@ -102,6 +102,9 @@ export type Database = {
 					match_id: string;
 					sender_id: string;
 					content: string;
+					is_ai: boolean;
+					ai_signal: string | null;
+					ai_read: string | null;
 					created_at: string;
 				};
 				Insert: {
@@ -109,9 +112,44 @@ export type Database = {
 					match_id: string;
 					sender_id: string;
 					content: string;
+					is_ai?: boolean;
+					ai_signal?: string | null;
+					ai_read?: string | null;
 					created_at?: string;
 				};
 				Update: Partial<Database['public']['Tables']['verified_vibe_messages']['Insert']>;
+				Relationships: [];
+			};
+			ai_qa_reviews: {
+				Row: {
+					id: string;
+					match_id: string;
+					reviewer: string;
+					score_accuracy: number | null;
+					score_tone: number | null;
+					score_safety: number | null;
+					score_helpfulness: number | null;
+					flagged_message_ids: string[];
+					comments: string | null;
+					status: string;
+					created_at: string;
+					updated_at: string;
+				};
+				Insert: {
+					id?: string;
+					match_id: string;
+					reviewer: string;
+					score_accuracy?: number | null;
+					score_tone?: number | null;
+					score_safety?: number | null;
+					score_helpfulness?: number | null;
+					flagged_message_ids?: string[];
+					comments?: string | null;
+					status?: string;
+					created_at?: string;
+					updated_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['ai_qa_reviews']['Insert']>;
 				Relationships: [];
 			};
 			verified_vibe_typing_indicators: {
