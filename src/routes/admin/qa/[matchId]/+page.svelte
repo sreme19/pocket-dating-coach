@@ -40,6 +40,17 @@
 		localStorage.setItem('qaRubricWidth', String(DEFAULT_RUBRIC_WIDTH));
 	}
 
+	// Grow a textarea to fit its content as the reviewer types.
+	function autogrow(node: HTMLTextAreaElement) {
+		const resize = () => {
+			node.style.height = 'auto';
+			node.style.height = `${node.scrollHeight}px`;
+		};
+		resize();
+		node.addEventListener('input', resize);
+		return { destroy: () => node.removeEventListener('input', resize) };
+	}
+
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 	let r = $derived(data.review);
 	let ex = $derived(data.review.existingReview);
@@ -128,8 +139,9 @@
 												name="flagnote_{m.id}"
 												bind:value={notes[m.id]}
 												rows="2"
+												use:autogrow
 												placeholder="QA note on this message — what's wrong with it?"
-												class="mt-1 w-72 max-w-full rounded-md border border-rose-500/30 bg-[#0b1120] px-2 py-1 text-xs text-slate-200 outline-none focus:border-rose-400"
+												class="mt-1 min-h-[3rem] w-[27rem] max-w-full resize-none overflow-hidden rounded-md border border-rose-500/30 bg-[#0b1120] px-2 py-1 text-xs leading-relaxed text-slate-200 outline-none focus:border-rose-400"
 											></textarea>
 										{/if}
 									</div>
