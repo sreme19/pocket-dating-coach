@@ -321,7 +321,7 @@
           <h3>Your AI Bestie knows the red flags you'd miss.</h3>
           <p class="lead">She reads every incoming message, calls out the vibe, and drafts a reply in your voice — so you stay in control without the mental load.</p>
           <ul class="flist">
-            <li><span class="tick"><svg><use href="#ic-check"/></svg></span>Flags every message as <b>✅ genuine</b>, <b>⚠️ vague</b>, or <b>🚩 red flag</b></li>
+            <li><span class="tick"><svg><use href="#ic-check"/></svg></span><span>Flags every message as <b>✅ genuine</b>, <b>⚠️ vague</b>, or <b>🚩 red flag</b></span></li>
             <li><span class="tick"><svg><use href="#ic-check"/></svg></span>Drafts replies that sound like you, not a bot</li>
             <li><span class="tick"><svg><use href="#ic-check"/></svg></span>Summarizes a match before you waste a week on them</li>
           </ul>
@@ -353,7 +353,7 @@
           <h3>No faking it. Build a profile you can back up.</h3>
           <p class="lead">Your Wingman turns real proof into a profile that stands out — then coaches your conversations so you lead with substance, not lines.</p>
           <ul class="flist">
-            <li><span class="tick"><svg><use href="#ic-check"/></svg></span>Builds a <b>proof-backed</b> profile from things you can actually verify</li>
+            <li><span class="tick"><svg><use href="#ic-check"/></svg></span><span>Builds a <b>proof-backed</b> profile from things you can actually verify</span></li>
             <li><span class="tick"><svg><use href="#ic-check"/></svg></span>Coaches conversations in real time — fewer dead ends</li>
             <li><span class="tick"><svg><use href="#ic-check"/></svg></span>Raises your Trust Score the honest way</li>
           </ul>
