@@ -46,6 +46,9 @@
   font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   -webkit-font-smoothing:antialiased;
   text-rendering:optimizeLegibility;
+  /* clip (not hidden) so a stray wide child never makes the page scroll
+     sideways on mobile, without breaking the sticky nav. */
+  overflow-x:clip;
 }
 .vv-page *{ box-sizing:border-box; }
 
@@ -326,8 +329,12 @@ html:has(.vv-page), body:has(.vv-page){ background:#ffffff !important; }
 .feature h3{ font-size:38px; font-weight:800; line-height:1.06; letter-spacing:-.03em; }
 .feature p.lead{ font-size:18px; line-height:1.55; color:var(--vv-ink-2); margin:18px 0 24px; }
 .flist{ list-style:none; padding:0; margin:0 0 28px; display:flex; flex-direction:column; gap:13px; }
-.flist li{ display:flex; align-items:flex-start; gap:12px; font-size:15.5px; color:var(--vv-ink-2); }
-.flist .tick{ width:24px;height:24px;border-radius:7px; flex:none; display:grid; place-items:center; color:#fff; margin-top:1px; }
+/* Inline text flow (not flex) so the tick stays put while the copy — and
+   any inline <b> badges — wraps naturally instead of each run becoming a
+   shrunk flex item that stacks one word per line on mobile. */
+.flist li{ position:relative; padding-left:36px; font-size:15.5px; line-height:1.5; color:var(--vv-ink-2); }
+.flist li b{ white-space:nowrap; }
+.flist .tick{ position:absolute; left:0; top:2px; width:24px;height:24px;border-radius:7px; display:grid; place-items:center; color:#fff; }
 .bestie .flist .tick{ background:linear-gradient(135deg,var(--vv-bestie-1),var(--vv-bestie-2)); }
 .wingman .flist .tick{ background:linear-gradient(135deg,#60a5fa,var(--vv-wingman)); }
 .flist .tick svg{ width:14px;height:14px; }
@@ -477,7 +484,17 @@ html:has(.vv-page), body:has(.vv-page){ background:#ffffff !important; }
 }
 @media (max-width:560px){
   .wrap{ padding:0 22px; }
-  .nav{ padding:14px 20px; }
+  /* Compact nav so the logo + Sign in + Get verified all fit without
+     pushing the primary button off-screen (and scrolling the whole page). */
+  .nav{ padding:12px 16px; gap:12px; }
+  .logo{ gap:8px; min-width:0; }
+  .logo__mark{ width:32px; height:32px; border-radius:9px; }
+  .logo__mark svg{ width:18px; height:18px; }
+  .logo__text{ font-size:17px; }
+  .nav__right{ gap:10px; }
+  .nav__signin{ white-space:nowrap; font-size:14px; padding:8px 2px; }
+  .nav .btn--primary{ padding:11px 16px; font-size:14px; gap:6px; }
+  .nav .btn--primary svg{ width:16px; height:16px; }
   .hero{ padding:32px 0 54px; }
   .hero h1{ font-size:calc(48px * var(--vv-display-scale)); }
   .hero__sub{ font-size:18px; }
