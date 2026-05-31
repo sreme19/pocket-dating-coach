@@ -7,7 +7,7 @@
 </script>
 
 <div class="flex min-h-screen items-center justify-center bg-[#0b1120] px-6 text-slate-100">
-	<form method="POST" class="w-full max-w-sm rounded-2xl border border-white/[0.06] bg-[#0d1522] p-8">
+	<form method="POST" action="?/login" class="w-full max-w-sm rounded-2xl border border-white/[0.06] bg-[#0d1522] p-8">
 		<h1 class="text-xl font-bold text-white">QA Console</h1>
 		<p class="mt-1 mb-6 text-sm text-slate-500">Pocket Dating Coach · AI review</p>
 
