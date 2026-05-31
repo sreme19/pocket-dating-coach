@@ -18,6 +18,7 @@ export type Database = {
 					trust_score: number;
 					preferences: Record<string, unknown> | null;
 					hard_nos: string[] | null;
+					is_seed: boolean;
 					created_at: string;
 					updated_at: string;
 				};
@@ -34,6 +35,7 @@ export type Database = {
 					trust_score?: number;
 					preferences?: Record<string, unknown> | null;
 					hard_nos?: string[] | null;
+					is_seed?: boolean;
 					created_at?: string;
 					updated_at?: string;
 				};
