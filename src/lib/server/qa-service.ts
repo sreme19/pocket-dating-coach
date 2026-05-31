@@ -26,11 +26,32 @@ export interface ReviewRecord {
 	score_tone: number | null;
 	score_safety: number | null;
 	score_helpfulness: number | null;
-	flagged_message_ids: string[];
+	flagged_message_ids: FlaggedMessage[];
 	comments: string | null;
 	status: string;
 	created_at: string;
 	updated_at: string;
+}
+
+/** A flagged message and the reviewer's note about it. */
+export interface FlaggedMessage {
+	id: string;
+	note: string;
+}
+
+/** Accepts legacy string[] or {id,note}[] from JSONB and normalizes. */
+export function normalizeFlags(raw: unknown): FlaggedMessage[] {
+	if (!Array.isArray(raw)) return [];
+	return raw
+		.map((f) => {
+			if (typeof f === 'string') return { id: f, note: '' };
+			if (f && typeof f === 'object' && 'id' in f) {
+				const o = f as { id: unknown; note?: unknown };
+				return { id: String(o.id), note: typeof o.note === 'string' ? o.note : '' };
+			}
+			return null;
+		})
+		.filter((x): x is FlaggedMessage => x !== null);
 }
 
 interface Participant {
@@ -262,6 +283,7 @@ export async function getMatchReview(sb: SB, matchId: string): Promise<MatchRevi
 	});
 
 	const existing = (review ?? [])[0] as ReviewRecord | undefined;
+	if (existing) existing.flagged_message_ids = normalizeFlags(existing.flagged_message_ids);
 
 	return {
 		matchId: match.id,
@@ -280,7 +302,7 @@ export interface SaveReviewInput {
 	matchId: string;
 	reviewer: string;
 	scores: Record<RubricKey, number | null>;
-	flaggedMessageIds: string[];
+	flags: FlaggedMessage[];
 	comments: string;
 	status: string;
 }
@@ -293,7 +315,7 @@ export async function saveReview(sb: SB, input: SaveReviewInput): Promise<{ erro
 		score_tone: input.scores.tone,
 		score_safety: input.scores.safety,
 		score_helpfulness: input.scores.helpfulness,
-		flagged_message_ids: input.flaggedMessageIds,
+		flagged_message_ids: input.flags,
 		comments: input.comments || null,
 		status: input.status
 	} as never);

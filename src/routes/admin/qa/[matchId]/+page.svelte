@@ -7,6 +7,15 @@
 	let r = $derived(data.review);
 	let ex = $derived(data.review.existingReview);
 
+	// Per-message flag state + notes, seeded from any existing review.
+	const initialFlags = data.review.existingReview?.flagged_message_ids ?? [];
+	let flagged = $state<Record<string, boolean>>(
+		Object.fromEntries(initialFlags.map((f) => [f.id, true]))
+	);
+	let notes = $state<Record<string, string>>(
+		Object.fromEntries(initialFlags.map((f) => [f.id, f.note]))
+	);
+
 	const existingScore = (key: string): number | null => {
 		if (!ex) return null;
 		return (ex as unknown as Record<string, number | null>)[`score_${key}`] ?? null;
@@ -63,15 +72,27 @@
 											{m.aiRead}
 										</div>
 									{/if}
-									<label class="mt-1 flex items-center gap-1.5 text-[11px] text-slate-500 {mine ? '' : 'justify-end'}">
-										<input
-											type="checkbox"
-											name="flagged"
-											value={m.id}
-											checked={ex?.flagged_message_ids?.includes(m.id) ?? false}
-											class="accent-rose-500"
-										/> flag this message
-									</label>
+									<div class="mt-1 {mine ? '' : 'flex flex-col items-end'}">
+										<label class="flex items-center gap-1.5 text-[11px] text-slate-500">
+											<input
+												type="checkbox"
+												name="flagged"
+												value={m.id}
+												bind:checked={flagged[m.id]}
+												class="accent-rose-500"
+											/>
+											{flagged[m.id] ? '🚩 flagged' : 'flag this message'}
+										</label>
+										{#if flagged[m.id]}
+											<textarea
+												name="flagnote_{m.id}"
+												bind:value={notes[m.id]}
+												rows="2"
+												placeholder="QA note on this message — what's wrong with it?"
+												class="mt-1 w-72 max-w-full rounded-md border border-rose-500/30 bg-[#0b1120] px-2 py-1 text-xs text-slate-200 outline-none focus:border-rose-400"
+											></textarea>
+										{/if}
+									</div>
 								</div>
 							</div>
 						{/each}
