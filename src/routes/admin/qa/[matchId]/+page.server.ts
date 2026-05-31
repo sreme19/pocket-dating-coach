@@ -28,17 +28,20 @@ export const actions: Actions = {
 
 		const status = String(form.get('status') ?? 'reviewed');
 		const comments = String(form.get('comments') ?? '');
-		const flaggedMessageIds = form.getAll('flagged').map(String);
+		const flags = form.getAll('flagged').map(String).map((id) => ({
+			id,
+			note: String(form.get(`flagnote_${id}`) ?? '').trim()
+		}));
 
-		if (!scores.accuracy && !scores.tone && !scores.safety && !scores.helpfulness && !comments.trim()) {
-			return fail(400, { error: 'Add at least one score or a comment before saving.' });
+		if (!scores.accuracy && !scores.tone && !scores.safety && !scores.helpfulness && !comments.trim() && flags.length === 0) {
+			return fail(400, { error: 'Add at least one score, a comment, or a flagged message before saving.' });
 		}
 
 		const { error: err } = await saveReview(getSupabase(), {
 			matchId: params.matchId,
 			reviewer,
 			scores,
-			flaggedMessageIds,
+			flags,
 			comments,
 			status
 		});
