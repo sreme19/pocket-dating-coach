@@ -1,7 +1,44 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { onMount } from 'svelte';
 	import type { PageData, ActionData } from './$types';
 	import { RUBRIC } from '$lib/qa-rubric';
+
+	const DEFAULT_RUBRIC_WIDTH = 480;
+	const MIN_RUBRIC_WIDTH = 320;
+	const MAX_RUBRIC_WIDTH = 900;
+
+	let rubricWidth = $state(DEFAULT_RUBRIC_WIDTH);
+	let resizing = $state(false);
+
+	onMount(() => {
+		const saved = Number(localStorage.getItem('qaRubricWidth'));
+		if (saved >= MIN_RUBRIC_WIDTH && saved <= MAX_RUBRIC_WIDTH) rubricWidth = saved;
+	});
+
+	function startResize(e: PointerEvent) {
+		e.preventDefault();
+		resizing = true;
+		const startX = e.clientX;
+		const startW = rubricWidth;
+		const move = (ev: PointerEvent) => {
+			// Handle sits left of the panel — dragging left widens the panel.
+			rubricWidth = Math.min(MAX_RUBRIC_WIDTH, Math.max(MIN_RUBRIC_WIDTH, startW + (startX - ev.clientX)));
+		};
+		const up = () => {
+			resizing = false;
+			localStorage.setItem('qaRubricWidth', String(Math.round(rubricWidth)));
+			window.removeEventListener('pointermove', move);
+			window.removeEventListener('pointerup', up);
+		};
+		window.addEventListener('pointermove', move);
+		window.addEventListener('pointerup', up);
+	}
+
+	function resetWidth() {
+		rubricWidth = DEFAULT_RUBRIC_WIDTH;
+		localStorage.setItem('qaRubricWidth', String(DEFAULT_RUBRIC_WIDTH));
+	}
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 	let r = $derived(data.review);
@@ -41,9 +78,12 @@
 	</div>
 
 	<form method="POST" action="?/save" use:enhance>
-		<div class="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_480px]">
+		<div
+			class="flex flex-col gap-6 lg:flex-row {resizing ? 'select-none' : ''}"
+			style="--rw: {rubricWidth}px"
+		>
 			<!-- LEFT: reconstructed conversation -->
-			<div class="space-y-6">
+			<div class="min-w-0 flex-1 space-y-6">
 				<section>
 					<h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Match thread</h2>
 					{#if r.messages.length === 0}
@@ -147,10 +187,26 @@
 				{/if}
 			</div>
 
+			<!-- Drag handle (lg only): resize the rubric panel -->
+			<div
+				role="separator"
+				aria-orientation="vertical"
+				aria-label="Resize rubric panel"
+				title="Drag to resize · double-click to reset"
+				onpointerdown={startResize}
+				ondblclick={resetWidth}
+				class="hidden shrink-0 cursor-col-resize items-center justify-center lg:flex"
+			>
+				<div class="h-16 w-1 rounded-full transition-colors {resizing ? 'bg-emerald-400' : 'bg-white/15 hover:bg-emerald-400/60'}"></div>
+			</div>
+
 			<!-- RIGHT: rubric -->
-			<aside class="lg:sticky lg:top-6 lg:self-start">
+			<aside class="w-full shrink-0 lg:sticky lg:top-6 lg:self-start lg:w-[var(--rw)]">
 				<div class="rounded-xl border border-white/[0.06] bg-[#0d1522] p-4">
-					<h2 class="mb-3 text-sm font-semibold text-white">Rubric · 1 (poor) – 5 (excellent)</h2>
+					<div class="mb-3 flex items-center justify-between">
+						<h2 class="text-sm font-semibold text-white">Rubric · 1 (poor) – 5 (excellent)</h2>
+						<span class="hidden text-[11px] text-slate-600 lg:inline">{Math.round(rubricWidth)}px · drag ‹ ›</span>
+					</div>
 
 					{#each RUBRIC as dim}
 						<div class="mb-4">
