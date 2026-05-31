@@ -16,7 +16,7 @@ function safeNext(next: FormDataEntryValue | null): string {
 }
 
 export const actions: Actions = {
-	default: async ({ request, cookies }) => {
+	login: async ({ request, cookies }) => {
 		if (!adminAuthConfigured()) {
 			return fail(500, { error: 'Admin access is not configured (QA_ADMIN_PASSWORD missing).' });
 		}
