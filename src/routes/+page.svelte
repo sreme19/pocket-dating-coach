@@ -207,7 +207,7 @@
         <div class="hero__stage reveal d2">
           <div class="collage">
             <div class="pcard collage__c1">
-              <img class="img-slot" src="/female_profiles/diana_Fiercely_Independent_c4h9pw/photos/Diana_1.jpg" alt="Verified member Priya" loading="lazy" />
+              <img class="img-slot" src="/female_profiles/priya_High_Value_Feminist_f2k7zt/photos/Priya_5.jpg" alt="Verified member Priya" loading="lazy" />
               <div class="pcard__grad"></div>
               <div class="pcard__top"><span class="arch-chip">🌱 Rebound-Healing</span><span class="trust-badge"><span class="ring"><svg><use href="#ic-check"/></svg></span><span class="score">88</span></span></div>
               <div class="pcard__bot"><div class="pcard__name">Priya, 27</div><div class="pcard__meta">Verified · 2.4 mi away</div></div>
