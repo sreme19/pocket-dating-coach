@@ -327,8 +327,12 @@ html:has(.vv-page), body:has(.vv-page){ background:#ffffff !important; overflow-
 .feature h3{ font-size:38px; font-weight:800; line-height:1.06; letter-spacing:-.03em; }
 .feature p.lead{ font-size:18px; line-height:1.55; color:var(--vv-ink-2); margin:18px 0 24px; }
 .flist{ list-style:none; padding:0; margin:0 0 28px; display:flex; flex-direction:column; gap:13px; }
-.flist li{ display:flex; align-items:flex-start; gap:12px; font-size:15.5px; color:var(--vv-ink-2); }
-.flist .tick{ width:24px;height:24px;border-radius:7px; flex:none; display:grid; place-items:center; color:#fff; margin-top:1px; }
+/* Inline text flow (not flex) so the tick stays put while the copy — and
+   any inline <b> badges — wraps naturally instead of each run becoming a
+   shrunk flex item that stacks one word per line on mobile. */
+.flist li{ position:relative; padding-left:36px; font-size:15.5px; line-height:1.5; color:var(--vv-ink-2); }
+.flist li b{ white-space:nowrap; }
+.flist .tick{ position:absolute; left:0; top:2px; width:24px;height:24px;border-radius:7px; display:grid; place-items:center; color:#fff; }
 .bestie .flist .tick{ background:linear-gradient(135deg,var(--vv-bestie-1),var(--vv-bestie-2)); }
 .wingman .flist .tick{ background:linear-gradient(135deg,#60a5fa,var(--vv-wingman)); }
 .flist .tick svg{ width:14px;height:14px; }
