@@ -43,44 +43,63 @@ export async function generateBestieReply(
 ): Promise<BestieReply> {
 	const supabase = getSupabase();
 
-	const { data: user } = await supabase
-		.from('verified_vibe_users')
-		.select('first_name, preferences, about, looking')
-		.eq('id', userId)
-		.single();
+	// These four reads are independent — run them concurrently rather than in
+	// series. Cutting ~4 sequential DB round-trips to one parallel batch is a
+	// meaningful chunk of the perceived "Bestie reply" delay.
+	const [user, matchRow, structuredPrefs, recent] = await Promise.all([
+		supabase
+			.from('verified_vibe_users')
+			.select('first_name, preferences, about, looking')
+			.eq('id', userId)
+			.single()
+			.then((r) => r.data),
+		supabase
+			.from('verified_vibe_matches')
+			.select('user1_id, user2_id')
+			.eq('id', matchId)
+			.single()
+			.then((r) => r.data),
+		loadPreferences(userId).catch(() => null),
+		supabase
+			.from('verified_vibe_messages')
+			.select('content, sender_id, created_at')
+			.eq('match_id', matchId)
+			.order('created_at', { ascending: false })
+			.limit(12)
+			.then((r) => r.data),
+	]);
+
 	const userName: string = (user as any)?.first_name || 'her';
 
-	// Resolve the match (other user) and their name + artifacts
-	const { data: matchRow } = await supabase
-		.from('verified_vibe_matches')
-		.select('user1_id, user2_id')
-		.eq('id', matchId)
-		.single();
-
+	// Resolve the match (other user) and their name + artifacts. Both reads
+	// depend on otherUserId, so they run in parallel once the match is known.
 	let matchName = 'him';
 	let maleArtifactContext = '';
 	let otherUserId: string | null = null;
 	if (matchRow) {
 		otherUserId = matchRow.user1_id === userId ? matchRow.user2_id : matchRow.user1_id;
-		const { data: otherUser } = await supabase
-			.from('verified_vibe_users')
-			.select('first_name')
-			.eq('id', otherUserId)
-			.single();
-		matchName = otherUser?.first_name || 'him';
-
-		try {
-			const { data: artifacts } = await (supabase as any)
+		const [otherUser, artifacts] = await Promise.all([
+			supabase
+				.from('verified_vibe_users')
+				.select('first_name')
+				.eq('id', otherUserId)
+				.single()
+				.then((r) => r.data),
+			(supabase as any)
 				.from('user_artifacts')
 				.select('claim_tag, trust_points')
-				.eq('user_id', otherUserId);
-			if (artifacts?.length) {
-				const tagCounts: Record<string, number> = {};
-				for (const a of artifacts) tagCounts[a.claim_tag] = (tagCounts[a.claim_tag] ?? 0) + 1;
-				const parts = Object.entries(tagCounts).map(([tag, count]) => `${tag}${count > 1 ? ` (×${count})` : ''}`);
-				maleArtifactContext = `\n\n${matchName} has uploaded verified proofs: ${parts.join(', ')}. He's taken intentional steps to back up his profile. Acknowledge this positively when relevant.`;
-			}
-		} catch { /* non-critical */ }
+				.eq('user_id', otherUserId)
+				.then((r: any) => r.data)
+				.catch(() => null),
+		]);
+		matchName = otherUser?.first_name || 'him';
+
+		if (artifacts?.length) {
+			const tagCounts: Record<string, number> = {};
+			for (const a of artifacts) tagCounts[a.claim_tag] = (tagCounts[a.claim_tag] ?? 0) + 1;
+			const parts = Object.entries(tagCounts).map(([tag, count]) => `${tag}${count > 1 ? ` (×${count})` : ''}`);
+			maleArtifactContext = `\n\n${matchName} has uploaded verified proofs: ${parts.join(', ')}. He's taken intentional steps to back up his profile. Acknowledge this positively when relevant.`;
+		}
 	}
 
 	// Preferences context
@@ -94,28 +113,17 @@ export async function generateBestieReply(
 	}
 
 	let structuredPreferencesContext = '';
-	try {
-		const structuredPrefs = await loadPreferences(userId);
-		if (structuredPrefs.emotionalSignals.length > 0 || structuredPrefs.dealbreakers.length > 0 || structuredPrefs.boundaries.length > 0) {
-			structuredPreferencesContext = formatStructuredPreferences(structuredPrefs);
-		}
-	} catch { /* non-critical */ }
+	if (structuredPrefs && (structuredPrefs.emotionalSignals.length > 0 || structuredPrefs.dealbreakers.length > 0 || structuredPrefs.boundaries.length > 0)) {
+		structuredPreferencesContext = formatStructuredPreferences(structuredPrefs);
+	}
 
 	// Recent conversation history (last 12 messages)
 	let transcript = '';
-	try {
-		const { data: recent } = await supabase
-			.from('verified_vibe_messages')
-			.select('content, sender_id, created_at')
-			.eq('match_id', matchId)
-			.order('created_at', { ascending: false })
-			.limit(12);
-		const msgs = (recent ?? []).reverse();
-		if (msgs.length > 0) {
-			const lines = msgs.map((m: any) => `${m.sender_id === userId ? userName : matchName}: ${m.content}`);
-			transcript = `\n\nCONVERSATION SO FAR (most recent last) — do NOT repeat questions already asked or re-raise topics already settled:\n${lines.join('\n')}\n`;
-		}
-	} catch { /* non-critical */ }
+	const msgs = (recent ?? []).slice().reverse();
+	if (msgs.length > 0) {
+		const lines = msgs.map((m: any) => `${m.sender_id === userId ? userName : matchName}: ${m.content}`);
+		transcript = `\n\nCONVERSATION SO FAR (most recent last) — do NOT repeat questions already asked or re-raise topics already settled:\n${lines.join('\n')}\n`;
+	}
 
 	const client = getClaudeClient();
 	const message = await client.messages.create({
