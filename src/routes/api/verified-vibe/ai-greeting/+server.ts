@@ -28,7 +28,7 @@ const GREETING_GAP  = 8 * 60 * 60 * 1000; // 8 hours in ms
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 
-async function resolveUser(request: Request): Promise<{ userId: string; gender: string; archetype: string; city: string } | null> {
+async function resolveUser(request: Request): Promise<{ userId: string; firstName: string; gender: string; archetype: string; city: string } | null> {
   const token = (request.headers.get('authorization') ?? '').replace('Bearer ', '').trim();
   if (!token) return null;
   try {
@@ -41,12 +41,13 @@ async function resolveUser(request: Request): Promise<{ userId: string; gender: 
     const supabase = getSupabase();
     const { data: profile } = await supabase
       .from('verified_vibe_users')
-      .select('gender, archetype, city')
+      .select('first_name, gender, archetype, city')
       .eq('id', user.id)
       .maybeSingle();
 
     return {
       userId:    user.id,
+      firstName: profile?.first_name ?? '',
       gender:    profile?.gender    ?? null,
       archetype: profile?.archetype ?? '',
       city:      profile?.city      ?? 'your area',
@@ -77,11 +78,16 @@ HOW THE THREE AI AGENTS WORK TOGETHER — know this so you can explain it clearl
 - Uploads are completely private — never visible in the match's own chat — only the AI agents and the Matchmaker can see them.
 - You (Wingman or Bestie) can give competitive intelligence: how active the local pool is, where the user ranks, strategic nudges.`;
 
-function buildSystemPrompt(assistantType: 'wingman' | 'bestie', city: string): string {
+function buildSystemPrompt(assistantType: 'wingman' | 'bestie', city: string, firstName: string): string {
+  const nameRule = firstName
+    ? `- The user's first name is "${firstName}". If you address them by name, use ONLY "${firstName}". NEVER invent, guess, or substitute any other name.`
+    : `- You do NOT know the user's name. NEVER invent or guess a name — address them warmly without using any name at all.`;
+
   const shared = `
 ${ECOSYSTEM_BRIEF}
 
 STRICT RULES — you MUST follow these without exception:
+${nameRule}
 - NEVER share another user's surname, phone, email, address, or government ID
 - NEVER reveal verification data (Aadhaar, PAN, DL numbers, DOB from ID scans)
 - NEVER share financial account details of any other user
@@ -154,10 +160,11 @@ async function generateGreeting(opts: {
   assistantType: 'wingman' | 'bestie';
   mode: number;
   city: string;
+  firstName: string;
   priorMessages: GreetingRow[];
   feedbackSummary: string | null;
 }): Promise<{ content: string; topicTags: string[] }> {
-  const { assistantType, mode, city, priorMessages, feedbackSummary } = opts;
+  const { assistantType, mode, city, firstName, priorMessages, feedbackSummary } = opts;
 
   const modeGuides = assistantType === 'bestie' ? MODE_GUIDES_WOMAN : MODE_GUIDES_MAN;
 
@@ -191,7 +198,7 @@ TAGS: tag1, tag2, tag3
     body: JSON.stringify({
       model: CLAUDE_MODEL,
       max_tokens: 300,
-      system: buildSystemPrompt(assistantType, city),
+      system: buildSystemPrompt(assistantType, city, firstName),
       messages: [{ role: 'user', content: userPrompt }],
     }),
   });
@@ -214,7 +221,7 @@ export const POST: RequestHandler = async ({ request }) => {
   const resolved = await resolveUser(request);
   if (!resolved) return json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { userId, gender, archetype, city } = resolved;
+  const { userId, firstName, gender, archetype, city } = resolved;
   // Treat null gender as 'man' only for assistant type — bestie is strictly opt-in for women
   const assistantType: 'wingman' | 'bestie' = gender === 'woman' ? 'bestie' : 'wingman';
   const body = await request.json().catch(() => ({})) as { forceRefresh?: boolean };
@@ -260,7 +267,7 @@ export const POST: RequestHandler = async ({ request }) => {
   let topicTags: string[];
   try {
     ({ content, topicTags } = await generateGreeting({
-      assistantType, mode, city,
+      assistantType, mode, city, firstName,
       priorMessages: (priorMessages ?? []) as GreetingRow[],
       feedbackSummary: ctx?.feedback_summary ?? null,
     }));
