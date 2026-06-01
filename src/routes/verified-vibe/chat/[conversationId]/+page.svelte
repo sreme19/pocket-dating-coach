@@ -63,6 +63,96 @@
   interface CoachingCard { signal: string; read: string; }
   let coachingCards = $state<Map<string, CoachingCard>>(new Map());
 
+  // ── Coaching-card feedback (thumbs + reason chips) ──────────────────────────
+  // Rendered only inside the female-owner-gated coaching card, so this UI is
+  // visible to the AI Bestie owner only. Keyed by the received message id the
+  // card is attached to.
+  const REASON_CHIPS = [
+    { key: 'too_generic',   label: 'Too generic' },
+    { key: 'not_relevant',  label: 'Not relevant' },
+    { key: 'wrong_tone',    label: 'Wrong tone' },
+    { key: 'factually_off', label: 'Factually off' },
+    { key: 'other',         label: 'Other' },
+  ];
+  let cardFeedback = $state<Map<string, 'up' | 'down'>>(new Map());
+  let cardFeedbackDone = $state<Set<string>>(new Set());
+  let feedbackPanelMsgId = $state<string | null>(null);
+  let cardReasonChip = $state<string | null>(null);
+  let cardFeedbackNote = $state('');
+  let cardShowNote = $state(false);
+  let submittingCardFeedback = $state(false);
+
+  function resetCardPanel() {
+    cardReasonChip = null;
+    cardFeedbackNote = '';
+    cardShowNote = false;
+  }
+
+  async function rateCard(msgId: string, val: 'up' | 'down', read: string) {
+    const prev = cardFeedback.get(msgId);
+    const next = new Map(cardFeedback);
+
+    // Toggle off if the same button is clicked again
+    if (prev === val) {
+      next.delete(msgId);
+      cardFeedback = next;
+      if (val === 'down' && feedbackPanelMsgId === msgId) { feedbackPanelMsgId = null; resetCardPanel(); }
+      return;
+    }
+
+    next.set(msgId, val);
+    cardFeedback = next;
+
+    if (val === 'down') {
+      feedbackPanelMsgId = msgId;
+      resetCardPanel();
+      return;
+    }
+
+    feedbackPanelMsgId = null;
+    await postCardFeedback('positive', read, null, null);
+  }
+
+  async function submitCardFeedback(msgId: string, read: string, chip: string | null, note: string | null) {
+    if (submittingCardFeedback) return;
+    submittingCardFeedback = true;
+    try {
+      await postCardFeedback('negative', read, chip, note);
+      const done = new Set(cardFeedbackDone);
+      done.add(msgId);
+      cardFeedbackDone = done;
+      feedbackPanelMsgId = null;
+      resetCardPanel();
+    } finally {
+      submittingCardFeedback = false;
+    }
+  }
+
+  async function postCardFeedback(
+    feedbackType: 'positive' | 'negative',
+    messageContent: string,
+    reasonChip: string | null,
+    feedbackText: string | null
+  ) {
+    try {
+      await fetch('/api/verified-vibe/ai-bestie/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUserId ?? $user?.id ?? '',
+          assistantType: 'bestie',
+          feedbackType,
+          messageContent,
+          reasonChip,
+          feedbackText
+        })
+      });
+    } catch (err) {
+      console.warn('[Bestie coaching feedback] failed to save:', err);
+      // Non-blocking — don't revert UI state on network errors
+    }
+  }
+
   interface ArtifactNotice { id: string; text: string; }
   let artifactNotices = $state<ArtifactNotice[]>([]);
 
@@ -1412,6 +1502,45 @@
                 <span class="bestie-signal">{card.signal}</span>
               </div>
               <p class="bestie-read">{card.read}</p>
+
+              {#if cardFeedbackDone.has(message.id)}
+                <div class="card-feedback-done">Thanks for the feedback 👍</div>
+              {:else if feedbackPanelMsgId === message.id}
+                <div class="reason-chips-panel" transition:slide={{ duration: 180 }}>
+                  <p class="reason-prompt">What was off?</p>
+                  <div class="reason-chips">
+                    {#each REASON_CHIPS as rc}
+                      <button
+                        type="button"
+                        class="reason-chip {cardReasonChip === rc.key ? 'selected' : ''}"
+                        onclick={() => { cardReasonChip = rc.key; cardShowNote = rc.key === 'other'; }}
+                      >{rc.label}</button>
+                    {/each}
+                  </div>
+                  {#if cardShowNote || cardReasonChip}
+                    <textarea class="feedback-note" placeholder="Optional — tell us more…" bind:value={cardFeedbackNote} rows="2"></textarea>
+                  {/if}
+                  <div class="reason-actions">
+                    <button type="button" class="reason-skip" onclick={() => submitCardFeedback(message.id, card.read, null, null)}>Skip</button>
+                    <button type="button" class="reason-submit" disabled={!cardReasonChip || submittingCardFeedback} onclick={() => submitCardFeedback(message.id, card.read, cardReasonChip, cardFeedbackNote.trim() || null)}>{submittingCardFeedback ? 'Sending…' : 'Send'}</button>
+                  </div>
+                </div>
+              {:else}
+                <div class="card-feedback-row">
+                  <button
+                    type="button"
+                    class="card-thumb {cardFeedback.get(message.id) === 'up' ? 'active up' : ''}"
+                    onclick={() => rateCard(message.id, 'up', card.read)}
+                    aria-label="This read was helpful"
+                  >👍</button>
+                  <button
+                    type="button"
+                    class="card-thumb {cardFeedback.get(message.id) === 'down' ? 'active down' : ''}"
+                    onclick={() => rateCard(message.id, 'down', card.read)}
+                    aria-label="This read was off"
+                  >👎</button>
+                </div>
+              {/if}
             </div>
           {/if}
         {/each}
@@ -2483,6 +2612,121 @@
     line-height: 1.5;
     font-style: italic;
   }
+
+  /* ── Coaching-card feedback (AI Bestie owner only) ──────────────────────── */
+  .card-feedback-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 2px;
+  }
+
+  .card-thumb {
+    background: transparent;
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    border-radius: 6px;
+    padding: 2px 7px;
+    font-size: 13px;
+    line-height: 1.2;
+    cursor: pointer;
+    opacity: 0.65;
+    transition: opacity 0.15s, border-color 0.15s, background 0.15s;
+  }
+
+  .card-thumb:hover { opacity: 1; border-color: #a855f7; }
+  .card-thumb.active { opacity: 1; }
+  .card-thumb.active.up { background: rgba(34, 197, 94, 0.18); border-color: rgba(34, 197, 94, 0.5); }
+  .card-thumb.active.down { background: rgba(239, 68, 68, 0.18); border-color: rgba(239, 68, 68, 0.5); }
+
+  .card-feedback-done {
+    font-size: 11px;
+    color: #a855f7;
+    font-weight: 600;
+  }
+
+  .reason-chips-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 2px;
+  }
+
+  .reason-prompt {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-2);
+    margin: 0;
+  }
+
+  .reason-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .reason-chip {
+    background: transparent;
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    color: var(--text-2);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+
+  .reason-chip:hover { border-color: #a855f7; color: #c98bff; }
+  .reason-chip.selected {
+    background: rgba(168, 85, 247, 0.2);
+    border-color: #a855f7;
+    color: #d7b3ff;
+  }
+
+  .feedback-note {
+    width: 100%;
+    box-sizing: border-box;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    border-radius: 6px;
+    color: var(--text-1);
+    font-size: 12px;
+    padding: 6px 8px;
+    resize: vertical;
+    font-family: inherit;
+  }
+
+  .feedback-note:focus { outline: none; border-color: #a855f7; }
+
+  .reason-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .reason-skip,
+  .reason-submit {
+    border-radius: 6px;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+
+  .reason-skip {
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.15);
+    color: var(--text-2);
+  }
+
+  .reason-skip:hover { border-color: rgba(255, 255, 255, 0.3); }
+
+  .reason-submit {
+    background: #a855f7;
+    color: #fff;
+  }
+
+  .reason-submit:disabled { opacity: 0.45; cursor: not-allowed; }
+  .reason-submit:not(:disabled):hover { background: #9333ea; }
 
   /* Private artifact notice — visible to sender only, never stored as a message */
   .artifact-notice-row {
