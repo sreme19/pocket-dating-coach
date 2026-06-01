@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { fade, slide } from 'svelte/transition';
   import { onMount } from 'svelte';
+  import { getSupabaseClient } from '$lib/client/supabase';
 
   let privacySettings = $state({
     profileVisibility: 'verified_only',
@@ -114,8 +115,16 @@
     try {
       error = null;
       isDeleting = true;
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? '';
       const response = await fetch('/api/verified-vibe/account', {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ reason: null, feedback: null })
       });
 
       if (response.ok) {

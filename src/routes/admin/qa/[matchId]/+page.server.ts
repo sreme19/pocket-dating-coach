@@ -19,11 +19,12 @@ export const actions: Actions = {
 
 		const form = await request.formData();
 
+		// 1..5 = poor..excellent, 0 = N/A (deliberately not applicable), null = not scored.
 		const scores = {} as Record<RubricKey, number | null>;
 		for (const k of RUBRIC_KEYS) {
 			const raw = form.get(`score_${k}`);
-			const n = raw ? Number(raw) : NaN;
-			scores[k] = Number.isInteger(n) && n >= 1 && n <= 5 ? n : null;
+			const n = raw != null ? Number(raw) : NaN;
+			scores[k] = Number.isInteger(n) && n >= 0 && n <= 5 ? n : null;
 		}
 
 		const status = String(form.get('status') ?? 'reviewed');
@@ -33,7 +34,8 @@ export const actions: Actions = {
 			note: String(form.get(`flagnote_${id}`) ?? '').trim()
 		}));
 
-		if (!scores.accuracy && !scores.tone && !scores.safety && !scores.helpfulness && !comments.trim() && flags.length === 0) {
+		const noScores = RUBRIC_KEYS.every((k) => scores[k] === null);
+		if (noScores && !comments.trim() && flags.length === 0) {
 			return fail(400, { error: 'Add at least one score, a comment, or a flagged message before saving.' });
 		}
 
