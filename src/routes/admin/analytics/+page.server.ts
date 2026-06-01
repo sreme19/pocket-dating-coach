@@ -19,7 +19,7 @@ export const load: PageServerLoad = async () => {
 		sb.from('verified_vibe_users').select('id, first_name, age, city, gender, archetype, trust_score, is_seed, created_at').order('created_at', { ascending: false }),
 		sb.from('verified_vibe_likes').select('created_at').order('created_at'),
 		sb.from('verified_vibe_passes').select('created_at').order('created_at'),
-		sb.from('verified_vibe_matches').select('created_at, status').order('created_at'),
+		sb.from('verified_vibe_matches').select('id, created_at, status, user1_id, user2_id').order('created_at'),
 		sb.from('verified_vibe_messages').select('created_at').order('created_at'),
 		sb.from('verified_vibe_analytics').select('event_type, created_at').order('created_at'),
 		sb.from('female_profiles').select('created_at, approved_for_matching'),
@@ -72,8 +72,16 @@ export const load: PageServerLoad = async () => {
 
 	// ── AI response latency ───────────────────────────────────────────────────
 	// One row per AI reply (vv_ai_response_timings): server fills generation
-	// columns, the recipient's client fills delivery/render columns.
-	const aiLatency = buildAiLatency((aiTimingRows ?? []) as any[]);
+	// columns, the recipient's client fills delivery/render columns. Each row
+	// carries a match_id, so we label it with the two participants of that thread.
+	const userName = new Map((users ?? []).map((u) => [u.id, u.first_name]));
+	const matchLabel = new Map<string, string>();
+	for (const m of (matches ?? []) as any[]) {
+		const a = userName.get(m.user1_id) ?? 'Unknown';
+		const b = userName.get(m.user2_id) ?? 'Unknown';
+		matchLabel.set(m.id, `${a} ↔ ${b}`);
+	}
+	const aiLatency = buildAiLatency((aiTimingRows ?? []) as any[], matchLabel);
 
 	// Totals
 	const totals = {
@@ -138,6 +146,8 @@ function countBy<T>(rows: T[], key: (r: T) => string): Record<string, number> {
 
 interface AiLatencyRecord {
 	replyMessageId: string;
+	matchId: string | null;
+	sessionLabel: string;
 	responseType: string;
 	at: string; // when the response was generated (or logged, as fallback)
 	generationMs: number | null;
@@ -165,18 +175,28 @@ function stat(values: (number | null)[]): LatencyStat {
 	return { n: nums.length, avg, p50: pct(50), p95: pct(95), max: nums[nums.length - 1] };
 }
 
-function buildAiLatency(rows: any[]) {
+// Delivery beyond this is staleness (history backfilled on thread (re)open),
+// not delivery latency — drop it defensively so old rows can't skew the stats.
+const MAX_DELIVERY_MS = 60000;
+
+function buildAiLatency(rows: any[], matchLabel: Map<string, string>) {
 	const records: AiLatencyRecord[] = rows.map((row) => {
 		const waited = num(row.waited_from_user_msg_ms);
-		const total = num(row.total_to_render_ms);
+		const rawSurface = num(row.surface_ms);
+		const surface = rawSurface != null && rawSurface > MAX_DELIVERY_MS ? null : rawSurface;
+		const rawTotal = num(row.total_to_render_ms);
+		const total = rawTotal != null && rawTotal > MAX_DELIVERY_MS ? null : rawTotal;
+		const matchId = row.match_id ?? null;
 		return {
 			replyMessageId: row.reply_message_id ?? row.id,
+			matchId,
+			sessionLabel: (matchId && matchLabel.get(matchId)) || 'Unknown thread',
 			responseType: row.response_type ?? 'bestie',
 			at: row.generated_at ?? row.created_at ?? '',
 			generationMs: num(row.generation_ms),
 			claudeMs: num(row.claude_ms),
 			waitedFromUserMsgMs: waited,
-			surfaceMs: num(row.surface_ms),
+			surfaceMs: surface,
 			renderMs: num(row.render_ms),
 			totalToRenderMs: total,
 			// End-to-end (user message → on screen) needs both halves.
@@ -187,6 +207,30 @@ function buildAiLatency(rows: any[]) {
 	// Already newest-first from the query, but normalize defensively.
 	records.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
 
+	// Group by chat session (match_id) — one block per thread, newest first.
+	const byMatch = new Map<string, AiLatencyRecord[]>();
+	for (const r of records) {
+		const key = r.matchId ?? 'unknown';
+		if (!byMatch.has(key)) byMatch.set(key, []);
+		byMatch.get(key)!.push(r);
+	}
+	const sessions = [...byMatch.values()]
+		.map((recs) => ({
+			matchId: recs[0].matchId,
+			label: recs[0].sessionLabel,
+			count: recs.length,
+			at: recs[0].at, // newest record in this session (records are sorted)
+			stages: {
+				generation: stat(recs.map((r) => r.generationMs)),
+				claude: stat(recs.map((r) => r.claudeMs)),
+				surface: stat(recs.map((r) => r.surfaceMs)),
+				render: stat(recs.map((r) => r.renderMs)),
+				endToEnd: stat(recs.map((r) => r.endToEndMs))
+			},
+			recent: recs.slice(0, 40)
+		}))
+		.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+
 	return {
 		count: records.length,
 		stages: {
@@ -196,6 +240,7 @@ function buildAiLatency(rows: any[]) {
 			render: stat(records.map((r) => r.renderMs)),
 			endToEnd: stat(records.map((r) => r.endToEndMs))
 		},
+		sessions,
 		recent: records.slice(0, 40)
 	};
 }
