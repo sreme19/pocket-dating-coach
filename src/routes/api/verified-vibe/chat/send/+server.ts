@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
+import { waitUntil } from '@vercel/functions';
 import { getSupabase } from '$lib/server/supabase';
 import { getTrustScoreBand } from '$lib/server/pool-registry';
 import type { Message } from '$lib/verified-vibe/types';
@@ -236,25 +237,37 @@ export const POST: RequestHandler = async ({ request }) => {
     // ── Server-side AI Bestie auto-response ───────────────────────────────────
     // If this message was sent TO a woman who has AI Bestie active (and the
     // message isn't itself AI-generated), Bestie replies on her behalf — server
-    // side, so it works even when her app is closed. Awaited (not fire-and-forget)
-    // because Vercel may freeze the function after the response returns.
-    try {
-      if (body.isAi !== true && (match as any).ai_bestie_active) {
-        const recipientId = match.user1_id === user.id ? match.user2_id : match.user1_id;
-        const { data: recipient } = await supabase
-          .from('verified_vibe_users')
-          .select('gender')
-          .eq('id', recipientId)
-          .single();
-        // Bestie acts for the woman; only respond to messages from the other person.
-        if (recipient?.gender === 'woman') {
-          const { generateAndSendBestieReply } = await import('$lib/server/bestie-responder');
-          await generateAndSendBestieReply(recipientId, body.conversationId, savedMessage.id, body.content.trim(), savedMessage.created_at);
+    // side, so it works even when her app is closed.
+    //
+    // This used to be AWAITED before the response returned, which made every
+    // send block for the full Claude round-trip (several seconds). That long
+    // window was the root of the duplicate-message race on the client. We now
+    // schedule it via waitUntil(): the response returns immediately and Vercel
+    // keeps the function alive to finish generation in the background. The
+    // sender's client fast-polls for the reply, so it still appears promptly.
+    if (body.isAi !== true && (match as any).ai_bestie_active) {
+      const recipientId = match.user1_id === user.id ? match.user2_id : match.user1_id;
+      const bestieTask = (async () => {
+        try {
+          const { data: recipient } = await supabase
+            .from('verified_vibe_users')
+            .select('gender')
+            .eq('id', recipientId)
+            .single();
+          // Bestie acts for the woman; only respond to messages from the other person.
+          if (recipient?.gender === 'woman') {
+            const { generateAndSendBestieReply } = await import('$lib/server/bestie-responder');
+            await generateAndSendBestieReply(recipientId, body.conversationId, savedMessage.id, body.content.trim(), savedMessage.created_at);
+          }
+        } catch (bestieErr) {
+          // Never let Bestie failure break the send.
+          console.error('Server-side Bestie response failed (non-fatal):', bestieErr);
         }
-      }
-    } catch (bestieErr) {
-      // Never let Bestie failure break the send.
-      console.error('Server-side Bestie response failed (non-fatal):', bestieErr);
+      })();
+      // On Vercel this defers the work past the response without the runtime
+      // freezing it; in local dev the long-lived process completes it anyway.
+      // Deliberately NOT awaited — that's the whole point.
+      waitUntil(bestieTask);
     }
 
     // Check for 'converted' milestone: fires exactly once when message count reaches 5

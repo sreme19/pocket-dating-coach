@@ -40,6 +40,9 @@
   let activeAssistant = $state<AssistantType | null>(null);
   let lastMessageId = $state<string | null>(null);
   let pollInterval: ReturnType<typeof setInterval> | null = null;
+  // Flips false on teardown so the detached post-send Bestie watcher stops
+  // polling once the user leaves the conversation.
+  let isMounted = true;
   // Track message IDs that were auto-sent by AI Bestie (not typed by the user)
   let bestieMessageIds = $state<Set<string>>(new Set());
   let isActivating = false;
@@ -400,6 +403,9 @@
 
 
   onDestroy(() => {
+    // Stop the detached post-send Bestie watcher (if mid-wait).
+    isMounted = false;
+
     // Unsubscribe from realtime updates
     if (unsubscribeMessages) {
       unsubscribeMessages();
@@ -758,13 +764,23 @@
       const data = await response.json();
       const newMessage: Message = data.data.message;
 
-      // Replace optimistic message with real message
-      // The realtime subscription will also receive this message, so we need to handle duplicates
+      // Replace optimistic message with real message.
+      // The realtime subscription / poll may have already appended the real
+      // message (keyed on its DB id, which differs from the optimistic id). If
+      // so, just drop the optimistic placeholder — otherwise overwriting it in
+      // place would leave two copies of the real message in the thread.
       messages.update((msgs) => {
+        const realExists = msgs.some((m) => m.id === newMessage.id);
         const index = msgs.findIndex((m) => m.id === optimisticId);
-        if (index >= 0) {
-          msgs[index] = newMessage;
+        if (index < 0) {
+          // Optimistic entry already replaced/removed elsewhere — nothing to do.
+          return msgs;
         }
+        if (realExists) {
+          // Real message already present: remove the optimistic duplicate.
+          return msgs.filter((m) => m.id !== optimisticId);
+        }
+        msgs[index] = newMessage;
         return msgs;
       });
 
@@ -773,16 +789,19 @@
       endSend({ ok: true });
       scrollToBottom();
 
-      // The server awaits AI Bestie generation before returning, so by now the
-      // reply is already in the DB. Poll immediately to surface it rather than
-      // waiting out the rest of the 5s interval (the "had to refresh" case).
+      // Bestie now generates her reply OUT OF BAND (the server returns before
+      // it's done), so it isn't in the DB yet. Watch for it with a short
+      // fast-poll loop, keeping the typing dots up until it lands. Fire-and-
+      // forget so the input frees up immediately (isSending clears in finally)
+      // — the user can keep typing while she "replies".
       if (expectBestieReply) {
-        await pollOnce();
+        void waitForBestieReply();
       }
     } catch (err) {
       endSend({ ok: false });
       console.error('Error sending message:', err);
       error = err instanceof Error ? err.message : 'Failed to send message';
+      bestieTyping = false;
 
       // Remove optimistic message on error
       if (optimisticMessageId) {
@@ -793,8 +812,9 @@
       // Restore message input on error
       messageInput = messageInput;
     } finally {
+      // NOTE: bestieTyping is intentionally NOT cleared here — waitForBestieReply
+      // owns it on the success path so the dots persist until her reply arrives.
       isSending = false;
-      bestieTyping = false;
     }
   }
 
@@ -968,8 +988,8 @@
   // messages. Realtime stays disabled (anon key can't subscribe to RLS tables).
   // One poll pass. Extracted so it can run both on the interval and immediately
   // when the page regains visibility (returning from another screen / app).
-  async function pollOnce() {
-      if (!(currentUserId ?? $user?.id) || !conversationId) return;
+  async function pollOnce(): Promise<number> {
+      if (!(currentUserId ?? $user?.id) || !conversationId) return 0;
       const endPoll = perf.startSpan('poll cycle (fetch + merge)');
       try {
         const { getSupabaseClient } = await import('$lib/client/supabase');
@@ -978,7 +998,7 @@
         const res = await fetch(`/api/verified-vibe/chat/${conversationId}`, {
           headers: { 'Authorization': `Bearer ${session?.access_token || ''}` }
         });
-        if (!res.ok) return;
+        if (!res.ok) return 0;
         const rawBody = await res.text();
         // Timestamp the moment we received the payload — the "received" stage for
         // any AI message this poll surfaces (used by the AI Latency dashboard).
@@ -1001,12 +1021,28 @@
         let surfacedAi: Message[] = [];
         messages.update(existing => {
           const byId = new Map(fetched.map(m => [m.id, m]));
+          // Reconcile coaching fields on existing rows, and swap any pending
+          // optimistic placeholder for its real server row (matched by
+          // sender+content). Without this, a poll that lands while /send is
+          // still blocked on AI Bestie generation would APPEND the real row
+          // alongside the optimistic bubble — the visible duplicate.
+          const claimed = new Set<string>();
           const merged = existing.map(m => {
+            if (m.id.startsWith('optimistic-')) {
+              const real = fetched.find(f =>
+                !claimed.has(f.id) &&
+                !existing.some(e => e.id === f.id) &&
+                f.senderId === m.senderId &&
+                f.content === m.content
+              );
+              if (real) { claimed.add(real.id); return real; }
+              return m;
+            }
             const f = byId.get(m.id);
             return f && (f.aiRead !== m.aiRead || f.aiSignal !== m.aiSignal) ? { ...m, aiRead: f.aiRead, aiSignal: f.aiSignal } : m;
           });
-          const existingIds = new Set(existing.map(m => m.id));
-          const newMsgs = fetched.filter(m => !existingIds.has(m.id));
+          const mergedIds = new Set(merged.map(m => m.id));
+          const newMsgs = fetched.filter(m => !mergedIds.has(m.id) && !claimed.has(m.id));
           if (newMsgs.length > 0) {
             scrollToBottom(false);
             surfacedAi = newMsgs.filter(m => (m as any).isAi);
@@ -1035,10 +1071,37 @@
             for (const m of surfacedAi) reportAiRenderTiming(m, receivedAt, renderedAt);
           });
         }
+        // Report how many AI replies this pass surfaced so the post-send watcher
+        // knows when Bestie's reply has landed and can drop the typing dots.
+        return surfacedAi.length;
       } catch (err) {
         console.error('Message poller error:', err);
         endPoll({ error: true });
+        return 0;
       }
+  }
+
+  /**
+   * After a send that expects a Bestie reply, poll faster than the 5s background
+   * interval until her reply lands — keeping the typing dots up until then (or
+   * until a timeout, so they never hang if generation fails server-side).
+   * Bestie now generates out-of-band, so the reply isn't ready when /send
+   * returns; this is what bridges that gap for the sender.
+   */
+  async function waitForBestieReply() {
+    const startedAt = Date.now();
+    const TIMEOUT_MS = 25000;
+    const INTERVAL_MS = 1200;
+    try {
+      while (isMounted && Date.now() - startedAt < TIMEOUT_MS) {
+        await new Promise((r) => setTimeout(r, INTERVAL_MS));
+        if (!isMounted) break;
+        const aiSurfaced = await pollOnce();
+        if (aiSurfaced > 0) break;
+      }
+    } finally {
+      bestieTyping = false;
+    }
   }
 
   // Reports an AI message's client-side delivery + render timing to the AI
