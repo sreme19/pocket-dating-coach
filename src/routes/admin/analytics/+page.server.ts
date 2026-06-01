@@ -24,9 +24,8 @@ export const load: PageServerLoad = async () => {
 		sb.from('verified_vibe_analytics').select('event_type, created_at').order('created_at'),
 		sb.from('female_profiles').select('created_at, approved_for_matching'),
 		sb.from('ai_bestie_feedback').select('feedback_type, created_at'),
-		sb.from('verified_vibe_analytics')
-			.select('event_type, metadata, created_at')
-			.in('event_type', ['ai_response_timing', 'ai_response_rendered'])
+		sb.from('vv_ai_response_timings')
+			.select('*')
 			.order('created_at', { ascending: false })
 			.limit(2000),
 	]);
@@ -72,9 +71,9 @@ export const load: PageServerLoad = async () => {
 	const bestieTypes = countBy(bestie ?? [], (b) => b.feedback_type);
 
 	// ── AI response latency ───────────────────────────────────────────────────
-	// Join server-side generation timing with client-side delivery/render timing
-	// (both logged to verified_vibe_analytics) on replyMessageId.
-	const aiLatency = buildAiLatency(aiTimingRows ?? []);
+	// One row per AI reply (vv_ai_response_timings): server fills generation
+	// columns, the recipient's client fills delivery/render columns.
+	const aiLatency = buildAiLatency((aiTimingRows ?? []) as any[]);
 
 	// Totals
 	const totals = {
@@ -166,56 +165,26 @@ function stat(values: (number | null)[]): LatencyStat {
 	return { n: nums.length, avg, p50: pct(50), p95: pct(95), max: nums[nums.length - 1] };
 }
 
-function buildAiLatency(rows: { event_type: string; metadata: any; created_at: string }[]) {
-	// Merge the two event types by replyMessageId.
-	const byId = new Map<string, AiLatencyRecord>();
-	const get = (id: string): AiLatencyRecord => {
-		let r = byId.get(id);
-		if (!r) {
-			r = {
-				replyMessageId: id,
-				responseType: 'bestie',
-				at: '',
-				generationMs: null,
-				claudeMs: null,
-				waitedFromUserMsgMs: null,
-				surfaceMs: null,
-				renderMs: null,
-				totalToRenderMs: null,
-				endToEndMs: null
-			};
-			byId.set(id, r);
-		}
-		return r;
-	};
+function buildAiLatency(rows: any[]) {
+	const records: AiLatencyRecord[] = rows.map((row) => {
+		const waited = num(row.waited_from_user_msg_ms);
+		const total = num(row.total_to_render_ms);
+		return {
+			replyMessageId: row.reply_message_id ?? row.id,
+			responseType: row.response_type ?? 'bestie',
+			at: row.generated_at ?? row.created_at ?? '',
+			generationMs: num(row.generation_ms),
+			claudeMs: num(row.claude_ms),
+			waitedFromUserMsgMs: waited,
+			surfaceMs: num(row.surface_ms),
+			renderMs: num(row.render_ms),
+			totalToRenderMs: total,
+			// End-to-end (user message → on screen) needs both halves.
+			endToEndMs: waited != null && total != null ? waited + total : null
+		};
+	});
 
-	for (const row of rows) {
-		const m = row.metadata ?? {};
-		const id: string | null = m.replyMessageId ?? null;
-		if (!id) continue;
-		const rec = get(id);
-		if (m.responseType) rec.responseType = m.responseType;
-		if (row.event_type === 'ai_response_timing') {
-			rec.generationMs = num(m.generationMs);
-			rec.claudeMs = num(m.claudeMs);
-			rec.waitedFromUserMsgMs = num(m.waitedFromUserMsgMs);
-			rec.at = m.generatedAt ?? row.created_at;
-		} else if (row.event_type === 'ai_response_rendered') {
-			rec.surfaceMs = num(m.surfaceMs);
-			rec.renderMs = num(m.renderMs);
-			rec.totalToRenderMs = num(m.totalToRenderMs);
-			if (!rec.at) rec.at = m.generatedAt ?? row.created_at;
-		}
-	}
-
-	// Derive end-to-end (user message → on screen) where both halves are known.
-	const records = [...byId.values()];
-	for (const r of records) {
-		if (r.waitedFromUserMsgMs != null && r.totalToRenderMs != null) {
-			r.endToEndMs = r.waitedFromUserMsgMs + r.totalToRenderMs;
-		}
-	}
-	// Newest first.
+	// Already newest-first from the query, but normalize defensively.
 	records.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
 
 	return {
