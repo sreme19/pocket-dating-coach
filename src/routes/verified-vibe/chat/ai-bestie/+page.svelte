@@ -168,34 +168,84 @@
     }).filter(b => b).join('');
   }
 
-  async function toggleFeedback(i: number, val: 'up' | 'down', messageContent: string) {
+  // ── Per-message feedback (thumbs + reason-chips panel) ──────────────────────
+  let feedbackPanelIdx = $state<number | null>(null);   // message index with the panel open
+  let msgReasonChip = $state<string | null>(null);
+  let msgFeedbackNote = $state('');
+  let msgShowNote = $state(false);
+  let msgFeedbackDone = $state<Set<number>>(new Set());
+  let submittingMsgFeedback = $state(false);
+
+  function resetMsgPanel() {
+    msgReasonChip = null;
+    msgFeedbackNote = '';
+    msgShowNote = false;
+  }
+
+  async function rateMessage(i: number, val: 'up' | 'down', messageContent: string) {
     const prev = feedback.get(i);
     const next = new Map(feedback);
 
-    // Toggle off if same button clicked again
+    // Toggle off if the same button is clicked again
     if (prev === val) {
       next.delete(i);
-    } else {
-      next.set(i, val);
+      feedback = next;
+      if (val === 'down') { feedbackPanelIdx = null; resetMsgPanel(); }
+      return;
     }
+
+    next.set(i, val);
     feedback = next;
 
-    // Only persist when setting (not toggling off)
-    if (prev !== val) {
-      try {
-        await fetch('/api/verified-vibe/ai-bestie/feedback', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: $user?.id ?? '',
-            feedbackType: val === 'up' ? 'positive' : 'negative',
-            messageContent
-          })
-        });
-      } catch (err) {
-        console.warn('[AI Bestie feedback] failed to save:', err);
-        // Non-blocking — don't revert UI state on network errors
-      }
+    if (val === 'down') {
+      // Open the detailed-feedback panel; persistence happens on Send/Skip.
+      feedbackPanelIdx = i;
+      resetMsgPanel();
+      return;
+    }
+
+    // Positive — close any open panel and persist immediately.
+    feedbackPanelIdx = null;
+    await postMessageFeedback('positive', messageContent, null, null);
+  }
+
+  async function submitMessageFeedback(i: number, messageContent: string, chip: string | null, note: string | null) {
+    if (submittingMsgFeedback) return;
+    submittingMsgFeedback = true;
+    try {
+      await postMessageFeedback('negative', messageContent, chip, note);
+      const done = new Set(msgFeedbackDone);
+      done.add(i);
+      msgFeedbackDone = done;
+      feedbackPanelIdx = null;
+      resetMsgPanel();
+    } finally {
+      submittingMsgFeedback = false;
+    }
+  }
+
+  async function postMessageFeedback(
+    feedbackType: 'positive' | 'negative',
+    messageContent: string,
+    reasonChip: string | null,
+    feedbackText: string | null
+  ) {
+    try {
+      await fetch('/api/verified-vibe/ai-bestie/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: $user?.id ?? '',
+          assistantType: 'bestie',
+          feedbackType,
+          messageContent,
+          reasonChip,
+          feedbackText
+        })
+      });
+    } catch (err) {
+      console.warn('[AI Bestie feedback] failed to save:', err);
+      // Non-blocking — don't revert UI state on network errors
     }
   }
 
@@ -540,20 +590,43 @@
               {/if}
             </div>
             {#if !msg.pending}
-              <div class="feedback-row">
-                <button
-                  class="thumb-btn {feedback.get(i) === 'up' ? 'active up' : ''}"
-                  onclick={() => toggleFeedback(i, 'up', msg.content)}
-                  aria-label="Positive feedback"
-                  data-tooltip="Positive feedback"
-                >👍</button>
-                <button
-                  class="thumb-btn {feedback.get(i) === 'down' ? 'active down' : ''}"
-                  onclick={() => toggleFeedback(i, 'down', msg.content)}
-                  aria-label="Negative feedback"
-                  data-tooltip="Negative feedback"
-                >👎</button>
-              </div>
+              {#if msgFeedbackDone.has(i)}
+                <div class="feedback-done">Thanks for the feedback 👍</div>
+              {:else if feedbackPanelIdx === i}
+                <div class="reason-chips-panel" transition:fly={{ y: 6, duration: 180 }}>
+                  <p class="reason-prompt">What was off?</p>
+                  <div class="reason-chips">
+                    {#each REASON_CHIPS as rc}
+                      <button
+                        class="reason-chip {msgReasonChip === rc.key ? 'selected' : ''}"
+                        onclick={() => { msgReasonChip = rc.key; msgShowNote = rc.key === 'other'; }}
+                      >{rc.label}</button>
+                    {/each}
+                  </div>
+                  {#if msgShowNote || msgReasonChip}
+                    <textarea class="feedback-note" placeholder="Optional — tell us more…" bind:value={msgFeedbackNote} rows="2"></textarea>
+                  {/if}
+                  <div class="reason-actions">
+                    <button class="reason-skip" onclick={() => submitMessageFeedback(i, msg.content, null, null)}>Skip</button>
+                    <button class="reason-submit" disabled={!msgReasonChip || submittingMsgFeedback} onclick={() => submitMessageFeedback(i, msg.content, msgReasonChip, msgFeedbackNote.trim() || null)}>{submittingMsgFeedback ? 'Sending…' : 'Send'}</button>
+                  </div>
+                </div>
+              {:else}
+                <div class="feedback-row">
+                  <button
+                    class="thumb-btn {feedback.get(i) === 'up' ? 'active up' : ''}"
+                    onclick={() => rateMessage(i, 'up', msg.content)}
+                    aria-label="Positive feedback"
+                    data-tooltip="Positive feedback"
+                  >👍</button>
+                  <button
+                    class="thumb-btn {feedback.get(i) === 'down' ? 'active down' : ''}"
+                    onclick={() => rateMessage(i, 'down', msg.content)}
+                    aria-label="Negative feedback"
+                    data-tooltip="Negative feedback"
+                  >👎</button>
+                </div>
+              {/if}
             {/if}
           </div>
         {:else}

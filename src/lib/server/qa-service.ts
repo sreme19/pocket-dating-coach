@@ -108,8 +108,11 @@ export interface CoachingThread {
 export interface FeedbackItem {
 	id: string;
 	ownerName: string;
+	assistantType: string;
 	feedbackType: string;
 	messageContent: string | null;
+	reasonChip: string | null;
+	feedbackText: string | null;
 	createdAt: string;
 }
 
@@ -344,8 +347,11 @@ export async function getMatchReview(sb: SB, matchId: string): Promise<MatchRevi
 		return {
 			id: row.id as string,
 			ownerName: nameFor(row.user_id as string),
+			assistantType: (row.assistant_type as string) ?? 'bestie',
 			feedbackType: row.feedback_type as string,
 			messageContent: (row.message_content as string) ?? null,
+			reasonChip: (row.reason_chip as string) ?? null,
+			feedbackText: (row.feedback_text as string) ?? null,
 			createdAt: row.created_at as string
 		};
 	});

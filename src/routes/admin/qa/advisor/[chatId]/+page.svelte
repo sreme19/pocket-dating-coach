@@ -7,6 +7,16 @@
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 	let r = $derived(data.review);
 
+	// Humanize the reason-chip key stored with thumbs-down feedback.
+	const REASON_LABELS: Record<string, string> = {
+		too_generic: 'Too generic',
+		not_relevant: 'Not relevant',
+		wrong_tone: 'Wrong tone',
+		factually_off: 'Factually off',
+		other: 'Other'
+	};
+	const reasonLabel = (k: string | null) => (k ? (REASON_LABELS[k] ?? k) : null);
+
 	// Per-message flag state + notes, seeded from any existing review.
 	const initialFlags = data.review.existingReview?.flagged_message_ids ?? [];
 	let flagged = $state<Record<string, boolean>>(
@@ -164,7 +174,7 @@
 										<span class={f.rating === 1 ? 'text-emerald-400' : 'text-rose-400'}
 											>{f.rating === 1 ? '👍 helpful' : '👎 not helpful'}</span
 										>
-										{#if f.reasonChip}<span class="text-slate-500"> · {f.reasonChip}</span>{/if}
+										{#if reasonLabel(f.reasonChip)}<span class="rounded bg-rose-500/15 px-1.5 py-0.5 text-rose-300"> {reasonLabel(f.reasonChip)}</span>{/if}
 										<span class="text-slate-600"> · {fmtTime(f.createdAt)}</span>
 									</div>
 									{#if f.feedbackText}<div class="whitespace-pre-wrap text-slate-300">{f.feedbackText}</div>{/if}

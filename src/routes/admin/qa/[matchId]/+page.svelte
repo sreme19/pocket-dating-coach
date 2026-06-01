@@ -7,6 +7,16 @@
 	let { data, form }: { data: PageData; form: ActionData } = $props();
 	let r = $derived(data.review);
 
+	// Humanize the reason-chip key stored with thumbs-down feedback.
+	const REASON_LABELS: Record<string, string> = {
+		too_generic: 'Too generic',
+		not_relevant: 'Not relevant',
+		wrong_tone: 'Wrong tone',
+		factually_off: 'Factually off',
+		other: 'Other'
+	};
+	const reasonLabel = (k: string | null) => (k ? (REASON_LABELS[k] ?? k) : null);
+
 	// Per-message flag state + notes, seeded from any existing review.
 	const initialFlags = data.review.existingReview?.flagged_message_ids ?? [];
 	let flagged = $state<Record<string, boolean>>(
@@ -139,13 +149,24 @@
 						<div class="space-y-2">
 							{#each r.feedback as f (f.id)}
 								<div class="rounded-lg border border-white/[0.06] bg-[#0d1522] p-3 text-sm">
-									<div class="mb-1 text-xs">
+									<div class="mb-1 flex flex-wrap items-center gap-x-2 text-xs">
 										<span class={f.feedbackType === 'positive' ? 'text-emerald-400' : 'text-rose-400'}
 											>{f.feedbackType === 'positive' ? '👍' : '👎'} {f.ownerName}</span
 										>
+										<span class="rounded bg-white/[0.06] px-1.5 py-0.5 uppercase tracking-wide text-slate-400"
+											>{f.assistantType === 'wingman' ? 'Wingman' : 'Bestie'}</span
+										>
+										{#if reasonLabel(f.reasonChip)}
+											<span class="rounded bg-rose-500/15 px-1.5 py-0.5 text-rose-300">{reasonLabel(f.reasonChip)}</span>
+										{/if}
 										<span class="text-slate-600"> · {fmtTime(f.createdAt)}</span>
 									</div>
 									<div class="whitespace-pre-wrap text-slate-300">{f.messageContent}</div>
+									{#if f.feedbackText}
+										<div class="mt-2 border-l-2 border-rose-500/40 pl-2 text-xs italic text-slate-400">
+											“{f.feedbackText}”
+										</div>
+									{/if}
 								</div>
 							{/each}
 						</div>
