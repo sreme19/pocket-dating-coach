@@ -204,30 +204,29 @@ export async function generateAndSendBestieReply(
 
 	// Record server-side latency for the AI Latency dashboard. The reply is now
 	// in the DB, so generationMs is the full server cost the user waited on
-	// (DB reads + Claude + writes). Non-fatal — never breaks the reply.
-	try {
-		const generationMs = Date.now() - t0;
-		const waitedFromUserMsgMs = triggerCreatedAt && generatedAt
-			? Math.max(0, new Date(generatedAt).getTime() - new Date(triggerCreatedAt).getTime())
-			: null;
-		await (supabase as any).from('verified_vibe_analytics').insert({
-			user_id: userId,
-			event_type: 'ai_response_timing',
-			profile_id: null,
-			metadata: {
-				responseType: 'bestie',
-				matchId,
-				triggerMessageId: triggerMsgId,
-				replyMessageId,
-				triggerAt: triggerCreatedAt ?? null,
-				generatedAt,
-				generationMs,
-				claudeMs: timing.claudeMs ?? null,
-				waitedFromUserMsgMs
-			},
-			created_at: new Date().toISOString()
-		});
-	} catch (e) {
-		console.error('[ai-timing] failed to record server timing (non-fatal):', e);
+	// (DB reads + Claude + writes). Upsert by reply_message_id so the recipient's
+	// client can later merge in the delivery/render stages. Non-fatal.
+	if (replyMessageId) {
+		try {
+			const generationMs = Date.now() - t0;
+			const waitedFromUserMsgMs = triggerCreatedAt && generatedAt
+				? Math.max(0, new Date(generatedAt).getTime() - new Date(triggerCreatedAt).getTime())
+				: null;
+			await (supabase as any)
+				.from('vv_ai_response_timings')
+				.upsert({
+					reply_message_id: replyMessageId,
+					match_id: matchId,
+					response_type: 'bestie',
+					trigger_message_id: triggerMsgId,
+					trigger_at: triggerCreatedAt ?? null,
+					generated_at: generatedAt,
+					generation_ms: generationMs,
+					claude_ms: timing.claudeMs ?? null,
+					waited_from_user_msg_ms: waitedFromUserMsgMs
+				}, { onConflict: 'reply_message_id' });
+		} catch (e) {
+			console.error('[ai-timing] failed to record server timing (non-fatal):', e);
+		}
 	}
 }
