@@ -43,6 +43,12 @@
   // Flips false on teardown so the detached post-send Bestie watcher stops
   // polling once the user leaves the conversation.
   let isMounted = true;
+  // Upper bound on what counts as genuine delivery latency for the AI Latency
+  // dashboard. Delivery = the poll gap (≤ the 5s interval, plus slack) for a
+  // recipient who's actively watching. A message surfaced more than this long
+  // after it was generated means the thread was just (re)opened and history is
+  // being backfilled — that's staleness, not delivery, so we don't log it.
+  const MAX_DELIVERY_AGE_MS = 60000; // 60s
   // Track message IDs that were auto-sent by AI Bestie (not typed by the user)
   let bestieMessageIds = $state<Set<string>>(new Set());
   let isActivating = false;
@@ -1045,7 +1051,9 @@
           const newMsgs = fetched.filter(m => !mergedIds.has(m.id) && !claimed.has(m.id));
           if (newMsgs.length > 0) {
             scrollToBottom(false);
-            surfacedAi = newMsgs.filter(m => (m as any).isAi);
+            // Only AI messages young enough that "received now" reflects a real
+            // delivery (poll gap) — not a backfill of history surfaced on (re)open.
+            surfacedAi = newMsgs.filter(m => (m as any).isAi && perf.messageAgeMs(m.createdAt) <= MAX_DELIVERY_AGE_MS);
             // Staleness of the freshest arriving message = how long it sat on the
             // server before this poll surfaced it. This is the headline
             // "delay before a message shows up" number.

@@ -696,41 +696,52 @@
 			{/each}
 		</div>
 
-		<!-- Recent responses -->
-		<div class="card">
-			<h2 class="chart-title">Recent AI responses ({data.aiLatency.recent.length})</h2>
-			<div class="overflow-x-auto">
-				<table class="w-full text-sm">
-					<thead>
-						<tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-white/[0.06]">
-							<th class="py-2 pr-3 font-medium">When</th>
-							<th class="py-2 pr-3 font-medium">Type</th>
-							<th class="py-2 pr-3 font-medium text-right">Generation</th>
-							<th class="py-2 pr-3 font-medium text-right">Claude</th>
-							<th class="py-2 pr-3 font-medium text-right">Delivery</th>
-							<th class="py-2 pr-3 font-medium text-right">Render</th>
-							<th class="py-2 font-medium text-right">End-to-end</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each data.aiLatency.recent as r}
-							<tr class="border-b border-white/[0.03]">
-								<td class="py-2 pr-3 text-slate-400 whitespace-nowrap">{fmtDate(r.at)}</td>
-								<td class="py-2 pr-3">
-									<span class="rounded px-1.5 py-0.5 text-xs bg-indigo-500/20 text-indigo-400">{r.responseType}</span>
-								</td>
-								<td class="py-2 pr-3 text-right text-slate-300">{fmtMs(r.generationMs)}</td>
-								<td class="py-2 pr-3 text-right text-slate-300">{fmtMs(r.claudeMs)}</td>
-								<td class="py-2 pr-3 text-right {r.surfaceMs != null && r.surfaceMs > 3000 ? 'text-amber-400' : 'text-slate-300'}">{fmtMs(r.surfaceMs)}</td>
-								<td class="py-2 pr-3 text-right text-slate-300">{fmtMs(r.renderMs)}</td>
-								<td class="py-2 text-right font-medium {r.endToEndMs != null && r.endToEndMs > 15000 ? 'text-rose-400' : 'text-emerald-400'}">{fmtMs(r.endToEndMs)}</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-			<p class="mt-3 text-[11px] text-slate-600">
-				Dashes mean that stage wasn't recorded (e.g. the recipient's tab wasn't open to report delivery/render). End-to-end needs both server and client halves.
+		<!-- Recent responses, grouped by chat session -->
+		<div class="space-y-6">
+			{#each data.aiLatency.sessions as session}
+				<div class="card">
+					<div class="mb-3 flex items-baseline justify-between">
+						<h2 class="chart-title mb-0 normal-case tracking-normal text-sm text-slate-200">{session.label}</h2>
+						<span class="text-xs text-slate-500">
+							{session.count} response{session.count === 1 ? '' : 's'}
+							{#if session.stages.endToEnd.avg != null}· avg e2e {fmtMs(session.stages.endToEnd.avg)}{/if}
+							{#if session.stages.surface.avg != null}· avg delivery {fmtMs(session.stages.surface.avg)}{/if}
+						</span>
+					</div>
+					<div class="overflow-x-auto">
+						<table class="w-full text-sm">
+							<thead>
+								<tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-white/[0.06]">
+									<th class="py-2 pr-3 font-medium">When</th>
+									<th class="py-2 pr-3 font-medium">Type</th>
+									<th class="py-2 pr-3 font-medium text-right">Generation</th>
+									<th class="py-2 pr-3 font-medium text-right">Claude</th>
+									<th class="py-2 pr-3 font-medium text-right">Delivery</th>
+									<th class="py-2 pr-3 font-medium text-right">Render</th>
+									<th class="py-2 font-medium text-right">End-to-end</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each session.recent as r}
+									<tr class="border-b border-white/[0.03]">
+										<td class="py-2 pr-3 text-slate-400 whitespace-nowrap">{fmtDate(r.at)}</td>
+										<td class="py-2 pr-3">
+											<span class="rounded px-1.5 py-0.5 text-xs bg-indigo-500/20 text-indigo-400">{r.responseType}</span>
+										</td>
+										<td class="py-2 pr-3 text-right text-slate-300">{fmtMs(r.generationMs)}</td>
+										<td class="py-2 pr-3 text-right text-slate-300">{fmtMs(r.claudeMs)}</td>
+										<td class="py-2 pr-3 text-right {r.surfaceMs != null && r.surfaceMs > 3000 ? 'text-amber-400' : 'text-slate-300'}">{fmtMs(r.surfaceMs)}</td>
+										<td class="py-2 pr-3 text-right text-slate-300">{fmtMs(r.renderMs)}</td>
+										<td class="py-2 text-right font-medium {r.endToEndMs != null && r.endToEndMs > 15000 ? 'text-rose-400' : 'text-emerald-400'}">{fmtMs(r.endToEndMs)}</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+				</div>
+			{/each}
+			<p class="text-[11px] text-slate-600">
+				Grouped by chat session. Dashes mean that stage wasn't recorded (e.g. the recipient's tab wasn't open to report delivery/render). Delivery is the poll gap for a live recipient; gaps over 60s are treated as staleness, not delivery, and dropped. End-to-end needs both server and client halves.
 			</p>
 		</div>
 	{/if}

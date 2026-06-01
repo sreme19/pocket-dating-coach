@@ -35,9 +35,16 @@ export const POST: RequestHandler = async ({ request }) => {
 		const recv = body.receivedAt ? new Date(body.receivedAt).getTime() : null;
 		const rend = body.renderedAt ? new Date(body.renderedAt).getTime() : null;
 
-		const surfaceMs = gen != null && recv != null ? Math.max(0, recv - gen) : null;
+		// Delivery is the poll gap for a recipient who's watching — bounded by the
+		// poll interval plus slack. A larger gap means history was backfilled on
+		// (re)open, so the message's age leaks in as "delivery". Reject those: a
+		// surface gap beyond this ceiling is staleness, not delivery latency.
+		const MAX_DELIVERY_MS = 60000; // 60s
+		const rawSurface = gen != null && recv != null ? Math.max(0, recv - gen) : null;
+		const surfaceMs = rawSurface != null && rawSurface > MAX_DELIVERY_MS ? null : rawSurface;
 		const renderMs = recv != null && rend != null ? Math.max(0, rend - recv) : null;
-		const totalToRenderMs = gen != null && rend != null ? Math.max(0, rend - gen) : null;
+		const rawTotal = gen != null && rend != null ? Math.max(0, rend - gen) : null;
+		const totalToRenderMs = rawTotal != null && rawTotal > MAX_DELIVERY_MS ? null : rawTotal;
 
 		const supabase = getSupabase();
 		// Merge the client stages into the row the server created at generation
