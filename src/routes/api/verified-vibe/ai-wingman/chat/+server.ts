@@ -18,6 +18,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
 import { getSupabase } from '$lib/server/supabase';
+import { appendAdvisorChat } from '$lib/server/advisor-chat';
 import { loadPersonality } from '$lib/server/profile-service';
 import { touchLastActive } from '$lib/server/pool-registry';
 import { popPendingChatMessage } from '$lib/server/intelligence-report-processor';
@@ -369,6 +370,9 @@ ${personalityContext}${masterProfileContext}${artifactsContext}${admirerContext}
 		// Compliance gate — PII regex + Haiku validator
 		const compliance = await complianceGate({ text: rawReply, userId, assistantType: 'wingman', context: 'advisor' });
 		const reply = compliance.text;
+
+		// Persist the exchange server-side for QA review (best-effort — never block the reply).
+		appendAdvisorChat(supabase, userId, 'wingman', userMessage, reply, new Date().toISOString()).catch(() => {});
 
 		return json({ reply });
 	} catch (err) {

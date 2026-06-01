@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
 import { getSupabase } from '$lib/server/supabase';
+import { appendAdvisorChat } from '$lib/server/advisor-chat';
 import { loadPreferences, updatePreferences } from '$lib/server/profile-service';
 import type { PreferencesProfile } from '$lib/server/profile-service';
 import { touchLastActive } from '$lib/server/pool-registry';
@@ -325,6 +326,9 @@ ${prefsContext}${matchContext}${pendingReportContext}`;
 				console.warn('[AI Bestie] failed to save preferences:', err);
 			}
 		}
+
+		// Persist the exchange server-side for QA review (best-effort — never block the reply).
+		appendAdvisorChat(supabase, userId, 'bestie', userMessage, reply, new Date().toISOString()).catch(() => {});
 
 		return json({ reply, userMessage, prefsUpdated: detectedPrefs.length > 0, drafts });
 	} catch (err) {

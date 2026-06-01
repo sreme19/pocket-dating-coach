@@ -52,9 +52,9 @@
 		<div class="mt-6 rounded-xl border border-rose-500/20 bg-rose-500/5 p-4">
 			<h2 class="mb-3 text-sm font-semibold text-rose-400">Escalations</h2>
 			{#each s.escalations as e}
-				<a href="/admin/qa/{e.matchId}" class="block border-t border-white/[0.04] py-2 text-sm first:border-0 hover:bg-white/[0.02]">
+				<a href={e.href} class="block border-t border-white/[0.04] py-2 text-sm first:border-0 hover:bg-white/[0.02]">
 					<div class="flex justify-between">
-						<span class="text-slate-300">{e.reviewer}</span>
+						<span class="text-slate-300">{e.reviewer} <span class="text-xs text-slate-600">· {e.label}</span></span>
 						<span class="text-xs text-slate-600">{new Date(e.updatedAt).toLocaleDateString()}</span>
 					</div>
 					{#if e.comments}<div class="text-xs text-slate-500">{e.comments}</div>{/if}
