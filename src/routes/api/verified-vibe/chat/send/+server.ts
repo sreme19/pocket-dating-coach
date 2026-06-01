@@ -249,7 +249,7 @@ export const POST: RequestHandler = async ({ request }) => {
         // Bestie acts for the woman; only respond to messages from the other person.
         if (recipient?.gender === 'woman') {
           const { generateAndSendBestieReply } = await import('$lib/server/bestie-responder');
-          await generateAndSendBestieReply(recipientId, body.conversationId, savedMessage.id, body.content.trim());
+          await generateAndSendBestieReply(recipientId, body.conversationId, savedMessage.id, body.content.trim(), savedMessage.created_at);
         }
       }
     } catch (bestieErr) {

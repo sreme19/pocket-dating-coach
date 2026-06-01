@@ -1,0 +1,2 @@
+ALTER TABLE verified_vibe_matches
+  ADD COLUMN IF NOT EXISTS ai_bestie_active BOOLEAN NOT NULL DEFAULT FALSE;;

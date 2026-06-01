@@ -125,7 +125,8 @@ export type Database = {
 			ai_qa_reviews: {
 				Row: {
 					id: string;
-					match_id: string;
+					match_id: string | null;
+					advisor_chat_id: string | null;
 					reviewer: string;
 					score_accuracy: number | null;
 					score_tone: number | null;
@@ -139,7 +140,8 @@ export type Database = {
 				};
 				Insert: {
 					id?: string;
-					match_id: string;
+					match_id?: string | null;
+					advisor_chat_id?: string | null;
 					reviewer: string;
 					score_accuracy?: number | null;
 					score_tone?: number | null;
@@ -152,6 +154,26 @@ export type Database = {
 					updated_at?: string;
 				};
 				Update: Partial<Database['public']['Tables']['ai_qa_reviews']['Insert']>;
+				Relationships: [];
+			};
+			ai_assistant_advisor_chats: {
+				Row: {
+					id: string;
+					user_id: string;
+					assistant_type: string;
+					messages: unknown[];
+					created_at: string;
+					updated_at: string;
+				};
+				Insert: {
+					id?: string;
+					user_id: string;
+					assistant_type: string;
+					messages?: unknown[];
+					created_at?: string;
+					updated_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['ai_assistant_advisor_chats']['Insert']>;
 				Relationships: [];
 			};
 			verified_vibe_typing_indicators: {

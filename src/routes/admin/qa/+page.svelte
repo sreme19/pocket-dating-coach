@@ -8,16 +8,22 @@
 	let search = $state('');
 
 	let filtered = $derived(
-		data.queue.filter((r) => {
-			if (aiOnly && !r.hasAi) return false;
-			if (reviewFilter === 'unreviewed' && r.review) return false;
-			if (reviewFilter === 'reviewed' && !r.review) return false;
-			if (search.trim()) {
-				const q = search.toLowerCase();
-				if (!`${r.participantA.name} ${r.participantB.name}`.toLowerCase().includes(q)) return false;
-			}
-			return true;
-		})
+		data.queue
+			.filter((r) => {
+				if (aiOnly && !r.hasAi) return false;
+				if (reviewFilter === 'unreviewed' && r.review) return false;
+				if (reviewFilter === 'reviewed' && !r.review) return false;
+				if (search.trim()) {
+					const q = search.toLowerCase();
+					if (!`${r.participantA.name} ${r.participantB.name}`.toLowerCase().includes(q)) return false;
+				}
+				return true;
+			})
+			.sort((a, b) => {
+				const ta = a.lastActivityAt ? new Date(a.lastActivityAt).getTime() : 0;
+				const tb = b.lastActivityAt ? new Date(b.lastActivityAt).getTime() : 0;
+				return tb - ta;
+			})
 	);
 
 	let stats = $derived({
@@ -38,7 +44,7 @@
 		<a href="/admin/qa/export" class="text-xs text-emerald-400 hover:text-emerald-300">Download CSV ↓</a>
 	</div>
 	<p class="mb-6 text-sm text-slate-500">
-		{stats.withAi} matches with AI activity · {stats.unreviewed} awaiting review
+		{stats.withAi} threads with AI activity · {stats.unreviewed} awaiting review
 	</p>
 
 	<div class="mb-5 flex flex-wrap items-center gap-2">
@@ -74,12 +80,21 @@
 				</tr>
 			</thead>
 			<tbody>
-				{#each filtered as r (r.matchId)}
+				{#each filtered as r (r.href)}
 					<tr class="border-t border-white/[0.04] hover:bg-white/[0.02]">
 						<td class="px-4 py-3">
-							<div class="font-medium text-slate-100">{r.participantA.name} ↔ {r.participantB.name}</div>
+							<div class="flex items-center gap-2">
+								<div class="font-medium text-slate-100">{r.participantA.name} ↔ {r.participantB.name}</div>
+								{#if r.kind === 'advisor'}
+									<span class="rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-medium text-indigo-300">advisor</span>
+								{/if}
+							</div>
 							<div class="text-xs text-slate-500">
-								{r.participantA.archetype ?? '—'} · {r.participantB.archetype ?? '—'}
+								{#if r.kind === 'advisor'}
+									global advisor · {r.participantB.archetype ?? '—'}
+								{:else}
+									{r.participantA.archetype ?? '—'} · {r.participantB.archetype ?? '—'}
+								{/if}
 							</div>
 						</td>
 						<td class="px-4 py-3 text-xs text-slate-400">
@@ -104,7 +119,7 @@
 						</td>
 						<td class="px-4 py-3 text-right">
 							<a
-								href="/admin/qa/{r.matchId}"
+								href={r.href}
 								class="rounded-lg border border-white/[0.1] px-3 py-1.5 text-xs text-emerald-400 hover:bg-emerald-500/10"
 								>{r.review ? 'View' : 'Review'} →</a
 							>

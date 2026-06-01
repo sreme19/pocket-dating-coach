@@ -20,7 +20,8 @@ export { RUBRIC, type RubricKey };
 
 export interface ReviewRecord {
 	id: string;
-	match_id: string;
+	match_id: string | null;
+	advisor_chat_id: string | null;
 	reviewer: string;
 	score_accuracy: number | null;
 	score_tone: number | null;
@@ -65,7 +66,11 @@ interface Participant {
 }
 
 export interface QueueRow {
+	kind: 'match' | 'advisor';
+	/** Match id, or — for advisor rows — the advisor chat id. Stable list key. */
 	matchId: string;
+	/** Detail-page route for this row. */
+	href: string;
 	status: string;
 	createdAt: string;
 	lastActivityAt: string | null;
@@ -120,8 +125,40 @@ export interface MatchReview {
 	existingReview: ReviewRecord | null;
 }
 
+/** One turn in the advisor timeline — a free-form chat message or a proactive greeting. */
+export interface AdvisorTimelineItem {
+	id: string; // stable synthetic id, used for per-message flagging
+	source: 'chat' | 'greeting';
+	role: 'user' | 'assistant';
+	content: string;
+	createdAt: string;
+	greetingMode?: number | null;
+	topicTags?: string[];
+}
+
+/** Owner's thumbs feedback on a proactive greeting. */
+export interface AdvisorFeedbackItem {
+	id: string;
+	rating: number; // 1 = up, -1 = down
+	reasonChip: string | null;
+	feedbackText: string | null;
+	greetingId: string | null;
+	createdAt: string;
+}
+
+export interface AdvisorReview {
+	chatId: string;
+	assistantType: 'wingman' | 'bestie';
+	assistantLabel: string; // 'AI Wingman' | 'AI Bestie'
+	owner: Participant;
+	timeline: AdvisorTimelineItem[];
+	feedback: AdvisorFeedbackItem[];
+	existingReview: ReviewRecord | null;
+}
+
 function avg(nums: (number | null)[]): number | null {
-	const vals = nums.filter((n): n is number => typeof n === 'number');
+	// 0 = N/A — a deliberate "not applicable", excluded from the average like null.
+	const vals = nums.filter((n): n is number => typeof n === 'number' && n >= 1);
 	if (!vals.length) return null;
 	return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10;
 }
@@ -139,15 +176,16 @@ function asParticipant(u: Record<string, unknown> | undefined, id: string): Part
 	};
 }
 
-/** Build the review queue across all matches that involve any AI activity. */
+/** Build the review queue: match threads with AI activity, plus advisor chats. */
 export async function listReviewQueue(sb: SB): Promise<QueueRow[]> {
-	const [{ data: matches }, { data: messages }, { data: users }, { data: reviews }, { data: convos }] =
+	const [{ data: matches }, { data: messages }, { data: users }, { data: reviews }, { data: convos }, { data: advisorChats }] =
 		await Promise.all([
 			sb.from('verified_vibe_matches').select('id, user1_id, user2_id, status, created_at'),
 			sb.from('verified_vibe_messages').select('match_id, sender_id, is_ai, ai_signal, created_at'),
 			sb.from('verified_vibe_users').select('id, first_name, gender, archetype'),
 			sb.from('ai_qa_reviews').select('*').order('updated_at', { ascending: false }),
-			sb.from('ai_assistant_conversations').select('id, match_conversation_id')
+			sb.from('ai_assistant_conversations').select('id, match_conversation_id'),
+			sb.from('ai_assistant_advisor_chats').select('id, user_id, assistant_type, messages, updated_at, created_at')
 		]);
 
 	const userById = new Map((users ?? []).map((u) => [u.id, u as Record<string, unknown>]));
@@ -169,18 +207,32 @@ export async function listReviewQueue(sb: SB): Promise<QueueRow[]> {
 		threadsByMatch.set(k, (threadsByMatch.get(k) ?? 0) + 1);
 	}
 
-	// Latest review per match (reviews already sorted desc by updated_at).
-	const latestReview = new Map<string, ReviewRecord>();
+	// Latest review per target (reviews already sorted desc by updated_at).
+	const latestByMatch = new Map<string, ReviewRecord>();
+	const latestByAdvisor = new Map<string, ReviewRecord>();
 	for (const r of (reviews ?? []) as ReviewRecord[]) {
-		if (!latestReview.has(r.match_id)) latestReview.set(r.match_id, r);
+		if (r.match_id && !latestByMatch.has(r.match_id)) latestByMatch.set(r.match_id, r);
+		if (r.advisor_chat_id && !latestByAdvisor.has(r.advisor_chat_id)) latestByAdvisor.set(r.advisor_chat_id, r);
 	}
+
+	const toReviewSummary = (r: ReviewRecord | null): QueueRow['review'] =>
+		r
+			? {
+					exists: true,
+					status: r.status,
+					reviewer: r.reviewer,
+					updatedAt: r.updated_at,
+					avgScore: avg([r.score_accuracy, r.score_tone, r.score_safety, r.score_helpfulness])
+				}
+			: null;
 
 	const rows: QueueRow[] = (matches ?? []).map((m) => {
 		const s = stats.get(m.id) ?? { messages: 0, aiMessages: 0, coached: 0, last: null };
 		const coachingThreads = threadsByMatch.get(m.id) ?? 0;
-		const r = latestReview.get(m.id) ?? null;
 		return {
+			kind: 'match' as const,
 			matchId: m.id,
+			href: `/admin/qa/${m.id}`,
 			status: m.status,
 			createdAt: m.created_at,
 			lastActivityAt: s.last,
@@ -188,17 +240,33 @@ export async function listReviewQueue(sb: SB): Promise<QueueRow[]> {
 			participantB: asParticipant(userById.get(m.user2_id), m.user2_id),
 			counts: { messages: s.messages, aiMessages: s.aiMessages, coached: s.coached, coachingThreads },
 			hasAi: s.aiMessages > 0 || s.coached > 0 || coachingThreads > 0,
-			review: r
-				? {
-						exists: true,
-						status: r.status,
-						reviewer: r.reviewer,
-						updatedAt: r.updated_at,
-						avgScore: avg([r.score_accuracy, r.score_tone, r.score_safety, r.score_helpfulness])
-					}
-				: null
+			review: toReviewSummary(latestByMatch.get(m.id) ?? null)
 		};
 	});
+
+	// Advisor chats (global AI Wingman / AI Bestie ↔ owner) — one row per persisted chat.
+	for (const c of advisorChats ?? []) {
+		const chat = c as Record<string, unknown>;
+		const msgs = Array.isArray(chat.messages) ? (chat.messages as { role?: string; ts?: string }[]) : [];
+		const aiMessages = msgs.filter((mm) => mm.role === 'assistant').length;
+		const lastTs = msgs.reduce<string | null>((acc, mm) => (mm.ts && (!acc || mm.ts > acc) ? mm.ts : acc), null);
+		const assistantType = (chat.assistant_type as 'wingman' | 'bestie') ?? 'wingman';
+		const label = assistantType === 'bestie' ? 'AI Bestie' : 'AI Wingman';
+		const owner = asParticipant(userById.get(chat.user_id as string), chat.user_id as string);
+		rows.push({
+			kind: 'advisor' as const,
+			matchId: chat.id as string,
+			href: `/admin/qa/advisor/${chat.id as string}`,
+			status: 'advisor',
+			createdAt: (chat.created_at as string) ?? (lastTs ?? ''),
+			lastActivityAt: lastTs ?? ((chat.updated_at as string) ?? null),
+			participantA: { id: `advisor-${assistantType}`, name: label, gender: null, archetype: assistantType + ' advisor' },
+			participantB: owner,
+			counts: { messages: msgs.length, aiMessages, coached: 0, coachingThreads: 0 },
+			hasAi: aiMessages > 0,
+			review: toReviewSummary(latestByAdvisor.get(chat.id as string) ?? null)
+		});
+	}
 
 	// Unreviewed first, then most recent activity first.
 	rows.sort((a, b) => {
@@ -298,8 +366,86 @@ export async function getMatchReview(sb: SB, matchId: string): Promise<MatchRevi
 	};
 }
 
+/** Full reconstruction of one advisor (global) chat for the detail view. */
+export async function getAdvisorReview(sb: SB, chatId: string): Promise<AdvisorReview | null> {
+	const { data: chat } = await sb
+		.from('ai_assistant_advisor_chats')
+		.select('id, user_id, assistant_type, messages')
+		.eq('id', chatId)
+		.maybeSingle();
+	if (!chat) return null;
+
+	const assistantType = ((chat as Record<string, unknown>).assistant_type as 'wingman' | 'bestie') ?? 'wingman';
+	const userId = (chat as Record<string, unknown>).user_id as string;
+
+	const [{ data: userRow }, { data: greetings }, { data: fb }, { data: review }] = await Promise.all([
+		sb.from('verified_vibe_users').select('id, first_name, gender, archetype, age, city, about').eq('id', userId).maybeSingle(),
+		sb.from('ai_assistant_greetings').select('id, content, mode, topic_tags, created_at').eq('user_id', userId).eq('assistant_type', assistantType),
+		sb.from('ai_assistant_feedback').select('id, rating, reason_chip, feedback_text, greeting_id, created_at').eq('user_id', userId).order('created_at', { ascending: false }),
+		sb.from('ai_qa_reviews').select('*').eq('advisor_chat_id', chatId).order('updated_at', { ascending: false }).limit(1)
+	]);
+
+	const owner = asParticipant(userRow as Record<string, unknown> | undefined, userId);
+
+	const chatMsgs = Array.isArray((chat as Record<string, unknown>).messages)
+		? ((chat as Record<string, unknown>).messages as { role?: string; content?: string; ts?: string }[])
+		: [];
+
+	const timeline: AdvisorTimelineItem[] = [];
+	chatMsgs.forEach((m, i) => {
+		timeline.push({
+			id: `chat-${i}`,
+			source: 'chat',
+			role: m.role === 'assistant' ? 'assistant' : 'user',
+			content: m.content ?? '',
+			createdAt: m.ts ?? ''
+		});
+	});
+	for (const g of greetings ?? []) {
+		const row = g as Record<string, unknown>;
+		timeline.push({
+			id: `greeting-${row.id as string}`,
+			source: 'greeting',
+			role: 'assistant',
+			content: (row.content as string) ?? '',
+			createdAt: (row.created_at as string) ?? '',
+			greetingMode: (row.mode as number) ?? null,
+			topicTags: (row.topic_tags as string[]) ?? []
+		});
+	}
+	// Chronological — greetings interleave with chat turns by timestamp.
+	timeline.sort((x, y) => (x.createdAt ?? '').localeCompare(y.createdAt ?? ''));
+
+	const feedback: AdvisorFeedbackItem[] = (fb ?? []).map((f) => {
+		const row = f as Record<string, unknown>;
+		return {
+			id: row.id as string,
+			rating: (row.rating as number) ?? 0,
+			reasonChip: (row.reason_chip as string) ?? null,
+			feedbackText: (row.feedback_text as string) ?? null,
+			greetingId: (row.greeting_id as string) ?? null,
+			createdAt: (row.created_at as string) ?? ''
+		};
+	});
+
+	const existing = (review ?? [])[0] as ReviewRecord | undefined;
+	if (existing) existing.flagged_message_ids = normalizeFlags(existing.flagged_message_ids);
+
+	return {
+		chatId: chat.id as string,
+		assistantType,
+		assistantLabel: assistantType === 'bestie' ? 'AI Bestie' : 'AI Wingman',
+		owner,
+		timeline,
+		feedback,
+		existingReview: existing ?? null
+	};
+}
+
 export interface SaveReviewInput {
-	matchId: string;
+	/** Provide exactly one target: a match thread or an advisor chat. */
+	matchId?: string;
+	advisorChatId?: string;
 	reviewer: string;
 	scores: Record<RubricKey, number | null>;
 	flags: FlaggedMessage[];
@@ -308,8 +454,12 @@ export interface SaveReviewInput {
 }
 
 export async function saveReview(sb: SB, input: SaveReviewInput): Promise<{ error: string | null }> {
+	if (!input.matchId === !input.advisorChatId) {
+		return { error: 'A review must target exactly one of a match or an advisor chat.' };
+	}
 	const { error } = await sb.from('ai_qa_reviews').insert({
-		match_id: input.matchId,
+		match_id: input.matchId ?? null,
+		advisor_chat_id: input.advisorChatId ?? null,
 		reviewer: input.reviewer,
 		score_accuracy: input.scores.accuracy,
 		score_tone: input.scores.tone,
@@ -328,7 +478,7 @@ export interface QaStats {
 	byStatus: Record<string, number>;
 	avgByDimension: Record<RubricKey, number | null>;
 	byReviewer: { reviewer: string; count: number; avgScore: number | null }[];
-	escalations: { matchId: string; reviewer: string; comments: string | null; updatedAt: string }[];
+	escalations: { href: string; label: string; reviewer: string; comments: string | null; updatedAt: string }[];
 }
 
 export async function getQaStats(sb: SB): Promise<QaStats> {
@@ -343,10 +493,11 @@ export async function getQaStats(sb: SB): Promise<QaStats> {
 
 	for (const r of reviews) {
 		byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
-		if (typeof r.score_accuracy === 'number') dimVals.accuracy.push(r.score_accuracy);
-		if (typeof r.score_tone === 'number') dimVals.tone.push(r.score_tone);
-		if (typeof r.score_safety === 'number') dimVals.safety.push(r.score_safety);
-		if (typeof r.score_helpfulness === 'number') dimVals.helpfulness.push(r.score_helpfulness);
+		// Skip N/A (0) and null — only real 1..5 scores feed the dimension averages.
+		if (typeof r.score_accuracy === 'number' && r.score_accuracy >= 1) dimVals.accuracy.push(r.score_accuracy);
+		if (typeof r.score_tone === 'number' && r.score_tone >= 1) dimVals.tone.push(r.score_tone);
+		if (typeof r.score_safety === 'number' && r.score_safety >= 1) dimVals.safety.push(r.score_safety);
+		if (typeof r.score_helpfulness === 'number' && r.score_helpfulness >= 1) dimVals.helpfulness.push(r.score_helpfulness);
 
 		const ra = reviewerAgg.get(r.reviewer) ?? { count: 0, scores: [] };
 		ra.count++;
@@ -355,7 +506,9 @@ export async function getQaStats(sb: SB): Promise<QaStats> {
 		reviewerAgg.set(r.reviewer, ra);
 
 		if (r.status === 'escalated') {
-			escalations.push({ matchId: r.match_id, reviewer: r.reviewer, comments: r.comments, updatedAt: r.updated_at });
+			const href = r.advisor_chat_id ? `/admin/qa/advisor/${r.advisor_chat_id}` : `/admin/qa/${r.match_id}`;
+			const label = r.advisor_chat_id ? 'Advisor chat' : 'Match thread';
+			escalations.push({ href, label, reviewer: r.reviewer, comments: r.comments, updatedAt: r.updated_at });
 		}
 	}
 
@@ -363,7 +516,7 @@ export async function getQaStats(sb: SB): Promise<QaStats> {
 
 	return {
 		totalReviews: reviews.length,
-		matchesReviewed: new Set(reviews.map((r) => r.match_id)).size,
+		matchesReviewed: new Set(reviews.map((r) => r.match_id ?? r.advisor_chat_id)).size,
 		byStatus,
 		avgByDimension: {
 			accuracy: mean(dimVals.accuracy),

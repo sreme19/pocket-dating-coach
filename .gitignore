@@ -40,3 +40,6 @@ android/app/google-services.json
 
 # Kiro MCP settings (contains API tokens)
 .kiro/settings/mcp.json
+
+# Supabase CLI local cache
+supabase/.temp/

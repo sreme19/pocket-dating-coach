@@ -39,7 +39,8 @@ function formatStructuredPreferences(prefs: PreferencesProfile): string {
 export async function generateBestieReply(
 	userId: string,
 	matchId: string,
-	lastMessage: string
+	lastMessage: string,
+	timing?: { claudeMs?: number }
 ): Promise<BestieReply> {
 	const supabase = getSupabase();
 
@@ -126,6 +127,7 @@ export async function generateBestieReply(
 	}
 
 	const client = getClaudeClient();
+	const tClaude = Date.now();
 	const message = await client.messages.create({
 		model: CLAUDE_MODEL,
 		max_tokens: 400,
@@ -142,6 +144,8 @@ export async function generateBestieReply(
 			}
 		]
 	});
+
+	if (timing) timing.claudeMs = Date.now() - tClaude;
 
 	const content = message.content[0];
 	if (content.type !== 'text') throw new Error('Unexpected response type from Claude');
@@ -163,10 +167,13 @@ export async function generateAndSendBestieReply(
 	userId: string,
 	matchId: string,
 	triggerMsgId: string,
-	lastMessage: string
+	lastMessage: string,
+	triggerCreatedAt?: string
 ): Promise<void> {
 	const supabase = getSupabase();
-	const reply = await generateBestieReply(userId, matchId, lastMessage);
+	const timing: { claudeMs?: number } = {};
+	const t0 = Date.now();
+	const reply = await generateBestieReply(userId, matchId, lastMessage, timing);
 
 	// Attach the coaching card (read/signal) to the triggering message so the
 	// female user sees it when she opens the chat.
@@ -178,14 +185,49 @@ export async function generateAndSendBestieReply(
 	} catch { /* non-critical */ }
 
 	// Send the reply as a message from the user, flagged as AI.
+	let replyMessageId: string | null = null;
+	let generatedAt: string | null = null;
 	if (reply.suggestedQuestion) {
-		await (supabase as any)
+		const { data: inserted } = await (supabase as any)
 			.from('verified_vibe_messages')
 			.insert({
 				match_id: matchId,
 				sender_id: userId,
 				content: reply.suggestedQuestion,
 				is_ai: true
-			});
+			})
+			.select('id, created_at')
+			.single();
+		replyMessageId = inserted?.id ?? null;
+		generatedAt = inserted?.created_at ?? null;
+	}
+
+	// Record server-side latency for the AI Latency dashboard. The reply is now
+	// in the DB, so generationMs is the full server cost the user waited on
+	// (DB reads + Claude + writes). Non-fatal — never breaks the reply.
+	try {
+		const generationMs = Date.now() - t0;
+		const waitedFromUserMsgMs = triggerCreatedAt && generatedAt
+			? Math.max(0, new Date(generatedAt).getTime() - new Date(triggerCreatedAt).getTime())
+			: null;
+		await (supabase as any).from('verified_vibe_analytics').insert({
+			user_id: userId,
+			event_type: 'ai_response_timing',
+			profile_id: null,
+			metadata: {
+				responseType: 'bestie',
+				matchId,
+				triggerMessageId: triggerMsgId,
+				replyMessageId,
+				triggerAt: triggerCreatedAt ?? null,
+				generatedAt,
+				generationMs,
+				claudeMs: timing.claudeMs ?? null,
+				waitedFromUserMsgMs
+			},
+			created_at: new Date().toISOString()
+		});
+	} catch (e) {
+		console.error('[ai-timing] failed to record server timing (non-fatal):', e);
 	}
 }

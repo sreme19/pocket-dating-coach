@@ -1,12 +1,12 @@
 import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { getSupabase } from '$lib/server/supabase';
-import { getMatchReview, saveReview, type RubricKey } from '$lib/server/qa-service';
+import { getAdvisorReview, saveReview, type RubricKey } from '$lib/server/qa-service';
 import { REVIEWER_COOKIE } from '$lib/server/admin-auth';
 
 export const load: PageServerLoad = async ({ params }) => {
-	const review = await getMatchReview(getSupabase(), params.matchId);
-	if (!review) throw error(404, 'Match not found');
+	const review = await getAdvisorReview(getSupabase(), params.chatId);
+	if (!review) throw error(404, 'Advisor chat not found');
 	return { review };
 };
 
@@ -40,7 +40,7 @@ export const actions: Actions = {
 		}
 
 		const { error: err } = await saveReview(getSupabase(), {
-			matchId: params.matchId,
+			advisorChatId: params.chatId,
 			reviewer,
 			scores,
 			flags,
