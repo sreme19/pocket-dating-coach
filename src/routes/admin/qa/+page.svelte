@@ -7,6 +7,25 @@
 	let reviewFilter = $state<'all' | 'unreviewed' | 'reviewed'>('unreviewed');
 	let search = $state('');
 
+	type SortKey = 'match' | 'ai' | 'last' | 'review';
+	let sortKey = $state<SortKey>('last');
+	let sortDir = $state<'asc' | 'desc'>('desc');
+
+	function toggleSort(key: SortKey) {
+		if (sortKey === key) {
+			sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+		} else {
+			sortKey = key;
+			sortDir = key === 'match' ? 'asc' : 'desc';
+		}
+	}
+
+	function reviewRank(r: (typeof data.queue)[number]): number {
+		if (!r.review) return -1;
+		if (r.review.avgScore !== null) return r.review.avgScore;
+		return r.review.status === 'escalated' ? 0 : 0.5;
+	}
+
 	let filtered = $derived(
 		data.queue
 			.filter((r) => {
@@ -20,9 +39,21 @@
 				return true;
 			})
 			.sort((a, b) => {
-				const ta = a.lastActivityAt ? new Date(a.lastActivityAt).getTime() : 0;
-				const tb = b.lastActivityAt ? new Date(b.lastActivityAt).getTime() : 0;
-				return tb - ta;
+				let cmp = 0;
+				if (sortKey === 'match') {
+					cmp = `${a.participantA.name} ${a.participantB.name}`.localeCompare(
+						`${b.participantA.name} ${b.participantB.name}`
+					);
+				} else if (sortKey === 'ai') {
+					cmp = a.counts.messages - b.counts.messages;
+				} else if (sortKey === 'review') {
+					cmp = reviewRank(a) - reviewRank(b);
+				} else {
+					const ta = a.lastActivityAt ? new Date(a.lastActivityAt).getTime() : 0;
+					const tb = b.lastActivityAt ? new Date(b.lastActivityAt).getTime() : 0;
+					cmp = ta - tb;
+				}
+				return sortDir === 'asc' ? cmp : -cmp;
 			})
 	);
 
@@ -72,10 +103,19 @@
 		<table class="w-full text-left text-sm">
 			<thead class="bg-[#0d1522] text-xs text-slate-500">
 				<tr>
-					<th class="px-4 py-2.5 font-medium">Match</th>
-					<th class="px-4 py-2.5 font-medium">AI activity</th>
-					<th class="px-4 py-2.5 font-medium">Last msg</th>
-					<th class="px-4 py-2.5 font-medium">Review</th>
+					{#each [{ key: 'match', label: 'Match' }, { key: 'ai', label: 'AI activity' }, { key: 'last', label: 'Last msg' }, { key: 'review', label: 'Review' }] as const as col}
+						<th class="px-4 py-2.5 font-medium">
+							<button
+								onclick={() => toggleSort(col.key)}
+								class="flex items-center gap-1 transition-colors hover:text-slate-300 {sortKey === col.key
+									? 'text-slate-300'
+									: ''}"
+							>
+								{col.label}
+								<span class="text-[10px]">{sortKey === col.key ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}</span>
+							</button>
+						</th>
+					{/each}
 					<th class="px-4 py-2.5"></th>
 				</tr>
 			</thead>
