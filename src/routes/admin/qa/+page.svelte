@@ -3,7 +3,7 @@
 
 	let { data }: { data: PageData } = $props();
 
-	let aiOnly = $state(true);
+	let aiOnly = $state(false);
 	let reviewFilter = $state<'all' | 'unreviewed' | 'reviewed'>('unreviewed');
 	let search = $state('');
 
