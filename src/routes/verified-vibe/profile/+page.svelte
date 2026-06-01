@@ -1257,6 +1257,78 @@
     }
   }
 
+  // ── Account deletion (multi-step, with feedback) ─────────────────────────────
+  const DELETE_REASONS: { value: string; label: string; emoji: string }[] = [
+    { value: 'found_someone', label: 'I met someone', emoji: '🎉' },
+    { value: 'taking_break', label: 'Taking a break', emoji: '🌿' },
+    { value: 'not_enough_matches', label: 'Not enough quality matches', emoji: '🔍' },
+    { value: 'privacy', label: 'Privacy concerns', emoji: '🔒' },
+    { value: 'too_expensive', label: 'Too expensive', emoji: '💸' },
+    { value: 'technical', label: 'Bugs or technical issues', emoji: '🐞' },
+    { value: 'other', label: 'Something else', emoji: '💬' }
+  ];
+
+  let showDeleteAccount = $state(false);
+  let deleteStep = $state<1 | 2 | 3>(1);
+  let deleteReason = $state<string | null>(null);
+  let deleteFeedback = $state('');
+  let deleteConfirmText = $state('');
+  let deletingAccount = $state(false);
+  let deleteError = $state<string | null>(null);
+
+  function openDeleteAccount() {
+    deleteStep = 1;
+    deleteReason = null;
+    deleteFeedback = '';
+    deleteConfirmText = '';
+    deleteError = null;
+    deletingAccount = false;
+    showDeleteAccount = true;
+  }
+
+  function closeDeleteAccount() {
+    if (deletingAccount) return; // don't let the user bail mid-delete
+    showDeleteAccount = false;
+  }
+
+  async function confirmDeleteAccount() {
+    if (deleteConfirmText.trim().toUpperCase() !== 'DELETE') {
+      deleteError = 'Please type DELETE to confirm.';
+      return;
+    }
+    deletingAccount = true;
+    deleteError = null;
+    try {
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? '';
+      const res = await fetch('/api/verified-vibe/account', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          reason: deleteReason,
+          feedback: deleteFeedback.trim() || null
+        })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || 'Failed to delete account.');
+      }
+      // Account is gone — tear down the local session and leave.
+      await unregisterPushNotifications().catch(() => {});
+      await supabase.auth.signOut().catch(() => {});
+      clearAllStores();
+      await goto('/verified-vibe/auth?mode=signin');
+    } catch (err) {
+      console.error('Account deletion failed:', err);
+      deleteError = err instanceof Error ? err.message : 'Failed to delete account.';
+      deletingAccount = false;
+    }
+  }
+
   // All localStorage keys that form the universal profile
   const ALL_ONBOARDING_KEYS = [
     'vv_qa_responses',
@@ -3315,6 +3387,9 @@
         <LogOut size={16} />
         Sign out
       </button>
+      <button class="delete-account-btn" onclick={openDeleteAccount} title="Delete account">
+        Delete account
+      </button>
       </div>
     {:else if activeTab === 'boost'}
       <!-- Trust & Boost Tab Content -->
@@ -3631,11 +3706,131 @@
           <LogOut size={16} />
           Sign out
         </button>
+        <button class="delete-account-btn" onclick={openDeleteAccount} title="Delete account">
+          Delete account
+        </button>
       </div>
     {/if}
   </div>
   {/if}
 </div>
+
+<!-- Delete Account Modal (multi-step, collects feedback) -->
+{#if showDeleteAccount}
+  <div
+    class="modal-overlay"
+    onclick={closeDeleteAccount}
+    onkeydown={(e) => e.key === 'Escape' && closeDeleteAccount()}
+    role="button"
+    tabindex="0"
+  >
+    <div
+      class="modal modal-danger"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.stopPropagation()}
+      role="button"
+      tabindex="0"
+    >
+      <div class="modal-header">
+        <h3>
+          {#if deleteStep === 1}Delete your account?
+          {:else if deleteStep === 2}Before you go
+          {:else}Last step{/if}
+        </h3>
+        <button class="close-btn" onclick={closeDeleteAccount} disabled={deletingAccount}>✕</button>
+      </div>
+
+      <div class="modal-content del-content">
+        <!-- Step indicator -->
+        <div class="del-steps" aria-hidden="true">
+          {#each [1, 2, 3] as s}
+            <span class="del-dot" class:active={deleteStep >= s}></span>
+          {/each}
+        </div>
+
+        {#if deleteStep === 1}
+          <div class="del-warning">⚠️ This permanently deletes your account. It cannot be undone.</div>
+          <p class="del-lead">Deleting your account will:</p>
+          <ul class="del-list">
+            <li>Remove your profile and photos for good</li>
+            <li>End all your matches and delete every conversation</li>
+            <li>Erase your verification records and Trust Score</li>
+            <li>Wipe your AI Bestie / Wingman history and settings</li>
+          </ul>
+          <p class="del-muted">If you just need space, signing out keeps everything intact.</p>
+
+        {:else if deleteStep === 2}
+          <p class="del-lead">What's prompting this? Your answer helps us improve.</p>
+          <div class="del-reasons">
+            {#each DELETE_REASONS as r}
+              <button
+                type="button"
+                class="del-reason"
+                class:selected={deleteReason === r.value}
+                onclick={() => (deleteReason = r.value)}
+              >
+                <span class="del-reason-emoji">{r.emoji}</span>
+                <span>{r.label}</span>
+              </button>
+            {/each}
+          </div>
+          <div class="del-field">
+            <label for="del-feedback">Anything we could have done better? (optional)</label>
+            <textarea
+              id="del-feedback"
+              bind:value={deleteFeedback}
+              placeholder="Tell us more…"
+              maxlength="2000"
+            ></textarea>
+          </div>
+
+        {:else}
+          <div class="del-warning">⚠️ This is final. Everything above will be permanently deleted.</div>
+          <p class="del-muted">To confirm, type <strong>DELETE</strong> in the box below.</p>
+          <input
+            type="text"
+            class="del-confirm-input"
+            placeholder="Type DELETE to confirm"
+            bind:value={deleteConfirmText}
+            disabled={deletingAccount}
+            autocomplete="off"
+            autocapitalize="characters"
+          />
+          {#if deleteError}
+            <div class="del-error">{deleteError}</div>
+          {/if}
+        {/if}
+      </div>
+
+      <div class="modal-actions">
+        {#if deleteStep === 1}
+          <button class="del-btn del-btn-ghost" onclick={closeDeleteAccount}>Cancel</button>
+          <button class="del-btn del-btn-danger" onclick={() => (deleteStep = 2)}>Continue</button>
+        {:else if deleteStep === 2}
+          <button class="del-btn del-btn-ghost" onclick={() => (deleteStep = 1)}>Back</button>
+          <button
+            class="del-btn del-btn-danger"
+            onclick={() => (deleteStep = 3)}
+            disabled={!deleteReason}
+          >
+            Continue
+          </button>
+        {:else}
+          <button class="del-btn del-btn-ghost" onclick={() => (deleteStep = 2)} disabled={deletingAccount}>
+            Back
+          </button>
+          <button
+            class="del-btn del-btn-danger"
+            onclick={confirmDeleteAccount}
+            disabled={deletingAccount || deleteConfirmText.trim().toUpperCase() !== 'DELETE'}
+          >
+            {deletingAccount ? 'Deleting…' : 'Delete forever'}
+          </button>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
 
 
 <!-- Edit Q&A Modal -->
@@ -5297,6 +5492,208 @@
   .sign-out-btn:active {
     background: rgba(239, 68, 68, 0.2);
     transform: scale(0.98);
+  }
+
+  /* Lower-emphasis destructive action, sits beneath sign out */
+  .delete-account-btn {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    padding: 9px 14px;
+    border: none;
+    background: none;
+    color: var(--text-3);
+    font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+    transition: color 150ms ease;
+  }
+
+  .delete-account-btn:hover {
+    color: #ef4444;
+  }
+
+  /* Delete-account modal */
+  .modal-danger {
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+
+  .del-content {
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .del-steps {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 4px;
+  }
+
+  .del-dot {
+    width: 28px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border-1);
+    transition: background 150ms ease;
+  }
+
+  .del-dot.active {
+    background: #ef4444;
+  }
+
+  .del-warning {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    border-radius: 10px;
+    padding: 12px 14px;
+    color: #ef4444;
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  .del-lead {
+    margin: 0;
+    font-weight: 600;
+  }
+
+  .del-list {
+    margin: 0;
+    padding-left: 20px;
+    list-style: disc;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: var(--text-2);
+  }
+
+  .del-muted {
+    margin: 0;
+    color: var(--text-3);
+    font-size: 13px;
+  }
+
+  .del-reasons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .del-reason {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 11px 14px;
+    border: 1px solid var(--border-1);
+    border-radius: 10px;
+    background: var(--bg-2);
+    color: var(--text-1);
+    font-size: 14px;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: all 150ms ease;
+  }
+
+  .del-reason:hover {
+    border-color: var(--border-2, var(--border-1));
+    background: var(--bg-3);
+  }
+
+  .del-reason.selected {
+    border-color: #ef4444;
+    background: rgba(239, 68, 68, 0.08);
+    color: #ef4444;
+  }
+
+  .del-reason-emoji {
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .del-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .del-field label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+
+  .del-field textarea {
+    padding: 12px;
+    border: 1px solid var(--border-1);
+    border-radius: 10px;
+    background: var(--bg-2);
+    color: var(--text-1);
+    font-family: inherit;
+    font-size: 14px;
+    resize: vertical;
+    min-height: 72px;
+  }
+
+  .del-confirm-input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border-1);
+    border-radius: 10px;
+    background: var(--bg-2);
+    color: var(--text-1);
+    font-size: 14px;
+    font-family: var(--font-mono, inherit);
+    letter-spacing: 0.1em;
+  }
+
+  .del-confirm-input:focus {
+    outline: none;
+    border-color: #ef4444;
+  }
+
+  .del-error {
+    color: #ef4444;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .del-btn {
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 150ms ease;
+  }
+
+  .del-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .del-btn-ghost {
+    background: var(--bg-3);
+    color: var(--text-1);
+    border: 1px solid var(--border-1);
+  }
+
+  .del-btn-ghost:hover:not(:disabled) {
+    background: var(--bg-2);
+  }
+
+  .del-btn-danger {
+    background: #ef4444;
+    color: #fff;
+    border: 1px solid #ef4444;
+  }
+
+  .del-btn-danger:hover:not(:disabled) {
+    background: #dc2626;
   }
 
   @media (min-width: 768px) {

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { fade, slide } from 'svelte/transition';
@@ -890,6 +890,9 @@
         });
         if (!res.ok) return;
         const rawBody = await res.text();
+        // Timestamp the moment we received the payload — the "received" stage for
+        // any AI message this poll surfaces (used by the AI Latency dashboard).
+        const receivedAt = new Date().toISOString();
         const { data } = JSON.parse(rawBody);
         const fetched: Message[] = (data.messages || []).map((m: any) => ({
           id: m.id,
@@ -903,6 +906,9 @@
         }));
         // Merge new messages AND refresh coaching fields on existing ones
         // (a male's message may gain ai_read after the server-side Bestie runs).
+        // AI messages surfaced this pass are collected so we can report their
+        // render timing once the DOM has painted them.
+        let surfacedAi: Message[] = [];
         messages.update(existing => {
           const byId = new Map(fetched.map(m => [m.id, m]));
           const merged = existing.map(m => {
@@ -913,6 +919,7 @@
           const newMsgs = fetched.filter(m => !existingIds.has(m.id));
           if (newMsgs.length > 0) {
             scrollToBottom(false);
+            surfacedAi = newMsgs.filter(m => (m as any).isAi);
             // Staleness of the freshest arriving message = how long it sat on the
             // server before this poll surfaced it. This is the headline
             // "delay before a message shows up" number.
@@ -929,10 +936,39 @@
         // /send endpoint) so they fire even when this app is closed. The client
         // no longer sends replies — it only fetches + displays them.
         endPoll({ payloadKB: +(rawBody.length / 1024).toFixed(1), fetched: fetched.length });
+        // After the surfaced AI messages paint, report their delivery/render
+        // timing for the AI Latency dashboard (fire-and-forget).
+        if (surfacedAi.length > 0) {
+          await tick();
+          requestAnimationFrame(() => {
+            const renderedAt = new Date().toISOString();
+            for (const m of surfacedAi) reportAiRenderTiming(m, receivedAt, renderedAt);
+          });
+        }
       } catch (err) {
         console.error('Message poller error:', err);
         endPoll({ error: true });
       }
+  }
+
+  // Reports an AI message's client-side delivery + render timing to the AI
+  // Latency dashboard. Fire-and-forget — never blocks or breaks the chat.
+  function reportAiRenderTiming(msg: Message, receivedAt: string, renderedAt: string) {
+    const uid = currentUserId ?? $user?.id;
+    if (!uid) return;
+    fetch('/api/verified-vibe/analytics/ai-render', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: uid,
+        matchId: conversationId,
+        replyMessageId: msg.id,
+        responseType: 'bestie',
+        generatedAt: new Date(msg.createdAt).toISOString(),
+        receivedAt,
+        renderedAt
+      })
+    }).catch(() => { /* non-critical */ });
   }
 
   function handleVisibilityChange() {

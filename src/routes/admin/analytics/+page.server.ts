@@ -14,6 +14,7 @@ export const load: PageServerLoad = async () => {
 		{ data: analytics },
 		{ data: femaleFunnel },
 		{ data: bestie },
+		{ data: aiTimingRows },
 	] = await Promise.all([
 		sb.from('verified_vibe_users').select('id, first_name, age, city, gender, archetype, trust_score, is_seed, created_at').order('created_at', { ascending: false }),
 		sb.from('verified_vibe_likes').select('created_at').order('created_at'),
@@ -23,6 +24,11 @@ export const load: PageServerLoad = async () => {
 		sb.from('verified_vibe_analytics').select('event_type, created_at').order('created_at'),
 		sb.from('female_profiles').select('created_at, approved_for_matching'),
 		sb.from('ai_bestie_feedback').select('feedback_type, created_at'),
+		sb.from('verified_vibe_analytics')
+			.select('event_type, metadata, created_at')
+			.in('event_type', ['ai_response_timing', 'ai_response_rendered'])
+			.order('created_at', { ascending: false })
+			.limit(2000),
 	]);
 
 	// Signups per day (last 30 days)
@@ -65,6 +71,11 @@ export const load: PageServerLoad = async () => {
 	// AI Bestie feedback types
 	const bestieTypes = countBy(bestie ?? [], (b) => b.feedback_type);
 
+	// ── AI response latency ───────────────────────────────────────────────────
+	// Join server-side generation timing with client-side delivery/render timing
+	// (both logged to verified_vibe_analytics) on replyMessageId.
+	const aiLatency = buildAiLatency(aiTimingRows ?? []);
+
 	// Totals
 	const totals = {
 		users: users?.length ?? 0,
@@ -88,6 +99,7 @@ export const load: PageServerLoad = async () => {
 		messagesByDay,
 		eventCounts,
 		bestieTypes,
+		aiLatency,
 		userList: (users ?? []).map((u) => ({
 			id: u.id,
 			name: u.first_name,
@@ -123,4 +135,102 @@ function countBy<T>(rows: T[], key: (r: T) => string): Record<string, number> {
 		out[k] = (out[k] ?? 0) + 1;
 	}
 	return out;
+}
+
+interface AiLatencyRecord {
+	replyMessageId: string;
+	responseType: string;
+	at: string; // when the response was generated (or logged, as fallback)
+	generationMs: number | null;
+	claudeMs: number | null;
+	waitedFromUserMsgMs: number | null;
+	surfaceMs: number | null;
+	renderMs: number | null;
+	totalToRenderMs: number | null;
+	endToEndMs: number | null; // user message → painted on screen
+}
+
+interface LatencyStat {
+	n: number;
+	avg: number | null;
+	p50: number | null;
+	p95: number | null;
+	max: number | null;
+}
+
+function stat(values: (number | null)[]): LatencyStat {
+	const nums = values.filter((v): v is number => typeof v === 'number' && isFinite(v)).sort((a, b) => a - b);
+	if (nums.length === 0) return { n: 0, avg: null, p50: null, p95: null, max: null };
+	const pct = (p: number) => nums[Math.min(nums.length - 1, Math.floor((p / 100) * nums.length))];
+	const avg = Math.round(nums.reduce((s, v) => s + v, 0) / nums.length);
+	return { n: nums.length, avg, p50: pct(50), p95: pct(95), max: nums[nums.length - 1] };
+}
+
+function buildAiLatency(rows: { event_type: string; metadata: any; created_at: string }[]) {
+	// Merge the two event types by replyMessageId.
+	const byId = new Map<string, AiLatencyRecord>();
+	const get = (id: string): AiLatencyRecord => {
+		let r = byId.get(id);
+		if (!r) {
+			r = {
+				replyMessageId: id,
+				responseType: 'bestie',
+				at: '',
+				generationMs: null,
+				claudeMs: null,
+				waitedFromUserMsgMs: null,
+				surfaceMs: null,
+				renderMs: null,
+				totalToRenderMs: null,
+				endToEndMs: null
+			};
+			byId.set(id, r);
+		}
+		return r;
+	};
+
+	for (const row of rows) {
+		const m = row.metadata ?? {};
+		const id: string | null = m.replyMessageId ?? null;
+		if (!id) continue;
+		const rec = get(id);
+		if (m.responseType) rec.responseType = m.responseType;
+		if (row.event_type === 'ai_response_timing') {
+			rec.generationMs = num(m.generationMs);
+			rec.claudeMs = num(m.claudeMs);
+			rec.waitedFromUserMsgMs = num(m.waitedFromUserMsgMs);
+			rec.at = m.generatedAt ?? row.created_at;
+		} else if (row.event_type === 'ai_response_rendered') {
+			rec.surfaceMs = num(m.surfaceMs);
+			rec.renderMs = num(m.renderMs);
+			rec.totalToRenderMs = num(m.totalToRenderMs);
+			if (!rec.at) rec.at = m.generatedAt ?? row.created_at;
+		}
+	}
+
+	// Derive end-to-end (user message → on screen) where both halves are known.
+	const records = [...byId.values()];
+	for (const r of records) {
+		if (r.waitedFromUserMsgMs != null && r.totalToRenderMs != null) {
+			r.endToEndMs = r.waitedFromUserMsgMs + r.totalToRenderMs;
+		}
+	}
+	// Newest first.
+	records.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+
+	return {
+		count: records.length,
+		stages: {
+			generation: stat(records.map((r) => r.generationMs)),
+			claude: stat(records.map((r) => r.claudeMs)),
+			surface: stat(records.map((r) => r.surfaceMs)),
+			render: stat(records.map((r) => r.renderMs)),
+			endToEnd: stat(records.map((r) => r.endToEndMs))
+		},
+		recent: records.slice(0, 40)
+	};
+}
+
+function num(v: unknown): number | null {
+	return typeof v === 'number' && isFinite(v) ? v : null;
 }

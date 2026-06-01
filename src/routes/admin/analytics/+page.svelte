@@ -220,7 +220,8 @@
 		: '0';
 
 	// ── User Activity tab ──────────────────────────────────────────────
-	let activeTab = $state<'overview' | 'activity'>('overview');
+	type Tab = 'overview' | 'activity' | 'ai_latency';
+	let activeTab = $state<Tab>('overview');
 	let selectedUserId = $state<string>('');
 	let activity = $state<Record<string, any> | null>(null);
 	let activityLoading = $state(false);
@@ -237,6 +238,11 @@
 	function fmtDate(s: string) {
 		return s ? new Date(s).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 	}
+
+	function fmtMs(v: number | null | undefined): string {
+		if (v == null || !isFinite(v)) return '—';
+		return v >= 1000 ? (v / 1000).toFixed(1) + 's' : Math.round(v) + 'ms';
+	}
 </script>
 
 <svelte:head>
@@ -249,9 +255,9 @@
 
 	<!-- Tab bar -->
 	<div class="mb-8 flex gap-1 border-b border-white/[0.06]">
-		{#each [['overview', 'Overview'], ['activity', 'User Activity']] as [tab, label]}
+		{#each [['overview', 'Overview'], ['activity', 'User Activity'], ['ai_latency', 'AI Latency']] as [tab, label]}
 			<button
-				onclick={() => activeTab = tab}
+				onclick={() => activeTab = tab as Tab}
 				class="px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px {activeTab === tab ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}"
 			>{label}</button>
 		{/each}
@@ -432,7 +438,7 @@
 		</div>
 	</div>
 
-{:else}
+{:else if activeTab === 'activity'}
 	<!-- ── User Activity Tab ─────────────────────────────────────────── -->
 	<div class="mb-6 card flex flex-wrap items-center gap-3">
 		<label class="text-sm text-slate-400 font-medium whitespace-nowrap">Select user</label>
@@ -650,6 +656,83 @@
 		</div>
 	{:else if !selectedUserId}
 		<div class="text-center py-16 text-slate-600 text-sm">Select a user above to explore their activity</div>
+	{/if}
+{/if}
+
+{#if activeTab === 'ai_latency'}
+	<!-- ── AI Latency Tab ────────────────────────────────────────────────── -->
+	<p class="mb-6 text-sm text-slate-500">
+		Lag for AI Bestie auto-responses, measured end to end: from the user's message
+		landing on the server, through generation, delivery, and paint on the recipient's screen.
+		Tracked across {data.aiLatency.count} response{data.aiLatency.count === 1 ? '' : 's'}.
+	</p>
+
+	{#if data.aiLatency.count === 0}
+		<div class="text-center py-16 text-slate-600 text-sm">
+			No AI responses tracked yet. Send a message to a woman with AI Bestie active — its timing will appear here.
+		</div>
+	{:else}
+		<!-- Stage KPI cards -->
+		<div class="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+			{#each [
+				{ key: 'endToEnd', label: 'End-to-end', hint: 'user message → on screen' },
+				{ key: 'generation', label: 'Generation', hint: 'server: reads + Claude + write' },
+				{ key: 'claude', label: 'Claude API', hint: 'model call only' },
+				{ key: 'surface', label: 'Delivery', hint: 'generated → received (poll gap)' },
+				{ key: 'render', label: 'Render', hint: 'received → painted' },
+			] as s}
+				{@const st = (data.aiLatency.stages as any)[s.key]}
+				<div class="card">
+					<div class="text-xs font-semibold uppercase tracking-wide text-slate-500">{s.label}</div>
+					<div class="mt-1 text-2xl font-bold text-emerald-400">{fmtMs(st.avg)}</div>
+					<div class="mt-0.5 text-xs text-slate-500">avg · {st.n} sample{st.n === 1 ? '' : 's'}</div>
+					<div class="mt-2 flex justify-between text-xs text-slate-400">
+						<span>p50 {fmtMs(st.p50)}</span>
+						<span>p95 {fmtMs(st.p95)}</span>
+						<span>max {fmtMs(st.max)}</span>
+					</div>
+					<div class="mt-1 text-[11px] text-slate-600">{s.hint}</div>
+				</div>
+			{/each}
+		</div>
+
+		<!-- Recent responses -->
+		<div class="card">
+			<h2 class="chart-title">Recent AI responses ({data.aiLatency.recent.length})</h2>
+			<div class="overflow-x-auto">
+				<table class="w-full text-sm">
+					<thead>
+						<tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-white/[0.06]">
+							<th class="py-2 pr-3 font-medium">When</th>
+							<th class="py-2 pr-3 font-medium">Type</th>
+							<th class="py-2 pr-3 font-medium text-right">Generation</th>
+							<th class="py-2 pr-3 font-medium text-right">Claude</th>
+							<th class="py-2 pr-3 font-medium text-right">Delivery</th>
+							<th class="py-2 pr-3 font-medium text-right">Render</th>
+							<th class="py-2 font-medium text-right">End-to-end</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each data.aiLatency.recent as r}
+							<tr class="border-b border-white/[0.03]">
+								<td class="py-2 pr-3 text-slate-400 whitespace-nowrap">{fmtDate(r.at)}</td>
+								<td class="py-2 pr-3">
+									<span class="rounded px-1.5 py-0.5 text-xs bg-indigo-500/20 text-indigo-400">{r.responseType}</span>
+								</td>
+								<td class="py-2 pr-3 text-right text-slate-300">{fmtMs(r.generationMs)}</td>
+								<td class="py-2 pr-3 text-right text-slate-300">{fmtMs(r.claudeMs)}</td>
+								<td class="py-2 pr-3 text-right {r.surfaceMs != null && r.surfaceMs > 3000 ? 'text-amber-400' : 'text-slate-300'}">{fmtMs(r.surfaceMs)}</td>
+								<td class="py-2 pr-3 text-right text-slate-300">{fmtMs(r.renderMs)}</td>
+								<td class="py-2 text-right font-medium {r.endToEndMs != null && r.endToEndMs > 15000 ? 'text-rose-400' : 'text-emerald-400'}">{fmtMs(r.endToEndMs)}</td>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+			<p class="mt-3 text-[11px] text-slate-600">
+				Dashes mean that stage wasn't recorded (e.g. the recipient's tab wasn't open to report delivery/render). End-to-end needs both server and client halves.
+			</p>
+		</div>
 	{/if}
 {/if}
 </div>

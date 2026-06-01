@@ -12,7 +12,8 @@ export const GET: RequestHandler = async () => {
 	const queue = await listReviewQueue(getSupabase());
 
 	const header = [
-		'match_id',
+		'kind',
+		'id',
 		'participant_a',
 		'participant_b',
 		'match_status',
@@ -30,6 +31,7 @@ export const GET: RequestHandler = async () => {
 	for (const r of queue) {
 		lines.push(
 			[
+				r.kind,
 				r.matchId,
 				r.participantA.name,
 				r.participantB.name,
