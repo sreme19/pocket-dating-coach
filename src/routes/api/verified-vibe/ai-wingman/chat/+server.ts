@@ -371,8 +371,14 @@ ${personalityContext}${masterProfileContext}${artifactsContext}${admirerContext}
 		const compliance = await complianceGate({ text: rawReply, userId, assistantType: 'wingman', context: 'advisor' });
 		const reply = compliance.text;
 
-		// Persist the exchange server-side for QA review (best-effort — never block the reply).
-		appendAdvisorChat(supabase, userId, 'wingman', userMessage, reply, new Date().toISOString()).catch(() => {});
+		// Persist the exchange server-side for QA review. Awaited (not fire-and-forget):
+		// on serverless the function is frozen once the response is sent, so an un-awaited
+		// write never completes. try/catch keeps the guarantee that it can't break the reply.
+		try {
+			await appendAdvisorChat(supabase, userId, 'wingman', userMessage, reply, new Date().toISOString());
+		} catch (e) {
+			console.warn('[AI Wingman VV chat] advisor persist failed:', e);
+		}
 
 		return json({ reply });
 	} catch (err) {

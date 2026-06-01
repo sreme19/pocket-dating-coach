@@ -327,8 +327,14 @@ ${prefsContext}${matchContext}${pendingReportContext}`;
 			}
 		}
 
-		// Persist the exchange server-side for QA review (best-effort — never block the reply).
-		appendAdvisorChat(supabase, userId, 'bestie', userMessage, reply, new Date().toISOString()).catch(() => {});
+		// Persist the exchange server-side for QA review. Awaited (not fire-and-forget):
+		// on serverless the function is frozen once the response is sent, so an un-awaited
+		// write never completes. try/catch keeps the guarantee that it can't break the reply.
+		try {
+			await appendAdvisorChat(supabase, userId, 'bestie', userMessage, reply, new Date().toISOString());
+		} catch (e) {
+			console.warn('[AI Bestie chat] advisor persist failed:', e);
+		}
 
 		return json({ reply, userMessage, prefsUpdated: detectedPrefs.length > 0, drafts });
 	} catch (err) {
