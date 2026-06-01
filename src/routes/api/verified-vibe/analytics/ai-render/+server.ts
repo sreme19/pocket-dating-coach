@@ -40,26 +40,24 @@ export const POST: RequestHandler = async ({ request }) => {
 		const totalToRenderMs = gen != null && rend != null ? Math.max(0, rend - gen) : null;
 
 		const supabase = getSupabase();
-		const { error } = await supabase.from('verified_vibe_analytics').insert({
-			user_id: body.userId,
-			event_type: 'ai_response_rendered',
-			profile_id: null,
-			metadata: {
-				responseType: body.responseType ?? 'bestie',
-				matchId: body.matchId ?? null,
-				replyMessageId: body.replyMessageId,
-				generatedAt: body.generatedAt ?? null,
-				receivedAt: body.receivedAt ?? null,
-				renderedAt: body.renderedAt ?? null,
-				surfaceMs,
-				renderMs,
-				totalToRenderMs
-			},
-			created_at: new Date().toISOString()
-		});
+		// Merge the client stages into the row the server created at generation
+		// time (keyed by reply_message_id). Upsert in case the server-side row is
+		// missing (e.g. an AI message that predates server timing).
+		const { error } = await (supabase as any)
+			.from('vv_ai_response_timings')
+			.upsert({
+				reply_message_id: body.replyMessageId,
+				match_id: body.matchId ?? null,
+				response_type: body.responseType ?? 'bestie',
+				received_at: body.receivedAt ?? null,
+				rendered_at: body.renderedAt ?? null,
+				surface_ms: surfaceMs,
+				render_ms: renderMs,
+				total_to_render_ms: totalToRenderMs
+			}, { onConflict: 'reply_message_id' });
 
 		if (error) {
-			console.error('[ai-render] insert failed:', error);
+			console.error('[ai-render] upsert failed:', error);
 			return json({ error: 'Failed to record render timing' }, { status: 500 });
 		}
 
