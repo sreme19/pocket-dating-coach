@@ -1,0 +1,3 @@
+ALTER TABLE verified_vibe_matches
+  ADD COLUMN IF NOT EXISTS user1_last_read_at TIMESTAMPTZ DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS user2_last_read_at TIMESTAMPTZ DEFAULT NOW();;
