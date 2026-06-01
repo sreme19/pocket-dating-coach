@@ -42,6 +42,55 @@
 		if (!ts) return '';
 		return new Date(ts).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 	}
+
+	// Render the markdown the AI advisors emit (headings, bold, lists, rules) so QA
+	// reviewers see formatted prose instead of raw "##"/"**" syntax. Content is
+	// HTML-escaped first; only our own tags are introduced afterwards.
+	function escapeHtml(s: string): string {
+		return s
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;');
+	}
+
+	function renderInline(text: string): string {
+		return text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+	}
+
+	function renderMarkdown(raw: string): string {
+		const text = escapeHtml(raw ?? '');
+		const blocks = text.split(/\n{2,}/);
+		return blocks
+			.map((block) => {
+				const trimmed = block.trim();
+				if (!trimmed) return '';
+				// Horizontal rule
+				if (/^---+$/.test(trimmed)) return '<hr>';
+				// Headings (###, ##, #)
+				const heading = trimmed.match(/^(#{1,6})\s+(.*)$/);
+				if (heading) {
+					const level = Math.min(heading[1].length + 1, 6); // shift down so # → h2
+					return `<h${level}>${renderInline(heading[2])}</h${level}>`;
+				}
+				// Bullet / dash lists. Any non-bullet lines before the first bullet
+				// (e.g. a "**What's next:**" label) render as a lead-in paragraph.
+				if (/^[-•*]\s+/m.test(trimmed)) {
+					const lines = trimmed.split('\n').filter((l) => l.trim());
+					const lead: string[] = [];
+					const items: string[] = [];
+					for (const l of lines) {
+						if (/^[-•*]\s+/.test(l)) items.push(`<li>${renderInline(l.replace(/^[-•*]\s+/, ''))}</li>`);
+						else if (!items.length) lead.push(renderInline(l));
+						else items.push(`<li>${renderInline(l)}</li>`);
+					}
+					const leadHtml = lead.length ? `<p>${lead.join('<br>')}</p>` : '';
+					return `${leadHtml}<ul>${items.join('')}</ul>`;
+				}
+				return `<p>${renderInline(trimmed.replace(/([^\n])\n([^\n])/g, '$1<br>$2'))}</p>`;
+			})
+			.filter(Boolean)
+			.join('');
+	}
 </script>
 
 <div class="min-h-screen bg-[#0b1120] px-6 py-6 text-slate-100">
@@ -76,11 +125,15 @@
 										{#if m.source === 'greeting'}<span class="rounded bg-emerald-500/20 px-1.5 text-[10px] text-emerald-300">proactive</span>{/if}
 									</div>
 									<div
-										class="rounded-2xl border px-3 py-2 text-sm {isAi
+										class="qa-md rounded-2xl border px-3 py-2 text-sm {isAi
 											? 'border-indigo-500/30 bg-indigo-500/10 text-slate-100'
 											: 'border-white/[0.08] bg-[#0d1522] text-slate-200'}"
 									>
-										{m.content}
+										{#if isAi}
+											{@html renderMarkdown(m.content)}
+										{:else}
+											{m.content}
+										{/if}
 									</div>
 									{#if m.topicTags && m.topicTags.length}
 										<div class="mt-1 text-[11px] text-slate-600">{m.topicTags.join(' · ')}</div>
@@ -127,3 +180,33 @@
 		</div>
 	</form>
 </div>
+
+<style>
+	/* Formatting for the AI advisor markdown (rendered via {@html}). */
+	.qa-md :global(h2),
+	.qa-md :global(h3),
+	.qa-md :global(h4) {
+		font-weight: 600;
+		color: #fff;
+		line-height: 1.3;
+		margin: 0.75em 0 0.25em;
+	}
+	.qa-md :global(h2) { font-size: 1rem; }
+	.qa-md :global(h3) { font-size: 0.9375rem; }
+	.qa-md :global(h4) { font-size: 0.875rem; }
+	.qa-md :global(*:first-child) { margin-top: 0; }
+	.qa-md :global(*:last-child) { margin-bottom: 0; }
+	.qa-md :global(p) { margin: 0.5em 0; }
+	.qa-md :global(strong) { font-weight: 600; color: #fff; }
+	.qa-md :global(ul) {
+		margin: 0.5em 0;
+		padding-left: 1.25em;
+		list-style: disc;
+	}
+	.qa-md :global(li) { margin: 0.15em 0; }
+	.qa-md :global(hr) {
+		margin: 0.75em 0;
+		border: 0;
+		border-top: 1px solid rgba(255, 255, 255, 0.12);
+	}
+</style>
