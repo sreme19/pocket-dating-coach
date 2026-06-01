@@ -9,6 +9,9 @@
   import type { Message, VerifiedVibeUser } from '$lib/verified-vibe/types';
   import type { AssistantType } from '$lib/types';
   import VoiceDictation from '$lib/components/VoiceDictation.svelte';
+  import * as perf from '$lib/verified-vibe/utils/perf';
+
+  let disposeLongTasks: (() => void) | null = null;
 
   // Initialise from route params immediately — the $effect fires AFTER onMount,
   // so reading $page.params here ensures localStorage keys are correct from mount.
@@ -21,6 +24,9 @@
   let isSending = $state(false);
   let messagesContainer: HTMLElement | undefined;
   let isTypingLocal = $state(false);
+  // True while we're awaiting a server-side AI Bestie reply to the message the
+  // user just sent — drives the typing dots so the wait doesn't look broken.
+  let bestieTyping = $state(false);
   let typingTimeout: ReturnType<typeof setTimeout> | null = null;
   let unsubscribeMessages: (() => void) | null = null;
   let unsubscribeTyping: (() => void) | null = null;
@@ -43,6 +49,10 @@
   // hydration race conditions where the Svelte store may still be null.
   let currentUserId = $state<string | null>(null);
   let currentUserGender = $state<string | null>(null);
+  // False during the initial message render so the whole thread doesn't slide
+  // in at once (N concurrent transitions = open-jank). Flipped true after the
+  // first paint so only genuinely-new messages animate.
+  let listReady = $state(false);
 
   // ── Unmatch / Block state ────────────────────────────────────────────────
   let showOptionsMenu = $state(false);
@@ -154,6 +164,11 @@
   });
 
   onMount(async () => {
+    const endLoad = perf.startSpan('conversation load (onMount → messages rendered)');
+    disposeLongTasks = perf.observeLongTasks();
+    // Expose an on-demand frame sampler: run __pdcSampleFps() in the console,
+    // then immediately scroll the thread to capture jank numbers.
+    try { (window as any).__pdcSampleFps = (ms?: number) => perf.sampleFps(ms); } catch { /* ignore */ }
     try {
       isLoading = true;
       error = null;
@@ -220,13 +235,16 @@
 
       aiBestieActive = bestieActive ?? true;
 
-      // If bestie is active in the DB, restore activeAssistant + poller
-      // Only for female users — male users never run Bestie on their side
+      // If bestie is active in the DB, restore activeAssistant.
+      // Only for female users — male users never run Bestie on their side.
       if (aiBestieActive && !activeAssistant && currentUserGender === 'woman') {
         activeAssistant = 'bestie';
         localStorage.setItem(`ai-bestie-active-${conversationId}`, 'true');
-        startBestiePoller();
       }
+
+      // Start the live-message poller for EVERY conversation — this is what
+      // makes incoming messages appear without a manual refresh.
+      startMessagePoller();
 
       // Set current match in store
       setCurrentMatch(conversationId, matchedUser);
@@ -268,6 +286,19 @@
       // Scroll to bottom
       setTimeout(() => {
         scrollToBottom();
+        // Initial batch has now painted (without per-message slide); enable
+        // animation so subsequent incoming messages slide in.
+        listReady = true;
+        endLoad({ messages: $messages.length });
+        // Surface which live-update mechanism (if any) is active. If both are
+        // false the user MUST refresh/re-open to see new messages — this is the
+        // root cause of the "manual refresh" complaint.
+        perf.plog('live-update mode', {
+          poller: !!pollInterval,
+          realtime: !!unsubscribeMessages,
+          gender: currentUserGender,
+          bestieActive: aiBestieActive
+        });
       }, 100);
     } catch (err) {
       console.error('Error loading conversation:', err);
@@ -292,9 +323,12 @@
       unsubscribeOnlineStatus();
     }
 
-    // Clear polling interval
+    // Clear polling interval + visibility listener
     if (pollInterval) {
       clearInterval(pollInterval);
+    }
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     }
 
     // Clear typing timeout
@@ -314,6 +348,9 @@
 
     // Clear current match
     clearCurrentMatch();
+
+    // Stop perf long-task observer
+    if (disposeLongTasks) disposeLongTasks();
   });
 
   /**
@@ -440,15 +477,21 @@
   /**
    * Scroll to bottom of messages
    */
-  function scrollToBottom() {
-    if (messagesContainer) {
-      setTimeout(() => {
-        messagesContainer?.scrollTo({
-          top: messagesContainer.scrollHeight,
-          behavior: 'smooth'
-        });
-      }, 0);
+  // `force` (sends, initial load) always scrolls. Otherwise (poll-driven new
+  // messages) we only scroll when the user is already near the bottom, so we
+  // don't yank them away while they're reading earlier messages.
+  // Uses instant scroll — repeated `smooth` scrolls stacked up and caused jank,
+  // especially in the Android WebView.
+  function scrollToBottom(force = true) {
+    const el = messagesContainer;
+    if (!el) return;
+    if (!force) {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      if (distanceFromBottom > 120) return;
     }
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
   }
 
   /**
@@ -550,6 +593,8 @@
    */
   async function handleSendMessage() {
     if (!messageInput.trim()) return;
+    const endSend = perf.startSpan('send → server ack');
+    const endOptimistic = perf.startSpan('send → optimistic bubble (input latency)');
 
     // Resolve the current user ID — prefer the session-populated local var over
     // the Svelte store so sends work even before hydrateStores() completes.
@@ -585,7 +630,18 @@
       // Add optimistic message to UI immediately
       optimisticMessageId = optimisticId;
       addMessage(optimisticMessage);
+      endOptimistic();
       scrollToBottom();
+
+      // If the recipient is a woman with AI Bestie active, the server will reply
+      // on her behalf (synchronously, inside this send request). Show the typing
+      // dots while we wait so the gap reads as "she's replying", not "broken".
+      const expectBestieReply =
+        currentUserGender === 'man' && $currentMatch?.gender === 'woman' && aiBestieActive;
+      if (expectBestieReply) {
+        bestieTyping = true;
+        scrollToBottom();
+      }
 
       // Send message to server
       const { getSupabaseClient } = await import('$lib/client/supabase');
@@ -624,8 +680,17 @@
 
       optimisticMessageId = null;
       error = null;
+      endSend({ ok: true });
       scrollToBottom();
+
+      // The server awaits AI Bestie generation before returning, so by now the
+      // reply is already in the DB. Poll immediately to surface it rather than
+      // waiting out the rest of the 5s interval (the "had to refresh" case).
+      if (expectBestieReply) {
+        await pollOnce();
+      }
     } catch (err) {
+      endSend({ ok: false });
       console.error('Error sending message:', err);
       error = err instanceof Error ? err.message : 'Failed to send message';
 
@@ -639,6 +704,7 @@
       messageInput = messageInput;
     } finally {
       isSending = false;
+      bestieTyping = false;
     }
   }
 
@@ -796,7 +862,7 @@
 
       // Don't send opening message - only generate coaching cards for Adrian's messages
       // await sendAIBestieOpeningMessage();
-      startBestiePoller();
+      startMessagePoller();
     } catch (err) {
       console.error('Failed to activate assistant:', err);
       activeAssistant = null;
@@ -806,10 +872,15 @@
     }
   }
 
-  function startBestiePoller() {
-    if (pollInterval) clearInterval(pollInterval);
-    pollInterval = setInterval(async () => {
-      if (!activeAssistant || !$user || !conversationId) return;
+  // Polls the thread for new messages + refreshed coaching fields. Runs for
+  // EVERY conversation (not just AI-assistant ones) — without it, plain chats
+  // had no live updates at all and the user had to refresh/re-open to see new
+  // messages. Realtime stays disabled (anon key can't subscribe to RLS tables).
+  // One poll pass. Extracted so it can run both on the interval and immediately
+  // when the page regains visibility (returning from another screen / app).
+  async function pollOnce() {
+      if (!(currentUserId ?? $user?.id) || !conversationId) return;
+      const endPoll = perf.startSpan('poll cycle (fetch + merge)');
       try {
         const { getSupabaseClient } = await import('$lib/client/supabase');
         const supabase = getSupabaseClient();
@@ -818,7 +889,8 @@
           headers: { 'Authorization': `Bearer ${session?.access_token || ''}` }
         });
         if (!res.ok) return;
-        const { data } = await res.json();
+        const rawBody = await res.text();
+        const { data } = JSON.parse(rawBody);
         const fetched: Message[] = (data.messages || []).map((m: any) => ({
           id: m.id,
           matchId: m.matchId || conversationId,
@@ -839,16 +911,46 @@
           });
           const existingIds = new Set(existing.map(m => m.id));
           const newMsgs = fetched.filter(m => !existingIds.has(m.id));
-          if (newMsgs.length > 0) scrollToBottom();
+          if (newMsgs.length > 0) {
+            scrollToBottom(false);
+            // Staleness of the freshest arriving message = how long it sat on the
+            // server before this poll surfaced it. This is the headline
+            // "delay before a message shows up" number.
+            const newest = newMsgs.reduce((a, b) => (a.createdAt > b.createdAt ? a : b));
+            perf.plog('new messages surfaced', {
+              count: newMsgs.length,
+              freshestAgeMs: Math.round(perf.messageAgeMs(newest.createdAt)),
+              threadSize: existing.length + newMsgs.length
+            });
+          }
           return [...merged, ...newMsgs];
         });
         // NOTE: Bestie auto-responses are now generated SERVER-SIDE (in the chat
         // /send endpoint) so they fire even when this app is closed. The client
         // no longer sends replies — it only fetches + displays them.
+        endPoll({ payloadKB: +(rawBody.length / 1024).toFixed(1), fetched: fetched.length });
       } catch (err) {
-        console.error('Bestie poller error:', err);
+        console.error('Message poller error:', err);
+        endPoll({ error: true });
       }
-    }, 5000);
+  }
+
+  function handleVisibilityChange() {
+    // Coming back to the conversation — fetch right away instead of waiting out
+    // the rest of the 5s interval. Directly fixes the "switch screens and come
+    // back, nothing's there until I refresh" case.
+    if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+      pollOnce();
+    }
+  }
+
+  function startMessagePoller() {
+    if (pollInterval) clearInterval(pollInterval);
+    pollInterval = setInterval(pollOnce, 5000);
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
   }
 
   // NOTE: Bestie auto-responses are generated SERVER-SIDE (chat/send endpoint)
@@ -1231,7 +1333,7 @@
             class:received={!isSent}
             class:bestie-sent={isBestie}
             class:optimistic={message.id.startsWith('optimistic-')}
-            transition:slide={{ duration: 300 }}
+            transition:slide={{ duration: listReady ? 220 : 0 }}
           >
             <!-- Avatar -->
             {#if !isSent}
@@ -1279,7 +1381,7 @@
         {/each}
 
         <!-- Typing Indicator -->
-        {#if $isTyping}
+        {#if $isTyping || bestieTyping}
           <div class="message-group received" transition:slide={{ duration: 300 }}>
             <div class="message-bubble typing-indicator">
               <span></span>
