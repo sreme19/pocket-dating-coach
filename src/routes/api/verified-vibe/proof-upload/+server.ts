@@ -20,6 +20,7 @@ import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { createClient } from '@supabase/supabase-js';
 import { getSupabase } from '$lib/server/supabase';
+import { recomputeRawTrust } from '$lib/server/trust-recompute';
 // pdf-parse kept as dep for potential future text pre-processing;
 // primary PDF analysis now goes through Anthropic's native PDF document type
 
@@ -339,97 +340,9 @@ async function persistInsight(userId: string, category: string, pts: number, dat
       }
     } catch (e) { console.warn('master profile / ai_assistant_profiles sync failed (non-fatal):', e); }
 
-    // 3. Recalculate and persist CG trust score after proof update
-    await recalculateAndSaveTrustScore(userId);
+    // 3. Recalculate and persist trust score after proof update (single source of truth)
+    await recomputeRawTrust(userId);
   } catch (e) { console.warn(`proof-upload DB persist failed (${category}):`, e); }
-}
-
-// ── Proof boost map (mirrors CasualGenerousBoostTab) ─────────────────────────
-const PROOF_BOOST_MAP: Record<string, { key: string; boost: number }> = {
-  lifestyle:    { key: 'lifestyleDepth',    boost: 30 },
-  hosting:      { key: 'lifestyleDepth',    boost: 20 },
-  discipline:   { key: 'emotionalSafety',   boost: 35 },
-  social_proof: { key: 'socialLegitimacy',  boost: 30 },
-  linkedin:     { key: 'socialLegitimacy',  boost: 50 },
-  instagram:    { key: 'socialLegitimacy',  boost: 25 },
-  twitter:      { key: 'socialLegitimacy',  boost: 15 },
-  habit_tracker:{ key: 'socialLegitimacy',  boost: 20 },
-  intro:        { key: 'emotionalSafety',   boost: 45 },
-  spending:     { key: 'generositySignals', boost: 30 },
-  assets:       { key: 'generositySignals', boost: 35 },
-};
-
-function photoMultiplier(count: number): number {
-  if (count <= 4)  return 0.40;
-  if (count <= 9)  return 0.65;
-  if (count <= 14) return 0.85;
-  return 1.0;
-}
-
-const SHOW_OFF_CATS = new Set(['lifestyle', 'hosting', 'discipline', 'social_proof']);
-
-async function recalculateAndSaveTrustScore(userId: string) {
-  try {
-    const supabase = getSupabase();
-    // Fetch all proof records for this user
-    const { data: proofRows } = await (supabase as any)
-      .from('verified_vibe_verification')
-      .select('step, data')
-      .eq('user_id', userId)
-      .like('step', 'proof_%');
-
-    // Fetch base verification records (id, liveness, photos, spending_or_qa)
-    const { data: baseRows } = await (supabase as any)
-      .from('verified_vibe_verification')
-      .select('step, data')
-      .eq('user_id', userId)
-      .not('step', 'like', 'proof_%');
-
-    // Base CG subscores from verification records
-    const baseScores: Record<string, number> = {
-      identity: 0, lifestyleDepth: 0, generositySignals: 0, emotionalSafety: 0, socialLegitimacy: 0
-    };
-
-    if (baseRows) {
-      const idRec    = baseRows.find((r: any) => r.step === 'id');
-      const livRec   = baseRows.find((r: any) => r.step === 'liveness');
-      const photoRec = baseRows.find((r: any) => r.step === 'photos');
-      const qaRec    = baseRows.find((r: any) => r.step === 'spending_or_qa');
-      const idScore  = idRec    ? (idRec.data?.confidenceScore    ?? 100) : 0;
-      const livScore = livRec   ? (livRec.data?.confidenceScore   ?? 100) : 0;
-      const phScore  = photoRec ? (photoRec.data?.confidenceScore ?? 100) : 0;
-      const qaScore  = qaRec    ? 100 : 0;
-      baseScores.identity          = Math.round((idScore + livScore) / 2);
-      baseScores.lifestyleDepth    = phScore;
-      baseScores.generositySignals = qaScore;
-    }
-
-    // Apply proof boosts
-    if (proofRows) {
-      for (const row of proofRows) {
-        const cat = (row.step as string).replace('proof_', '');
-        const boost = PROOF_BOOST_MAP[cat];
-        if (!boost) continue;
-        const photoCount = row.data?.photo_count ?? 0;
-        const multiplier = SHOW_OFF_CATS.has(cat) ? photoMultiplier(photoCount) : 1;
-        baseScores[boost.key] = Math.min(100, baseScores[boost.key] + Math.round(boost.boost * multiplier));
-      }
-    }
-
-    // CG total: Identity 20% · Lifestyle 25% · Generosity 30% · Safety 15% · Social 10%
-    const cgTotal = Math.min(100, Math.round(
-      baseScores.identity          * 0.20 +
-      baseScores.lifestyleDepth    * 0.25 +
-      baseScores.generositySignals * 0.30 +
-      baseScores.emotionalSafety   * 0.15 +
-      baseScores.socialLegitimacy  * 0.10
-    ));
-
-    await (supabase as any)
-      .from('verified_vibe_users')
-      .update({ trust_score: cgTotal, updated_at: new Date().toISOString() })
-      .eq('id', userId);
-  } catch (e) { console.warn('recalculateAndSaveTrustScore failed (non-fatal):', e); }
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
