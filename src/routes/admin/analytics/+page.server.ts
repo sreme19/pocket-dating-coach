@@ -180,7 +180,13 @@ function stat(values: (number | null)[]): LatencyStat {
 const MAX_DELIVERY_MS = 60000;
 
 function buildAiLatency(rows: any[], matchLabel: Map<string, string>) {
-	const records: AiLatencyRecord[] = rows.map((row) => {
+	// Drop render-only orphans: rows with no server-side generation half
+	// (generation_ms IS NULL). These are client render pings for AI messages
+	// that predate server timing — backfilled on thread (re)open — and only
+	// clutter the table with 1ms-render, everything-else-blank rows.
+	const measured = rows.filter((row) => num(row.generation_ms) != null);
+
+	const records: AiLatencyRecord[] = measured.map((row) => {
 		const waited = num(row.waited_from_user_msg_ms);
 		const rawSurface = num(row.surface_ms);
 		const surface = rawSurface != null && rawSurface > MAX_DELIVERY_MS ? null : rawSurface;
