@@ -81,7 +81,18 @@ export const load: PageServerLoad = async () => {
 		const b = userName.get(m.user2_id) ?? 'Unknown';
 		matchLabel.set(m.id, `${a} ↔ ${b}`);
 	}
-	const aiLatency = buildAiLatency((aiTimingRows ?? []) as any[], matchLabel);
+	// Pull the AI reply text for each timing row so the latency table can show
+	// which message each measurement belongs to.
+	const replyIds = [...new Set((aiTimingRows ?? []).map((r: any) => r.reply_message_id).filter(Boolean))];
+	const replyContent = new Map<string, string>();
+	if (replyIds.length) {
+		const { data: replyMsgs } = await sb
+			.from('verified_vibe_messages')
+			.select('id, content')
+			.in('id', replyIds);
+		for (const m of (replyMsgs ?? []) as any[]) replyContent.set(m.id, m.content);
+	}
+	const aiLatency = buildAiLatency((aiTimingRows ?? []) as any[], matchLabel, replyContent);
 
 	// Totals
 	const totals = {
@@ -149,6 +160,7 @@ interface AiLatencyRecord {
 	matchId: string | null;
 	sessionLabel: string;
 	responseType: string;
+	content: string | null; // the AI reply text this measurement belongs to
 	at: string; // when the response was generated (or logged, as fallback)
 	generationMs: number | null;
 	claudeMs: number | null;
@@ -179,7 +191,7 @@ function stat(values: (number | null)[]): LatencyStat {
 // not delivery latency — drop it defensively so old rows can't skew the stats.
 const MAX_DELIVERY_MS = 60000;
 
-function buildAiLatency(rows: any[], matchLabel: Map<string, string>) {
+function buildAiLatency(rows: any[], matchLabel: Map<string, string>, replyContent: Map<string, string>) {
 	// Drop render-only orphans: rows with no server-side generation half
 	// (generation_ms IS NULL). These are client render pings for AI messages
 	// that predate server timing — backfilled on thread (re)open — and only
@@ -198,6 +210,7 @@ function buildAiLatency(rows: any[], matchLabel: Map<string, string>) {
 			matchId,
 			sessionLabel: (matchId && matchLabel.get(matchId)) || 'Unknown thread',
 			responseType: row.response_type ?? 'bestie',
+			content: replyContent.get(row.reply_message_id ?? row.id) ?? null,
 			at: row.generated_at ?? row.created_at ?? '',
 			generationMs: num(row.generation_ms),
 			claudeMs: num(row.claude_ms),

@@ -714,6 +714,7 @@
 								<tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-white/[0.06]">
 									<th class="py-2 pr-3 font-medium">When</th>
 									<th class="py-2 pr-3 font-medium">Type</th>
+									<th class="py-2 pr-3 font-medium">Message</th>
 									<th class="py-2 pr-3 font-medium text-right">Generation</th>
 									<th class="py-2 pr-3 font-medium text-right">Claude</th>
 									<th class="py-2 pr-3 font-medium text-right">Delivery</th>
@@ -727,6 +728,12 @@
 										<td class="py-2 pr-3 text-slate-400 whitespace-nowrap">{fmtDate(r.at)}</td>
 										<td class="py-2 pr-3">
 											<span class="rounded px-1.5 py-0.5 text-xs bg-indigo-500/20 text-indigo-400">{r.responseType}</span>
+										</td>
+										<td class="py-2 pr-3 max-w-[28rem]">
+											<div class="truncate text-slate-300" title={r.content ?? ''}>
+												{r.content ?? '—'}
+											</div>
+											<div class="font-mono text-[10px] text-slate-600" title={r.replyMessageId}>{r.replyMessageId}</div>
 										</td>
 										<td class="py-2 pr-3 text-right text-slate-300">{fmtMs(r.generationMs)}</td>
 										<td class="py-2 pr-3 text-right text-slate-300">{fmtMs(r.claudeMs)}</td>
