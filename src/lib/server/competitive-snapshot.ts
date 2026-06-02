@@ -182,14 +182,14 @@ function formatPromptBlock(s: CompetitiveSnapshot): string {
 		for (const m of s.matchRivals) {
 			if (m.filtered) {
 				lines.push(
-					`Real, active men who qualify to pursue ${m.firstName}: ${m.qualifiedRivals}.` +
+					`OTHER real, active men (excluding him) who qualify to pursue ${m.firstName}: ${m.qualifiedRivals}.` +
 						(m.qualifiedRivals === 0
 							? ` He has effectively no live competition for her — the opening is his to lose.`
 							: '')
 				);
 			} else {
 				lines.push(
-					`Real, active men in the field around ${m.firstName}: ${m.qualifiedRivals} (not preference-filtered — she has no distilled profile yet).`
+					`OTHER real, active men (excluding him) in the field around ${m.firstName}: ${m.qualifiedRivals} (not preference-filtered — she has no distilled profile yet).`
 				);
 			}
 		}
@@ -201,7 +201,7 @@ function formatPromptBlock(s: CompetitiveSnapshot): string {
 		`\n\nRULES for using this snapshot:\n` +
 		`- These counts are the ground truth. NEVER invent or estimate user counts, rival counts, percentages, or trust-point totals beyond what is stated here and in his verified proofs.\n` +
 		`- His Trust Score is capped at 100. Do NOT promise large point jumps (e.g. "+26", "get to +50") — frame any upload by how it helps a specific match see him, not by fictional point math.\n` +
-		`- Anything already in his Verified Proofs is DONE and counted. Celebrate it; never ask him to upload it again.\n` +
+		`- Anything already in his Verified Proofs is DONE and counted. Celebrate it; never ask him to upload it again. Before suggesting ANY upload, check the verified-proofs list above and only suggest a category he does NOT already have.\n` +
 		`- If real competition is low, lead with that as encouragement and steer him toward acting on his matches rather than more verification.`
 	);
 }
