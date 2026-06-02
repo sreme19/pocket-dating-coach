@@ -351,6 +351,31 @@
     }
   }
 
+  // Report delivery + render timing for an advisor reply once it has painted.
+  // generatedAt is the server stamp; receivedAt is when the fetch resolved here.
+  // Mirrors the AI Bestie render ping so both surfaces feed the AI Latency tab.
+  function reportWingmanRenderTiming(replyMessageId: string, generatedAt: string, receivedAt: string) {
+    const uid = $user?.id;
+    if (!uid) return;
+    // Wait for Svelte to flush the new bubble, then measure paint on the next frame.
+    tick().then(() => requestAnimationFrame(() => {
+      const renderedAt = new Date().toISOString();
+      fetch('/api/verified-vibe/analytics/ai-render', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: uid,
+          matchId: uid,           // groups all of this man's advisor replies together
+          replyMessageId,
+          responseType: 'wingman',
+          generatedAt,
+          receivedAt,
+          renderedAt
+        })
+      }).catch(() => { /* non-critical */ });
+    }));
+  }
+
   async function send(opts: { text?: string; intent?: 'summary' | 'insights' }) {
     if (sending) return;
     const text = (opts.text ?? input).trim();
@@ -380,6 +405,7 @@
         })
       });
 
+      const receivedAt = new Date().toISOString();
       const data = await res.json();
       const reply: string = data.reply ?? data.error ?? 'Something went wrong.';
 
@@ -387,6 +413,12 @@
         ...messages.filter(m => !m.pending),
         { role: 'assistant', content: reply, timestamp: new Date() }
       ];
+
+      // Stamp the client half of the latency record after the bubble paints, so
+      // this advisor reply shows up under "AI Wingman ↔ <name>" in AI Latency.
+      if (data.replyMessageId && data.generatedAt) {
+        reportWingmanRenderTiming(data.replyMessageId, data.generatedAt, receivedAt);
+      }
     } catch {
       messages = [
         ...messages.filter(m => !m.pending),

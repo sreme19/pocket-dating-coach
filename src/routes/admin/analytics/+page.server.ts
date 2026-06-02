@@ -92,7 +92,19 @@ export const load: PageServerLoad = async () => {
 			.in('id', replyIds);
 		for (const m of (replyMsgs ?? []) as any[]) replyContent.set(m.id, m.content);
 	}
-	const aiLatency = buildAiLatency((aiTimingRows ?? []) as any[], matchLabel, replyContent);
+	// AI Wingman advisor replies aren't stored as message rows — their text lives
+	// in the advisor transcript, stamped with the same latency join key. Pull those
+	// in so wingman rows show their message text just like Bestie rows do.
+	const { data: advisorChats } = await sb
+		.from('ai_assistant_advisor_chats')
+		.select('messages')
+		.eq('assistant_type', 'wingman');
+	for (const chat of (advisorChats ?? []) as any[]) {
+		for (const m of (chat.messages ?? []) as any[]) {
+			if (m?.id && m?.content && !replyContent.has(m.id)) replyContent.set(m.id, m.content);
+		}
+	}
+	const aiLatency = buildAiLatency((aiTimingRows ?? []) as any[], matchLabel, replyContent, userName);
 
 	// Totals
 	const totals = {
@@ -191,7 +203,12 @@ function stat(values: (number | null)[]): LatencyStat {
 // not delivery latency — drop it defensively so old rows can't skew the stats.
 const MAX_DELIVERY_MS = 60000;
 
-function buildAiLatency(rows: any[], matchLabel: Map<string, string>, replyContent: Map<string, string>) {
+function buildAiLatency(
+	rows: any[],
+	matchLabel: Map<string, string>,
+	replyContent: Map<string, string>,
+	userName: Map<string, string>
+) {
 	// Drop render-only orphans: rows with no server-side generation half
 	// (generation_ms IS NULL). These are client render pings for AI messages
 	// that predate server timing — backfilled on thread (re)open — and only
@@ -205,11 +222,18 @@ function buildAiLatency(rows: any[], matchLabel: Map<string, string>, replyConte
 		const rawTotal = num(row.total_to_render_ms);
 		const total = rawTotal != null && rawTotal > MAX_DELIVERY_MS ? null : rawTotal;
 		const matchId = row.match_id ?? null;
+		const responseType = row.response_type ?? 'bestie';
+		// Wingman advisor chats have no match — match_id holds the man's user id, so
+		// all his replies group into one "AI Wingman ↔ <name>" session. Bestie rows
+		// label by the two thread participants as before.
+		const sessionLabel = responseType === 'wingman'
+			? `AI Wingman ↔ ${(matchId && userName.get(matchId)) || 'Unknown'}`
+			: (matchId && matchLabel.get(matchId)) || 'Unknown thread';
 		return {
 			replyMessageId: row.reply_message_id ?? row.id,
 			matchId,
-			sessionLabel: (matchId && matchLabel.get(matchId)) || 'Unknown thread',
-			responseType: row.response_type ?? 'bestie',
+			sessionLabel,
+			responseType,
 			content: replyContent.get(row.reply_message_id ?? row.id) ?? null,
 			at: row.generated_at ?? row.created_at ?? '',
 			generationMs: num(row.generation_ms),
