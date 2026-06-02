@@ -43,7 +43,7 @@ export interface BestiePoolRow {
   last_updated:        string;
 }
 
-interface ScoredPair {
+export interface ScoredPair {
   maleUserId:   string;
   femaleUserId: string;
   score:        number;       // 0–100
@@ -53,8 +53,10 @@ interface ScoredPair {
 
 // ── Hard filter ───────────────────────────────────────────────────────────────
 // Returns true if the pair is ELIMINATED (should NOT be matched).
+// Exported so the admin Test Suite can score a single pair through the EXACT
+// production filter without re-running the nightly batch (AI_TEST_SUITE_DESIGN.md §4).
 
-function hardFilter(
+export function hardFilter(
   male:   WingmanPoolRow,
   female: BestiePoolRow,
   cityScoped: boolean
@@ -99,10 +101,10 @@ function hardFilter(
 
 // ── Claude soft scoring ────────────────────────────────────────────────────────
 
-async function softScore(male: WingmanPoolRow, female: BestiePoolRow): Promise<ScoredPair> {
-  const client = getClaudeClient();
-
-  const prompt = `You are evaluating compatibility between a male and female user on a verified dating platform.
+// Exported so the admin Test Suite can display the EXACT prompt the soft-scorer
+// sends to Claude in its observability trace, with zero risk of drift.
+export function buildSoftScorePrompt(male: WingmanPoolRow, female: BestiePoolRow): string {
+  return `You are evaluating compatibility between a male and female user on a verified dating platform.
 
 MALE PROFILE:
 Archetype: ${male.archetype}
@@ -136,6 +138,11 @@ Respond with ONLY valid JSON (no markdown, no code fences):
   "rationale": "<2 sentences explaining the key compatibility or mismatch>",
   "flags": ["<signal 1>", "<signal 2>", "<signal 3>"]
 }`;
+}
+
+export async function softScore(male: WingmanPoolRow, female: BestiePoolRow): Promise<ScoredPair> {
+  const client = getClaudeClient();
+  const prompt = buildSoftScorePrompt(male, female);
 
   try {
     const response = await client.messages.create({

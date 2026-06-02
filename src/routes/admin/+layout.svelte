@@ -9,7 +9,8 @@
 	const links = [
 		{ href: '/admin/qa', label: 'QA Queue' },
 		{ href: '/admin/qa/results', label: 'QA Results' },
-		{ href: '/admin/analytics', label: 'Analytics' }
+		{ href: '/admin/analytics', label: 'Analytics' },
+		{ href: '/admin/test-suite', label: 'Test Suite' }
 	];
 
 	// Active link is the single most-specific match so `/admin/qa/results`
