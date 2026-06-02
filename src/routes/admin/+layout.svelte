@@ -11,6 +11,14 @@
 		{ href: '/admin/qa/results', label: 'QA Results' },
 		{ href: '/admin/analytics', label: 'Analytics' }
 	];
+
+	// Active link is the single most-specific match so `/admin/qa/results`
+	// doesn't also light up `/admin/qa`.
+	let activeHref = $derived(
+		links
+			.filter((l) => $page.url.pathname === l.href || $page.url.pathname.startsWith(l.href + '/'))
+			.sort((a, b) => b.href.length - a.href.length)[0]?.href
+	);
 </script>
 
 {#if !onLogin}
@@ -21,7 +29,7 @@
 				{#each links as l}
 					<a
 						href={l.href}
-						class="rounded px-3 py-1.5 text-sm transition-colors {$page.url.pathname.startsWith(l.href)
+						class="rounded px-3 py-1.5 text-sm transition-colors {activeHref === l.href
 							? 'bg-emerald-500/20 text-emerald-400'
 							: 'text-slate-400 hover:text-slate-200'}">{l.label}</a
 					>
