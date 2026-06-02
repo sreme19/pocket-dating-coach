@@ -16,6 +16,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { runNightlyBatch } from '$lib/server/matchmaker-service';
 import { runTrustNormalization } from '$lib/server/trust-normalize';
+import { runAllMatchScores } from '$lib/server/match-scoring';
 import { MATCHMAKER_RUN_SECRET } from '$env/static/private';
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -23,7 +24,7 @@ export const POST: RequestHandler = async ({ request }) => {
     const body = await request.json() as {
       secret?: string;
       cityScoped?: boolean;
-      task?: 'trust-normalize';
+      task?: 'trust-normalize' | 'match-scores';
     };
 
     // Validate secret
@@ -38,12 +39,20 @@ export const POST: RequestHandler = async ({ request }) => {
       return json({ task: 'trust-normalize', count: report.length, report });
     }
 
+    // Match scoring only — recompute vv_match_scores for every mutual pair.
+    // Synchronous so the caller sees the result. Heavy (LLM) but bounded.
+    if (body.task === 'match-scores') {
+      const result = await runAllMatchScores();
+      return json({ task: 'match-scores', ...result });
+    }
+
     const cityScoped = body.cityScoped ?? false;
 
-    // Nightly: re-normalize trust FIRST (matching reads trust bands), then match.
-    // Runs asynchronously — respond immediately, work continues in background.
+    // Nightly: re-normalize trust FIRST (matching + scoring read trust), then
+    // match, then refresh match scores. Async — respond immediately.
     runTrustNormalization()
       .then(() => runNightlyBatch(cityScoped))
+      .then(() => runAllMatchScores())
       .catch((err) => {
         console.error('[matchmaker/run] nightly run failed:', err);
       });
