@@ -665,6 +665,12 @@
 		Lag for AI Bestie auto-responses, measured end to end: from the user's message
 		landing on the server, through generation, delivery, and paint on the recipient's screen.
 		Tracked across {data.aiLatency.count} response{data.aiLatency.count === 1 ? '' : 's'}.
+		<a
+			href="https://github.com/sreme19/pocket-dating-coach/wiki/AI-Latency-Metrics"
+			target="_blank"
+			rel="noopener noreferrer"
+			class="text-emerald-400 hover:text-emerald-300 hover:underline">How these metrics are derived →</a
+		>
 	</p>
 
 	{#if data.aiLatency.count === 0}
