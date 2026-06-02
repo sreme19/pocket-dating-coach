@@ -15,12 +15,14 @@ import { getSupabase } from './supabase';
 import { getClaudeClient, CLAUDE_MODEL, MAX_TOKENS } from '../claude';
 import { getEmbedding } from '../embeddings';
 import { searchBookChunks } from '../vectorstore';
-import { loadPreferences, loadPersonality } from './profile-service';
+import { loadPreferences } from './profile-service';
 import {
 	buildAIBestieSystemPrompt,
-	buildAIWingmanSystemPrompt,
+	buildAIWingmanAdvisorSystemPrompt,
 	buildBestieReplyPrompt
 } from '../prompts';
+import { loadWingmanAdvisorContext } from './wingman-advisor-context';
+import { piiScan, haikusValidate, SAFE_FALLBACK } from './ai-compliance';
 import {
 	hardFilter,
 	softScore,
@@ -235,8 +237,164 @@ export async function runAdvisor(
 ): Promise<{ reply: string; citations: string[]; trace: AgentTrace; runId: string | null }> {
 	const user = await getUser(userId);
 	if (!user) throw new Error('user not found');
-	const assistant = assistantFor(user.gender);
+	// Wingman and Bestie advisors are genuinely different production paths — the
+	// Wingman advisor is profile/match/upload-aware and does NO book KB, while the
+	// Bestie advisor is book-grounded. Route to the matching faithful core.
+	return assistantFor(user.gender) === 'wingman'
+		? runWingmanAdvisor(user, message, opts)
+		: runBestieAdvisor(user, message, opts);
+}
 
+/**
+ * Faithful reproduction of the live AI Wingman advisor
+ * (src/routes/api/verified-vibe/ai-wingman/chat). Shares the EXACT context
+ * loader and system-prompt builder with production. No book KB (live doesn't
+ * use it), no pending-report pop (that mutates state), persist:false.
+ */
+async function runWingmanAdvisor(
+	user: RosterUser,
+	message: string,
+	opts: RunOpts
+): Promise<{ reply: string; citations: string[]; trace: AgentTrace; runId: string | null }> {
+	const supabase = getSupabase();
+
+	// Same context the live endpoint assembles — master profile, verified proofs,
+	// trust artifacts, admirers, and current matches with abstracted preferences.
+	const ctx = await loadWingmanAdvisorContext(supabase, user.id, { intent: 'chat' });
+
+	// Same system prompt as production. pendingReportContext is empty: popping a
+	// pending report is a state mutation we must not perform in test mode.
+	const systemPrompt = buildAIWingmanAdvisorSystemPrompt({
+		personalityContext: ctx.personalityContext,
+		masterProfileContext: ctx.masterProfileContext,
+		artifactsContext: ctx.artifactsContext,
+		admirerContext: ctx.admirerContext,
+		matchContext: ctx.matchContext,
+		pendingReportContext: ''
+	});
+
+	// Claude — real model, real client. max_tokens mirrors the live endpoint (700).
+	const WINGMAN_ADVISOR_MAX_TOKENS = 700;
+	const client = getClaudeClient();
+	const tClaude = Date.now();
+	const resp = await client.messages.create({
+		model: CLAUDE_MODEL,
+		max_tokens: WINGMAN_ADVISOR_MAX_TOKENS,
+		system: systemPrompt,
+		messages: [{ role: 'user', content: message }]
+	});
+	const claudeMs = Date.now() - tClaude;
+	const rawReply = claudeText(resp.content[0]);
+
+	// Same compliance gate the live endpoint runs (PII regex → Haiku validator,
+	// advisor context). READ-ONLY here: on a violation we substitute the safe
+	// fallback exactly like production, but never write to ai_assistant_violations.
+	const tCompliance = Date.now();
+	let reply = rawReply;
+	let complianceDetail: string;
+	const regexHits = piiScan(rawReply);
+	if (regexHits.length > 0) {
+		reply = SAFE_FALLBACK;
+		complianceDetail = `BLOCKED at regex stage (${regexHits.join(', ')}) → safe fallback substituted. Would log to ai_assistant_violations (detection_stage=regex). Skipped — test mode.`;
+	} else {
+		const { clean, violations } = await haikusValidate(rawReply, 'advisor');
+		if (!clean) {
+			reply = SAFE_FALLBACK;
+			complianceDetail = `BLOCKED by Haiku validator (${violations.join('; ')}) → safe fallback substituted. Would log to ai_assistant_violations (detection_stage=haiku_validator). Skipped — test mode.`;
+		} else {
+			complianceDetail = 'passed — PII regex clean, Haiku validator (advisor) clean. Reply delivered as-is.';
+		}
+	}
+	const complianceMs = Date.now() - tCompliance;
+	const citations = parseCitations(reply); // live Wingman advisor has no citation rule → []
+
+	const intel = detectIntelIntent(message);
+	const sideEffects: AgentTrace['sideEffects'] = [
+		{
+			name: 'complianceGate',
+			wouldPersist: false,
+			detail: complianceDetail
+		},
+		{
+			name: 'queueIntelligenceReport',
+			wouldPersist: false,
+			detail: intel
+				? 'intelligence intent detected → would queue a per_match_ranking report. Detected, not queued.'
+				: 'intelligence intent = false. No report path triggered.'
+		},
+		{
+			name: 'appendAdvisorChat',
+			wouldPersist: false,
+			detail: 'Would persist this exchange to ai_assistant_advisor_chats (assistant_type=wingman). Skipped — test mode.'
+		},
+		{
+			name: 'vv_ai_response_timings.upsert',
+			wouldPersist: false,
+			detail: `response_type=wingman · claude_ms=${claudeMs}. Not written — Analytics dashboard stays clean.`
+		}
+	];
+
+	const trace: AgentTrace = {
+		agent: 'wingman_advisor',
+		startedAt: new Date().toISOString(),
+		subject: { userId: user.id, name: user.first_name, gender: user.gender, archetype: user.archetype },
+		routing: {
+			resolvedAssistant: 'wingman',
+			reason: `gender === '${user.gender}' → wingman (ai-greeting routing rule)`
+		},
+		profile: {
+			type: 'personality',
+			// user_master_profile has no version column; legacy fallback does.
+			version: ctx.profileSource === 'user_master_profile' ? null : await profileVersion(user.id, 'personality'),
+			data: ctx.profileData,
+			source: ctx.profileSource
+		},
+		matchContext: {
+			matchCount: ctx.matchCount,
+			note:
+				ctx.matchCount > 0
+					? 'Live advisor loads real matches + abstracted preferences into the prompt.'
+					: 'No matches — advisor coaches over owner profile, proofs, and uploads.'
+		},
+		kb: null, // live AI Wingman advisor performs NO book KB retrieval
+		claude: {
+			model: CLAUDE_MODEL,
+			maxTokens: WINGMAN_ADVISOR_MAX_TOKENS,
+			systemPrompt,
+			userMessage: message,
+			rawOutput: rawReply, // raw model output, BEFORE the compliance gate
+			usage: { inputTokens: resp.usage?.input_tokens, outputTokens: resp.usage?.output_tokens }
+		},
+		output: { reply, citations }, // reply = what the user would see (post-compliance)
+		sideEffects,
+		timing: { totalMs: claudeMs + complianceMs, claudeMs }
+	};
+
+	const runId = opts.persist
+		? await logRun({
+				caseType: 'advisor',
+				agent: trace.agent,
+				subjectUserId: user.id,
+				counterpartUserId: null,
+				reviewer: opts.reviewer ?? null,
+				input: { message },
+				output: { reply, citations },
+				trace
+			})
+		: null;
+
+	return { reply, citations, trace, runId };
+}
+
+/**
+ * Faithful reproduction of the live AI Bestie advisor — book-grounded, reads her
+ * preferences via the profile service. Unchanged from the original shared core.
+ */
+async function runBestieAdvisor(
+	user: RosterUser,
+	message: string,
+	opts: RunOpts
+): Promise<{ reply: string; citations: string[]; trace: AgentTrace; runId: string | null }> {
 	// KB retrieval — real embedding + real vector search
 	const tEmb = Date.now();
 	const embedding = await getEmbedding(message);
@@ -247,24 +405,9 @@ export async function runAdvisor(
 	const bookContext = buildBookContext(chunks);
 
 	// Profile — real profile-service read
-	let systemPrompt: string;
-	let profileType: 'preferences' | 'personality';
-	let profileData: unknown;
-	let version: number | null;
-
-	if (assistant === 'bestie') {
-		const prefs = await loadPreferences(userId);
-		profileType = 'preferences';
-		profileData = prefs;
-		version = await profileVersion(userId, 'preferences');
-		systemPrompt = buildAIBestieSystemPrompt(null, bookContext, undefined, prefs);
-	} else {
-		const personality = await loadPersonality(userId);
-		profileType = 'personality';
-		profileData = personality;
-		version = await profileVersion(userId, 'personality');
-		systemPrompt = buildAIWingmanSystemPrompt(null, bookContext, undefined, personality);
-	}
+	const prefs = await loadPreferences(user.id);
+	const version = await profileVersion(user.id, 'preferences');
+	const systemPrompt = buildAIBestieSystemPrompt(null, bookContext, undefined, prefs);
 
 	// Claude — real model, real client
 	const client = getClaudeClient();
@@ -281,49 +424,33 @@ export async function runAdvisor(
 
 	const sideEffects: AgentTrace['sideEffects'] = [
 		{
-			name: assistant === 'bestie' ? 'ai_assistant_conversations.upsert' : 'appendAdvisorChat',
+			name: 'ai_assistant_conversations.upsert',
 			wouldPersist: false,
-			detail: `Would persist this exchange to ${
-				assistant === 'bestie' ? 'ai_assistant_conversations' : 'ai_assistant_advisor_chats'
-			} (assistant_type=${assistant}). Skipped — test mode.`
+			detail: 'Would persist this exchange to ai_assistant_conversations (assistant_type=bestie). Skipped — test mode.'
 		},
 		{
 			name: 'autoUpdateProfile',
 			wouldPersist: false,
-			detail: `Would analyze this turn for new ${profileType} signals and write a v${
+			detail: `Would analyze this turn for new preferences signals and write a v${
 				(version ?? 0) + 1
 			} row to ai_assistant_profiles. Skipped — the profile the agent learns from is left untouched.`
 		},
 		{
 			name: 'vv_ai_response_timings.upsert',
 			wouldPersist: false,
-			detail: `response_type=${assistant}_advisor · claude_ms=${claudeMs}. Not written — Analytics dashboard stays clean.`
+			detail: `response_type=bestie_advisor · claude_ms=${claudeMs}. Not written — Analytics dashboard stays clean.`
 		}
 	];
-	if (assistant === 'wingman') {
-		const intel = detectIntelIntent(message);
-		sideEffects.splice(1, 0, {
-			name: 'queueIntelligenceReport',
-			wouldPersist: false,
-			detail: intel
-				? 'intelligence intent detected → would queue a per_match_ranking report. Detected, not queued.'
-				: 'intelligence intent = false. No report path triggered.'
-		});
-	}
 
 	const trace: AgentTrace = {
-		agent: assistant === 'bestie' ? 'bestie_advisor' : 'wingman_advisor',
+		agent: 'bestie_advisor',
 		startedAt: new Date().toISOString(),
 		subject: { userId: user.id, name: user.first_name, gender: user.gender, archetype: user.archetype },
 		routing: {
-			resolvedAssistant: assistant,
-			reason: `gender === '${user.gender}' → ${assistant} (ai-greeting routing rule)`
+			resolvedAssistant: 'bestie',
+			reason: `gender === '${user.gender}' → bestie (ai-greeting routing rule)`
 		},
-		profile: { type: profileType, version, data: profileData, source: 'ai_assistant_profiles' },
-		matchContext:
-			assistant === 'wingman'
-				? { note: 'Advisor mode — no specific match in scope. Coaching over owner profile + KB.' }
-				: undefined,
+		profile: { type: 'preferences', version, data: prefs, source: 'ai_assistant_profiles' },
 		kb: { query: message, embeddingModel: 'voyage-3-lite', topK: 5, chunks: chunks.map(chunkToTrace) },
 		claude: {
 			model: CLAUDE_MODEL,
