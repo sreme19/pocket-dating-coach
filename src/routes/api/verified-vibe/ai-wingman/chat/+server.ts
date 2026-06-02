@@ -25,6 +25,7 @@ import { touchLastActive } from '$lib/server/pool-registry';
 import { popPendingChatMessage } from '$lib/server/intelligence-report-processor';
 import { queueIntelligenceReport } from '$lib/server/matchmaker-service';
 import { processIntelligenceReport } from '$lib/server/intelligence-report-processor';
+import { buildCompetitiveSnapshot } from '$lib/server/competitive-snapshot';
 import { complianceGate } from '$lib/server/ai-compliance';
 
 // Phrases that indicate the user wants competitive/improvement intelligence
@@ -101,6 +102,13 @@ export const POST: RequestHandler = async ({ request }) => {
 		const { personalityContext, masterProfileContext, artifactsContext, admirerContext, matchContext } =
 			await loadWingmanAdvisorContext(supabase, userId, { intent });
 
+		// ── Competitive intelligence snapshot ──────────────────────────────────
+		// Computed SYNCHRONOUSLY (cheap SQL, no Claude) so the live, real-platform
+		// numbers — active real women/men, his rivals per match, his normalized
+		// trust standing — ground THIS reply. The heavy LLM matchmaker report
+		// (popPendingChatMessage above) lands a turn too late to do that.
+		const { promptBlock: competitiveContext } = await buildCompetitiveSnapshot(supabase, userId);
+
 		// ── Build system prompt ────────────────────────────────────────────────
 		const systemPrompt = buildAIWingmanAdvisorSystemPrompt({
 			personalityContext,
@@ -108,6 +116,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			artifactsContext,
 			admirerContext,
 			matchContext,
+			competitiveContext,
 			pendingReportContext
 		});
 

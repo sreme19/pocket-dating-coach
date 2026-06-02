@@ -22,6 +22,7 @@ import {
 	buildBestieReplyPrompt
 } from '../prompts';
 import { loadWingmanAdvisorContext } from './wingman-advisor-context';
+import { buildCompetitiveSnapshot } from './competitive-snapshot';
 import { piiScan, haikusValidate, SAFE_FALLBACK } from './ai-compliance';
 import {
 	hardFilter,
@@ -262,6 +263,11 @@ async function runWingmanAdvisor(
 	// trust artifacts, admirers, and current matches with abstracted preferences.
 	const ctx = await loadWingmanAdvisorContext(supabase, user.id, { intent: 'chat' });
 
+	// Same synchronous competitive snapshot the live endpoint grounds the reply
+	// with (cheap SQL, no Claude, read-only) — keeps the Test Suite prompt in
+	// lockstep with production.
+	const { promptBlock: competitiveContext } = await buildCompetitiveSnapshot(supabase, user.id);
+
 	// Same system prompt as production. pendingReportContext is empty: popping a
 	// pending report is a state mutation we must not perform in test mode.
 	const systemPrompt = buildAIWingmanAdvisorSystemPrompt({
@@ -270,6 +276,7 @@ async function runWingmanAdvisor(
 		artifactsContext: ctx.artifactsContext,
 		admirerContext: ctx.admirerContext,
 		matchContext: ctx.matchContext,
+		competitiveContext,
 		pendingReportContext: ''
 	});
 
