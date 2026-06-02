@@ -18,6 +18,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getSupabase } from '$lib/server/supabase';
+import { recomputeRawTrust } from '$lib/server/trust-recompute';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -87,20 +88,10 @@ export const POST: RequestHandler = async ({ request }) => {
       return json({ error: 'Failed to save artifact record' }, { status: 500 });
     }
 
-    // Immediately boost trust score
-    const { data: user } = await supabase
-      .from('verified_vibe_users')
-      .select('trust_score')
-      .eq('id', userId)
-      .single();
-
-    const currentScore = user?.trust_score ?? 0;
-    const newTrustScore = Math.min(currentScore + trustPoints, 100);
-
-    await supabase
-      .from('verified_vibe_users')
-      .update({ trust_score: newTrustScore, updated_at: new Date().toISOString() })
-      .eq('id', userId);
+    // Recompute trust from ALL proof sources (single source of truth) — this now
+    // folds the artifact we just inserted into the unified CG model, instead of
+    // the old additive boost that a later proof recompute would have wiped.
+    const { rawTrust: newTrustScore } = await recomputeRawTrust(userId);
 
     return json({
       url: storageUrl,
