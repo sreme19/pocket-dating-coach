@@ -4,9 +4,12 @@ How the **AI Latency** tab in the admin analytics dashboard (`/admin/analytics`)
 derived — the event flow that produces the data, the table that stores it, and the
 exact formula behind every number on screen.
 
-The tab measures lag for **AI Bestie auto-responses**: from a user's message landing
-on the server, through generation, delivery over the poll, and paint on the
-recipient's screen. Each measured response is one row in `vv_ai_response_timings`.
+The tab measures lag for two AI surfaces — **AI Bestie** auto-responses and **AI
+Wingman** advisor replies — from a user's message landing on the server, through
+generation, delivery over the poll (Bestie) or fetch response (Wingman), and paint on
+screen. Each measured response is one row in `vv_ai_response_timings`, tagged by
+`response_type` (`'bestie'` or `'wingman'`) and grouped into one session card per
+thread/advisor chat.
 
 ---
 
@@ -14,13 +17,16 @@ recipient's screen. Each measured response is one row in `vv_ai_response_timings
 
 A single AI reply is measured in two halves by two different actors:
 
-- **Server half** — written when the Bestie reply is generated (the female user the
-  Bestie acts for is offline/out-of-band).
-- **Client half** — written by the **recipient's** browser once the reply is polled
-  in and painted.
+- **Server half** — written when the reply is generated. For Bestie this happens
+  out-of-band (the female user the Bestie acts for is offline); for Wingman it happens
+  inline in the advisor chat request the man just sent.
+- **Client half** — written by the browser once the reply is surfaced and painted. For
+  Bestie that's the **recipient's** browser on its next poll; for Wingman it's the same
+  user's browser as soon as the fetch resolves.
 
 They are joined on `reply_message_id` (an upsert, so order doesn't matter — whichever
-half lands first creates the row, the other merges in).
+half lands first creates the row, the other merges in). The flow below is the Bestie
+path; §6 covers how Wingman differs.
 
 ```mermaid
 sequenceDiagram
@@ -65,6 +71,8 @@ sequenceDiagram
 | Server generation + server-column write | `src/lib/server/bestie-responder.ts` | `generateAndSendBestieReply` 166–232; `claude_ms` 130/148 |
 | Client poll + received/rendered stamp | `src/routes/verified-vibe/chat/[conversationId]/+page.svelte` | `pollOnce` 1000–1090; `reportAiRenderTiming` 1117–1133; age gate `MAX_DELIVERY_AGE_MS` 51 |
 | Client-column write (derive + upsert) | `src/routes/api/verified-vibe/analytics/ai-render/+server.ts` | 18–76 |
+| Wingman server generation + server-column write | `src/routes/api/verified-vibe/ai-wingman/chat/+server.ts` | `claude_ms` around `messages.create`; timing upsert after the compliance gate |
+| Wingman client received/rendered stamp | `src/routes/verified-vibe/chat/ai-wingman/+page.svelte` | `reportWingmanRenderTiming` (called from `send`) |
 | Dashboard read + aggregation | `src/routes/admin/analytics/+page.server.ts` | query 27–30; message join 84–95; `buildAiLatency` 182–246 |
 | Dashboard render | `src/routes/admin/analytics/+page.svelte` | KPI cards 676–697; table 711–745 |
 
@@ -79,8 +87,8 @@ Migration: `supabase/migrations/20260601_ai_response_timings.sql`.
 |---|---|---|---|
 | `id` | uuid PK | default | row id |
 | `reply_message_id` | uuid **unique** | server (or client if first) | join key — the AI reply message |
-| `match_id` | uuid | both | the chat thread |
-| `response_type` | text | both | `'bestie'` |
+| `match_id` | uuid | both | the chat thread; for `wingman` (no thread) it holds the **man's own user id** so all his advisor replies group together |
+| `response_type` | text | both | `'bestie'` or `'wingman'` |
 | **— server stage —** | | | |
 | `trigger_message_id` | uuid | server | the user's message that triggered the reply |
 | `trigger_at` | timestamptz | server | when the user's message hit the DB |
@@ -163,7 +171,11 @@ backfills old history, which would otherwise masquerade as huge "delivery" times
 2. **Map** each row → `AiLatencyRecord`, joining the reply text by `reply_message_id`
    (loaded in the page `load`, 84–95) and re-applying the 60s clamp to
    `surface_ms` / `total_to_render_ms`.
-3. **Group** by `match_id` into chat sessions (one card per thread), newest first.
+3. **Group** by `match_id` into sessions (one card per thread), newest first. The
+   session label is the two thread participants (`Name ↔ Name`) for `bestie`; for
+   `wingman` it is `AI Wingman ↔ <first name>`, resolved from the man's user id in
+   `match_id`. (User ids and match ids are both UUIDs and never collide, so the two
+   surfaces never land in the same group.)
 4. **Aggregate** each stage with `stat()` (170–176): `n`, `avg`, `p50`, `p95`, `max`.
    - `p50`/`p95` are nearest-rank percentiles over the non-null, finite values only.
    - Each stage aggregates independently, so `n` differs per stage (a row missing
@@ -172,13 +184,45 @@ backfills old history, which would otherwise masquerade as huge "delivery" times
 The KPI cards show the **global** stats across all sessions; each session card shows its
 own per-thread `avg e2e` / `avg delivery`. The per-row table additionally shows the
 **Message** (reply text + `reply_message_id`) so every measurement is traceable to the
-exact message. Cell color cues: delivery > 3s → amber; end-to-end > 15s → rose.
+exact message. For `bestie` the text is joined from `verified_vibe_messages.content`;
+for `wingman` (which has no message row) it comes from the advisor transcript —
+`ai_assistant_advisor_chats`, where the assistant turn is stamped with the same
+`reply_message_id`. Cell color cues: delivery > 3s → amber; end-to-end > 15s → rose.
 
 ---
 
-## 6. Worked example
+## 6. AI Wingman advisor surface
 
-The sample row in the screenshot (`reply_message_id 57ef4cc4…`):
+The AI Wingman advisor chat ("Your match advisor", route
+`/verified-vibe/chat/ai-wingman` → `POST /api/verified-vibe/ai-wingman/chat`) is also
+measured, reusing the same table and the same `/analytics/ai-render` endpoint. It differs
+from Bestie in a few structural ways, because the advisor chat has **no persisted message
+row** and **no separate recipient** — the man both sends and receives.
+
+| Aspect | Bestie | Wingman |
+|---|---|---|
+| Server half written | out-of-band in `bestie-responder.ts` | inline in the chat request, after the compliance gate |
+| `reply_message_id` | the inserted `verified_vibe_messages` row id | minted with `crypto.randomUUID()` in the chat route, returned to the client |
+| `match_id` | the thread | the **man's user id** (grouping key only) |
+| `trigger_at` | the user message's `created_at` | request-receipt time (`t0`) |
+| `waited_from_user_msg_ms` | `generated_at − trigger_at` | set equal to `generation_ms` (no queued trigger row exists) |
+| Client half stamped by | recipient's poll loop | the sender's browser, right after the reply bubble paints (`tick()` + `requestAnimationFrame`) |
+| Reply text source | `verified_vibe_messages.content` | `ai_assistant_advisor_chats` (assistant turn stamped with `reply_message_id`) |
+
+Because `waited_from_user_msg_ms = generation_ms`, a Wingman **End-to-end** reads as
+`generation + delivery + render` — i.e. from the moment the man hits send to the reply on
+his screen. The 60s clamps, orphan filter, and `stat()` aggregation all apply unchanged.
+Every Wingman row carries a server half (`generation_ms` is always set), so none are
+dropped as orphans.
+
+> The match-specific in-thread Wingman flow (`POST /api/ai-wingman/message`, stored in
+> `ai_assistant_conversations`) is **not** instrumented — only the advisor chat above.
+
+---
+
+## 7. Worked example
+
+The sample row in the dashboard (`reply_message_id 57ef4cc4…`):
 
 | Field | Value | Source |
 |---|---|---|

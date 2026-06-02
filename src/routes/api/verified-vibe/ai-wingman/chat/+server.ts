@@ -43,6 +43,9 @@ function detectsIntelligenceIntent(message: string): boolean {
 }
 
 export const POST: RequestHandler = async ({ request }) => {
+	// Server-half latency clock: request received → reply ready. Mirrors the
+	// AI Bestie generation timing so advisor replies show up in the AI Latency tab.
+	const t0 = Date.now();
 	try {
 		const body = await request.json() as {
 			userId?: string;
@@ -354,6 +357,7 @@ ${personalityContext}${masterProfileContext}${artifactsContext}${admirerContext}
 
 		// ── Call Claude ────────────────────────────────────────────────────────
 		const client = getClaudeClient();
+		const tClaude = Date.now();
 		const response = await client.messages.create({
 			model: CLAUDE_MODEL,
 			max_tokens: 700,
@@ -363,6 +367,7 @@ ${personalityContext}${masterProfileContext}${artifactsContext}${admirerContext}
 				{ role: 'user', content: userMessage }
 			]
 		});
+		const claudeMs = Date.now() - tClaude;
 
 		const block = response.content[0];
 		const rawReply = block.type === 'text' ? block.text.trim() : '';
@@ -371,16 +376,43 @@ ${personalityContext}${masterProfileContext}${artifactsContext}${admirerContext}
 		const compliance = await complianceGate({ text: rawReply, userId, assistantType: 'wingman', context: 'advisor' });
 		const reply = compliance.text;
 
+		// Reply is ready — stamp the server half of the latency record. The advisor
+		// chat keeps no per-message DB row, so we mint the join key here and hand it
+		// back to the client, which fills the delivery/render half via /ai-render.
+		const replyMessageId = crypto.randomUUID();
+		const generatedAt = new Date().toISOString();
+		const generationMs = Date.now() - t0;
+
 		// Persist the exchange server-side for QA review. Awaited (not fire-and-forget):
 		// on serverless the function is frozen once the response is sent, so an un-awaited
 		// write never completes. try/catch keeps the guarantee that it can't break the reply.
 		try {
-			await appendAdvisorChat(supabase, userId, 'wingman', userMessage, reply, new Date().toISOString());
+			await appendAdvisorChat(supabase, userId, 'wingman', userMessage, reply, generatedAt, replyMessageId);
 		} catch (e) {
 			console.warn('[AI Wingman VV chat] advisor persist failed:', e);
 		}
 
-		return json({ reply });
+		// Record server-side latency, keyed by replyMessageId. match_id holds the
+		// man's user id so the dashboard groups all his advisor replies into one
+		// "AI Wingman ↔ <name>" session. Best-effort — never break the reply.
+		try {
+			await (supabase as any)
+				.from('vv_ai_response_timings')
+				.upsert({
+					reply_message_id: replyMessageId,
+					match_id: userId,
+					response_type: 'wingman',
+					trigger_at: new Date(t0).toISOString(),
+					generated_at: generatedAt,
+					generation_ms: generationMs,
+					claude_ms: claudeMs,
+					waited_from_user_msg_ms: generationMs
+				}, { onConflict: 'reply_message_id' });
+		} catch (e) {
+			console.warn('[AI Wingman VV chat] latency record failed:', e);
+		}
+
+		return json({ reply, replyMessageId, generatedAt, responseType: 'wingman' });
 	} catch (err) {
 		console.error('[AI Wingman VV chat]', err);
 		return json({ error: err instanceof Error ? err.message : 'Something went wrong' }, { status: 500 });

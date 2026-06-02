@@ -18,12 +18,16 @@ export interface AdvisorChatMessage {
 	role: AdvisorRole;
 	content: string;
 	ts: string; // ISO-8601
+	id?: string; // assistant turns: the latency join key (vv_ai_response_timings.reply_message_id)
 }
 
 /**
  * Append one user turn and the AI reply to the user's advisor transcript.
  * Read-modify-write upsert — advisor chats are single-threaded per user so
  * concurrent turns are unlikely, and a rare lost append is acceptable for QA.
+ *
+ * `assistantId`, when given, is stamped on the assistant turn so the AI Latency
+ * dashboard can look the reply text up by its latency join key.
  */
 export async function appendAdvisorChat(
 	sb: SB,
@@ -31,7 +35,8 @@ export async function appendAdvisorChat(
 	assistantType: 'wingman' | 'bestie',
 	userMessage: string,
 	reply: string,
-	now: string
+	now: string,
+	assistantId?: string
 ): Promise<void> {
 	if (!userId || (!userMessage && !reply)) return;
 
@@ -48,7 +53,7 @@ export async function appendAdvisorChat(
 
 	const appended: AdvisorChatMessage[] = [...prior];
 	if (userMessage) appended.push({ role: 'user', content: userMessage, ts: now });
-	if (reply) appended.push({ role: 'assistant', content: reply, ts: now });
+	if (reply) appended.push({ role: 'assistant', content: reply, ts: now, ...(assistantId ? { id: assistantId } : {}) });
 
 	await sb.from('ai_assistant_advisor_chats').upsert(
 		{
