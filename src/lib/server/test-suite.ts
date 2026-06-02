@@ -23,6 +23,7 @@ import {
 } from '../prompts';
 import { loadWingmanAdvisorContext } from './wingman-advisor-context';
 import { buildCompetitiveSnapshot } from './competitive-snapshot';
+import { loadMatchIntelligenceContext } from './match-intelligence';
 import { piiScan, haikusValidate, SAFE_FALLBACK } from './ai-compliance';
 import {
 	hardFilter,
@@ -268,6 +269,10 @@ async function runWingmanAdvisor(
 	// lockstep with production.
 	const { promptBlock: competitiveContext } = await buildCompetitiveSnapshot(supabase, user.id);
 
+	// Same precomputed match intelligence (Standing + checklist + what-if sim)
+	// the live endpoint reads — read-only, no mutation, keeps parity.
+	const matchIntelligenceContext = await loadMatchIntelligenceContext(supabase, user.id);
+
 	// Same system prompt as production. pendingReportContext is empty: popping a
 	// pending report is a state mutation we must not perform in test mode.
 	const systemPrompt = buildAIWingmanAdvisorSystemPrompt({
@@ -277,6 +282,7 @@ async function runWingmanAdvisor(
 		admirerContext: ctx.admirerContext,
 		matchContext: ctx.matchContext,
 		competitiveContext,
+		matchIntelligenceContext,
 		pendingReportContext: ''
 	});
 

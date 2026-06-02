@@ -23,26 +23,9 @@ import { loadWingmanAdvisorContext } from '$lib/server/wingman-advisor-context';
 import { buildAIWingmanAdvisorSystemPrompt } from '$lib/prompts';
 import { touchLastActive } from '$lib/server/pool-registry';
 import { popPendingChatMessage } from '$lib/server/intelligence-report-processor';
-import { queueIntelligenceReport } from '$lib/server/matchmaker-service';
-import { processIntelligenceReport } from '$lib/server/intelligence-report-processor';
 import { buildCompetitiveSnapshot } from '$lib/server/competitive-snapshot';
+import { loadMatchIntelligenceContext } from '$lib/server/match-intelligence';
 import { complianceGate } from '$lib/server/ai-compliance';
-
-// Phrases that indicate the user wants competitive/improvement intelligence
-const INTELLIGENCE_INTENTS = [
-  'how can i improve', 'how do i improve', 'how to improve',
-  'better matches', 'get better matches', 'more matches',
-  'improve my ranking', 'my ranking', 'how do i rank',
-  'beat the competition', 'compete', 'how am i doing',
-  'improve my fit', 'better fit', 'fit with her',
-  'what should i work on', 'what can i do better',
-  'how can i win', 'how do i win',
-];
-
-function detectsIntelligenceIntent(message: string): boolean {
-  const lower = message.toLowerCase();
-  return INTELLIGENCE_INTENTS.some((phrase) => lower.includes(phrase));
-}
 
 export const POST: RequestHandler = async ({ request }) => {
 	// Server-half latency clock: request received → reply ready. Mirrors the
@@ -77,17 +60,11 @@ export const POST: RequestHandler = async ({ request }) => {
 			}
 		}
 
-		// ── Intelligence intent detection ─────────────────────────────────────
-		// If the user is asking how to improve/compete, queue an intelligence report
-		// and return an acknowledgement immediately so Claude can respond naturally.
-		if (detectsIntelligenceIntent(userMessage)) {
-			const reportId = await queueIntelligenceReport(userId, 'per_match_ranking', 'user_driven');
-			processIntelligenceReport(reportId).catch(() => {});
-		}
-
-		// ── Pending report injection ──────────────────────────────────────────
-		// If a previously generated report is waiting, inject it into the conversation
-		// as additional context so Claude acknowledges and summarises it.
+		// ── Pending PROACTIVE push injection ──────────────────────────────────
+		// Cold-push / weekly intelligence reports are still delivered async via the
+		// proactive-message queue. On-demand "how do I improve?" is NO LONGER an
+		// async fire — it's answered synchronously from vv_match_scores below
+		// (matchIntelligenceContext), which fixes the "report lands a turn late" bug.
 		const pendingReport = await popPendingChatMessage(userId).catch(() => null);
 		const pendingReportContext = pendingReport
 			? `\n\n--- INTELLIGENCE REPORT READY ---\nThe following competitive intelligence report was just generated for this user. Acknowledge it warmly and summarise the key action points before responding to his message:\n${pendingReport}\n--- END REPORT ---\n`
@@ -109,6 +86,11 @@ export const POST: RequestHandler = async ({ request }) => {
 		// (popPendingChatMessage above) lands a turn too late to do that.
 		const { promptBlock: competitiveContext } = await buildCompetitiveSnapshot(supabase, userId);
 
+		// ── Match intelligence (precomputed Standing + checklist + what-if sim) ──
+		// Synchronous read of vv_match_scores — the on-demand source of truth for
+		// "how do I improve / move up", replacing the old async report.
+		const matchIntelligenceContext = await loadMatchIntelligenceContext(supabase, userId);
+
 		// ── Build system prompt ────────────────────────────────────────────────
 		const systemPrompt = buildAIWingmanAdvisorSystemPrompt({
 			personalityContext,
@@ -117,6 +99,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			admirerContext,
 			matchContext,
 			competitiveContext,
+			matchIntelligenceContext,
 			pendingReportContext
 		});
 

@@ -387,6 +387,8 @@ export interface WingmanAdvisorPromptContext {
 	pendingReportContext: string;
 	/** Real-time competitive snapshot (active real population + his rivals + trust rank). */
 	competitiveContext?: string;
+	/** Precomputed per-match Standing, appeal, checklist, and what-if simulator. */
+	matchIntelligenceContext?: string;
 }
 
 /**
@@ -429,7 +431,7 @@ Your role:
 
 Tone: like your most trusted, insightful friend who genuinely believes in you and wants to see you win. Warm and uplifting first, tactical second. Never dismissive or cold. Short paragraphs. Practical but encouraging.
 Format: use **bold** for names and key points. Use bullets (- item) for multi-point info. Use emoji warmly — 🟢 going well, 💡 tip, ⚡ opportunity, ✨ highlight, 💪 strength. Keep it mobile-friendly and motivating.
-${ctx.personalityContext}${ctx.masterProfileContext}${ctx.artifactsContext}${ctx.admirerContext}${ctx.matchContext}${ctx.competitiveContext ?? ''}${ctx.pendingReportContext}`;
+${ctx.personalityContext}${ctx.masterProfileContext}${ctx.artifactsContext}${ctx.admirerContext}${ctx.matchContext}${ctx.competitiveContext ?? ''}${ctx.matchIntelligenceContext ?? ''}${ctx.pendingReportContext}`;
 }
 
 export function buildAIWingmanSystemPrompt(
