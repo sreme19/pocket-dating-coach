@@ -63,6 +63,24 @@
 		unreviewed: data.queue.filter((r) => r.hasAi && !r.review).length
 	});
 
+	const PAGE_SIZES = [15, 25, 50, 100] as const;
+	let pageSize = $state<number>(15);
+	let page = $state(1);
+
+	let pageCount = $derived(Math.max(1, Math.ceil(filtered.length / pageSize)));
+
+	// Reset to the first page whenever the filtered set or page size changes.
+	$effect(() => {
+		filtered.length;
+		pageSize;
+		page = 1;
+	});
+
+	let paged = $derived(filtered.slice((page - 1) * pageSize, page * pageSize));
+
+	let rangeStart = $derived(filtered.length === 0 ? 0 : (page - 1) * pageSize + 1);
+	let rangeEnd = $derived(Math.min(page * pageSize, filtered.length));
+
 	function fmt(ts: string | null): string {
 		if (!ts) return '—';
 		return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -120,7 +138,7 @@
 				</tr>
 			</thead>
 			<tbody>
-				{#each filtered as r (r.href)}
+				{#each paged as r (r.href)}
 					<tr class="border-t border-white/[0.04] hover:bg-white/[0.02]">
 						<td class="px-4 py-3">
 							<div class="flex items-center gap-2">
@@ -171,4 +189,41 @@
 			</tbody>
 		</table>
 	</div>
+
+	{#if filtered.length > 0}
+		<div class="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+			<div class="flex items-center gap-2">
+				<span>Rows per page</span>
+				<div class="flex overflow-hidden rounded-lg border border-white/[0.08]">
+					{#each PAGE_SIZES as size}
+						<button
+							onclick={() => (pageSize = size)}
+							class="px-2.5 py-1 transition-colors {pageSize === size
+								? 'bg-emerald-500/20 text-emerald-400'
+								: 'text-slate-400 hover:text-slate-200'}">{size}</button
+						>
+					{/each}
+				</div>
+			</div>
+
+			<div class="flex items-center gap-3">
+				<span>{rangeStart}–{rangeEnd} of {filtered.length}</span>
+				<div class="flex items-center gap-1">
+					<button
+						onclick={() => (page = Math.max(1, page - 1))}
+						disabled={page <= 1}
+						class="rounded-lg border border-white/[0.08] px-2.5 py-1 transition-colors hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
+						>← Prev</button
+					>
+					<span class="px-1 text-slate-400">{page} / {pageCount}</span>
+					<button
+						onclick={() => (page = Math.min(pageCount, page + 1))}
+						disabled={page >= pageCount}
+						class="rounded-lg border border-white/[0.08] px-2.5 py-1 transition-colors hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
+						>Next →</button
+					>
+				</div>
+			</div>
+		</div>
+	{/if}
 </div>
