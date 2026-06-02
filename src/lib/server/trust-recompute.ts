@@ -157,15 +157,21 @@ export async function recomputeRawTrust(userId: string): Promise<RawTrustResult>
 			 subscores.socialLegitimacy  * 0.10) / 0.80
 		));
 
-		// Persist the absolute score (normalization happens later, in Phase 1).
+		// Persist the raw layer + its breakdown. The DISPLAYED value (trust_score)
+		// is the NORMALIZED score, owned by normalizeUser (trust-normalize.ts),
+		// which runs immediately after via recomputeAndNormalize / the nightly pass.
+		// Pool-band refresh happens there too, so the band reflects the normalized
+		// score rather than the raw one.
 		await db
 			.from('verified_vibe_users')
-			.update({ trust_score: rawTrust, updated_at: new Date().toISOString() })
+			.update({
+				raw_trust: rawTrust,
+				identity_score: subscores.identity,
+				proof_score: proofScore,
+				identity_verified: idDone && livDone,
+				trust_updated_at: new Date().toISOString(),
+			})
 			.eq('id', userId);
-
-		// Refresh the pool band ONLY if the user is already enrolled — never create
-		// a pool row here (enrollment stays gated on full verification).
-		await refreshPoolBandIfEnrolled(userId);
 
 		return {
 			rawTrust,
@@ -181,7 +187,7 @@ export async function recomputeRawTrust(userId: string): Promise<RawTrustResult>
 }
 
 /** Update the cached trust_score_band for an already-enrolled user (no premature enrollment). */
-async function refreshPoolBandIfEnrolled(userId: string): Promise<void> {
+export async function refreshPoolBandIfEnrolled(userId: string): Promise<void> {
 	try {
 		const db = getSupabase() as any;
 		const [{ data: inWingmen }, { data: inBesties }] = await Promise.all([
