@@ -1,0 +1,30 @@
+import { json } from '@sveltejs/kit';
+import type { RequestHandler } from './$types';
+import { ADMIN_COOKIE, REVIEWER_COOKIE, tokenIsValid } from '$lib/server/admin-auth';
+import { runMatchReply } from '$lib/server/test-suite';
+
+export const POST: RequestHandler = async ({ request, cookies }) => {
+	if (!tokenIsValid(cookies.get(ADMIN_COOKIE))) {
+		return json({ error: 'unauthorized' }, { status: 401 });
+	}
+	try {
+		const { ownerId, match, message, persist } = (await request.json()) as {
+			ownerId?: string;
+			match?: { name?: string; age?: number; goal?: string; matchId?: string | null };
+			message?: string;
+			persist?: boolean;
+		};
+		if (!ownerId || !match?.name || !message?.trim()) {
+			return json({ error: 'ownerId, match.name and message are required' }, { status: 400 });
+		}
+		const result = await runMatchReply(
+			ownerId,
+			{ name: match.name, age: match.age, goal: match.goal, matchId: match.matchId ?? null },
+			message.trim(),
+			{ persist: !!persist, reviewer: cookies.get(REVIEWER_COOKIE) ?? null }
+		);
+		return json(result);
+	} catch (e) {
+		return json({ error: e instanceof Error ? e.message : 'match-reply run failed' }, { status: 500 });
+	}
+};
