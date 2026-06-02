@@ -18,7 +18,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getSupabase } from '$lib/server/supabase';
-import { recomputeRawTrust } from '$lib/server/trust-recompute';
+import { recomputeAndNormalize } from '$lib/server/trust-normalize';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -88,10 +88,10 @@ export const POST: RequestHandler = async ({ request }) => {
       return json({ error: 'Failed to save artifact record' }, { status: 500 });
     }
 
-    // Recompute trust from ALL proof sources (single source of truth) — this now
-    // folds the artifact we just inserted into the unified CG model, instead of
-    // the old additive boost that a later proof recompute would have wiped.
-    const { rawTrust: newTrustScore } = await recomputeRawTrust(userId);
+    // Recompute trust from ALL proof sources (single source of truth) — folds the
+    // artifact we just inserted into the unified CG model — then normalize so the
+    // returned score is the DISPLAYED (normalized) value.
+    const { normalizedTrust: newTrustScore } = await recomputeAndNormalize(userId);
 
     return json({
       url: storageUrl,

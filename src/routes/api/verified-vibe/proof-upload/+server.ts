@@ -20,7 +20,7 @@ import { ANTHROPIC_API_KEY } from '$env/static/private';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { createClient } from '@supabase/supabase-js';
 import { getSupabase } from '$lib/server/supabase';
-import { recomputeRawTrust } from '$lib/server/trust-recompute';
+import { recomputeAndNormalize } from '$lib/server/trust-normalize';
 // pdf-parse kept as dep for potential future text pre-processing;
 // primary PDF analysis now goes through Anthropic's native PDF document type
 
@@ -340,8 +340,8 @@ async function persistInsight(userId: string, category: string, pts: number, dat
       }
     } catch (e) { console.warn('master profile / ai_assistant_profiles sync failed (non-fatal):', e); }
 
-    // 3. Recalculate and persist trust score after proof update (single source of truth)
-    await recomputeRawTrust(userId);
+    // 3. Recompute raw trust + normalize after proof update (single source of truth)
+    await recomputeAndNormalize(userId);
   } catch (e) { console.warn(`proof-upload DB persist failed (${category}):`, e); }
 }
 
