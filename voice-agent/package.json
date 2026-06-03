@@ -10,17 +10,18 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@livekit/agents": "^0.7.0",
-    "@livekit/agents-plugin-anthropic": "^0.7.0",
-    "@livekit/agents-plugin-deepgram": "^0.7.0",
-    "@livekit/agents-plugin-elevenlabs": "^0.7.0",
-    "@livekit/agents-plugin-silero": "^0.7.0",
-    "@livekit/rtc-node": "^0.13.0",
+    "@anthropic-ai/sdk": "^0.92.0",
+    "@livekit/agents": "^1.4.5",
+    "@livekit/agents-plugin-deepgram": "^1.4.5",
+    "@livekit/agents-plugin-elevenlabs": "^1.4.5",
+    "@livekit/agents-plugin-silero": "^1.4.5",
+    "@livekit/rtc-node": "^0.13.29",
     "dotenv": "^16.4.5",
     "tsx": "^4.21.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "typescript": "^5.6.0"
   }
 }
