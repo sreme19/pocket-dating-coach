@@ -10,7 +10,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 	try {
 		const { ownerId, match, message, persist } = (await request.json()) as {
 			ownerId?: string;
-			match?: { name?: string; age?: number; goal?: string; matchId?: string | null };
+			match?: { name?: string; age?: number; goal?: string; matchId?: string | null; matchUserId?: string | null };
 			message?: string;
 			persist?: boolean;
 		};
@@ -19,7 +19,13 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		}
 		const result = await runMatchReply(
 			ownerId,
-			{ name: match.name, age: match.age, goal: match.goal, matchId: match.matchId ?? null },
+			{
+				name: match.name,
+				age: match.age,
+				goal: match.goal,
+				matchId: match.matchId ?? null,
+				matchUserId: match.matchUserId ?? null
+			},
 			message.trim(),
 			{ persist: !!persist, reviewer: cookies.get(REVIEWER_COOKIE) ?? null }
 		);

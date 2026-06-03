@@ -81,6 +81,58 @@ export async function listRoster(): Promise<RosterUser[]> {
 	}));
 }
 
+/** A real mutual match the owner can role-play in Case 2, instead of an ad-hoc profile. */
+export interface OwnerMatch {
+	matchId: string;
+	userId: string;
+	name: string;
+	age: number | null;
+	archetype: string | null;
+	city: string | null;
+	goal: string;
+}
+
+/**
+ * The owner's real matches, using the EXACT filter the live Wingman/Bestie
+ * context loader uses (status='mutual', owner on either side, newest first).
+ * Returns the counterpart's display fields so the operator can role-play a real
+ * person instead of an ad-hoc profile. Read-only.
+ */
+export async function listOwnerMatches(ownerId: string): Promise<OwnerMatch[]> {
+	const sb = getSupabase();
+	const { data: matches } = await sb
+		.from('verified_vibe_matches')
+		.select('id, user1_id, user2_id, created_at')
+		.eq('status', 'mutual')
+		.or(`user1_id.eq.${ownerId},user2_id.eq.${ownerId}`)
+		.order('created_at', { ascending: false })
+		.limit(10);
+
+	if (!matches?.length) return [];
+
+	const out: OwnerMatch[] = [];
+	for (const m of matches as { id: string; user1_id: string; user2_id: string }[]) {
+		const otherId = m.user1_id === ownerId ? m.user2_id : m.user1_id;
+		const { data: u } = await sb
+			.from('verified_vibe_users')
+			.select('first_name, age, archetype, city')
+			.eq('id', otherId)
+			.single();
+		if (!u) continue;
+		const row = u as { first_name: string; age: number | null; archetype: string | null; city: string | null };
+		out.push({
+			matchId: m.id,
+			userId: otherId,
+			name: row.first_name,
+			age: row.age ?? null,
+			archetype: row.archetype ?? null,
+			city: row.city ?? null,
+			goal: 'long-term'
+		});
+	}
+	return out;
+}
+
 async function getUser(userId: string): Promise<RosterUser | null> {
 	const sb = getSupabase();
 	const { data } = await sb
@@ -504,7 +556,7 @@ const SIGNAL_COLOR: Record<string, 'green' | 'yellow' | 'red'> = {
 
 export async function runMatchReply(
 	ownerId: string,
-	match: { name: string; age?: number; goal?: string; matchId?: string | null },
+	match: { name: string; age?: number; goal?: string; matchId?: string | null; matchUserId?: string | null },
 	message: string,
 	opts: RunOpts = {}
 ): Promise<{
@@ -577,7 +629,8 @@ export async function runMatchReply(
 		name: match.name,
 		age: match.age,
 		goal: match.goal,
-		matchId: match.matchId ?? 'ad-hoc'
+		matchId: match.matchId ?? 'ad-hoc',
+		source: match.matchId ? ('real_match' as const) : ('ad-hoc' as const)
 	};
 
 	const trace: AgentTrace = {
@@ -630,7 +683,7 @@ export async function runMatchReply(
 				caseType: 'match_reply',
 				agent: 'bestie_match_reply',
 				subjectUserId: owner.id,
-				counterpartUserId: match.matchId ?? null,
+				counterpartUserId: match.matchUserId ?? null,
 				reviewer: opts.reviewer ?? null,
 				input: { match, message },
 				output: { reply, coachingSignal: { color: signalColor, text: signalText } },
