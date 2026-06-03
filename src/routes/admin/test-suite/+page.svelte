@@ -1,5 +1,6 @@
 <script lang="ts">
 	import './test-suite.css';
+	import { onMount } from 'svelte';
 	import Icon from './Icon.svelte';
 	import Case1 from './Case1.svelte';
 	import Case2 from './Case2.svelte';
@@ -20,6 +21,12 @@
 	let tab = $state(1);
 	let trace = $state<AgentTrace | null>(null);
 	let persist = $state(false);
+
+	// honor ?tab=<n> on load so a shared deep link (e.g. ?tab=4&run=<id>) lands on the right tab
+	onMount(() => {
+		const t = Number(new URLSearchParams(location.search).get('tab'));
+		if (t >= 1 && t <= 4) tab = t;
+	});
 
 	function switchTab(id: number) {
 		tab = id;

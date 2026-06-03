@@ -23,6 +23,7 @@
 	let loading = $state(true);
 	let error = $state('');
 	let selectedId = $state<string | null>(null);
+	let copiedId = $state<string | null>(null);
 
 	async function load() {
 		loading = true;
@@ -32,6 +33,12 @@
 			const d = await res.json();
 			if (!res.ok) throw new Error(d.error || 'failed to load runs');
 			runs = d.runs ?? [];
+			// deep-link: ?run=<id> auto-selects that run (e.g. a link shared into Claude Code)
+			if (!selectedId && typeof location !== 'undefined') {
+				const wanted = new URLSearchParams(location.search).get('run');
+				const found = wanted ? runs.find((r) => r.id === wanted) : null;
+				if (found) pick(found);
+			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'failed to load runs';
 		} finally {
@@ -46,6 +53,19 @@
 	function pick(r: RunRow) {
 		selectedId = r.id;
 		setTrace(r.trace);
+	}
+
+	function copyLink(r: RunRow) {
+		const url = `${location.origin}${location.pathname}?tab=4&run=${r.id}`;
+		try {
+			navigator.clipboard.writeText(url);
+		} catch {
+			/* clipboard unavailable */
+		}
+		copiedId = r.id;
+		setTimeout(() => {
+			if (copiedId === r.id) copiedId = null;
+		}, 1600);
 	}
 </script>
 
@@ -76,18 +96,28 @@
 				{:else}
 					<div class="roster" style="max-height:560px">
 						{#each runs as r (r.id)}
-							<button class="persona {selectedId === r.id ? 'sel' : ''}" onclick={() => pick(r)} style="align-items:flex-start">
-								<div class="msg-av" style="background:var(--indigo-strong); margin-top:2px"><Icon name="cpu" size={13} /></div>
-								<div class="persona-main">
-									<div class="persona-name">
-										{AGENT_LABEL[r.agent] ?? r.agent}
-										<span class="badge slate">{r.case_type}</span>
+							<div class="run-row">
+								<button class="persona {selectedId === r.id ? 'sel' : ''}" onclick={() => pick(r)} style="align-items:flex-start">
+									<div class="msg-av" style="background:var(--indigo-strong); margin-top:2px"><Icon name="cpu" size={13} /></div>
+									<div class="persona-main">
+										<div class="persona-name">
+											{AGENT_LABEL[r.agent] ?? r.agent}
+											<span class="badge slate">{r.case_type}</span>
+										</div>
+										<div class="persona-meta">
+											{new Date(r.created_at).toLocaleString()}{r.reviewer ? ` · ${r.reviewer}` : ''}
+										</div>
+										<div class="run-id">{r.id}</div>
 									</div>
-									<div class="persona-meta">
-										{new Date(r.created_at).toLocaleString()}{r.reviewer ? ` · ${r.reviewer}` : ''}
-									</div>
-								</div>
-							</button>
+								</button>
+								<button
+									class="run-link {copiedId === r.id ? 'done' : ''}"
+									title="Copy a deep link to this run — paste into Claude Code to debug"
+									onclick={() => copyLink(r)}
+								>
+									<Icon name={copiedId === r.id ? 'check' : 'link2'} size={12} />{copiedId === r.id ? 'Copied' : 'Copy link'}
+								</button>
+							</div>
 						{/each}
 					</div>
 				{/if}
