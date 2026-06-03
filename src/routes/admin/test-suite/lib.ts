@@ -140,7 +140,8 @@ export const ICONS: Record<string, string> = {
 	flask: 'M9 3h6M10 3v6.5L5 18a2 2 0 002 3h10a2 2 0 002-3l-5-8.5V3',
 	msg: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z',
 	spark: 'M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5z',
-	ban: 'M12 22a10 10 0 100-20 10 10 0 000 20zM5 5l14 14'
+	ban: 'M12 22a10 10 0 100-20 10 10 0 000 20zM5 5l14 14',
+	eye: 'M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7zM12 15a3 3 0 100-6 3 3 0 000 6z'
 };
 
 export function highlightJson(obj: unknown): string {
