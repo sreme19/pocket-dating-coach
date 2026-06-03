@@ -13,6 +13,7 @@
   import type { ProfileIntakeData } from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
   import type { PhotoEnhanceResult } from '$lib/photo-enhance/types';
   import BestieAvatar from '$lib/components/BestieAvatar.svelte';
+  import VoiceOnboarding from '$lib/verified-vibe/components/VoiceOnboarding.svelte';
 
   interface GeneratedProfile {
     about: string;
@@ -3698,6 +3699,11 @@
                 </svg>
               </button>
             </div>
+          </section>
+
+          <!-- Bestie voice calls — opt-in + optional voice clone (female users only) -->
+          <section class="section voice-calls-section">
+            <VoiceOnboarding />
           </section>
         {/if}
 
