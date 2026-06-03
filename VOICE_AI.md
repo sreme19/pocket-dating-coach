@@ -44,7 +44,7 @@ the voice and text personas can't diverge. The text bestie's in-band markers
 ## Files
 
 App (SvelteKit / Vercel):
-- `supabase/migrations/20260603160000_voice_ai_calls.sql` — `vv_voice_profiles`, `vv_voice_calls`
+- `supabase/migrations/20260603174904_voice_ai_bestie_calls.sql` — `vv_voice_profiles`, `vv_voice_calls`
 - `src/lib/prompts.ts` — `buildBestieVoiceSystemPrompt`
 - `src/lib/server/voice-call-context.ts` — spoken system-prompt assembly
 - `src/lib/server/livekit.ts` — token minting + agent dispatch
@@ -64,8 +64,9 @@ Worker (off-Vercel):
 
 ## Provisioning checklist (nothing works until these are done)
 
-1. **Run the migration** — paste `20260603160000_voice_ai_calls.sql` into the
-   Supabase SQL editor (no `exec_sql` in this project).
+1. **Run the migration** — `20260603174904_voice_ai_bestie_calls.sql` (already
+   applied on the `stikoktiaxqtcsohcxzp` project). For a fresh environment, paste
+   it into the Supabase SQL editor (no `exec_sql` in this project).
 2. **Create a Storage bucket** named `voice-samples` (private) for consented
    voice samples.
 3. **LiveKit** — create a Cloud project; set `LIVEKIT_URL/API_KEY/API_SECRET` on
