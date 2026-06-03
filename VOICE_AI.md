@@ -84,13 +84,21 @@ Worker (off-Vercel):
 ## Phase status
 
 - **Done (this branch):** schema, voice identity + clone, opt-in, male-initiated
-  in-app WebRTC call, the worker, tools, transcript → recap into the thread,
-  6-minute cap, latency logged as `voice_summary`.
-- **Worker note:** `voice-agent/src/agent.ts` targets `@livekit/agents` 0.7.x. The
-  JS Agents API is young — pin a version and reconcile session/event names; the
-  flow (fetch context → start session → capture transcript → finalize) is stable.
-- **Next:** opt-in recording + storage/retention, longer calls, no-answer/drop &
-  stale-ringing reaping (a cron), PSTN via LiveKit SIP, iOS ring via the
+  in-app WebRTC call, the worker, transcript → recap into the thread, 6-minute
+  cap, stale-call reaper cron, `/admin/qa/voice` audit view, latency logged as
+  `voice_summary`.
+- **Worker note:** `voice-agent/src/agent.ts` targets `@livekit/agents` 1.4.x
+  (typechecked against it). LiveKit's JS Agents has no Anthropic LLM plugin, so
+  Claude stays the brain via a `voice.Agent` subclass overriding `llmNode` to
+  stream the Anthropic SDK. The flow (fetch context → start session → capture
+  transcript → finalize) is stable.
+- **Live tools deferred:** `save_preference` / `draft_message` / `lookup_match_fact`
+  endpoints exist (`/api/voice/tools`) but the worker's custom `llmNode` streams
+  text only — it does not yet invoke them mid-call. Wiring function-calling into
+  the custom Claude node (or post-call extraction from the transcript) is the
+  next step for full text-bestie parity.
+- **Next:** live tool-calling, opt-in recording + storage/retention, longer
+  calls, PSTN via LiveKit SIP, iOS ring via the
   Capacitor wrapper (`device_tokens` + CallKit), QA console + AI-latency-tab
   surfacing of voice calls.
 
