@@ -1,12 +1,17 @@
 <script lang="ts">
 	import Icon from './Icon.svelte';
 	import TracePanel from './TracePanel.svelte';
-	import { AGENT_LABEL, type AgentTrace } from './lib';
+	import { AGENT_LABEL, type AgentTrace, type RestorePayload } from './lib';
 
 	let {
 		trace,
-		setTrace
-	}: { trace: AgentTrace | null; setTrace: (t: AgentTrace | null) => void } = $props();
+		setTrace,
+		onRestore = () => {}
+	}: {
+		trace: AgentTrace | null;
+		setTrace: (t: AgentTrace | null) => void;
+		onRestore?: (r: RestorePayload) => void;
+	} = $props();
 
 	interface RunRow {
 		id: string;
@@ -15,8 +20,25 @@
 		reviewer: string | null;
 		subject_user_id: string | null;
 		counterpart_user_id: string | null;
+		input: RestorePayload['input'];
+		output: RestorePayload['output'];
 		trace: AgentTrace;
 		created_at: string;
+	}
+
+	// advisor + match_reply are conversations we can reopen; matchmaker isn't.
+	const RESTORABLE = new Set(['advisor', 'match_reply']);
+
+	function resume(r: RunRow) {
+		onRestore({
+			runId: r.id,
+			caseType: r.case_type as 'advisor' | 'match_reply',
+			subjectUserId: r.subject_user_id,
+			counterpartUserId: r.counterpart_user_id,
+			input: r.input,
+			output: r.output,
+			trace: r.trace
+		});
 	}
 
 	let runs = $state<RunRow[]>([]);
@@ -110,13 +132,24 @@
 										<div class="run-id">{r.id}</div>
 									</div>
 								</button>
-								<button
-									class="run-link {copiedId === r.id ? 'done' : ''}"
-									title="Copy a deep link to this run — paste into Claude Code to debug"
-									onclick={() => copyLink(r)}
-								>
-									<Icon name={copiedId === r.id ? 'check' : 'link2'} size={12} />{copiedId === r.id ? 'Copied' : 'Copy link'}
-								</button>
+								<div class="run-actions">
+									{#if RESTORABLE.has(r.case_type)}
+										<button
+											class="run-link"
+											title="Reopen this conversation in its tab and keep chatting"
+											onclick={() => resume(r)}
+										>
+											<Icon name="msg" size={12} />Resume
+										</button>
+									{/if}
+									<button
+										class="run-link {copiedId === r.id ? 'done' : ''}"
+										title="Copy a deep link to this run — paste into Claude Code to debug"
+										onclick={() => copyLink(r)}
+									>
+										<Icon name={copiedId === r.id ? 'check' : 'link2'} size={12} />{copiedId === r.id ? 'Copied' : 'Copy link'}
+									</button>
+								</div>
 							</div>
 						{/each}
 					</div>

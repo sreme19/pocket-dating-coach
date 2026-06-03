@@ -6,7 +6,7 @@
 	import Case2 from './Case2.svelte';
 	import Case3 from './Case3.svelte';
 	import History from './History.svelte';
-	import type { AgentTrace } from './lib';
+	import type { AgentTrace, RestorePayload } from './lib';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -21,6 +21,8 @@
 	let tab = $state(1);
 	let trace = $state<AgentTrace | null>(null);
 	let persist = $state(false);
+	// A run the operator chose to reopen from History; consumed by the matching case tab.
+	let restore = $state<RestorePayload | null>(null);
 
 	// honor ?tab=<n> on load so a shared deep link (e.g. ?tab=4&run=<id>) lands on the right tab
 	onMount(() => {
@@ -35,6 +37,13 @@
 	function setTrace(t: AgentTrace | null) {
 		trace = t;
 	}
+	// History → "Resume": jump to the run's case tab and hand it the payload to hydrate.
+	function restoreRun(r: RestorePayload) {
+		restore = r;
+		trace = r.trace;
+		tab = r.caseType === 'match_reply' ? 2 : 1;
+	}
+	const clearRestore = () => (restore = null);
 </script>
 
 <svelte:head>
@@ -88,13 +97,13 @@
 		</div>
 
 		{#if tab === 1}
-			<Case1 roster={data.roster} {trace} {setTrace} {persist} />
+			<Case1 roster={data.roster} {trace} {setTrace} {persist} {restore} {clearRestore} />
 		{:else if tab === 2}
-			<Case2 roster={data.roster} {trace} {setTrace} {persist} />
+			<Case2 roster={data.roster} {trace} {setTrace} {persist} {restore} {clearRestore} />
 		{:else if tab === 3}
 			<Case3 roster={data.roster} {trace} {setTrace} {persist} />
 		{:else if tab === 4}
-			<History {trace} {setTrace} />
+			<History {trace} {setTrace} onRestore={restoreRun} />
 		{/if}
 	</main>
 </div>
