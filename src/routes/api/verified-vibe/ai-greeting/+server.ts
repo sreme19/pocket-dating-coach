@@ -163,8 +163,9 @@ async function generateGreeting(opts: {
   firstName: string;
   priorMessages: GreetingRow[];
   feedbackSummary: string | null;
+  stateBlock: string;
 }): Promise<{ content: string; topicTags: string[] }> {
-  const { assistantType, mode, city, firstName, priorMessages, feedbackSummary } = opts;
+  const { assistantType, mode, city, firstName, priorMessages, feedbackSummary, stateBlock } = opts;
 
   const modeGuides = assistantType === 'bestie' ? MODE_GUIDES_WOMAN : MODE_GUIDES_MAN;
 
@@ -178,6 +179,7 @@ async function generateGreeting(opts: {
   const userPrompt = `
 GREETING MODE: ${mode}
 GUIDANCE: ${modeGuides[mode] ?? modeGuides[3]}
+${stateBlock}
 
 PRIOR GREETINGS SENT (DO NOT repeat these topics or angles):
 ${historyLines.length ? historyLines.join('\n') : 'None yet — this is the first greeting.'}
@@ -215,6 +217,62 @@ TAGS: tag1, tag2, tag3
   return { content, topicTags };
 }
 
+// ── Material-state snapshot + fingerprint ─────────────────────────────────────
+// Cheap SQL only (no Claude). Returns a fingerprint of everything that, when it
+// changes, means there is genuinely something new for the advisor to say — and a
+// ground-truth block so the greeting stops hallucinating the user's state (the
+// old prompt never knew his proof count, so it guessed "no proofs uploaded yet").
+
+async function computeStateSnapshot(
+  sb: any,
+  userId: string,
+  mode: number
+): Promise<{ fingerprint: string; block: string }> {
+  let proofCount = 0;
+  let cats: string[] = [];
+  let matchCount = 0;
+  let trustScore = 0;
+
+  try {
+    const { data: artifacts } = await sb
+      .from('user_artifacts')
+      .select('claim_tag')
+      .eq('user_id', userId);
+    if (Array.isArray(artifacts)) {
+      proofCount = artifacts.length;
+      cats = [...new Set(artifacts.map((a: any) => a.claim_tag).filter(Boolean))].sort();
+    }
+  } catch { /* no proofs / table unavailable */ }
+
+  try {
+    const { count } = await sb
+      .from('verified_vibe_matches')
+      .select('id', { count: 'exact', head: true })
+      .or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
+      .eq('status', 'mutual');
+    matchCount = count ?? 0;
+  } catch { /* ignore */ }
+
+  try {
+    const { data: u } = await sb
+      .from('verified_vibe_users')
+      .select('trust_score')
+      .eq('id', userId)
+      .maybeSingle();
+    trustScore = u?.trust_score ?? 0;
+  } catch { /* ignore */ }
+
+  const fingerprint = `m${mode}|p${proofCount}|k${cats.join('.')}|x${matchCount}|t${trustScore}`;
+
+  const block =
+    `\n\nUSER'S REAL CURRENT STATE (ground truth — never contradict this; if proofs already exist you MUST acknowledge them and NEVER claim they have uploaded none):\n` +
+    `- Verified lifestyle proofs uploaded: ${proofCount}${cats.length ? ` (categories: ${cats.join(', ')})` : ' — none yet'}\n` +
+    `- Mutual matches: ${matchCount}\n` +
+    `- Trust score: ${trustScore}/100`;
+
+  return { fingerprint, block };
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -245,6 +303,34 @@ export const POST: RequestHandler = async ({ request }) => {
     return json({ isNew: false });
   }
 
+  // ── Material-state gate ──────────────────────────────────────────────────────
+  // Skip generation entirely if nothing the user can act on has changed since the
+  // last greeting we sent. Stops the advisor repeating the same nudge every visit
+  // and avoids the Claude call. A fresh greeting only fires when proofs / matches
+  // / trust / lifecycle stage move — and is grounded in those real numbers.
+  const mode = detectMode(sessionCount, firstSeenAt);
+  const { fingerprint, block: stateBlock } = await computeStateSnapshot(sb, userId, mode);
+
+  let lastFingerprint: string | null = null;
+  try {
+    const { data: fp } = await sb
+      .from('ai_assistant_context')
+      .select('last_state_fingerprint')
+      .eq('user_id', userId)
+      .maybeSingle();
+    lastFingerprint = fp?.last_state_fingerprint ?? null;
+  } catch { /* column not migrated yet → degrade to always-generate */ }
+
+  if (!body.forceRefresh && lastFingerprint && lastFingerprint === fingerprint) {
+    // A session still happened — advance the counter so stage transitions can
+    // re-trigger later — but do NOT bump last_greeted_at or call Claude.
+    await sb.from('ai_assistant_context').upsert(
+      { user_id: userId, assistant_type: assistantType, session_count: sessionCount, first_seen_at: firstSeenAt.toISOString(), updated_at: now.toISOString() },
+      { onConflict: 'user_id' }
+    );
+    return json({ isNew: false, reason: 'no_new_insight' });
+  }
+
   // ── Upsert context with incremented session count ───────────────────────────
   await sb.from('ai_assistant_context').upsert(
     { user_id: userId, assistant_type: assistantType, session_count: sessionCount, first_seen_at: firstSeenAt.toISOString(), last_greeted_at: now.toISOString(), updated_at: now.toISOString() },
@@ -260,8 +346,6 @@ export const POST: RequestHandler = async ({ request }) => {
     .order('created_at', { ascending: false })
     .limit(20) as { data: GreetingRow[] | null };
 
-  const mode = detectMode(sessionCount, firstSeenAt);
-
   // ── Generate greeting ───────────────────────────────────────────────────────
   let content: string;
   let topicTags: string[];
@@ -270,6 +354,7 @@ export const POST: RequestHandler = async ({ request }) => {
       assistantType, mode, city, firstName,
       priorMessages: (priorMessages ?? []) as GreetingRow[],
       feedbackSummary: ctx?.feedback_summary ?? null,
+      stateBlock,
     }));
   } catch (e) {
     console.error('[ai-greeting] generation failed:', e);
@@ -286,6 +371,13 @@ export const POST: RequestHandler = async ({ request }) => {
     .insert({ user_id: userId, assistant_type: assistantType, mode, content: finalContent, topic_tags: topicTags })
     .select('id')
     .single() as { data: { id: string } | null };
+
+  // Record the state we just greeted on, so the next session can skip if unchanged.
+  try {
+    await sb.from('ai_assistant_context')
+      .update({ last_state_fingerprint: fingerprint })
+      .eq('user_id', userId);
+  } catch { /* column not migrated yet → no-op, greeting still works */ }
 
   return json({
     isNew:       true,
