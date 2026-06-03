@@ -1,0 +1,21 @@
+# Fly.io deploy for the bestie voice agent worker.
+# Region: bom (Mumbai) to minimise round-trip latency for the en-IN user base.
+# This is a worker (outbound to LiveKit Cloud) — no public HTTP service.
+
+app = "vv-voice-agent"
+primary_region = "bom"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+
+# Always-on: a voice agent must be warm to answer a "Get a call now" tap.
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"
+
+# Keep at least one warm worker; scale up under concurrent call load.
+[processes]
+  app = "node --import tsx src/agent.ts start"

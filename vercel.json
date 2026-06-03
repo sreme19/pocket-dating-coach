@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/voice/cron/reap-stale-calls",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}
