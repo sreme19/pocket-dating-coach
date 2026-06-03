@@ -12,6 +12,16 @@ export interface RosterUser {
 	in_pool: boolean;
 }
 
+export interface OwnerMatch {
+	matchId: string;
+	userId: string;
+	name: string;
+	age: number | null;
+	archetype: string | null;
+	city: string | null;
+	goal: string;
+}
+
 export interface KbChunk {
 	chapter: string;
 	similarity: number;
