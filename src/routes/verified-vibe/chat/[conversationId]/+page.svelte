@@ -9,6 +9,7 @@
   import type { Message, VerifiedVibeUser } from '$lib/verified-vibe/types';
   import type { AssistantType } from '$lib/types';
   import VoiceDictation from '$lib/components/VoiceDictation.svelte';
+  import VoiceCall from '$lib/verified-vibe/components/VoiceCall.svelte';
   import * as perf from '$lib/verified-vibe/utils/perf';
 
   let disposeLongTasks: (() => void) | null = null;
@@ -1710,6 +1711,11 @@
 
   <!-- Input Area -->
   <div class="input-area" transition:slide={{ duration: 400, delay: 0, axis: 'y' }}>
+    <!-- Voice call: the male match can request a live call with her AI bestie -->
+    {#if currentUserGender === 'man' && $currentMatch?.gender === 'woman'}
+      <VoiceCall conversationId={conversationId} ownerName={$currentMatch?.firstName ?? 'her'} />
+    {/if}
+
     <div class="input-wrapper">
       <textarea
         class="message-input"

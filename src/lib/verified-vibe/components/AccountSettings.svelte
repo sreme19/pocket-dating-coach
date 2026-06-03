@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
+  import VoiceOnboarding from './VoiceOnboarding.svelte';
   /**
    * AccountSettings Component
    *
@@ -198,6 +199,11 @@
       </button>
     </div>
   </form>
+
+  <!-- Bestie voice calls (renders only for female users) -->
+  <div class="voice-onboarding-block">
+    <VoiceOnboarding />
+  </div>
 </div>
 
 <style>
