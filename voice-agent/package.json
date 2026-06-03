@@ -17,10 +17,10 @@
     "@livekit/agents-plugin-silero": "^0.7.0",
     "@livekit/rtc-node": "^0.13.0",
     "dotenv": "^16.4.5",
+    "tsx": "^4.21.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "tsx": "^4.21.0",
     "typescript": "^5.6.0"
   }
 }
