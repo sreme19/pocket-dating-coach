@@ -17,11 +17,12 @@ import { getEmbedding } from '../embeddings';
 import { searchBookChunks } from '../vectorstore';
 import { loadPreferences } from './profile-service';
 import {
-	buildAIBestieSystemPrompt,
+	buildAIBestieAdvisorSystemPrompt,
 	buildAIWingmanAdvisorSystemPrompt,
 	buildBestieReplyPrompt
 } from '../prompts';
 import { loadWingmanAdvisorContext } from './wingman-advisor-context';
+import { loadBestieAdvisorContext } from './bestie-advisor-context';
 import { buildCompetitiveSnapshot } from './competitive-snapshot';
 import { loadMatchIntelligenceContext } from './match-intelligence';
 import { piiScan, haikusValidate, SAFE_FALLBACK } from './ai-compliance';
@@ -52,6 +53,7 @@ export interface RosterUser {
 	archetype: string;
 	trust_score: number;
 	in_pool: boolean;
+	is_seed: boolean;
 }
 
 export function assistantFor(gender: string): 'bestie' | 'wingman' {
@@ -64,7 +66,7 @@ export async function listRoster(): Promise<RosterUser[]> {
 	const [{ data: users }, { data: wingmen }, { data: besties }] = await Promise.all([
 		sb
 			.from('verified_vibe_users')
-			.select('id, first_name, gender, age, city, archetype, trust_score')
+			.select('id, first_name, gender, age, city, archetype, trust_score, is_seed')
 			.order('first_name', { ascending: true }),
 		sb.from('vv_pool_wingmen').select('user_id'),
 		sb.from('vv_pool_besties').select('user_id')
@@ -77,6 +79,7 @@ export async function listRoster(): Promise<RosterUser[]> {
 
 	return ((users ?? []) as Omit<RosterUser, 'in_pool'>[]).map((u) => ({
 		...u,
+		is_seed: u.is_seed !== false, // treat null/undefined as seed (column defaults to true)
 		in_pool: pool.has(u.id)
 	}));
 }
@@ -257,10 +260,6 @@ function chunkToTrace(c: { content: string; chapter: string; similarity: number 
 		similarity: c.similarity,
 		preview: c.content.length > 240 ? c.content.slice(0, 240) + '…' : c.content
 	};
-}
-
-function buildBookContext(chunks: { content: string; chapter: string }[]): string {
-	return chunks.map((c) => `[${c.chapter}] ${c.content}`).join('\n\n');
 }
 
 function claudeText(block: { type: string }): string {
@@ -452,58 +451,104 @@ async function runWingmanAdvisor(
 }
 
 /**
- * Faithful reproduction of the live AI Bestie advisor — book-grounded, reads her
- * preferences via the profile service. Unchanged from the original shared core.
+ * Faithful reproduction of the live AI Bestie advisor
+ * (src/routes/api/verified-vibe/ai-bestie/chat). Shares the EXACT context loader
+ * and system-prompt builder with production. No book KB (live doesn't use it),
+ * no pending-report pop (that mutates state), persist:false.
  */
 async function runBestieAdvisor(
 	user: RosterUser,
 	message: string,
 	opts: RunOpts
 ): Promise<{ reply: string; citations: string[]; trace: AgentTrace; runId: string | null }> {
-	// KB retrieval — real embedding + real vector search
-	const tEmb = Date.now();
-	const embedding = await getEmbedding(message);
-	const embeddingMs = Date.now() - tEmb;
-	const tKb = Date.now();
-	const chunks = await searchBookChunks(embedding, 5);
-	const kbMs = Date.now() - tKb;
-	const bookContext = buildBookContext(chunks);
+	const supabase = getSupabase();
 
-	// Profile — real profile-service read
-	const prefs = await loadPreferences(user.id);
+	// Same context the live endpoint assembles — name, preferences, and current
+	// matches with bios, recent messages, and verified lifestyle proofs.
+	const ctx = await loadBestieAdvisorContext(supabase, user.id, { intent: 'chat' });
 	const version = await profileVersion(user.id, 'preferences');
-	const systemPrompt = buildAIBestieSystemPrompt(null, bookContext, undefined, prefs);
 
-	// Claude — real model, real client
+	// Same synchronous competitive snapshot the live endpoint grounds the reply
+	// with (cheap SQL, no Claude, read-only) — active real men (her options), her
+	// female competition, rivals per match, and her normalized trust standing.
+	const { promptBlock: competitiveContext } = await buildCompetitiveSnapshot(supabase, user.id);
+
+	// Same precomputed match intelligence (Standing + checklist + what-if sim)
+	// the live endpoint reads — read-only, no mutation, keeps parity.
+	const matchIntelligenceContext = await loadMatchIntelligenceContext(supabase, user.id);
+
+	// Same system prompt as production. pendingReportContext is empty: popping a
+	// pending report is a state mutation we must not perform in test mode.
+	const systemPrompt = buildAIBestieAdvisorSystemPrompt({
+		userName: ctx.userName,
+		prefsContext: ctx.prefsContext,
+		matchContext: ctx.matchContext,
+		competitiveContext,
+		matchIntelligenceContext,
+		pendingReportContext: ''
+	});
+
+	// Claude — real model, real client. max_tokens mirrors the live endpoint (700).
+	const BESTIE_ADVISOR_MAX_TOKENS = 700;
 	const client = getClaudeClient();
 	const tClaude = Date.now();
 	const resp = await client.messages.create({
 		model: CLAUDE_MODEL,
-		max_tokens: MAX_TOKENS,
+		max_tokens: BESTIE_ADVISOR_MAX_TOKENS,
 		system: systemPrompt,
 		messages: [{ role: 'user', content: message }]
 	});
 	const claudeMs = Date.now() - tClaude;
-	const reply = claudeText(resp.content[0]);
-	const citations = parseCitations(reply);
+	const rawReply = claudeText(resp.content[0]);
+
+	// Strip PREF/DRAFT markers exactly like the live endpoint before display.
+	const strippedReply = rawReply
+		.replace(/\[PREF:[^\]]+\]/g, '')
+		.replace(/\[DRAFT:[^\]]+\][\s\S]*?\[\/DRAFT\]/g, '')
+		.trim();
+
+	// Same compliance gate the live endpoint runs (PII regex → Haiku validator,
+	// advisor context). READ-ONLY here: on a violation we substitute the safe
+	// fallback exactly like production, but never write to ai_assistant_violations.
+	const tCompliance = Date.now();
+	let reply = strippedReply;
+	let complianceDetail: string;
+	const regexHits = piiScan(strippedReply);
+	if (regexHits.length > 0) {
+		reply = SAFE_FALLBACK;
+		complianceDetail = `BLOCKED at regex stage (${regexHits.join(', ')}) → safe fallback substituted. Would log to ai_assistant_violations (detection_stage=regex). Skipped — test mode.`;
+	} else {
+		const { clean, violations } = await haikusValidate(strippedReply, 'advisor');
+		if (!clean) {
+			reply = SAFE_FALLBACK;
+			complianceDetail = `BLOCKED by Haiku validator (${violations.join('; ')}) → safe fallback substituted. Would log to ai_assistant_violations (detection_stage=haiku_validator). Skipped — test mode.`;
+		} else {
+			complianceDetail = 'passed — PII regex clean, Haiku validator (advisor) clean. Reply delivered as-is.';
+		}
+	}
+	const complianceMs = Date.now() - tCompliance;
+	const citations = parseCitations(reply); // live Bestie advisor has no citation rule → []
+
+	// Detect PREF markers the live endpoint would persist (without writing them).
+	const prefMarkers = (rawReply.match(/\[PREF:(dealbreaker|boundary|signal|note):[^\]]+\]/g) ?? []).length;
 
 	const sideEffects: AgentTrace['sideEffects'] = [
 		{
-			name: 'ai_assistant_conversations.upsert',
+			name: 'complianceGate',
 			wouldPersist: false,
-			detail: 'Would persist this exchange to ai_assistant_conversations (assistant_type=bestie). Skipped — test mode.'
+			detail: complianceDetail
 		},
 		{
-			name: 'autoUpdateProfile',
+			name: 'updatePreferences',
 			wouldPersist: false,
-			detail: `Would analyze this turn for new preferences signals and write a v${
-				(version ?? 0) + 1
-			} row to ai_assistant_profiles. Skipped — the profile the agent learns from is left untouched.`
+			detail: prefMarkers > 0
+				? `${prefMarkers} PREF marker(s) detected → would write a v${(version ?? 0) + 1} preferences row to ai_assistant_profiles. Detected, not written — test mode.`
+				: 'No PREF markers in the reply. No preferences write triggered.'
 		},
 		{
-			name: 'vv_ai_response_timings.upsert',
+			name: 'appendAdvisorChat',
 			wouldPersist: false,
-			detail: `response_type=bestie_advisor · claude_ms=${claudeMs}. Not written — Analytics dashboard stays clean.`
+			detail: 'Would persist this exchange to ai_assistant_advisor_chats (assistant_type=bestie). Skipped — test mode.'
 		}
 	];
 
@@ -515,19 +560,26 @@ async function runBestieAdvisor(
 			resolvedAssistant: 'bestie',
 			reason: `gender === '${user.gender}' → bestie (ai-greeting routing rule)`
 		},
-		profile: { type: 'preferences', version, data: prefs, source: 'ai_assistant_profiles' },
-		kb: { query: message, embeddingModel: 'voyage-3-lite', topK: 5, chunks: chunks.map(chunkToTrace) },
+		profile: { type: 'preferences', version, data: ctx.preferencesData, source: 'ai_assistant_profiles' },
+		matchContext: {
+			matchCount: ctx.matchCount,
+			note:
+				ctx.matchCount > 0
+					? 'Live advisor loads real matches + bios, recent messages, and verified proofs into the prompt.'
+					: 'No matches — advisor coaches over her preferences and platform competitive standing.'
+		},
+		kb: null, // live AI Bestie advisor performs NO book KB retrieval
 		claude: {
 			model: CLAUDE_MODEL,
-			maxTokens: MAX_TOKENS,
+			maxTokens: BESTIE_ADVISOR_MAX_TOKENS,
 			systemPrompt,
 			userMessage: message,
-			rawOutput: reply,
+			rawOutput: rawReply, // raw model output, BEFORE marker-strip + compliance gate
 			usage: { inputTokens: resp.usage?.input_tokens, outputTokens: resp.usage?.output_tokens }
 		},
-		output: { reply, citations },
+		output: { reply, citations }, // reply = what the user would see (post-compliance)
 		sideEffects,
-		timing: { totalMs: embeddingMs + kbMs + claudeMs, claudeMs, embeddingMs, kbMs }
+		timing: { totalMs: claudeMs + complianceMs, claudeMs }
 	};
 
 	const runId = opts.persist
