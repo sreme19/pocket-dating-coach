@@ -287,6 +287,7 @@
 
     // Fetch proactive greeting in parallel (non-blocking)
     fetchGreeting();
+    fetchStanding();
     await scrollToBottom();
   });
 
@@ -300,6 +301,20 @@
     return messages
       .filter(m => !m.pending)
       .map(m => ({ role: m.role, content: m.content }));
+  }
+
+  // ── "Where you stand" panel — precomputed match intelligence ────────────────
+  let standing = $state<any[]>([]);
+  let standingOpen = $state(true);
+  async function fetchStanding() {
+    try {
+      const id = $user?.id;
+      if (!id) return;
+      const res = await fetch(`/api/verified-vibe/match-intelligence?userId=${encodeURIComponent(id)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      standing = Array.isArray(data.matches) ? data.matches : [];
+    } catch { /* non-fatal — panel just stays hidden */ }
   }
 
   async function handleFileUpload(e: Event) {
@@ -638,6 +653,43 @@
     {/each}
     <div bind:this={messagesEnd}></div>
   </div>
+
+  <!-- Where you stand panel (precomputed match intelligence) -->
+  {#if standing.length}
+    <div class="stand-panel" transition:fly={{ y: 20, duration: 220 }}>
+      <button class="stand-panel-head" onclick={() => standingOpen = !standingOpen} aria-expanded={standingOpen}>
+        <span class="stand-panel-title">📊 Where you stand</span>
+        <span class="stand-panel-toggle">{standingOpen ? '▾' : '▸'}</span>
+      </button>
+      {#if standingOpen}
+        <div class="stand-panel-body">
+          {#each standing as m}
+            <div class="stand-match">
+              <div class="stand-match-head">
+                <span class="stand-name">{m.partnerName}</span>
+                {#if (m.standingPool ?? 0) > 1}
+                  <span class="stand-rank">#{m.standingRank} of {m.standingPool}</span>
+                {:else}
+                  <span class="stand-rank stand-rank--solo">Only match · convert</span>
+                {/if}
+              </div>
+              {#if m.simulation?.length}
+                <div class="stand-levers-label">Move the needle:</div>
+                {#each m.simulation.slice(0, 3) as a}
+                  <div class="stand-lever">
+                    <span class="stand-lever-label">{a.label}</span>
+                    <span class="stand-lever-delta">
+                      trust {a.trustBefore}→{a.trustAfter}{#if (a.standingPool ?? 0) > 1 && a.standingAfter !== a.standingBefore} · #{a.standingBefore}→#{a.standingAfter}{/if}
+                    </span>
+                  </div>
+                {/each}
+              {/if}
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </div>
+  {/if}
 
   <!-- Draft action cards -->
   {#if pendingDrafts.length > 0}
@@ -1221,6 +1273,46 @@
     transition: color 150ms, border-color 150ms;
   }
   .attach-btn:hover:not(:disabled) { color: var(--accent-bright); border-color: var(--accent-bright); }
+
+  /* ── "Where you stand" panel ── */
+  .stand-panel {
+    margin: 0 16px 8px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    border-left: 3px solid var(--accent-bright);
+    border-radius: 12px;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .stand-panel-head {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-1);
+  }
+  .stand-panel-title { font-size: 13px; font-weight: 700; letter-spacing: 0.02em; }
+  .stand-panel-toggle { font-size: 12px; color: var(--text-3); }
+  .stand-panel-body { padding: 0 14px 12px; display: flex; flex-direction: column; gap: 12px; }
+  .stand-match { display: flex; flex-direction: column; gap: 6px; }
+  .stand-match-head { display: flex; align-items: center; justify-content: space-between; }
+  .stand-name { font-size: 13px; font-weight: 700; color: var(--text-1); }
+  .stand-rank {
+    font-size: 11px; font-weight: 700; color: var(--accent-bright);
+    background: var(--accent-tint); padding: 2px 8px; border-radius: 999px;
+  }
+  .stand-rank--solo { color: var(--text-2); background: var(--bg-1); }
+  .stand-levers-label { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em; }
+  .stand-lever {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+    padding: 6px 8px; background: var(--bg-1); border-radius: 8px;
+  }
+  .stand-lever-label { font-size: 12px; color: var(--text-1); }
+  .stand-lever-delta { font-size: 11px; font-weight: 700; color: var(--accent-bright); white-space: nowrap; }
   .attach-btn:disabled { opacity: 0.4; cursor: not-allowed; }
   .upload-spin {
     width: 12px;
