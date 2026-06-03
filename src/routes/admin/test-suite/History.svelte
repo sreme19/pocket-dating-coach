@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Icon from './Icon.svelte';
 	import TracePanel from './TracePanel.svelte';
-	import { AGENT_LABEL, type AgentTrace, type RestorePayload } from './lib';
+	import { AGENT_LABEL, type AgentTrace, type RestorePayload, type ChatMsg } from './lib';
 
 	let {
 		trace,
@@ -26,8 +26,44 @@
 		created_at: string;
 	}
 
-	// advisor + match_reply are conversations we can reopen; matchmaker isn't.
+	// advisor + match_reply are conversations we can reopen / view; matchmaker isn't.
 	const RESTORABLE = new Set(['advisor', 'match_reply']);
+
+	// Read-only conversation preview shown in a modal when "View" is clicked.
+	let viewing = $state<RunRow | null>(null);
+
+	// Rebuild the exchange's chat bubbles from the run's stored input/output + trace,
+	// mirroring how Case1/Case2 render a live conversation.
+	function conversationOf(r: RunRow): ChatMsg[] {
+		const subject = r.trace?.subject?.name ?? 'Owner';
+		const subjInitials = subject.slice(0, 2).toUpperCase();
+		if (r.case_type === 'match_reply') {
+			const matchName = r.input?.match?.name ?? 'the match';
+			return [
+				{ side: 'right', label: `${matchName} · the match`, color: '#475569', initials: matchName[0]?.toUpperCase() ?? '?', text: r.input?.message ?? '' },
+				{
+					side: 'left',
+					label: `${subject} · via AI Bestie`,
+					color: 'var(--rose-strong)',
+					initials: subjInitials,
+					text: r.output?.reply ?? '',
+					coachingSignal: r.output?.coachingSignal,
+					ownerName: subject
+				}
+			];
+		}
+		// advisor — owner talks to their own Bestie/Wingman
+		const wingman = r.trace?.routing?.resolvedAssistant === 'wingman';
+		const asstColor = wingman ? 'var(--indigo-strong)' : 'var(--rose-strong)';
+		return [
+			{ side: 'right', label: subject, color: '#475569', initials: subjInitials, text: r.input?.message ?? '' },
+			{ side: 'left', label: wingman ? 'AI Wingman' : 'AI Bestie', color: asstColor, initials: 'AI', text: r.output?.reply ?? '', suggestions: r.trace?.output?.suggestions }
+		];
+	}
+
+	function segments(line: string) {
+		return line.split(/(\[\d+\])/g).map((p) => ({ cite: /^\[\d+\]$/.test(p), text: p }));
+	}
 
 	function resume(r: RunRow) {
 		onRestore({
@@ -136,6 +172,13 @@
 									{#if RESTORABLE.has(r.case_type)}
 										<button
 											class="run-link"
+											title="View this conversation (read-only)"
+											onclick={() => (viewing = r)}
+										>
+											<Icon name="eye" size={12} />View
+										</button>
+										<button
+											class="run-link"
 											title="Reopen this conversation in its tab and keep chatting"
 											onclick={() => resume(r)}
 										>
@@ -159,3 +202,60 @@
 	</div>
 	<TracePanel {trace} />
 </div>
+
+{#if viewing}
+	<!-- Read-only conversation preview -->
+	<div
+		class="modal-backdrop"
+		role="button"
+		tabindex="-1"
+		onclick={() => (viewing = null)}
+		onkeydown={(e) => e.key === 'Escape' && (viewing = null)}
+	>
+		<div class="modal-panel" role="dialog" aria-modal="true" onclick={(e) => e.stopPropagation()}>
+			<div class="modal-head">
+				<div class="msg-av" style="background:var(--indigo-strong)"><Icon name="cpu" size={14} /></div>
+				<div style="flex:1; min-width:0">
+					<div style="font-size:13.5px; font-weight:600">{AGENT_LABEL[viewing.agent] ?? viewing.agent}</div>
+					<div style="font-size:11.5px; color:var(--text-4)">
+						{new Date(viewing.created_at).toLocaleString()}{viewing.reviewer ? ` · ${viewing.reviewer}` : ''} · read-only
+					</div>
+				</div>
+				<button class="run-link" title="Reopen to keep chatting" onclick={() => { const r = viewing; viewing = null; if (r) resume(r); }}>
+					<Icon name="msg" size={12} />Resume
+				</button>
+				<button class="modal-close" aria-label="close" onclick={() => (viewing = null)}><Icon name="x" size={16} /></button>
+			</div>
+			<div class="modal-body">
+				{#each conversationOf(viewing) as m, i (i)}
+					<div class="msg {m.side}">
+						<div class="msg-av" style="background:{m.color}">{m.initials}</div>
+						<div style="min-width:0">
+							<div class="msg-role">{m.label}</div>
+							<div class="bubble">
+								{#each m.text.split('\n') as line, li}
+									<div style={li ? 'margin-top:8px' : ''}>
+										{#each segments(line) as seg}
+											{#if seg.cite}<span class="citation">{seg.text}</span>{:else}{seg.text}{/if}
+										{/each}
+									</div>
+								{/each}
+								{#if m.suggestions}
+									<div class="suggestions">
+										{#each m.suggestions as s}<span class="suggestion">{s}</span>{/each}
+									</div>
+								{/if}
+								{#if m.coachingSignal}
+									<div class="coaching {m.coachingSignal.color}">
+										<span class="coaching-dot"></span>
+										<span><span class="coaching-label">{m.coachingSignal.color} flag</span> · for {m.ownerName}'s private view — {m.coachingSignal.text}</span>
+									</div>
+								{/if}
+							</div>
+						</div>
+					</div>
+				{/each}
+			</div>
+		</div>
+	</div>
+{/if}
