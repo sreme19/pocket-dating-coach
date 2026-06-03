@@ -1,0 +1,27 @@
+{
+  "name": "vv-voice-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Verified Vibe AI Bestie voice-call agent worker (LiveKit Agents: Deepgram STT -> Claude -> ElevenLabs TTS). Runs off-Vercel, always-on.",
+  "scripts": {
+    "dev": "tsx watch src/agent.ts dev",
+    "start": "node --import tsx src/agent.ts start",
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.92.0",
+    "@livekit/agents": "^1.4.5",
+    "@livekit/agents-plugin-deepgram": "^1.4.5",
+    "@livekit/agents-plugin-elevenlabs": "^1.4.5",
+    "@livekit/agents-plugin-silero": "^1.4.5",
+    "@livekit/rtc-node": "^0.13.29",
+    "dotenv": "^16.4.5",
+    "tsx": "^4.21.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}
