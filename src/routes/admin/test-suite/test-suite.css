@@ -80,7 +80,7 @@
 .tab-desc { font-size: 11.5px; color: var(--text-4); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 
 /* ---------- Two-column case layout ---------- */
-.case-grid { display: grid; grid-template-columns: minmax(0, 1fr) 480px; gap: 20px; align-items: start; }
+.case-grid { display: grid; grid-template-columns: minmax(0, 1fr) var(--ts-trace-w, 480px); gap: 20px; align-items: start; }
 @media (max-width: 1200px) { .case-grid { grid-template-columns: 1fr; } }
 .case-left { display: flex; flex-direction: column; gap: 20px; }
 
@@ -168,6 +168,23 @@
 
 /* ---------- Trace panel ---------- */
 .trace { position: sticky; top: 20px; }
+/* drag-to-resize handle on the panel's left edge */
+.trace-resize { position: absolute; top: 0; left: -10px; width: 16px; height: 100%; cursor: col-resize; z-index: 6; touch-action: none; display: flex; align-items: center; justify-content: center; }
+.trace-resize::before { content: ''; position: absolute; top: 0; left: 9px; width: 2px; height: 100%; background: transparent; transition: background .13s; border-radius: 2px; }
+.trace-resize::after { content: ''; width: 4px; height: 34px; border-radius: 3px; background: var(--border-2); transition: background .13s, height .13s; }
+.trace-resize:hover::before, .trace-resize.active::before { background: var(--indigo); }
+.trace-resize:hover::after, .trace-resize.active::after { background: var(--indigo); height: 56px; }
+body.ts-resizing { cursor: col-resize; user-select: none; }
+@media (max-width: 1200px) { .trace-resize { display: none; } }
+/* actual delivered response */
+.response-block { max-height: 420px; color: var(--text); font-family: var(--sans); font-size: 13px; line-height: 1.65; white-space: pre-wrap; }
+/* per-run debug link button in the Past runs roster */
+.run-row { position: relative; }
+.run-link { position: absolute; top: 8px; right: 8px; display: flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600; padding: 4px 8px; border-radius: 7px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-2); color: var(--text-3); transition: all .13s; opacity: 0; }
+.run-row:hover .run-link, .run-link.done { opacity: 1; }
+.run-link:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+.run-link.done { color: var(--emerald); border-color: var(--emerald-border); }
+.run-id { font-family: var(--mono); font-size: 10px; color: var(--text-4); margin-top: 3px; user-select: all; }
 .trace-head { padding: 15px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 11px; }
 .trace-head .ic { width: 30px; height: 30px; border-radius: 9px; background: var(--indigo-bg); border: 1px solid var(--indigo-border); display: grid; place-items: center; color: var(--indigo); flex: none; }
 .trace-head h3 { margin: 0; font-size: 13.5px; font-weight: 600; }

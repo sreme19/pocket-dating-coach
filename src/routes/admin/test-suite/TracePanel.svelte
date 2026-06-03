@@ -1,9 +1,67 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import Icon from './Icon.svelte';
 	import TSection from './TSection.svelte';
 	import { AGENT_LABEL, highlightJson, highlightPrompt, type AgentTrace } from './lib';
 
 	let { trace = null }: { trace?: AgentTrace | null } = $props();
+
+	// ---- drag-to-resize the observability panel width ----
+	const MIN_W = 360;
+	const MAX_W = 960;
+	const DEFAULT_W = 480;
+	let resizing = $state(false);
+	let startX = 0;
+	let startW = DEFAULT_W;
+
+	function applyWidth(w: number) {
+		const clamped = Math.max(MIN_W, Math.min(MAX_W, Math.round(w)));
+		document.documentElement.style.setProperty('--ts-trace-w', `${clamped}px`);
+		try {
+			localStorage.setItem('ts-trace-w', String(clamped));
+		} catch {
+			/* storage unavailable */
+		}
+	}
+
+	onMount(() => {
+		let saved = DEFAULT_W;
+		try {
+			const s = Number(localStorage.getItem('ts-trace-w'));
+			if (s) saved = s;
+		} catch {
+			/* storage unavailable */
+		}
+		applyWidth(saved);
+	});
+
+	function onResizeDown(e: PointerEvent) {
+		resizing = true;
+		startX = e.clientX;
+		const cur = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ts-trace-w'));
+		startW = cur || DEFAULT_W;
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+		document.body.classList.add('ts-resizing');
+		e.preventDefault();
+	}
+	function onResizeMove(e: PointerEvent) {
+		if (!resizing) return;
+		// dragging the left-edge handle leftward widens the panel
+		applyWidth(startW + (startX - e.clientX));
+	}
+	function onResizeUp(e: PointerEvent) {
+		if (!resizing) return;
+		resizing = false;
+		document.body.classList.remove('ts-resizing');
+		try {
+			(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+		} catch {
+			/* not captured */
+		}
+	}
+	function resetWidth() {
+		applyWidth(DEFAULT_W);
+	}
 
 	let copied = $state(false);
 	function copy() {
@@ -37,8 +95,23 @@
 	</div>
 {/snippet}
 
+{#snippet resizeHandle()}
+	<div
+		class="trace-resize {resizing ? 'active' : ''}"
+		role="separator"
+		aria-orientation="vertical"
+		aria-label="Resize observability panel — drag, double-click to reset"
+		title="Drag to resize · double-click to reset"
+		onpointerdown={onResizeDown}
+		onpointermove={onResizeMove}
+		onpointerup={onResizeUp}
+		ondblclick={resetWidth}
+	></div>
+{/snippet}
+
 {#if !trace}
 	<div class="card trace">
+		{@render resizeHandle()}
 		<div class="trace-head">
 			<div class="ic"><Icon name="cpu" size={16} /></div>
 			<div>
@@ -56,6 +129,7 @@
 	</div>
 {:else}
 	<div class="card trace fade-in">
+		{@render resizeHandle()}
 		<div class="trace-head">
 			<div class="ic"><Icon name="cpu" size={16} /></div>
 			<div style="min-width:0">
@@ -204,6 +278,39 @@
 				<div style="font-size:11px; color:var(--text-4); margin-top:12px; display:flex; align-items:center; gap:6px">
 					<Icon name="alert" size={11} />Mirrors vv_ai_response_timings · thresholds amber &gt;1.8s, red &gt;2.8s · not persisted in test mode.
 				</div>
+			</TSection>
+
+			<!-- 9. Response -->
+			<TSection
+				num="09"
+				icon="msg"
+				title="Response"
+				meta={trace.output.reply ? `${trace.output.reply.length} chars` : 'structured'}
+				open
+			>
+				<div class="field-label"><Icon name="msg" size={11} /> actual response delivered</div>
+				{#if trace.output.reply}
+					<pre class="codeblock response-block">{trace.output.reply}</pre>
+				{:else}
+					<div style="font-size:12.5px; color:var(--text-4)">
+						No textual reply for this agent (structured output only — see Post-processing).
+					</div>
+				{/if}
+				{#if trace.output.suggestions?.length}
+					<div class="field-label">suggested replies</div>
+					<div style="display:flex; flex-direction:column; gap:7px">
+						{#each trace.output.suggestions as s}
+							<div style="font-size:12.5px; color:var(--text-2); padding:8px 11px; background:var(--bg-2); border:1px solid var(--border); border-radius:9px; line-height:1.5">{s}</div>
+						{/each}
+					</div>
+				{/if}
+				{#if trace.output.coachingSignal}
+					<div class="field-label">coaching signal (private)</div>
+					<div class="coaching {trace.output.coachingSignal.color}" style="margin-top:0">
+						<span class="coaching-dot"></span>
+						<span><span class="coaching-label">{trace.output.coachingSignal.color}</span> — {trace.output.coachingSignal.text}</span>
+					</div>
+				{/if}
 			</TSection>
 		</div>
 	</div>
