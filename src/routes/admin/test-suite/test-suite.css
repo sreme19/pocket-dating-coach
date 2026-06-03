@@ -99,6 +99,10 @@
 .search input::placeholder { color: var(--text-4); }
 .search input:focus { border-color: var(--border-3); }
 .search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text-4); }
+.seed-filter { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-3); cursor: pointer; user-select: none; padding: 0 2px; }
+.seed-filter input { width: 14px; height: 14px; accent-color: var(--emerald); cursor: pointer; margin: 0; }
+.seed-filter span { display: inline-flex; align-items: center; gap: 7px; }
+.seed-count { font-size: 11px; font-weight: 600; color: var(--text-4); background: rgba(255,255,255,0.05); border: 1px solid var(--border-2); border-radius: 6px; padding: 1px 6px; }
 .roster { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; padding-right: 2px; }
 .persona { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 11px; border: 1px solid var(--border); background: var(--bg-2); transition: all .13s; text-align: left; width: 100%; }
 .persona:hover { border-color: var(--border-2); background: var(--card-2); }
@@ -180,8 +184,9 @@ body.ts-resizing { cursor: col-resize; user-select: none; }
 .response-block { max-height: 420px; color: var(--text); font-family: var(--sans); font-size: 13px; line-height: 1.65; white-space: pre-wrap; }
 /* per-run debug link button in the Past runs roster */
 .run-row { position: relative; }
-.run-link { position: absolute; top: 8px; right: 8px; display: flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600; padding: 4px 8px; border-radius: 7px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-2); color: var(--text-3); transition: all .13s; opacity: 0; }
-.run-row:hover .run-link, .run-link.done { opacity: 1; }
+.run-actions { position: absolute; top: 8px; right: 8px; display: flex; gap: 6px; opacity: 0; transition: opacity .13s; }
+.run-row:hover .run-actions, .run-actions:has(.done) { opacity: 1; }
+.run-link { display: flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600; padding: 4px 8px; border-radius: 7px; background: rgba(255,255,255,0.05); border: 1px solid var(--border-2); color: var(--text-3); transition: all .13s; }
 .run-link:hover { background: rgba(255,255,255,0.1); color: var(--text); }
 .run-link.done { color: var(--emerald); border-color: var(--emerald-border); }
 .run-id { font-family: var(--mono); font-size: 10px; color: var(--text-4); margin-top: 3px; user-select: all; }

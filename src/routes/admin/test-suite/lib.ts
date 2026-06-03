@@ -10,6 +10,7 @@ export interface RosterUser {
 	archetype: string;
 	trust_score: number;
 	in_pool: boolean;
+	is_seed: boolean;
 }
 
 export interface OwnerMatch {
@@ -62,6 +63,22 @@ export interface AgentTrace {
 		cached: boolean;
 		claudeCalls: number;
 	};
+}
+
+/**
+ * A past run handed from History back to its case tab so the operator can
+ * reopen the exchange and keep chatting. Only chat-type cases (advisor,
+ * match_reply) are restorable — matchmaker isn't a conversation.
+ */
+export interface RestorePayload {
+	runId: string;
+	caseType: 'advisor' | 'match_reply';
+	subjectUserId: string | null;
+	counterpartUserId: string | null;
+	// stored verbatim from ts_runs.input / ts_runs.output
+	input: { message?: string; match?: { name?: string; age?: number; goal?: string; matchId?: string | null; matchUserId?: string | null } } | null;
+	output: { reply?: string; citations?: string[]; coachingSignal?: { color: 'green' | 'yellow' | 'red'; text: string } } | null;
+	trace: AgentTrace;
 }
 
 export interface ChatMsg {

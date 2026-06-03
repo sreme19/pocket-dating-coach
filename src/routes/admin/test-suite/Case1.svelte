@@ -10,25 +10,55 @@
 		avatarColor,
 		type RosterUser,
 		type AgentTrace,
-		type ChatMsg
+		type ChatMsg,
+		type RestorePayload
 	} from './lib';
 
 	let {
 		roster,
 		trace,
 		setTrace,
-		persist = false
+		persist = false,
+		restore = null,
+		clearRestore = () => {}
 	}: {
 		roster: RosterUser[];
 		trace: AgentTrace | null;
 		setTrace: (t: AgentTrace | null) => void;
 		persist?: boolean;
+		restore?: RestorePayload | null;
+		clearRestore?: () => void;
 	} = $props();
 
 	let sel = $state<RosterUser | null>(null);
 	let messages = $state<ChatMsg[]>([]);
 	let generating = $state(false);
 	let error = $state('');
+
+	// Reopen a past advisor run handed over from History: load its owner and
+	// re-seed the exchange so the operator can keep chatting from where it left off.
+	$effect(() => {
+		if (!restore || restore.caseType !== 'advisor') return;
+		const r = restore;
+		clearRestore(); // consume immediately so this doesn't re-fire
+		const owner = roster.find((u) => u.id === r.subjectUserId);
+		if (!owner) return;
+		sel = owner;
+		error = '';
+		const asst = assistantFor(owner);
+		messages = [
+			{ side: 'right', label: owner.first_name, color: avatarColor(owner), initials: initials(owner), text: r.input?.message ?? '' },
+			{
+				side: 'left',
+				label: asst === 'bestie' ? 'AI Bestie' : 'AI Wingman',
+				color: asst === 'bestie' ? 'var(--rose-strong)' : 'var(--indigo-strong)',
+				initials: 'AI',
+				text: r.output?.reply ?? '',
+				suggestions: r.trace?.output?.suggestions
+			}
+		];
+		setTrace(r.trace);
+	});
 
 	function pick(p: RosterUser) {
 		sel = p;
