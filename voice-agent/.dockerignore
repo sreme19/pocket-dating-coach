@@ -1,0 +1,15 @@
+# Never ship local (macOS) node_modules into the Linux image — `npm install`
+# inside the Dockerfile builds the correct native binaries (@livekit/rtc-node,
+# onnxruntime for Silero VAD). Copying local ones over them crashes at startup.
+node_modules
+
+# Secrets + local state must not land in the image.
+.env
+.env.*
+
+# Build/VCS noise.
+.git
+dist
+*.log
+npm-debug.log*
+.DS_Store
