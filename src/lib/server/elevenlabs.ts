@@ -23,10 +23,17 @@ function apiKey(): string {
 	return k;
 }
 
+// ElevenLabs "Sarah" — a default voice usable on free plans. Used when no valid
+// ELEVENLABS_DEFAULT_VOICE_ID is configured.
+const FALLBACK_VOICE_ID = 'EXAVITQu4vr4xnSDxMaL';
+// Placeholder ids that were set in env by mistake but don't exist on the account
+// (TTS fails with voice_id_does_not_exist). Ignore them rather than go silent.
+const KNOWN_BAD_VOICE_IDS = new Set(['ecp3DWciuUyW7BYM7II1']);
+
 export function defaultVoiceId(): string {
 	const v = env.ELEVENLABS_DEFAULT_VOICE_ID;
-	if (!v) throw new Error('ELEVENLABS_DEFAULT_VOICE_ID is not configured.');
-	return v;
+	if (!v || KNOWN_BAD_VOICE_IDS.has(v.trim())) return FALLBACK_VOICE_ID;
+	return v.trim();
 }
 
 /**
