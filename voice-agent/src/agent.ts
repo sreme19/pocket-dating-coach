@@ -168,6 +168,10 @@ export default defineAgent({
 			await finalize(callId, transcript, durationS, status);
 		};
 
+		// Everything below can throw (plugin construction, session start). Because
+		// /context already flipped the call to 'live', any crash here must finalize
+		// the call as failed — otherwise it sticks in 'live' and blocks the match.
+		try {
 		const session = new voice.AgentSession({
 			vad: (ctx.proc.userData as any).vad as silero.VAD,
 			// Pass keys explicitly — the plugins look for ELEVEN_API_KEY /
@@ -241,6 +245,11 @@ export default defineAgent({
 		// Disclosure preamble + warm opener.
 		transcript.push({ role: 'agent', text: cfg.greeting, ts: new Date().toISOString() });
 		await session.say(cfg.greeting);
+		} catch (err) {
+			console.error('[agent] entry failed after call went live — finalizing as failed', err);
+			await doFinalize('failed');
+			await ctx.room.disconnect().catch(() => undefined);
+		}
 	}
 });
 
