@@ -1,9 +1,12 @@
 # Fly.io deploy for the bestie voice agent worker.
-# Region: bom (Mumbai) to minimise round-trip latency for the en-IN user base.
+# Region: sin (Singapore) — low latency to India with reliable performance-CPU
+# capacity (bom/Mumbai had no dedicated CPUs available). The realtime audio
+# pipeline (Silero VAD + STT + TTS) needs dedicated CPU or it falls behind
+# realtime ("inference is slower than realtime" / "job is unresponsive").
 # This is a worker (outbound to LiveKit Cloud) — no public HTTP service.
 
 app = "vv-voice-agent"
-primary_region = "bom"
+primary_region = "sin"
 
 [build]
   dockerfile = "Dockerfile"
@@ -12,9 +15,10 @@ primary_region = "bom"
   NODE_ENV = "production"
 
 # Always-on: a voice agent must be warm to answer a "Get a call now" tap.
+# Dedicated CPU — shared CPUs can't keep the realtime audio pipeline up.
 [[vm]]
-  size = "shared-cpu-2x"
-  memory = "2gb"
+  size = "performance-2x"
+  memory = "4gb"
 
 # Keep at least one warm worker; scale up under concurrent call load.
 [processes]
