@@ -145,11 +145,15 @@
 								<div class="font-medium text-slate-100">{r.participantA.name} ↔ {r.participantB.name}</div>
 								{#if r.kind === 'advisor'}
 									<span class="rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-medium text-indigo-300">advisor</span>
+								{:else if r.kind === 'voice'}
+									<span class="rounded bg-pink-500/15 px-1.5 py-0.5 text-[10px] font-medium text-pink-300">voice call</span>
 								{/if}
 							</div>
 							<div class="text-xs text-slate-500">
 								{#if r.kind === 'advisor'}
 									global advisor · {r.participantB.archetype ?? '—'}
+								{:else if r.kind === 'voice'}
+									{r.participantA.archetype ?? 'voice call'} · with {r.participantB.name}
 								{:else}
 									{r.participantA.archetype ?? '—'} · {r.participantB.archetype ?? '—'}
 								{/if}

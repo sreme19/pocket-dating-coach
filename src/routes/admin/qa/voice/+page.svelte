@@ -97,6 +97,11 @@
 						{#if expanded === c.id}
 							<tr class="border-t border-white/[0.04] bg-[#0a0f1c]">
 								<td colspan="7" class="px-4 py-4">
+									<div class="mb-3">
+										<a href={`/admin/qa/voice/${c.id}`} class="rounded bg-pink-500/15 px-2.5 py-1 text-xs font-medium text-pink-300 hover:bg-pink-500/25">
+											Open scored review →
+										</a>
+									</div>
 									<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
 										<!-- Transcript -->
 										<div>

@@ -286,8 +286,9 @@ export default defineAgent({
 
 		await session.start({ agent, room: ctx.room });
 
-		// Disclosure preamble + warm opener.
-		transcript.push({ role: 'agent', text: cfg.greeting, ts: new Date().toISOString() });
+		// Disclosure preamble + warm opener. The ConversationItemAdded handler
+		// captures this into the transcript, so don't push it manually (that caused
+		// the greeting to appear twice).
 		await session.say(cfg.greeting);
 		} catch (err) {
 			console.error('[agent] entry failed after call went live — finalizing as failed', err);

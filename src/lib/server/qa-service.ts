@@ -22,6 +22,7 @@ export interface ReviewRecord {
 	id: string;
 	match_id: string | null;
 	advisor_chat_id: string | null;
+	voice_call_id: string | null;
 	reviewer: string;
 	score_accuracy: number | null;
 	score_tone: number | null;
@@ -66,7 +67,7 @@ interface Participant {
 }
 
 export interface QueueRow {
-	kind: 'match' | 'advisor';
+	kind: 'match' | 'advisor' | 'voice';
 	/** Match id, or — for advisor rows — the advisor chat id. Stable list key. */
 	matchId: string;
 	/** Detail-page route for this row. */
@@ -181,15 +182,20 @@ function asParticipant(u: Record<string, unknown> | undefined, id: string): Part
 
 /** Build the review queue: match threads with AI activity, plus advisor chats. */
 export async function listReviewQueue(sb: SB): Promise<QueueRow[]> {
-	const [{ data: matches }, { data: messages }, { data: users }, { data: reviews }, { data: convos }, { data: advisorChats }] =
+	const [{ data: matches }, { data: messages }, { data: users }, { data: reviews }, { data: convos }, { data: advisorChats }, voiceCallsRes] =
 		await Promise.all([
 			sb.from('verified_vibe_matches').select('id, user1_id, user2_id, status, created_at'),
 			sb.from('verified_vibe_messages').select('match_id, sender_id, is_ai, ai_signal, created_at'),
 			sb.from('verified_vibe_users').select('id, first_name, gender, archetype'),
 			sb.from('ai_qa_reviews').select('*').order('updated_at', { ascending: false }),
 			sb.from('ai_assistant_conversations').select('id, match_conversation_id'),
-			sb.from('ai_assistant_advisor_chats').select('id, user_id, assistant_type, messages, updated_at, created_at')
+			sb.from('ai_assistant_advisor_chats').select('id, user_id, assistant_type, messages, updated_at, created_at'),
+			(sb as unknown as { from: (t: string) => any })
+				.from('vv_voice_calls')
+				.select('id, owner_user_id, caller_user_id, status, duration_s, transcript, used_cloned_voice, started_at')
+				.order('started_at', { ascending: false })
 		]);
+	const voiceCalls = (voiceCallsRes?.data ?? []) as Array<Record<string, unknown>>;
 
 	const userById = new Map((users ?? []).map((u) => [u.id, u as Record<string, unknown>]));
 
@@ -213,9 +219,11 @@ export async function listReviewQueue(sb: SB): Promise<QueueRow[]> {
 	// Latest review per target (reviews already sorted desc by updated_at).
 	const latestByMatch = new Map<string, ReviewRecord>();
 	const latestByAdvisor = new Map<string, ReviewRecord>();
+	const latestByVoice = new Map<string, ReviewRecord>();
 	for (const r of (reviews ?? []) as ReviewRecord[]) {
 		if (r.match_id && !latestByMatch.has(r.match_id)) latestByMatch.set(r.match_id, r);
 		if (r.advisor_chat_id && !latestByAdvisor.has(r.advisor_chat_id)) latestByAdvisor.set(r.advisor_chat_id, r);
+		if (r.voice_call_id && !latestByVoice.has(r.voice_call_id)) latestByVoice.set(r.voice_call_id, r);
 	}
 
 	const toReviewSummary = (r: ReviewRecord | null): QueueRow['review'] =>
@@ -268,6 +276,32 @@ export async function listReviewQueue(sb: SB): Promise<QueueRow[]> {
 			counts: { messages: msgs.length, aiMessages, coached: 0, coachingThreads: 0 },
 			hasAi: aiMessages > 0,
 			review: toReviewSummary(latestByAdvisor.get(chat.id as string) ?? null)
+		});
+	}
+
+	// Voice calls (AI Bestie ↔ male match) — one row per call.
+	for (const c of voiceCalls) {
+		const turns = Array.isArray(c.transcript) ? (c.transcript as unknown[]) : [];
+		const owner = asParticipant(userById.get(c.owner_user_id as string), c.owner_user_id as string);
+		const caller = asParticipant(userById.get(c.caller_user_id as string), c.caller_user_id as string);
+		const dur = (c.duration_s as number) ?? null;
+		rows.push({
+			kind: 'voice' as const,
+			matchId: c.id as string,
+			href: `/admin/qa/voice/${c.id as string}`,
+			status: (c.status as string) ?? 'voice',
+			createdAt: (c.started_at as string) ?? '',
+			lastActivityAt: (c.started_at as string) ?? null,
+			participantA: {
+				id: 'voice-bestie',
+				name: `${owner.name}'s bestie${c.used_cloned_voice ? ' (cloned voice)' : ''}`,
+				gender: null,
+				archetype: dur != null ? `voice call · ${dur}s` : 'voice call'
+			},
+			participantB: caller,
+			counts: { messages: turns.length, aiMessages: 0, coached: 0, coachingThreads: 0 },
+			hasAi: turns.length > 0,
+			review: toReviewSummary(latestByVoice.get(c.id as string) ?? null)
 		});
 	}
 
@@ -449,9 +483,10 @@ export async function getAdvisorReview(sb: SB, chatId: string): Promise<AdvisorR
 }
 
 export interface SaveReviewInput {
-	/** Provide exactly one target: a match thread or an advisor chat. */
+	/** Provide exactly one target: a match thread, advisor chat, or voice call. */
 	matchId?: string;
 	advisorChatId?: string;
+	voiceCallId?: string;
 	reviewer: string;
 	scores: Record<RubricKey, number | null>;
 	flags: FlaggedMessage[];
@@ -459,13 +494,96 @@ export interface SaveReviewInput {
 	status: string;
 }
 
+export interface VoiceCallTurn {
+	id: string; // synthetic stable id (t-<index>) for per-turn flagging
+	role: 'agent' | 'caller';
+	speaker: string;
+	text: string;
+	ts: string | null;
+}
+
+export interface VoiceCallReview {
+	callId: string;
+	status: string;
+	durationS: number | null;
+	usedClonedVoice: boolean;
+	ownerName: string;
+	callerName: string;
+	caller: Participant;
+	turns: VoiceCallTurn[];
+	recap: string | null;
+	signal: string | null;
+	read: string | null;
+	drafts: string[];
+	startedAt: string | null;
+	existingReview: ReviewRecord | null;
+}
+
+/** Reconstruct one voice call for the QA detail/review view. */
+export async function getVoiceCallReview(sb: SB, callId: string): Promise<VoiceCallReview | null> {
+	const db = sb as unknown as { from: (t: string) => any };
+	const { data: call } = await db
+		.from('vv_voice_calls')
+		.select(
+			'id, owner_user_id, caller_user_id, status, duration_s, used_cloned_voice, transcript, drafts, summary_message_id, started_at'
+		)
+		.eq('id', callId)
+		.maybeSingle();
+	if (!call) return null;
+
+	const [{ data: owner }, { data: caller }, { data: summary }, { data: reviewRows }] = await Promise.all([
+		sb.from('verified_vibe_users').select('id, first_name, gender, archetype, age, city, about').eq('id', call.owner_user_id).maybeSingle(),
+		sb.from('verified_vibe_users').select('id, first_name, gender, archetype, age, city, about').eq('id', call.caller_user_id).maybeSingle(),
+		call.summary_message_id
+			? sb.from('verified_vibe_messages').select('content, ai_signal, ai_read').eq('id', call.summary_message_id).maybeSingle()
+			: Promise.resolve({ data: null }),
+		db.from('ai_qa_reviews').select('*').eq('voice_call_id', callId).order('updated_at', { ascending: false }).limit(1)
+	]);
+
+	const ownerName = (owner as { first_name?: string } | null)?.first_name ?? 'her';
+	const callerName = (caller as { first_name?: string } | null)?.first_name ?? 'him';
+	const rawTurns = Array.isArray(call.transcript) ? (call.transcript as Array<Record<string, unknown>>) : [];
+	const turns: VoiceCallTurn[] = rawTurns.map((t, i) => {
+		const role = (t.role as string) === 'agent' ? 'agent' : 'caller';
+		return {
+			id: `t-${i}`,
+			role,
+			speaker: role === 'agent' ? `${ownerName}'s bestie` : callerName,
+			text: String(t.text ?? ''),
+			ts: (t.ts as string) ?? null
+		};
+	});
+	const draftList = Array.isArray(call.drafts)
+		? (call.drafts as Array<Record<string, unknown>>).map((d) => String(d.text ?? '')).filter(Boolean)
+		: [];
+
+	return {
+		callId,
+		status: (call.status as string) ?? 'unknown',
+		durationS: (call.duration_s as number) ?? null,
+		usedClonedVoice: !!call.used_cloned_voice,
+		ownerName,
+		callerName,
+		caller: asParticipant(caller as Record<string, unknown> | undefined, call.caller_user_id),
+		turns,
+		recap: (summary as { content?: string } | null)?.content ?? null,
+		signal: (summary as { ai_signal?: string } | null)?.ai_signal ?? null,
+		read: (summary as { ai_read?: string } | null)?.ai_read ?? null,
+		drafts: draftList,
+		startedAt: (call.started_at as string) ?? null,
+		existingReview: ((reviewRows ?? [])[0] as ReviewRecord) ?? null
+	};
+}
+
 export async function saveReview(sb: SB, input: SaveReviewInput): Promise<{ error: string | null }> {
-	if (!input.matchId === !input.advisorChatId) {
-		return { error: 'A review must target exactly one of a match or an advisor chat.' };
+	const targets = [input.matchId, input.advisorChatId, input.voiceCallId].filter(Boolean);
+	if (targets.length !== 1) {
+		return { error: 'A review must target exactly one of a match, advisor chat, or voice call.' };
 	}
 	const { error } = await sb.from('ai_qa_reviews').insert({
 		match_id: input.matchId ?? null,
 		advisor_chat_id: input.advisorChatId ?? null,
+		voice_call_id: input.voiceCallId ?? null,
 		reviewer: input.reviewer,
 		score_accuracy: input.scores.accuracy,
 		score_tone: input.scores.tone,
@@ -512,8 +630,12 @@ export async function getQaStats(sb: SB): Promise<QaStats> {
 		reviewerAgg.set(r.reviewer, ra);
 
 		if (r.status === 'escalated') {
-			const href = r.advisor_chat_id ? `/admin/qa/advisor/${r.advisor_chat_id}` : `/admin/qa/${r.match_id}`;
-			const label = r.advisor_chat_id ? 'Advisor chat' : 'Match thread';
+			const href = r.voice_call_id
+				? `/admin/qa/voice/${r.voice_call_id}`
+				: r.advisor_chat_id
+					? `/admin/qa/advisor/${r.advisor_chat_id}`
+					: `/admin/qa/${r.match_id}`;
+			const label = r.voice_call_id ? 'Voice call' : r.advisor_chat_id ? 'Advisor chat' : 'Match thread';
 			escalations.push({ href, label, reviewer: r.reviewer, comments: r.comments, updatedAt: r.updated_at });
 		}
 	}
@@ -522,7 +644,7 @@ export async function getQaStats(sb: SB): Promise<QaStats> {
 
 	return {
 		totalReviews: reviews.length,
-		matchesReviewed: new Set(reviews.map((r) => r.match_id ?? r.advisor_chat_id)).size,
+		matchesReviewed: new Set(reviews.map((r) => r.match_id ?? r.advisor_chat_id ?? r.voice_call_id)).size,
 		byStatus,
 		avgByDimension: {
 			accuracy: mean(dimVals.accuracy),
