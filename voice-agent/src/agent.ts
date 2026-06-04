@@ -184,7 +184,19 @@ export default defineAgent({
 			if (text) transcript.push({ role, text, ts: new Date().toISOString() });
 		});
 
-		// Caller leaves / room ends → wrap with whatever we have.
+		// AUTHORITATIVE end-of-call signal: the session's own Close event fires
+		// whenever the session ends (caller hangs up, room closes, shutdown). This
+		// is what reliably finalises the call so it never sticks in 'live'.
+		session.on(voice.AgentSessionEventTypes.Close, (ev: any) => {
+			console.log('[session] close', ev?.reason ?? '');
+			void doFinalize(transcript.length ? 'completed' : 'failed');
+		});
+		// Surface pipeline errors (STT/LLM/TTS) so they show up in fly logs.
+		session.on(voice.AgentSessionEventTypes.Error, (ev: any) => {
+			console.error('[session] error', JSON.stringify(ev?.error ?? ev));
+		});
+
+		// Fallback: caller leaves / room ends.
 		ctx.room.on('disconnected' as any, () => {
 			void doFinalize(transcript.length ? 'completed' : 'failed');
 		});
