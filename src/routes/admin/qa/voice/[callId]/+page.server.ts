@@ -1,0 +1,53 @@
+import { error, fail } from '@sveltejs/kit';
+import type { Actions, PageServerLoad } from './$types';
+import { getSupabase } from '$lib/server/supabase';
+import { getVoiceCallReview, saveReview, type RubricKey } from '$lib/server/qa-service';
+import { REVIEWER_COOKIE } from '$lib/server/admin-auth';
+
+export const load: PageServerLoad = async ({ params }) => {
+	const review = await getVoiceCallReview(getSupabase(), params.callId);
+	if (!review) throw error(404, 'Voice call not found');
+	return { review };
+};
+
+const RUBRIC_KEYS: RubricKey[] = ['accuracy', 'tone', 'safety', 'helpfulness'];
+
+export const actions: Actions = {
+	save: async ({ request, params, cookies }) => {
+		const reviewer = cookies.get(REVIEWER_COOKIE)?.trim();
+		if (!reviewer) return fail(401, { error: 'Session expired — log in again.' });
+
+		const form = await request.formData();
+
+		const scores = {} as Record<RubricKey, number | null>;
+		for (const k of RUBRIC_KEYS) {
+			const raw = form.get(`score_${k}`);
+			const n = raw != null ? Number(raw) : NaN;
+			scores[k] = Number.isInteger(n) && n >= 0 && n <= 5 ? n : null;
+		}
+
+		const status = String(form.get('status') ?? 'reviewed');
+		const comments = String(form.get('comments') ?? '');
+		const flags = form.getAll('flagged').map(String).map((id) => ({
+			id,
+			note: String(form.get(`flagnote_${id}`) ?? '').trim()
+		}));
+
+		const noScores = RUBRIC_KEYS.every((k) => scores[k] === null);
+		if (noScores && !comments.trim() && flags.length === 0) {
+			return fail(400, { error: 'Add at least one score, a comment, or a flagged turn before saving.' });
+		}
+
+		const { error: err } = await saveReview(getSupabase(), {
+			voiceCallId: params.callId,
+			reviewer,
+			scores,
+			flags,
+			comments,
+			status
+		});
+		if (err) return fail(500, { error: `Could not save: ${err}` });
+
+		return { saved: true };
+	}
+};
