@@ -170,8 +170,17 @@ export default defineAgent({
 
 		const session = new voice.AgentSession({
 			vad: (ctx.proc.userData as any).vad as silero.VAD,
-			stt: new deepgram.STT({ model: 'nova-2-general', language: 'en-IN' }),
-			tts: new elevenlabs.TTS({ voiceId: cfg.voiceId })
+			// Pass keys explicitly — the plugins look for ELEVEN_API_KEY /
+			// DEEPGRAM_API_KEY env names, but we standardise on ELEVENLABS_API_KEY.
+			stt: new deepgram.STT({
+				model: 'nova-2-general',
+				language: 'en-IN',
+				apiKey: process.env.DEEPGRAM_API_KEY
+			}),
+			tts: new elevenlabs.TTS({
+				voiceId: cfg.voiceId,
+				apiKey: process.env.ELEVENLABS_API_KEY
+			})
 		});
 
 		const agent = new BestieAgent(cfg.systemPrompt);
