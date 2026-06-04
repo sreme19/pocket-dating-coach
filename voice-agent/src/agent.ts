@@ -17,7 +17,15 @@
  *
  * Targets @livekit/agents 1.4.x.
  */
-import { cli, defineAgent, voice, ServerOptions, type JobContext } from '@livekit/agents';
+import {
+	cli,
+	defineAgent,
+	voice,
+	llm,
+	ServerOptions,
+	DEFAULT_API_CONNECT_OPTIONS,
+	type JobContext
+} from '@livekit/agents';
 import * as deepgram from '@livekit/agents-plugin-deepgram';
 import * as elevenlabs from '@livekit/agents-plugin-elevenlabs';
 import * as silero from '@livekit/agents-plugin-silero';
@@ -75,56 +83,89 @@ async function finalize(
 }
 
 /**
- * Bestie agent — overrides the LLM node to stream Claude. The system prompt is
- * supplied by the app (full feature parity with the text bestie); we only build
- * the running message history from the live chat context.
+ * Claude as a first-class LLM for the voice pipeline.
+ *
+ * LiveKit's JS Agents has no Anthropic plugin. Overriding `Agent.llmNode` is NOT
+ * enough: AgentActivity only runs the LLM step when an `llm` is configured on the
+ * session/agent — otherwise a completed user turn just returns with no reply
+ * (agent_activity.js: `else if (this.llm === void 0) return`). So we implement a
+ * real `llm.LLM` + `llm.LLMStream` backed by the Anthropic SDK and pass it as the
+ * session's `llm`. The greeting still uses `session.say()`; every turn after that
+ * flows STT -> this LLM -> TTS.
  */
-class BestieAgent extends voice.Agent {
-	private readonly sys: string;
+class ClaudeLLMStream extends llm.LLMStream {
+	private readonly modelId: string;
+	private readonly systemPrompt: string;
 
-	constructor(systemPrompt: string) {
-		super({ instructions: systemPrompt });
-		this.sys = systemPrompt;
+	constructor(
+		llmInstance: ClaudeLLM,
+		opts: { chatCtx: any; toolCtx?: any; connOptions: any },
+		systemPrompt: string,
+		modelId: string
+	) {
+		super(llmInstance, opts);
+		this.systemPrompt = systemPrompt;
+		this.modelId = modelId;
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	override async llmNode(chatCtx: any, _toolCtx: any, _modelSettings: any) {
-		// Convert the live chat context into Anthropic messages. Anthropic requires
-		// the first message to be a user turn, so drop any leading assistant turns
-		// (e.g. our spoken greeting — it lives in the transcript regardless).
-		const msgs: Array<{ role: 'user' | 'assistant'; content: string }> = [];
-		for (const item of chatCtx.items ?? []) {
-			const role = (item as any).role;
-			const text = (item as any).textContent;
-			if ((role === 'user' || role === 'assistant') && typeof text === 'string' && text.trim()) {
-				msgs.push({ role, content: text.trim() });
+	protected async run(): Promise<void> {
+		// Build the Anthropic system + messages from the live chat context. The
+		// agent instructions arrive as system items; the conversation as
+		// user/assistant items. Anthropic requires the first message to be a user
+		// turn, so drop leading assistant turns.
+		const sys: string[] = [];
+		const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+		for (const item of (this.chatCtx as any).items ?? []) {
+			const role = (item as any)?.role;
+			const text = (item as any)?.textContent;
+			if (typeof text !== 'string' || !text.trim()) continue;
+			if (role === 'system') sys.push(text.trim());
+			else if (role === 'user' || role === 'assistant') messages.push({ role, content: text.trim() });
+		}
+		while (messages.length && messages[0].role === 'assistant') messages.shift();
+		if (messages.length === 0) messages.push({ role: 'user', content: '(the caller is quiet)' });
+		const system = sys.join('\n\n') || this.systemPrompt;
+
+		const stream = anthropic.messages.stream({
+			model: this.modelId,
+			max_tokens: 300,
+			system,
+			messages
+		});
+		for await (const ev of stream) {
+			if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') {
+				// Base class pipes this.queue -> output and closes the queue when
+				// run() resolves, so we only enqueue deltas here.
+				this.queue.put({ id: crypto.randomUUID(), delta: { role: 'assistant', content: ev.delta.text } });
 			}
 		}
-		while (msgs.length && msgs[0].role === 'assistant') msgs.shift();
-		if (msgs.length === 0) msgs.push({ role: 'user', content: '(call connected)' });
+	}
+}
 
-		const sys = this.sys;
-		return new ReadableStream<string>({
-			async start(controller) {
-				try {
-					const stream = anthropic.messages.stream({
-						model: CLAUDE_MODEL,
-						max_tokens: 400,
-						system: sys,
-						messages: msgs
-					});
-					for await (const ev of stream) {
-						if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') {
-							controller.enqueue(ev.delta.text);
-						}
-					}
-				} catch (e) {
-					console.error('[llmNode] Claude stream failed', e);
-				} finally {
-					controller.close();
-				}
-			}
-		});
+class ClaudeLLM extends llm.LLM {
+	private readonly modelId: string;
+	private readonly systemPrompt: string;
+
+	constructor(opts: { model: string; system: string }) {
+		super();
+		this.modelId = opts.model;
+		this.systemPrompt = opts.system;
+	}
+
+	label(): string {
+		return 'anthropic.ClaudeLLM';
+	}
+	override get model(): string {
+		return this.modelId;
+	}
+
+	chat({ chatCtx, toolCtx, connOptions }: any): llm.LLMStream {
+		return new ClaudeLLMStream(
+			this,
+			{ chatCtx, toolCtx, connOptions: connOptions ?? DEFAULT_API_CONNECT_OPTIONS },
+			this.systemPrompt,
+			this.modelId
+		);
 	}
 }
 
@@ -181,13 +222,16 @@ export default defineAgent({
 				language: 'en-IN',
 				apiKey: process.env.DEEPGRAM_API_KEY
 			}),
+			// Claude as the brain — required as a real `llm` or the pipeline never
+			// generates replies (only the greeting say() would be heard).
+			llm: new ClaudeLLM({ model: CLAUDE_MODEL, system: cfg.systemPrompt }),
 			tts: new elevenlabs.TTS({
 				voiceId: cfg.voiceId,
 				apiKey: process.env.ELEVENLABS_API_KEY
 			})
 		});
 
-		const agent = new BestieAgent(cfg.systemPrompt);
+		const agent = new voice.Agent({ instructions: cfg.systemPrompt });
 
 		// Capture both sides of the conversation for the post-call summary.
 		session.on(voice.AgentSessionEventTypes.ConversationItemAdded, (ev: any) => {
