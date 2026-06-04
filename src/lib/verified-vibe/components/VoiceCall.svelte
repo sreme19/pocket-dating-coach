@@ -18,6 +18,11 @@
 	let errorMsg = $state('');
 	let muted = $state(false);
 	let elapsed = $state(0);
+	let audioBlocked = $state(false);
+
+	function enableAudio() {
+		audioEl?.play().then(() => { audioBlocked = false; }).catch(() => { audioBlocked = true; });
+	}
 
 	let room: any = null;
 	let audioEl: HTMLAudioElement | null = null;
@@ -61,6 +66,11 @@
 			room.on(RoomEvent.TrackSubscribed, (track: any) => {
 				if (track.kind === Track.Kind.Audio && audioEl) {
 					track.attach(audioEl);
+					audioEl.muted = false;
+					audioEl.volume = 1;
+					// The track subscribes after the tap, so autoplay can be blocked.
+					// Try to play; if the browser refuses, surface a tap-to-hear button.
+					audioEl.play().then(() => { audioBlocked = false; }).catch(() => { audioBlocked = true; });
 				}
 			});
 			room.on(RoomEvent.Disconnected, () => endLocal());
@@ -111,10 +121,11 @@
 		elapsed = 0;
 		muted = false;
 		errorMsg = '';
+		audioBlocked = false;
 	}
 </script>
 
-<audio bind:this={audioEl} autoplay></audio>
+<audio bind:this={audioEl} autoplay playsinline></audio>
 
 {#if phase === 'idle'}
 	<button class="vc-launch" onclick={() => (phase = 'consent')} type="button">
@@ -147,6 +158,9 @@
 			{phase === 'connecting' ? `Connecting to ${ownerName}'s bestie…` : `On call · ${fmt(elapsed)}`}
 		</span>
 		<div class="vc-controls">
+			{#if audioBlocked}
+				<button class="vc-primary" onclick={enableAudio} type="button">🔊 Tap to hear</button>
+			{/if}
 			<button class="vc-icon" class:active={muted} onclick={toggleMute} type="button" title={muted ? 'Unmute' : 'Mute'} disabled={phase !== 'live'}>
 				{muted ? 'Unmute' : 'Mute'}
 			</button>
