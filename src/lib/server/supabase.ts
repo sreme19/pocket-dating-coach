@@ -127,6 +127,7 @@ export type Database = {
 					id: string;
 					match_id: string | null;
 					advisor_chat_id: string | null;
+					voice_call_id: string | null;
 					reviewer: string;
 					score_accuracy: number | null;
 					score_tone: number | null;
@@ -142,6 +143,7 @@ export type Database = {
 					id?: string;
 					match_id?: string | null;
 					advisor_chat_id?: string | null;
+					voice_call_id?: string | null;
 					reviewer: string;
 					score_accuracy?: number | null;
 					score_tone?: number | null;
