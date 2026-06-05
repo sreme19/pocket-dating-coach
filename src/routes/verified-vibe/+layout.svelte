@@ -206,11 +206,16 @@
     /* Transition token */
     --transition-base: all 200ms ease;
 
-    /* Mobile-first: constrain to mobile viewport */
+    /* Mobile-first: constrain to mobile viewport.
+       position:fixed + inset:0 pins the shell to the visual viewport directly,
+       sidestepping mobile/Capacitor WebView quirks where height:100dvh / 100%
+       under-resolves and lets the flex column grow taller than the screen
+       (pushing the bottom nav below the fold). The inner content keeps its own
+       overflow:auto, so it scrolls while the nav stays pinned at the bottom. */
     display: flex;
     flex-direction: column;
-    /* dvh tracks the dynamic viewport (adjusts for browser chrome/keyboard on mobile) */
-    height: 100dvh;
+    position: fixed;
+    inset: 0;
     width: 100%;
     max-width: 100%;
     background: var(--bg-1);
@@ -223,7 +228,7 @@
   @media (min-width: 768px) {
     .verified-vibe-container {
       max-width: 430px;
-      height: 100dvh;
+      /* left:0/right:0 (from inset) + auto margins center the fixed shell */
       margin: 0 auto;
       border-left: 1px solid var(--border-1);
       border-right: 1px solid var(--border-1);
@@ -303,11 +308,5 @@
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.02em;
-  }
-
-  @media (max-width: 767px) {
-    .verified-vibe-container {
-      height: 100%;
-    }
   }
 </style>
