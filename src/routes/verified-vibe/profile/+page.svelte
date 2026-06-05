@@ -1938,7 +1938,7 @@
   }
 
   const heroPhoto = $derived(
-    aiPhotosByRole['lead'] ?? photosByLabel['lead'] ?? aiPhotos[0]?.url ?? photos[0]?.dataUrl ?? null
+    aiPhotosByRole['lead'] ?? photosByLabel['lead'] ?? aiPhotos[0]?.url ?? photos[0]?.dataUrl ?? $user?.avatar ?? null
   );
 
   // Keep the DB avatar_url in sync with the displayed hero photo so matches see
