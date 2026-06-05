@@ -4,12 +4,20 @@ This folder keeps project notes, implementation records, reports, and planning a
 
 ## Structure
 
-- `deployment/` - deployment guides, production setup, and readiness checklists
-- `design/` - design handoff notes, wireframes, and visual reference artifacts
+- `ai-assistants/` - AI Bestie / Wingman specs, the Preferences feature docset, latency metrics, and the AI test-suite design
+- `analysis/` - codebase baseline snapshots and analytical write-ups
+- `database/` - schema notes, data dictionary, index documentation, and RLS policy references
+- `deployment/` - deployment guides, production setup, readiness checklists, and platform (Android/iOS) handoffs
+- `design/` - design handoff notes, wireframes, profile briefs, and visual reference artifacts
+- `fixes/` - bug-fix records
+- `handoffs/` - session and Kiro handoff narratives plus the marketing-site handoff
 - `performance/` - performance guides, optimization notes, and testing notes
-- `planning/` - steering documents and product direction notes
+- `phases/` / `stages/` - phased implementation records
+- `planning/` - steering documents, scope notes (PDC-*), and product direction notes
+- `releases/` - per-version release notes
 - `reports/` - verification reports, audits, test reports, and accessibility summaries
 - `tasks/` - task-by-task completion and implementation notes
+- `tickets/` - Plane/Jira ticket summaries
 - `verified-vibe/` - high-level Verified Vibe implementation guides and summaries
 
 ## Start Here

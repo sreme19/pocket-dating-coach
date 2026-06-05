@@ -1,190 +1,192 @@
-# Android Deployment Handoff
-Date: May 22, 2026 | Branch: feature/vv-v2.4-dev
+# Android Deployment Handoff — Pocket Dating Coach
+
+**Last updated:** 2026-05-24  
+**App ID:** `com.pocketdatingcoach.app`  
+**Current version:** `versionCode 2`, `versionName 1.0.1`  
+**Play Console track:** Closed Testing (Alpha) — Active  
+**Live URL (WebView):** https://pocket-dating-coach.vercel.app
 
 ---
 
-## What's Done
+## Architecture at a Glance
 
-| Step | Status | Notes |
-|---|---|---|
-| Release keystore generated | DONE | `android/release.keystore` |
-| `keystore.properties` created | DONE | `android/keystore.properties` |
-| Capacitor configured (Live URL mode) | DONE | Points to production Vercel URL |
-| Firebase project created | DONE | `android/app/google-services.json` placed |
-| SHA-1 fingerprint added to Firebase | DONE | From release keystore |
-| Android SDK versions fixed | DONE | minSdk 24, compileSdk 36, targetSdk 35 |
-| Release AAB built | DONE | 4.0 MB, signed |
-| Privacy policy page created | DONE | Live at production URL |
-| Play Console app created | DONE | `com.pocketdatingcoach.app` |
-| App content declarations | DONE | All sections completed |
-| Store listing text | DONE | Name, short desc, full desc filled in |
-| Internal testing track | PENDING | Not started |
-| Closed testing (12 testers, 14 days) | PENDING | The main blocker for production |
-| Store listing graphics | PENDING | Icon, feature graphic, screenshots |
-| Production release | PENDING | Unlocks after closed testing |
-
----
-
-## Critical File Locations
+This is a **Live URL Capacitor app** — the Android shell loads the production Vercel URL at runtime inside a WebView. There is no bundled static build. This is intentional: the app has server-side API routes (Claude, Supabase, push notifications) that cannot be bundled.
 
 ```
-android/release.keystore          — signing key (NEVER COMMIT, NEVER LOSE)
-android/keystore.properties       — signing credentials (NEVER COMMIT)
-android/app/google-services.json  — Firebase config
-android/variables.gradle          — SDK versions (minSdk=24, compileSdk=36, targetSdk=35)
-android/app/build.gradle          — release signing config
-capacitor.config.ts               — Capacitor config (server.url set to production)
-src/routes/privacy-policy/        — privacy policy page
+Android APK/AAB
+  └── Capacitor WebView
+        └── https://pocket-dating-coach.vercel.app  ← loads at runtime
+              └── SvelteKit (adapter-vercel, SSR)
+                    └── Supabase (auth + DB)
+                    └── Anthropic Claude API
+                    └── Firebase FCM (push)
 ```
 
 ---
 
-## Key URLs
+## Current State: What Is Done
 
-| Resource | URL |
-|---|---|
-| Production app | https://pocket-dating-coach.vercel.app |
-| Privacy policy | https://pocket-dating-coach.vercel.app/privacy-policy |
-| Play Console | https://play.google.com/console |
-| Firebase Console | https://console.firebase.google.com |
+| Task | Status |
+|------|--------|
+| Capacitor configured (Live URL mode) | ✅ Done |
+| Android SDK versions fixed (minSdk 24, compileSdk 36, targetSdk 35) | ✅ Done |
+| Release AAB built and signed (versionCode 2) | ✅ Done |
+| AAB uploaded to Play Console closed testing (Alpha) | ✅ Done |
+| Privacy policy page live | ✅ https://pocket-dating-coach.vercel.app/privacy-policy |
+| Child safety page live | ✅ https://pocket-dating-coach.vercel.app/child-safety |
+| Store listing filled (title, description, screenshots) | ✅ Done |
+| Content rating completed | ✅ Done |
+| App access declaration submitted | ✅ Done |
+| Alpha track set to Active | ✅ Done |
+| 12 testers added | ✅ Done |
+| Tester opt-in link distributed | ✅ Done |
 
 ---
 
-## Git Status
+## The One Blocker: 14-Day Closed Testing Requirement
 
-Feature branch `feature/vv-v2.4-dev` has 3 commits not yet merged to main:
+Google requires **at least 12 testers** to have the app **installed and active for 14 consecutive days** before you can apply for production access.
 
+- **Clock starts** the day the first tester installs via the opt-in link
+- **Track progress** in Play Console → Testing → Closed testing (Alpha) → Testers tab
+- **Opt-in link for testers:** Play Console → Closed testing → Manage track → Copy link (under "Join on Android")
+
+### What to tell testers
+> "Download link: [paste opt-in URL]. Install, open it at least once. We just need it installed for 2 weeks — you don't have to do anything else. After that we can release to everyone."
+
+### After 14 days
+Play Console → Publishing overview → "Apply for production access" button will become available.
+
+---
+
+## Diagnosing the Error on App Open
+
+When a tester opens the app and sees an error, these are the likely causes in order of probability:
+
+### 1. Network/WebView can't load the Vercel URL
+**Symptom:** White screen, "net::ERR_*" error, or "Page not found"  
+**Test:** Open https://pocket-dating-coach.vercel.app in Chrome on the same Android device. If it fails there too, it's a network issue.  
+**Fix:** Ensure Vercel deployment is live. Check `capacitor.config.ts` has the correct URL.
+
+### 2. Supabase auth redirect URL not registered for Android
+**Symptom:** Login/signup fails, redirect after OAuth returns blank screen  
+**Fix:** In Supabase Dashboard → Authentication → URL Configuration, add:
 ```
-3c7d18f fix: correct Capacitor server URL and prerender privacy policy page
-c9dbb27 fix: prerender privacy policy page for static Vercel serving
-44cf0f9 feat: add privacy policy page and fix Android SDK versions
+com.pocketdatingcoach.app://login-callback
+https://pocket-dating-coach.vercel.app
 ```
 
-**Before continuing Android work, merge to main:**
+### 3. App opens to a route that requires auth and redirects weirdly
+**Symptom:** Spinner then crash, or redirect loop  
+**Fix:** Ensure the SvelteKit root route `/` handles unauthenticated users gracefully (shows landing or gate, not a protected route).
+
+### 4. Capacitor bridge error (rare)
+**Symptom:** "Capacitor: Could not find plugin" or similar  
+**Fix:** Run `npx cap sync android` and rebuild the AAB.
+
+### How to get the actual error message
+To see the real error from the WebView:
+1. Enable USB debugging on the Android device
+2. Connect via USB → open Chrome on desktop → navigate to `chrome://inspect`
+3. Click "inspect" under the device's WebView
+4. Check Console tab for the real error
+
+---
+
+## Building a New Release AAB
+
+Run these commands in order:
+
 ```bash
-git checkout main
-git pull origin main
-git merge feature/vv-v2.4-dev
-git push origin main
-```
+# 1. Build the SvelteKit app (not strictly needed in Live URL mode, but keeps webDir in sync)
+npm run build
 
----
-
-## How to Build a New Release AAB
-
-Run these commands from the project root whenever you need a new build:
-
-```bash
-# Step 1 — sync Capacitor (already done, only needed if code changed)
+# 2. Sync Capacitor
 npx cap sync android
 
-# Step 2 — build the signed AAB
+# 3. Build the release AAB
 cd android
 ./gradlew bundleRelease
 
-# Output file:
-# android/app/build/outputs/bundle/release/app-release.aab
+# Output: android/app/build/outputs/bundle/release/app-release.aab
 ```
 
-Before each new Play Store submission, increment `versionCode` in `android/app/build.gradle`:
+Before uploading to Play Console, increment `versionCode` in `android/app/build.gradle`:
 ```gradle
-versionCode 2        # must be higher than previous submission
-versionName "1.0.1"  # human-readable, shown to users
+versionCode 3          // must be strictly higher than previous upload
+versionName "1.0.2"    // update this too for human readability
 ```
 
 ---
 
-## Immediate Next Steps (do in this order)
+## Signing Setup
 
-### 1. Merge feature branch to main
-```bash
-git checkout main && git pull origin main && git merge feature/vv-v2.4-dev && git push origin main
+Signing credentials are loaded from `android/keystore.properties` (not committed to git).  
+File format:
+```properties
+keystorePath=../release.keystore
+keystoreAlias=pocket-dating-coach
+keystoreStorePassword=<your_store_password>
+keystoreKeyPassword=<your_key_password>
 ```
 
-### 2. Upload AAB to Closed Testing (starts the 14-day clock)
-- Play Console → Testing → Closed testing → Create new release
-- Upload: `android/app/build/outputs/bundle/release/app-release.aab`
-- Add release notes, save and publish
-- Copy the tester opt-in link
-
-### 3. Get 12 Android testers opted in
-- Share the opt-in link with 12 people who have Android phones
-- They must click the link and install the app from Play Store
-- The 14-day timer starts when the first tester opts in
-- Sources: friends/family, WhatsApp groups, Discord, Reddit r/androidapps
-
-### 4. Create store listing graphics (do while 14 days run)
-
-**App Icon — 512×512 PNG, no transparency**
-- Use Canva → search "App Icon template"
-- Pink/gradient theme to match the app
-- Export as PNG 512×512
-
-**Feature Graphic — 1024×500 PNG**
-- Use Canva → search "Google Play Feature Graphic"
-- App name + tagline: "Your AI dating coach"
-- Same color scheme as icon
-
-**Phone Screenshots — minimum 2 (portrait)**
-- Open https://pocket-dating-coach.vercel.app in Chrome
-- F12 → device toolbar → iPhone 12 Pro (390×844)
-- Log in, navigate to key screens, right-click → Capture screenshot
-- Good screens: discovery/swipe screen, AI coaching chat, profile view
-
-**10-inch Tablet Screenshots — minimum 2 (required)**
-- Same Chrome DevTools approach
-- Custom device: 1280×800, device pixel ratio 2
-- Take same screens at tablet size
-
-### 5. Apply for production (after 14 days + 12 testers)
-- Play Console → Production → Apply for production access
-- Answer questions about your closed test
-- Google reviews and grants production access (usually 1-3 days)
+**CRITICAL:** Back up `release.keystore` and `keystore.properties` to a secure location (password manager, encrypted drive). If lost, you cannot push updates to the Play Store — ever.
 
 ---
 
-## Architecture Notes
+## Key File Locations
 
-**Live URL mode:** The Android app is a native WebView shell that loads the Vercel deployment at runtime. This means:
-- No `npm run build` needed before Play Store updates for feature changes — just deploy to Vercel
-- New AAB is only needed when changing native Android config (permissions, icons, SDK versions)
-- Users always get the latest version automatically on next app open
-
-**Why bundled mode was ruled out:** The app uses `adapter-vercel` with server-side API routes (Claude AI, Supabase service key). These cannot be bundled into a static APK — they require a live server. Live URL mode is the correct architecture for this app.
+| File | Purpose |
+|------|---------|
+| `capacitor.config.ts` | Capacitor config — server.url points to Vercel production |
+| `android/variables.gradle` | SDK versions (minSdk 24, compileSdk 36, targetSdk 35) |
+| `android/app/build.gradle` | versionCode + versionName — increment before each upload |
+| `android/keystore.properties` | Signing credentials (NOT in git) |
+| `release.keystore` | Signing keystore (NOT in git — back up separately) |
+| `src/routes/privacy-policy/+page.svelte` | Privacy policy page |
+| `src/routes/child-safety/+page.svelte` | Child safety page |
 
 ---
 
-## Capacitor Config (current state)
+## Database (Supabase)
 
-```typescript
-// capacitor.config.ts
-appId: 'com.pocketdatingcoach.app'
-appName: 'Pocket Dating Coach'
-webDir: 'build'                    // unused in live URL mode
-server.url: 'https://pocket-dating-coach.vercel.app'
-android.allowMixedContent: false
-plugins.PushNotifications: badge, sound, alert
+**Connection pooler URL (for MCP / external tools):**
+```
+postgresql://postgres.stikoktiaxqtcsohcxzp:t9a6reBFWlWEzKMJ@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require
 ```
 
----
+**Stats as of May 2026:** 16 tables, 54 users, 43 verified_vibe_profiles, 37 matches, 126 messages
 
-## Play Console Store Listing (already filled in)
-
-**App name:** Pocket Dating Coach
-
-**Short description:**
-> Your AI-powered dating coach — better profiles, smarter openers, more dates.
-
-**Full description:** Already saved in Play Console (AI coaching features, profile review, reply suggester, chat analyzer, Verified Vibe).
-
-**Privacy policy URL:** https://pocket-dating-coach.vercel.app/privacy-policy
-
-**Content rating:** Dating category, 18+
+**Known security issue:** `book_chunks` and `verified_vibe_typing_indicators` have RLS disabled. Fix in Supabase Dashboard → Database → Tables → enable Row Level Security.
 
 ---
 
-## Keystore Backup Reminder
+## Vercel Environment Variables Required
 
-The file `android/release.keystore` and the passwords in `android/keystore.properties` are the only way to publish updates to this app. If lost, you cannot update the Play Store listing — ever. Ensure they are backed up in:
-- A password manager (file + both passwords)
-- A secure offline location
+| Variable | Purpose |
+|----------|---------|
+| `ANTHROPIC_API_KEY` | Claude API for coaching features |
+| `PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-side Supabase access |
+| `SEED_ACCOUNT_PASSWORD` | Required for build — seeding test profiles |
+| `FIREBASE_*` | Firebase Admin SDK for push notifications |
+
+---
+
+## What's Left Before Production
+
+1. **[ ] Fix app-open error** — Identify via chrome://inspect + fix root cause (see Diagnosing section above)
+2. **[ ] 14-day closed test** — Wait for 12 testers to have app installed 14 days
+3. **[ ] Apply for production** — Play Console → Publishing overview → Apply for production access
+4. **[ ] Fix RLS** — Enable Row Level Security on `book_chunks` and `verified_vibe_typing_indicators`
+5. **[ ] Respond to Play review** — Google will review the app during the 14-day window; expect email from Google Play team
+
+---
+
+## Play Console Links
+
+- **Dashboard:** https://play.google.com/console
+- **App:** Look for "Pocket Dating Coach" under All apps
+- **Tester opt-in link:** Play Console → Closed testing (Alpha) → Manage track → Copy link
+- **Published listing:** https://play.google.com/store/apps/details?id=com.pocketdatingcoach.app (only visible to opted-in testers)
