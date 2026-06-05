@@ -2,6 +2,8 @@
  * Service Worker Registration and Management
  */
 
+import { Capacitor } from '@capacitor/core';
+
 export interface ServiceWorkerConfig {
 	enabled: boolean;
 	scope: string;
@@ -16,6 +18,13 @@ export class ServiceWorkerManager {
 	 * Register service worker
 	 */
 	static async register(config: Partial<ServiceWorkerConfig> = {}): Promise<ServiceWorkerRegistration | null> {
+		// Never register the PWA service worker inside the native (Capacitor) app —
+		// the app is a locally-bundled SPA and the SW's caching/fetch interception
+		// would conflict with the local assets and the remote API.
+		if (Capacitor.isNativePlatform()) {
+			return null;
+		}
+
 		if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
 			console.warn('Service Workers not supported');
 			return null;

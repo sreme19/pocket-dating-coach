@@ -1,4 +1,10 @@
-import adapter from '@sveltejs/adapter-vercel';
+import adapterVercel from '@sveltejs/adapter-vercel';
+import adapterStatic from '@sveltejs/adapter-static';
+
+// MOBILE_BUILD=true produces a client-rendered SPA (adapter-static) to bundle
+// inside the Capacitor app; it calls the API remotely on Vercel. The default
+// (web) build stays on adapter-vercel — SSR + API routes + admin — unchanged.
+const MOBILE = process.env.MOBILE_BUILD === 'true';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
@@ -21,9 +27,11 @@ const config = {
 		// adapter-auto only supports some environments, see https://svelte.dev/docs/kit/adapter-auto for a list.
 		// If your environment is not supported, or you settled on a specific environment, switch out the adapter.
 		// See https://svelte.dev/docs/kit/adapters for more information about adapters.
-		adapter: adapter({
-			runtime: 'nodejs22.x'
-		})
+		adapter: MOBILE
+			? adapterStatic({ fallback: 'index.html', strict: false })
+			: adapterVercel({
+					runtime: 'nodejs22.x'
+				})
 	}
 };
 
