@@ -1,5 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { Capacitor } from '@capacitor/core';
+  import { getSupabaseClient } from '$lib/client/supabase';
   import '$lib/marketing/vv-landing.css';
 
   // App entry points the CTAs link to
@@ -8,6 +11,20 @@
   const PRIVACY = '/verified-vibe/privacy';
 
   onMount(() => {
+    // This is the public marketing page — web browsers only. Inside the native
+    // Capacitor app it must never be shown, so route straight into the app:
+    // signed-in users land on Discover (the layout's auth guard validates the
+    // session/verification state), everyone else hits the onboarding gate.
+    if (Capacitor.isNativePlatform()) {
+      getSupabaseClient()
+        .auth.getSession()
+        .then(({ data: { session } }) => {
+          goto(session ? '/verified-vibe/discover' : '/verified-vibe/gate', { replaceState: true });
+        })
+        .catch(() => goto('/verified-vibe/gate', { replaceState: true }));
+      return;
+    }
+
     const root = document.getElementById('vv-page');
     const nav = document.getElementById('nav');
     if (!root) return;
