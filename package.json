@@ -24,7 +24,10 @@
 		"generate:bios": "tsx --env-file=.env.local scripts/generate-about-bios.ts",
 		"cap:sync": "cap sync",
 		"cap:open": "cap open android",
-		"cap:build": "vite build && cap sync"
+		"cap:build": "vite build && cap sync",
+		"cap:open:ios": "cap open ios",
+		"cap:sync:ios": "cap sync ios",
+		"cap:build:ios": "vite build && cap sync ios"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-auto": "^7.0.1",
@@ -59,6 +62,7 @@
 		"@capacitor/android": "^8.3.4",
 		"@capacitor/cli": "^8.3.4",
 		"@capacitor/core": "^8.3.4",
+		"@capacitor/ios": "^8.4.0",
 		"@capacitor/push-notifications": "^8.1.1",
 		"@fal-ai/client": "^1.10.1",
 		"@supabase/supabase-js": "^2.105.1",
