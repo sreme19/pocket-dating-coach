@@ -1,7 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
-  import { currentPhase, currentTab, hydrateStores } from '$lib/verified-vibe/stores';
+  import { currentPhase, currentTab, hydrateStores, user, storesHydrated } from '$lib/verified-vibe/stores';
   import { getProfile } from '$lib/verified-vibe/services/profileService';
   import type { Tab } from '$lib/verified-vibe/types';
   import { getSupabaseClient } from '$lib/client/supabase';
@@ -24,6 +24,29 @@
   onMount(async () => {
     await hydrateStores();
     hydrationComplete = true;
+  });
+
+  // ── Android WebView async-paint fix ─────────────────────────────────────────
+  // Stores hydrate asynchronously after mount. Gender-/auth-gated UI across the
+  // app — e.g. the AI Wingman/Bestie rows in chat ({#if $user.gender === ...}) —
+  // flips visible only once $user resolves. On Android WebView (Capacitor), DOM
+  // updates driven purely by async callbacks aren't always re-rasterized until
+  // an input event, so that content stays hidden until the user taps something.
+  // Desktop browsers repaint immediately. Nudge the scroll container to
+  // re-rasterize whenever the user/hydration state changes so the freshly
+  // revealed content paints without a tap.
+  $effect(() => {
+    void $user;
+    void $storesHydrated;
+    void pathname;
+    if (typeof document === 'undefined') return;
+    requestAnimationFrame(() => {
+      const el = document.querySelector('.verified-vibe-content') as HTMLElement | null;
+      if (!el) return;
+      el.style.transform = 'translateZ(0)';
+      void el.offsetHeight; // force synchronous reflow + layer re-raster
+      el.style.transform = '';
+    });
   });
 
   // ── Auth guard ──────────────────────────────────────────────────────────────
