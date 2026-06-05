@@ -1938,7 +1938,7 @@
   }
 
   const heroPhoto = $derived(
-    aiPhotosByRole['lead'] ?? photosByLabel['lead'] ?? aiPhotos[0]?.url ?? photos[0]?.dataUrl ?? null
+    aiPhotosByRole['lead'] ?? photosByLabel['lead'] ?? aiPhotos[0]?.url ?? photos[0]?.dataUrl ?? $user?.avatar ?? null
   );
 
   // Keep the DB avatar_url in sync with the displayed hero photo so matches see
@@ -1951,6 +1951,33 @@
       lastPersistedAvatar = hero;
       persistAvatar(hero);
     }
+  });
+
+  // ── Android WebView async-paint fix ─────────────────────────────────────────
+  // The profile hydrates asynchronously in onMount (Supabase + master-profile).
+  // On Android WebView (Capacitor) the surrounding scroll container
+  // (.verified-vibe-content, which has overflow-y:auto + a transform-based entry
+  // animation) is promoted to a GPU compositing layer, and DOM updates triggered
+  // purely by async callbacks are not always re-rasterized until the next input
+  // event — so the profile renders blank until the user taps a tab, which forces
+  // a repaint. Desktop browsers repaint these updates immediately. Whenever the
+  // async-hydrated display data changes, nudge the layer to re-rasterize so the
+  // freshly loaded content paints without requiring a tap.
+  $effect(() => {
+    // Track the values that arrive asynchronously after hydration.
+    void heroPhoto;
+    void about;
+    void displayName;
+    void displayAge;
+    void hasRealPhotos;
+    if (typeof document === 'undefined') return;
+    requestAnimationFrame(() => {
+      const el = document.querySelector('.verified-vibe-content') as HTMLElement | null;
+      if (!el) return;
+      el.style.transform = 'translateZ(0)';
+      void el.offsetHeight; // force synchronous reflow + layer re-raster
+      el.style.transform = '';
+    });
   });
 
   const hasRealPhotos = $derived(photos.length > 0);
