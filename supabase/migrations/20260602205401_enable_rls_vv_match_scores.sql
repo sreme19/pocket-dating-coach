@@ -1,0 +1,1 @@
+ALTER TABLE vv_match_scores ENABLE ROW LEVEL SECURITY;;

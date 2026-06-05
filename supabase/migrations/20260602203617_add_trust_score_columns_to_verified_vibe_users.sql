@@ -1,0 +1,7 @@
+ALTER TABLE verified_vibe_users
+ADD COLUMN IF NOT EXISTS raw_trust         INTEGER,
+ADD COLUMN IF NOT EXISTS identity_score    INTEGER,
+ADD COLUMN IF NOT EXISTS proof_score       INTEGER,
+ADD COLUMN IF NOT EXISTS identity_verified BOOLEAN DEFAULT FALSE,
+ADD COLUMN IF NOT EXISTS normalized_trust  INTEGER,
+ADD COLUMN IF NOT EXISTS trust_updated_at  TIMESTAMPTZ;;

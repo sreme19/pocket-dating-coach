@@ -18,6 +18,9 @@ Thumbs.db
 !.env.example
 !.env.test
 
+# Voice agent local env (contains secrets, never commit)
+voice-agent/.env
+
 # Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
