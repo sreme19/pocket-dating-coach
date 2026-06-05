@@ -13,10 +13,9 @@ const config: CapacitorConfig = {
   appId: 'com.pocketdatingcoach.app',
   appName: 'Pocket Dating Coach',
   webDir: 'build',
-  server: {
-    url: 'https://pocket-dating-coach.vercel.app',
-    cleartext: false
-  },
+  // No `server.url`: the app now loads the locally-bundled SPA from `webDir`
+  // (built via `npm run build:mobile`) and calls the API remotely on Vercel.
+  // The previous remote-URL model caused cold loads + WebView paint races.
   android: {
     // Platform-specific: ignored on iOS. Prevents mixed HTTP/HTTPS content in Android WebView.
     allowMixedContent: false

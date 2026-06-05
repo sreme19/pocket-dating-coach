@@ -1,5 +1,7 @@
 <script module>
-	export const prerender = true;
+	// Prerendered on the web build; skipped on the mobile SPA build (ssr disabled,
+	// so prerender must be off to avoid a prerender-without-ssr conflict).
+	export const prerender = import.meta.env.VITE_MOBILE !== 'true';
 </script>
 
 <script>
