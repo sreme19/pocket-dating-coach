@@ -6,6 +6,7 @@
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",
+		"build:mobile": "MOBILE_BUILD=true VITE_MOBILE=true PUBLIC_API_BASE_URL=https://pocket-dating-coach.vercel.app vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.check.json",
@@ -24,13 +25,14 @@
 		"generate:bios": "tsx --env-file=.env.local scripts/generate-about-bios.ts",
 		"cap:sync": "cap sync",
 		"cap:open": "cap open android",
-		"cap:build": "vite build && cap sync",
+		"cap:build": "npm run build:mobile && cap sync",
 		"cap:open:ios": "cap open ios",
 		"cap:sync:ios": "cap sync ios",
-		"cap:build:ios": "vite build && cap sync ios"
+		"cap:build:ios": "npm run build:mobile && cap sync ios"
 	},
 	"devDependencies": {
 		"@sveltejs/adapter-auto": "^7.0.1",
+		"@sveltejs/adapter-static": "^3.0.10",
 		"@sveltejs/adapter-vercel": "^6.3.3",
 		"@sveltejs/kit": "^2.57.0",
 		"@sveltejs/vite-plugin-svelte": "^5.1.0",
