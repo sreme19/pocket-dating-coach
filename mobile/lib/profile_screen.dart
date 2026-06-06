@@ -171,9 +171,9 @@ class _ProfileBody extends StatelessWidget {
               icon: const Icon(Icons.bolt),
               label: const Text('Trust & Boost', style: TextStyle(fontWeight: FontWeight.w700)),
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0x2234D399),
+                backgroundColor: const Color(0x2210B981),
                 foregroundColor: const Color(Config.accent),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ),

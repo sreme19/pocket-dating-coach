@@ -43,22 +43,22 @@ class _HomeShellState extends State<HomeShell> {
       ),
       bottomNavigationBar: NavigationBar(
         backgroundColor: const Color(Config.bg2),
-        indicatorColor: const Color(0x3334D399),
+        indicatorColor: const Color(0x2610B981),
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.explore_outlined, color: Color(Config.text2)),
+            icon: Icon(Icons.explore_outlined, color: Color(Config.text3)),
             selectedIcon: Icon(Icons.explore, color: Color(Config.accent)),
             label: 'Discover',
           ),
           NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline, color: Color(Config.text2)),
+            icon: Icon(Icons.chat_bubble_outline, color: Color(Config.text3)),
             selectedIcon: Icon(Icons.chat_bubble, color: Color(Config.accent)),
             label: 'Chat',
           ),
           NavigationDestination(
-            icon: Icon(Icons.person_outline, color: Color(Config.text2)),
+            icon: Icon(Icons.person_outline, color: Color(Config.text3)),
             selectedIcon: Icon(Icons.person, color: Color(Config.accent)),
             label: 'Profile',
           ),

@@ -93,7 +93,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(Config.accent),
                       foregroundColor: const Color(0xFF052819),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                 ),
@@ -111,7 +111,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
       decoration: BoxDecoration(
         gradient: const LinearGradient(colors: [Color(Config.bg2), Color(Config.bg3)]),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0x3334D399)),
+        border: Border.all(color: const Color(0x3310B981)),
       ),
       child: Column(children: [
         const Text('TRUST SCORE', style: TextStyle(color: Color(Config.text2), fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1)),

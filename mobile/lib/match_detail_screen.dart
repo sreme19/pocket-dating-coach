@@ -51,7 +51,7 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
                         foregroundColor: const Color(Config.text1),
                         side: const BorderSide(color: Color(0x33FFFFFF)),
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
                   ),
@@ -65,7 +65,7 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
                         backgroundColor: const Color(Config.accent),
                         foregroundColor: const Color(0xFF052819),
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
                   ),
@@ -128,7 +128,7 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                             decoration: BoxDecoration(
-                              color: const Color(0x2234D399),
+                              color: const Color(0x2210B981),
                               borderRadius: BorderRadius.circular(999),
                               border: Border.all(color: const Color(Config.accent)),
                             ),

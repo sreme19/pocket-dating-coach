@@ -112,7 +112,7 @@ class _Gate extends StatelessWidget {
                   backgroundColor: const Color(Config.accent),
                   foregroundColor: const Color(0xFF052819),
                   disabledBackgroundColor: const Color(Config.bg3),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: const Text('Continue', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
               ),

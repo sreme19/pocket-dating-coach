@@ -82,7 +82,7 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: _resultGood ? const Color(0x2234D399) : const Color(0x22F87171),
+                color: _resultGood ? const Color(0x2210B981) : const Color(0x22F87171),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: _resultGood ? const Color(Config.accent) : const Color(0xFFF87171)),
               ),

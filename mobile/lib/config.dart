@@ -12,7 +12,8 @@ class Config {
   static const int bg1 = 0xFF0B1120;
   static const int bg2 = 0xFF131A2B;
   static const int bg3 = 0xFF1A2336;
-  static const int accent = 0xFF34D399;
+  static const int accent = 0xFF10B981; // web --color-vibe-accent (emerald)
+  static const int accentBright = 0xFF34D399; // web --accent-bright (highlights/focus)
   static const int text1 = 0xFFF1F5F9;
   static const int text2 = 0xFF94A3B8;
   static const int text3 = 0xFF64748B;
