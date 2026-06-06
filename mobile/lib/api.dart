@@ -174,6 +174,64 @@ Future<List<DiscoveryProfile>> fetchDiscovery({int limit = 12}) async {
   }).toList();
 }
 
+// ── Onboarding ──────────────────────────────────────────────────────────────
+
+/// A signed-in user still needs onboarding if their verified_vibe_users row has
+/// no archetype yet (brand-new sign-up). Defaults to false on error so we don't
+/// trap existing users in onboarding.
+Future<bool> needsOnboarding() async {
+  final uid = Supabase.instance.client.auth.currentUser?.id;
+  if (uid == null) return false;
+  try {
+    final row = await Supabase.instance.client
+        .from('verified_vibe_users')
+        .select('archetype')
+        .eq('id', uid)
+        .maybeSingle();
+    final a = row?['archetype'] as String?;
+    return a == null || a.isEmpty;
+  } catch (_) {
+    return false;
+  }
+}
+
+Future<void> saveGenderArchetype(String gender, String archetype) async {
+  final uid = Supabase.instance.client.auth.currentUser?.id;
+  if (uid == null) throw StateError('Not authenticated');
+  final supabase = Supabase.instance.client;
+  // verified_vibe_users has NOT NULL first_name/age, so seed placeholders for a
+  // brand-new row (verification's ID/photos steps overwrite name/age/city).
+  // Preserve existing identity fields if the row already exists.
+  final existing = await supabase
+      .from('verified_vibe_users')
+      .select('first_name, age, city')
+      .eq('id', uid)
+      .maybeSingle();
+  await supabase.from('verified_vibe_users').upsert({
+    'id': uid,
+    'gender': gender,
+    'archetype': archetype,
+    'first_name': existing?['first_name'] ?? 'New member',
+    'age': existing?['age'] ?? 18,
+    'city': existing?['city'] ?? '',
+  }, onConflict: 'id');
+}
+
+/// Submit a verification step (id | liveness | photos | spending_or_qa).
+/// Images go as base64 inside `data` (matches the web verify-step endpoint).
+Future<Map> verifyStep(String step, Map<String, dynamic> data) async {
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/verify-step',
+    data: {'step': step, 'data': data},
+    options: Options(
+      headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'},
+      receiveTimeout: const Duration(seconds: 90),
+    ),
+  );
+  final body = resp.data is Map ? resp.data as Map : const {};
+  return (body['data'] as Map?) ?? body;
+}
+
 // ── Chat ────────────────────────────────────────────────────────────────────
 
 String _bearer() {
