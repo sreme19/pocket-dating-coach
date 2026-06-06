@@ -129,7 +129,7 @@ class _AdvisorRow extends StatelessWidget {
       onTap: onTap,
       leading: CircleAvatar(
         radius: 24,
-        backgroundColor: const Color(0x2234D399),
+        backgroundColor: const Color(0x2210B981),
         child: Text(wingman ? '🛡️' : '💚', style: const TextStyle(fontSize: 22)),
       ),
       title: Row(children: [
@@ -139,7 +139,7 @@ class _AdvisorRow extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
-            color: const Color(0x2234D399),
+            color: const Color(0x2210B981),
             borderRadius: BorderRadius.circular(6),
           ),
           child: const Text('ADVISOR',

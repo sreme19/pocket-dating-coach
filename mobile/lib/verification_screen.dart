@@ -170,7 +170,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 backgroundColor: const Color(Config.accent),
                 foregroundColor: const Color(0xFF052819),
                 disabledBackgroundColor: const Color(Config.bg3),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               child: Text(_allDone ? 'Enter Verified Vibe' : 'Finish all checks to continue',
                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),

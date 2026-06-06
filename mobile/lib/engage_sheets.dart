@@ -43,7 +43,7 @@ Future<void> showTipSheet(BuildContext context, {required String targetUserId, r
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: on ? const Color(0x2234D399) : const Color(Config.bg3),
+                  color: on ? const Color(0x2210B981) : const Color(Config.bg3),
                   borderRadius: BorderRadius.circular(999),
                   border: Border.all(color: on ? const Color(Config.accent) : const Color(0x18FFFFFF)),
                 ),
@@ -79,7 +79,7 @@ Future<void> showTipSheet(BuildContext context, {required String targetUserId, r
                         if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Failed: $e')));
                       }
                     },
-              style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFF052819), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999))),
+              style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFF052819), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
               child: sending
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF052819)))
                   : const Text('Send tip', style: TextStyle(fontWeight: FontWeight.w700)),
@@ -139,7 +139,7 @@ Future<void> showAdmireSheet(BuildContext context, {required String recipientId,
                         if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(msg)));
                       }
                     },
-              style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFF052819), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999))),
+              style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFF052819), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
               child: sending
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF052819)))
                   : const Text('Send', style: TextStyle(fontWeight: FontWeight.w700)),

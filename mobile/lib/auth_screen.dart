@@ -139,7 +139,7 @@ class _AuthScreenState extends State<AuthScreen> {
         style: FilledButton.styleFrom(
           backgroundColor: const Color(Config.accent),
           foregroundColor: const Color(0xFF052819),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
         child: _loading
             ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF052819)))

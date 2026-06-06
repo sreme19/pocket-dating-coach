@@ -172,7 +172,7 @@ class _Bubble extends StatelessWidget {
     final bg = mine
         ? const Color(Config.accent)
         : ai
-            ? const Color(0x2234D399)
+            ? const Color(0x2210B981)
             : const Color(Config.bg3);
     final fg = mine ? const Color(0xFF052819) : const Color(Config.text1);
     return Align(
