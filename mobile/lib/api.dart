@@ -388,6 +388,50 @@ Future<void> saveHardNos(List<String> hardNos) async {
   await supabase.from('verified_vibe_users').update({'hard_nos': hardNos}).eq('id', user.id);
 }
 
+/// Ask the AI to suggest more insight chips for a proof category. Returns the
+/// generated chips (may be empty if the AI asks to clarify / redirect).
+Future<List<InsightChip>> suggestInsights(
+    String category, List<String> existingLabels, String aggregated) async {
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/wingman',
+    data: {
+      'message':
+          'Suggest 3 more insight chips from my $category documents. Existing labels to avoid: ${existingLabels.join(', ')}. Aggregated data: $aggregated',
+      'profileSnapshot': {
+        'proofInsights': [
+          {'category': category, 'labels': existingLabels, 'aggregated': aggregated},
+        ],
+      },
+    },
+    options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
+  );
+  final out = <InsightChip>[];
+  if (resp.data is Map && resp.data['new_insights'] is List) {
+    for (final i in (resp.data['new_insights'] as List)) {
+      if (i is Map && i['label'] != null) {
+        out.add(InsightChip((i['emoji'] ?? '•').toString(), i['label'].toString()));
+      }
+    }
+  }
+  return out;
+}
+
+/// Add an insight chip to a proof category (persists to verifiedProofs).
+Future<void> addInsightChip(String category, String label, String emoji) =>
+    _insightChip('add', category, label, emoji);
+
+/// Remove an insight chip from a proof category.
+Future<void> removeInsightChip(String category, String label) =>
+    _insightChip('remove', category, label, null);
+
+Future<void> _insightChip(String action, String category, String label, String? emoji) async {
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/insight-chip',
+    data: {'action': action, 'category': category, 'label': label, if (emoji != null) 'emoji': emoji},
+    options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
+  );
+}
+
 /// Normalize a free-typed dealbreaker into a concise phrase (Claude haiku).
 /// Falls back to the trimmed input on any error.
 Future<String> cleanupText(String text) async {
