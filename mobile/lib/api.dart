@@ -8,25 +8,96 @@ import 'config.dart';
 ///  1. `verified_vibe_users` row (identity, avatar_url, trust) — direct Supabase.
 ///  2. `/api/verified-vibe/master-profile` (about, photos, proofs) — Vercel API
 ///     with a Bearer token. (Native HTTP ignores CORS, so no preflight needed.)
+/// An AI-read insight chip (emoji + label) within a verified-signal group.
+class InsightChip {
+  final String emoji;
+  final String label;
+  InsightChip(this.emoji, this.label);
+}
+
+/// A group of verified-signal chips for one category, with the AI summary line.
+class SignalGroup {
+  final List<InsightChip> chips;
+  final String aggregated;
+  SignalGroup(this.chips, this.aggregated);
+  bool get isNotEmpty => chips.isNotEmpty;
+}
+
+/// A car in the user's garage (parsed from the `assets` proof category).
+class GarageCar {
+  final String make;
+  final String model;
+  final String? year;
+  final String? color;
+  GarageCar({required this.make, required this.model, this.year, this.color});
+  String get title => [make, model].where((s) => s.isNotEmpty).join(' ');
+}
+
+/// A spending category row (parsed from the `spending` proof breakdown).
+class SpendItem {
+  final String emoji;
+  final String category;
+  final String amountLabel;
+  SpendItem(this.emoji, this.category, this.amountLabel);
+}
+
 class ProfileData {
   final String name;
   final int? age;
   final String? city;
   final String? heroPhotoUrl;
+  final List<String> photos; // all displayable photo URLs (ai + uploaded)
   final int trustScore;
   final int proofsCount;
   final String about;
   final bool profileComplete;
+  final String? gender;
+  final String archetype; // raw code, e.g. casual_generous_man
+  final List<String> vibeWords;
+  // Verified signals
+  final SignalGroup? career; // linkedin
+  final SignalGroup? lifestyle; // lifestyle
+  final SignalGroup? health; // discipline
+  final SignalGroup? social; // social_proof
+  final SignalGroup? wealth; // wealth (Money Matters chips)
+  // Money matters
+  final String? annualIncome;
+  final String? netWorth;
+  final List<SpendItem> spending;
+  // Garage + travel
+  final List<GarageCar> garage;
+  final List<String> countries;
+  // AI portraits
+  final String? personalityPortraitUrl;
+  final String? garagePortraitUrl;
+
+  bool get isMan => gender == null || gender == 'man';
 
   ProfileData({
     required this.name,
     required this.age,
     required this.city,
     required this.heroPhotoUrl,
+    required this.photos,
     required this.trustScore,
     required this.proofsCount,
     required this.about,
     required this.profileComplete,
+    required this.gender,
+    required this.archetype,
+    required this.vibeWords,
+    required this.career,
+    required this.lifestyle,
+    required this.health,
+    required this.social,
+    required this.wealth,
+    required this.annualIncome,
+    required this.netWorth,
+    required this.spending,
+    required this.garage,
+    required this.countries,
+    required this.personalityPortraitUrl,
+    required this.garagePortraitUrl,
   });
 }
 
@@ -64,21 +135,24 @@ Future<ProfileData> fetchProfile() async {
     // Non-fatal — fall back to whatever the users row gives us.
   }
 
-  final photos = (master['photos'] as List?) ?? const [];
+  final photosRaw = (master['photos'] as List?) ?? const [];
   final aiPhotos = (master['aiPhotos'] as List?) ?? const [];
   final generated = master['generatedProfile'] as Map?;
   final draft = master['profileDraft'] as Map?;
   final proofs = (master['proofInsightsLocalStorage'] as List?) ?? const [];
 
-  // Hero photo resolution mirrors the web heroPhoto derived:
-  // ai photo → uploaded photo → users.avatar_url.
-  String? hero;
-  if (aiPhotos.isNotEmpty && aiPhotos.first is Map) {
-    hero = (aiPhotos.first as Map)['url'] as String?;
+  // All displayable photo URLs: AI photos first, then uploaded (http/data only).
+  final photos = <String>[];
+  for (final p in aiPhotos) {
+    if (p is Map && p['url'] is String) photos.add(p['url'] as String);
   }
-  if (hero == null && photos.isNotEmpty && photos.first is Map) {
-    hero = (photos.first as Map)['dataUrl'] as String?;
+  for (final p in photosRaw) {
+    if (p is Map && p['dataUrl'] is String) {
+      final u = p['dataUrl'] as String;
+      if (u.startsWith('http') || u.startsWith('data:')) photos.add(u);
+    }
   }
+  String? hero = photos.isNotEmpty ? photos.first : null;
   hero ??= row?['avatar_url'] as String?;
 
   final name = (row?['first_name'] ?? draft?['firstName'] ?? 'You').toString();
@@ -86,16 +160,123 @@ Future<ProfileData> fetchProfile() async {
   final city = (row?['city'] ?? draft?['city'])?.toString();
   final about = (generated?['about'] ?? '').toString();
   final trust = row?['trust_score'] != null ? _asInt(row!['trust_score']) : 0;
+  final gender = row?['gender']?.toString();
+  final archetype = (row?['archetype'] ?? '').toString();
+
+  // Vibe words from the AI-generated personality descriptors.
+  final vibeWords = <String>[];
+  final descs = generated?['personalityDescriptors'];
+  if (descs is List) {
+    for (final d in descs) {
+      if (d != null && '$d'.trim().isNotEmpty) vibeWords.add('$d'.trim());
+    }
+  }
+
+  // Group proof insights by category.
+  Map<String, dynamic>? proofFor(String cat) {
+    for (final p in proofs) {
+      if (p is Map && p['category'] == cat) return Map<String, dynamic>.from(p);
+    }
+    return null;
+  }
+
+  SignalGroup? signal(String cat) {
+    final p = proofFor(cat);
+    if (p == null) return null;
+    final chips = <InsightChip>[];
+    final ins = p['insights'];
+    if (ins is List) {
+      for (final i in ins) {
+        if (i is Map) {
+          chips.add(InsightChip((i['emoji'] ?? '•').toString(), (i['label'] ?? '').toString()));
+        }
+      }
+    }
+    if (chips.isEmpty) return null;
+    return SignalGroup(chips, (p['aggregated'] ?? '').toString());
+  }
+
+  // Garage cars from the `assets` proof.
+  final garage = <GarageCar>[];
+  final assetsProof = proofFor('assets');
+  if (assetsProof != null && assetsProof['assets'] is List) {
+    for (final a in (assetsProof['assets'] as List)) {
+      if (a is Map && (a['type'] == 'car' || a['make'] != null)) {
+        garage.add(GarageCar(
+          make: (a['make'] ?? '').toString(),
+          model: (a['model'] ?? '').toString(),
+          year: a['year']?.toString(),
+          color: a['color']?.toString(),
+        ));
+      }
+    }
+  }
+
+  // Spending breakdown from the `spending` proof.
+  final spending = <SpendItem>[];
+  final spendProof = proofFor('spending');
+  if (spendProof != null && spendProof['spendingBreakdown'] is List) {
+    for (final s in (spendProof['spendingBreakdown'] as List)) {
+      if (s is Map) {
+        spending.add(SpendItem(
+          (s['emoji'] ?? '💳').toString(),
+          (s['category'] ?? '').toString(),
+          (s['amountLabel'] ?? '').toString(),
+        ));
+      }
+    }
+  }
+
+  // Travel: explicit list + any locations embedded in proofs (deduped).
+  final countries = <String>[];
+  void addCountry(dynamic c) {
+    final s = '$c'.trim();
+    if (s.isNotEmpty && !countries.contains(s)) countries.add(s);
+  }
+  if (master['countriesTraveled'] is List) {
+    for (final c in (master['countriesTraveled'] as List)) {
+      addCountry(c);
+    }
+  }
+  for (final p in proofs) {
+    if (p is Map && p['locations'] is List) {
+      for (final l in (p['locations'] as List)) {
+        addCountry(l);
+      }
+    }
+  }
+
+  final money = master['moneyMatters'] as Map?;
+  String? nonEmpty(dynamic v) {
+    final s = v?.toString().trim();
+    return (s != null && s.isNotEmpty) ? s : null;
+  }
 
   return ProfileData(
     name: name,
     age: (age != null && age > 0) ? age : null,
     city: (city != null && city.isNotEmpty) ? city : null,
     heroPhotoUrl: hero,
+    photos: photos,
     trustScore: trust,
     proofsCount: proofs.length,
     about: about,
     profileComplete: draft != null || generated != null,
+    gender: gender,
+    archetype: archetype,
+    vibeWords: vibeWords,
+    career: signal('linkedin'),
+    lifestyle: signal('lifestyle'),
+    health: signal('discipline'),
+    social: signal('social_proof'),
+    wealth: signal('wealth'),
+    annualIncome: nonEmpty(money?['annualIncome']),
+    netWorth: nonEmpty(money?['netWorth']),
+    spending: spending,
+    garage: garage,
+    countries: countries,
+    personalityPortraitUrl: nonEmpty(master['personalityPortraitUrl']),
+    garagePortraitUrl: nonEmpty(master['garagePortraitUrl']),
   );
 }
 

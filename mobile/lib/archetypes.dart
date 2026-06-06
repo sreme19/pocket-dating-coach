@@ -36,6 +36,65 @@ const _woman = <String, Archetype>{
   'second_chapter_woman': Archetype('second_chapter_woman', '🌺', 'Second-Chapter', 'Loved or married before, starting over right'),
 };
 
+/// Look up an archetype's display metadata by raw id (either gender).
+Archetype? archetypeFor(String id) => _man[id] ?? _woman[id];
+
+/// "What He Brings" items per male archetype (mirrors ARCHETYPE_BRINGS in
+/// src/routes/verified-vibe/profile/+page.svelte). Women have no brings map.
+class BringsItem {
+  final String emoji;
+  final String text;
+  const BringsItem(this.emoji, this.text);
+}
+
+const Map<String, List<BringsItem>> archetypeBrings = {
+  'casual_man': [
+    BringsItem('✌️', 'Easy energy'), BringsItem('🤝', 'Honest intentions'),
+    BringsItem('💬', 'Good conversation'), BringsItem('🌱', 'Low pressure'),
+    BringsItem('⏱️', 'Quality time'),
+  ],
+  'casual_generous_man': [
+    BringsItem('💰', 'Financial stability'), BringsItem('🍾', 'Generosity on dates'),
+    BringsItem('🗓️', 'Time he actually gives you'), BringsItem('🔒', 'Privacy & discretion'),
+    BringsItem('💭', 'Real opinions, gently held'),
+  ],
+  'forever_focused_man': [
+    BringsItem('💙', 'Emotional depth'), BringsItem('🎯', 'Long-term clarity'),
+    BringsItem('🌿', 'Shared values'), BringsItem('🏠', 'Consistent presence'),
+    BringsItem('💍', 'Real commitment'),
+  ],
+  'hopeless_romantic_man': [
+    BringsItem('🌹', 'Romantic thoughtfulness'), BringsItem('💕', 'Emotional availability'),
+    BringsItem('🌊', 'Deep connection'), BringsItem('⚡', 'All-in energy'),
+    BringsItem('🎁', 'Genuine gestures'),
+  ],
+  'traditional_matrimony_man': [
+    BringsItem('👨‍👩‍👧', 'Family values'), BringsItem('🏡', 'Stability'),
+    BringsItem('🌺', 'Cultural alignment'), BringsItem('🗺️', 'Clear life plan'),
+    BringsItem('🤲', 'Lifelong respect'),
+  ],
+  'second_chapter_man': [
+    BringsItem('🧠', 'Hard-earned wisdom'), BringsItem('🌿', 'Emotional maturity'),
+    BringsItem('🎯', 'Clarity on what he wants'), BringsItem('⚓', 'Grounded presence'),
+    BringsItem('🤝', 'Real partnership'),
+  ],
+  'untouched_heart_man': [
+    BringsItem('✨', 'Authenticity'), BringsItem('👁️', 'Fresh perspective'),
+    BringsItem('💚', 'Open heart'), BringsItem('🔍', 'Curiosity'),
+    BringsItem('🕊️', 'No baggage'),
+  ],
+  'just_friends_man': [
+    BringsItem('😊', 'Good company'), BringsItem('🌬️', 'Zero pressure'),
+    BringsItem('💬', 'Easy conversation'), BringsItem('🤗', 'Genuine connection'),
+    BringsItem('⚡', 'Consistent energy'),
+  ],
+  'rebound_healing_man': [
+    BringsItem('🤝', 'Honest intentions'), BringsItem('🌸', 'Light touch'),
+    BringsItem('✨', 'Fun energy'), BringsItem('🧘', 'Present focus'),
+    BringsItem('📸', 'Real moments'),
+  ],
+};
+
 List<LaneSection> laneSectionsFor(String gender) {
   final m = gender == 'woman' ? _woman : _man;
   final suffix = gender == 'woman' ? '_woman' : '_man';
