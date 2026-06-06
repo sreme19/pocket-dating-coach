@@ -5,6 +5,7 @@ import 'api.dart';
 import 'auth_screen.dart';
 import 'home_shell.dart';
 import 'onboarding_flow.dart';
+import 'push_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,8 +13,13 @@ Future<void> main() async {
     url: Config.supabaseUrl,
     anonKey: Config.supabaseAnonKey,
   );
+  await initFirebasePush();
+  PushService.navKey = navigatorKey;
   runApp(const VerifiedVibeApp());
 }
+
+/// Global navigator key so push notifications can navigate from outside the tree.
+final navigatorKey = GlobalKey<NavigatorState>();
 
 SupabaseClient get supabase => Supabase.instance.client;
 
@@ -24,6 +30,7 @@ class VerifiedVibeApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Verified Vibe',
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,

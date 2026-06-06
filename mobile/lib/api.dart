@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:dio/dio.dart';
 // hide MultipartFile: both dio and http (via supabase) export it; we use dio's.
 import 'package:supabase_flutter/supabase_flutter.dart' hide MultipartFile;
@@ -173,6 +174,17 @@ Future<List<DiscoveryProfile>> fetchDiscovery({int limit = 12}) async {
       verifiedCount: (p['verified'] as List?)?.length ?? 0,
     );
   }).toList();
+}
+
+// ── Push ──────────────────────────────────────────────────────────────────
+
+/// Register an FCM device token for the signed-in user (backend sends via FCM).
+Future<void> registerPushToken(String token) async {
+  await _dio.post(
+    '${Config.apiBase}/api/push/register',
+    data: {'token': token, 'platform': Platform.isIOS ? 'ios' : 'android'},
+    options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
+  );
 }
 
 // ── Trust / Boost ───────────────────────────────────────────────────────────
