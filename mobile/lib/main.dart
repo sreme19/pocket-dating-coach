@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config.dart';
+import 'api.dart';
 import 'auth_screen.dart';
 import 'home_shell.dart';
+import 'onboarding_flow.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,10 +39,18 @@ class VerifiedVibeApp extends StatelessWidget {
   }
 }
 
-/// Routes between auth and the app based on the Supabase session, reacting to
-/// sign-in / sign-out via the auth state stream (session is persisted natively).
-class AuthGate extends StatelessWidget {
+/// Routes between auth, onboarding, and the app based on the Supabase session +
+/// onboarding state. Reacts to sign-in/out via the auth stream; a brand-new
+/// user (no archetype yet) is sent through OnboardingFlow first.
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  int _recheck = 0; // bump to re-evaluate onboarding (after it completes)
 
   @override
   Widget build(BuildContext context) {
@@ -48,8 +58,20 @@ class AuthGate extends StatelessWidget {
       stream: supabase.auth.onAuthStateChange,
       builder: (context, _) {
         final session = supabase.auth.currentSession;
-        if (session != null) return const HomeShell();
-        return const AuthScreen();
+        if (session == null) return const AuthScreen();
+        return FutureBuilder<bool>(
+          key: ValueKey('onb_${session.user.id}_$_recheck'),
+          future: needsOnboarding(),
+          builder: (context, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const Scaffold(body: Center(child: CircularProgressIndicator(color: Color(Config.accent))));
+            }
+            if (snap.data == true) {
+              return OnboardingFlow(onComplete: () => setState(() => _recheck++));
+            }
+            return const HomeShell();
+          },
+        );
       },
     );
   }
