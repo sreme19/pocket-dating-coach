@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config.dart';
+import 'push_service.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -30,6 +31,7 @@ class SettingsScreen extends StatelessWidget {
               height: 50,
               child: OutlinedButton.icon(
                 onPressed: () async {
+                  await PushService.signOutCleanup();
                   await Supabase.instance.client.auth.signOut();
                   if (context.mounted) Navigator.of(context).popUntil((r) => r.isFirst);
                 },

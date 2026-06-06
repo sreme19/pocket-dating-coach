@@ -3,6 +3,7 @@ import 'config.dart';
 import 'discover_screen.dart';
 import 'chat_list_screen.dart';
 import 'profile_screen.dart';
+import 'push_service.dart';
 
 /// Authenticated app shell: bottom navigation between Discover and Profile.
 /// IndexedStack keeps each screen's state alive across tab switches.
@@ -15,6 +16,23 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Let push deep-links switch the active tab (e.g. Wingman → Chat).
+    PushService.onSwitchTab = (i) {
+      if (mounted && i >= 0 && i < 3) setState(() => _index = i);
+    };
+    // Authenticated + in the app — request push permission + register FCM token.
+    PushService.registerForUser();
+  }
+
+  @override
+  void dispose() {
+    PushService.onSwitchTab = null;
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
