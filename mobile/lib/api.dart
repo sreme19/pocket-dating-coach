@@ -96,3 +96,80 @@ Future<ProfileData> fetchProfile() async {
     profileComplete: draft != null || generated != null,
   );
 }
+
+/// A match card in the Discover feed (from /api/verified-vibe/discovery-feed,
+/// `data.profiles[]`). Native HTTP, Bearer auth.
+class DiscoveryProfile {
+  final String id;
+  final String firstName;
+  final int? age;
+  final String? city;
+  final String? avatar;
+  final int trustScore;
+  final String archetypeLabel;
+  final String? intent;
+  final String? distance;
+  final int verifiedCount;
+
+  DiscoveryProfile({
+    required this.id,
+    required this.firstName,
+    required this.age,
+    required this.city,
+    required this.avatar,
+    required this.trustScore,
+    required this.archetypeLabel,
+    required this.intent,
+    required this.distance,
+    required this.verifiedCount,
+  });
+
+  String get trustLabel {
+    if (trustScore >= 80) return 'High Trust';
+    if (trustScore >= 60) return 'Trusted';
+    if (trustScore >= 40) return 'Building Trust';
+    return 'New here';
+  }
+
+  /// Turn a raw archetype code into a label, e.g.
+  /// `hopeless_romantic_woman` → `Hopeless-Romantic`.
+  static String prettyArchetype(String? raw) {
+    if (raw == null || raw.isEmpty) return '';
+    final stripped = raw.replaceAll(RegExp(r'_(man|woman)$'), '');
+    final parts = stripped
+        .split('_')
+        .where((p) => p.isNotEmpty)
+        .map((p) => p[0].toUpperCase() + p.substring(1));
+    return parts.join('-');
+  }
+}
+
+Future<List<DiscoveryProfile>> fetchDiscovery({int limit = 12}) async {
+  final session = Supabase.instance.client.auth.currentSession;
+  if (session == null) throw StateError('Not authenticated');
+
+  final resp = await _dio.get(
+    '${Config.apiBase}/api/verified-vibe/discovery-feed',
+    queryParameters: {'limit': limit, 'sortBy': 'trustScore'},
+    options: Options(headers: {'Authorization': 'Bearer ${session.accessToken}'}),
+  );
+
+  final body = resp.data is Map ? resp.data as Map : const {};
+  final data = body['data'] is Map ? body['data'] as Map : const {};
+  final profiles = (data['profiles'] as List?) ?? const [];
+
+  return profiles.whereType<Map>().map((p) {
+    return DiscoveryProfile(
+      id: '${p['id']}',
+      firstName: (p['firstName'] ?? p['first_name'] ?? '—').toString(),
+      age: p['age'] is num ? (p['age'] as num).toInt() : null,
+      city: (p['city'] as String?)?.trim().isNotEmpty == true ? p['city'] as String : null,
+      avatar: p['avatar'] as String?,
+      trustScore: p['trustScore'] is num ? (p['trustScore'] as num).toInt() : 0,
+      archetypeLabel: DiscoveryProfile.prettyArchetype(p['archetype'] as String?),
+      intent: (p['looking'] ?? p['hereFor']) as String?,
+      distance: p['distance'] as String?,
+      verifiedCount: (p['verified'] as List?)?.length ?? 0,
+    );
+  }).toList();
+}

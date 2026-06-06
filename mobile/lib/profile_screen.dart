@@ -21,7 +21,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = fetchProfile());
+    setState(() {
+      _future = fetchProfile();
+    });
     await _future;
   }
 
