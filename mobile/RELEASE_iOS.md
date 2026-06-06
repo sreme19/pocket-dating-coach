@@ -10,10 +10,18 @@ Ships the Flutter app to TestFlight under the **existing** App Store Connect app
 
 ## What you provide (one-time)
 
-An **App Store Connect API key** with the **App Manager** role:
+An **App Store Connect API key** with the **Admin** role.
+
+> ⚠️ The role must be **Admin**, not App Manager. Headless export uses Xcode
+> cloud signing (`-allowProvisioningUpdates`) to create the *Distribution
+> certificate*, and certificate creation via the API requires Admin. An App
+> Manager key fails at export with "Cloud signing permission error / No signing
+> certificate 'iOS Distribution' found". (Alternatively, create the distribution
+> cert once in Xcode → Settings → Accounts → Manage Certificates → + Apple
+> Distribution, after which an App Manager key suffices.)
 
 1. App Store Connect → **Users and Access** → **Integrations** → **App Store Connect API**.
-2. **Generate API Key**, role **App Manager**.
+2. **Generate API Key**, role **Admin**.
 3. Download the **`AuthKey_<KEYID>.p8`** (downloadable once — keep it safe).
 4. Note the **Key ID** and the **Issuer ID** (shown above the key list).
 
