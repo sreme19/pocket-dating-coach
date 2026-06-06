@@ -92,14 +92,16 @@ class _DiscoverScreenState extends State<DiscoverScreen>
 
   Widget _body() {
     if (_error != null) {
+      final friendly = _error!.contains('401')
+          ? 'Your session expired — sign out and back in.'
+          : "Couldn't load matches. Check your connection and retry.";
       return Center(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const Icon(Icons.cloud_off, color: Color(Config.text3), size: 48),
             const SizedBox(height: 12),
-            Text('Could not load matches.\n$_error',
-                textAlign: TextAlign.center, style: const TextStyle(color: Color(Config.text2))),
+            Text(friendly, textAlign: TextAlign.center, style: const TextStyle(color: Color(Config.text2))),
             const SizedBox(height: 16),
             FilledButton(onPressed: _load, child: const Text('Retry')),
           ]),
@@ -166,6 +168,7 @@ class _MatchCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onOpen,
+      behavior: HitTestBehavior.opaque,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
         child: AspectRatio(
