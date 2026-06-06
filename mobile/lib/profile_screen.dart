@@ -62,7 +62,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           // "switch screens to fix" like the WebView.
           return RefreshIndicator(
             onRefresh: _refresh,
-            child: _ProfileBody(data: snap.data!),
+            child: _ProfileBody(data: snap.data!, onChanged: _refresh),
           );
         },
       ),
@@ -114,7 +114,8 @@ class _ErrorState extends StatelessWidget {
 
 class _ProfileBody extends StatelessWidget {
   final ProfileData data;
-  const _ProfileBody({required this.data});
+  final VoidCallback onChanged;
+  const _ProfileBody({required this.data, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
@@ -131,13 +132,23 @@ class _ProfileBody extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                data.age != null ? '${data.name}, ${data.age}' : data.name,
-                style: const TextStyle(
-                  fontSize: 30, fontWeight: FontWeight.w700,
-                  fontStyle: FontStyle.italic, color: Color(Config.text1),
+              Row(children: [
+                Expanded(
+                  child: Text(
+                    data.age != null ? '${data.name}, ${data.age}' : data.name,
+                    style: const TextStyle(
+                      fontSize: 30, fontWeight: FontWeight.w700,
+                      fontStyle: FontStyle.italic, color: Color(Config.text1),
+                    ),
+                  ),
                 ),
-              ),
+                IconButton(
+                  tooltip: 'Edit',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.edit_outlined, size: 20, color: Color(Config.text2)),
+                  onPressed: () => _editIdentity(context, data, onChanged),
+                ),
+              ]),
               const SizedBox(height: 8),
               Row(children: [
                 if (arch != null) ...[
@@ -210,6 +221,7 @@ class _ProfileBody extends StatelessWidget {
         _Section(
           icon: Icons.auto_awesome,
           title: 'ABOUT',
+          onEdit: () => _editAbout(context, data, onChanged),
           child: Text(
             data.about.isNotEmpty ? data.about : 'Your story goes here.',
             style: const TextStyle(fontSize: 16, height: 1.5, color: Color(Config.text1)),
@@ -295,6 +307,139 @@ class _ProfileBody extends StatelessWidget {
   Widget _divider() => Container(width: 1, height: 36, color: const Color(0x14FFFFFF));
 }
 
+// ── Edit sheets ──────────────────────────────────────────────────────────────
+
+Future<void> _editIdentity(BuildContext context, ProfileData d, VoidCallback onChanged) async {
+  final nameCtrl = TextEditingController(text: d.name == 'You' ? '' : d.name);
+  final ageCtrl = TextEditingController(text: d.age?.toString() ?? '');
+  final cityCtrl = TextEditingController(text: d.city ?? '');
+  await _editSheet(
+    context,
+    title: 'Edit your details',
+    fields: [
+      _EditField(controller: nameCtrl, label: 'First name', textCapitalization: TextCapitalization.words),
+      _EditField(controller: ageCtrl, label: 'Age', keyboardType: TextInputType.number),
+      _EditField(controller: cityCtrl, label: 'City'),
+    ],
+    onSave: () async {
+      final name = nameCtrl.text.trim();
+      if (name.isEmpty) throw 'Name can’t be empty';
+      await saveIdentity(
+        firstName: name,
+        age: int.tryParse(ageCtrl.text.trim()),
+        city: cityCtrl.text.trim(),
+      );
+    },
+    onChanged: onChanged,
+  );
+}
+
+Future<void> _editAbout(BuildContext context, ProfileData d, VoidCallback onChanged) async {
+  final ctrl = TextEditingController(text: d.about);
+  await _editSheet(
+    context,
+    title: 'Edit your About',
+    fields: [
+      _EditField(controller: ctrl, label: 'About you', maxLines: 5, textCapitalization: TextCapitalization.sentences),
+    ],
+    onSave: () => saveAbout(ctrl.text, d.rawGenerated),
+    onChanged: onChanged,
+  );
+}
+
+class _EditField {
+  final TextEditingController controller;
+  final String label;
+  final int maxLines;
+  final TextInputType? keyboardType;
+  final TextCapitalization textCapitalization;
+  _EditField({
+    required this.controller,
+    required this.label,
+    this.maxLines = 1,
+    this.keyboardType,
+    this.textCapitalization = TextCapitalization.none,
+  });
+}
+
+Future<void> _editSheet(
+  BuildContext context, {
+  required String title,
+  required List<_EditField> fields,
+  required Future<void> Function() onSave,
+  required VoidCallback onChanged,
+}) async {
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: const Color(Config.bg2),
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (ctx) {
+      var saving = false;
+      String? error;
+      return StatefulBuilder(builder: (ctx, setSheet) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(20, 18, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+              const SizedBox(height: 16),
+              for (final f in fields) ...[
+                TextField(
+                  controller: f.controller,
+                  maxLines: f.maxLines,
+                  keyboardType: f.keyboardType,
+                  textCapitalization: f.textCapitalization,
+                  style: const TextStyle(color: Color(Config.text1)),
+                  decoration: InputDecoration(
+                    labelText: f.label,
+                    labelStyle: const TextStyle(color: Color(Config.text2)),
+                    filled: true,
+                    fillColor: const Color(Config.bg3),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              if (error != null) ...[
+                Text(error!, style: const TextStyle(color: Color(0xFFF87171), fontSize: 13)),
+                const SizedBox(height: 8),
+              ],
+              SizedBox(
+                width: double.infinity, height: 50,
+                child: FilledButton(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          setSheet(() { saving = true; error = null; });
+                          try {
+                            await onSave();
+                            if (ctx.mounted) Navigator.of(ctx).pop();
+                            onChanged();
+                          } catch (e) {
+                            setSheet(() { saving = false; error = '$e'; });
+                          }
+                        },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(Config.accent),
+                    foregroundColor: const Color(0xFF052819),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: saving
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF052819)))
+                      : const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        );
+      });
+    },
+  );
+}
+
 /// A titled profile section with a divider above it.
 class _Section extends StatelessWidget {
   final IconData? icon;
@@ -302,7 +447,8 @@ class _Section extends StatelessWidget {
   final String title;
   final String? subtitle;
   final Widget child;
-  const _Section({this.icon, this.emoji, required this.title, this.subtitle, required this.child});
+  final VoidCallback? onEdit;
+  const _Section({this.icon, this.emoji, required this.title, this.subtitle, this.onEdit, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -330,7 +476,13 @@ class _Section extends StatelessWidget {
                     child: Text(subtitle!,
                         style: const TextStyle(fontSize: 11, color: Color(Config.text3))),
                   ),
-                ],
+                ] else
+                  const Spacer(),
+                if (onEdit != null)
+                  GestureDetector(
+                    onTap: onEdit,
+                    child: const Icon(Icons.edit_outlined, size: 18, color: Color(Config.text2)),
+                  ),
               ]),
               const SizedBox(height: 12),
               child,
