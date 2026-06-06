@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'api.dart';
 import 'config.dart';
+import 'engage_sheets.dart';
 
 /// Full match profile, opened from a Discover card (rich public-profile endpoint).
 class MatchDetailScreen extends StatefulWidget {
@@ -21,16 +22,56 @@ class MatchDetailScreen extends StatefulWidget {
 
 class _MatchDetailScreenState extends State<MatchDetailScreen> {
   late Future<MatchDetail> _future;
+  String? _viewerGender;
 
   @override
   void initState() {
     super.initState();
     _future = fetchMatchDetail(widget.profileId);
+    fetchCurrentUserGender().then((g) {
+      if (mounted) setState(() => _viewerGender = g);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      bottomNavigationBar: _viewerGender == null
+          ? null
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: Row(children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => showTipSheet(context, targetUserId: widget.profileId, viewerGender: _viewerGender!),
+                      icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                      label: const Text('Tip'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(Config.text1),
+                        side: const BorderSide(color: Color(0x33FFFFFF)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => showAdmireSheet(context, recipientId: widget.profileId, viewerGender: _viewerGender!, name: widget.fallbackName),
+                      icon: Text(_viewerGender == 'woman' ? '🌹' : '👀', style: const TextStyle(fontSize: 16)),
+                      label: Text(_viewerGender == 'woman' ? 'Admire' : 'Notice me'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(Config.accent),
+                        foregroundColor: const Color(0xFF052819),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                      ),
+                    ),
+                  ),
+                ]),
+              ),
+            ),
       body: FutureBuilder<MatchDetail>(
         future: _future,
         builder: (context, snap) {

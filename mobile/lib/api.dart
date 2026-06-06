@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+// hide MultipartFile: both dio and http (via supabase) export it; we use dio's.
+import 'package:supabase_flutter/supabase_flutter.dart' hide MultipartFile;
 import 'config.dart';
 
 /// The user's profile, assembled from the same two sources the web app uses:
@@ -172,6 +173,105 @@ Future<List<DiscoveryProfile>> fetchDiscovery({int limit = 12}) async {
       verifiedCount: (p['verified'] as List?)?.length ?? 0,
     );
   }).toList();
+}
+
+// ── Trust / Boost ───────────────────────────────────────────────────────────
+
+class ProofItem {
+  final String category;
+  final String aggregated;
+  final int points;
+  ProofItem({required this.category, required this.aggregated, required this.points});
+}
+
+class TrustData {
+  final int trustScore;
+  final bool identityVerified;
+  final List<ProofItem> proofs;
+  TrustData({required this.trustScore, required this.identityVerified, required this.proofs});
+  int get proofPoints => proofs.fold(0, (s, p) => s + p.points);
+}
+
+Future<TrustData> fetchTrust() async {
+  final uid = Supabase.instance.client.auth.currentUser!.id;
+  final session = Supabase.instance.client.auth.currentSession!;
+  final row = await Supabase.instance.client
+      .from('verified_vibe_users')
+      .select('trust_score, identity_verified')
+      .eq('id', uid)
+      .maybeSingle();
+
+  List<ProofItem> proofs = [];
+  try {
+    final resp = await _dio.get(
+      '${Config.apiBase}/api/verified-vibe/master-profile',
+      options: Options(headers: {'Authorization': 'Bearer ${session.accessToken}'}),
+    );
+    final body = resp.data is Map ? resp.data as Map : const {};
+    final list = (body['proofInsightsLocalStorage'] as List?) ?? const [];
+    proofs = list.whereType<Map>().map((p) {
+      return ProofItem(
+        category: (p['category'] ?? '').toString(),
+        aggregated: (p['aggregated'] ?? p['insight_label'] ?? '').toString(),
+        points: p['pts_awarded'] is num ? (p['pts_awarded'] as num).toInt() : 0,
+      );
+    }).toList();
+  } catch (_) {}
+
+  return TrustData(
+    trustScore: row?['trust_score'] is num ? (row!['trust_score'] as num).toInt() : 0,
+    identityVerified: row?['identity_verified'] == true,
+    proofs: proofs,
+  );
+}
+
+/// Upload a proof artifact (multipart) for a category → returns the API result
+/// ({verified, insights, pts_awarded, aggregated, ...}).
+Future<Map> uploadProof(String category, List<String> filePaths) async {
+  final form = FormData();
+  form.fields.add(MapEntry('category', category));
+  for (final path in filePaths) {
+    form.files.add(MapEntry('files', await MultipartFile.fromFile(path)));
+  }
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/proof-upload',
+    data: form,
+    options: Options(headers: {'Authorization': _bearer()}, receiveTimeout: const Duration(seconds: 120)),
+  );
+  return resp.data is Map ? resp.data as Map : const {};
+}
+
+// ── Tip / Attention ─────────────────────────────────────────────────────────
+
+Future<void> submitTip(String targetUserId, String submitterGender, List<String> tags, String? text) async {
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/tips',
+    data: {
+      'targetUserId': targetUserId,
+      'submitterGender': submitterGender,
+      'tags': tags,
+      if (text != null && text.isNotEmpty) 'text': text,
+    },
+    options: Options(headers: {'Content-Type': 'application/json'}),
+  );
+}
+
+/// Send a secret-admirer / craving-attention note. messageType derived from the
+/// sender's gender (man → craving_attention, woman → secret_admirer).
+/// Throws 'already' if a note was already sent to this person (409).
+Future<void> sendAttention(String recipientId, String senderGender, String content) async {
+  final uid = Supabase.instance.client.auth.currentUser!.id;
+  final messageType = senderGender == 'woman' ? 'secret_admirer' : 'craving_attention';
+  try {
+    await _dio.post(
+      '${Config.apiBase}/api/verified-vibe/attention',
+      data: {'senderId': uid, 'recipientId': recipientId, 'messageType': messageType, 'content': content},
+      options: Options(headers: {'Content-Type': 'application/json'}),
+    );
+  } on DioException catch (e) {
+    if (e.response?.statusCode == 409) throw 'already';
+    rethrow;
+  }
 }
 
 // ── Onboarding ──────────────────────────────────────────────────────────────

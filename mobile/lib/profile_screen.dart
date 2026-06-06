@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'api.dart';
 import 'config.dart';
 import 'settings_screen.dart';
+import 'trust_boost_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -157,6 +158,24 @@ class _ProfileBody extends StatelessWidget {
               _Stat(label: 'VERIFIED', value: '${data.proofsCount}',
                   sub: 'proofs', valueColor: const Color(Config.accent)),
             ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+          child: SizedBox(
+            width: double.infinity, height: 50,
+            child: FilledButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const TrustBoostScreen()),
+              ),
+              icon: const Icon(Icons.bolt),
+              label: const Text('Trust & Boost', style: TextStyle(fontWeight: FontWeight.w700)),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0x2234D399),
+                foregroundColor: const Color(Config.accent),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+              ),
+            ),
           ),
         ),
         const Divider(color: Color(0x14FFFFFF), height: 32),
