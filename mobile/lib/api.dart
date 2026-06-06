@@ -41,18 +41,28 @@ class SpendItem {
   SpendItem(this.emoji, this.category, this.amountLabel);
 }
 
+/// An uploaded profile photo (url + slot label) — the editable photo list that
+/// maps to master-profile `photos[]`.
+class PhotoItem {
+  final String url;
+  final String label;
+  PhotoItem(this.url, this.label);
+}
+
 class ProfileData {
   final String name;
   final int? age;
   final String? city;
   final String? heroPhotoUrl;
   final List<String> photos; // all displayable photo URLs (ai + uploaded)
+  final List<PhotoItem> uploadedPhotos; // editable uploaded photos (url+label)
   final int trustScore;
   final int proofsCount;
   final String about;
   final bool profileComplete;
   final String? gender;
   final String archetype; // raw code, e.g. casual_generous_man
+  final List<String> hardNos;
   final List<String> vibeWords;
   // Verified signals
   final SignalGroup? career; // linkedin
@@ -81,12 +91,14 @@ class ProfileData {
     required this.city,
     required this.heroPhotoUrl,
     required this.photos,
+    required this.uploadedPhotos,
     required this.trustScore,
     required this.proofsCount,
     required this.about,
     required this.profileComplete,
     required this.gender,
     required this.archetype,
+    required this.hardNos,
     required this.vibeWords,
     required this.career,
     required this.lifestyle,
@@ -122,7 +134,7 @@ Future<ProfileData> fetchProfile() async {
   // 1. Identity + avatar + trust — direct Supabase (RLS lets a user read self).
   final row = await supabase
       .from('verified_vibe_users')
-      .select('first_name, age, city, avatar_url, trust_score, gender, archetype')
+      .select('first_name, age, city, avatar_url, trust_score, gender, archetype, hard_nos')
       .eq('id', user.id)
       .maybeSingle();
 
@@ -146,13 +158,17 @@ Future<ProfileData> fetchProfile() async {
 
   // All displayable photo URLs: AI photos first, then uploaded (http/data only).
   final photos = <String>[];
+  final uploaded = <PhotoItem>[];
   for (final p in aiPhotos) {
     if (p is Map && p['url'] is String) photos.add(p['url'] as String);
   }
   for (final p in photosRaw) {
     if (p is Map && p['dataUrl'] is String) {
       final u = p['dataUrl'] as String;
-      if (u.startsWith('http') || u.startsWith('data:')) photos.add(u);
+      if (u.startsWith('http') || u.startsWith('data:')) {
+        photos.add(u);
+        uploaded.add(PhotoItem(u, (p['label'] ?? 'photo').toString()));
+      }
     }
   }
   String? hero = photos.isNotEmpty ? photos.first : null;
@@ -165,6 +181,13 @@ Future<ProfileData> fetchProfile() async {
   final trust = row?['trust_score'] != null ? _asInt(row!['trust_score']) : 0;
   final gender = row?['gender']?.toString();
   final archetype = (row?['archetype'] ?? '').toString();
+  final hardNos = <String>[];
+  if (row?['hard_nos'] is List) {
+    for (final h in (row!['hard_nos'] as List)) {
+      final s = '$h'.trim();
+      if (s.isNotEmpty) hardNos.add(s);
+    }
+  }
 
   // Vibe words from the AI-generated personality descriptors.
   final vibeWords = <String>[];
@@ -261,12 +284,14 @@ Future<ProfileData> fetchProfile() async {
     city: (city != null && city.isNotEmpty) ? city : null,
     heroPhotoUrl: hero,
     photos: photos,
+    uploadedPhotos: uploaded,
     trustScore: trust,
     proofsCount: proofs.length,
     about: about,
     profileComplete: draft != null || generated != null,
     gender: gender,
     archetype: archetype,
+    hardNos: hardNos,
     vibeWords: vibeWords,
     career: signal('linkedin'),
     lifestyle: signal('lifestyle'),
@@ -310,6 +335,73 @@ Future<void> saveAbout(String about, Map<String, dynamic> existingGenerated) asy
       'Content-Type': 'application/json',
     }),
   );
+}
+
+String _bearerToken() {
+  final s = Supabase.instance.client.auth.currentSession;
+  if (s == null) throw StateError('Not authenticated');
+  return 'Bearer ${s.accessToken}';
+}
+
+/// Upload a profile photo (base64 data URL) → returns the hosted URL. When
+/// label == 'lead' the backend also sets verified_vibe_users.avatar_url.
+Future<String> uploadPhoto(String dataUrl, String label) async {
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/upload-photo',
+    data: {'dataUrl': dataUrl, 'label': label},
+    options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
+  );
+  final url = (resp.data is Map) ? resp.data['url'] : null;
+  if (url is! String || url.isEmpty) throw 'Upload failed';
+  return url;
+}
+
+/// Persist the full uploaded-photos list to master-profile (replaces photos[]),
+/// and sync the lead (first) photo to verified_vibe_users.avatar_url so it shows
+/// everywhere discovery/chat read the identity row.
+Future<void> savePhotos(List<PhotoItem> photos) async {
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/master-profile',
+    data: {'photos': [for (final p in photos) {'dataUrl': p.url, 'label': p.label}]},
+    options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
+  );
+  final supabase = Supabase.instance.client;
+  final user = supabase.auth.currentUser;
+  if (user != null && photos.isNotEmpty) {
+    await supabase.from('verified_vibe_users').update({'avatar_url': photos.first.url}).eq('id', user.id);
+  }
+}
+
+/// Change the user's archetype (direct Supabase update — RLS allows self).
+Future<void> saveArchetype(String archetype) async {
+  final supabase = Supabase.instance.client;
+  final user = supabase.auth.currentUser;
+  if (user == null) throw StateError('Not authenticated');
+  await supabase.from('verified_vibe_users').update({'archetype': archetype}).eq('id', user.id);
+}
+
+/// Persist hard-nos (dealbreakers) to verified_vibe_users.hard_nos.
+Future<void> saveHardNos(List<String> hardNos) async {
+  final supabase = Supabase.instance.client;
+  final user = supabase.auth.currentUser;
+  if (user == null) throw StateError('Not authenticated');
+  await supabase.from('verified_vibe_users').update({'hard_nos': hardNos}).eq('id', user.id);
+}
+
+/// Normalize a free-typed dealbreaker into a concise phrase (Claude haiku).
+/// Falls back to the trimmed input on any error.
+Future<String> cleanupText(String text) async {
+  try {
+    final resp = await _dio.post(
+      '${Config.apiBase}/api/verified-vibe/cleanup-text',
+      data: {'text': text},
+      options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
+    );
+    final c = (resp.data is Map) ? resp.data['cleaned'] : null;
+    return (c is String && c.trim().isNotEmpty) ? c.trim() : text.trim();
+  } catch (_) {
+    return text.trim();
+  }
 }
 
 /// A match card in the Discover feed (from /api/verified-vibe/discovery-feed,

@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'api.dart';
 import 'archetypes.dart';
 import 'config.dart';
+import 'profile_edit.dart';
 import 'settings_screen.dart';
 import 'trust_boost_screen.dart';
 
@@ -126,7 +127,21 @@ class _ProfileBody extends StatelessWidget {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: EdgeInsets.zero,
       children: [
-        _Hero(photos: data.photos, fallback: data.heroPhotoUrl),
+        Stack(children: [
+          _Hero(photos: data.photos, fallback: data.heroPhotoUrl),
+          Positioned(
+            right: 12, top: 12,
+            child: Material(
+              color: const Color(0xCC0B1120),
+              shape: const CircleBorder(),
+              child: IconButton(
+                tooltip: 'Manage photos',
+                icon: const Icon(Icons.add_a_photo_outlined, size: 20, color: Color(Config.text1)),
+                onPressed: () => openPhotoManager(context, data, onChanged),
+              ),
+            ),
+          ),
+        ]),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
           child: Column(
@@ -152,10 +167,17 @@ class _ProfileBody extends StatelessWidget {
               const SizedBox(height: 8),
               Row(children: [
                 if (arch != null) ...[
-                  Text(arch.emoji, style: const TextStyle(fontSize: 16)),
-                  const SizedBox(width: 6),
-                  Text(arch.name,
-                      style: const TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w600)),
+                  GestureDetector(
+                    onTap: () => editArchetype(context, data, onChanged),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text(arch.emoji, style: const TextStyle(fontSize: 16)),
+                      const SizedBox(width: 6),
+                      Text(arch.name,
+                          style: const TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.edit_outlined, size: 13, color: Color(Config.text3)),
+                    ]),
+                  ),
                 ],
                 if (data.city != null) ...[
                   if (arch != null)
@@ -297,6 +319,21 @@ class _ProfileBody extends StatelessWidget {
               spacing: 8, runSpacing: 8,
               children: [for (final c in data.countries) _Pill('📍 $c')],
             ),
+          ),
+
+        // ── Hard nos ─────────────────────────────────────────────────────
+        if (data.gender != null)
+          _Section(
+            icon: Icons.block,
+            title: 'HARD NOS',
+            onEdit: () => editHardNos(context, data, onChanged),
+            child: data.hardNos.isEmpty
+                ? const Text('Tap edit to add your dealbreakers.',
+                    style: TextStyle(color: Color(Config.text3)))
+                : Wrap(
+                    spacing: 8, runSpacing: 8,
+                    children: [for (final h in data.hardNos) _Pill('✕ $h')],
+                  ),
           ),
 
         const SizedBox(height: 48),
