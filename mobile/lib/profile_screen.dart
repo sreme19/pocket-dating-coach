@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api.dart';
 import 'config.dart';
+import 'settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -38,9 +38,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         centerTitle: true,
         actions: [
           IconButton(
-            tooltip: 'Sign out',
-            icon: const Icon(Icons.logout, color: Color(Config.text2)),
-            onPressed: () => Supabase.instance.client.auth.signOut(),
+            tooltip: 'Settings',
+            icon: const Icon(Icons.settings_outlined, color: Color(Config.text2)),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+            ),
           ),
         ],
       ),
