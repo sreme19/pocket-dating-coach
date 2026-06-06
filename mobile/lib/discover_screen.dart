@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'api.dart';
 import 'config.dart';
+import 'match_detail_screen.dart';
 
 class DiscoverScreen extends StatefulWidget {
   const DiscoverScreen({super.key});
@@ -90,7 +91,16 @@ class _DiscoverScreenState extends State<DiscoverScreen>
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               itemCount: profiles.length,
               separatorBuilder: (_, _) => const SizedBox(height: 16),
-              itemBuilder: (context, i) => _MatchCard(profile: profiles[i]),
+              itemBuilder: (context, i) => GestureDetector(
+                onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => MatchDetailScreen(
+                    profileId: profiles[i].id,
+                    fallbackName: profiles[i].firstName,
+                    fallbackAvatar: profiles[i].avatar,
+                  ),
+                )),
+                child: _MatchCard(profile: profiles[i]),
+              ),
             ),
           );
         },

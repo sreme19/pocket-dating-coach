@@ -310,6 +310,62 @@ Future<String?> fetchCurrentUserGender() async {
   return null;
 }
 
+// ── Match detail (rich public profile) ─────────────────────────────────────
+
+class MatchDetail {
+  final String name;
+  final int? age;
+  final String? city;
+  final String? avatar;
+  final int trustScore;
+  final String archetypeLabel;
+  final String archetypeEmoji;
+  final String? hereFor;
+  final String? about;
+  final List<String> vibeWords;
+  final List<({String emoji, String text})> whatBrings;
+  final List<String> travel;
+
+  MatchDetail({
+    required this.name,
+    required this.age,
+    required this.city,
+    required this.avatar,
+    required this.trustScore,
+    required this.archetypeLabel,
+    required this.archetypeEmoji,
+    required this.hereFor,
+    required this.about,
+    required this.vibeWords,
+    required this.whatBrings,
+    required this.travel,
+  });
+}
+
+Future<MatchDetail> fetchMatchDetail(String profileId) async {
+  final resp = await _dio.get(
+    '${Config.apiBase}/api/verified-vibe/public-profile/$profileId',
+    options: Options(headers: {'Authorization': _bearer()}),
+  );
+  final body = resp.data is Map ? resp.data as Map : const {};
+  final d = (body['data'] is Map ? body['data'] as Map : const {});
+  final brings = (d['whatBrings'] as List?) ?? const [];
+  return MatchDetail(
+    name: (d['firstName'] ?? '—').toString(),
+    age: d['age'] is num ? (d['age'] as num).toInt() : null,
+    city: d['city'] as String?,
+    avatar: d['avatar'] as String?,
+    trustScore: d['trustScore'] is num ? (d['trustScore'] as num).toInt() : 0,
+    archetypeLabel: (d['archetypeName'] ?? DiscoveryProfile.prettyArchetype(d['archetype'] as String?)).toString(),
+    archetypeEmoji: (d['archetypeEmoji'] ?? '✨').toString(),
+    hereFor: d['hereFor'] as String?,
+    about: d['about'] as String?,
+    vibeWords: ((d['vibeWords'] as List?) ?? const []).map((e) => e.toString()).toList(),
+    whatBrings: brings.whereType<Map>().map((b) => (emoji: (b['emoji'] ?? '•').toString(), text: (b['text'] ?? '').toString())).toList(),
+    travel: ((d['travelLocations'] as List?) ?? const []).map((e) => e.toString()).toList(),
+  );
+}
+
 /// AI advisor turn (Wingman for men, Bestie for women). userId in body; no
 /// Bearer required by the endpoint. Returns the assistant's reply text.
 Future<String> askAdvisor({
