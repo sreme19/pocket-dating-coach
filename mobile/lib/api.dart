@@ -70,6 +70,8 @@ class ProfileData {
   // AI portraits
   final String? personalityPortraitUrl;
   final String? garagePortraitUrl;
+  // Raw generatedProfile map, kept so edits can merge without dropping fields.
+  final Map<String, dynamic> rawGenerated;
 
   bool get isMan => gender == null || gender == 'man';
 
@@ -98,6 +100,7 @@ class ProfileData {
     required this.countries,
     required this.personalityPortraitUrl,
     required this.garagePortraitUrl,
+    required this.rawGenerated,
   });
 }
 
@@ -277,6 +280,35 @@ Future<ProfileData> fetchProfile() async {
     countries: countries,
     personalityPortraitUrl: nonEmpty(master['personalityPortraitUrl']),
     garagePortraitUrl: nonEmpty(master['garagePortraitUrl']),
+    rawGenerated: generated != null ? Map<String, dynamic>.from(generated) : <String, dynamic>{},
+  );
+}
+
+/// Save name / age / city to verified_vibe_users (the authoritative identity
+/// row that discovery, matching, and chat all read). Mirrors the web hero edit.
+Future<void> saveIdentity({required String firstName, int? age, String? city}) async {
+  final supabase = Supabase.instance.client;
+  final user = supabase.auth.currentUser;
+  if (user == null) throw StateError('Not authenticated');
+  final patch = <String, dynamic>{'first_name': firstName.trim()};
+  if (age != null && age > 0) patch['age'] = age;
+  if (city != null) patch['city'] = city.trim();
+  await supabase.from('verified_vibe_users').update(patch).eq('id', user.id);
+}
+
+/// Save the About text. POST master-profile replaces generatedProfile wholesale,
+/// so we merge `about` into the existing map to avoid dropping other fields.
+Future<void> saveAbout(String about, Map<String, dynamic> existingGenerated) async {
+  final session = Supabase.instance.client.auth.currentSession;
+  if (session == null) throw StateError('Not authenticated');
+  final merged = Map<String, dynamic>.from(existingGenerated)..['about'] = about.trim();
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/master-profile',
+    data: {'generatedProfile': merged},
+    options: Options(headers: {
+      'Authorization': 'Bearer ${session.accessToken}',
+      'Content-Type': 'application/json',
+    }),
   );
 }
 
