@@ -554,6 +554,139 @@ class _Pill extends StatelessWidget {
   }
 }
 
+/// A chip group that can be edited in place: remove chips (× in edit mode) and
+/// AI-suggest more, persisting each change to the server (verifiedProofs) on its
+/// own so the surrounding profile doesn't need a full reload.
+class _EditableChips extends StatefulWidget {
+  final String category;
+  final List<InsightChip> initial;
+  final String aggregated;
+  const _EditableChips({super.key, required this.category, required this.initial, required this.aggregated});
+  @override
+  State<_EditableChips> createState() => _EditableChipsState();
+}
+
+class _EditableChipsState extends State<_EditableChips> {
+  late final List<InsightChip> _chips = List.of(widget.initial);
+  final List<InsightChip> _pending = [];
+  bool _edit = false;
+  bool _busy = false;
+  String? _error;
+
+  Future<void> _remove(InsightChip c) async {
+    setState(() => _chips.remove(c));
+    try {
+      await removeInsightChip(widget.category, c.label);
+    } catch (e) {
+      setState(() { _chips.add(c); _error = '$e'; });
+    }
+  }
+
+  Future<void> _suggest() async {
+    setState(() { _busy = true; _error = null; });
+    try {
+      final s = await suggestInsights(
+        widget.category, _chips.map((c) => c.label).toList(), widget.aggregated);
+      setState(() { _pending..clear()..addAll(s); _busy = false; });
+      if (s.isEmpty && mounted) {
+        setState(() => _error = 'No new suggestions right now.');
+      }
+    } catch (e) {
+      setState(() { _busy = false; _error = '$e'; });
+    }
+  }
+
+  Future<void> _add(InsightChip c) async {
+    setState(() { _chips.add(c); _pending.remove(c); });
+    try {
+      await addInsightChip(widget.category, c.label, c.emoji);
+    } catch (e) {
+      setState(() { _chips.remove(c); _error = '$e'; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final c in _chips)
+            _ChipWithRemove(text: '${c.emoji} ${c.label}', editing: _edit, onRemove: () => _remove(c)),
+          GestureDetector(
+            onTap: () => setState(() { _edit = !_edit; _pending.clear(); }),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: const Color(0x33FFFFFF)),
+              ),
+              child: Icon(_edit ? Icons.check : Icons.edit_outlined, size: 14, color: const Color(Config.text2)),
+            ),
+          ),
+        ]),
+        if (_edit) ...[
+          const SizedBox(height: 10),
+          if (_pending.isNotEmpty)
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final c in _pending)
+                GestureDetector(
+                  onTap: () => _add(c),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: const Color(0x2210B981),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: const Color(0x4D10B981)),
+                    ),
+                    child: Text('+ ${c.emoji} ${c.label}',
+                        style: const TextStyle(fontSize: 13, color: Color(Config.accent))),
+                  ),
+                ),
+            ]),
+          if (_pending.isNotEmpty) const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: _busy ? null : _suggest,
+            icon: _busy
+                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)))
+                : const Icon(Icons.auto_awesome, size: 16, color: Color(Config.accent)),
+            label: const Text('Suggest 3 more', style: TextStyle(color: Color(Config.accent))),
+            style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
+          ),
+        ],
+        if (_error != null) ...[
+          const SizedBox(height: 4),
+          Text(_error!, style: const TextStyle(fontSize: 12, color: Color(0xFFF87171))),
+        ],
+      ],
+    );
+  }
+}
+
+class _ChipWithRemove extends StatelessWidget {
+  final String text;
+  final bool editing;
+  final VoidCallback onRemove;
+  const _ChipWithRemove({required this.text, required this.editing, required this.onRemove});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(12, 7, editing ? 6 : 12, 7),
+      decoration: BoxDecoration(color: const Color(Config.bg3), borderRadius: BorderRadius.circular(999)),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Text(text, style: const TextStyle(fontSize: 13, color: Color(Config.text1), fontWeight: FontWeight.w500)),
+        if (editing) ...[
+          const SizedBox(width: 6),
+          GestureDetector(
+            onTap: onRemove,
+            child: const Icon(Icons.close, size: 15, color: Color(Config.text2)),
+          ),
+        ],
+      ]),
+    );
+  }
+}
+
 class _BringsRow extends StatelessWidget {
   final BringsItem item;
   const _BringsRow(this.item);
@@ -591,9 +724,12 @@ class _MoneyMatters extends StatelessWidget {
           ]),
         if (data.wealth != null) ...[
           const SizedBox(height: 12),
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            for (final c in data.wealth!.chips) _Pill('${c.emoji} ${c.label}'),
-          ]),
+          _EditableChips(
+            key: const ValueKey('sig_wealth'),
+            category: 'wealth',
+            initial: data.wealth!.chips,
+            aggregated: data.wealth!.aggregated,
+          ),
         ],
         if (data.spending.isNotEmpty) ...[
           const SizedBox(height: 14),
@@ -653,15 +789,16 @@ class _VerifiedSignalsState extends State<_VerifiedSignals> {
   @override
   Widget build(BuildContext context) {
     final d = widget.data;
-    final tabs = <(String, SignalGroup)>[
-      if (d.career != null) ('💼 Career', d.career!),
-      if (d.lifestyle != null) ('🌍 Lifestyle', d.lifestyle!),
-      if (d.health != null) ('💪 Health', d.health!),
-      if (d.social != null) ('🤝 Social', d.social!),
+    final tabs = <(String, SignalGroup, String)>[
+      if (d.career != null) ('💼 Career', d.career!, 'linkedin'),
+      if (d.lifestyle != null) ('🌍 Lifestyle', d.lifestyle!, 'lifestyle'),
+      if (d.health != null) ('💪 Health', d.health!, 'discipline'),
+      if (d.social != null) ('🤝 Social', d.social!, 'social_proof'),
     ];
     if (tabs.isEmpty) return const SizedBox.shrink();
     final active = _tab.clamp(0, tabs.length - 1);
     final group = tabs[active].$2;
+    final category = tabs[active].$3;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -693,9 +830,12 @@ class _VerifiedSignalsState extends State<_VerifiedSignals> {
           ]),
         ),
         const SizedBox(height: 12),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final c in group.chips) _Pill('${c.emoji} ${c.label}'),
-        ]),
+        _EditableChips(
+          key: ValueKey('sig_$category'),
+          category: category,
+          initial: group.chips,
+          aggregated: group.aggregated,
+        ),
         if (group.aggregated.isNotEmpty) ...[
           const SizedBox(height: 10),
           Text(group.aggregated,
