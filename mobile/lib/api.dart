@@ -173,3 +173,161 @@ Future<List<DiscoveryProfile>> fetchDiscovery({int limit = 12}) async {
     );
   }).toList();
 }
+
+// ── Chat ────────────────────────────────────────────────────────────────────
+
+String _bearer() {
+  final s = Supabase.instance.client.auth.currentSession;
+  if (s == null) throw StateError('Not authenticated');
+  return 'Bearer ${s.accessToken}';
+}
+
+/// A conversation row (from /api/verified-vibe/chat/conversations). The
+/// conversation id == match id (verified_vibe_matches.id).
+class Conversation {
+  final String id;
+  final String name;
+  final int? age;
+  final String? avatar;
+  final String lastMessage;
+  final DateTime? lastMessageTime;
+  final int unreadCount;
+  final bool hasMessages;
+
+  Conversation({
+    required this.id,
+    required this.name,
+    required this.age,
+    required this.avatar,
+    required this.lastMessage,
+    required this.lastMessageTime,
+    required this.unreadCount,
+    required this.hasMessages,
+  });
+}
+
+DateTime? _dt(dynamic v) => v == null ? null : DateTime.tryParse(v.toString());
+
+Future<List<Conversation>> fetchConversations() async {
+  final resp = await _dio.get(
+    '${Config.apiBase}/api/verified-vibe/chat/conversations',
+    options: Options(headers: {'Authorization': _bearer()}),
+  );
+  final body = resp.data is Map ? resp.data as Map : const {};
+  final data = body['data'] is Map ? body['data'] as Map : const {};
+  final convos = (data['conversations'] as List?) ?? const [];
+  return convos.whereType<Map>().map((c) {
+    final u = (c['matchedUser'] as Map?) ?? const {};
+    return Conversation(
+      id: (c['id'] ?? c['matchId']).toString(),
+      name: (u['firstName'] ?? '—').toString(),
+      age: u['age'] is num ? (u['age'] as num).toInt() : null,
+      avatar: u['avatar'] as String?,
+      lastMessage: (c['lastMessage'] ?? '').toString(),
+      lastMessageTime: _dt(c['lastMessageTime']),
+      unreadCount: c['unreadCount'] is num ? (c['unreadCount'] as num).toInt() : 0,
+      hasMessages: c['hasMessages'] == true,
+    );
+  }).toList();
+}
+
+class ChatMessage {
+  final String id;
+  final String senderId;
+  final String content;
+  final bool isAi;
+  final String? aiSignal;
+  final DateTime? createdAt;
+
+  ChatMessage({
+    required this.id,
+    required this.senderId,
+    required this.content,
+    required this.isAi,
+    required this.aiSignal,
+    required this.createdAt,
+  });
+
+  factory ChatMessage.fromApi(Map m) => ChatMessage(
+        id: (m['id'] ?? '').toString(),
+        senderId: (m['senderId'] ?? m['sender_id'] ?? '').toString(),
+        content: (m['content'] ?? '').toString(),
+        isAi: (m['isAi'] ?? m['is_ai']) == true,
+        aiSignal: (m['aiSignal'] ?? m['ai_signal']) as String?,
+        createdAt: _dt(m['createdAt'] ?? m['created_at']),
+      );
+}
+
+class ConversationThread {
+  final String otherName;
+  final String? otherAvatar;
+  final List<ChatMessage> messages;
+  ConversationThread({required this.otherName, required this.otherAvatar, required this.messages});
+}
+
+Future<ConversationThread> fetchConversation(String conversationId) async {
+  final resp = await _dio.get(
+    '${Config.apiBase}/api/verified-vibe/chat/$conversationId',
+    options: Options(headers: {'Authorization': _bearer()}),
+  );
+  final body = resp.data is Map ? resp.data as Map : const {};
+  final data = body['data'] is Map ? body['data'] as Map : const {};
+  final u = (data['matchedUser'] as Map?) ?? const {};
+  final msgs = (data['messages'] as List?) ?? const [];
+  return ConversationThread(
+    otherName: (u['firstName'] ?? 'Chat').toString(),
+    otherAvatar: u['avatar'] as String?,
+    messages: msgs.whereType<Map>().map(ChatMessage.fromApi).toList(),
+  );
+}
+
+Future<ChatMessage?> sendMessage(String conversationId, String content) async {
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/chat/send',
+    data: {'conversationId': conversationId, 'content': content},
+    options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
+  );
+  final body = resp.data is Map ? resp.data as Map : const {};
+  final data = body['data'] is Map ? body['data'] as Map : const {};
+  final m = data['message'] as Map?;
+  return m == null ? null : ChatMessage.fromApi(m);
+}
+
+/// Current user's gender ('man' / 'woman') — gates the AI Wingman vs Bestie row.
+Future<String?> fetchCurrentUserGender() async {
+  final uid = Supabase.instance.client.auth.currentUser?.id;
+  if (uid == null) return null;
+  final row = await Supabase.instance.client
+      .from('verified_vibe_users')
+      .select('gender, archetype')
+      .eq('id', uid)
+      .maybeSingle();
+  final g = row?['gender'] as String?;
+  if (g != null && g.isNotEmpty) return g;
+  final a = row?['archetype'] as String?;
+  if (a != null && a.endsWith('_man')) return 'man';
+  if (a != null && a.endsWith('_woman')) return 'woman';
+  return null;
+}
+
+/// AI advisor turn (Wingman for men, Bestie for women). userId in body; no
+/// Bearer required by the endpoint. Returns the assistant's reply text.
+Future<String> askAdvisor({
+  required bool wingman,
+  required String message,
+  required List<Map<String, String>> history,
+}) async {
+  final uid = Supabase.instance.client.auth.currentUser?.id;
+  if (uid == null) throw StateError('Not authenticated');
+  final path = wingman ? 'ai-wingman' : 'ai-bestie';
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/$path/chat',
+    data: {'userId': uid, 'message': message, 'intent': 'chat', 'history': history},
+    options: Options(
+      headers: {'Content-Type': 'application/json'},
+      receiveTimeout: const Duration(seconds: 60),
+    ),
+  );
+  final body = resp.data is Map ? resp.data as Map : const {};
+  return (body['reply'] ?? body['error'] ?? '…').toString();
+}
