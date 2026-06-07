@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api.dart';
 import 'config.dart';
+import 'voice_call_screen.dart';
 
 class ConversationScreen extends StatefulWidget {
   final String conversationId;
@@ -29,11 +30,14 @@ class _ConversationScreenState extends State<ConversationScreen> {
   String? _otherId;
   String? _otherAvatar;
   String _otherName = '';
+  String? _otherGender;
+  String? _viewerGender;
 
   @override
   void initState() {
     super.initState();
     _initialLoad();
+    fetchCurrentUserGender().then((g) { if (mounted) setState(() => _viewerGender = g); });
     _subscribeRealtime();
     // Polling backstop (mirrors the web client; covers the case where Supabase
     // realtime isn't enabled for the messages table yet).
@@ -71,6 +75,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       _otherId = thread.otherId;
       _otherAvatar = thread.otherAvatar;
       _otherName = thread.otherName;
+      _otherGender = thread.otherGender;
       _merge(thread.messages, scroll: true);
       if (mounted) setState(() => _loading = false);
     } catch (e) {
@@ -212,8 +217,45 @@ class _ConversationScreenState extends State<ConversationScreen> {
                             itemBuilder: (context, i) => _Bubble(msg: _messages[i], mine: _messages[i].senderId == _myId, otherName: _otherName),
                           ),
           ),
+          if (_viewerGender == 'man' && _otherGender == 'woman' && _otherId != null)
+            _CallBestieButton(
+              name: _otherName,
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => VoiceCallScreen(matchId: widget.conversationId, name: _otherName),
+              )),
+            ),
           _Composer(controller: _composer, sending: _sending, onSend: _send),
         ],
+      ),
+    );
+  }
+}
+
+/// "Talk to {name}'s AI bestie" CTA — a male viewer can voice-call a female
+/// match's AI bestie (gated server-side on her opt-in; shown optimistically).
+class _CallBestieButton extends StatelessWidget {
+  final String name;
+  final VoidCallback onTap;
+  const _CallBestieButton({required this.name, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: SizedBox(
+        width: double.infinity, height: 48,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(colors: [Color(0xFFA855F7), Color(0xFFEC4899)]),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: TextButton.icon(
+            onPressed: onTap,
+            icon: const Icon(Icons.call, color: Colors.white, size: 18),
+            label: Text("Talk to $name's AI bestie",
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+            style: TextButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999))),
+          ),
+        ),
       ),
     );
   }

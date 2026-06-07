@@ -844,8 +844,9 @@ class ConversationThread {
   final String? otherId;
   final String otherName;
   final String? otherAvatar;
+  final String? otherGender;
   final List<ChatMessage> messages;
-  ConversationThread({required this.otherId, required this.otherName, required this.otherAvatar, required this.messages});
+  ConversationThread({required this.otherId, required this.otherName, required this.otherAvatar, required this.otherGender, required this.messages});
 }
 
 Future<ConversationThread> fetchConversation(String conversationId) async {
@@ -861,8 +862,42 @@ Future<ConversationThread> fetchConversation(String conversationId) async {
     otherId: u['id'] as String?,
     otherName: (u['firstName'] ?? 'Chat').toString(),
     otherAvatar: u['avatar'] as String?,
+    otherGender: u['gender'] as String?,
     messages: msgs.whereType<Map>().map(ChatMessage.fromApi).toList(),
   );
+}
+
+/// A started AI-bestie voice call — LiveKit room + join token.
+class VoiceCallSession {
+  final String callId;
+  final String room;
+  final String token;
+  final String wsUrl;
+  final String ownerName;
+  VoiceCallSession({required this.callId, required this.room, required this.token, required this.wsUrl, required this.ownerName});
+}
+
+/// Start a voice call with the match's AI bestie. Throws with the server's
+/// message on 403 (owner hasn't opted in) / 409 (call already in progress).
+Future<VoiceCallSession> startVoiceCall(String matchId) async {
+  try {
+    final resp = await _dio.post(
+      '${Config.apiBase}/api/voice/calls/start',
+      data: {'matchId': matchId, 'consent': true},
+      options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
+    );
+    final b = resp.data is Map ? resp.data as Map : const {};
+    return VoiceCallSession(
+      callId: (b['callId'] ?? '').toString(),
+      room: (b['room'] ?? '').toString(),
+      token: (b['token'] ?? '').toString(),
+      wsUrl: (b['wsUrl'] ?? '').toString(),
+      ownerName: (b['ownerName'] ?? 'her').toString(),
+    );
+  } on DioException catch (e) {
+    final msg = e.response?.data is Map ? (e.response!.data['error']?.toString()) : null;
+    throw msg ?? 'Could not start the call.';
+  }
 }
 
 /// Block + unmatch a user (records a pass + removes the match). matchId optional.
