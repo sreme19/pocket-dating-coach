@@ -209,7 +209,7 @@
       <div class="hero__grid">
         <div class="hero__copy">
           <span class="hero__pill reveal"><span class="dot"></span> <b>100% identity-verified</b> members</span>
-          <h1 class="reveal d1">Pick your <span class="accent">lane.</span></h1>
+          <h1 class="reveal d1">No swipes. Ever. Just <span class="accent">matches.</span></h1>
           <p class="hero__sub reveal d2">The dating app where every match is identity-verified — and a personal AI coach reads every message, so you skip the games and the guessing.</p>
           <div class="hero__cta reveal d3">
             <a class="btn btn--primary btn--lg" href={GET_VERIFIED}><svg><use href="#ic-shield"/></svg>Get verified — it's free</a>
