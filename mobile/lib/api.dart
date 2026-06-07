@@ -618,6 +618,16 @@ Future<Map> uploadProofUrl(String category, String profileUrl) async {
   return resp.data is Map ? resp.data as Map : const {};
 }
 
+/// Permanently delete the account + all data (DELETE /api/verified-vibe/account).
+/// Optional churn reason/feedback. The server also removes the auth user.
+Future<void> deleteAccount({String? reason, String? feedback}) async {
+  await _dio.delete(
+    '${Config.apiBase}/api/verified-vibe/account',
+    data: {if (reason != null) 'reason': reason, if (feedback != null && feedback.isNotEmpty) 'feedback': feedback},
+    options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
+  );
+}
+
 /// Human-readable trust tier (mirrors getTrustScoreLabel in trustScore.ts).
 String trustLabel(int score) {
   if (score <= 0) return 'Not Verified';
