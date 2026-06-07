@@ -47,22 +47,31 @@ class _VerificationScreenState extends State<VerificationScreen> {
   String? _intent;
   // Step 3 — how you live
   String? _spending;
-  // Step 4 — photos & place
+  // Step 4 — about you, photos & place
+  final _nameCtrl = TextEditingController();
+  final _ageCtrl = TextEditingController();
   final _cityCtrl = TextEditingController();
   final List<String> _photoB64 = [];
+
+  int? get _age => int.tryParse(_ageCtrl.text.trim());
 
   bool get _stepComplete {
     switch (_step) {
       case 0: return _livenessDone;
       case 1: return _intent != null;
       case 2: return _spending != null;
-      case 3: return _photoB64.isNotEmpty && _cityCtrl.text.trim().isNotEmpty;
+      case 3:
+        final a = _age;
+        return _photoB64.isNotEmpty
+            && _nameCtrl.text.trim().isNotEmpty
+            && a != null && a >= 18 && a <= 120
+            && _cityCtrl.text.trim().isNotEmpty;
       default: return false;
     }
   }
 
   @override
-  void dispose() { _cityCtrl.dispose(); super.dispose(); }
+  void dispose() { _nameCtrl.dispose(); _ageCtrl.dispose(); _cityCtrl.dispose(); super.dispose(); }
 
   Future<String?> _capture({required ImageSource source, bool front = false}) async {
     final x = await _picker.pickImage(source: source, maxWidth: 1600, imageQuality: 85,
@@ -118,9 +127,10 @@ class _VerificationScreenState extends State<VerificationScreen> {
             'city': _cityCtrl.text.trim(),
             'openToTravel': true,
           });
-          if (_cityCtrl.text.trim().isNotEmpty) {
-            try { await saveIdentity(firstName: '', city: _cityCtrl.text.trim()); } catch (_) {}
-          }
+          // Name + age are now collected here (no longer auto-filled from a government ID).
+          try {
+            await saveIdentity(firstName: _nameCtrl.text.trim(), age: _age, city: _cityCtrl.text.trim());
+          } catch (_) {}
           break;
       }
       if (!mounted) return;
@@ -241,6 +251,40 @@ class _VerificationScreenState extends State<VerificationScreen> {
         ]);
       case 3:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // About you — first name + age (collected here now that ID is gone from onboarding)
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(
+              child: TextField(
+                controller: _nameCtrl,
+                textCapitalization: TextCapitalization.words,
+                onChanged: (_) => setState(() {}),
+                style: const TextStyle(color: Color(Config.text1)),
+                decoration: InputDecoration(
+                  labelText: 'First name',
+                  labelStyle: const TextStyle(color: Color(Config.text2)),
+                  filled: true, fillColor: const Color(Config.bg2),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            SizedBox(
+              width: 96,
+              child: TextField(
+                controller: _ageCtrl,
+                keyboardType: TextInputType.number,
+                onChanged: (_) => setState(() {}),
+                style: const TextStyle(color: Color(Config.text1)),
+                decoration: InputDecoration(
+                  labelText: 'Age',
+                  labelStyle: const TextStyle(color: Color(Config.text2)),
+                  filled: true, fillColor: const Color(Config.bg2),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 14),
           GestureDetector(
             onTap: _busy ? null : _pickPhotos,
             child: Container(

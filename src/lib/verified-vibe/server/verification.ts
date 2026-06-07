@@ -335,6 +335,132 @@ Do not include any other text.`
 }
 
 /**
+ * Liveness-only selfie check (no ID to compare against).
+ *
+ * Used at onboarding, where we no longer collect a government ID. Confirms the
+ * selfie is a genuine photo of a live person — not a screenshot, a printed
+ * photo, a stock image, or an obviously AI-generated face. The selfie captured
+ * here becomes the user's "anchor face", later matched against a government ID
+ * when they upload a name-bearing document.
+ *
+ * @param selfieBase64 - Base64-encoded selfie image
+ * @param mimeType - MIME type of the image
+ * @returns { live, confidence, reasoning }
+ * @throws Error if check fails
+ */
+export async function checkSelfieLivenessWithClaude(
+  selfieBase64: string,
+  mimeType: string = 'image/jpeg'
+): Promise<{ live: boolean; confidence: number; reasoning: string }> {
+  if (!CLAUDE_API_KEY) {
+    throw new Error('ANTHROPIC_API_KEY environment variable not set');
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    try {
+      const response = await fetch(CLAUDE_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': CLAUDE_API_KEY,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: CLAUDE_MODEL,
+          max_tokens: 512,
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: `You are performing a liveness check on a dating-app selfie. There is NO ID to compare against — judge ONLY whether this is a genuine, freshly-taken photo of a real, live human face.
+
+PASS (live=true) when the image shows a real person's face captured by a camera — natural lighting, depth, skin texture, and a plausible candid or selfie framing.
+
+FAIL (live=false) ONLY when there is clear evidence the image is NOT a live capture:
+- A photo of another screen or printed photo (visible bezels, moiré, glare, paper edges)
+- A stock / catalogue / professional headshot clearly not a casual selfie
+- An obviously AI-generated or heavily synthetic face
+- No human face present at all
+
+Be lenient on photo quality, angle, expression, accessories, and background — those do not make a selfie "not live".`
+                },
+                {
+                  type: 'image',
+                  source: { type: 'base64', media_type: mimeType, data: selfieBase64 }
+                },
+                {
+                  type: 'text',
+                  text: `Rate your confidence (0-100) that this is a genuine live selfie of a real person.
+A score of 50+ should pass. Only fail if you are confident it is a spoof, stock photo, or synthetic image.
+
+Return ONLY a JSON object:
+{
+  "confidence": <number 0-100>,
+  "live": <boolean>,
+  "reasoning": "<brief explanation>"
+}
+
+Do not include any other text.`
+                }
+              ]
+            }
+          ]
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        console.error('Claude API error:', error);
+        throw new Error(`Claude API error: ${error.error?.message || 'Unknown error'}`);
+      }
+
+      const data = await response.json();
+      const content = data.content[0]?.text;
+      if (!content) {
+        throw new Error('No response from Claude API');
+      }
+
+      let parsedResponse;
+      try {
+        parsedResponse = JSON.parse(content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim());
+      } catch (e) {
+        console.error('Failed to parse Claude response:', content);
+        throw new Error('Invalid response format from Claude API');
+      }
+
+      const confidence = parsedResponse.confidence ?? 0;
+      // Pass threshold 50 — we never hard-block; low scores go to manual review.
+      const live = parsedResponse.live === true || confidence >= 50;
+
+      return {
+        live,
+        confidence,
+        reasoning: parsedResponse.reasoning || 'Liveness assessed'
+      };
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        throw new Error('Request took too long. Please try again.');
+      }
+      throw fetchError;
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('Failed to check selfie liveness');
+  }
+}
+
+/**
  * Check photo consistency using Claude Vision
  *
  * @param photoBase64Array - Array of base64-encoded photo images

@@ -6,18 +6,24 @@
 
   interface Props {
     gender?: 'man' | 'woman' | null;
-    onSubmit: (data: { photos: File[]; city: string; openToTravel: boolean }) => void;
+    initialFirstName?: string;
+    initialAge?: number | null;
+    onSubmit: (data: { photos: File[]; firstName: string; age: number; city: string; openToTravel: boolean }) => void;
     onCancel?: () => void;
     onSkip?: () => void;
   }
 
-  let { gender = null, onSubmit, onCancel, onSkip }: Props = $props();
+  let { gender = null, initialFirstName = '', initialAge = null, onSubmit, onCancel, onSkip }: Props = $props();
 
   const showAiStrip = $derived(gender !== 'woman');
 
   const MAX_PHOTOS = 3;
   const MIN_PHOTOS = 1;
+  const MIN_AGE = 18;
+  const MAX_AGE = 120;
 
+  let firstName = $state(initialFirstName);
+  let age = $state<number | null>(initialAge);
   let photos = $state<PhotoEntry[]>([]);
   let city = $state('');
   let openToTravel = $state(false);
@@ -25,7 +31,10 @@
   let detecting = $state(false);
   let detectError = $state('');
 
-  const ready = $derived(photos.length >= MIN_PHOTOS && city.trim().length > 0);
+  const nameOk = $derived(firstName.trim().length > 0);
+  const ageOk = $derived(age != null && age >= MIN_AGE && age <= MAX_AGE);
+  const aboutFilled = $derived(nameOk && ageOk);
+  const ready = $derived(aboutFilled && photos.length >= MIN_PHOTOS && city.trim().length > 0);
   const photosFilled = $derived(photos.length >= MIN_PHOTOS);
 
   function readFileAsDataURL(file: File): Promise<string> {
@@ -75,6 +84,38 @@
     <div class="hero-meta">
       <span>⏱</span> 60 seconds to go live
     </div>
+  </div>
+
+  <!-- About you (name + age) -->
+  <div class="section">
+    <div class="section-title" class:section-title--filled={aboutFilled}>
+      <span class="section-icon">🪪</span>
+      About you
+    </div>
+    <div class="section-sub" style="margin-bottom: 12px;">Your first name and age — shown on your profile.</div>
+
+    <div class="about-row">
+      <input
+        class="about-input about-input--name"
+        type="text"
+        autocomplete="given-name"
+        autocapitalize="words"
+        placeholder="First name"
+        bind:value={firstName}
+      />
+      <input
+        class="about-input about-input--age"
+        type="number"
+        inputmode="numeric"
+        min={MIN_AGE}
+        max={MAX_AGE}
+        placeholder="Age"
+        bind:value={age}
+      />
+    </div>
+    {#if age != null && !ageOk}
+      <p class="detect-error">Enter an age between {MIN_AGE} and {MAX_AGE}.</p>
+    {/if}
   </div>
 
   <!-- Photos section -->
@@ -223,12 +264,12 @@
       class="cta-btn"
       class:cta-btn--ready={ready}
       disabled={!ready}
-      onclick={() => ready && onSubmit({ photos: photos.map(p => p.file), city: city.trim(), openToTravel })}
+      onclick={() => ready && onSubmit({ photos: photos.map(p => p.file), firstName: firstName.trim(), age: age ?? 0, city: city.trim(), openToTravel })}
     >
       {#if ready}
         Create profile &amp; find matches →
       {:else}
-        Add a photo &amp; your city to continue
+        Add your name, age, a photo &amp; city to continue
       {/if}
     </button>
     <p class="cta-hint">🔒 Photos are blurred for un-verified viewers.</p>
@@ -472,6 +513,43 @@
   .ai-strip-em {
     color: var(--accent-bright);
     font-style: italic;
+  }
+
+  /* About you fields */
+  .about-row {
+    display: flex;
+    gap: 8px;
+  }
+  .about-input {
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    border-radius: 14px;
+    padding: 13px 14px;
+    color: var(--text-1);
+    font-size: 14.5px;
+    font-weight: 500;
+    font-family: inherit;
+    outline: none;
+    min-width: 0;
+  }
+  .about-input::placeholder {
+    color: var(--text-3);
+  }
+  .about-input:focus {
+    border-color: rgba(52, 211, 153, 0.4);
+  }
+  .about-input--name {
+    flex: 1;
+  }
+  .about-input--age {
+    width: 88px;
+    flex-shrink: 0;
+    -moz-appearance: textfield;
+  }
+  .about-input--age::-webkit-outer-spin-button,
+  .about-input--age::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
   }
 
   /* City input */

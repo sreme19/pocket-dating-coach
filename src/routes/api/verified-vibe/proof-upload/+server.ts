@@ -79,8 +79,10 @@ IMPORTANT: Do NOT include any company or employer names in the insights or aggre
 
 Write one punchy "aggregated" sentence (8–12 words) that would look great on a dating profile — no company names.
 
+Also extract documentName: the full name of the person the CV/résumé belongs to (usually the header), or null if not present.
+
 YOU MUST return ONLY raw JSON — no explanation, no preamble, no markdown:
-{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Senior software engineer'","emoji":"💼"},...],"aggregated":"e.g. 'A senior engineer with a decade of real industry experience'","confidence":0.0-1.0,"reason":"one sentence"}
+{"verified":true/false,"documentName":"full name on CV or null","insights":[{"label":"3-5 words e.g. 'Senior software engineer'","emoji":"💼"},...],"aggregated":"e.g. 'A senior engineer with a decade of real industry experience'","confidence":0.0-1.0,"reason":"one sentence"}
 If the document has no clear career information, set verified=false.`,
 
   instagram: `You are reviewing an Instagram profile screenshot for a dating-app social verification step.
@@ -117,9 +119,12 @@ For each receipt or screenshot, extract:
 
 Write one punchy "aggregated" sentence (8–12 words) that captures their overall spending personality.
 
+If the image is a credit-card or bank statement, also extract documentName: the cardholder / account holder name printed on it, or null. For anonymous receipts with no name, use null.
+
 Return ONLY raw JSON — no markdown, no code fences:
 {
   "verified": true/false,
+  "documentName": "full name on statement or null",
   "insights": [{"label": "3-5 words e.g. 'Fine dining regular'", "emoji": "💳"}],
   "aggregated": "e.g. 'Spends generously on real experiences — dining, travel, and meaningful moments'",
   "spendingBreakdown": [
@@ -152,6 +157,7 @@ From the document(s) extract:
 - Income tier: "entry-level" / "professional" / "senior professional" / "high income" / "affluent"
 - Employer or institution name if clearly present (e.g. "HDFC Bank", "Infosys", "Zerodha", "ICICI Credit")
 - Estimated RANGE only — e.g. "₹5–10L/year", "₹2–5L/month", "₹50L+ portfolio", "₹1Cr+ net worth"
+- documentName: the full name printed on the document (account holder / employee / taxpayer), or null if not visible
 
 SPENDING PATTERNS — extract for bank statements AND credit card statements:
 Look for recurring debits, EMIs, card charges, UPI spends, SIP investments, subscriptions, travel bookings, dining.
@@ -169,6 +175,7 @@ IMPORTANT: ITR "Gross Total Income" → range tier only, never exact figure.
 YOU MUST return ONLY raw JSON — no explanation, no preamble, no markdown:
 {
   "verified": true,
+  "documentName": "full name on document or null",
   "insights": [{"label": "3-5 words", "emoji": "💰"}],
   "aggregated": "8-12 word profile sentence",
   "spendingBreakdown": [
@@ -194,10 +201,12 @@ For DL: extract the vehicle classes (COV field) and use a label like "Licensed L
 For property: city, type (apartment/villa/commercial).
 For company: company name, type (Pvt Ltd / LLP / LLC).
 
+Also extract documentName: the full name of the owner / licensee / authorised signatory printed on the document, or null if not visible.
+
 Write one punchy "aggregated" sentence (8–12 words) suitable for a dating profile.
 
 YOU MUST return ONLY raw JSON — no explanation, no preamble, no markdown, no code fences. Start your response with { and end with }:
-{"verified":true,"insights":[{"label":"3-5 words e.g. 'BMW X5 owner'","emoji":"🚗"}],"aggregated":"e.g. 'Licensed driver with multi-vehicle authorisation across India'","assets":[{"type":"car","make":"","model":"","year":"","color":"","vehicleType":""}],"confidence":0.0-1.0,"reason":"one sentence"}
+{"verified":true,"documentName":"full name on document or null","insights":[{"label":"3-5 words e.g. 'BMW X5 owner'","emoji":"🚗"}],"aggregated":"e.g. 'Licensed driver with multi-vehicle authorisation across India'","assets":[{"type":"car","make":"","model":"","year":"","color":"","vehicleType":""}],"confidence":0.0-1.0,"reason":"one sentence"}
 Only populate fields you can actually read. For a DL with no RC, omit make/model and set type to "car" with vehicleType matching the COV class.`,
 };
 
@@ -233,6 +242,40 @@ async function getUserIdFromRequest(request: Request): Promise<string | null> {
     const { data: { user } } = await client.auth.getUser();
     return user?.id ?? null;
   } catch { return null; }
+}
+
+/** Read the user's completed government-ID verification record, if any. */
+async function getVerifiedId(userId: string): Promise<{ idName?: string } | null> {
+  try {
+    const supabase = getSupabase();
+    const { data } = await (supabase as any)
+      .from('verified_vibe_verification')
+      .select('data')
+      .eq('user_id', userId)
+      .eq('step', 'id')
+      .eq('status', 'completed')
+      .maybeSingle();
+    return (data?.data as { idName?: string }) ?? null;
+  } catch { return null; }
+}
+
+/** Normalize a name into comparable tokens (lowercase, strip honorifics + punctuation). */
+function normalizeNameTokens(name: string): string[] {
+  const HONORIFICS = new Set(['mr', 'mrs', 'ms', 'miss', 'dr', 'shri', 'smt', 'kumari', 'sri', 'md']);
+  return name.toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(t => t.length > 1 && !HONORIFICS.has(t));
+}
+
+/**
+ * Warn-only name check: does the name on a document match the verified ID name?
+ * Returns null when the comparison can't be made (missing data) so the caller
+ * neither warns nor blocks.
+ */
+function docNameMatches(idName?: string, documentName?: string): boolean | null {
+  if (!idName || !documentName) return null;
+  const idTokens = new Set(normalizeNameTokens(idName));
+  const docTokens = normalizeNameTokens(documentName);
+  if (idTokens.size === 0 || docTokens.length === 0) return null;
+  return docTokens.some(t => idTokens.has(t));
 }
 
 async function persistInsight(userId: string, category: string, pts: number, data: object) {
@@ -360,6 +403,25 @@ export const POST: RequestHandler = async ({ request }) => {
 
     const pts = CATEGORY_PTS[category] ?? 4;
 
+    // Resolve the authenticated user once (used by the ID gate + persistence).
+    const userId = await getUserIdFromRequest(request);
+
+    // ── Government-ID gate for name-bearing documents ─────────────────────────
+    // Bank statements / payslips / ITR (wealth), ownership docs (assets),
+    // card & bank statements (spending), and CV/résumé PDFs (linkedin) all carry
+    // a person's name. Require a verified government ID before accepting them.
+    // Runs BEFORE any Claude call so unverified users don't burn a vision request.
+    const isCvPdf = category === 'linkedin' && files.some(f => f.type === 'application/pdf');
+    const gated = ['wealth', 'assets', 'spending'].includes(category) || isCvPdf;
+    const skipVerification = import.meta.env.VITE_SKIP_VERIFICATION === 'true';
+    let verifiedId: { idName?: string } | null = null;
+    if (gated && userId && !skipVerification) {
+      verifiedId = await getVerifiedId(userId);
+      if (!verifiedId) {
+        return json({ requiresIdVerification: true, category }, { status: 200 });
+      }
+    }
+
     // ── 1. Voice/video intro → auto-verify ───────────────────────────────────
     if (PROMPTS[category] === AUTO_VERIFY) {
       const hasAudio = files.some(f => f.type.startsWith('audio/'));
@@ -369,7 +431,6 @@ export const POST: RequestHandler = async ({ request }) => {
                   : hasVideo             ? 'Video intro recorded'
                   :                        'Intro uploaded';
       const insights = [{ label, emoji: hasVideo ? '🎥' : '🎙️' }];
-      const userId = await getUserIdFromRequest(request);
       if (userId) await persistInsight(userId, category, pts, { insights, pts_awarded: pts });
       return json({ verified: true, insights, pts_awarded: pts, photo_count: files.length, confidence: 1.0, reason: 'Intro files accepted' });
     }
@@ -383,7 +444,6 @@ export const POST: RequestHandler = async ({ request }) => {
       };
       const lbl = URL_LABELS[category] ?? { label: 'Profile connected', emoji: '🔗' };
       const insights = [lbl];
-      const userId = await getUserIdFromRequest(request);
       if (userId) await persistInsight(userId, category, pts, { insights, profile_url: profileUrl, pts_awarded: pts });
       return json({ verified: true, insights, pts_awarded: pts, photo_count: 0, confidence: 0.9, reason: `${lbl.label} via URL` });
     }
@@ -438,8 +498,8 @@ export const POST: RequestHandler = async ({ request }) => {
       const pdfFiles = files.filter(f => f.type === 'application/pdf');
       const parsed   = await callClaudeWithPdfs(pdfFiles, PROMPTS.linkedin);
       const cvInsights = (parsed?.insights?.length ? parsed.insights : [{ label: 'CV uploaded', emoji: '📄' }]).slice(0, 5);
-      const userId     = await getUserIdFromRequest(request);
-      if (userId) await persistInsight(userId, category, pts, { insights: cvInsights, aggregated: parsed?.aggregated, pts_awarded: pts });
+      const nameMatch  = docNameMatches(verifiedId?.idName, parsed?.documentName);
+      if (userId) await persistInsight(userId, category, pts, { insights: cvInsights, aggregated: parsed?.aggregated, pts_awarded: pts, ...(nameMatch === false ? { nameMismatch: true } : {}) });
       return json({
         verified:    parsed?.verified !== false,
         insights:    cvInsights,
@@ -448,6 +508,7 @@ export const POST: RequestHandler = async ({ request }) => {
         photo_count: files.length,
         confidence:  parsed?.confidence ?? 0.85,
         reason:      parsed?.reason ?? 'CV analysed',
+        nameMatch,
       });
     }
 
@@ -455,8 +516,8 @@ export const POST: RequestHandler = async ({ request }) => {
       const parsed    = await callClaudeWithPdfs(files, PROMPTS.wealth);
       const wInsights = (parsed?.insights?.length ? parsed.insights : [{ label: 'Financial document uploaded', emoji: '💰' }]).slice(0, 5);
       const wSpending = parsed?.spendingBreakdown ?? [];
-      const userId    = await getUserIdFromRequest(request);
-      if (userId) await persistInsight(userId, category, pts, { insights: wInsights, aggregated: parsed?.aggregated, spendingBreakdown: wSpending.length ? wSpending : undefined, pts_awarded: pts });
+      const nameMatch = docNameMatches(verifiedId?.idName, parsed?.documentName);
+      if (userId) await persistInsight(userId, category, pts, { insights: wInsights, aggregated: parsed?.aggregated, spendingBreakdown: wSpending.length ? wSpending : undefined, pts_awarded: pts, ...(nameMatch === false ? { nameMismatch: true } : {}) });
       return json({
         verified:          parsed?.verified !== false,
         insights:          wInsights,
@@ -466,6 +527,7 @@ export const POST: RequestHandler = async ({ request }) => {
         photo_count:       files.length,
         confidence:        parsed?.confidence ?? 0.85,
         reason:            parsed?.reason ?? 'Wealth PDF analysed',
+        nameMatch,
       });
     }
 
@@ -533,6 +595,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
     let result: {
       verified?: boolean;
+      documentName?: string;
       insights?: Array<{ label: string; emoji: string }>;
       locations?: string[];
       aggregated?: string;
@@ -556,11 +619,12 @@ export const POST: RequestHandler = async ({ request }) => {
     const spendingBreakdown = Array.isArray(result.spendingBreakdown) ? result.spendingBreakdown : [];
     if (insights.length === 0 && verified) insights.push({ label: 'Proof verified', emoji: '✅' });
 
+    // Warn-only name check for gated name-bearing documents.
+    const nameMatch = docNameMatches(verifiedId?.idName, result.documentName);
+
     let thumbnailUrls: string[] = [];
 
     if (verified) {
-      const userId = await getUserIdFromRequest(request);
-
       // Upload image files to Supabase Storage so thumbnails survive cross-device restore
       if (userId) {
         try {
@@ -590,7 +654,7 @@ export const POST: RequestHandler = async ({ request }) => {
         }
       }
 
-      if (userId) await persistInsight(userId, category, pts, { insights, locations, aggregated, assets, spendingBreakdown, confidence: result.confidence, reason: result.reason, pts_awarded: pts, photo_count: files.length, thumbnail_urls: thumbnailUrls });
+      if (userId) await persistInsight(userId, category, pts, { insights, locations, aggregated, assets, spendingBreakdown, confidence: result.confidence, reason: result.reason, pts_awarded: pts, photo_count: files.length, thumbnail_urls: thumbnailUrls, ...(nameMatch === false ? { nameMismatch: true } : {}) });
     }
 
     return json({
@@ -605,6 +669,7 @@ export const POST: RequestHandler = async ({ request }) => {
       confidence:     result.confidence ?? 0,
       reason:         result.reason ?? '',
       thumbnail_urls: thumbnailUrls,
+      nameMatch,
     });
 
   } catch (error) {
