@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import {
   extractIDWithClaude,
   checkLivenessWithClaude,
+  checkSelfieLivenessWithClaude,
   checkPhotoConsistencyWithClaude,
   analyzeSpendingPatternWithClaude,
   evaluateQAResponsesWithClaude
@@ -83,6 +84,37 @@ async function persistVerificationStep(
   }
 }
 
+// ── Anchor selfie (onboarding liveness face) ─────────────────────────────────
+// The onboarding selfie is stored as the user's "anchor face" and later matched
+// against a government ID when they upload a name-bearing document.
+const ANCHOR_BUCKET = 'profiles';
+const anchorSelfiePath = (userId: string) => `identity/${userId}/anchor_selfie.jpg`;
+
+/** Upload the onboarding selfie to Storage as the anchor face. Returns the path or null. */
+async function storeAnchorSelfie(userId: string, base64: string): Promise<string | null> {
+  try {
+    const supabase = getSupabase();
+    const path = anchorSelfiePath(userId);
+    const buffer = Buffer.from(base64, 'base64');
+    const { error } = await supabase.storage
+      .from(ANCHOR_BUCKET)
+      .upload(path, buffer, { contentType: 'image/jpeg', upsert: true });
+    if (error) { console.warn('anchor selfie upload failed (non-fatal):', error); return null; }
+    return path;
+  } catch (e) { console.warn('anchor selfie upload error (non-fatal):', e); return null; }
+}
+
+/** Download the stored anchor selfie as base64, or null if none exists. */
+async function loadAnchorSelfie(userId: string): Promise<string | null> {
+  try {
+    const supabase = getSupabase();
+    const { data, error } = await supabase.storage.from(ANCHOR_BUCKET).download(anchorSelfiePath(userId));
+    if (error || !data) return null;
+    const buf = Buffer.from(await data.arrayBuffer());
+    return buf.toString('base64');
+  } catch { return null; }
+}
+
 export const POST: RequestHandler = async ({ request }) => {
   try {
     const body = await request.json();
@@ -140,16 +172,34 @@ async function handleIDVerification(data: any, userId: string | null = null) {
   const skipVerification = import.meta.env.VITE_SKIP_VERIFICATION === 'true';
 
   try {
-    const result = skipVerification
+    const result: any = skipVerification
       ? { idNumber: 'DEV-SKIP', idName: 'Dev User', idDOB: '01/01/1990', idGender: undefined, expirationDate: undefined }
       : await extractIDWithClaude(data.image, data.mimeType);
 
+    // Match the ID photo against the onboarding anchor selfie, if one exists.
+    // Warn-only: a low match is flagged for review, never hard-blocked.
+    let faceMatch: boolean | null = null;
+    let faceConfidence: number | null = null;
+    if (userId && !skipVerification) {
+      const anchor = await loadAnchorSelfie(userId);
+      if (anchor) {
+        try {
+          const live = await checkLivenessWithClaude(anchor, data.image, data.mimeType);
+          faceMatch = live.match;
+          faceConfidence = live.confidence;
+        } catch (e) {
+          console.warn('anchor face match failed (non-fatal):', e);
+        }
+      }
+    }
+
+    const enriched = { ...result, faceMatch, faceConfidence };
     const trustPoints = getTrustPoints('id');
     if (userId && !skipVerification) {
-      await persistVerificationStep(userId, 'id', trustPoints, result as any);
+      await persistVerificationStep(userId, 'id', trustPoints, enriched);
       enrollInPoolIfVerified(userId).catch(() => {});
     }
-    return json({ status: 'completed', step: 'id', data: result, trustPoints });
+    return json({ status: 'completed', step: 'id', data: enriched, trustPoints });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'ID extraction failed';
     return json({ error: message }, { status: 422 });
@@ -160,20 +210,45 @@ async function handleIDVerification(data: any, userId: string | null = null) {
  * Handle liveness check — compares selfie against the ID photo using Claude Vision
  */
 async function handleLivenessVerification(data: any, userId: string | null = null) {
-  if (!data.selfieImage || !data.idPhotoBase64) {
-    return json({ error: 'Selfie and ID photo are required' }, { status: 400 });
+  if (!data.selfieImage) {
+    return json({ error: 'Selfie is required' }, { status: 400 });
   }
   try {
     const skipVerification = import.meta.env.VITE_SKIP_VERIFICATION === 'true';
-    const result = skipVerification
-      ? { confidence: 99, match: true }
-      : await checkLivenessWithClaude(data.selfieImage, data.idPhotoBase64, data.mimeType ?? 'image/jpeg');
+    const mimeType = data.mimeType ?? 'image/jpeg';
+    const hasIdPhoto = typeof data.idPhotoBase64 === 'string' && data.idPhotoBase64.length > 0;
 
-    // Always treat as completed — low-confidence matches go to manual review
+    let stepData: Record<string, unknown>;
+
+    if (hasIdPhoto) {
+      // Legacy / explicit path: compare the selfie against a provided ID photo.
+      const result = skipVerification
+        ? { confidence: 99, match: true }
+        : await checkLivenessWithClaude(data.selfieImage, data.idPhotoBase64, mimeType);
+      stepData = { confidence: result.confidence, match: result.match };
+    } else {
+      // Onboarding path: no ID — run a liveness-only check and store the selfie
+      // as the user's anchor face for later government-ID matching.
+      const result = skipVerification
+        ? { live: true, confidence: 99, reasoning: 'Bypassed in dev mode' }
+        : await checkSelfieLivenessWithClaude(data.selfieImage, mimeType);
+      let storedPath: string | null = null;
+      if (userId && !skipVerification) {
+        storedPath = await storeAnchorSelfie(userId, data.selfieImage);
+      }
+      // `match` mirrors `live` so existing clients reading match/confidence still work.
+      stepData = {
+        confidence: result.confidence,
+        live: result.live,
+        match: result.live,
+        ...(storedPath ? { anchorSelfiePath: storedPath } : {})
+      };
+    }
+
+    // Always treat as completed — low-confidence results go to manual review
     // rather than hard-blocking the user. The client surfaces "under review"
     // messaging when confidence < 50.
     const trustPoints = getTrustPoints('liveness');
-    const stepData = { confidence: result.confidence, match: result.match };
 
     if (userId) {
       await persistVerificationStep(userId, 'liveness', trustPoints, stepData);
