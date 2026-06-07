@@ -787,10 +787,11 @@ class ChatMessage {
 }
 
 class ConversationThread {
+  final String? otherId;
   final String otherName;
   final String? otherAvatar;
   final List<ChatMessage> messages;
-  ConversationThread({required this.otherName, required this.otherAvatar, required this.messages});
+  ConversationThread({required this.otherId, required this.otherName, required this.otherAvatar, required this.messages});
 }
 
 Future<ConversationThread> fetchConversation(String conversationId) async {
@@ -803,9 +804,19 @@ Future<ConversationThread> fetchConversation(String conversationId) async {
   final u = (data['matchedUser'] as Map?) ?? const {};
   final msgs = (data['messages'] as List?) ?? const [];
   return ConversationThread(
+    otherId: u['id'] as String?,
     otherName: (u['firstName'] ?? 'Chat').toString(),
     otherAvatar: u['avatar'] as String?,
     messages: msgs.whereType<Map>().map(ChatMessage.fromApi).toList(),
+  );
+}
+
+/// Block + unmatch a user (records a pass + removes the match). matchId optional.
+Future<void> blockUser(String blockedUserId, {String? matchId}) async {
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/block-user',
+    data: {'blockedUserId': blockedUserId, if (matchId != null) 'matchId': matchId},
+    options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
   );
 }
 

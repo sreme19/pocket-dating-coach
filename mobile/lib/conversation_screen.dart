@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api.dart';
 import 'config.dart';
@@ -25,6 +26,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
   String? _error;
   Timer? _poll;
   RealtimeChannel? _channel;
+  String? _otherId;
+  String? _otherAvatar;
+  String _otherName = '';
 
   @override
   void initState() {
@@ -64,6 +68,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
   Future<void> _initialLoad() async {
     try {
       final thread = await fetchConversation(widget.conversationId);
+      _otherId = thread.otherId;
+      _otherAvatar = thread.otherAvatar;
+      _otherName = thread.otherName;
       _merge(thread.messages, scroll: true);
       if (mounted) setState(() => _loading = false);
     } catch (e) {
@@ -129,14 +136,65 @@ class _ConversationScreenState extends State<ConversationScreen> {
     }
   }
 
+  Future<void> _confirmBlock() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(Config.bg2),
+        title: const Text('Unmatch & block?', style: TextStyle(color: Color(Config.text1))),
+        content: Text('You won’t see $_otherName again and the conversation will be removed.',
+            style: const TextStyle(color: Color(Config.text2))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel', style: TextStyle(color: Color(Config.text2)))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Unmatch', style: TextStyle(color: Color(0xFFF87171), fontWeight: FontWeight.w700))),
+        ],
+      ),
+    );
+    if (ok != true || _otherId == null) return;
+    try {
+      await blockUser(_otherId!, matchId: widget.conversationId);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final hasAvatar = _otherAvatar != null && _otherAvatar!.startsWith('http');
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(Config.bg1),
         elevation: 0,
-        title: Text(widget.title,
-            style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w600)),
+        titleSpacing: 0,
+        title: Row(children: [
+          CircleAvatar(
+            radius: 16,
+            backgroundColor: const Color(Config.bg3),
+            backgroundImage: hasAvatar ? CachedNetworkImageProvider(_otherAvatar!) : null,
+            child: hasAvatar ? null : Text(_otherName.isNotEmpty ? _otherName[0].toUpperCase() : '?',
+                style: const TextStyle(color: Color(Config.text1), fontSize: 13)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(widget.title,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w600)),
+          ),
+        ]),
+        actions: [
+          PopupMenuButton<String>(
+            color: const Color(Config.bg2),
+            icon: const Icon(Icons.more_vert, color: Color(Config.text2)),
+            onSelected: (v) { if (v == 'block') _confirmBlock(); },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(value: 'block',
+                  child: Text('Unmatch & block', style: TextStyle(color: Color(0xFFF87171)))),
+            ],
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -151,7 +209,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                             controller: _scroll,
                             padding: const EdgeInsets.all(12),
                             itemCount: _messages.length,
-                            itemBuilder: (context, i) => _Bubble(msg: _messages[i], mine: _messages[i].senderId == _myId),
+                            itemBuilder: (context, i) => _Bubble(msg: _messages[i], mine: _messages[i].senderId == _myId, otherName: _otherName),
                           ),
           ),
           _Composer(controller: _composer, sending: _sending, onSend: _send),
@@ -164,7 +222,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
 class _Bubble extends StatelessWidget {
   final ChatMessage msg;
   final bool mine;
-  const _Bubble({required this.msg, required this.mine});
+  final String otherName;
+  const _Bubble({required this.msg, required this.mine, required this.otherName});
 
   @override
   Widget build(BuildContext context) {
@@ -190,9 +249,10 @@ class _Bubble extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (ai)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 2),
-                child: Text('AI', style: TextStyle(color: Color(Config.accent), fontSize: 10, fontWeight: FontWeight.w700)),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Text(otherName.isNotEmpty ? "$otherName's AI Bestie" : 'AI Bestie',
+                    style: const TextStyle(color: Color(Config.accent), fontSize: 10, fontWeight: FontWeight.w700)),
               ),
             Text(
               '${msg.aiSignal != null ? '${msg.aiSignal} ' : ''}${msg.content}',
