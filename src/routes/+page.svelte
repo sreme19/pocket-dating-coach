@@ -141,21 +141,38 @@
 </script>
 
 <svelte:head>
-  <title>Verified Vibe — Verified, not vibes.</title>
+  <title>riteangle — Verified, not vibes.</title>
   <meta
     name="description"
     content="The dating app where every match is identity-verified — and a personal AI coach reads every message, so you skip the games and the guessing."
   />
+  <meta name="theme-color" content="#FF3B6B" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Gabarito:wght@400;500;600;700;800;900&display=swap"
     rel="stylesheet"
   />
 </svelte:head>
 
 <!-- ===== ICON SPRITE ===== -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <!-- riteangle brand marks: a right-angle (∟) with a heart nested in the corner -->
+  <symbol id="ra-mark" viewBox="0 0 100 100">
+    <g transform="rotate(-10 50 52)" fill="none" stroke-linecap="round">
+      <path d="M37,26 L37,72" stroke="#FF7A4D" stroke-width="13"/>
+      <path d="M37,72 L80,72" stroke="#FF3B6B" stroke-width="13"/>
+    </g>
+    <path d="M12,21 C12,21 3,14.6 3,8.6 C3,5.4 5.3,3.4 7.9,3.4 C9.8,3.4 11.3,4.6 12,5.9 C12.7,4.6 14.2,3.4 16.1,3.4 C18.7,3.4 21,5.4 21,8.6 C21,14.6 12,21 12,21 Z" fill="#E11D54" transform="translate(39.67,22.22) scale(1.778)"/>
+  </symbol>
+  <symbol id="ra-mark-inv" viewBox="0 0 100 100">
+    <g transform="rotate(-10 50 52)" fill="none" stroke-linecap="round">
+      <path d="M37,26 L37,72" stroke="#fff" stroke-width="13"/>
+      <path d="M37,72 L80,72" stroke="#fff" stroke-width="13"/>
+    </g>
+    <path d="M12,21 C12,21 3,14.6 3,8.6 C3,5.4 5.3,3.4 7.9,3.4 C9.8,3.4 11.3,4.6 12,5.9 C12.7,4.6 14.2,3.4 16.1,3.4 C18.7,3.4 21,5.4 21,8.6 C21,14.6 12,21 12,21 Z" fill="#fff" transform="translate(39.67,22.22) scale(1.778)"/>
+  </symbol>
+  <symbol id="ra-spark" viewBox="0 0 100 100"><path d="M50,4 C55.52,35.28 64.72,44.48 96,50 C64.72,55.52 55.52,64.72 50,96 C44.48,64.72 35.28,55.52 4,50 C35.28,44.48 44.48,35.28 50,4 Z" fill="currentColor"/></symbol>
   <symbol id="ic-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
   <symbol id="ic-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></symbol>
   <symbol id="ic-heart" viewBox="0 0 24 24" fill="currentColor"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.49 4.04 3 5.5l7 7Z"/></symbol>
@@ -186,8 +203,8 @@
   <!-- ===== NAV ===== -->
   <nav class="nav" id="nav">
     <a class="logo" href="#top">
-      <span class="logo__mark"><svg><use href="#ic-shield"/></svg></span>
-      <span class="logo__text">Verified&nbsp;<b>Vibe</b></span>
+      <span class="logo__mark"><svg><use href="#ra-mark"/></svg></span>
+      <span class="logo__text">rite<b>angle</b></span>
     </a>
     <div class="nav__links">
       <a href="#how">How it works</a>
@@ -198,7 +215,7 @@
     </div>
     <div class="nav__right">
       <a class="nav__signin" href={SIGN_IN}>Sign in</a>
-      <a class="btn btn--primary" href={GET_VERIFIED}><svg><use href="#ic-shield"/></svg>Get verified</a>
+      <a class="btn btn--primary" href={GET_VERIFIED}><svg><use href="#ra-mark-inv"/></svg>Get verified</a>
     </div>
   </nav>
 
@@ -212,7 +229,7 @@
           <h1 class="reveal d1">No swipes. Ever. Just <span class="accent">matches.</span></h1>
           <p class="hero__sub reveal d2">The dating app where every match is identity-verified — and a personal AI coach reads every message, so you skip the games and the guessing.</p>
           <div class="hero__cta reveal d3">
-            <a class="btn btn--primary btn--lg" href={GET_VERIFIED}><svg><use href="#ic-shield"/></svg>Get verified — it's free</a>
+            <a class="btn btn--primary btn--lg" href={GET_VERIFIED}><svg><use href="#ra-mark-inv"/></svg>Get verified — it's free</a>
           </div>
           <div class="badges reveal d3">
             <a class="store store--soon" href="#"><svg><use href="#ic-apple"/></svg><span><small>Coming to</small><strong>App Store</strong></span></a>
@@ -312,7 +329,7 @@
         <div class="hstep reveal d2">
           <div class="hstep__n">STEP 03</div>
           <div class="hstep__card">
-            <span class="hstep__ic"><svg><use href="#ic-sparkles"/></svg></span>
+            <span class="hstep__ic"><svg><use href="#ra-spark"/></svg></span>
             <h3>Match &amp; get coached</h3>
             <p>Your AI Bestie or Wingman reads the room — flagging red flags, drafting replies, and keeping it real.</p>
             <div class="hstep__tags"><span>AI Bestie</span><span>AI Wingman</span></div>
@@ -432,10 +449,10 @@
       <div class="safety__foot">
         <div class="age-gate">
           <span class="age-gate__badge">18+</span>
-          <div><b>Adults only.</b><span>Verified Vibe is strictly 18+. Age is confirmed at verification.</span></div>
+          <div><b>Adults only.</b><span>riteangle is strictly 18+. Age is confirmed at verification.</span></div>
         </div>
         <a class="plink" href={PRIVACY}><svg style="width:17px;height:17px"><use href="#ic-lock"/></svg> Read our Privacy Policy</a>
-        <a class="btn btn--primary" href={GET_VERIFIED}><svg><use href="#ic-shield"/></svg>Get verified</a>
+        <a class="btn btn--primary" href={GET_VERIFIED}><svg><use href="#ra-mark-inv"/></svg>Get verified</a>
       </div>
     </div>
   </section>
@@ -446,10 +463,10 @@
       <div class="footer__top">
         <div class="footer__brand">
           <a class="logo" href="#top">
-            <span class="logo__mark"><svg><use href="#ic-shield"/></svg></span>
-            <span class="logo__text">Verified&nbsp;<b>Vibe</b></span>
+            <span class="logo__mark"><svg><use href="#ra-mark-inv"/></svg></span>
+            <span class="logo__text">rite<b>angle</b></span>
           </a>
-          <p class="footer__blurb">Dating with the receipts. Every match identity-verified, every message coached. By Pocket Dating Coach.</p>
+          <p class="footer__blurb">Dating with the receipts. Every match identity-verified, every message coached. By riteangle.</p>
           <div class="badges">
             <a class="store store--soon" href="#"><svg><use href="#ic-apple"/></svg><span><small>Coming to</small><strong>App Store</strong></span></a>
             <a class="store" href="#"><svg><use href="#ic-play"/></svg><span><small>Get it on</small><strong>Google Play</strong></span></a>
@@ -460,7 +477,7 @@
         <div class="footer__col"><h5>Company</h5><a href="#">About</a><a href="#">Careers</a><a href="#">Support</a><a href="#">Press</a></div>
       </div>
       <div class="footer__bottom">
-        <p class="footer__legal">© 2026 Pocket Dating Coach, Inc. · Verified Vibe, Trust Score, AI Bestie &amp; AI Wingman are marks of Pocket Dating Coach. Must be 18+ to join. Dating involves real-world risk; always meet safely.</p>
+        <p class="footer__legal">© 2026 riteangle, Inc. · Trust Score, AI Bestie &amp; AI Wingman are marks of riteangle. Must be 18+ to join. Dating involves real-world risk; always meet safely.</p>
         <div class="footer__social">
           <a href="#" aria-label="Instagram"><svg><use href="#ic-ig"/></svg></a>
           <a href="#" aria-label="X"><svg><use href="#ic-x"/></svg></a>
