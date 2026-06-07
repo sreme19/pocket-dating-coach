@@ -30,7 +30,11 @@ class _ChatListScreenState extends State<ChatListScreen>
   Future<_ChatData> _load() async {
     final gender = await fetchCurrentUserGender();
     final convos = await fetchConversations();
-    return _ChatData(gender: gender, conversations: convos);
+    List<Admirer> admirers = const [];
+    try {
+      admirers = await fetchAdmirers();
+    } catch (_) {/* non-fatal */}
+    return _ChatData(gender: gender, conversations: convos, admirers: admirers);
   }
 
   Future<void> _refresh() async {
@@ -87,14 +91,24 @@ class _ChatListScreenState extends State<ChatListScreen>
                       builder: (_) => AdvisorScreen(wingman: isMan),
                     )),
                   ),
-                if (newMatches.isNotEmpty) _NewMatches(matches: newMatches, onTap: _open),
+                if (newMatches.isNotEmpty && _filter != 2) _NewMatches(matches: newMatches, onTap: _open),
                 _FilterTabs(
                   filter: _filter,
                   allCount: data.conversations.where((c) => c.hasMessages).length,
                   unreadCount: unreadTotal,
+                  admirerCount: data.admirers.length,
                   onChanged: (i) => setState(() => _filter = i),
                 ),
-                if (active.isEmpty)
+                if (_filter == 2) ...[
+                  if (data.admirers.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(20, 40, 20, 0),
+                      child: Text('No admirers yet — when someone notices you, they’ll show up here. 🌹',
+                          textAlign: TextAlign.center, style: TextStyle(color: Color(Config.text2))),
+                    )
+                  else
+                    ...data.admirers.map((a) => _AdmirerCard(admirer: a, onReplied: _refresh)),
+                ] else if (active.isEmpty)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 40, 20, 0),
                     child: Text(
@@ -134,7 +148,8 @@ class _ChatListScreenState extends State<ChatListScreen>
 class _ChatData {
   final String? gender;
   final List<Conversation> conversations;
-  _ChatData({required this.gender, required this.conversations});
+  final List<Admirer> admirers;
+  _ChatData({required this.gender, required this.conversations, required this.admirers});
 }
 
 String _ago(DateTime? t) {
@@ -222,8 +237,9 @@ class _FilterTabs extends StatelessWidget {
   final int filter;
   final int allCount;
   final int unreadCount;
+  final int admirerCount;
   final ValueChanged<int> onChanged;
-  const _FilterTabs({required this.filter, required this.allCount, required this.unreadCount, required this.onChanged});
+  const _FilterTabs({required this.filter, required this.allCount, required this.unreadCount, required this.admirerCount, required this.onChanged});
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -232,6 +248,8 @@ class _FilterTabs extends StatelessWidget {
         _tab('All $allCount', 0),
         const SizedBox(width: 8),
         _tab(unreadCount > 0 ? 'Unread $unreadCount' : 'Unread', 1),
+        const SizedBox(width: 8),
+        _tab(admirerCount > 0 ? '🌹 Admirers $admirerCount' : '🌹 Admirers', 2),
       ]),
     );
   }
@@ -291,6 +309,119 @@ class _AdvisorRow extends StatelessWidget {
         style: const TextStyle(color: Color(Config.text2), fontSize: 13),
       ),
       trailing: const Icon(Icons.chevron_right, color: Color(Config.text3)),
+    );
+  }
+}
+
+class _AdmirerCard extends StatelessWidget {
+  final Admirer admirer;
+  final VoidCallback onReplied;
+  const _AdmirerCard({required this.admirer, required this.onReplied});
+
+  Future<void> _reply(BuildContext context) async {
+    final ctrl = TextEditingController();
+    final text = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(Config.bg2),
+        title: Text('Reply to ${admirer.name}', style: const TextStyle(color: Color(Config.text1), fontSize: 18)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLines: 3,
+          style: const TextStyle(color: Color(Config.text1)),
+          decoration: InputDecoration(
+            hintText: 'Say something back…',
+            hintStyle: const TextStyle(color: Color(Config.text3)),
+            filled: true, fillColor: const Color(Config.bg3),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: Color(Config.text2)))),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFF052819)),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+    if (text == null || text.isEmpty) return;
+    try {
+      final matchId = await replyToAdmirer(admirer.id, text);
+      if (context.mounted && matchId != null && matchId.isNotEmpty) {
+        await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => ConversationScreen(
+            conversationId: matchId,
+            title: admirer.age != null ? '${admirer.name}, ${admirer.age}' : admirer.name,
+          ),
+        ));
+      }
+      onReplied();
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isAdmirer = admirer.messageType == 'secret_admirer';
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(Config.bg2),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0x33EC4899)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            padding: const EdgeInsets.all(2),
+            decoration: const BoxDecoration(shape: BoxShape.circle, border: Border.fromBorderSide(BorderSide(color: Color(0xFFEC4899), width: 2))),
+            child: CircleAvatar(
+              radius: 22,
+              backgroundColor: const Color(Config.bg3),
+              backgroundImage: (admirer.avatar != null && admirer.avatar!.startsWith('http'))
+                  ? CachedNetworkImageProvider(admirer.avatar!) : null,
+              child: (admirer.avatar == null || !admirer.avatar!.startsWith('http'))
+                  ? Text(admirer.name.isNotEmpty ? admirer.name[0].toUpperCase() : '?', style: const TextStyle(color: Color(Config.text1))) : null,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(admirer.age != null ? '${admirer.name}, ${admirer.age}' : admirer.name,
+                  style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700)),
+              Text(isAdmirer ? '🌹 Secret admirer' : '👀 Wants your attention',
+                  style: const TextStyle(color: Color(0xFFEC4899), fontSize: 12)),
+            ]),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        Text(admirer.content, style: const TextStyle(color: Color(Config.text1), height: 1.3)),
+        const SizedBox(height: 12),
+        if (admirer.replied)
+          Row(children: [
+            const Icon(Icons.check_circle, size: 16, color: Color(Config.accent)),
+            const SizedBox(width: 6),
+            const Text('You replied', style: TextStyle(color: Color(Config.text2), fontSize: 13)),
+          ])
+        else
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () => _reply(context),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0x22EC4899),
+                foregroundColor: const Color(0xFFF9A8D4),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Reply', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ),
+      ]),
     );
   }
 }
