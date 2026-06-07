@@ -4,10 +4,10 @@ import 'package:image_picker/image_picker.dart';
 import 'api.dart';
 import 'config.dart';
 
-/// Native verification: ID scan → liveness selfie → intent → photos, each
-/// submitted to /api/verified-vibe/verify-step (images as base64). On a real
-/// device the camera captures real photos; on the emulator it still exercises
-/// capture → upload → response. "Skip for now" lets onboarding complete.
+/// Staged, one-step-at-a-time verification (mirrors the web's high-intent flow):
+/// 1 Identity Check (ID + liveness) → 2 Drawn To → 3 How You Live → 4 Photos.
+/// A progress bar + per-step momentum keep it moving. Each step submits to
+/// /api/verified-vibe/verify-step; the ID step fills in real name/age.
 class VerificationScreen extends StatefulWidget {
   final VoidCallback onDone;
   const VerificationScreen({super.key, required this.onDone});
@@ -16,69 +16,60 @@ class VerificationScreen extends StatefulWidget {
   State<VerificationScreen> createState() => _VerificationScreenState();
 }
 
-enum _StepState { todo, working, done, error }
+class _StepMeta {
+  final String emoji, title, desc, time, momentum;
+  const _StepMeta(this.emoji, this.title, this.desc, this.time, this.momentum);
+}
+
+const _steps = <_StepMeta>[
+  _StepMeta('🪪', 'Identity Check', "Prove you're actually you.", '~90 sec',
+      'Every member is ID-verified — that’s why matches here actually show up.'),
+  _StepMeta('✨', 'Drawn To', "What you're here for.", '~1 min',
+      'Clear intent means better matches — and fewer wasted conversations.'),
+  _StepMeta('💼', 'How You Live', 'Your lifestyle & standards.', '~1 min',
+      'This shapes who you see and who sees you. Be honest — it pays off.'),
+  _StepMeta('📸', 'Photos & Place', 'Almost there.', '~60 sec',
+      'Real photos + your city unlock Discovery. You’re one step from matching.'),
+];
 
 class _VerificationScreenState extends State<VerificationScreen> {
   final _picker = ImagePicker();
+  int _step = 0;
+  bool _busy = false;
+  String? _error;
+
+  // Step 1 — identity
   String? _idPhotoB64;
+  bool _idDone = false, _livenessDone = false;
+  String _idResult = '', _livenessResult = '';
+  // Step 2 — drawn to
+  String? _intent;
+  // Step 3 — how you live
+  String? _spending;
+  // Step 4 — photos & place
+  final _cityCtrl = TextEditingController();
+  final List<String> _photoB64 = [];
 
-  final Map<String, _StepState> _state = {
-    'id': _StepState.todo,
-    'liveness': _StepState.todo,
-    'intent': _StepState.todo,
-    'photos': _StepState.todo,
-  };
-  final Map<String, String> _result = {};
-
-  bool get _allDone => _state.values.every((s) => s == _StepState.done);
-
-  Future<String?> _capture({required ImageSource source, bool front = false}) async {
-    final x = await _picker.pickImage(
-      source: source,
-      maxWidth: 1600,
-      imageQuality: 85,
-      preferredCameraDevice: front ? CameraDevice.front : CameraDevice.rear,
-    );
-    if (x == null) return null;
-    final bytes = await x.readAsBytes();
-    return base64Encode(bytes);
-  }
-
-  void _set(String step, _StepState s, [String? result]) {
-    if (!mounted) return;
-    setState(() {
-      _state[step] = s;
-      if (result != null) _result[step] = result;
-    });
-  }
-
-  Future<void> _runId(ImageSource source) async {
-    _set('id', _StepState.working);
-    try {
-      final b64 = await _capture(source: source);
-      if (b64 == null) { _set('id', _StepState.todo); return; }
-      _idPhotoB64 = b64;
-      final res = await verifyStep('id', {'image': b64, 'mimeType': 'image/jpeg'});
-      Map r = res;
-      if (res['data'] is Map) r = res['data'] as Map;
-      final name = (r['idName'] as String?)?.trim();
-      final age = _ageFromDob(r['idDOB'] as String?);
-      // Persist the REAL name/age from the ID, overwriting onboarding placeholders.
-      if ((name != null && name.isNotEmpty) || age != null) {
-        try {
-          await saveIdentity(firstName: name ?? '', age: age);
-        } catch (_) {/* non-fatal — verification is still recorded */}
-      }
-      final label = (name != null && name.isNotEmpty)
-          ? 'ID read: $name${age != null ? ', $age' : ''}'
-          : 'ID submitted';
-      _set('id', _StepState.done, label);
-    } catch (e) {
-      _set('id', _StepState.error, _err(e));
+  bool get _stepComplete {
+    switch (_step) {
+      case 0: return _idDone && _livenessDone;
+      case 1: return _intent != null;
+      case 2: return _spending != null;
+      case 3: return _photoB64.isNotEmpty && _cityCtrl.text.trim().isNotEmpty;
+      default: return false;
     }
   }
 
-  /// Extract age from an ID DOB string (handles slashes/dashes; finds the year).
+  @override
+  void dispose() { _cityCtrl.dispose(); super.dispose(); }
+
+  Future<String?> _capture({required ImageSource source, bool front = false}) async {
+    final x = await _picker.pickImage(source: source, maxWidth: 1600, imageQuality: 85,
+        preferredCameraDevice: front ? CameraDevice.front : CameraDevice.rear);
+    if (x == null) return null;
+    return base64Encode(await x.readAsBytes());
+  }
+
   int? _ageFromDob(String? dob) {
     if (dob == null || dob.isEmpty) return null;
     final m = RegExp(r'(19|20)\d{2}').firstMatch(dob);
@@ -88,126 +79,86 @@ class _VerificationScreenState extends State<VerificationScreen> {
     return (age >= 18 && age <= 100) ? age : null;
   }
 
+  Future<void> _runId(ImageSource source) async {
+    setState(() { _busy = true; _error = null; });
+    try {
+      final b64 = await _capture(source: source);
+      if (b64 == null) { setState(() => _busy = false); return; }
+      _idPhotoB64 = b64;
+      final res = await verifyStep('id', {'image': b64, 'mimeType': 'image/jpeg'});
+      Map r = res; if (res['data'] is Map) r = res['data'] as Map;
+      final name = (r['idName'] as String?)?.trim();
+      final age = _ageFromDob(r['idDOB'] as String?);
+      if ((name != null && name.isNotEmpty) || age != null) {
+        try { await saveIdentity(firstName: name ?? '', age: age); } catch (_) {}
+      }
+      setState(() {
+        _busy = false; _idDone = true;
+        _idResult = (name != null && name.isNotEmpty) ? 'ID read: $name${age != null ? ', $age' : ''}' : 'ID submitted ✓';
+      });
+    } catch (e) {
+      setState(() { _busy = false; _error = _err(e); });
+    }
+  }
+
   Future<void> _runLiveness() async {
-    _set('liveness', _StepState.working);
+    setState(() { _busy = true; _error = null; });
     try {
       final b64 = await _capture(source: ImageSource.camera, front: true);
-      if (b64 == null) { _set('liveness', _StepState.todo); return; }
-      final res = await verifyStep('liveness', {
-        'selfieImage': b64,
-        'idPhotoBase64': _idPhotoB64 ?? '',
-        'mimeType': 'image/jpeg',
-      });
+      if (b64 == null) { setState(() => _busy = false); return; }
+      final res = await verifyStep('liveness', {'selfieImage': b64, 'idPhotoBase64': _idPhotoB64 ?? '', 'mimeType': 'image/jpeg'});
       final conf = res['confidence'] ?? (res['data'] is Map ? (res['data'] as Map)['confidence'] : null);
-      _set('liveness', _StepState.done, conf != null ? 'Liveness · ${conf is num ? conf.round() : conf}%' : 'Selfie submitted');
+      setState(() {
+        _busy = false; _livenessDone = true;
+        _livenessResult = conf != null ? 'Liveness · ${conf is num ? conf.round() : conf}%' : 'Selfie matched ✓';
+      });
     } catch (e) {
-      _set('liveness', _StepState.error, _err(e));
+      setState(() { _busy = false; _error = _err(e); });
     }
   }
 
-  static const _intentOptions = <({String code, String label})>[
-    (code: 'casual', label: 'Casual'),
-    (code: 'relationship', label: 'Serious relationship'),
-    (code: 'marriage', label: 'Marriage-minded'),
-    (code: 'exploring', label: 'Still exploring'),
-  ];
-
-  Future<void> _runIntent() async {
-    final picked = await showModalBottomSheet<({String code, String label})>(
-      context: context,
-      backgroundColor: const Color(Config.bg2),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 18, 20, 8),
-            child: Align(alignment: Alignment.centerLeft,
-                child: Text('What are you here for?',
-                    style: TextStyle(color: Color(Config.text1), fontSize: 18, fontWeight: FontWeight.w700))),
-          ),
-          for (final o in _intentOptions)
-            ListTile(
-              title: Text(o.label, style: const TextStyle(color: Color(Config.text1))),
-              trailing: const Icon(Icons.chevron_right, color: Color(Config.text3)),
-              onTap: () => Navigator.pop(ctx, o),
-            ),
-          const SizedBox(height: 8),
-        ]),
-      ),
-    );
-    if (picked == null) return;
-    _set('intent', _StepState.working);
-    try {
-      await verifyStep('spending_or_qa', {
-        'responses': {'dating_intent': picked.code},
-        'mimeType': 'application/json',
-      });
-      _set('intent', _StepState.done, 'Intent: ${picked.label}');
-    } catch (e) {
-      _set('intent', _StepState.error, _err(e));
-    }
+  Future<void> _pickPhotos() async {
+    final files = await _picker.pickMultiImage(maxWidth: 1600, imageQuality: 85);
+    if (files.isEmpty) return;
+    final imgs = <String>[];
+    for (final f in files) { imgs.add(base64Encode(await f.readAsBytes())); }
+    setState(() { _photoB64..clear()..addAll(imgs); });
   }
 
-  String _city = '';
-
-  Future<void> _runPhotos(ImageSource source) async {
-    // Collect the city once (was hardcoded empty before).
-    if (_city.isEmpty) {
-      final ctrl = TextEditingController();
-      final city = await showDialog<String>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(Config.bg2),
-          title: const Text('Where are you based?', style: TextStyle(color: Color(Config.text1), fontSize: 18)),
-          content: TextField(
-            controller: ctrl,
-            autofocus: true,
-            textCapitalization: TextCapitalization.words,
-            style: const TextStyle(color: Color(Config.text1)),
-            decoration: InputDecoration(
-              hintText: 'City',
-              hintStyle: const TextStyle(color: Color(Config.text3)),
-              filled: true, fillColor: const Color(Config.bg3),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-            ),
-          ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-              style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFF052819)),
-              child: const Text('Continue'),
-            ),
-          ],
-        ),
-      );
-      if (city == null) return; // dismissed
-      _city = city;
-      if (_city.isNotEmpty) {
-        try { await saveIdentity(firstName: '', city: _city); } catch (_) {}
-      }
-    }
-    _set('photos', _StepState.working);
+  /// Advance: submit the current step's data, then move on (or finish).
+  Future<void> _continue() async {
+    if (!_stepComplete || _busy) return;
+    setState(() { _busy = true; _error = null; });
     try {
-      final List<XFile> files = source == ImageSource.gallery
-          ? await _picker.pickMultiImage(maxWidth: 1600, imageQuality: 85)
-          : [if (await _picker.pickImage(source: ImageSource.camera, maxWidth: 1600, imageQuality: 85) case final x?) x];
-      if (files.isEmpty) { _set('photos', _StepState.todo); return; }
-      final images = <String>[];
-      for (final f in files) {
-        images.add(base64Encode(await f.readAsBytes()));
+      switch (_step) {
+        case 1:
+          await verifyStep('spending_or_qa', {'responses': {'dating_intent': _intent}, 'mimeType': 'application/json'});
+          break;
+        case 2:
+          await verifyStep('spending_or_qa', {'responses': {'spending_comfort': _spending}, 'mimeType': 'application/json'});
+          break;
+        case 3:
+          final labels = {for (var i = 0; i < _photoB64.length; i++) '$i': i == 0 ? 'main' : 'photo'};
+          await verifyStep('photos', {
+            'images': _photoB64,
+            'mimeTypes': List.filled(_photoB64.length, 'image/jpeg'),
+            'labels': labels,
+            'city': _cityCtrl.text.trim(),
+            'openToTravel': true,
+          });
+          if (_cityCtrl.text.trim().isNotEmpty) {
+            try { await saveIdentity(firstName: '', city: _cityCtrl.text.trim()); } catch (_) {}
+          }
+          break;
       }
-      final labels = {for (var i = 0; i < images.length; i++) '$i': i == 0 ? 'main' : 'photo'};
-      final res = await verifyStep('photos', {
-        'images': images,
-        'mimeTypes': List.filled(images.length, 'image/jpeg'),
-        'labels': labels,
-        'city': _city,
-        'openToTravel': true,
-      });
-      final url = res['avatarUrl'] ?? (res['data'] is Map ? (res['data'] as Map)['avatarUrl'] : null);
-      _set('photos', _StepState.done, url != null ? '${images.length} photo(s) · lead set' : '${images.length} photo(s) uploaded');
+      if (!mounted) return;
+      if (_step >= _steps.length - 1) {
+        widget.onDone();
+      } else {
+        setState(() { _busy = false; _step++; });
+      }
     } catch (e) {
-      _set('photos', _StepState.error, _err(e));
+      setState(() { _busy = false; _error = _err(e); });
     }
   }
 
@@ -215,75 +166,154 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final meta = _steps[_step];
+    final completed = _step + (_stepComplete ? 1 : 0);
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(Config.bg1),
         elevation: 0,
-        title: const Text('Get verified', style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700)),
-        actions: [
-          TextButton(onPressed: widget.onDone, child: const Text('Skip for now', style: TextStyle(color: Color(Config.text2)))),
-        ],
+        leading: _step > 0
+            ? IconButton(icon: const Icon(Icons.arrow_back, color: Color(Config.text1)), onPressed: _busy ? null : () => setState(() { _step--; _error = null; }))
+            : null,
+        title: Text('Step ${_step + 1} of ${_steps.length}',
+            style: const TextStyle(color: Color(Config.text2), fontSize: 14, fontWeight: FontWeight.w600)),
+        actions: [TextButton(onPressed: widget.onDone, child: const Text('Skip', style: TextStyle(color: Color(Config.text3))))],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(4, 8, 4, 16),
-            child: Text('Every member is identity-verified. Four quick checks build your Trust Score.',
-                style: TextStyle(color: Color(Config.text2), fontSize: 15, height: 1.4)),
-          ),
-          _stepCard(
-            step: 'id', icon: '🪪', title: 'Government ID', sub: 'Scan your ID — proves you’re real.',
-            onPrimary: () => _runId(ImageSource.camera), primaryLabel: 'Scan ID',
-            onSecondary: () => _runId(ImageSource.gallery),
-          ),
-          _stepCard(
-            step: 'liveness', icon: '🤳', title: 'Liveness selfie', sub: 'A quick selfie to match your ID.',
-            onPrimary: _runLiveness, primaryLabel: 'Take selfie',
-          ),
-          _stepCard(
-            step: 'intent', icon: '✨', title: 'Your intent', sub: 'What you’re here for.',
-            onPrimary: _runIntent, primaryLabel: 'Confirm intent',
-          ),
-          _stepCard(
-            step: 'photos', icon: '📸', title: 'Profile photos', sub: 'Add photos — first one is your lead.',
-            onPrimary: () => _runPhotos(ImageSource.camera), primaryLabel: 'Take photo',
-            onSecondary: () => _runPhotos(ImageSource.gallery),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity, height: 54,
-            child: FilledButton(
-              onPressed: _allDone ? widget.onDone : null,
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(Config.accent),
-                foregroundColor: const Color(0xFF052819),
-                disabledBackgroundColor: const Color(Config.bg3),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text(_allDone ? 'Enter Verified Vibe' : 'Finish all checks to continue',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+      body: Column(children: [
+        // Progress bar
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: completed / _steps.length, minHeight: 6,
+              backgroundColor: const Color(0x22FFFFFF),
+              valueColor: const AlwaysStoppedAnimation(Color(Config.accent)),
             ),
           ),
-        ],
-      ),
+        ),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+            children: [
+              Text(meta.emoji, style: const TextStyle(fontSize: 44)),
+              const SizedBox(height: 12),
+              Text(meta.title, style: const TextStyle(color: Color(Config.text1), fontSize: 26, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              Row(children: [
+                Text(meta.desc, style: const TextStyle(color: Color(Config.text2), fontSize: 15)),
+                const SizedBox(width: 8),
+                Text('· ${meta.time}', style: const TextStyle(color: Color(Config.text3), fontSize: 13)),
+              ]),
+              const SizedBox(height: 24),
+              _stepBody(),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(color: const Color(0x2210B981), borderRadius: BorderRadius.circular(12)),
+                child: Row(children: [
+                  const Text('💚', style: TextStyle(fontSize: 16)),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(meta.momentum, style: const TextStyle(color: Color(Config.accent), fontSize: 13, height: 1.4))),
+                ]),
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(_error!, style: const TextStyle(color: Color(0xFFF87171), fontSize: 13)),
+              ],
+            ],
+          ),
+        ),
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: SizedBox(
+              width: double.infinity, height: 54,
+              child: FilledButton(
+                onPressed: (_stepComplete && !_busy) ? _continue : null,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(Config.accent),
+                  foregroundColor: const Color(0xFF052819),
+                  disabledBackgroundColor: const Color(Config.bg3),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: _busy
+                    ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF052819)))
+                    : Text(_step >= _steps.length - 1 ? 'Finish & enter' : 'Continue',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ),
+        ),
+      ]),
     );
   }
 
-  Widget _stepCard({
-    required String step,
-    required String icon,
-    required String title,
-    required String sub,
-    required VoidCallback onPrimary,
-    required String primaryLabel,
-    VoidCallback? onSecondary,
-  }) {
-    final s = _state[step]!;
-    final done = s == _StepState.done;
-    final working = s == _StepState.working;
+  Widget _stepBody() {
+    switch (_step) {
+      case 0:
+        return Column(children: [
+          _captureCard('🪪', 'Government ID', 'Scan your ID — proves you’re real.', _idDone, _idResult,
+              primaryLabel: 'Scan ID', onPrimary: () => _runId(ImageSource.camera), onSecondary: () => _runId(ImageSource.gallery)),
+          const SizedBox(height: 12),
+          _captureCard('🤳', 'Liveness selfie', 'A quick selfie to match your ID.', _livenessDone, _livenessResult,
+              primaryLabel: 'Take selfie', onPrimary: _idDone ? _runLiveness : null,
+              disabledHint: _idDone ? null : 'Scan your ID first'),
+        ]);
+      case 1:
+        return Column(children: [
+          for (final o in const [('casual', 'Casual'), ('relationship', 'Serious relationship'), ('marriage', 'Marriage-minded'), ('exploring', 'Still exploring')])
+            _optionTile(o.$2, _intent == o.$1, () => setState(() => _intent = o.$1)),
+        ]);
+      case 2:
+        return Column(children: [
+          for (final o in const [('budget', 'Budget-conscious'), ('moderate', 'Moderate spender'), ('generous', 'Generous spender'), ('luxury', 'Luxury lifestyle')])
+            _optionTile(o.$2, _spending == o.$1, () => setState(() => _spending = o.$1)),
+        ]);
+      case 3:
+        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          GestureDetector(
+            onTap: _busy ? null : _pickPhotos,
+            child: Container(
+              height: 120,
+              decoration: BoxDecoration(
+                color: const Color(Config.bg2),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: _photoB64.isNotEmpty ? const Color(Config.accent) : const Color(0x33FFFFFF)),
+              ),
+              child: Center(child: _photoB64.isEmpty
+                  ? const Column(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.add_a_photo_outlined, color: Color(Config.text2)),
+                      SizedBox(height: 6),
+                      Text('Add your photos', style: TextStyle(color: Color(Config.text2))),
+                    ])
+                  : Text('✓ ${_photoB64.length} photo${_photoB64.length == 1 ? '' : 's'} · tap to change',
+                      style: const TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w600))),
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _cityCtrl,
+            textCapitalization: TextCapitalization.words,
+            onChanged: (_) => setState(() {}),
+            style: const TextStyle(color: Color(Config.text1)),
+            decoration: InputDecoration(
+              labelText: 'Your city',
+              labelStyle: const TextStyle(color: Color(Config.text2)),
+              filled: true, fillColor: const Color(Config.bg2),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            ),
+          ),
+        ]);
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _captureCard(String emoji, String title, String sub, bool done, String result,
+      {required String primaryLabel, VoidCallback? onPrimary, VoidCallback? onSecondary, String? disabledHint}) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(Config.bg2),
@@ -292,38 +322,59 @@ class _VerificationScreenState extends State<VerificationScreen> {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Text(icon, style: const TextStyle(fontSize: 24)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700, fontSize: 16)),
-              Text(sub, style: const TextStyle(color: Color(Config.text2), fontSize: 13)),
-            ]),
-          ),
+          Text(emoji, style: const TextStyle(fontSize: 22)),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700, fontSize: 15)),
+            Text(sub, style: const TextStyle(color: Color(Config.text2), fontSize: 13)),
+          ])),
           if (done) const Icon(Icons.check_circle, color: Color(Config.accent)),
         ]),
-        if (_result[step] != null) ...[
+        if (result.isNotEmpty) ...[
           const SizedBox(height: 8),
-          Text(_result[step]!,
-              style: TextStyle(color: s == _StepState.error ? const Color(0xFFF87171) : const Color(Config.accent), fontSize: 13)),
+          Text(result, style: const TextStyle(color: Color(Config.accent), fontSize: 13)),
         ],
         const SizedBox(height: 12),
         Row(children: [
-          if (working)
-            const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent))))
-          else ...[
-            OutlinedButton(
-              onPressed: onPrimary,
-              style: OutlinedButton.styleFrom(side: const BorderSide(color: Color(Config.accent)), foregroundColor: const Color(Config.accent)),
-              child: Text(done ? 'Redo' : primaryLabel),
-            ),
-            if (onSecondary != null) ...[
-              const SizedBox(width: 10),
-              TextButton(onPressed: onSecondary, child: const Text('Upload', style: TextStyle(color: Color(Config.text2)))),
-            ],
+          OutlinedButton(
+            onPressed: onPrimary,
+            style: OutlinedButton.styleFrom(side: const BorderSide(color: Color(Config.accent)), foregroundColor: const Color(Config.accent)),
+            child: Text(done ? 'Redo' : primaryLabel),
+          ),
+          if (onSecondary != null) ...[
+            const SizedBox(width: 10),
+            TextButton(onPressed: onSecondary, child: const Text('Upload', style: TextStyle(color: Color(Config.text2)))),
+          ],
+          if (disabledHint != null) ...[
+            const SizedBox(width: 10),
+            Text(disabledHint, style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
           ],
         ]),
       ]),
+    );
+  }
+
+  Widget _optionTile(String label, bool selected, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0x2210B981) : const Color(Config.bg2),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: selected ? const Color(Config.accent) : const Color(0x18FFFFFF), width: selected ? 2 : 1),
+          ),
+          child: Row(children: [
+            Expanded(child: Text(label, style: TextStyle(
+                color: selected ? const Color(Config.accent) : const Color(Config.text1),
+                fontWeight: FontWeight.w600, fontSize: 16))),
+            Icon(selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                color: selected ? const Color(Config.accent) : const Color(Config.text3), size: 22),
+          ]),
+        ),
+      ),
     );
   }
 }
