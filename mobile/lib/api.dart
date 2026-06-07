@@ -544,15 +544,30 @@ class ProofItem {
   final String category;
   final String aggregated;
   final int points;
-  ProofItem({required this.category, required this.aggregated, required this.points});
+  final int photoCount;
+  final String insightLabel; // headline insight, e.g. "Multi-continent globe-trotter"
+  ProofItem({
+    required this.category,
+    required this.aggregated,
+    required this.points,
+    this.photoCount = 0,
+    this.insightLabel = '',
+  });
 }
 
 class TrustData {
   final int trustScore;
   final bool identityVerified;
+  final String archetype;
   final List<ProofItem> proofs;
-  TrustData({required this.trustScore, required this.identityVerified, required this.proofs});
+  TrustData({required this.trustScore, required this.identityVerified, required this.archetype, required this.proofs});
   int get proofPoints => proofs.fold(0, (s, p) => s + p.points);
+  ProofItem? proofFor(String category) {
+    for (final p in proofs) {
+      if (p.category == category) return p;
+    }
+    return null;
+  }
 }
 
 Future<TrustData> fetchTrust() async {
@@ -560,7 +575,7 @@ Future<TrustData> fetchTrust() async {
   final session = Supabase.instance.client.auth.currentSession!;
   final row = await Supabase.instance.client
       .from('verified_vibe_users')
-      .select('trust_score, identity_verified')
+      .select('trust_score, identity_verified, archetype')
       .eq('id', uid)
       .maybeSingle();
 
@@ -577,6 +592,8 @@ Future<TrustData> fetchTrust() async {
         category: (p['category'] ?? '').toString(),
         aggregated: (p['aggregated'] ?? p['insight_label'] ?? '').toString(),
         points: p['pts_awarded'] is num ? (p['pts_awarded'] as num).toInt() : 0,
+        photoCount: p['photo_count'] is num ? (p['photo_count'] as num).toInt() : 0,
+        insightLabel: (p['insight_label'] ?? '').toString(),
       );
     }).toList();
   } catch (_) {}
@@ -584,6 +601,7 @@ Future<TrustData> fetchTrust() async {
   return TrustData(
     trustScore: row?['trust_score'] is num ? (row!['trust_score'] as num).toInt() : 0,
     identityVerified: row?['identity_verified'] == true,
+    archetype: (row?['archetype'] ?? '').toString(),
     proofs: proofs,
   );
 }
