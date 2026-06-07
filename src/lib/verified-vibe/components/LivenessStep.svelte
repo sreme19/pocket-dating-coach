@@ -4,12 +4,15 @@
   import type { LivenessCheckResult } from '../types';
 
   interface Props {
-    idPhotoBase64: string;
+    // Optional. When empty (the onboarding case) the server runs a liveness-only
+    // check and stores this selfie as the anchor face. When provided, it does a
+    // face-compare against that ID photo (legacy path).
+    idPhotoBase64?: string;
     onSubmit?: (data: LivenessCheckResult) => Promise<void>;
     onCancel?: () => void;
   }
 
-  let { idPhotoBase64, onSubmit, onCancel }: Props = $props();
+  let { idPhotoBase64 = '', onSubmit, onCancel }: Props = $props();
 
   // ── State machine ────────────────────────────────────────────────────────────
   type Phase =
@@ -323,8 +326,8 @@
   {#if phase === 'verifying'}
     <div class="status-screen">
       <div class="spinner-ring"></div>
-      <p class="status-text">Verifying face match…</p>
-      <p class="status-sub">Comparing against your ID</p>
+      <p class="status-text">Verifying your selfie…</p>
+      <p class="status-sub">Confirming you're a real, live person</p>
     </div>
   {/if}
 
@@ -333,10 +336,10 @@
     <div class="status-screen">
       <div class="review-badge">
         <span class="review-pct">{matchPct}%</span>
-        <span class="review-label">match</span>
+        <span class="review-label">score</span>
       </div>
       <p class="status-text">Under review</p>
-      <p class="status-sub">Your identity will be verified within 24 hours. You can continue setting up your profile in the meantime.</p>
+      <p class="status-sub">Your selfie will be reviewed within 24 hours. You can continue setting up your profile in the meantime.</p>
       <button class="cta" onclick={async () => { if (onSubmit) await onSubmit({ confidence: matchPct, match: false } as any); }}>
         Continue
       </button>
@@ -348,7 +351,7 @@
   {#if phase === 'failed'}
     <div class="status-screen">
       <div class="fail-icon">✕</div>
-      <p class="status-text">Match failed</p>
+      <p class="status-text">Selfie check failed</p>
       <p class="status-sub">{errMsg ?? 'Please try again in better lighting.'}</p>
       <button class="cta" onclick={retry}>Try again</button>
       <button class="cancel-link" onclick={cancel}>Cancel</button>

@@ -4,7 +4,7 @@
   import { getSupabaseClient } from '$lib/client/supabase';
 
   type Category = 'lifestyle' | 'hosting' | 'discipline' | 'social_proof' | 'linkedin' | 'instagram' | 'twitter' | 'habit_tracker' | 'intro' | 'spending' | 'assets' | 'wealth';
-  type Step = 'upload' | 'analyzing' | 'success' | 'failed';
+  type Step = 'upload' | 'analyzing' | 'id-gate' | 'success' | 'failed';
 
   interface CategoryConfig {
     icon: string;
@@ -274,8 +274,11 @@
   let files           = $state<File[]>([]);
   let previews        = $state<string[]>([]);
   let step            = $state<Step>('upload');
-  let result          = $state<{ insights: Array<{ label: string; emoji: string }>; pts_awarded: number; reason: string; locations?: string[]; aggregated?: string } | null>(null);
+  let result          = $state<{ insights: Array<{ label: string; emoji: string }>; pts_awarded: number; reason: string; locations?: string[]; aggregated?: string; nameMatch?: boolean | null } | null>(null);
   let failReason      = $state('');
+  // ── Government-ID gate (name-bearing documents only) ──────────────────────
+  let idGateLoading   = $state(false);
+  let idGateError     = $state('');
   let dragOver        = $state(false);
   let existingInsight = $state<StoredInsight | null>(null);
 
@@ -479,6 +482,11 @@
 
       const data = await resp.json();
 
+      // Name-bearing documents (bank statements, ownership papers, CVs, etc.) need a
+      // verified government ID first. The server signals this; show the ID gate, then
+      // retry the same upload once the ID is verified.
+      if (data.requiresIdVerification) { idGateError = ''; step = 'id-gate'; return; }
+
       if (!resp.ok || data.error) { failReason = data.error ?? 'Analysis failed'; step = 'failed'; return; }
       if (!data.verified) { failReason = data.reason ?? 'We couldn\'t verify this as genuine proof. Try uploading clearer evidence.'; step = 'failed'; return; }
 
@@ -546,13 +554,60 @@
         }).catch(() => { /* non-critical */ });
       }
 
-      result = { insights: insightsArr, pts_awarded: data.pts_awarded, reason: data.reason ?? '', locations: locationsArr, aggregated: data.aggregated ?? '' };
+      result = { insights: insightsArr, pts_awarded: data.pts_awarded, reason: data.reason ?? '', locations: locationsArr, aggregated: data.aggregated ?? '', nameMatch: data.nameMatch };
       step   = 'success';
     } catch (e) {
       console.error('proof upload failed:', e);
       failReason = 'Something went wrong. Please try again.';
       step = 'failed';
     }
+  }
+
+  /** ID gate: verify a government ID, then retry the original document upload. */
+  async function verifyIdFile(file: File) {
+    if (!file) return;
+    idGateLoading = true;
+    idGateError   = '';
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload  = () => resolve((reader.result as string).split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const supabase = getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const resp = await fetch('/api/verified-vibe/verify-step', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}) },
+        body: JSON.stringify({ step: 'id', data: { image: base64, mimeType: file.type || 'image/jpeg' } }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || data.error) {
+        idGateError = data.error || 'ID verification failed — please retake with a clear, well-lit photo.';
+        idGateLoading = false;
+        return;
+      }
+      if (!data.data?.idName?.trim()) {
+        idGateError = "Couldn't read your ID — retake with better lighting and hold the card flat.";
+        idGateLoading = false;
+        return;
+      }
+      // ID verified — retry the original document upload now that the gate is cleared.
+      idGateLoading = false;
+      await analyze();
+    } catch (e) {
+      console.error('ID gate verification failed:', e);
+      idGateError = 'Something went wrong verifying your ID. Please try again.';
+      idGateLoading = false;
+    }
+  }
+
+  function handleIdGateFile(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (file) verifyIdFile(file);
   }
 
   function retry() {
@@ -562,6 +617,7 @@
     step       = 'upload';
     failReason = '';
     result     = null;
+    idGateError = '';
   }
 
   function goBack() {
@@ -968,11 +1024,49 @@
       <div class="state-sub">{category === 'intro' ? 'Confirming your upload. Just a moment.' : 'Claude is analysing your files. Usually 5–10 seconds.'}</div>
     </div>
 
+  {:else if step === 'id-gate'}
+    <div class="state-card">
+      <div class="success-emoji">🪪</div>
+      <div class="state-title">Verify your identity</div>
+      <div class="state-sub">
+        Documents that carry your name — bank statements, ownership papers, payslips, CVs —
+        need a quick one-time government-ID check first. Upload the front of your Aadhaar,
+        PAN, or passport. It stays private and is only used to confirm the document is really yours.
+      </div>
+    </div>
+
+    {#if idGateError}
+      <div class="id-gate-error">⚠️ {idGateError}</div>
+    {/if}
+
+    <div class="id-gate-actions">
+      <label class="id-gate-upload" class:id-gate-upload--busy={idGateLoading}>
+        {#if idGateLoading}
+          <span class="spinner spinner--sm"></span> Verifying your ID…
+        {:else}
+          Upload government ID
+        {/if}
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp,application/pdf"
+          onchange={handleIdGateFile}
+          disabled={idGateLoading}
+          hidden
+        />
+      </label>
+      <button class="id-gate-cancel" onclick={() => { step = 'upload'; idGateError = ''; }} disabled={idGateLoading}>
+        Not now
+      </button>
+    </div>
+
   {:else if step === 'success' && result}
     <div class="state-card state-card--success">
       <div class="success-emoji">{result.insights[0]?.emoji ?? '✅'}</div>
       <div class="success-badge">Verified ✓</div>
       <div class="success-pts">+{result.pts_awarded} pts added to your profile</div>
+      {#if result.nameMatch === false}
+        <div class="name-mismatch-note">⚠️ The name on this document didn't match your verified ID — it's been flagged for review.</div>
+      {/if}
     </div>
 
     <!-- Uploaded images kept for review -->
@@ -1869,6 +1963,73 @@
     color: var(--text-1);
     cursor: pointer;
     font-family: inherit;
+  }
+
+  /* ── Government-ID gate ── */
+  .id-gate-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .id-gate-upload {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 16px;
+    background: var(--accent);
+    color: #052819;
+    border-radius: 16px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: opacity 0.2s;
+  }
+
+  .id-gate-upload--busy { opacity: 0.7; cursor: progress; }
+
+  .id-gate-cancel {
+    width: 100%;
+    padding: 14px;
+    background: transparent;
+    border: none;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-3);
+    cursor: pointer;
+    font-family: inherit;
+  }
+
+  .id-gate-error {
+    margin-top: 10px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #f87171;
+    text-align: center;
+  }
+
+  .spinner--sm {
+    width: 18px;
+    height: 18px;
+    border-width: 2px;
+    border-color: rgba(5, 40, 25, 0.35);
+    border-top-color: #052819;
+  }
+
+  .name-mismatch-note {
+    margin-top: 10px;
+    padding: 10px 12px;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: #fbbf24;
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.28);
+    border-radius: 12px;
+    text-align: center;
   }
 
   /* ── States ── */

@@ -45,47 +45,6 @@
     };
   }
 
-  /**
-   * Parse a date-of-birth string from a government ID and return the person's
-   * current age. Handles the common Indian DL formats:
-   *   DD/MM/YYYY  DD-MM-YYYY  YYYY-MM-DD  YYYY/MM/DD  DD.MM.YYYY
-   */
-  function parseDOBtoAge(dob: string | undefined | null): number | null {
-    if (!dob) return null;
-    const s = dob.trim();
-
-    let day = 0, month = 0, year = 0;
-
-    // Try YYYY-MM-DD or YYYY/MM/DD
-    const isoMatch = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
-    if (isoMatch) {
-      year  = parseInt(isoMatch[1], 10);
-      month = parseInt(isoMatch[2], 10);
-      day   = parseInt(isoMatch[3], 10);
-    } else {
-      // Try DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY
-      const dmyMatch = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
-      if (dmyMatch) {
-        day   = parseInt(dmyMatch[1], 10);
-        month = parseInt(dmyMatch[2], 10);
-        year  = parseInt(dmyMatch[3], 10);
-      }
-    }
-
-    if (!year || year < 1900 || year > new Date().getFullYear()) return null;
-    if (!month || month < 1 || month > 12) return null;
-    if (!day   || day   < 1 || day   > 31) return null;
-
-    const today    = new Date();
-    const birthday = new Date(year, month - 1, day);
-    let age = today.getFullYear() - birthday.getFullYear();
-    const hadBirthday =
-      today.getMonth() > birthday.getMonth() ||
-      (today.getMonth() === birthday.getMonth() && today.getDate() >= birthday.getDate());
-    if (!hadBirthday) age--;
-    return age > 0 && age < 120 ? age : null;
-  }
-
   let currentStep = $state(1);
   let returnTo = $state('');
   let loading = $state(false);
@@ -95,14 +54,8 @@
   let skippedSteps = $state<Set<number>>(new Set());
   let showSkipWarning = $state(false);
   let stepData = $state<Record<number, any>>({});
-  let idPhotoBase64 = $state('');
   let identitySubView = $state<'overview' | 'liveness'>('overview');
-  let identityIdDone = $state(false);
   let identitySelfieDone = $state(false);
-  // Extracted from ID step — pre-fills profile intake
-  let extractedName = $state('');
-  let extractedAge = $state(0);
-  let extractedIDFields = $state<{ name: string; dob: string; gender?: string; idNumber: string } | null>(null);
 
   // ── Motivation cards ────────────────────────────────────────────────────────
 
@@ -646,7 +599,7 @@
   );
 
   const steps = $derived([
-    { number: 1, name: 'Identity Check', description: "Prove you're actually you.", icon: '🪪', stepType: 'id'            as VerificationStepType, time: '~90 sec', points: 65 },
+    { number: 1, name: 'Identity Check', description: "Prove you're a real person.", icon: '🪪', stepType: 'liveness'      as VerificationStepType, time: '~60 sec', points: 65 },
     { number: 2, name: 'Drawn To',       description: "What you're drawn to.",      icon: '✨', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min',  points: 80 },
     { number: 3, name: 'How You Live',   description: 'Your lifestyle & standards.', icon: '💼', stepType: 'spending_or_qa' as VerificationStepType, time: '~2 min',  points: 80 },
     { number: 4, name: 'Photos & Place', description: 'Almost there.',              icon: '📸', stepType: 'photos'         as VerificationStepType, time: '~60 sec', points: 55 },
@@ -686,10 +639,6 @@
       }
     }
 
-    // Restore idPhotoBase64 from sessionStorage in case user refreshed on step 2
-    const cachedIdPhoto = sessionStorage.getItem('vv_id_photo_b64');
-    if (cachedIdPhoto) idPhotoBase64 = cachedIdPhoto;
-
     // Store returnTo so we can navigate back after archetype steps complete
     const returnToParam = get(page).url.searchParams.get('returnTo');
     if (returnToParam) returnTo = returnToParam;
@@ -722,117 +671,6 @@
     }
   });
 
-  async function handleIDStepDone(data: { idImage: string; mimeType: string }) {
-    error = null;
-    clearError();
-    loading = true;
-    idPhotoBase64 = data.idImage;
-    sessionStorage.setItem('vv_id_photo_b64', data.idImage);
-    try {
-      const response = await fetch('/api/verified-vibe/verify-step', {
-        method: 'POST',
-        headers: await getAuthHeaders(),
-        body: JSON.stringify({ step: 'id', data: { image: data.idImage, mimeType: data.mimeType } })
-      });
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error || 'ID verification failed');
-      }
-      const result = await response.json();
-
-      // Quality gate: if key fields couldn't be extracted the photo is unclear
-      const hasValidExtraction = !!(result.data?.idName?.trim() && result.data?.idNumber?.trim());
-      if (!hasValidExtraction) {
-        error = 'ID photo is unclear — please retake with better lighting and hold the card flat.';
-        setError(error);
-        return;
-      }
-
-      if (result.data?.idName) {
-        extractedName = result.data.idName.split(' ')[0];
-        // Persist first name to profile draft so profile page shows it immediately
-        try {
-          const existingDraft = localStorage.getItem('vv_profile_draft');
-          const profileDraft = existingDraft ? JSON.parse(existingDraft) : {};
-          if (!profileDraft.firstName) {
-            profileDraft.firstName = extractedName;
-            localStorage.setItem('vv_profile_draft', JSON.stringify(profileDraft));
-          }
-        } catch {}
-        // Also update user store
-        if ($user) user.update(u => u ? { ...u, firstName: extractedName } : u);
-
-        // Compute age from DOB and persist alongside name
-        const extractedAge = parseDOBtoAge(result.data?.idDOB);
-        if (extractedAge) {
-          if ($user) user.update(u => u ? { ...u, age: extractedAge } : u);
-        }
-
-        // Persist first_name (and age if available) to Supabase
-        if ($user) {
-          upsertProfile({
-            gender: $user?.gender ?? null,
-            archetype: $user?.archetype ?? null,
-            first_name: extractedName,
-            ...(extractedAge ? { age: extractedAge } : {})
-          } as any).catch(() => {});
-        }
-      }
-      if (result.data) {
-        extractedIDFields = {
-          name: result.data.idName ?? '',
-          dob: result.data.idDOB ?? '',
-          gender: result.data.idGender ?? undefined,
-          idNumber: result.data.idNumber ?? ''
-        };
-      }
-      addVerificationRecord({
-        id: `${$user?.id}-id`, userId: $user?.id || '', step: 'id',
-        status: 'completed', data: result.data, completedAt: new Date(), createdAt: new Date()
-      });
-      updateTrustScoreAfterVerification();
-      identityIdDone = true;
-      identitySubView = 'overview';
-    } catch (err) {
-      error = err instanceof Error ? err.message : 'An error occurred';
-      setError(error);
-    } finally {
-      loading = false;
-    }
-  }
-
-  async function handleSelfieCapture(data: { selfieImage: string; mimeType: string }) {
-    error = null;
-    clearError();
-    loading = true;
-    try {
-      const response = await fetch('/api/verified-vibe/verify-step', {
-        method: 'POST',
-        headers: await getAuthHeaders(),
-        body: JSON.stringify({
-          step: 'liveness',
-          data: { selfieImage: data.selfieImage, idPhotoBase64: idPhotoBase64, mimeType: data.mimeType }
-        })
-      });
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error || 'Face match failed — please retake your selfie');
-      }
-      const result = await response.json();
-      addVerificationRecord({
-        id: `${$user?.id}-liveness`, userId: $user?.id || '', step: 'liveness',
-        status: 'completed', data: result.data, completedAt: new Date(), createdAt: new Date()
-      });
-      updateTrustScoreAfterVerification();
-      identitySelfieDone = true;
-    } catch (err) {
-      error = err instanceof Error ? err.message : 'An error occurred';
-      setError(error);
-    } finally {
-      loading = false;
-    }
-  }
-
   async function handleLivenessStepDone(data: LivenessCheckResult) {
     // LivenessStep already called verify-step internally (auth + persistence).
     // Parent just updates UI state.
@@ -856,133 +694,6 @@
     } else {
       setPhase('app');
       goto('/verified-vibe/discover');
-    }
-  }
-
-  async function handleIDSubmit(data: { idImage: string; mimeType: string }) {
-    error = null;
-    clearError();
-    loading = true;
-    // Store base64 ID photo for use in liveness step (also persist so step 2 survives a refresh)
-    idPhotoBase64 = data.idImage;
-    sessionStorage.setItem('vv_id_photo_b64', data.idImage);
-
-    try {
-      // Submit to API
-      const response = await fetch('/api/verified-vibe/verify-step', {
-        method: 'POST',
-        headers: await getAuthHeaders(),
-        body: JSON.stringify({
-          step: 'id',
-          data: {
-            image: data.idImage,
-            mimeType: data.mimeType
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error || 'ID verification failed');
-      }
-
-      const result = await response.json();
-
-      // Pull name/age from ID extraction to pre-fill profile intake
-      if (result.data?.firstName) extractedName = result.data.firstName;
-      if (result.data?.age) extractedAge = result.data.age;
-
-      // Store verification record
-      addVerificationRecord({
-        id: `${$user?.id}-id`,
-        userId: $user?.id || '',
-        step: 'id',
-        status: 'completed',
-        data: result.data,
-        completedAt: new Date(),
-        createdAt: new Date()
-      });
-
-      // Mark step as completed
-      completedSteps.add(currentStep);
-
-      // Update progress
-      const progress = (completedSteps.size / totalSteps) * 100;
-      verificationProgress.set(progress);
-
-      // Update trust score
-      updateTrustScoreAfterVerification();
-
-      // Move to next step
-      if (currentStep < totalSteps) {
-        currentStep++;
-        verificationStep.set(currentStep);
-      } else {
-        // All steps complete
-        setPhase('app');
-        goto('/verified-vibe/discover');
-      }
-    } catch (err) {
-      error = err instanceof Error ? err.message : 'An error occurred';
-      setError(error);
-    } finally {
-      loading = false;
-    }
-  }
-
-  async function handleLivenessSubmit(data: LivenessCheckResult) {
-    error = null;
-    clearError();
-    loading = true;
-
-    try {
-      // Persist liveness step to Supabase
-      const response = await fetch('/api/verified-vibe/verify-step', {
-        method: 'POST',
-        headers: await getAuthHeaders(),
-        body: JSON.stringify({ step: 'liveness', data })
-      });
-
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.error || 'Liveness verification failed');
-      }
-
-      // Store verification record in local store
-      addVerificationRecord({
-        id: `${$user?.id}-liveness`,
-        userId: $user?.id || '',
-        step: 'liveness',
-        status: 'completed',
-        data,
-        completedAt: new Date(),
-        createdAt: new Date()
-      });
-
-      // Mark step as completed
-      completedSteps.add(currentStep);
-
-      // Update progress
-      const progress = (completedSteps.size / totalSteps) * 100;
-      verificationProgress.set(progress);
-
-      // Update trust score
-      updateTrustScoreAfterVerification();
-
-      // Move to next step
-      if (currentStep < totalSteps) {
-        currentStep++;
-        verificationStep.set(currentStep);
-      } else {
-        // All steps complete
-        setPhase('app');
-        goto('/verified-vibe/discover');
-      }
-    } catch (err) {
-      error = err instanceof Error ? err.message : 'An error occurred';
-      setError(error);
-    } finally {
-      loading = false;
     }
   }
 
@@ -1149,11 +860,23 @@
     return handleQASubmit({ responses: data as Record<string, string | string[]> });
   }
 
-  async function handlePhotosPlaceSubmit(data: { photos: File[]; city: string; openToTravel: boolean }) {
+  async function handlePhotosPlaceSubmit(data: { photos: File[]; firstName: string; age: number; city: string; openToTravel: boolean }) {
     error = null;
     clearError();
     loading = true;
     try {
+      // ── Persist name + age (collected here now that ID is no longer at onboarding) ─
+      if (data.firstName || data.age) {
+        try {
+          const existingDraft = localStorage.getItem('vv_profile_draft');
+          const profileDraft = existingDraft ? JSON.parse(existingDraft) : {};
+          if (data.firstName) profileDraft.firstName = data.firstName;
+          if (data.age) profileDraft.age = data.age;
+          localStorage.setItem('vv_profile_draft', JSON.stringify(profileDraft));
+        } catch {}
+        if ($user) user.update(u => u ? { ...u, firstName: data.firstName || u.firstName, age: data.age || u.age } : u);
+      }
+
       // Convert photos to base64 + data URLs
       const photoResults = await Promise.all(
         data.photos.map(file => new Promise<{ base64: string; dataUrl: string }>((resolve, reject) => {
@@ -1196,8 +919,10 @@
           upsertProfile({
             gender: $user?.gender ?? null,
             archetype: $user?.archetype ?? null,
+            ...(data.firstName ? { first_name: data.firstName } : {}),
+            ...(data.age ? { age: data.age } : {}),
             city: data.city
-          } as any).catch(e => console.warn('[photos] city upsert failed (non-critical):', e));
+          } as any).catch(e => console.warn('[photos] profile upsert failed (non-critical):', e));
         }
 
         // Upload photos to API for Supabase Storage + trust score
@@ -2055,19 +1780,14 @@
     <div class="step-body" transition:slide={{ duration: 300, axis: 'y' }}>
       {#if currentStep === 1 && identitySubView === 'overview'}
         <IdentityCheckStep
-          idDone={identityIdDone}
           selfieDone={identitySelfieDone}
-          idFields={extractedIDFields}
           {loading}
-          onIDFileSelected={handleIDStepDone}
-          onSelfieFileSelected={handleSelfieCapture}
           onStartSelfie={() => { identitySubView = 'liveness'; }}
           onComplete={handleIdentityComplete}
           onSkip={handleSkipClick}
         />
       {:else if currentStep === 1 && identitySubView === 'liveness'}
         <LivenessStep
-          {idPhotoBase64}
           onSubmit={handleLivenessStepDone}
           onCancel={() => { identitySubView = 'overview'; }}
         />
@@ -2088,6 +1808,8 @@
       {:else if currentStep === 4}
         <PhotosPlaceStep
           gender={viewerGender === 'woman' ? 'woman' : viewerGender === 'man' ? 'man' : null}
+          initialFirstName={$user?.firstName ?? ''}
+          initialAge={$user?.age && $user.age > 0 ? $user.age : null}
           onSubmit={handlePhotosPlaceSubmit}
           onCancel={handleBack}
           onSkip={handleSkipClick}
