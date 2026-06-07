@@ -712,6 +712,9 @@ class Conversation {
   final DateTime? lastMessageTime;
   final int unreadCount;
   final bool hasMessages;
+  final String archetype; // raw code
+  final String? gender;
+  final int trustScore;
 
   Conversation({
     required this.id,
@@ -722,6 +725,9 @@ class Conversation {
     required this.lastMessageTime,
     required this.unreadCount,
     required this.hasMessages,
+    required this.archetype,
+    required this.gender,
+    required this.trustScore,
   });
 }
 
@@ -746,6 +752,9 @@ Future<List<Conversation>> fetchConversations() async {
       lastMessageTime: _dt(c['lastMessageTime']),
       unreadCount: c['unreadCount'] is num ? (c['unreadCount'] as num).toInt() : 0,
       hasMessages: c['hasMessages'] == true,
+      archetype: (u['archetype'] ?? '').toString(),
+      gender: u['gender'] as String?,
+      trustScore: u['trustScore'] is num ? (u['trustScore'] as num).toInt() : 0,
     );
   }).toList();
 }
