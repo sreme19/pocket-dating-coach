@@ -55,6 +55,8 @@
 		<string>Verified Vibe uses the camera to verify your ID, take a liveness selfie, and add profile photos.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Verified Vibe lets you choose profile and verification photos from your library.</string>
+		<key>NSMicrophoneUsageDescription</key>
+		<string>Verified Vibe uses your microphone for live voice calls with a match's AI bestie.</string>
 		<key>UILaunchStoryboardName</key>
 		<string>LaunchScreen</string>
 		<key>UIMainStoryboardFile</key>
@@ -77,6 +79,7 @@
 		<key>UIBackgroundModes</key>
 		<array>
 			<string>remote-notification</string>
+			<string>audio</string>
 		</array>
 	</dict>
 </plist>
