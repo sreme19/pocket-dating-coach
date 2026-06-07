@@ -154,6 +154,22 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
                       _section('HERE FOR', Text(d.hereFor!, style: const TextStyle(color: Color(Config.text1), fontSize: 16, height: 1.4))),
                     if (d.about != null && d.about!.isNotEmpty)
                       _section('ABOUT', Text(d.about!, style: const TextStyle(color: Color(Config.text1), fontSize: 16, height: 1.5))),
+                    if (d.archetypeChips.isNotEmpty)
+                      _section('MY DATING STYLE', Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (final g in d.archetypeChips) ...[
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4, bottom: 6),
+                              child: Text(g.label,
+                                  style: const TextStyle(fontSize: 13, color: Color(Config.text2), fontWeight: FontWeight.w600)),
+                            ),
+                            Wrap(spacing: 8, runSpacing: 8,
+                                children: g.chips.map((c) => _chip(c, const Color(Config.bg3), const Color(Config.text1))).toList()),
+                            const SizedBox(height: 8),
+                          ],
+                        ],
+                      )),
                     if (d.whatBrings.isNotEmpty)
                       _section('WHAT ${d.name.toUpperCase()} BRINGS', Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -165,8 +181,66 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
                           ]),
                         )).toList(),
                       )),
+                    if (d.annualIncome != null || d.wealthInsights.isNotEmpty || d.careerLines.isNotEmpty)
+                      _section('💰 MONEY MATTERS', Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (d.annualIncome != null) ...[
+                            const Text('💼 Annual income', style: TextStyle(fontSize: 12, color: Color(Config.text2))),
+                            const SizedBox(height: 2),
+                            Text(d.annualIncome!,
+                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+                            const SizedBox(height: 10),
+                          ],
+                          if (d.wealthInsights.isNotEmpty)
+                            Wrap(spacing: 8, runSpacing: 8, children: [
+                              for (final c in d.wealthInsights) _chip('${c.emoji} ${c.label}', const Color(Config.bg3), const Color(Config.text1)),
+                            ]),
+                          if (d.careerLines.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            for (final c in d.careerLines)
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 2),
+                                child: Text('${c.emoji} ${c.label}', style: const TextStyle(color: Color(Config.text2), fontSize: 14)),
+                              ),
+                          ],
+                          const SizedBox(height: 6),
+                          const Text('✅ AI verified via financial documents',
+                              style: TextStyle(fontSize: 12, color: Color(Config.text3))),
+                        ],
+                      )),
+                    if (d.garagePortraitUrl != null || d.personalityPortraitUrl != null)
+                      _section('✨ AI LIFESTYLE PORTRAIT', ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: CachedNetworkImage(
+                          imageUrl: (d.garagePortraitUrl ?? d.personalityPortraitUrl)!,
+                          fit: BoxFit.cover,
+                          placeholder: (c, _) => Container(height: 160, color: const Color(Config.bg3)),
+                          errorWidget: (c, _, _) => const SizedBox.shrink(),
+                        ),
+                      )),
+                    if (d.verifiedSignals.isNotEmpty)
+                      _section('🛡 VERIFIED SIGNALS', _SignalTabs(signals: d.verifiedSignals)),
+                    if (d.garage.isNotEmpty)
+                      _section('🏎️ GARAGE', Column(
+                        children: d.garage.map((car) => Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(color: const Color(Config.bg3), borderRadius: BorderRadius.circular(12)),
+                          child: Row(children: [
+                            const Text('🚗', style: TextStyle(fontSize: 24)),
+                            const SizedBox(width: 12),
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text(car.title, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
+                              Text([car.year, car.color].where((s) => s != null && s.isNotEmpty).join(' · '),
+                                  style: const TextStyle(fontSize: 13, color: Color(Config.text2))),
+                              const Text('✅ Ownership verified', style: TextStyle(fontSize: 12, color: Color(Config.accent))),
+                            ])),
+                          ]),
+                        )).toList(),
+                      )),
                     if (d.travel.isNotEmpty)
-                      _section('TRAVELED', Wrap(spacing: 8, runSpacing: 8,
+                      _section('✈️ TRAVEL MAGNETS', Wrap(spacing: 8, runSpacing: 8,
                           children: d.travel.map((t) => _chip('📍 $t', const Color(Config.bg3), const Color(Config.text2))).toList())),
                     const SizedBox(height: 40),
                   ]),
@@ -192,4 +266,67 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
         decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
         child: Text(text, style: TextStyle(color: fg, fontSize: 12, fontWeight: FontWeight.w600)),
       );
+}
+
+/// Read-only tabbed verified-signals (Career / Lifestyle / Health / Social).
+class _SignalTabs extends StatefulWidget {
+  final List<NamedSignal> signals;
+  const _SignalTabs({required this.signals});
+  @override
+  State<_SignalTabs> createState() => _SignalTabsState();
+}
+
+class _SignalTabsState extends State<_SignalTabs> {
+  int _tab = 0;
+  @override
+  Widget build(BuildContext context) {
+    final active = _tab.clamp(0, widget.signals.length - 1);
+    final s = widget.signals[active];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(children: [
+            for (var i = 0; i < widget.signals.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: () => setState(() => _tab = i),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: i == active ? const Color(0x2210B981) : const Color(Config.bg3),
+                      borderRadius: BorderRadius.circular(999),
+                      border: i == active ? Border.all(color: const Color(0x4D10B981)) : null,
+                    ),
+                    child: Text('${widget.signals[i].emoji} ${widget.signals[i].label}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: i == active ? const Color(Config.accent) : const Color(Config.text2),
+                          fontWeight: i == active ? FontWeight.w600 : FontWeight.w500,
+                        )),
+                  ),
+                ),
+              ),
+          ]),
+        ),
+        const SizedBox(height: 12),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          for (final c in s.group.chips)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(color: const Color(Config.bg3), borderRadius: BorderRadius.circular(999)),
+              child: Text('${c.emoji} ${c.label}',
+                  style: const TextStyle(fontSize: 13, color: Color(Config.text1))),
+            ),
+        ]),
+        if (s.group.aggregated.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text(s.group.aggregated,
+              style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: Color(Config.text2))),
+        ],
+      ],
+    );
+  }
 }
