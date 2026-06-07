@@ -1148,6 +1148,66 @@ Future<AdvisorReply> askAdvisor({
   return AdvisorReply((body['reply'] ?? body['error'] ?? '…').toString(), drafts);
 }
 
+/// A "what-if" lever in the match-intelligence panel (trust/standing deltas).
+class IntelLever {
+  final String label;
+  final num trustBefore;
+  final num trustAfter;
+  IntelLever(this.label, this.trustBefore, this.trustAfter);
+}
+
+/// One match's standing in the "Where you stand" panel.
+class MatchIntel {
+  final String partnerName;
+  final num? appeal;
+  final int? standingRank;
+  final int? standingPool;
+  final List<String> checklist;
+  final List<IntelLever> simulation;
+  MatchIntel({
+    required this.partnerName,
+    required this.appeal,
+    required this.standingRank,
+    required this.standingPool,
+    required this.checklist,
+    required this.simulation,
+  });
+}
+
+/// Fetch the advisor "Where you stand" intelligence (userId-in-query, no bearer).
+Future<List<MatchIntel>> fetchMatchIntelligence() async {
+  final uid = Supabase.instance.client.auth.currentUser?.id;
+  if (uid == null) return [];
+  final resp = await _dio.get(
+    '${Config.apiBase}/api/verified-vibe/match-intelligence',
+    queryParameters: {'userId': uid},
+    options: Options(receiveTimeout: const Duration(seconds: 30)),
+  );
+  final matches = (resp.data is Map ? resp.data['matches'] : null) as List? ?? const [];
+  return matches.whereType<Map>().map((m) {
+    final sim = <IntelLever>[];
+    if (m['simulation'] is List) {
+      for (final s in (m['simulation'] as List)) {
+        if (s is Map) {
+          sim.add(IntelLever(
+            (s['label'] ?? s['action'] ?? '').toString(),
+            s['trustBefore'] is num ? s['trustBefore'] as num : 0,
+            s['trustAfter'] is num ? s['trustAfter'] as num : 0,
+          ));
+        }
+      }
+    }
+    return MatchIntel(
+      partnerName: (m['partnerName'] ?? 'your match').toString(),
+      appeal: m['appeal'] is num ? m['appeal'] as num : null,
+      standingRank: m['standingRank'] is num ? (m['standingRank'] as num).toInt() : null,
+      standingPool: m['standingPool'] is num ? (m['standingPool'] as num).toInt() : null,
+      checklist: ((m['checklist'] as List?) ?? const []).map((e) => e.toString()).toList(),
+      simulation: sim,
+    );
+  }).toList();
+}
+
 /// Proactive advisor greeting. Returns (id, content) or null if nothing new.
 Future<({String id, String content})?> fetchGreeting() async {
   try {
