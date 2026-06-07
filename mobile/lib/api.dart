@@ -937,31 +937,6 @@ Future<String?> fetchCurrentUserGender() async {
   return null;
 }
 
-// ── Like / Pass ─────────────────────────────────────────────────────────────
-
-/// Returns true if the like created a mutual match.
-Future<bool> likeProfile(String profileId) async {
-  final uid = Supabase.instance.client.auth.currentUser?.id;
-  if (uid == null) throw StateError('Not authenticated');
-  final resp = await _dio.post(
-    '${Config.apiBase}/api/verified-vibe/like',
-    data: {'profileId': profileId, 'userId': uid},
-    options: Options(headers: {'Content-Type': 'application/json'}),
-  );
-  final body = resp.data is Map ? resp.data as Map : const {};
-  final data = body['data'] is Map ? body['data'] as Map : body;
-  return data['matched'] == true || data['isMatch'] == true || data['mutual'] == true;
-}
-
-Future<void> passProfile(String profileId) async {
-  final uid = Supabase.instance.client.auth.currentUser?.id;
-  if (uid == null) throw StateError('Not authenticated');
-  await _dio.post(
-    '${Config.apiBase}/api/verified-vibe/pass',
-    data: {'profileId': profileId, 'userId': uid},
-    options: Options(headers: {'Content-Type': 'application/json'}),
-  );
-}
 
 // ── Match detail (rich public profile) ─────────────────────────────────────
 
