@@ -315,9 +315,11 @@ Future<void> saveIdentity({required String firstName, int? age, String? city}) a
   final supabase = Supabase.instance.client;
   final user = supabase.auth.currentUser;
   if (user == null) throw StateError('Not authenticated');
-  final patch = <String, dynamic>{'first_name': firstName.trim()};
+  final patch = <String, dynamic>{};
+  if (firstName.trim().isNotEmpty) patch['first_name'] = firstName.trim();
   if (age != null && age > 0) patch['age'] = age;
   if (city != null) patch['city'] = city.trim();
+  if (patch.isEmpty) return;
   await supabase.from('verified_vibe_users').update(patch).eq('id', user.id);
 }
 

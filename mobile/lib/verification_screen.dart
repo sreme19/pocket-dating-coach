@@ -59,11 +59,33 @@ class _VerificationScreenState extends State<VerificationScreen> {
       if (b64 == null) { _set('id', _StepState.todo); return; }
       _idPhotoB64 = b64;
       final res = await verifyStep('id', {'image': b64, 'mimeType': 'image/jpeg'});
-      final name = res['idName'] ?? (res['data'] is Map ? (res['data'] as Map)['idName'] : null);
-      _set('id', _StepState.done, name != null ? 'ID read: $name' : 'ID submitted');
+      Map r = res;
+      if (res['data'] is Map) r = res['data'] as Map;
+      final name = (r['idName'] as String?)?.trim();
+      final age = _ageFromDob(r['idDOB'] as String?);
+      // Persist the REAL name/age from the ID, overwriting onboarding placeholders.
+      if ((name != null && name.isNotEmpty) || age != null) {
+        try {
+          await saveIdentity(firstName: name ?? '', age: age);
+        } catch (_) {/* non-fatal — verification is still recorded */}
+      }
+      final label = (name != null && name.isNotEmpty)
+          ? 'ID read: $name${age != null ? ', $age' : ''}'
+          : 'ID submitted';
+      _set('id', _StepState.done, label);
     } catch (e) {
       _set('id', _StepState.error, _err(e));
     }
+  }
+
+  /// Extract age from an ID DOB string (handles slashes/dashes; finds the year).
+  int? _ageFromDob(String? dob) {
+    if (dob == null || dob.isEmpty) return null;
+    final m = RegExp(r'(19|20)\d{2}').firstMatch(dob);
+    final year = m != null ? int.tryParse(m.group(0)!) : null;
+    if (year == null) return null;
+    final age = DateTime.now().year - year;
+    return (age >= 18 && age <= 100) ? age : null;
   }
 
   Future<void> _runLiveness() async {
@@ -83,20 +105,87 @@ class _VerificationScreenState extends State<VerificationScreen> {
     }
   }
 
+  static const _intentOptions = <({String code, String label})>[
+    (code: 'casual', label: 'Casual'),
+    (code: 'relationship', label: 'Serious relationship'),
+    (code: 'marriage', label: 'Marriage-minded'),
+    (code: 'exploring', label: 'Still exploring'),
+  ];
+
   Future<void> _runIntent() async {
+    final picked = await showModalBottomSheet<({String code, String label})>(
+      context: context,
+      backgroundColor: const Color(Config.bg2),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 18, 20, 8),
+            child: Align(alignment: Alignment.centerLeft,
+                child: Text('What are you here for?',
+                    style: TextStyle(color: Color(Config.text1), fontSize: 18, fontWeight: FontWeight.w700))),
+          ),
+          for (final o in _intentOptions)
+            ListTile(
+              title: Text(o.label, style: const TextStyle(color: Color(Config.text1))),
+              trailing: const Icon(Icons.chevron_right, color: Color(Config.text3)),
+              onTap: () => Navigator.pop(ctx, o),
+            ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+    if (picked == null) return;
     _set('intent', _StepState.working);
     try {
       await verifyStep('spending_or_qa', {
-        'responses': {'intent': 'serious'},
+        'responses': {'dating_intent': picked.code},
         'mimeType': 'application/json',
       });
-      _set('intent', _StepState.done, 'Intent recorded');
+      _set('intent', _StepState.done, 'Intent: ${picked.label}');
     } catch (e) {
       _set('intent', _StepState.error, _err(e));
     }
   }
 
+  String _city = '';
+
   Future<void> _runPhotos(ImageSource source) async {
+    // Collect the city once (was hardcoded empty before).
+    if (_city.isEmpty) {
+      final ctrl = TextEditingController();
+      final city = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(Config.bg2),
+          title: const Text('Where are you based?', style: TextStyle(color: Color(Config.text1), fontSize: 18)),
+          content: TextField(
+            controller: ctrl,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            style: const TextStyle(color: Color(Config.text1)),
+            decoration: InputDecoration(
+              hintText: 'City',
+              hintStyle: const TextStyle(color: Color(Config.text3)),
+              filled: true, fillColor: const Color(Config.bg3),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            ),
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+              style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFF052819)),
+              child: const Text('Continue'),
+            ),
+          ],
+        ),
+      );
+      if (city == null) return; // dismissed
+      _city = city;
+      if (_city.isNotEmpty) {
+        try { await saveIdentity(firstName: '', city: _city); } catch (_) {}
+      }
+    }
     _set('photos', _StepState.working);
     try {
       final List<XFile> files = source == ImageSource.gallery
@@ -112,7 +201,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         'images': images,
         'mimeTypes': List.filled(images.length, 'image/jpeg'),
         'labels': labels,
-        'city': '',
+        'city': _city,
         'openToTravel': true,
       });
       final url = res['avatarUrl'] ?? (res['data'] is Map ? (res['data'] as Map)['avatarUrl'] : null);
