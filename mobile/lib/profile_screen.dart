@@ -3,7 +3,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'api.dart';
 import 'archetypes.dart';
 import 'config.dart';
+import 'profile_body.dart' show travelMagnets, moneyMattersCard;
 import 'profile_edit.dart';
+import 'proof_upload_screen.dart';
 import 'settings_screen.dart';
 import 'trust_boost_screen.dart';
 
@@ -268,28 +270,41 @@ class _ProfileBody extends StatelessWidget {
           _Section(
             emoji: '💰',
             title: 'MONEY MATTERS',
-            child: _MoneyMatters(data: data),
-          ),
-
-        // ── AI lifestyle portrait ────────────────────────────────────────
-        if (data.garagePortraitUrl != null || data.personalityPortraitUrl != null)
-          _Section(
-            icon: Icons.star_border,
-            title: 'AI LIFESTYLE PORTRAIT',
-            subtitle: 'generated from your photos',
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: CachedNetworkImage(
-                imageUrl: (data.garagePortraitUrl ?? data.personalityPortraitUrl)!,
-                fit: BoxFit.cover,
-                placeholder: (c, _) => Container(
-                  height: 180, color: const Color(Config.bg3),
-                  child: const Center(child: CircularProgressIndicator(color: Color(Config.accent))),
-                ),
-                errorWidget: (c, _, _) => const SizedBox.shrink(),
-              ),
+            child: moneyMattersCard(
+              income: data.annualIncome ?? data.netWorth,
+              tiles: [
+                if (data.wealth != null) for (final c in data.wealth!.chips) (c.emoji, c.label),
+                for (final s in data.spending) (s.emoji, s.category),
+              ],
+              footer: '✓ AI verified via bank statement / financial document',
+              onUpload: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ProofUploadScreen())).then((_) => onChanged()),
             ),
           ),
+
+        // ── AI portraits (generate from your photos) ─────────────────────
+        _Section(
+          icon: Icons.auto_awesome,
+          title: 'AI PORTRAIT',
+          subtitle: 'generated from your photos',
+          child: _PortraitTile(
+            url: data.personalityPortraitUrl,
+            referenceUrl: data.heroPhotoUrl,
+            lifestyle: false,
+            onChanged: onChanged,
+          ),
+        ),
+        _Section(
+          icon: Icons.auto_awesome,
+          title: 'AI LIFESTYLE PORTRAIT',
+          subtitle: 'evening city vibe',
+          child: _PortraitTile(
+            url: data.garagePortraitUrl,
+            referenceUrl: data.heroPhotoUrl,
+            lifestyle: true,
+            onChanged: onChanged,
+          ),
+        ),
 
         // ── Verified signals ─────────────────────────────────────────────
         if (data.career != null || data.lifestyle != null ||
@@ -315,10 +330,7 @@ class _ProfileBody extends StatelessWidget {
             emoji: '✈️',
             title: 'TRAVEL MAGNETS',
             subtitle: 'detected from uploads',
-            child: Wrap(
-              spacing: 8, runSpacing: 8,
-              children: [for (final c in data.countries) _Pill('📍 $c')],
-            ),
+            child: travelMagnets(data.countries),
           ),
 
         // ── Hard nos ─────────────────────────────────────────────────────
@@ -707,71 +719,93 @@ class _BringsRow extends StatelessWidget {
   }
 }
 
-class _MoneyMatters extends StatelessWidget {
-  final ProfileData data;
-  const _MoneyMatters({required this.data});
+/// An AI portrait slot — shows the image + Regenerate when present, or a
+/// Generate button when absent. Generates from the user's lead photo, persists
+/// the URL, then refreshes the profile.
+class _PortraitTile extends StatefulWidget {
+  final String? url;
+  final String? referenceUrl;
+  final bool lifestyle;
+  final VoidCallback onChanged;
+  const _PortraitTile({required this.url, required this.referenceUrl, required this.lifestyle, required this.onChanged});
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (data.annualIncome != null || data.netWorth != null)
-          Row(children: [
-            if (data.annualIncome != null)
-              Expanded(child: _MoneyStat('💼 Annual Income', data.annualIncome!)),
-            if (data.netWorth != null)
-              Expanded(child: _MoneyStat('📈 Net Worth', data.netWorth!)),
-          ]),
-        if (data.wealth != null) ...[
-          const SizedBox(height: 12),
-          _EditableChips(
-            key: const ValueKey('sig_wealth'),
-            category: 'wealth',
-            initial: data.wealth!.chips,
-            aggregated: data.wealth!.aggregated,
-          ),
-        ],
-        if (data.spending.isNotEmpty) ...[
-          const SizedBox(height: 14),
-          for (final s in data.spending)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(children: [
-                Text(s.emoji, style: const TextStyle(fontSize: 15)),
-                const SizedBox(width: 8),
-                Expanded(child: Text(s.category,
-                    style: const TextStyle(color: Color(Config.text1)))),
-                Text(s.amountLabel,
-                    style: const TextStyle(color: Color(Config.text2), fontWeight: FontWeight.w600)),
-              ]),
-            ),
-        ],
-        if (data.wealth?.aggregated.isNotEmpty == true) ...[
-          const SizedBox(height: 10),
-          Text(data.wealth!.aggregated,
-              style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: Color(Config.text2))),
-        ],
-        const SizedBox(height: 8),
-        const Text('✅ AI verified via financial documents',
-            style: TextStyle(fontSize: 12, color: Color(Config.text3))),
-      ],
-    );
-  }
+  State<_PortraitTile> createState() => _PortraitTileState();
 }
 
-class _MoneyStat extends StatelessWidget {
-  final String label, value;
-  const _MoneyStat(this.label, this.value);
+class _PortraitTileState extends State<_PortraitTile> {
+  bool _busy = false;
+  String? _error;
+
+  Future<void> _generate() async {
+    final ref = widget.referenceUrl;
+    if (ref == null || !ref.startsWith('http')) {
+      setState(() => _error = 'Add a profile photo first.');
+      return;
+    }
+    setState(() { _busy = true; _error = null; });
+    try {
+      await generatePortrait(referenceImageUrl: ref, lifestyle: widget.lifestyle);
+      widget.onChanged();
+    } catch (e) {
+      setState(() { _busy = false; _error = 'Couldn’t generate: $e'; });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 12, color: Color(Config.text2))),
-        const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+    if (_busy) {
+      return Container(
+        height: 200,
+        decoration: BoxDecoration(color: const Color(Config.bg3), borderRadius: BorderRadius.circular(14)),
+        child: const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          CircularProgressIndicator(color: Color(Config.accent)),
+          SizedBox(height: 12),
+          Text('Generating your portrait…\nthis takes 20–30 seconds', textAlign: TextAlign.center, style: TextStyle(color: Color(Config.text2), fontSize: 13)),
+        ])),
+      );
+    }
+    if (widget.url != null) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Stack(children: [
+            CachedNetworkImage(imageUrl: widget.url!, fit: BoxFit.cover, width: double.infinity,
+                placeholder: (c, _) => Container(height: 200, color: const Color(Config.bg3)),
+                errorWidget: (c, _, _) => const SizedBox.shrink()),
+            const Positioned(left: 10, bottom: 8,
+                child: Text('✨ Generated from your verified photos', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600))),
+          ]),
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: _generate,
+            icon: const Icon(Icons.refresh, size: 16, color: Color(Config.accent)),
+            label: const Text('Regenerate', style: TextStyle(color: Color(Config.accent))),
+          ),
+        ),
+      ]);
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      SizedBox(
+        width: double.infinity, height: 48,
+        child: FilledButton.icon(
+          onPressed: _generate,
+          icon: const Icon(Icons.auto_awesome, size: 18),
+          label: Text('Generate ${widget.lifestyle ? 'lifestyle portrait' : 'AI portrait'}', style: const TextStyle(fontWeight: FontWeight.w700)),
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0x2210B981),
+            foregroundColor: const Color(Config.accent),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+      ),
+      if (_error != null) ...[
+        const SizedBox(height: 6),
+        Text(_error!, style: const TextStyle(color: Color(0xFFF87171), fontSize: 12)),
       ],
-    );
+    ]);
   }
 }
 

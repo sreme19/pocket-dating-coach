@@ -111,6 +111,9 @@ export const GET: RequestHandler = async ({ request }: { request: Request }) => 
     proofInsightsLocalStorage: proofsToLocalStorage(verifiedProofs),
     photos:                   Array.isArray(masterData.photos)   ? masterData.photos   : [],
     aiPhotos:                 Array.isArray(masterData.aiPhotos) ? masterData.aiPhotos : [],
+    personalityPortraitUrl:   typeof masterData.personalityPortraitUrl === 'string' ? masterData.personalityPortraitUrl : null,
+    garagePortraitUrl:        typeof masterData.garagePortraitUrl === 'string' ? masterData.garagePortraitUrl : null,
+    moneyMatters:             masterData.moneyMatters ?? null,
     lastSynced:               row?.updated_at ?? null,
   });
 };

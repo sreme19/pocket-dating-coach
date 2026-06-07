@@ -59,34 +59,18 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
           ),
       ])),
     if (d.annualIncome != null || d.wealthInsights.isNotEmpty || d.careerLines.isNotEmpty)
-      pSection('💰 MONEY MATTERS', Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (d.annualIncome != null) ...[
-          const Text('💼 Annual income', style: TextStyle(fontSize: 12, color: Color(Config.text2))),
-          const SizedBox(height: 2),
-          Text(d.annualIncome!, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(Config.text1))),
-          const SizedBox(height: 10),
+      pSection('💰 MONEY MATTERS', moneyMattersCard(
+        income: d.annualIncome,
+        tiles: [
+          for (final c in d.wealthInsights) (c.emoji, c.label),
+          for (final c in d.careerLines) (c.emoji, c.label),
         ],
-        if (d.wealthInsights.isNotEmpty)
-          Wrap(spacing: 8, runSpacing: 8, children: [for (final c in d.wealthInsights) pPill('${c.emoji} ${c.label}')]),
-        if (d.careerLines.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          for (final c in d.careerLines)
-            Padding(padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Text('${c.emoji} ${c.label}', style: const TextStyle(color: Color(Config.text2), fontSize: 14))),
-        ],
-        const SizedBox(height: 6),
-        const Text('✅ AI verified via financial documents', style: TextStyle(fontSize: 12, color: Color(Config.text3))),
-      ])),
-    if (d.garagePortraitUrl != null || d.personalityPortraitUrl != null)
-      pSection('✨ AI LIFESTYLE PORTRAIT', ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: CachedNetworkImage(
-          imageUrl: (d.garagePortraitUrl ?? d.personalityPortraitUrl)!,
-          fit: BoxFit.cover,
-          placeholder: (c, _) => Container(height: 160, color: const Color(Config.bg3)),
-          errorWidget: (c, _, _) => const SizedBox.shrink(),
-        ),
+        footer: '✓ AI verified via bank statement / financial document',
       )),
+    if (d.personalityPortraitUrl != null)
+      pSection('✨ AI PORTRAIT', _portrait(d.personalityPortraitUrl!), hint: 'generated from photos'),
+    if (d.garagePortraitUrl != null)
+      pSection('✨ AI LIFESTYLE PORTRAIT', _portrait(d.garagePortraitUrl!), hint: 'generated from photos'),
     if (d.verifiedSignals.isNotEmpty)
       pSection('🛡 VERIFIED SIGNALS', SignalTabs(signals: d.verifiedSignals)),
     if (d.garage.isNotEmpty)
@@ -106,9 +90,145 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
         ]),
       )).toList())),
     if (d.travel.isNotEmpty)
-      pSection('✈️ TRAVEL MAGNETS', Wrap(spacing: 8, runSpacing: 8,
-          children: d.travel.map((t) => pPill('📍 $t')).toList())),
+      pSection('✈️ TRAVEL MAGNETS', travelMagnets(d.travel), hint: 'detected from uploads'),
   ];
+}
+
+/// AI portrait image (rounded, with a caption strip).
+Widget _portrait(String url) {
+  return ClipRRect(
+    borderRadius: BorderRadius.circular(14),
+    child: Stack(children: [
+      CachedNetworkImage(imageUrl: url, fit: BoxFit.cover, width: double.infinity,
+          placeholder: (c, _) => Container(height: 200, color: const Color(Config.bg3)),
+          errorWidget: (c, _, _) => const SizedBox.shrink()),
+      const Positioned(left: 10, bottom: 8,
+          child: Text('✨ Generated from verified photos', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600))),
+    ]),
+  );
+}
+
+// ── Playful shared sections ──────────────────────────────────────────────────
+
+const _flagFor = <String, String>{
+  'india': '🇮🇳', 'usa': '🇺🇸', 'united states': '🇺🇸', 'uk': '🇬🇧', 'united kingdom': '🇬🇧',
+  'thailand': '🇹🇭', 'malaysia': '🇲🇾', 'indonesia': '🇮🇩', 'bali': '🇮🇩', 'singapore': '🇸🇬',
+  'uae': '🇦🇪', 'dubai': '🇦🇪', 'france': '🇫🇷', 'italy': '🇮🇹', 'japan': '🇯🇵', 'spain': '🇪🇸',
+  'germany': '🇩🇪', 'australia': '🇦🇺', 'canada': '🇨🇦', 'switzerland': '🇨🇭', 'maldives': '🇲🇻',
+};
+
+/// Pastel "fridge magnet" palette: (bg, border, text).
+const _magnetColors = <(int, int, int)>[
+  (0x33F59E0B, 0x66F59E0B, 0xFFFcD9A0), // peach
+  (0x333B82F6, 0x663B82F6, 0xFFBFDBFE), // sky
+  (0x3310B981, 0x6610B981, 0xFFA7F3D0), // mint
+  (0x33A855F7, 0x66A855F7, 0xFFE9D5FF), // lavender
+  (0x33EC4899, 0x66EC4899, 0xFFFBCFE8), // rose
+  (0x3314B8A6, 0x6614B8A6, 0xFF99F6E4), // teal
+];
+
+String _magnetEmoji(String place) {
+  final key = place.toLowerCase().split(',').first.trim();
+  return _flagFor[key] ?? '🌍';
+}
+
+/// Travel magnets rendered like real colorful fridge magnets (varied pastel
+/// colors + slight rotations).
+Widget travelMagnets(List<String> places) {
+  return Wrap(
+    spacing: 10, runSpacing: 12,
+    children: [
+      for (var i = 0; i < places.length; i++)
+        Transform.rotate(
+          angle: ((i * 37) % 7 - 3) * 0.018, // deterministic ~ -3°..+3°
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Color(_magnetColors[i % _magnetColors.length].$1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Color(_magnetColors[i % _magnetColors.length].$2), width: 1.5),
+              boxShadow: const [BoxShadow(color: Color(0x55000000), blurRadius: 6, offset: Offset(0, 3))],
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(_magnetEmoji(places[i]), style: const TextStyle(fontSize: 18)),
+              const SizedBox(width: 7),
+              Text(places[i].toUpperCase(),
+                  style: TextStyle(color: Color(_magnetColors[i % _magnetColors.length].$3),
+                      fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.3)),
+            ]),
+          ),
+        ),
+    ],
+  );
+}
+
+/// Playful Money Matters card: income hero + a grid of emoji tiles + footer.
+Widget moneyMattersCard({
+  String? income,
+  required List<(String emoji, String label)> tiles,
+  String? footer,
+  VoidCallback? onUpload,
+}) {
+  return Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+          colors: [Color(0xFF1A1206), Color(Config.bg2)]),
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: const Color(0x33F59E0B)),
+    ),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (income != null) ...[
+        const Text('ANNUAL INCOME', style: TextStyle(color: Color(0xFFF59E0B), fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+        const SizedBox(height: 6),
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          const Text('💼', style: TextStyle(fontSize: 26)),
+          const SizedBox(width: 8),
+          Text(income, style: const TextStyle(color: Color(Config.text1), fontSize: 26, fontWeight: FontWeight.w800)),
+        ]),
+        const SizedBox(height: 2),
+        const Text('SELF DECLARED', style: TextStyle(color: Color(Config.text3), fontSize: 10, letterSpacing: 0.5)),
+        const SizedBox(height: 16),
+      ],
+      if (tiles.isNotEmpty)
+        Wrap(spacing: 10, runSpacing: 10, children: [
+          for (final t in tiles) _moneyTile(t.$1, t.$2),
+        ]),
+      if (footer != null) ...[
+        const SizedBox(height: 14),
+        Text(footer, style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
+      ],
+      if (onUpload != null) ...[
+        const SizedBox(height: 12),
+        const Divider(color: Color(0x14FFFFFF), height: 1),
+        const SizedBox(height: 12),
+        GestureDetector(
+          onTap: onUpload,
+          child: const Row(children: [
+            Text('🧾  ', style: TextStyle(fontSize: 14)),
+            Expanded(child: Text('Upload receipts to show spending patterns →',
+                style: TextStyle(color: Color(0xFFF59E0B), fontSize: 13, fontWeight: FontWeight.w600))),
+          ]),
+        ),
+      ],
+    ]),
+  );
+}
+
+Widget _moneyTile(String emoji, String label) {
+  return SizedBox(
+    width: 96,
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      decoration: BoxDecoration(color: const Color(0x66000000), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0x18FFFFFF))),
+      child: Column(children: [
+        Text(emoji, style: const TextStyle(fontSize: 22)),
+        const SizedBox(height: 6),
+        Text(label, textAlign: TextAlign.center, maxLines: 3, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Color(Config.text1), fontSize: 11, height: 1.2, fontWeight: FontWeight.w600)),
+      ]),
+    ),
+  );
 }
 
 Widget pSection(String label, Widget child, {String? hint}) => Padding(

@@ -323,6 +323,40 @@ Future<void> saveIdentity({required String firstName, int? age, String? city}) a
   await supabase.from('verified_vibe_users').update(patch).eq('id', user.id);
 }
 
+/// Generate an AI portrait from the user's lead photo, then persist its URL to
+/// master-profile (personalityPortraitUrl, or garagePortraitUrl when lifestyle).
+/// Returns the hosted image URL. Slow (image gen) — 120s timeout.
+Future<String> generatePortrait({required String referenceImageUrl, bool lifestyle = false}) async {
+  final session = Supabase.instance.client.auth.currentSession;
+  if (session == null) throw StateError('Not authenticated');
+  final headers = {'Authorization': 'Bearer ${session.accessToken}', 'Content-Type': 'application/json'};
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/personality-portrait',
+    data: {
+      'referenceImageUrl': referenceImageUrl,
+      'personalityTraits': const [
+        {'name': 'Decisiveness', 'level': 'Very high', 'percentage': 95},
+        {'name': 'Warmth', 'level': 'High', 'percentage': 80},
+        {'name': 'Openness', 'level': 'High', 'percentage': 75},
+        {'name': 'Pace', 'level': 'Solid', 'percentage': 65},
+        {'name': 'Stability', 'level': 'High', 'percentage': 78},
+      ],
+      if (lifestyle)
+        'sceneOverride':
+            'confident person in smart casual attire, evening city setting, luxury lifestyle atmosphere, golden hour lighting, urban outdoor environment, sophisticated and relaxed',
+    },
+    options: Options(headers: headers, receiveTimeout: const Duration(seconds: 120)),
+  );
+  final url = (resp.data is Map) ? resp.data['imageUrl'] : null;
+  if (url is! String || url.isEmpty) throw 'Generation failed';
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/master-profile',
+    data: {lifestyle ? 'garagePortraitUrl' : 'personalityPortraitUrl': url},
+    options: Options(headers: headers),
+  );
+  return url;
+}
+
 /// Save the About text. POST master-profile replaces generatedProfile wholesale,
 /// so we merge `about` into the existing map to avoid dropping other fields.
 Future<void> saveAbout(String about, Map<String, dynamic> existingGenerated) async {
