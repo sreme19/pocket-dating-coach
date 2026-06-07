@@ -5,9 +5,11 @@ import 'api.dart';
 import 'config.dart';
 
 /// Staged, one-step-at-a-time verification (mirrors the web's high-intent flow):
-/// 1 Identity Check (ID + liveness) → 2 Drawn To → 3 How You Live → 4 Photos.
+/// 1 Identity Check (live selfie) → 2 Drawn To → 3 How You Live → 4 Photos.
 /// A progress bar + per-step momentum keep it moving. Each step submits to
-/// /api/verified-vibe/verify-step; the ID step fills in real name/age.
+/// /api/verified-vibe/verify-step. No government ID is collected here — that's
+/// requested later, only when a name-bearing document is uploaded. The selfie
+/// is stored server-side as the anchor face for that later ID match.
 class VerificationScreen extends StatefulWidget {
   final VoidCallback onDone;
   const VerificationScreen({super.key, required this.onDone});
@@ -22,8 +24,8 @@ class _StepMeta {
 }
 
 const _steps = <_StepMeta>[
-  _StepMeta('🪪', 'Identity Check', "Prove you're actually you.", '~90 sec',
-      'Every member is ID-verified — that’s why matches here actually show up.'),
+  _StepMeta('🪪', 'Identity Check', "Prove you're a real person.", '~60 sec',
+      'Every member passes a live selfie check — that’s why matches here actually show up.'),
   _StepMeta('✨', 'Drawn To', "What you're here for.", '~1 min',
       'Clear intent means better matches — and fewer wasted conversations.'),
   _StepMeta('💼', 'How You Live', 'Your lifestyle & standards.', '~1 min',
@@ -38,10 +40,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
   bool _busy = false;
   String? _error;
 
-  // Step 1 — identity
-  String? _idPhotoB64;
-  bool _idDone = false, _livenessDone = false;
-  String _idResult = '', _livenessResult = '';
+  // Step 1 — identity (live selfie only; no government ID at onboarding)
+  bool _livenessDone = false;
+  String _livenessResult = '';
   // Step 2 — drawn to
   String? _intent;
   // Step 3 — how you live
@@ -52,7 +53,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
   bool get _stepComplete {
     switch (_step) {
-      case 0: return _idDone && _livenessDone;
+      case 0: return _livenessDone;
       case 1: return _intent != null;
       case 2: return _spending != null;
       case 3: return _photoB64.isNotEmpty && _cityCtrl.text.trim().isNotEmpty;
@@ -70,47 +71,18 @@ class _VerificationScreenState extends State<VerificationScreen> {
     return base64Encode(await x.readAsBytes());
   }
 
-  int? _ageFromDob(String? dob) {
-    if (dob == null || dob.isEmpty) return null;
-    final m = RegExp(r'(19|20)\d{2}').firstMatch(dob);
-    final year = m != null ? int.tryParse(m.group(0)!) : null;
-    if (year == null) return null;
-    final age = DateTime.now().year - year;
-    return (age >= 18 && age <= 100) ? age : null;
-  }
-
-  Future<void> _runId(ImageSource source) async {
-    setState(() { _busy = true; _error = null; });
-    try {
-      final b64 = await _capture(source: source);
-      if (b64 == null) { setState(() => _busy = false); return; }
-      _idPhotoB64 = b64;
-      final res = await verifyStep('id', {'image': b64, 'mimeType': 'image/jpeg'});
-      Map r = res; if (res['data'] is Map) r = res['data'] as Map;
-      final name = (r['idName'] as String?)?.trim();
-      final age = _ageFromDob(r['idDOB'] as String?);
-      if ((name != null && name.isNotEmpty) || age != null) {
-        try { await saveIdentity(firstName: name ?? '', age: age); } catch (_) {}
-      }
-      setState(() {
-        _busy = false; _idDone = true;
-        _idResult = (name != null && name.isNotEmpty) ? 'ID read: $name${age != null ? ', $age' : ''}' : 'ID submitted ✓';
-      });
-    } catch (e) {
-      setState(() { _busy = false; _error = _err(e); });
-    }
-  }
-
   Future<void> _runLiveness() async {
     setState(() { _busy = true; _error = null; });
     try {
       final b64 = await _capture(source: ImageSource.camera, front: true);
       if (b64 == null) { setState(() => _busy = false); return; }
-      final res = await verifyStep('liveness', {'selfieImage': b64, 'idPhotoBase64': _idPhotoB64 ?? '', 'mimeType': 'image/jpeg'});
+      // No idPhotoBase64 — the server runs a liveness-only check and stores this
+      // selfie as the anchor face for a later government-ID match.
+      final res = await verifyStep('liveness', {'selfieImage': b64, 'mimeType': 'image/jpeg'});
       final conf = res['confidence'] ?? (res['data'] is Map ? (res['data'] as Map)['confidence'] : null);
       setState(() {
         _busy = false; _livenessDone = true;
-        _livenessResult = conf != null ? 'Liveness · ${conf is num ? conf.round() : conf}%' : 'Selfie matched ✓';
+        _livenessResult = conf != null ? 'Live selfie · ${conf is num ? conf.round() : conf}%' : 'Selfie verified ✓';
       });
     } catch (e) {
       setState(() { _busy = false; _error = _err(e); });
@@ -254,12 +226,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
     switch (_step) {
       case 0:
         return Column(children: [
-          _captureCard('🪪', 'Government ID', 'Scan your ID — proves you’re real.', _idDone, _idResult,
-              primaryLabel: 'Scan ID', onPrimary: () => _runId(ImageSource.camera), onSecondary: () => _runId(ImageSource.gallery)),
-          const SizedBox(height: 12),
-          _captureCard('🤳', 'Liveness selfie', 'A quick selfie to match your ID.', _livenessDone, _livenessResult,
-              primaryLabel: 'Take selfie', onPrimary: _idDone ? _runLiveness : null,
-              disabledHint: _idDone ? null : 'Scan your ID first'),
+          _captureCard('🤳', 'Quick selfie', "A quick face check confirms you're a real person — no ID needed.", _livenessDone, _livenessResult,
+              primaryLabel: 'Take selfie', onPrimary: _runLiveness),
         ]);
       case 1:
         return Column(children: [

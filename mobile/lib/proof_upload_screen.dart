@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'api.dart';
@@ -47,6 +48,7 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
     final verified = res['verified'] == true;
     final pts = res['pts_awarded'] is num ? (res['pts_awarded'] as num).toInt() : 0;
     final agg = (res['aggregated'] ?? res['reason'] ?? '').toString();
+    final nameMismatch = res['nameMatch'] == false;
     final chips = <String>[];
     if (res['insights'] is List) {
       for (final i in (res['insights'] as List)) {
@@ -60,8 +62,59 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
       _resultChips = verified ? chips : const [];
       _resultText = verified
           ? '✓ ${cat.label} verified · +$pts trust${agg.isNotEmpty ? '\n$agg' : ''}'
+              '${nameMismatch ? '\n⚠️ Name on the document didn’t match your ID — flagged for review.' : ''}'
           : 'Couldn’t verify ${cat.label}.${agg.isNotEmpty ? '\n$agg' : ''}';
     });
+  }
+
+  /// The server requires a verified government ID before accepting this
+  /// name-bearing document. Capture an ID, verify it, then retry the upload.
+  Future<void> _runIdGate(_Cat cat, List<String> paths) async {
+    setState(() { _busy = false; _activeCat = null; });
+    final source = await showDialog<ImageSource>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(Config.bg2),
+        title: const Text('Verify your identity', style: TextStyle(color: Color(Config.text1), fontSize: 18)),
+        content: const Text(
+          'Documents that carry your name — bank statements, ownership papers, payslips — need a quick one-time government-ID check first. Upload the front of your Aadhaar, PAN, or passport. It stays private and only confirms the document is really yours.',
+          style: TextStyle(color: Color(Config.text2), height: 1.4),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Not now', style: TextStyle(color: Color(Config.text2)))),
+          TextButton(onPressed: () => Navigator.pop(ctx, ImageSource.gallery), child: const Text('Gallery', style: TextStyle(color: Color(Config.text2)))),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, ImageSource.camera),
+            style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFF052819)),
+            child: const Text('Camera'),
+          ),
+        ],
+      ),
+    );
+    if (source == null) return;
+
+    final x = await _picker.pickImage(source: source, maxWidth: 1800, imageQuality: 85);
+    if (x == null) return;
+
+    setState(() { _busy = true; _activeCat = cat.id; _resultText = null; _resultChips = const []; });
+    try {
+      final b64 = base64Encode(await x.readAsBytes());
+      final idRes = await verifyStep('id', {'image': b64, 'mimeType': 'image/jpeg'});
+      Map idData = idRes; if (idRes['data'] is Map) idData = idRes['data'] as Map;
+      final idName = (idData['idName'] as String?)?.trim();
+      if (idName == null || idName.isEmpty) {
+        setState(() {
+          _busy = false; _activeCat = null; _resultGood = false;
+          _resultText = "Couldn’t read your ID — retake with better lighting and hold the card flat.";
+        });
+        return;
+      }
+      // ID verified — retry the original document upload now that the gate is cleared.
+      final res = await uploadProof(cat.id, paths);
+      _applyResult(cat, res);
+    } catch (e) {
+      setState(() { _busy = false; _activeCat = null; _resultGood = false; _resultText = 'ID verification failed: $e'; });
+    }
   }
 
   Future<void> _upload(_Cat cat, ImageSource source) async {
@@ -72,7 +125,10 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
           ? await _picker.pickMultiImage(maxWidth: 1800, imageQuality: 85)
           : [if (await _picker.pickImage(source: ImageSource.camera, maxWidth: 1800, imageQuality: 85) case final x?) x];
       if (files.isEmpty) { setState(() { _busy = false; _activeCat = null; }); return; }
-      final res = await uploadProof(cat.id, files.map((f) => f.path).toList());
+      final paths = files.map((f) => f.path).toList();
+      final res = await uploadProof(cat.id, paths);
+      // Name-bearing document needs a verified government ID first → run the gate, then retry.
+      if (res['requiresIdVerification'] == true) { await _runIdGate(cat, paths); return; }
       _applyResult(cat, res);
     } catch (e) {
       setState(() { _busy = false; _activeCat = null; _resultText = 'Upload failed: $e'; _resultGood = false; });
