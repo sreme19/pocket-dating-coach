@@ -124,6 +124,47 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
     } catch (_) {/* non-fatal */}
   }
 
+  void _showIntelligence() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(Config.bg2),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.7,
+        maxChildSize: 0.92,
+        builder: (ctx, scroll) => FutureBuilder<List<MatchIntel>>(
+          future: fetchMatchIntelligence(),
+          builder: (ctx, snap) {
+            return ListView(
+              controller: scroll,
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+              children: [
+                const Text('📊 Where you stand',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+                const SizedBox(height: 4),
+                const Text('How you rank with each match, and what moves the needle.',
+                    style: TextStyle(fontSize: 13, color: Color(Config.text2))),
+                const SizedBox(height: 16),
+                if (snap.connectionState == ConnectionState.waiting)
+                  const Padding(padding: EdgeInsets.all(30), child: Center(child: CircularProgressIndicator(color: Color(Config.accent))))
+                else if (!snap.hasData || snap.data!.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 20),
+                    child: Text('No match intelligence yet — once you have matches, your standing shows up here.',
+                        textAlign: TextAlign.center, style: TextStyle(color: Color(Config.text2))),
+                  )
+                else
+                  ...snap.data!.map((m) => _IntelCard(intel: m)),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scroll.hasClients) {
@@ -150,6 +191,13 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
           Text(_wm ? '🛡️ ' : '💚 ', style: const TextStyle(fontSize: 18)),
           Text(_name, style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700)),
         ]),
+        actions: [
+          IconButton(
+            tooltip: 'Where you stand',
+            icon: const Icon(Icons.insights_outlined, color: Color(Config.text2)),
+            onPressed: _showIntelligence,
+          ),
+        ],
       ),
       body: Column(children: [
         Expanded(
@@ -350,6 +398,64 @@ class _Feedback extends StatelessWidget {
           onTap: () => onFeedback(turn, false),
           child: const Icon(Icons.thumb_down_outlined, size: 16, color: Color(Config.text3)),
         ),
+      ]),
+    );
+  }
+}
+
+class _IntelCard extends StatelessWidget {
+  final MatchIntel intel;
+  const _IntelCard({required this.intel});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: const Color(Config.bg3), borderRadius: BorderRadius.circular(12)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(
+            child: Text(intel.partnerName,
+                style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700, fontSize: 16)),
+          ),
+          if (intel.standingRank != null && intel.standingPool != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(color: const Color(0x2210B981), borderRadius: BorderRadius.circular(999)),
+              child: Text('Rank ${intel.standingRank}/${intel.standingPool}',
+                  style: const TextStyle(color: Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w700)),
+            ),
+        ]),
+        if (intel.appeal != null) ...[
+          const SizedBox(height: 4),
+          Text('Appeal ${intel.appeal!.round()}', style: const TextStyle(color: Color(Config.text2), fontSize: 13)),
+        ],
+        if (intel.checklist.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          for (final c in intel.checklist)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('• ', style: TextStyle(color: Color(Config.text2))),
+                Expanded(child: Text(c, style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.3))),
+              ]),
+            ),
+        ],
+        if (intel.simulation.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          const Text('WHAT-IF', style: TextStyle(color: Color(Config.text3), fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+          const SizedBox(height: 6),
+          for (final s in intel.simulation)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(children: [
+                Expanded(child: Text(s.label, style: const TextStyle(color: Color(Config.text1), fontSize: 13))),
+                Text('${s.trustBefore.round()} → ', style: const TextStyle(color: Color(Config.text3), fontSize: 13)),
+                Text('${s.trustAfter.round()}',
+                    style: const TextStyle(color: Color(Config.accent), fontSize: 13, fontWeight: FontWeight.w700)),
+              ]),
+            ),
+        ],
       ]),
     );
   }
