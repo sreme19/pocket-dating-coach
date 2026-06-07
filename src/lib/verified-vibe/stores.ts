@@ -385,12 +385,14 @@ export async function hydrateUserFromSupabase() {
     // Real users (is_seed = false) are grandfathered — skip verification gate.
     const isRealUser = (profile as any).is_seed === false;
 
-    // Calculate phase based on completeness
-    const hasId = steps.some(s => s.step === 'id');
+    // Calculate phase based on completeness.
+    // Government ID is no longer collected at onboarding (it's now requested when
+    // a name-bearing document is uploaded), so it's not part of the gate — only
+    // the live selfie, photos, and spending/Q&A steps are required to enter the app.
     const hasLiveness = steps.some(s => s.step === 'liveness');
     const hasPhotos = steps.some(s => s.step === 'photos');
     const hasSpending = steps.some(s => s.step === 'spending_or_qa');
-    const allComplete = hasId && hasLiveness && hasPhotos && hasSpending;
+    const allComplete = hasLiveness && hasPhotos && hasSpending;
 
     // In dev mode (VITE_SKIP_VERIFICATION=true), treat any user with a
     // complete profile (gender + archetype set) as 'app' phase so seed
