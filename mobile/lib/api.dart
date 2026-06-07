@@ -1099,22 +1099,101 @@ Future<MatchDetail> fetchMatchDetail(String profileId) async {
 
 /// AI advisor turn (Wingman for men, Bestie for women). userId in body; no
 /// Bearer required by the endpoint. Returns the assistant's reply text.
-Future<String> askAdvisor({
+/// A Bestie-prepared draft message the user can send to a match.
+class AdvisorDraft {
+  final String matchName;
+  final String matchId;
+  final String content;
+  AdvisorDraft(this.matchName, this.matchId, this.content);
+}
+
+class AdvisorReply {
+  final String reply;
+  final List<AdvisorDraft> drafts;
+  AdvisorReply(this.reply, this.drafts);
+}
+
+/// One turn with the advisor. `intent` is 'chat' | 'summary' | 'insights'
+/// (summary/insights send an empty message and let the server build the prompt).
+Future<AdvisorReply> askAdvisor({
   required bool wingman,
   required String message,
   required List<Map<String, String>> history,
+  String intent = 'chat',
 }) async {
   final uid = Supabase.instance.client.auth.currentUser?.id;
   if (uid == null) throw StateError('Not authenticated');
   final path = wingman ? 'ai-wingman' : 'ai-bestie';
   final resp = await _dio.post(
     '${Config.apiBase}/api/verified-vibe/$path/chat',
-    data: {'userId': uid, 'message': message, 'intent': 'chat', 'history': history},
+    data: {'userId': uid, 'message': message, 'intent': intent, 'history': history},
     options: Options(
       headers: {'Content-Type': 'application/json'},
       receiveTimeout: const Duration(seconds: 60),
     ),
   );
   final body = resp.data is Map ? resp.data as Map : const {};
-  return (body['reply'] ?? body['error'] ?? '…').toString();
+  final drafts = <AdvisorDraft>[];
+  if (body['drafts'] is List) {
+    for (final d in (body['drafts'] as List)) {
+      if (d is Map && d['content'] != null) {
+        drafts.add(AdvisorDraft(
+          (d['matchName'] ?? 'your match').toString(),
+          (d['matchId'] ?? '').toString(),
+          d['content'].toString(),
+        ));
+      }
+    }
+  }
+  return AdvisorReply((body['reply'] ?? body['error'] ?? '…').toString(), drafts);
+}
+
+/// Proactive advisor greeting. Returns (id, content) or null if nothing new.
+Future<({String id, String content})?> fetchGreeting() async {
+  try {
+    final resp = await _dio.post(
+      '${Config.apiBase}/api/verified-vibe/ai-greeting',
+      data: const {},
+      options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'},
+          receiveTimeout: const Duration(seconds: 60)),
+    );
+    final b = resp.data is Map ? resp.data as Map : const {};
+    final content = (b['content'] ?? '').toString();
+    final id = (b['greetingId'] ?? '').toString();
+    if (content.isEmpty) return null;
+    return (id: id, content: content);
+  } catch (_) {
+    return null; // non-fatal — advisor still works without a greeting
+  }
+}
+
+/// Thumbs feedback on a greeting. rating: 1 (helpful) or -1 (not helpful).
+Future<void> submitGreetingFeedback(String greetingId, int rating, {String? reasonChip}) async {
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/ai-feedback',
+    data: {'greetingId': greetingId, 'rating': rating, if (reasonChip != null) 'reasonChip': reasonChip},
+    options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
+  );
+}
+
+/// Thumbs feedback on an advisor message (userId-in-body, no bearer).
+Future<void> submitMessageFeedback({
+  required bool wingman,
+  required String messageContent,
+  required bool positive,
+  String? reasonChip,
+}) async {
+  final uid = Supabase.instance.client.auth.currentUser?.id;
+  if (uid == null) return;
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/ai-bestie/feedback',
+    data: {
+      'userId': uid,
+      'assistantType': wingman ? 'wingman' : 'bestie',
+      'feedbackType': positive ? 'positive' : 'negative',
+      'messageContent': messageContent,
+      if (reasonChip != null) 'reasonChip': reasonChip,
+    },
+    options: Options(headers: {'Content-Type': 'application/json'}),
+  );
 }
