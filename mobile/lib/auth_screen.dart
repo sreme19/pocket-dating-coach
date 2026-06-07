@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config.dart';
+import 'onboarding_flow.dart' show GateStep, pendingSignupGender;
 
 /// Email one-time-code sign-in, mirroring the web flow:
 /// signInWithOtp(email) → verifyOtp(email, code). On success the auth state
@@ -17,8 +18,20 @@ class _AuthScreenState extends State<AuthScreen> {
   final _code = TextEditingController();
   bool _codeSent = false;
   bool _signUp = false; // false = sign in, true = create account (same OTP flow)
+  int _signupStep = 0; // signup: 0 = "two questions" gate, 1 = email
+  String _gateGender = 'man';
+  bool _gateOver18 = false;
   bool _loading = false;
   String? _error;
+
+  void _setMode(bool signUp) {
+    setState(() {
+      _signUp = signUp;
+      _signupStep = 0;
+      _error = null;
+      if (!signUp) pendingSignupGender = null; // back to sign-in: drop pre-pick
+    });
+  }
 
   SupabaseClient get _sb => Supabase.instance.client;
 
@@ -55,6 +68,20 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Create account → "Two questions" gate first (mirrors web). The chosen
+    // gender is held in pendingSignupGender so onboarding skips the gate later.
+    if (_signUp && !_codeSent && _signupStep == 0) {
+      return GateStep(
+        gender: _gateGender,
+        over18: _gateOver18,
+        onGender: (g) => setState(() => _gateGender = g),
+        onOver18: (v) => setState(() => _gateOver18 = v),
+        onContinue: _gateOver18
+            ? () { pendingSignupGender = _gateGender; setState(() => _signupStep = 1); }
+            : null,
+        onSignIn: () => _setMode(false),
+      );
+    }
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -70,7 +97,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   if (!_codeSent) ...[
                     _ModeToggle(
                       signUp: _signUp,
-                      onChanged: (v) => setState(() { _signUp = v; _error = null; }),
+                      onChanged: _setMode,
                     ),
                     const SizedBox(height: 20),
                   ],

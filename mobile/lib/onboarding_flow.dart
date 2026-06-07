@@ -4,6 +4,10 @@ import 'archetypes.dart';
 import 'config.dart';
 import 'verification_screen.dart';
 
+/// Gender chosen on the pre-auth "Two questions" gate during Create-account.
+/// When set, OnboardingFlow skips its own gate and jumps straight to the lane.
+String? pendingSignupGender;
+
 /// New-user onboarding: gate (gender + 18+) → lane (archetype) → verification.
 /// Calls [onComplete] once the user has an archetype saved + verification done
 /// (or skipped), after which AuthGate re-checks and shows the app.
@@ -21,6 +25,20 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   bool _over18 = false;
   bool _saving = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    // If the user already picked their gender on the pre-auth signup gate,
+    // skip the gate and go straight to the lane (don't ask twice).
+    final pending = pendingSignupGender;
+    if (pending != null) {
+      _gender = pending;
+      _over18 = true;
+      _step = 1;
+      pendingSignupGender = null;
+    }
+  }
 
   Future<void> _pickArchetype(String archetypeId) async {
     if (_saving) return;
@@ -47,7 +65,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
           onBack: () => setState(() => _step = 0),
         );
       default:
-        return _Gate(
+        return GateStep(
           gender: _gender,
           over18: _over18,
           onGender: (g) => setState(() => _gender = g),
@@ -58,13 +76,17 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   }
 }
 
-class _Gate extends StatelessWidget {
+/// The "Two questions. Then we move." gate — gender + 18+. Reused pre-auth on
+/// the Create-account flow and in onboarding. [onSignIn], when provided, shows
+/// an "Already a member? Sign in →" link (used on the signup gate).
+class GateStep extends StatelessWidget {
   final String gender;
   final bool over18;
   final ValueChanged<String> onGender;
   final ValueChanged<bool> onOver18;
   final VoidCallback? onContinue;
-  const _Gate({required this.gender, required this.over18, required this.onGender, required this.onOver18, required this.onContinue});
+  final VoidCallback? onSignIn;
+  const GateStep({super.key, required this.gender, required this.over18, required this.onGender, required this.onOver18, required this.onContinue, this.onSignIn});
 
   @override
   Widget build(BuildContext context) {
@@ -82,11 +104,13 @@ class _Gate extends StatelessWidget {
             const Text("I'm a…", style: TextStyle(color: Color(Config.text2), fontWeight: FontWeight.w600)),
             const SizedBox(height: 12),
             Row(children: [
-              _genderCard('man', '♂', 'Man', gender == 'man', () => onGender('man')),
+              _genderCard('man', '♂', 'Man', 'See Casual & Marriage-Minded', gender == 'man', () => onGender('man')),
               const SizedBox(width: 12),
-              _genderCard('woman', '♀', 'Woman', gender == 'woman', () => onGender('woman')),
+              _genderCard('woman', '♀', 'Woman', 'See Spoilt & Safety-First', gender == 'woman', () => onGender('woman')),
             ]),
             const SizedBox(height: 28),
+            const Text("I'm 18 or older", style: TextStyle(color: Color(Config.text2), fontWeight: FontWeight.w600)),
+            const SizedBox(height: 12),
             GestureDetector(
               onTap: () => onOver18(!over18),
               child: Container(
@@ -99,7 +123,11 @@ class _Gate extends StatelessWidget {
                 child: Row(children: [
                   Icon(over18 ? Icons.check_box : Icons.check_box_outline_blank, color: over18 ? const Color(Config.accent) : const Color(Config.text3)),
                   const SizedBox(width: 12),
-                  const Expanded(child: Text("I'm 18 or older", style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w600))),
+                  const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text("Yes, I'm 18+", style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w600)),
+                    SizedBox(height: 2),
+                    Text('Required — we ID-verify everyone, no exceptions.', style: TextStyle(color: Color(Config.text3), fontSize: 12)),
+                  ])),
                 ]),
               ),
             ),
@@ -114,30 +142,39 @@ class _Gate extends StatelessWidget {
                   disabledBackgroundColor: const Color(Config.bg3),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('Continue', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                child: Text(over18 ? 'Continue' : 'Pick both to continue', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
               ),
             ),
+            if (onSignIn != null)
+              Center(
+                child: TextButton(
+                  onPressed: onSignIn,
+                  child: const Text('Already a member?  Sign in →', style: TextStyle(color: Color(Config.text2))),
+                ),
+              ),
           ]),
         ),
       ),
     );
   }
 
-  Widget _genderCard(String id, String icon, String label, bool sel, VoidCallback onTap) {
+  Widget _genderCard(String id, String icon, String label, String sub, bool sel, VoidCallback onTap) {
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 24),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
           decoration: BoxDecoration(
             color: const Color(Config.bg2),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: sel ? const Color(Config.accent) : const Color(0x22FFFFFF), width: sel ? 2 : 1),
           ),
-          child: Column(children: [
-            Text(icon, style: TextStyle(fontSize: 30, color: sel ? const Color(Config.accent) : const Color(Config.text2))),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(icon, style: TextStyle(fontSize: 28, color: sel ? const Color(Config.accent) : const Color(Config.text2))),
             const SizedBox(height: 8),
             Text(label, style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700, fontSize: 16)),
+            const SizedBox(height: 2),
+            Text(sub, style: const TextStyle(color: Color(Config.text3), fontSize: 12, height: 1.2)),
           ]),
         ),
       ),
