@@ -115,9 +115,33 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
       ),
       child: Column(children: [
         const Text('TRUST SCORE', style: TextStyle(color: Color(Config.text2), fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1)),
-        const SizedBox(height: 6),
-        Text('${d.trustScore}', style: const TextStyle(color: Color(Config.accent), fontSize: 56, fontWeight: FontWeight.w800, height: 1)),
-        const Text('out of 100', style: TextStyle(color: Color(Config.text3), fontSize: 13)),
+        const SizedBox(height: 14),
+        SizedBox(
+          width: 150, height: 150,
+          child: Stack(alignment: Alignment.center, children: [
+            SizedBox(
+              width: 150, height: 150,
+              child: CircularProgressIndicator(
+                value: d.trustScore.clamp(0, 100) / 100,
+                strokeWidth: 10,
+                backgroundColor: const Color(0x22FFFFFF),
+                valueColor: const AlwaysStoppedAnimation(Color(Config.accent)),
+                strokeCap: StrokeCap.round,
+              ),
+            ),
+            Column(mainAxisSize: MainAxisSize.min, children: [
+              Text('${d.trustScore}', style: const TextStyle(color: Color(Config.text1), fontSize: 44, fontWeight: FontWeight.w800, height: 1)),
+              const Text('/ 100', style: TextStyle(color: Color(Config.text3), fontSize: 12)),
+            ]),
+          ]),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          decoration: BoxDecoration(color: const Color(0x2210B981), borderRadius: BorderRadius.circular(999)),
+          child: Text(trustLabel(d.trustScore),
+              style: const TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w700)),
+        ),
         const SizedBox(height: 14),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
           Icon(d.identityVerified ? Icons.verified : Icons.gpp_maybe,

@@ -602,6 +602,30 @@ Future<Map> uploadProof(String category, List<String> filePaths) async {
   return resp.data is Map ? resp.data as Map : const {};
 }
 
+/// Verify a social proof by profile URL (linkedin / instagram / twitter) — the
+/// backend auto-verifies a URL-only submission (no screenshot required).
+Future<Map> uploadProofUrl(String category, String profileUrl) async {
+  final form = FormData();
+  form.fields.add(MapEntry('category', category));
+  form.fields.add(MapEntry('profile_url', profileUrl));
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/proof-upload',
+    data: form,
+    options: Options(headers: {'Authorization': _bearer()}, receiveTimeout: const Duration(seconds: 120)),
+  );
+  return resp.data is Map ? resp.data as Map : const {};
+}
+
+/// Human-readable trust tier (mirrors getTrustScoreLabel in trustScore.ts).
+String trustLabel(int score) {
+  if (score <= 0) return 'Not Verified';
+  if (score < 25) return 'Minimal Trust';
+  if (score < 50) return 'Low Trust';
+  if (score < 75) return 'Medium Trust';
+  if (score < 100) return 'High Trust';
+  return 'Fully Verified';
+}
+
 // ── Tip / Attention ─────────────────────────────────────────────────────────
 
 Future<void> submitTip(String targetUserId, String submitterGender, List<String> tags, String? text) async {
