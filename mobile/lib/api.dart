@@ -857,6 +857,21 @@ Future<void> passProfile(String profileId) async {
 
 // ── Match detail (rich public profile) ─────────────────────────────────────
 
+/// A named, tabbable verified-signal group (Career/Lifestyle/Health/Social).
+class NamedSignal {
+  final String emoji;
+  final String label;
+  final SignalGroup group;
+  NamedSignal(this.emoji, this.label, this.group);
+}
+
+/// A labelled group of archetype answer chips (e.g. "Energy in a relationship").
+class ChipGroup {
+  final String label;
+  final List<String> chips;
+  ChipGroup(this.label, this.chips);
+}
+
 class MatchDetail {
   final String name;
   final int? age;
@@ -870,6 +885,15 @@ class MatchDetail {
   final List<String> vibeWords;
   final List<({String emoji, String text})> whatBrings;
   final List<String> travel;
+  // Rich Public-Read sections
+  final List<ChipGroup> archetypeChips;
+  final List<NamedSignal> verifiedSignals;
+  final List<GarageCar> garage;
+  final String? annualIncome;
+  final List<InsightChip> careerLines;
+  final List<InsightChip> wealthInsights;
+  final String? personalityPortraitUrl;
+  final String? garagePortraitUrl;
 
   MatchDetail({
     required this.name,
@@ -884,7 +908,27 @@ class MatchDetail {
     required this.vibeWords,
     required this.whatBrings,
     required this.travel,
+    required this.archetypeChips,
+    required this.verifiedSignals,
+    required this.garage,
+    required this.annualIncome,
+    required this.careerLines,
+    required this.wealthInsights,
+    required this.personalityPortraitUrl,
+    required this.garagePortraitUrl,
   });
+}
+
+List<InsightChip> _parseChips(dynamic list) {
+  final out = <InsightChip>[];
+  if (list is List) {
+    for (final i in list) {
+      if (i is Map && i['label'] != null) {
+        out.add(InsightChip((i['emoji'] ?? '•').toString(), i['label'].toString()));
+      }
+    }
+  }
+  return out;
 }
 
 Future<MatchDetail> fetchMatchDetail(String profileId) async {
@@ -895,6 +939,58 @@ Future<MatchDetail> fetchMatchDetail(String profileId) async {
   final body = resp.data is Map ? resp.data as Map : const {};
   final d = (body['data'] is Map ? body['data'] as Map : const {});
   final brings = (d['whatBrings'] as List?) ?? const [];
+
+  // Archetype chip groups
+  final archetypeChips = <ChipGroup>[];
+  if (d['archetypeChips'] is List) {
+    for (final g in (d['archetypeChips'] as List)) {
+      if (g is Map && g['chips'] is List) {
+        archetypeChips.add(ChipGroup(
+          (g['label'] ?? '').toString(),
+          (g['chips'] as List).map((c) => c.toString()).toList(),
+        ));
+      }
+    }
+  }
+
+  // Verified signals (ready-made groups with label/icon/insights/aggregated)
+  final signals = <NamedSignal>[];
+  if (d['verifiedSignals'] is List) {
+    for (final s in (d['verifiedSignals'] as List)) {
+      if (s is Map) {
+        final chips = _parseChips(s['insights']);
+        if (chips.isNotEmpty) {
+          signals.add(NamedSignal(
+            (s['icon'] ?? '•').toString(),
+            (s['label'] ?? '').toString(),
+            SignalGroup(chips, (s['aggregated'] ?? '').toString()),
+          ));
+        }
+      }
+    }
+  }
+
+  // Garage cars
+  final garage = <GarageCar>[];
+  if (d['garageCars'] is List) {
+    for (final a in (d['garageCars'] as List)) {
+      if (a is Map && a['make'] != null) {
+        garage.add(GarageCar(
+          make: (a['make'] ?? '').toString(),
+          model: (a['model'] ?? '').toString(),
+          year: a['year']?.toString(),
+          color: a['color']?.toString(),
+        ));
+      }
+    }
+  }
+
+  final money = d['moneyMatters'] as Map?;
+  String? incomeNonEmpty(dynamic v) {
+    final s = v?.toString().trim();
+    return (s != null && s.isNotEmpty) ? s : null;
+  }
+
   return MatchDetail(
     name: (d['firstName'] ?? '—').toString(),
     age: d['age'] is num ? (d['age'] as num).toInt() : null,
@@ -908,6 +1004,14 @@ Future<MatchDetail> fetchMatchDetail(String profileId) async {
     vibeWords: ((d['vibeWords'] as List?) ?? const []).map((e) => e.toString()).toList(),
     whatBrings: brings.whereType<Map>().map((b) => (emoji: (b['emoji'] ?? '•').toString(), text: (b['text'] ?? '').toString())).toList(),
     travel: ((d['travelLocations'] as List?) ?? const []).map((e) => e.toString()).toList(),
+    archetypeChips: archetypeChips,
+    verifiedSignals: signals,
+    garage: garage,
+    annualIncome: incomeNonEmpty(money?['annualIncome']),
+    careerLines: _parseChips(money?['careerLines']),
+    wealthInsights: _parseChips(money?['wealthInsights']),
+    personalityPortraitUrl: incomeNonEmpty(d['personalityPortraitUrl']),
+    garagePortraitUrl: incomeNonEmpty(d['garagePortraitUrl']),
   );
 }
 
