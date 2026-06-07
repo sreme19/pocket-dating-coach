@@ -820,6 +820,68 @@ Future<void> blockUser(String blockedUserId, {String? matchId}) async {
   );
 }
 
+/// A received secret-admirer / craving-attention message (inbox).
+class Admirer {
+  final String id;
+  final String senderId;
+  final String name;
+  final int? age;
+  final String? avatar;
+  final String archetype;
+  final String messageType; // secret_admirer | craving_attention
+  final String content;
+  final String? replyContent;
+  final bool isRead;
+  Admirer({
+    required this.id,
+    required this.senderId,
+    required this.name,
+    required this.age,
+    required this.avatar,
+    required this.archetype,
+    required this.messageType,
+    required this.content,
+    required this.replyContent,
+    required this.isRead,
+  });
+  bool get replied => replyContent != null && replyContent!.isNotEmpty;
+}
+
+/// Fetch received admirer messages for the signed-in user (marks them read).
+Future<List<Admirer>> fetchAdmirers() async {
+  final uid = Supabase.instance.client.auth.currentUser?.id;
+  if (uid == null) return [];
+  final resp = await _dio.get(
+    '${Config.apiBase}/api/verified-vibe/attention',
+    queryParameters: {'recipientId': uid},
+    options: Options(headers: {'Authorization': _bearer()}),
+  );
+  final msgs = (resp.data is Map ? resp.data['messages'] : null) as List? ?? const [];
+  return msgs.whereType<Map>().map((m) => Admirer(
+        id: (m['id'] ?? '').toString(),
+        senderId: (m['senderId'] ?? '').toString(),
+        name: (m['senderName'] ?? '—').toString(),
+        age: m['senderAge'] is num ? (m['senderAge'] as num).toInt() : null,
+        avatar: m['senderAvatar'] as String?,
+        archetype: (m['senderArchetype'] ?? '').toString(),
+        messageType: (m['messageType'] ?? 'secret_admirer').toString(),
+        content: (m['content'] ?? '').toString(),
+        replyContent: m['replyContent'] as String?,
+        isRead: m['isRead'] == true,
+      )).toList();
+}
+
+/// Reply to an admirer message — creates a mutual match + seeds the chat.
+/// Returns the matchId of the (new or existing) conversation.
+Future<String?> replyToAdmirer(String messageId, String replyContent) async {
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/attention/reply',
+    data: {'messageId': messageId, 'replyContent': replyContent},
+    options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
+  );
+  return (resp.data is Map ? resp.data['matchId'] : null) as String?;
+}
+
 Future<ChatMessage?> sendMessage(String conversationId, String content) async {
   final resp = await _dio.post(
     '${Config.apiBase}/api/verified-vibe/chat/send',
