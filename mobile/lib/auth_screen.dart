@@ -16,6 +16,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final _email = TextEditingController();
   final _code = TextEditingController();
   bool _codeSent = false;
+  bool _signUp = false; // false = sign in, true = create account (same OTP flow)
   bool _loading = false;
   String? _error;
 
@@ -66,8 +67,17 @@ class _AuthScreenState extends State<AuthScreen> {
                 children: [
                   const _Brand(),
                   const SizedBox(height: 32),
+                  if (!_codeSent) ...[
+                    _ModeToggle(
+                      signUp: _signUp,
+                      onChanged: (v) => setState(() { _signUp = v; _error = null; }),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
                   Text(
-                    _codeSent ? 'Check your email' : 'Welcome back',
+                    _codeSent
+                        ? 'Check your email'
+                        : (_signUp ? 'Create your account' : 'Welcome back'),
                     style: const TextStyle(
                       fontSize: 28, fontWeight: FontWeight.bold,
                       color: Color(Config.text1),
@@ -77,14 +87,16 @@ class _AuthScreenState extends State<AuthScreen> {
                   Text(
                     _codeSent
                         ? 'We sent a 6-digit code to ${_email.text.trim()}.'
-                        : "We'll email you a 6-digit code. No password needed.",
-                    style: const TextStyle(fontSize: 15, color: Color(Config.text2)),
+                        : (_signUp
+                            ? "Enter your email and we'll send a 6-digit code to set you up. No password — you'll pick your vibe next."
+                            : "We'll email you a 6-digit code. No password needed."),
+                    style: const TextStyle(fontSize: 15, color: Color(Config.text2), height: 1.4),
                   ),
                   const SizedBox(height: 24),
                   if (!_codeSent) ...[
                     _field(_email, 'you@example.com', TextInputType.emailAddress),
                     const SizedBox(height: 16),
-                    _primaryButton('Send code', _loading ? null : _sendCode),
+                    _primaryButton(_signUp ? 'Create account' : 'Send code', _loading ? null : _sendCode),
                   ] else ...[
                     _field(_code, '6-digit code', TextInputType.number),
                     const SizedBox(height: 16),
@@ -144,6 +156,56 @@ class _AuthScreenState extends State<AuthScreen> {
         child: _loading
             ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF052819)))
             : Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+      ),
+    );
+  }
+}
+
+/// Segmented Sign in / Create account toggle. Both use the same passwordless
+/// OTP flow — a brand-new email is auto-created on verify, then AuthGate routes
+/// it into onboarding (no archetype yet). The toggle is the new-user cue.
+class _ModeToggle extends StatelessWidget {
+  final bool signUp;
+  final ValueChanged<bool> onChanged;
+  const _ModeToggle({required this.signUp, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(Config.bg2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0x18FFFFFF)),
+      ),
+      child: Row(children: [
+        _seg('Sign in', !signUp, () => onChanged(false)),
+        _seg('Create account', signUp, () => onChanged(true)),
+      ]),
+    );
+  }
+
+  Widget _seg(String label, bool active, VoidCallback onTap) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: active ? const Color(Config.accent) : Colors.transparent,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: active ? const Color(0xFF052819) : const Color(Config.text2),
+            ),
+          ),
+        ),
       ),
     );
   }
