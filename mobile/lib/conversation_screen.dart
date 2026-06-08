@@ -273,9 +273,9 @@ class _Bubble extends StatelessWidget {
     final bg = mine
         ? const Color(Config.accent)
         : ai
-            ? const Color(0x2210B981)
+            ? const Color(0x22FF3B6B)
             : const Color(Config.bg3);
-    final fg = mine ? const Color(0xFF052819) : const Color(Config.text1);
+    final fg = mine ? const Color(0xFFFFFFFF) : const Color(Config.text1);
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -349,8 +349,8 @@ class _Composer extends StatelessWidget {
               radius: 22,
               backgroundColor: const Color(Config.accent),
               child: sending
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF052819)))
-                  : const Icon(Icons.arrow_upward, color: Color(0xFF052819)),
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFFFFFF)))
+                  : const Icon(Icons.arrow_upward, color: Color(0xFFFFFFFF)),
             ),
           ),
         ]),

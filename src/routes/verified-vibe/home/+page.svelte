@@ -126,7 +126,7 @@
   <div class="hero">
     <div class="eyebrow">
       <span class="shield">🛡</span>
-      VERIFIED VIBE · V1
+      RITEANGLE · V1
     </div>
     <h1 class="title">
       Pick your<br /><em>lane.</em>

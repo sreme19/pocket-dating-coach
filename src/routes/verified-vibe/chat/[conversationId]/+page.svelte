@@ -1973,7 +1973,7 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: #10b981;
+    background: #FF3B6B;
     display: inline-block;
   }
 
@@ -2282,15 +2282,15 @@
 
   .message-group.sent .message-bubble {
     background: var(--accent-bright);
-    color: #06281e;
+    color: #FFFFFF;
     border-bottom-right-radius: 4px;
-    box-shadow: 0 2px 8px rgba(52, 211, 153, 0.2);
+    box-shadow: 0 2px 8px rgba(255, 59, 107, 0.2);
   }
 
   .message-group.received .message-bubble {
-    background: rgba(52, 211, 153, 0.12);
+    background: rgba(255, 59, 107, 0.12);
     color: var(--text-1);
-    border: 1px solid rgba(52, 211, 153, 0.25);
+    border: 1px solid rgba(255, 59, 107, 0.25);
     border-bottom-left-radius: 4px;
   }
 
@@ -2405,7 +2405,7 @@
     display: grid;
     place-items: center;
     cursor: pointer;
-    color: #06281e;
+    color: #ffffff;
     transition: all 200ms ease;
     flex-shrink: 0;
   }
@@ -2885,8 +2885,8 @@
 
   .up-benefits {
     margin: 12px 20px;
-    background: rgba(16, 185, 129, 0.07);
-    border: 1px solid rgba(16, 185, 129, 0.2);
+    background: rgba(255, 59, 107, 0.07);
+    border: 1px solid rgba(255, 59, 107, 0.2);
     border-radius: 12px;
     padding: 12px 14px;
     display: flex;
@@ -2903,7 +2903,7 @@
   }
 
   .up-benefit strong {
-    color: #34d399;
+    color: #E11D54;
   }
 
   .up-face-note {
@@ -2970,13 +2970,13 @@
   }
 
   .up-cat-top {
-    border-color: rgba(52, 211, 153, 0.4);
-    background: rgba(52, 211, 153, 0.05);
+    border-color: rgba(255, 59, 107, 0.4);
+    background: rgba(255, 59, 107, 0.05);
   }
 
   .up-cat-top:hover {
     border-color: var(--accent-bright);
-    background: rgba(52, 211, 153, 0.1);
+    background: rgba(255, 59, 107, 0.1);
   }
 
   .up-cat-icon {
@@ -3009,7 +3009,7 @@
     font-size: 11px;
     font-weight: 700;
     color: var(--accent-bright);
-    background: rgba(52, 211, 153, 0.12);
+    background: rgba(255, 59, 107, 0.12);
     border-radius: 999px;
     padding: 2px 8px;
   }

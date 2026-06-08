@@ -169,7 +169,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
             borderRadius: BorderRadius.circular(999),
             child: LinearProgressIndicator(
               value: completed / _steps.length, minHeight: 6,
-              backgroundColor: const Color(0x22FFFFFF),
+              backgroundColor: const Color(0x221B1020),
               valueColor: const AlwaysStoppedAnimation(Color(Config.accent)),
             ),
           ),
@@ -192,7 +192,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
               const SizedBox(height: 20),
               Container(
                 padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(color: const Color(0x2210B981), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(color: const Color(0x22FF3B6B), borderRadius: BorderRadius.circular(12)),
                 child: Row(children: [
                   const Text('💚', style: TextStyle(fontSize: 16)),
                   const SizedBox(width: 10),
@@ -216,12 +216,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 onPressed: (_stepComplete && !_busy) ? _continue : null,
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(Config.accent),
-                  foregroundColor: const Color(0xFF052819),
+                  foregroundColor: const Color(0xFFFFFFFF),
                   disabledBackgroundColor: const Color(Config.bg3),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: _busy
-                    ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF052819)))
+                    ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFFFFFF)))
                     : Text(_step >= _steps.length - 1 ? 'Finish & enter' : 'Continue',
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
               ),
@@ -292,7 +292,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
               decoration: BoxDecoration(
                 color: const Color(Config.bg2),
                 borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: _photoB64.isNotEmpty ? const Color(Config.accent) : const Color(0x33FFFFFF)),
+                border: Border.all(color: _photoB64.isNotEmpty ? const Color(Config.accent) : const Color(0x331B1020)),
               ),
               child: Center(child: _photoB64.isEmpty
                   ? const Column(mainAxisSize: MainAxisSize.min, children: [
@@ -330,7 +330,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
       decoration: BoxDecoration(
         color: const Color(Config.bg2),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: done ? const Color(Config.accent) : const Color(0x18FFFFFF)),
+        border: Border.all(color: done ? const Color(Config.accent) : const Color(0x181B1020)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -374,9 +374,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
         child: Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: selected ? const Color(0x2210B981) : const Color(Config.bg2),
+            color: selected ? const Color(0x22FF3B6B) : const Color(Config.bg2),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: selected ? const Color(Config.accent) : const Color(0x18FFFFFF), width: selected ? 2 : 1),
+            border: Border.all(color: selected ? const Color(Config.accent) : const Color(0x181B1020), width: selected ? 2 : 1),
           ),
           child: Row(children: [
             Expanded(child: Text(label, style: TextStyle(

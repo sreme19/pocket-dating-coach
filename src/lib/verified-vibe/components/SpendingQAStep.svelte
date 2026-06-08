@@ -1094,7 +1094,7 @@
   .text-input:focus {
     outline: none;
     border-color: var(--accent-bright);
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+    box-shadow: 0 0 0 3px rgba(255, 59, 107, 0.15);
   }
 
   .text-input:disabled {
@@ -1203,7 +1203,7 @@
   .button-primary:hover:not(:disabled) {
     opacity: 0.9;
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    box-shadow: 0 4px 12px rgba(255, 59, 107, 0.3);
   }
 
   .button-primary:disabled {

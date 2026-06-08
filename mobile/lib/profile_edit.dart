@@ -126,8 +126,8 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
               left: 6, bottom: 6,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: const Color(0xCC10B981), borderRadius: BorderRadius.circular(999)),
-                child: const Text('LEAD', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF052819))),
+                decoration: BoxDecoration(color: const Color(0xCCFF3B6B), borderRadius: BorderRadius.circular(999)),
+                child: const Text('LEAD', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFFFFFFFF))),
               ),
             ),
           Positioned(
@@ -153,7 +153,7 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
         decoration: BoxDecoration(
           color: const Color(Config.bg3),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0x33FFFFFF)),
+          border: Border.all(color: const Color(0x331B1020)),
         ),
         child: const Center(child: Icon(Icons.add_a_photo_outlined, color: Color(Config.text2))),
       ),
@@ -241,9 +241,9 @@ class _ArchetypeRow extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: selected ? const Color(0x2210B981) : const Color(Config.bg3),
+          color: selected ? const Color(0x22FF3B6B) : const Color(Config.bg3),
           borderRadius: BorderRadius.circular(12),
-          border: selected ? Border.all(color: const Color(0x4D10B981)) : null,
+          border: selected ? Border.all(color: const Color(0x4DFF3B6B)) : null,
         ),
         child: Row(children: [
           Text(a.emoji, style: const TextStyle(fontSize: 22)),
@@ -372,11 +372,11 @@ class _HardNosEditorState extends State<_HardNosEditor> {
               onPressed: _saving ? null : _save,
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(Config.accent),
-                foregroundColor: const Color(0xFF052819),
+                foregroundColor: const Color(0xFFFFFFFF),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               child: _saving
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF052819)))
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFFFFFF)))
                   : const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
             ),
           ),

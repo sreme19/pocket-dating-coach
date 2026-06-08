@@ -43,7 +43,7 @@
     padding: 6px 10px;
     border-radius: 999px;
     background: var(--accent-tint);
-    border: 1px solid rgba(52, 211, 153, 0.3);
+    border: 1px solid rgba(255, 122, 77, 0.3);
   }
 
   .trust-badge.sm {

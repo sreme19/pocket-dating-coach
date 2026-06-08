@@ -62,7 +62,7 @@
       <svg viewBox="0 0 280 280" width="100%" style="display:block; max-height: 260px;">
         <defs>
           <radialGradient id="ppbConstGrad" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="rgba(52,211,153,0.08)"/>
+            <stop offset="0%" stop-color="rgba(255,122,77,0.08)"/>
             <stop offset="100%" stop-color="transparent"/>
           </radialGradient>
         </defs>
@@ -84,7 +84,7 @@
             const r2 = 96 * (t.percentage / 100);
             return (i === 0 ? 'M' : 'L') + (140 + Math.cos(a) * r2) + ',' + (140 + Math.sin(a) * r2);
           }).join(' ') + ' Z'}
-          fill="rgba(52,211,153,0.16)" stroke="#34d399" stroke-width="1.5" stroke-linejoin="round"
+          fill="rgba(255,59,107,0.16)" stroke="#FF3B6B" stroke-width="1.5" stroke-linejoin="round"
         />
         {#each personalityReads as t, i}
           {@const a = (Math.PI * 2 * i) / personalityReads.length - Math.PI / 2}
@@ -94,9 +94,9 @@
           {@const lx = 140 + Math.cos(a) * 120}
           {@const ly = 140 + Math.sin(a) * 120}
           {@const ta2 = a * 180 / Math.PI}
-          <circle cx={px} cy={py} r="3.5" fill="#34d399" stroke="#0d1117" stroke-width="2"/>
+          <circle cx={px} cy={py} r="3.5" fill="#FF3B6B" stroke="#FFF3F0" stroke-width="2"/>
           <text x={lx} y={ly - 3} text-anchor={ta2 > -85 && ta2 < 85 ? 'start' : ta2 > 95 || ta2 < -95 ? 'end' : 'middle'} fill="rgba(255,255,255,0.85)" font-size="11" font-weight="600" font-family="inherit">{t.name}</text>
-          <text x={lx} y={ly + 11} text-anchor={ta2 > -85 && ta2 < 85 ? 'start' : ta2 > 95 || ta2 < -95 ? 'end' : 'middle'} fill="#34d399" font-size="10" font-family="inherit">{t.percentage}</text>
+          <text x={lx} y={ly + 11} text-anchor={ta2 > -85 && ta2 < 85 ? 'start' : ta2 > 95 || ta2 < -95 ? 'end' : 'middle'} fill="#FF3B6B" font-size="10" font-family="inherit">{t.percentage}</text>
         {/each}
       </svg>
       <p class="constellation-sig">"Decisive and warm — moves fast, lands soft."</p>
@@ -285,10 +285,10 @@
   .vibe-tags { display: flex; flex-wrap: wrap; gap: 8px; }
   .vibe-tag {
     padding: 7px 15px; border-radius: 999px;
-    background: rgba(124,92,255,0.12); border: 1px solid rgba(124,92,255,0.3);
-    font-size: 13px; font-weight: 600; color: #c4b5fd;
+    background: rgba(255,122,77,0.12); border: 1px solid rgba(255,122,77,0.3);
+    font-size: 13px; font-weight: 600; color: #FF7A4D;
   }
-  .vibe-tag.highlighted { background: rgba(124,92,255,0.2); }
+  .vibe-tag.highlighted { background: rgba(255,122,77,0.2); }
 
   /* Personality radar */
   .personality-constellation {
@@ -309,7 +309,7 @@
   .brings-pillar-item { display: flex; align-items: center; gap: 12px; padding: 13px 14px; }
   .brings-pillar-item + .brings-pillar-item { border-top: 1px solid rgba(255,255,255,0.05); }
   .brings-pillar-icon {
-    width: 36px; height: 36px; border-radius: 10px; background: rgba(52,211,153,0.10);
+    width: 36px; height: 36px; border-radius: 10px; background: rgba(255,59,107,0.10);
     display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
   }
   .brings-pillar-text { flex: 1; font-size: 14px; font-weight: 600; color: #f0f0f0; }
@@ -319,7 +319,7 @@
   .chip-group:last-child { margin-bottom: 0; }
   .chip-group-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.3); margin: 0 0 8px; }
   .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip-pill { padding: 7px 13px; border-radius: 999px; background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.25); font-size: 12.5px; color: #6ee7b7; }
+  .chip-pill { padding: 7px 13px; border-radius: 999px; background: rgba(255,59,107,0.08); border: 1px solid rgba(255,59,107,0.25); font-size: 12.5px; color: #FF3B6B; }
 
   /* Verified Signals */
   .vs-tab-row { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
@@ -329,7 +329,7 @@
     border-radius: 999px; background: transparent; border: 1px solid rgba(255,255,255,0.12);
     color: rgba(255,255,255,0.5); font: 500 12px/1 inherit; cursor: pointer; white-space: nowrap; transition: all 0.15s;
   }
-  .vs-tab--active { background: rgba(52,211,153,0.10); border-color: rgba(52,211,153,0.32); color: #34d399; }
+  .vs-tab--active { background: rgba(255,59,107,0.10); border-color: rgba(255,59,107,0.32); color: #FF3B6B; }
 
   .career-card {
     background: linear-gradient(145deg, rgba(10,102,194,0.12) 0%, rgba(6,6,20,0.95) 100%);
@@ -364,7 +364,7 @@
   .garage-make-badge { display: inline-block; background: #C8102E; color: #fff; font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 5px; letter-spacing: 0.05em; margin-bottom: 8px; }
   .garage-model-name { font-size: 20px; font-weight: 700; color: #fff; }
   .garage-color { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 2px; }
-  .garage-verified { font-size: 12px; color: #34d399; font-weight: 600; margin-top: 8px; }
+  .garage-verified { font-size: 12px; color: #FF3B6B; font-weight: 600; margin-top: 8px; }
 
   /* Travel magnets */
   .magnets-board { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -389,7 +389,7 @@
   .money-stat-declared { font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255,255,255,0.35); margin: 0; }
   .money-career-lines { display: flex; flex-direction: column; gap: 3px; }
   .money-career-line { font-size: 13px; color: #d0d0d0; font-weight: 500; }
-  .money-verified { font-size: 11px; color: #34d399; margin: 0; }
+  .money-verified { font-size: 11px; color: #FF3B6B; margin: 0; }
 
   /* AI Portraits */
   .portrait-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }

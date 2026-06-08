@@ -500,13 +500,13 @@
   @media (hover: hover) {
     .upload-area:hover {
       border-color: var(--color-vibe-emerald);
-      background: rgba(16, 185, 129, 0.05);
+      background: rgba(255, 59, 107, 0.05);
     }
   }
 
   .upload-area.dragging {
     border-color: var(--color-vibe-emerald);
-    background: rgba(16, 185, 129, 0.1);
+    background: rgba(255, 59, 107, 0.1);
   }
 
   .upload-area:focus-within {
@@ -667,7 +667,7 @@
   .field-input:focus {
     outline: none;
     border-color: var(--color-vibe-emerald);
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+    box-shadow: 0 0 0 3px rgba(255, 59, 107, 0.1);
   }
 
   .field-input:disabled {
@@ -745,7 +745,7 @@
     .btn-primary:hover:not(:disabled) {
       opacity: 0.9;
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+      box-shadow: 0 4px 12px rgba(255, 59, 107, 0.3);
     }
   }
 

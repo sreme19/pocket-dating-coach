@@ -118,7 +118,7 @@ class GateStep extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: const Color(Config.bg2),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: over18 ? const Color(Config.accent) : const Color(0x22FFFFFF)),
+                  border: Border.all(color: over18 ? const Color(Config.accent) : const Color(0x221B1020)),
                 ),
                 child: Row(children: [
                   Icon(over18 ? Icons.check_box : Icons.check_box_outline_blank, color: over18 ? const Color(Config.accent) : const Color(Config.text3)),
@@ -138,7 +138,7 @@ class GateStep extends StatelessWidget {
                 onPressed: onContinue,
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(Config.accent),
-                  foregroundColor: const Color(0xFF052819),
+                  foregroundColor: const Color(0xFFFFFFFF),
                   disabledBackgroundColor: const Color(Config.bg3),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
@@ -167,7 +167,7 @@ class GateStep extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(Config.bg2),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: sel ? const Color(Config.accent) : const Color(0x22FFFFFF), width: sel ? 2 : 1),
+            border: Border.all(color: sel ? const Color(Config.accent) : const Color(0x221B1020), width: sel ? 2 : 1),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(icon, style: TextStyle(fontSize: 28, color: sel ? const Color(Config.accent) : const Color(Config.text2))),
@@ -219,7 +219,7 @@ class _Lane extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: const Color(Config.bg2),
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: const Color(0x18FFFFFF)),
+                          border: Border.all(color: const Color(0x181B1020)),
                         ),
                         child: Row(children: [
                           Text(a.emoji, style: const TextStyle(fontSize: 26)),

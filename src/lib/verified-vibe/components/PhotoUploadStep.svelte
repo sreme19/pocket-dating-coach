@@ -291,13 +291,13 @@
   @media (hover: hover) {
     .upload-area:hover {
       border-color: var(--color-vibe-emerald);
-      background: rgba(16, 185, 129, 0.05);
+      background: rgba(255, 59, 107, 0.05);
     }
   }
 
   .upload-area.dragging {
     border-color: var(--color-vibe-emerald);
-    background: rgba(16, 185, 129, 0.1);
+    background: rgba(255, 59, 107, 0.1);
   }
 
   .upload-area:focus-within {
@@ -400,7 +400,7 @@
   .checking-spinner {
     width: 48px;
     height: 48px;
-    border: 3px solid rgba(16, 185, 129, 0.2);
+    border: 3px solid rgba(255, 59, 107, 0.2);
     border-top-color: var(--color-vibe-emerald);
     border-radius: 50%;
     animation: spin 1s linear infinite;
@@ -444,8 +444,8 @@
   }
 
   .result-success {
-    background: rgba(16, 185, 129, 0.1);
-    border: 1px solid rgba(16, 185, 129, 0.3);
+    background: rgba(255, 59, 107, 0.1);
+    border: 1px solid rgba(255, 59, 107, 0.3);
   }
 
   .result-failure {
@@ -548,7 +548,7 @@
     .btn-primary:hover:not(:disabled) {
       opacity: 0.9;
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+      box-shadow: 0 4px 12px rgba(255, 59, 107, 0.3);
     }
   }
 

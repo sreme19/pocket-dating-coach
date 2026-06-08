@@ -53,7 +53,7 @@ class LiveNowCarousel extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(Config.bg2),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0x18FFFFFF)),
+        border: Border.all(color: const Color(0x181B1020)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Padding(

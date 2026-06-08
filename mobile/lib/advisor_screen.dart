@@ -225,8 +225,8 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
                   padding: const EdgeInsets.only(right: 8),
                   child: ActionChip(
                     label: Text(c.label, style: const TextStyle(color: Color(Config.accent), fontSize: 13)),
-                    backgroundColor: const Color(0x2210B981),
-                    side: const BorderSide(color: Color(0x4D10B981)),
+                    backgroundColor: const Color(0x22FF3B6B),
+                    side: const BorderSide(color: Color(0x4DFF3B6B)),
                     onPressed: _thinking ? null : () => _chip(c.intent, c.label),
                   ),
                 ),
@@ -268,7 +268,7 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
               child: const CircleAvatar(
                 radius: 22,
                 backgroundColor: Color(Config.accent),
-                child: Icon(Icons.arrow_upward, color: Color(0xFF052819)),
+                child: Icon(Icons.arrow_upward, color: Color(0xFFFFFFFF)),
               ),
             ),
           ]),
@@ -315,7 +315,7 @@ class _Bubble extends StatelessWidget {
         decoration: BoxDecoration(
           color: mine ? const Color(Config.accent) : const Color(Config.bg3),
           borderRadius: BorderRadius.circular(16),
-          border: greeting ? Border.all(color: const Color(0x4D10B981)) : null,
+          border: greeting ? Border.all(color: const Color(0x4DFF3B6B)) : null,
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           if (greeting)
@@ -325,7 +325,7 @@ class _Bubble extends StatelessWidget {
                   style: TextStyle(color: Color(Config.accent), fontSize: 11, fontWeight: FontWeight.w700)),
             ),
           mine
-              ? Text(turn.content, style: const TextStyle(color: Color(0xFF052819), fontSize: 15, height: 1.35))
+              ? Text(turn.content, style: const TextStyle(color: Color(0xFFFFFFFF), fontSize: 15, height: 1.35))
               : buildMarkdown(turn.content, color: const Color(Config.text1)),
           for (final d in turn.drafts) _DraftCard(draft: d, onSend: () => onSendDraft(d)),
           if (!mine) _Feedback(turn: turn, onFeedback: onFeedback),
@@ -347,7 +347,7 @@ class _DraftCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(Config.bg2),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0x22FFFFFF)),
+        border: Border.all(color: const Color(0x221B1020)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Draft for ${draft.matchName}',
@@ -361,7 +361,7 @@ class _DraftCard extends StatelessWidget {
             onPressed: draft.matchId.isEmpty ? null : onSend,
             style: FilledButton.styleFrom(
               backgroundColor: const Color(Config.accent),
-              foregroundColor: const Color(0xFF052819),
+              foregroundColor: const Color(0xFFFFFFFF),
               visualDensity: VisualDensity.compact,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
@@ -421,7 +421,7 @@ class _IntelCard extends StatelessWidget {
           if (intel.standingRank != null && intel.standingPool != null)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(color: const Color(0x2210B981), borderRadius: BorderRadius.circular(999)),
+              decoration: BoxDecoration(color: const Color(0x22FF3B6B), borderRadius: BorderRadius.circular(999)),
               child: Text('Rank ${intel.standingRank}/${intel.standingPool}',
                   style: const TextStyle(color: Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w700)),
             ),
