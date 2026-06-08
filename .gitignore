@@ -37,6 +37,10 @@ vite.config.ts.timestamp-*
 android/keystore.properties
 android/app/release.keystore
 
+# App Store Connect API keys — private keys, must never be committed
+*.p8
+mobile/.asc-keys/
+
 # Firebase config (contains project-specific keys, should not be committed)
 google-services.json
 android/app/google-services.json
