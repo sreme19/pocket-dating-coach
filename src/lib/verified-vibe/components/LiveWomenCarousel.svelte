@@ -288,7 +288,7 @@
 
   @keyframes pulse {
     0%, 100% { box-shadow: 0 0 0 3px var(--accent-tint); }
-    50%       { box-shadow: 0 0 0 6px rgba(52, 211, 153, 0.08); }
+    50%       { box-shadow: 0 0 0 6px rgba(255, 122, 77, 0.08); }
   }
 
   .header-title {
@@ -388,7 +388,7 @@
 
   .status-dot.online {
     background: var(--accent-bright);
-    box-shadow: 0 0 6px rgba(52, 211, 153, 0.5);
+    box-shadow: 0 0 6px rgba(255, 122, 77, 0.5);
   }
 
   .profile-name {
@@ -417,7 +417,7 @@
     gap: 8px;
     padding: 10px 16px 14px;
     background: var(--accent-tint);
-    border-top: 1px solid rgba(52, 211, 153, 0.15);
+    border-top: 1px solid rgba(255, 122, 77, 0.15);
   }
 
   .footer-icon {

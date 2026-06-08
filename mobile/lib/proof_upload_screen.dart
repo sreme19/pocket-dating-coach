@@ -85,7 +85,7 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx, ImageSource.gallery), child: const Text('Gallery', style: TextStyle(color: Color(Config.text2)))),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, ImageSource.camera),
-            style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFF052819)),
+            style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFFFFFFFF)),
             child: const Text('Camera'),
           ),
         ],
@@ -159,7 +159,7 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: Color(Config.text2)))),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFF052819)),
+            style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFFFFFFFF)),
             child: const Text('Verify'),
           ),
         ],
@@ -201,7 +201,7 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: _resultGood ? const Color(0x2210B981) : const Color(0x22F87171),
+                color: _resultGood ? const Color(0x22FF3B6B) : const Color(0x22F87171),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: _resultGood ? const Color(Config.accent) : const Color(0xFFF87171)),
               ),
@@ -235,7 +235,7 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
       decoration: BoxDecoration(
         color: const Color(Config.bg2),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0x18FFFFFF)),
+        border: Border.all(color: const Color(0x181B1020)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -253,7 +253,7 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
             FilledButton(
               onPressed: _busy ? null : () => _uploadUrl(c),
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0x2210B981),
+                backgroundColor: const Color(0x22FF3B6B),
                 foregroundColor: const Color(Config.accent),
                 visualDensity: VisualDensity.compact,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

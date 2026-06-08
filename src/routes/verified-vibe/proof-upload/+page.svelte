@@ -1438,7 +1438,7 @@
     gap: 8px;
     padding: 7px 10px;
     background: var(--accent-tint);
-    border: 1px solid rgba(52, 211, 153, 0.18);
+    border: 1px solid rgba(255, 122, 77, 0.18);
     border-radius: 8px;
   }
 
@@ -1824,7 +1824,7 @@
     margin-top: 8px;
     padding: 10px 24px;
     background: var(--accent-tint);
-    border: 1px solid rgba(52, 211, 153, 0.3);
+    border: 1px solid rgba(255, 122, 77, 0.3);
     border-radius: 100px;
     font-size: 13px;
     font-weight: 600;
@@ -2166,8 +2166,8 @@
     flex-direction: column;
     gap: 10px;
     padding: 14px 16px;
-    background: rgba(16, 185, 129, 0.06);
-    border: 1px solid rgba(16, 185, 129, 0.22);
+    background: rgba(255, 59, 107, 0.06);
+    border: 1px solid rgba(255, 59, 107, 0.22);
     border-radius: 14px;
   }
 
@@ -2194,7 +2194,7 @@
   .location-chip {
     padding: 5px 12px;
     background: var(--accent-tint);
-    border: 1px solid rgba(52, 211, 153, 0.3);
+    border: 1px solid rgba(255, 122, 77, 0.3);
     border-radius: 100px;
     font-size: 13px;
     font-weight: 600;
@@ -2291,7 +2291,7 @@
     gap: 8px;
     padding: 9px 14px;
     background: var(--accent-tint);
-    border: 1px solid rgba(52, 211, 153, 0.25);
+    border: 1px solid rgba(255, 122, 77, 0.25);
     border-radius: 12px;
   }
 

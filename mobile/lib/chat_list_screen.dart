@@ -227,7 +227,7 @@ class _NewMatches extends StatelessWidget {
             },
           ),
         ),
-        const Divider(color: Color(0x14FFFFFF), height: 24),
+        const Divider(color: Color(0x141B1020), height: 24),
       ],
     );
   }
@@ -261,9 +261,9 @@ class _FilterTabs extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: on ? const Color(0x2210B981) : const Color(Config.bg3),
+          color: on ? const Color(0x22FF3B6B) : const Color(Config.bg3),
           borderRadius: BorderRadius.circular(999),
-          border: on ? Border.all(color: const Color(0x4D10B981)) : null,
+          border: on ? Border.all(color: const Color(0x4DFF3B6B)) : null,
         ),
         child: Text(label,
             style: TextStyle(
@@ -287,7 +287,7 @@ class _AdvisorRow extends StatelessWidget {
       onTap: onTap,
       leading: CircleAvatar(
         radius: 24,
-        backgroundColor: const Color(0x2210B981),
+        backgroundColor: const Color(0x22FF3B6B),
         child: Text(wingman ? '🛡️' : '💚', style: const TextStyle(fontSize: 22)),
       ),
       title: Row(children: [
@@ -297,7 +297,7 @@ class _AdvisorRow extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
-            color: const Color(0x2210B981),
+            color: const Color(0x22FF3B6B),
             borderRadius: BorderRadius.circular(6),
           ),
           child: const Text('ADVISOR',
@@ -341,7 +341,7 @@ class _AdmirerCard extends StatelessWidget {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: Color(Config.text2)))),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFF052819)),
+            style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFFFFFFFF)),
             child: const Text('Send'),
           ),
         ],
@@ -415,7 +415,7 @@ class _AdmirerCard extends StatelessWidget {
               onPressed: () => _reply(context),
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0x22EC4899),
-                foregroundColor: const Color(0xFFF9A8D4),
+                foregroundColor: const Color(0xFFE11D54),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               child: const Text('Reply', style: TextStyle(fontWeight: FontWeight.w700)),
@@ -479,7 +479,7 @@ class _ConversationTile extends StatelessWidget {
               radius: 11,
               backgroundColor: const Color(Config.accent),
               child: Text('${convo.unreadCount}',
-                  style: const TextStyle(color: Color(0xFF052819), fontSize: 12, fontWeight: FontWeight.w700)),
+                  style: const TextStyle(color: Color(0xFFFFFFFF), fontSize: 12, fontWeight: FontWeight.w700)),
             )
           : null,
     );

@@ -294,7 +294,7 @@
     min-height: 48px;
     padding: 12px 16px;
     background: var(--accent-bright);
-    color: #06281e;
+    color: #ffffff;
     border: none;
     border-radius: 12px;
     font-size: 15px;

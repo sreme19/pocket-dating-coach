@@ -23,32 +23,32 @@
 </script>
 
 <svelte:head>
-  <title>Pocket Dating Coach</title>
+  <title>riteangle</title>
 </svelte:head>
 
 {#if isVV}
   {@render children()}
 {:else if isTool}
-  <div class="flex h-screen flex-col bg-[#0b1120] text-slate-100">
-    <header class="flex shrink-0 items-center gap-2 border-b border-white/[0.06] bg-[#0d1522]/90 px-5 py-3 backdrop-blur">
+  <div class="flex h-screen flex-col bg-[#FFF3F0] text-[#1B1020]">
+    <header class="flex shrink-0 items-center gap-2 border-b border-black/[0.06] bg-white/90 px-5 py-3 backdrop-blur">
       <button
         onclick={() => goto('/verified-vibe')}
-        class="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-slate-400 transition-colors hover:bg-emerald-500/10 hover:text-emerald-400"
+        class="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-[#6E5F64] transition-colors hover:bg-[#FF3B6B]/10 hover:text-[#E11D54]"
       >
-        <ShieldCheck class="h-4 w-4 text-emerald-500" />
-        <span>Verified Vibe</span>
+        <ShieldCheck class="h-4 w-4 text-[#FF3B6B]" />
+        <span>riteangle</span>
       </button>
-      <span class="text-slate-700">/</span>
-      <span class="text-sm font-medium text-slate-200">{activeTool?.[1]}</span>
+      <span class="text-[#C2B0B5]">/</span>
+      <span class="text-sm font-medium text-[#1B1020]">{activeTool?.[1]}</span>
     </header>
     <main class="flex flex-1 flex-col overflow-hidden">
       {@render children()}
     </main>
-    <footer class="shrink-0 border-t border-white/[0.04] bg-[#080e1b] px-5 py-3">
+    <footer class="shrink-0 border-t border-black/[0.05] bg-[#FBE9E6] px-5 py-3">
       <div class="flex flex-wrap items-center gap-x-5 gap-y-1">
-        <span class="text-xs font-medium uppercase tracking-widest text-slate-700">Tools</span>
+        <span class="text-xs font-medium uppercase tracking-widest text-[#A08B91]">Tools</span>
         {#each footerLinks as [href, name]}
-          <a {href} class="text-xs text-slate-600 transition-colors hover:text-slate-400">{name}</a>
+          <a {href} class="text-xs text-[#6E5F64] transition-colors hover:text-[#E11D54]">{name}</a>
         {/each}
       </div>
     </footer>

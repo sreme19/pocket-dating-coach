@@ -278,7 +278,7 @@
 
   .online-indicator.online {
     background: var(--accent-bright);
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+    box-shadow: 0 0 8px rgba(255, 59, 107, 0.5);
   }
 
   .user-info {

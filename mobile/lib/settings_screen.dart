@@ -30,7 +30,7 @@ class SettingsScreen extends StatelessWidget {
           _row('User ID', user?.id ?? '—', mono: true),
           _header('APP'),
           _row('Version', '1.0.1 (9)'),
-          _row('Build', 'Flutter · Verified Vibe'),
+          _row('Build', 'Flutter · riteangle'),
           const SizedBox(height: 28),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),

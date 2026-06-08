@@ -24,25 +24,25 @@
 
 :root {
 	/* Primary Accent Colors - Used for interactive elements and highlights */
-	--color-vibe-emerald: #10b981;    /* Primary action color */
-	--color-vibe-mint: #14b8a6;       /* Secondary action color */
-	--color-vibe-lime: #84cc16;       /* Success/positive states */
+	--color-vibe-emerald: #FF3B6B;    /* brand primary (pink) */
+	--color-vibe-mint: #FF7A4D;       /* secondary (coral) */
+	--color-vibe-lime: #15B86B;       /* success (green, retained for semantics) */
 	--color-vibe-amber: #f59e0b;      /* Warning/attention states */
 
-	/* Background Colors - Light mode */
-	--color-vibe-bg-1: #ffffff;       /* Primary background (main content area) */
-	--color-vibe-bg-2: #f9fafb;       /* Secondary background (cards, sections) */
-	--color-vibe-bg-3: #f3f4f6;       /* Tertiary background (subtle areas) */
+	/* Background Colors - cream paper + white cards */
+	--color-vibe-bg-1: #FFF3F0;       /* Primary background (main content area) */
+	--color-vibe-bg-2: #FFFFFF;       /* Secondary background (cards, sections) */
+	--color-vibe-bg-3: #FBE9E6;       /* Tertiary background (subtle areas) */
 
-	/* Text Colors - Light mode */
-	--color-vibe-text-1: #111827;     /* Primary text (headings, main content) */
-	--color-vibe-text-2: #374151;     /* Secondary text (body text) */
-	--color-vibe-text-3: #6b7280;     /* Tertiary text (secondary information) */
-	--color-vibe-text-4: #9ca3af;     /* Quaternary text (hints, disabled) */
+	/* Text Colors - warm ink */
+	--color-vibe-text-1: #1B1020;     /* Primary text (headings, main content) */
+	--color-vibe-text-2: #4A3F47;     /* Secondary text (body text) */
+	--color-vibe-text-3: #6E5F64;     /* Tertiary text (secondary information) */
+	--color-vibe-text-4: #8A7A80;     /* Quaternary text (hints, disabled) */
 
-	/* Border Colors - Light mode */
-	--color-vibe-border: #e5e7eb;     /* Standard border color */
-	--color-vibe-border-light: #f3f4f6; /* Subtle border color */
+	/* Border Colors */
+	--color-vibe-border: #F1E0E3;     /* Standard border color */
+	--color-vibe-border-light: #FBEDEF; /* Subtle border color */
 
 	/* ============================================
 	   SPACING TOKENS
@@ -174,20 +174,20 @@
 
 @media (prefers-color-scheme: dark) {
 	:root {
-		/* Dark mode background colors */
-		--color-vibe-bg-1: #111827;       /* Primary background (dark) */
-		--color-vibe-bg-2: #1f2937;       /* Secondary background (darker) */
-		--color-vibe-bg-3: #374151;       /* Tertiary background (medium) */
+		/* riteangle is a light-only theme — keep cream/ink even in OS dark mode */
+		--color-vibe-bg-1: #FFF3F0;       /* Primary background */
+		--color-vibe-bg-2: #FFFFFF;       /* Secondary background */
+		--color-vibe-bg-3: #FBE9E6;       /* Tertiary background */
 
-		/* Dark mode text colors */
-		--color-vibe-text-1: #f9fafb;     /* Primary text (light) */
-		--color-vibe-text-2: #e5e7eb;     /* Secondary text (medium light) */
-		--color-vibe-text-3: #d1d5db;     /* Tertiary text (medium) */
-		--color-vibe-text-4: #9ca3af;     /* Quaternary text (light gray) */
+		/* Text colors - warm ink */
+		--color-vibe-text-1: #1B1020;     /* Primary text */
+		--color-vibe-text-2: #4A3F47;     /* Secondary text */
+		--color-vibe-text-3: #6E5F64;     /* Tertiary text */
+		--color-vibe-text-4: #8A7A80;     /* Quaternary text */
 
-		/* Dark mode border colors */
-		--color-vibe-border: #4b5563;     /* Standard border (dark) */
-		--color-vibe-border-light: #374151; /* Subtle border (dark) */
+		/* Border colors */
+		--color-vibe-border: #F1E0E3;     /* Standard border */
+		--color-vibe-border-light: #FBEDEF; /* Subtle border */
 
 		/* Dark mode shadow adjustments - More prominent in dark mode */
 		--shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
@@ -352,7 +352,7 @@
 .input-base:focus {
 	outline: none;
 	border-color: var(--color-vibe-emerald);
-	box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+	box-shadow: 0 0 0 3px rgba(255, 59, 107, 0.1);
 }
 
 /* Badge base pattern */
@@ -377,12 +377,12 @@
 }
 
 .btn-primary:hover {
-	background-color: #059669;
+	background-color: #E11D54;
 	box-shadow: var(--shadow-md);
 }
 
 .btn-primary:active {
-	background-color: #047857;
+	background-color: #C0184A;
 	box-shadow: var(--shadow-inset);
 }
 
@@ -423,11 +423,11 @@
 }
 
 .btn-ghost:hover {
-	background-color: rgba(16, 185, 129, 0.1);
+	background-color: rgba(255, 59, 107, 0.1);
 }
 
 .btn-ghost:active {
-	background-color: rgba(16, 185, 129, 0.2);
+	background-color: rgba(255, 59, 107, 0.2);
 }
 
 .btn-ghost:disabled {
@@ -540,7 +540,7 @@
 }
 
 .input-success:focus {
-	box-shadow: 0 0 0 3px rgba(132, 204, 22, 0.1);
+	box-shadow: 0 0 0 3px rgba(21, 184, 107, 0.1);
 }
 
 .input-disabled {
@@ -552,12 +552,12 @@
 
 /* Badge variants */
 .badge-primary {
-	background-color: rgba(16, 185, 129, 0.2);
+	background-color: rgba(255, 59, 107, 0.2);
 	color: var(--color-vibe-emerald);
 }
 
 .badge-success {
-	background-color: rgba(132, 204, 22, 0.2);
+	background-color: rgba(21, 184, 107, 0.2);
 	color: var(--color-vibe-lime);
 }
 
@@ -783,19 +783,19 @@
 
 /* Background color utilities with opacity */
 .bg-vibe-emerald-light {
-	background-color: rgba(16, 185, 129, 0.1);
+	background-color: rgba(255, 59, 107, 0.1);
 }
 
 .bg-vibe-emerald-lighter {
-	background-color: rgba(16, 185, 129, 0.05);
+	background-color: rgba(255, 59, 107, 0.05);
 }
 
 .bg-vibe-mint-light {
-	background-color: rgba(20, 184, 166, 0.1);
+	background-color: rgba(255, 122, 77, 0.1);
 }
 
 .bg-vibe-lime-light {
-	background-color: rgba(132, 204, 22, 0.1);
+	background-color: rgba(21, 184, 107, 0.1);
 }
 
 .bg-vibe-amber-light {
@@ -804,15 +804,15 @@
 
 /* Text color utilities with opacity */
 .text-vibe-emerald-light {
-	color: rgba(16, 185, 129, 0.7);
+	color: rgba(255, 59, 107, 0.7);
 }
 
 .text-vibe-mint-light {
-	color: rgba(20, 184, 166, 0.7);
+	color: rgba(255, 122, 77, 0.7);
 }
 
 .text-vibe-lime-light {
-	color: rgba(132, 204, 22, 0.7);
+	color: rgba(21, 184, 107, 0.7);
 }
 
 .text-vibe-amber-light {

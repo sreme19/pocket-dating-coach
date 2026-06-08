@@ -132,7 +132,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
         ]),
       );
 
-  Widget _vline() => Container(width: 1, height: 40, color: const Color(0x14FFFFFF));
+  Widget _vline() => Container(width: 1, height: 40, color: const Color(0x141B1020));
 
   Widget _privacyBanner() => Container(
         padding: const EdgeInsets.all(14),
@@ -146,7 +146,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
           SizedBox(width: 10),
           Expanded(child: Text(
             'Everything here stays private. We only verify that your profile reflects real life. This improves your Trust Score and who you match with.',
-            style: TextStyle(color: Color(0xFFC7D2FE), fontSize: 13, height: 1.4),
+            style: TextStyle(color: Color(0xFF4338CA), fontSize: 13, height: 1.4),
           )),
         ]),
       );
@@ -161,7 +161,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
       decoration: BoxDecoration(
         color: const Color(Config.bg2),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0x18FFFFFF)),
+        border: Border.all(color: const Color(0x181B1020)),
       ),
       child: Column(children: [
         SizedBox(
@@ -169,7 +169,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
           child: Stack(alignment: Alignment.center, children: [
             SizedBox(width: 150, height: 150, child: CircularProgressIndicator(
               value: d.trustScore.clamp(0, 100) / 100, strokeWidth: 10,
-              backgroundColor: const Color(0x22FFFFFF),
+              backgroundColor: const Color(0x221B1020),
               valueColor: const AlwaysStoppedAnimation(Color(Config.accent)), strokeCap: StrokeCap.round,
             )),
             Column(mainAxisSize: MainAxisSize.min, children: [
@@ -181,7 +181,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          decoration: BoxDecoration(color: const Color(0x2210B981), borderRadius: BorderRadius.circular(999)),
+          decoration: BoxDecoration(color: const Color(0x22FF3B6B), borderRadius: BorderRadius.circular(999)),
           child: Text('● $alignment', style: const TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w600, fontSize: 13)),
         ),
         const SizedBox(height: 18),
@@ -237,7 +237,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
     final emotional = (45 + d.proofs.length * 5 + (hasIntro ? 25 : 0)).clamp(0, 100);
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: const Color(Config.bg2), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0x18FFFFFF))),
+      decoration: BoxDecoration(color: const Color(Config.bg2), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0x181B1020))),
       child: Column(children: [
         _meter('Identity', identity, d.identityVerified ? 'ID verified · Face matched' : 'Verify your ID to boost'),
         const SizedBox(height: 14),
@@ -273,7 +273,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
       ClipRRect(
         borderRadius: BorderRadius.circular(999),
         child: LinearProgressIndicator(value: value / 100, minHeight: 5,
-            backgroundColor: const Color(0x22FFFFFF), valueColor: AlwaysStoppedAnimation(c)),
+            backgroundColor: const Color(0x221B1020), valueColor: AlwaysStoppedAnimation(c)),
       ),
       if (sub != null) ...[
         const SizedBox(height: 4),
@@ -293,7 +293,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
         decoration: BoxDecoration(
           color: const Color(Config.bg2),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: verified ? const Color(0x4D10B981) : const Color(0x18FFFFFF)),
+          border: Border.all(color: verified ? const Color(0x4DFF3B6B) : const Color(0x181B1020)),
         ),
         child: Row(children: [
           Text(c.emoji, style: const TextStyle(fontSize: 26)),
@@ -311,11 +311,11 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
               const Text('Tap to add', style: TextStyle(color: Color(Config.text3), fontSize: 12)),
           ])),
           if (verified)
-            const CircleAvatar(radius: 16, backgroundColor: Color(Config.accent), child: Icon(Icons.check, size: 18, color: Color(0xFF052819)))
+            const CircleAvatar(radius: 16, backgroundColor: Color(Config.accent), child: Icon(Icons.check, size: 18, color: Color(0xFFFFFFFF)))
           else
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(color: const Color(0x2210B981), borderRadius: BorderRadius.circular(999)),
+              decoration: BoxDecoration(color: const Color(0x22FF3B6B), borderRadius: BorderRadius.circular(999)),
               child: Text('+${c.pts}', style: const TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w700)),
             ),
         ]),
@@ -332,7 +332,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
         decoration: BoxDecoration(
           color: const Color(Config.bg2),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: verified ? const Color(0x4D10B981) : const Color(0x18FFFFFF)),
+          border: Border.all(color: verified ? const Color(0x4DFF3B6B) : const Color(0x181B1020)),
         ),
         child: Column(children: [
           Text(c.emoji, style: const TextStyle(fontSize: 24)),
@@ -353,7 +353,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(color: const Color(0x1A6366F1), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0x336366F1))),
           child: Row(children: [
-            const CircleAvatar(radius: 20, backgroundColor: Color(0x336366F1), child: Icon(Icons.verified_user_outlined, color: Color(0xFFC7D2FE))),
+            const CircleAvatar(radius: 20, backgroundColor: Color(0x336366F1), child: Icon(Icons.verified_user_outlined, color: Color(0xFF4338CA))),
             const SizedBox(width: 12),
             const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Run a background check', style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700)),

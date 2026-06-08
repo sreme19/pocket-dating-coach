@@ -601,39 +601,40 @@ export const TRUST_SCORE_BREAKDOWN = {
 
 // Color Palette Constants
 export const COLOR_PALETTE = {
-  // Primary Accent Colors
-  emerald: '#10b981',
-  mint: '#14b8a6',
-  lime: '#84cc16',
-  amber: '#f59e0b',
+  // Primary Accent Colors — riteangle (names kept; hues from the riteangle set
+  // so archetype variety survives while staying on-brand)
+  emerald: '#FF3B6B',   // pink (brand primary)
+  mint: '#FF7A4D',      // coral
+  lime: '#9B5CFF',      // violet
+  amber: '#f59e0b',     // amber (kept)
 
-  // Background Colors (Light Mode)
-  bgPrimary: '#ffffff',
-  bgSecondary: '#f9fafb',
-  bgTertiary: '#f3f4f6',
+  // Background Colors — cream paper + white cards
+  bgPrimary: '#FFF3F0',
+  bgSecondary: '#FFFFFF',
+  bgTertiary: '#FBE9E6',
 
-  // Text Colors (Light Mode)
-  textPrimary: '#111827',
-  textSecondary: '#374151',
-  textTertiary: '#6b7280',
-  textQuaternary: '#9ca3af',
+  // Text Colors — warm ink
+  textPrimary: '#1B1020',
+  textSecondary: '#4A3F47',
+  textTertiary: '#6E5F64',
+  textQuaternary: '#8A7A80',
 
   // Border Colors
-  border: '#e5e7eb',
-  borderLight: '#f3f4f6',
+  border: '#F1E0E3',
+  borderLight: '#FBEDEF',
 
   // Status Colors
-  success: '#84cc16',
+  success: '#15B86B',
   warning: '#f59e0b',
   error: '#ef4444',
-  info: '#3b82f6'
+  info: '#5CC8FF'
 };
 
 // UI Text Constants
 export const UI_TEXT = {
   // Gate Screen
   gate: {
-    title: 'Verified Vibe',
+    title: 'riteangle',
     subtitle: 'Real connections. Real people. Real trust.',
     genderLabel: 'I identify as',
     ageLabel: 'I confirm I\'m 18+',

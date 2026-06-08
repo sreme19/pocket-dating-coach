@@ -44,7 +44,7 @@
   const R           = 108;
   const CIRCUMF     = +(2 * Math.PI * R).toFixed(1);   // ≈ 678.6
   const ringOffset  = $derived(CIRCUMF * (1 - fillPct / 100));
-  const ringStroke  = $derived(fillPct > 0 ? '#34D399' : 'rgba(255,255,255,0.55)');
+  const ringStroke  = $derived(fillPct > 0 ? '#FF3B6B' : 'rgba(255,255,255,0.55)');
 
   // ── Camera helpers ───────────────────────────────────────────────────────────
   async function openCamera() {
@@ -508,8 +508,8 @@
   }
 
   .instruction--go {
-    background: rgba(52, 211, 153, 0.35);
-    color: #d1fae5;
+    background: rgba(255, 59, 107, 0.35);
+    color: #FFE1EA;
   }
 
   /* ── Status screens ──────────────────────────────────────────────────────── */
@@ -528,8 +528,8 @@
     width: 64px;
     height: 64px;
     border-radius: 50%;
-    border: 4px solid rgba(52, 211, 153, 0.18);
-    border-top-color: #34D399;
+    border: 4px solid rgba(255, 59, 107, 0.18);
+    border-top-color: #FF3B6B;
     animation: spin 0.9s linear infinite;
   }
 
@@ -574,7 +574,7 @@
     background: var(--accent-bright);
     border: none;
     border-radius: 14px;
-    color: #052819;
+    color: #FFFFFF;
     font-size: 15px;
     font-weight: 700;
     font-family: inherit;

@@ -110,7 +110,7 @@
         </div>
         <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
           <div
-            class="h-full bg-indigo-500 rounded-full transition-all duration-300"
+            class="h-full bg-[#FF3B6B] rounded-full transition-all duration-300"
             style={`width: ${breakdown.qaScore}%`}
           />
         </div>

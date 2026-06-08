@@ -347,7 +347,7 @@
     min-height: 52px;
     padding: 14px 16px;
     background: var(--accent-bright);
-    color: #06281e;
+    color: #ffffff;
     border: none;
     border-radius: 14px;
     font-size: 16px;

@@ -221,7 +221,7 @@
     gap: 8px;
     padding: 12px 16px;
     background: var(--accent-tint);
-    border: 1px solid rgba(16, 185, 129, 0.3);
+    border: 1px solid rgba(255, 59, 107, 0.3);
     border-radius: 14px;
     font-size: 14px;
     color: var(--text-1);
@@ -263,7 +263,7 @@
     min-height: 56px;
     padding: 16px;
     background: var(--accent-bright);
-    color: #06281e;
+    color: #ffffff;
     border: none;
     border-radius: 14px;
     font-size: 16px;
@@ -281,7 +281,7 @@
   @media (hover: hover) {
     .cta-btn:hover {
       opacity: 0.9;
-      box-shadow: 0 8px 24px -8px rgba(52, 211, 153, 0.5);
+      box-shadow: 0 8px 24px -8px rgba(255, 122, 77, 0.5);
       transform: translateY(-1px);
     }
   }

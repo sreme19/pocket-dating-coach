@@ -953,7 +953,7 @@
 
   .brings-item { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; color: var(--text-2); }
 
-  .brings-check { color: #34d399; font-weight: 700; flex-shrink: 0; }
+  .brings-check { color: #FF3B6B; font-weight: 700; flex-shrink: 0; }
 
   /* Archetype chip groups */
   .chip-group { margin-bottom: 14px; }
@@ -1008,7 +1008,7 @@
   }
   .money-badge-emoji { font-size: 22px; }
   .money-badge-label { font-size: 10.5px; color: var(--text-2); font-weight: 500; line-height: 1.2; }
-  .money-verified { font-size: 11px; color: #34d399; margin: 0; }
+  .money-verified { font-size: 11px; color: #FF3B6B; margin: 0; }
 
   /* AI Portraits */
   .portrait-sub { font-size: 11.5px; color: var(--text-3); margin: -6px 0 10px; }
@@ -1134,7 +1134,7 @@
   .bestie-sub { margin: 2px 0 0; font-size: 11px; color: rgba(255,255,255,0.4); }
   .bestie-loading { display: flex; align-items: center; gap: 8px; font-size: 12px; color: rgba(255,255,255,0.4); }
   .bestie-spinner { width: 13px; height: 13px; border: 2px solid rgba(251,191,36,0.2); border-top-color: #fbbf24; border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
-  .bestie-clear { margin: 0; font-size: 12.5px; color: #34d399; }
+  .bestie-clear { margin: 0; font-size: 12.5px; color: #FF3B6B; }
   .bestie-flags { display: flex; flex-direction: column; gap: 8px; }
   .bestie-flag { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 10px; }
   .bestie-flag--orange { background: rgba(251,146,60,0.1); border: 1px solid rgba(251,146,60,0.25); }

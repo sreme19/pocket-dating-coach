@@ -375,7 +375,7 @@
   .qa-textarea:focus {
     outline: none;
     border-color: var(--color-vibe-accent);
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+    box-shadow: 0 0 0 3px rgba(255, 59, 107, 0.1);
   }
 
   .qa-textarea:disabled {

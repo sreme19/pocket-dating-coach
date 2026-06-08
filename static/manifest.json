@@ -1,11 +1,11 @@
 {
-  "name": "Pocket Dating Coach",
-  "short_name": "Dating Coach",
-  "description": "Your pocket dating coach — get personalized advice, profile reviews, and message help.",
+  "name": "riteangle",
+  "short_name": "riteangle",
+  "description": "riteangle — identity-verified dating, with an AI coach in your corner.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#6366f1",
+  "background_color": "#FFF3F0",
+  "theme_color": "#FF3B6B",
   "orientation": "portrait",
   "icons": [
     {

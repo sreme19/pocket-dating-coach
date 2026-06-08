@@ -894,7 +894,7 @@
   .reason-submit {
     background: var(--accent-bright);
     border: none;
-    color: #06281e;
+    color: #ffffff;
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
@@ -1359,8 +1359,8 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    border-top: 1px solid rgba(16, 185, 129, 0.2);
-    background: rgba(16, 185, 129, 0.04);
+    border-top: 1px solid rgba(255, 59, 107, 0.2);
+    background: rgba(255, 59, 107, 0.04);
   }
 
   .drafts-label {
@@ -1374,7 +1374,7 @@
 
   .draft-card {
     background: var(--bg-2);
-    border: 1px solid rgba(16, 185, 129, 0.25);
+    border: 1px solid rgba(255, 59, 107, 0.25);
     border-radius: 12px;
     padding: 10px 12px;
     display: flex;

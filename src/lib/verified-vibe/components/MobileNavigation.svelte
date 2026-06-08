@@ -2,6 +2,7 @@
   import { currentTab, currentPhase } from '$lib/verified-vibe/stores';
   import { MessageCircle, Compass, ShieldCheck, Menu, X, ChevronLeft } from 'lucide-svelte';
   import { slide } from 'svelte/transition';
+  import RiteLogo from '$lib/verified-vibe/components/RiteLogo.svelte';
 
   let { onNavigate = () => {} } = $props();
 
@@ -121,7 +122,7 @@
 
     <!-- Title -->
     <div class="nav-title">
-      <h1>Verified Vibe</h1>
+      <h1><RiteLogo mark={false} /></h1>
     </div>
 
     <!-- Hamburger Menu Button -->
@@ -363,7 +364,7 @@
   }
 
   .nav-item.active .nav-icon {
-    background: rgba(16, 185, 129, 0.1);
+    background: rgba(255, 59, 107, 0.1);
   }
 
   .nav-label {

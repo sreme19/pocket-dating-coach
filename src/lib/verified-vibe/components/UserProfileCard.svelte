@@ -58,7 +58,7 @@
   let showMoreOptions = $state(false);
 
   // Derived values
-  let accentColor = $derived(ARCHETYPE_COLORS[profile.archetype] || '#10b981');
+  let accentColor = $derived(ARCHETYPE_COLORS[profile.archetype] || '#FF3B6B');
   let totalPhotos = $derived(profile.avatar ? 1 : 0); // In real app, would be array of photos
   let verificationBadges = $derived(getVerificationBadges(profile.verified));
 
