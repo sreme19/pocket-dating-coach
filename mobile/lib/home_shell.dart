@@ -43,7 +43,7 @@ class _HomeShellState extends State<HomeShell> {
       ),
       bottomNavigationBar: NavigationBar(
         backgroundColor: const Color(Config.bg2),
-        indicatorColor: const Color(0x2610B981),
+        indicatorColor: const Color(0x26FF3B6B),
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [

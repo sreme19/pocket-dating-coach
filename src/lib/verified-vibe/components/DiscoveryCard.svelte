@@ -61,7 +61,7 @@
   let showQuickActions = $state(false);
 
   // Derived values
-  let accentColor = $derived(ARCHETYPE_COLORS[profile.archetype] || '#10b981');
+  let accentColor = $derived(ARCHETYPE_COLORS[profile.archetype] || '#FF3B6B');
   let verificationBadges = $derived(getVerificationBadges(profile.verified));
   let archetypeEmoji = $derived(getArchetypeEmoji(profile.archetype));
   let allPhotos = $derived(getAllPhotos(profile));

@@ -10,12 +10,12 @@
   const ARCHETYPE_META: Record<string, { emoji: string; label: string; color: string; bg: string }> = {
     // Legacy (keep for any existing records)
     casual_man:          { emoji: '🎯', label: 'Casual',          color: '#f59e0b', bg: 'rgba(245,158,11,0.13)'  },
-    marriage_minded_man: { emoji: '💍', label: 'Marriage-Minded', color: '#818cf8', bg: 'rgba(99,102,241,0.13)'  },
+    marriage_minded_man: { emoji: '💍', label: 'Marriage-Minded', color: '#FF7A4D', bg: 'rgba(255,122,77,0.13)'  },
     spoilt_woman:        { emoji: '💎', label: 'Spoilt Woman',     color: '#ec4899', bg: 'rgba(236,72,153,0.13)'  },
-    safety_first_woman:  { emoji: '🛡️', label: 'Safety-First',    color: '#34d399', bg: 'rgba(16,185,129,0.13)'  },
+    safety_first_woman:  { emoji: '🛡️', label: 'Safety-First',    color: '#FF3B6B', bg: 'rgba(255,59,107,0.13)'  },
     // New archetypes (PDC-48)
-    casual_generous_man:       { emoji: '💸', label: 'Casual-Generous',    color: '#34d399', bg: 'rgba(16,185,129,0.13)' },
-    hopeless_romantic_man:     { emoji: '💞', label: 'Hopeless-Romantic',  color: '#818cf8', bg: 'rgba(99,102,241,0.13)' },
+    casual_generous_man:       { emoji: '💸', label: 'Casual-Generous',    color: '#FF3B6B', bg: 'rgba(255,59,107,0.13)' },
+    hopeless_romantic_man:     { emoji: '💞', label: 'Hopeless-Romantic',  color: '#FF7A4D', bg: 'rgba(255,122,77,0.13)' },
     rebound_healing_man:       { emoji: '🌱', label: 'Rebound-Healing',    color: '#84cc16', bg: 'rgba(132,204,22,0.13)'  },
     untouched_heart_man:       { emoji: '🕊️', label: 'Untouched-Heart',   color: '#3b82f6', bg: 'rgba(59,130,246,0.13)'  },
     forever_focused_man:       { emoji: '🎯', label: 'Forever-Focused',    color: '#14b8a6', bg: 'rgba(20,184,166,0.13)'  },
@@ -24,7 +24,7 @@
     hopeless_romantic_woman:     { emoji: '🌹', label: 'Hopeless-Romantic', color: '#ec4899', bg: 'rgba(236,72,153,0.13)'  },
     rebound_healing_woman:       { emoji: '🌿', label: 'Rebound-Healing',   color: '#84cc16', bg: 'rgba(132,204,22,0.13)'  },
     untouched_heart_woman:       { emoji: '🌸', label: 'Untouched-Heart',   color: '#3b82f6', bg: 'rgba(59,130,246,0.13)'  },
-    forever_focused_woman:       { emoji: '💍', label: 'Forever-Focused',   color: '#34d399', bg: 'rgba(16,185,129,0.13)'  },
+    forever_focused_woman:       { emoji: '💍', label: 'Forever-Focused',   color: '#FF3B6B', bg: 'rgba(255,59,107,0.13)'  },
     traditional_matrimony_woman: { emoji: '🏛️', label: 'Traditional',      color: '#f59e0b', bg: 'rgba(245,158,11,0.13)'  },
   };
 
@@ -720,8 +720,8 @@
   }
 
   .wingman-row {
-    background: linear-gradient(135deg, rgba(16,185,129,0.04), var(--bg-2));
-    border: 1px solid rgba(16,185,129,0.15);
+    background: linear-gradient(135deg, rgba(255,59,107,0.04), var(--bg-2));
+    border: 1px solid rgba(255,59,107,0.15);
   }
 
   .wingman-avatar {
@@ -737,7 +737,7 @@
   }
 
   .wingman-badge {
-    background: linear-gradient(135deg, #10b981, #14b8a6);
+    background: linear-gradient(135deg, #FF3B6B, #FF7A4D);
   }
 
   /* ── Loading / Error / Empty ── */
@@ -1145,9 +1145,9 @@
   .admirer-chat-badge {
     font-size: 11px;
     font-weight: 600;
-    color: #10b981;
-    background: rgba(16,185,129,0.1);
-    border: 1px solid rgba(16,185,129,0.3);
+    color: #FF3B6B;
+    background: rgba(255,59,107,0.1);
+    border: 1px solid rgba(255,59,107,0.3);
     border-radius: 8px;
     padding: 1px 8px;
     white-space: nowrap;

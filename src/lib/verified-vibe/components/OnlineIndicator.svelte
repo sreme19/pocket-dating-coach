@@ -72,8 +72,8 @@
   }
 
   .dot.online {
-    background: var(--accent-bright);
-    box-shadow: 0 0 8px rgba(52, 211, 153, 0.5);
+    background: #15B86B;
+    box-shadow: 0 0 8px rgba(21, 184, 107, 0.5);
   }
 
   .dot.offline {

@@ -169,7 +169,7 @@
 				<audio src={recordedUrl} controls></audio>
 				<label class="vo-consent">
 					<input type="checkbox" bind:checked={consent} />
-					I consent to Verified Vibe cloning my voice for my own AI bestie's calls.
+					I consent to riteangle cloning my voice for my own AI bestie's calls.
 				</label>
 				<div class="vo-actions">
 					<button class="vo-btn ghost" onclick={() => { recorded = null; recordedUrl = ''; }} type="button">Discard</button>

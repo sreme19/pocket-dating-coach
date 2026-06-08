@@ -23,7 +23,7 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
           ]),
         const SizedBox(height: 12),
         Wrap(spacing: 8, runSpacing: 8, children: [
-          pPill('${d.archetypeEmoji} ${d.archetypeLabel}', bg: const Color(0x33A855F7), fg: const Color(0xFFD8B4FE)),
+          pPill('${d.archetypeEmoji} ${d.archetypeLabel}', bg: const Color(0x33A855F7), fg: const Color(0xFF7C3AED)),
           for (final w in d.vibeWords) pPill(w),
         ]),
       ]),
@@ -118,13 +118,15 @@ const _flagFor = <String, String>{
 };
 
 /// Pastel "fridge magnet" palette: (bg, border, text).
+// Light-theme variant: each magnet keeps its hue wash (over cream) but the text
+// is darkened to a saturated tone so it reads on the light surface.
 const _magnetColors = <(int, int, int)>[
-  (0x33F59E0B, 0x66F59E0B, 0xFFFcD9A0), // peach
-  (0x333B82F6, 0x663B82F6, 0xFFBFDBFE), // sky
-  (0x3310B981, 0x6610B981, 0xFFA7F3D0), // mint
-  (0x33A855F7, 0x66A855F7, 0xFFE9D5FF), // lavender
-  (0x33EC4899, 0x66EC4899, 0xFFFBCFE8), // rose
-  (0x3314B8A6, 0x6614B8A6, 0xFF99F6E4), // teal
+  (0x33F59E0B, 0x66F59E0B, 0xFFB45309), // peach
+  (0x333B82F6, 0x663B82F6, 0xFF1D4ED8), // sky
+  (0x3310B981, 0x6610B981, 0xFF047857), // mint
+  (0x33A855F7, 0x66A855F7, 0xFF7C3AED), // lavender
+  (0x33EC4899, 0x66EC4899, 0xFFE11D54), // rose
+  (0x3314B8A6, 0x6614B8A6, 0xFF0F766E), // teal
 ];
 
 String _magnetEmoji(String place) {
@@ -173,7 +175,7 @@ Widget moneyMattersCard({
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
       gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: [Color(0xFF1A1206), Color(Config.bg2)]),
+          colors: [Color(0xFFFFF6E6), Color(Config.bg2)]),
       borderRadius: BorderRadius.circular(18),
       border: Border.all(color: const Color(0x33F59E0B)),
     ),
@@ -200,7 +202,7 @@ Widget moneyMattersCard({
       ],
       if (onUpload != null) ...[
         const SizedBox(height: 12),
-        const Divider(color: Color(0x14FFFFFF), height: 1),
+        const Divider(color: Color(0x141B1020), height: 1),
         const SizedBox(height: 12),
         GestureDetector(
           onTap: onUpload,
@@ -220,7 +222,7 @@ Widget _moneyTile(String emoji, String label) {
     width: 96,
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      decoration: BoxDecoration(color: const Color(0x66000000), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0x18FFFFFF))),
+      decoration: BoxDecoration(color: const Color(Config.bg3), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0x181B1020))),
       child: Column(children: [
         Text(emoji, style: const TextStyle(fontSize: 22)),
         const SizedBox(height: 6),
@@ -278,9 +280,9 @@ class _SignalTabsState extends State<SignalTabs> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                   decoration: BoxDecoration(
-                    color: i == active ? const Color(0x2210B981) : const Color(Config.bg3),
+                    color: i == active ? const Color(0x22FF3B6B) : const Color(Config.bg3),
                     borderRadius: BorderRadius.circular(999),
-                    border: i == active ? Border.all(color: const Color(0x4D10B981)) : null,
+                    border: i == active ? Border.all(color: const Color(0x4DFF3B6B)) : null,
                   ),
                   child: Text('${widget.signals[i].emoji} ${widget.signals[i].label}',
                       style: TextStyle(fontSize: 13,
@@ -337,7 +339,7 @@ class _RadarPainter extends CustomPainter {
     double ang(int i) => (math.pi * 2 * i) / n - math.pi / 2;
     Offset pt(int i, double r) => Offset(center.dx + r * math.cos(ang(i)), center.dy + r * math.sin(ang(i)));
 
-    final grid = Paint()..style = PaintingStyle.stroke..color = const Color(0x22FFFFFF)..strokeWidth = 1;
+    final grid = Paint()..style = PaintingStyle.stroke..color = const Color(0x221B1020)..strokeWidth = 1;
     for (final ring in [0.25, 0.5, 0.75, 1.0]) {
       final path = Path();
       for (var i = 0; i < n; i++) {
@@ -358,7 +360,7 @@ class _RadarPainter extends CustomPainter {
       i == 0 ? dataPath.moveTo(p.dx, p.dy) : dataPath.lineTo(p.dx, p.dy);
     }
     dataPath.close();
-    canvas.drawPath(dataPath, Paint()..style = PaintingStyle.fill..color = const Color(0x3310B981));
+    canvas.drawPath(dataPath, Paint()..style = PaintingStyle.fill..color = const Color(0x33FF3B6B));
     canvas.drawPath(dataPath, Paint()..style = PaintingStyle.stroke..color = const Color(Config.accent)..strokeWidth = 2);
     for (var i = 0; i < n; i++) {
       final p = pt(i, radius * (traits[i].$2 / 100));
@@ -379,7 +381,7 @@ class _RadarPainter extends CustomPainter {
       textAlign: align,
       textDirection: TextDirection.ltr,
       text: TextSpan(children: [
-        TextSpan(text: '$name\n', style: const TextStyle(color: Color(0xD9FFFFFF), fontSize: 11, fontWeight: FontWeight.w600)),
+        TextSpan(text: '$name\n', style: const TextStyle(color: Color(0xD91B1020), fontSize: 11, fontWeight: FontWeight.w600)),
         TextSpan(text: value, style: const TextStyle(color: Color(Config.accent), fontSize: 10)),
       ]),
     )..layout(maxWidth: 90);

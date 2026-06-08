@@ -483,7 +483,7 @@
     background: var(--accent-bright);
     opacity: 0.9;
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    box-shadow: 0 4px 12px rgba(255, 59, 107, 0.3);
   }
 
   .btn-secondary {

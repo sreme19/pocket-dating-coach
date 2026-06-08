@@ -138,7 +138,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
           label: const Text('I understand — call', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
           style: FilledButton.styleFrom(
             backgroundColor: const Color(Config.accent),
-            foregroundColor: const Color(0xFF052819),
+            foregroundColor: const Color(0xFFFFFFFF),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),

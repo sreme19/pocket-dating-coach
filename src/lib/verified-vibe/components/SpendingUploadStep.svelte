@@ -356,7 +356,7 @@
     content: '✓';
     position: absolute;
     left: 0;
-    color: var(--color-vibe-emerald, #10b981);
+    color: var(--color-vibe-emerald, #FF3B6B);
     font-weight: bold;
   }
 
@@ -382,8 +382,8 @@
   }
 
   .upload-area:hover {
-    border-color: var(--color-vibe-emerald, #10b981);
-    background-color: #f0fdf4;
+    border-color: var(--color-vibe-emerald, #FF3B6B);
+    background-color: #FFE1EA;
   }
 
   .upload-area input {
@@ -560,14 +560,14 @@
   }
 
   .button-primary {
-    background-color: var(--color-vibe-emerald, #10b981);
+    background-color: var(--color-vibe-emerald, #FF3B6B);
     color: white;
   }
 
   .button-primary:hover:not(:disabled) {
-    background-color: #059669;
+    background-color: #E11D54;
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    box-shadow: 0 4px 12px rgba(255, 59, 107, 0.3);
   }
 
   .button-primary:disabled {
@@ -645,7 +645,7 @@
     }
 
     .upload-area:hover {
-      background-color: rgba(16, 185, 129, 0.1);
+      background-color: rgba(255, 59, 107, 0.1);
     }
   }
 </style>

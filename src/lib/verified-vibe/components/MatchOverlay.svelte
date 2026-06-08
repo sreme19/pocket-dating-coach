@@ -86,7 +86,7 @@
    * Get trust score color based on score
    */
   function getTrustScoreColor(score: number): string {
-    if (score >= 80) return '#10b981'; // Green
+    if (score >= 80) return '#FF3B6B'; // Brand pink (high)
     if (score >= 60) return '#f59e0b'; // Amber
     return '#ef4444'; // Red
   }

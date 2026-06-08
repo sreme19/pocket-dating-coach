@@ -611,7 +611,7 @@
     border: 1px solid;
   }
 
-  .probe-group-green  { background: rgba(52,211,153,0.06);  border-color: rgba(52,211,153,0.2);  }
+  .probe-group-green  { background: rgba(255,59,107,0.06);  border-color: rgba(255,59,107,0.2);  }
   .probe-group-red    { background: rgba(248,113,113,0.06); border-color: rgba(248,113,113,0.2); }
   .probe-group-amber  { background: rgba(251,191,36,0.06);  border-color: rgba(251,191,36,0.2);  }
   .probe-group-purple { background: rgba(167,139,250,0.06); border-color: rgba(167,139,250,0.2); }
@@ -635,7 +635,7 @@
     letter-spacing: 0.03em;
     text-transform: uppercase;
   }
-  .probe-heading-green  { color: #34d399; }
+  .probe-heading-green  { color: #FF3B6B; }
   .probe-heading-red    { color: #f87171; }
   .probe-heading-amber  { color: #fbbf24; }
   .probe-heading-purple { color: #a78bfa; }
@@ -669,7 +669,7 @@
     flex-shrink: 0;
     margin-top: 1px;
   }
-  .probe-bullet-green  { background: #34d399; }
+  .probe-bullet-green  { background: #FF3B6B; }
   .probe-bullet-red    { background: #f87171; }
   .probe-bullet-amber  { background: #fbbf24; }
   .probe-bullet-purple { background: #a78bfa; }
@@ -714,11 +714,11 @@
     gap: 6px;
     font-size: 12px;
     font-weight: 600;
-    color: #34d399;
+    color: #FF3B6B;
     padding: 6px 8px;
     border-radius: 8px;
-    background: rgba(52,211,153,0.08);
-    border: 1px solid rgba(52,211,153,0.2);
+    background: rgba(255,59,107,0.08);
+    border: 1px solid rgba(255,59,107,0.2);
   }
 
   .insights-saved {
@@ -726,7 +726,7 @@
     align-items: center;
     gap: 6px;
     font-size: 12px;
-    color: #34d399;
+    color: #FF3B6B;
     margin-top: 10px;
   }
 

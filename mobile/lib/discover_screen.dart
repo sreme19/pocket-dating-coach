@@ -163,7 +163,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
         const DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(begin: Alignment.center, end: Alignment.bottomCenter,
-                colors: [Colors.transparent, Color(0xCC0B1120)]),
+                colors: [Colors.transparent, Color(0xCC1B1020)]),
           ),
         ),
         if (trust > 0)
@@ -172,7 +172,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
             child: Container(
               width: 64, height: 64,
               decoration: BoxDecoration(
-                color: const Color(0xE6052819), shape: BoxShape.circle,
+                color: const Color(0xE61B1020), shape: BoxShape.circle,
                 border: Border.all(color: const Color(Config.accent), width: 2),
               ),
               child: Center(
@@ -196,7 +196,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
         decoration: const BoxDecoration(
           color: Color(Config.bg1),
-          border: Border(top: BorderSide(color: Color(0x14FFFFFF))),
+          border: Border(top: BorderSide(color: Color(0x141B1020))),
         ),
         child: Row(children: [
           Expanded(
@@ -206,7 +206,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
               label: const Text('Tip'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(Config.text1),
-                side: const BorderSide(color: Color(0x33FFFFFF)),
+                side: const BorderSide(color: Color(0x331B1020)),
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),

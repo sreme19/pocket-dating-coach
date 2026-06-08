@@ -85,7 +85,7 @@
 
   function getBrandStyle(make: string): { accent: string; logo: string } {
     const key = make.toLowerCase().trim();
-    return BRAND_COLORS[key] ?? { accent: '#34D399', logo: make.slice(0, 2).toUpperCase() };
+    return BRAND_COLORS[key] ?? { accent: '#FF3B6B', logo: make.slice(0, 2).toUpperCase() };
   }
 
   function getCarSVG(car: GarageCar, accent: string): string {
@@ -201,7 +201,7 @@
 </script>
 
 <svelte:head>
-  <title>{profile ? `${profile.firstName}'s Profile` : 'Profile'} · Verified Vibe</title>
+  <title>{profile ? `${profile.firstName}'s Profile` : 'Profile'} · riteangle</title>
 </svelte:head>
 
 <div class="public-profile-page">
@@ -222,7 +222,7 @@
   {:else if error}
     <div class="error-state">
       <p class="error-msg">{error}</p>
-      <a href="/verified-vibe/auth?mode=signin" class="cta-btn">Join Verified Vibe</a>
+      <a href="/verified-vibe/auth?mode=signin" class="cta-btn">Join riteangle</a>
     </div>
   {:else if profile}
     <!-- Hero photo -->
@@ -303,7 +303,7 @@
       <!-- CTA -->
       <div class="cta-wrap">
         <a href="/verified-vibe/auth?mode=signin" class="cta-btn">
-          Connect on Verified Vibe
+          Connect on riteangle
         </a>
         <p class="cta-sub">Join to see their full verified profile</p>
       </div>
@@ -319,7 +319,7 @@
     padding: 14px 16px;
     background: transparent;
     border: none;
-    color: #34d399;
+    color: #FF3B6B;
     font-size: 14px;
     font-weight: 600;
     font-family: inherit;
@@ -328,15 +328,15 @@
     top: 0;
     z-index: 10;
     backdrop-filter: blur(12px);
-    background: rgba(13, 17, 23, 0.85);
+    background: rgba(255, 243, 240, 0.85);
     width: 100%;
     text-align: left;
   }
 
   .public-profile-page {
     min-height: 100vh;
-    background: #0d1117;
-    color: #e8e8e8;
+    background: #FFF3F0;
+    color: #1B1020;
     display: flex;
     flex-direction: column;
     max-width: 480px;
@@ -351,14 +351,14 @@
     justify-content: center;
     gap: 16px;
     padding: 40px 24px;
-    color: rgba(255,255,255,0.5);
+    color: #6E5F64;
   }
 
   .spinner {
     width: 32px;
     height: 32px;
-    border: 3px solid rgba(255,255,255,0.1);
-    border-top-color: #34d399;
+    border: 3px solid rgba(27,16,32,0.1);
+    border-top-color: #FF3B6B;
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
@@ -377,7 +377,7 @@
     aspect-ratio: 3/4;
     max-height: 520px;
     overflow: hidden;
-    background: #1a2030;
+    background: #FBE9E6;
     flex-shrink: 0;
   }
 
@@ -394,7 +394,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #1a2030;
+    background: #FBE9E6;
   }
 
   .placeholder-icon {
@@ -435,9 +435,9 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    background: rgba(52,211,153,0.18);
-    color: #34d399;
-    border: 1px solid rgba(52,211,153,0.3);
+    background: rgba(255,59,107,0.18);
+    color: #FF3B6B;
+    border: 1px solid rgba(255,59,107,0.3);
     border-radius: 20px;
     padding: 3px 9px;
     font-size: 12px;
@@ -491,22 +491,22 @@
 
   /* Vibe tags */
   .vibe-tag { padding: 6px 14px; border-radius: 999px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); font-size: 13px; font-weight: 500; color: #e8e8e8; }
-  .vibe-tag--highlight { background: rgba(52,211,153,0.12); border-color: rgba(52,211,153,0.35); color: #34d399; }
+  .vibe-tag--highlight { background: rgba(255,59,107,0.12); border-color: rgba(255,59,107,0.35); color: #FF3B6B; }
 
   /* Brings */
   .brings-list { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 0; }
   .brings-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; margin-bottom: 6px; font-size: 14px; color: #e0e0e0; }
-  .brings-check { color: #34d399; font-weight: 700; flex-shrink: 0; font-size: 15px; }
+  .brings-check { color: #FF3B6B; font-weight: 700; flex-shrink: 0; font-size: 15px; }
 
   /* Verified signals */
   .signal-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
   .signal-tab { padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.5); font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
-  .signal-tab--active { background: rgba(52,211,153,0.12); border-color: rgba(52,211,153,0.4); color: #34d399; }
+  .signal-tab--active { background: rgba(255,59,107,0.12); border-color: rgba(255,59,107,0.4); color: #FF3B6B; }
   .signal-items { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
   .signal-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: rgba(255,255,255,0.04); border-radius: 10px; }
   .signal-emoji { font-size: 18px; }
   .signal-label { font-size: 13.5px; color: #d0d0d0; font-weight: 500; }
-  .signal-verified { font-size: 11px; color: #34d399; margin: 8px 0 0; }
+  .signal-verified { font-size: 11px; color: #FF3B6B; margin: 8px 0 0; }
 
   /* Archetype chips */
   .chip-group { margin-bottom: 14px; }
@@ -528,7 +528,7 @@
   .money-badge { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 10px 8px; display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; }
   .money-badge-emoji { font-size: 22px; }
   .money-badge-label { font-size: 10.5px; color: #b0b0b0; font-weight: 500; line-height: 1.2; }
-  .money-verified { font-size: 11px; color: #34d399; margin: 0; }
+  .money-verified { font-size: 11px; color: #FF3B6B; margin: 0; }
 
   /* AI portraits */
   .portrait-sub { font-size: 11.5px; color: rgba(255,255,255,0.3); margin: 2px 0 10px; }
@@ -559,12 +559,12 @@
 
   /* Privacy note */
   .privacy-note {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
+    background: #FBE9E6;
+    border: 1px solid #F1E0E3;
     border-radius: 12px;
     padding: 14px 16px;
     font-size: 12px;
-    color: rgba(255,255,255,0.45);
+    color: #6E5F64;
     line-height: 1.5;
     display: flex;
     gap: 8px;
@@ -586,14 +586,14 @@
     display: block;
     width: 100%;
     text-align: center;
-    background: linear-gradient(135deg, #34d399, #059669);
+    background: linear-gradient(135deg, #FF3B6B, #E11D54);
     color: #fff;
     font-weight: 700;
     font-size: 15px;
     padding: 14px 24px;
     border-radius: 14px;
     text-decoration: none;
-    box-shadow: 0 4px 20px rgba(52,211,153,0.25);
+    box-shadow: 0 4px 20px rgba(255,59,107,0.25);
     transition: opacity 0.15s;
   }
 
@@ -601,7 +601,7 @@
 
   .cta-sub {
     font-size: 12px;
-    color: rgba(255,255,255,0.35);
+    color: #A08B91;
     margin: 0;
   }
 
@@ -734,7 +734,7 @@
     font-size: 10px;
     font-weight: 600;
     letter-spacing: 0.04em;
-    color: #34D399;
+    color: #FF3B6B;
     text-transform: uppercase;
   }
 
@@ -771,7 +771,7 @@
     transition: background 0.2s, transform 0.2s;
   }
 
-  .garage-dot-active { background: #34d399; transform: scale(1.4); }
+  .garage-dot-active { background: #FF3B6B; transform: scale(1.4); }
 
   .garage-counter { text-align: center; font-size: 11px; color: rgba(255,255,255,0.35); margin: 4px 0 0; }
 
@@ -809,7 +809,7 @@
   .bestie-sub {
     margin: 2px 0 0;
     font-size: 11.5px;
-    color: rgba(255,255,255,0.45);
+    color: #6E5F64;
   }
 
   .bestie-loading {
@@ -817,7 +817,7 @@
     align-items: center;
     gap: 8px;
     font-size: 12.5px;
-    color: rgba(255,255,255,0.4);
+    color: #6E5F64;
     padding: 4px 0;
   }
 
@@ -834,7 +834,7 @@
   .bestie-clear {
     margin: 0;
     font-size: 13px;
-    color: #34d399;
+    color: #FF3B6B;
   }
 
   .bestie-flags {
@@ -871,14 +871,14 @@
     margin: 0;
     font-size: 13px;
     font-weight: 600;
-    color: rgba(255,255,255,0.9);
+    color: #1B1020;
     line-height: 1.3;
   }
 
   .bestie-flag-detail {
     margin: 3px 0 0;
     font-size: 12px;
-    color: rgba(255,255,255,0.55);
+    color: #6E5F64;
     line-height: 1.5;
   }
 </style>

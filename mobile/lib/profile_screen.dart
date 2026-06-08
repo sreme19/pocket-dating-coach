@@ -134,11 +134,11 @@ class _ProfileBody extends StatelessWidget {
           Positioned(
             right: 12, top: 12,
             child: Material(
-              color: const Color(0xCC0B1120),
+              color: const Color(0xCC1B1020),
               shape: const CircleBorder(),
               child: IconButton(
                 tooltip: 'Manage photos',
-                icon: const Icon(Icons.add_a_photo_outlined, size: 20, color: Color(Config.text1)),
+                icon: const Icon(Icons.add_a_photo_outlined, size: 20, color: Color(0xFFFFFFFF)),
                 onPressed: () => openPhotoManager(context, data, onChanged),
               ),
             ),
@@ -219,7 +219,7 @@ class _ProfileBody extends StatelessWidget {
               icon: const Icon(Icons.bolt),
               label: const Text('Trust & Boost', style: TextStyle(fontWeight: FontWeight.w700)),
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0x2210B981),
+                backgroundColor: const Color(0x22FF3B6B),
                 foregroundColor: const Color(Config.accent),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -353,7 +353,7 @@ class _ProfileBody extends StatelessWidget {
     );
   }
 
-  Widget _divider() => Container(width: 1, height: 36, color: const Color(0x14FFFFFF));
+  Widget _divider() => Container(width: 1, height: 36, color: const Color(0x141B1020));
 }
 
 // ── Edit sheets ──────────────────────────────────────────────────────────────
@@ -473,11 +473,11 @@ Future<void> _editSheet(
                         },
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(Config.accent),
-                    foregroundColor: const Color(0xFF052819),
+                    foregroundColor: const Color(0xFFFFFFFF),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   child: saving
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF052819)))
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFFFFFF)))
                       : const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
                 ),
               ),
@@ -504,7 +504,7 @@ class _Section extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Divider(color: Color(0x14FFFFFF), height: 36),
+        const Divider(color: Color(0x141B1020), height: 36),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
@@ -552,9 +552,9 @@ class _Pill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
-        color: highlight ? const Color(0x2210B981) : const Color(Config.bg3),
+        color: highlight ? const Color(0x22FF3B6B) : const Color(Config.bg3),
         borderRadius: BorderRadius.circular(999),
-        border: highlight ? Border.all(color: const Color(0x4D10B981)) : null,
+        border: highlight ? Border.all(color: const Color(0x4DFF3B6B)) : null,
       ),
       child: Text(text,
           style: TextStyle(
@@ -631,7 +631,7 @@ class _EditableChipsState extends State<_EditableChips> {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: const Color(0x33FFFFFF)),
+                border: Border.all(color: const Color(0x331B1020)),
               ),
               child: Icon(_edit ? Icons.check : Icons.edit_outlined, size: 14, color: const Color(Config.text2)),
             ),
@@ -647,9 +647,9 @@ class _EditableChipsState extends State<_EditableChips> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                     decoration: BoxDecoration(
-                      color: const Color(0x2210B981),
+                      color: const Color(0x22FF3B6B),
                       borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: const Color(0x4D10B981)),
+                      border: Border.all(color: const Color(0x4DFF3B6B)),
                     ),
                     child: Text('+ ${c.emoji} ${c.label}',
                         style: const TextStyle(fontSize: 13, color: Color(Config.accent))),
@@ -795,7 +795,7 @@ class _PortraitTileState extends State<_PortraitTile> {
           icon: const Icon(Icons.auto_awesome, size: 18),
           label: Text('Generate ${widget.lifestyle ? 'lifestyle portrait' : 'AI portrait'}', style: const TextStyle(fontWeight: FontWeight.w700)),
           style: FilledButton.styleFrom(
-            backgroundColor: const Color(0x2210B981),
+            backgroundColor: const Color(0x22FF3B6B),
             foregroundColor: const Color(Config.accent),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
@@ -848,9 +848,9 @@ class _VerifiedSignalsState extends State<_VerifiedSignals> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                     decoration: BoxDecoration(
-                      color: i == active ? const Color(0x2210B981) : const Color(Config.bg3),
+                      color: i == active ? const Color(0x22FF3B6B) : const Color(Config.bg3),
                       borderRadius: BorderRadius.circular(999),
-                      border: i == active ? Border.all(color: const Color(0x4D10B981)) : null,
+                      border: i == active ? Border.all(color: const Color(0x4DFF3B6B)) : null,
                     ),
                     child: Text(tabs[i].$1,
                         style: TextStyle(

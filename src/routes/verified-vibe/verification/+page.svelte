@@ -2339,7 +2339,7 @@
     background: var(--accent-bright);
     opacity: 0.9;
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    box-shadow: 0 4px 12px rgba(255, 59, 107, 0.3);
   }
 
   .btn-secondary {
@@ -2624,7 +2624,7 @@
     height: 20px;
     border-radius: 50%;
     background: var(--accent-bright);
-    color: #06281e;
+    color: #ffffff;
     font-size: 11px;
     font-weight: 700;
     display: grid;

@@ -160,7 +160,7 @@ class _AuthScreenState extends State<AuthScreen> {
         fillColor: const Color(Config.bg2),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0x22FFFFFF)),
+          borderSide: const BorderSide(color: Color(0x221B1020)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -177,11 +177,11 @@ class _AuthScreenState extends State<AuthScreen> {
         onPressed: onTap,
         style: FilledButton.styleFrom(
           backgroundColor: const Color(Config.accent),
-          foregroundColor: const Color(0xFF052819),
+          foregroundColor: const Color(0xFFFFFFFF),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
         child: _loading
-            ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF052819)))
+            ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFFFFFF)))
             : Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
       ),
     );
@@ -203,7 +203,7 @@ class _ModeToggle extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(Config.bg2),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0x18FFFFFF)),
+        border: Border.all(color: const Color(0x181B1020)),
       ),
       child: Row(children: [
         _seg('Sign in', !signUp, () => onChanged(false)),
@@ -229,7 +229,7 @@ class _ModeToggle extends StatelessWidget {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
-              color: active ? const Color(0xFF052819) : const Color(Config.text2),
+              color: active ? const Color(0xFFFFFFFF) : const Color(Config.text2),
             ),
           ),
         ),
@@ -251,10 +251,10 @@ class _Brand extends StatelessWidget {
             color: const Color(Config.accent),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Icon(Icons.verified_user, color: Color(0xFF052819)),
+          child: const Icon(Icons.verified_user, color: Color(0xFFFFFFFF)),
         ),
         const SizedBox(width: 12),
-        const Text('Verified Vibe',
+        const Text('riteangle',
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(Config.text1))),
       ],
     );
