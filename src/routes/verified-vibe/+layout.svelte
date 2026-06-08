@@ -129,50 +129,48 @@
 </div>
 
 <svelte:head>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <!-- Gabarito is self-hosted via @font-face in app.css; no external font load needed. -->
 </svelte:head>
 
 <style>
   .verified-vibe-container {
-    /* Design tokens scoped to Verified Vibe — overrides root app.css light values */
-    --bg-1: #0b1120;
-    --bg-2: #131a2b;
-    --bg-3: #1a2336;
-    --bg-4: #202b40;
-    --text-1: #f1f5f9;
-    --text-2: #94a3b8;
-    --text-3: #64748b;
-    --text-4: #475569;
-    --border-1: rgba(255,255,255,0.07);
-    --border-2: rgba(255,255,255,0.10);
-    --border-3: rgba(255,255,255,0.16);
-    --accent: #10b981;
-    --accent-bright: #34d399;
-    --accent-dim: #064e3b;
-    --accent-tint: rgba(16,185,129,0.12);
-    --accent-glow: rgba(16,185,129,0.35);
-    --font-serif: 'Instrument Serif', Georgia, serif;
+    /* Design tokens scoped to Verified Vibe — riteangle LIGHT theme (cream + hot pink) */
+    --bg-1: #FFF3F0;
+    --bg-2: #FFFFFF;
+    --bg-3: #FBE9E6;
+    --bg-4: #F6E2DB;
+    --text-1: #1B1020;
+    --text-2: #6E5F64;
+    --text-3: #A08B91;
+    --text-4: #C2B0B5;
+    --border-1: #F1E0E3;
+    --border-2: #E7D2D7;
+    --border-3: #D9BFC6;
+    --accent: #FF3B6B;
+    --accent-bright: #E11D54;
+    --accent-dim: #FFE1EA;
+    --accent-tint: rgba(255,59,107,0.12);
+    --accent-glow: rgba(255,59,107,0.30);
+    --font-serif: 'Gabarito', system-ui, sans-serif;
     --font-mono: 'Menlo', 'Monaco', monospace;
     --r-lg: 20px;
     --r-md: 12px;
 
     /* Legacy --color-vibe-* tokens used by ArchetypeCard and other components */
-    --color-vibe-bg-1: #0b1120;
-    --color-vibe-bg-2: #131a2b;
-    --color-vibe-bg-3: #1a2336;
-    --color-vibe-bg-4: #202b40;
-    --color-vibe-text-1: #f1f5f9;
-    --color-vibe-text-2: #94a3b8;
-    --color-vibe-text-3: #64748b;
-    --color-vibe-text-4: #475569;
-    --color-vibe-border: rgba(255,255,255,0.07);
-    --color-vibe-border-2: rgba(255,255,255,0.10);
-    --color-vibe-accent: #10b981;
-    --color-vibe-accent-bright: #34d399;
-    --color-vibe-accent-tint: rgba(16,185,129,0.12);
-    --color-vibe-lime: #34d399;
+    --color-vibe-bg-1: #FFF3F0;
+    --color-vibe-bg-2: #FFFFFF;
+    --color-vibe-bg-3: #FBE9E6;
+    --color-vibe-bg-4: #F6E2DB;
+    --color-vibe-text-1: #1B1020;
+    --color-vibe-text-2: #6E5F64;
+    --color-vibe-text-3: #A08B91;
+    --color-vibe-text-4: #C2B0B5;
+    --color-vibe-border: #F1E0E3;
+    --color-vibe-border-2: #E7D2D7;
+    --color-vibe-accent: #FF3B6B;
+    --color-vibe-accent-bright: #E11D54;
+    --color-vibe-accent-tint: rgba(255,59,107,0.12);
+    --color-vibe-lime: #FF7A4D;
 
     /* Spacing / gap tokens */
     --spacing-xs: 4px;
@@ -201,7 +199,7 @@
     --radius-lg: 20px;
 
     /* Shadow tokens */
-    --shadow-md: 0 4px 16px rgba(0,0,0,0.4);
+    --shadow-md: 0 8px 24px rgba(20,8,18,0.10);
 
     /* Transition token */
     --transition-base: all 200ms ease;
@@ -220,7 +218,7 @@
     max-width: 100%;
     background: var(--bg-1);
     color: var(--text-1);
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Gabarito', system-ui, sans-serif;
     margin: 0 auto;
   }
 
@@ -258,7 +256,7 @@
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 0;
-    background: linear-gradient(to top, var(--bg-1), rgba(11, 17, 32, 0.85));
+    background: linear-gradient(to top, var(--bg-1), rgba(255, 243, 240, 0.85));
     backdrop-filter: blur(20px);
     border-top: 1px solid var(--border-1);
     padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 12px));

@@ -879,7 +879,7 @@
   .reason-submit {
     background: var(--accent-bright);
     border: none;
-    color: #06281e;
+    color: #ffffff;
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
@@ -1020,7 +1020,7 @@
 
   .bubble.user {
     background: var(--accent-bright);
-    color: #06281e;
+    color: #ffffff;
     border-bottom-right-radius: 4px;
     font-weight: 500;
   }
@@ -1173,7 +1173,7 @@
     display: grid;
     place-items: center;
     cursor: pointer;
-    color: #06281e;
+    color: #ffffff;
     flex-shrink: 0;
     transition: opacity 150ms, transform 150ms;
   }
@@ -1184,7 +1184,7 @@
     width: 16px;
     height: 16px;
     border: 2px solid rgba(6,40,30,0.3);
-    border-top-color: #06281e;
+    border-top-color: #ffffff;
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
   }
@@ -1270,7 +1270,7 @@
     flex-direction: column;
     gap: 6px;
     background: var(--accent-tint);
-    border: 1px solid rgba(52, 211, 153, 0.2);
+    border: 1px solid rgba(255, 122, 77, 0.2);
     border-radius: 10px;
     padding: 10px 12px;
   }

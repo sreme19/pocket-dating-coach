@@ -105,8 +105,8 @@
   }
 
   .tile--done {
-    background: rgba(52, 211, 153, 0.06);
-    border: 1px solid rgba(52, 211, 153, 0.4);
+    background: rgba(255, 122, 77, 0.06);
+    border: 1px solid rgba(255, 122, 77, 0.4);
     border-style: solid;
   }
 
@@ -120,8 +120,8 @@
     height: 56px;
     border-radius: 16px;
     flex-shrink: 0;
-    background: rgba(52, 211, 153, 0.08);
-    border: 1px solid rgba(52, 211, 153, 0.18);
+    background: rgba(255, 122, 77, 0.08);
+    border: 1px solid rgba(255, 122, 77, 0.18);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -201,7 +201,7 @@
   }
 
   .cta-btn--active {
-    box-shadow: 0 8px 24px rgba(52, 211, 153, 0.28);
+    box-shadow: 0 8px 24px rgba(255, 122, 77, 0.28);
   }
 
   .cta-btn:active {

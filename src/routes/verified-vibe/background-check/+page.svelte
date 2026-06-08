@@ -105,12 +105,12 @@
     width: 96px;
     height: 96px;
     border-radius: 24px;
-    background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(99,102,241,0.06));
-    border: 1px solid rgba(99,102,241,0.3);
+    background: linear-gradient(135deg, rgba(255,59,107,0.15), rgba(255,59,107,0.06));
+    border: 1px solid rgba(255,59,107,0.3);
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #818cf8;
+    color: #E11D54;
     margin-bottom: 20px;
   }
 
@@ -133,9 +133,9 @@
     display: inline-block;
     padding: 4px 14px;
     border-radius: 999px;
-    background: rgba(99,102,241,0.15);
-    border: 1px solid rgba(99,102,241,0.35);
-    color: #818cf8;
+    background: rgba(255,59,107,0.15);
+    border: 1px solid rgba(255,59,107,0.35);
+    color: #E11D54;
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.04em;
@@ -185,7 +185,7 @@
     width: 100%;
     padding: 15px;
     border-radius: 14px;
-    background: linear-gradient(135deg, #6366f1, #818cf8);
+    background: linear-gradient(135deg, #FF3B6B, #FF7A4D);
     border: none;
     color: #fff;
     font-size: 15px;

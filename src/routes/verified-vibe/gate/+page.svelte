@@ -4,6 +4,7 @@
   import type { Gender } from '$lib/verified-vibe/types';
   import { fade, slide } from 'svelte/transition';
   import LiveWomenCarousel from '$lib/verified-vibe/components/LiveWomenCarousel.svelte';
+  import RiteLogo from '$lib/verified-vibe/components/RiteLogo.svelte';
 
   let gender = $state<Gender | null>(null);
   let over18 = $state(false);
@@ -34,7 +35,7 @@
   <div class="gate-hero" transition:slide={{ duration: 400, axis: 'y' }}>
     <div class="gate-eyebrow">
       <span class="pulse" aria-hidden="true"></span>
-      Verified Vibe
+      <RiteLogo mark={false} />
     </div>
     <h1 class="gate-title">Two questions. <em>Then we move.</em></h1>
   </div>
@@ -141,7 +142,7 @@
     top: -40px;
     left: 0;
     background: var(--accent);
-    color: #06281e;
+    color: #ffffff;
     padding: 8px 16px;
     text-decoration: none;
     z-index: 100;
@@ -206,7 +207,7 @@
 
   @keyframes pulse {
     0%, 100% { box-shadow: 0 0 0 4px var(--accent-tint); }
-    50%       { box-shadow: 0 0 0 8px rgba(16,185,129,0.04); }
+    50%       { box-shadow: 0 0 0 8px rgba(255, 59, 107,0.04); }
   }
 
   .gate-title {
@@ -265,7 +266,7 @@
   .gate-q-num.done {
     background: var(--accent);
     border-color: var(--accent);
-    color: #06281e;
+    color: #ffffff;
   }
 
   .gate-q-title {
@@ -421,7 +422,7 @@
   .gate-age.checked .box {
     background: var(--accent);
     border-color: var(--accent);
-    color: #06281e;
+    color: #ffffff;
   }
 
   .gate-age .copy {
@@ -464,7 +465,7 @@
 
   .btn-primary {
     background: var(--accent);
-    color: #06281e;
+    color: #ffffff;
   }
 
   .btn-primary:hover:not(:disabled) {

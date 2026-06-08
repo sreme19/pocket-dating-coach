@@ -10,6 +10,7 @@
   } from '$lib/verified-vibe/services/profileService';
   import { page } from '$app/stores';
   import { fade, slide } from 'svelte/transition';
+  import RiteLogo from '$lib/verified-vibe/components/RiteLogo.svelte';
   import { ShieldCheck } from 'lucide-svelte';
 
   // ── auto-route if already signed in ────────────────────────────────────────
@@ -298,10 +299,10 @@
   <!-- Brand mark -->
   <div class="auth-brand" transition:fade={{ duration: 300 }}>
     <div class="brand-icon">
-      <ShieldCheck size={28} />
+      <RiteLogo mark={true} word={false} markSize={30} />
     </div>
     <div>
-      <p class="brand-name">Verified Vibe</p>
+      <p class="brand-name"><RiteLogo mark={false} /></p>
       <p class="brand-tag">Trust-first dating</p>
     </div>
   </div>
@@ -622,7 +623,7 @@
 
   .auth-btn.primary {
     background: var(--accent);
-    color: #06281e;
+    color: #ffffff;
   }
 
   .auth-btn.primary:hover:not(:disabled) {
@@ -706,7 +707,7 @@
     width: 18px;
     height: 18px;
     border: 2px solid rgba(6, 40, 30, 0.4);
-    border-top-color: #06281e;
+    border-top-color: #ffffff;
     border-radius: 50%;
     animation: spin 700ms linear infinite;
   }

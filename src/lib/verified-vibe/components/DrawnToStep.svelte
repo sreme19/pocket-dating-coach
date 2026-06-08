@@ -929,8 +929,8 @@
     transition: all 0.2s ease;
   }
   .count-pip--filled {
-    background: rgba(52, 211, 153, 0.1);
-    border-color: rgba(52, 211, 153, 0.3);
+    background: rgba(255, 122, 77, 0.1);
+    border-color: rgba(255, 122, 77, 0.3);
     color: var(--accent-bright);
   }
   .count-denom {
@@ -963,11 +963,11 @@
     transform: scale(0.97);
   }
   .chip--picked {
-    background: rgba(52, 211, 153, 0.1);
-    border-color: rgba(52, 211, 153, 0.5);
+    background: rgba(255, 122, 77, 0.1);
+    border-color: rgba(255, 122, 77, 0.5);
     color: var(--accent-bright);
     transform: translateY(-1px);
-    box-shadow: 0 4px 14px rgba(52, 211, 153, 0.18);
+    box-shadow: 0 4px 14px rgba(255, 122, 77, 0.18);
   }
   .chip-emoji {
     font-size: 15px;
@@ -1005,8 +1005,8 @@
   .cta-btn {
     width: 100%;
     padding: 16px;
-    background: rgba(52, 211, 153, 0.1);
-    border: 1px solid rgba(52, 211, 153, 0.16);
+    background: rgba(255, 122, 77, 0.1);
+    border: 1px solid rgba(255, 122, 77, 0.16);
     border-radius: 16px;
     color: var(--text-3);
     font-size: 15px;
@@ -1020,7 +1020,7 @@
     border-color: var(--accent-bright);
     color: #052819;
     cursor: pointer;
-    box-shadow: 0 8px 24px rgba(52, 211, 153, 0.28);
+    box-shadow: 0 8px 24px rgba(255, 122, 77, 0.28);
   }
   .cta-btn--ready:active {
     opacity: 0.88;

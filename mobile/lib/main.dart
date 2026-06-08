@@ -29,16 +29,16 @@ class VerifiedVibeApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Verified Vibe',
+      title: 'riteangle',
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
-        brightness: Brightness.dark,
+        brightness: Brightness.light,
         scaffoldBackgroundColor: const Color(Config.bg1),
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(Config.accent),
-          brightness: Brightness.dark,
+          brightness: Brightness.light,
         ),
       ),
       home: const AuthGate(),

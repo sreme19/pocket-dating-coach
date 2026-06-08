@@ -239,16 +239,16 @@
     height: 44px;
     padding: 0 16px 0 14px;
     border-radius: 999px;
-    background: linear-gradient(135deg, #7c3aed, #6366f1);
+    background: linear-gradient(135deg, #FF7A4D, #FF3B6B);
     border: none;
     color: #fff;
     font-size: 13px;
     font-weight: 700;
     cursor: pointer;
-    box-shadow: 0 4px 20px rgba(99,102,241,0.45);
+    box-shadow: 0 4px 20px rgba(255,59,107,0.45);
     transition: transform 0.18s, box-shadow 0.18s;
   }
-  .wingman-fab:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(99,102,241,0.55); }
+  .wingman-fab:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(255,59,107,0.55); }
   .wingman-fab--open {
     width: 44px;
     padding: 0;
@@ -318,7 +318,7 @@
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: linear-gradient(135deg, rgba(124,58,237,0.2), rgba(99,102,241,0.2));
+    background: linear-gradient(135deg, rgba(255,122,77,0.2), rgba(255,59,107,0.2));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -365,9 +365,9 @@
     transition: background 0.12s, border-color 0.12s;
   }
   .wingman-suggestion:hover {
-    background: rgba(99,102,241,0.12);
-    border-color: rgba(99,102,241,0.35);
-    color: #818cf8;
+    background: rgba(255,59,107,0.12);
+    border-color: rgba(255,59,107,0.35);
+    color: #E11D54;
   }
 
   /* ── Messages ── */
@@ -389,7 +389,7 @@
   }
   .wm-msg--user {
     align-self: flex-end;
-    background: linear-gradient(135deg, #7c3aed, #6366f1);
+    background: linear-gradient(135deg, #FF7A4D, #FF3B6B);
     color: #fff;
     border-bottom-right-radius: 4px;
   }
@@ -468,7 +468,7 @@
     max-height: 160px;
     transition: border-color 0.15s;
   }
-  .wingman-input:focus { border-color: rgba(99,102,241,0.5); }
+  .wingman-input:focus { border-color: rgba(255,59,107,0.5); }
   .wingman-input::placeholder { color: var(--text-3); }
 
   .wingman-send {
@@ -486,7 +486,7 @@
     transition: background 0.15s, color 0.15s, border-color 0.15s;
   }
   .wingman-send--active {
-    background: linear-gradient(135deg, #7c3aed, #6366f1);
+    background: linear-gradient(135deg, #FF7A4D, #FF3B6B);
     border-color: transparent;
     color: #fff;
   }

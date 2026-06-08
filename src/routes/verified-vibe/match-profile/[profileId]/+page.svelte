@@ -675,9 +675,9 @@
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: rgba(16, 185, 129, 0.15);
-    border: 1px solid rgba(16, 185, 129, 0.4);
-    color: #10b981;
+    background: rgba(255, 59, 107, 0.15);
+    border: 1px solid rgba(255, 59, 107, 0.4);
+    color: #FF3B6B;
     font-size: 11px;
     display: flex;
     align-items: center;
@@ -856,8 +856,8 @@
     align-items: flex-start;
     gap: 10px;
     padding: 12px;
-    background: rgba(16, 185, 129, 0.08);
-    border: 1px solid rgba(16, 185, 129, 0.25);
+    background: rgba(255, 59, 107, 0.08);
+    border: 1px solid rgba(255, 59, 107, 0.25);
     border-radius: 12px;
   }
 

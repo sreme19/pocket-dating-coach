@@ -1,48 +1,65 @@
 @import "tailwindcss";
 
+/* riteangle — self-hosted Gabarito (variable, all weights from one woff2) */
+@font-face {
+	font-family: 'Gabarito';
+	font-style: normal;
+	font-weight: 400 900;
+	font-display: swap;
+	src: url("/fonts/Gabarito-latin.woff2") format('woff2');
+}
+@font-face {
+	font-family: 'Gabarito';
+	font-style: normal;
+	font-weight: 400 900;
+	font-display: swap;
+	src: url("/fonts/Gabarito-latinext.woff2") format('woff2');
+	unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 :root {
 	/* ============================================
-	   COLOR TOKENS
+	   COLOR TOKENS — riteangle (hot pink / coral / cream)
 	   ============================================ */
 
-	/* Primary Accent Colors */
-	--color-vibe-emerald: #10b981;
-	--color-vibe-mint: #14b8a6;
-	--color-vibe-lime: #84cc16;
-	--color-vibe-amber: #f59e0b;
+	/* Primary Accent Colors (legacy "vibe-*" names kept; values → riteangle) */
+	--color-vibe-emerald: #FF3B6B;   /* brand primary (pink) */
+	--color-vibe-mint: #FF7A4D;      /* secondary (coral) */
+	--color-vibe-lime: #15B86B;      /* success (green, retained for semantics) */
+	--color-vibe-amber: #f59e0b;     /* warning (kept) */
 
-	/* Background Colors */
-	--color-vibe-bg-1: #ffffff;
-	--color-vibe-bg-2: #f9fafb;
-	--color-vibe-bg-3: #f3f4f6;
+	/* Background Colors — cream paper + white cards */
+	--color-vibe-bg-1: #FFF3F0;
+	--color-vibe-bg-2: #FFFFFF;
+	--color-vibe-bg-3: #FBE9E6;
 
-	/* Text Colors */
-	--color-vibe-text-1: #111827;
-	--color-vibe-text-2: #374151;
-	--color-vibe-text-3: #6b7280;
-	--color-vibe-text-4: #9ca3af;
+	/* Text Colors — warm ink */
+	--color-vibe-text-1: #1B1020;
+	--color-vibe-text-2: #4A3F47;
+	--color-vibe-text-3: #6E5F64;
+	--color-vibe-text-4: #8A7A80;
 
 	/* Border Colors */
-	--color-vibe-border: #e5e7eb;
-	--color-vibe-border-light: #f3f4f6;
+	--color-vibe-border: #F1E0E3;
+	--color-vibe-border-light: #FBEDEF;
 
-	/* Verified Vibe Gate Screen Variables (light mode) */
-	--bg-1: #ffffff;
-	--bg-2: #f9fafb;
-	--bg-3: #f3f4f6;
-	--text-1: #111827;
-	--text-2: #374151;
-	--text-3: #6b7280;
-	--text-4: #9ca3af;
-	--border-1: #e5e7eb;
-	--border-2: #d1d5db;
-	--border-3: #bfdbfe;
-	--accent: #10b981;
-	--accent-bright: #34d399;
-	--accent-dim: #064e3b;
-	--accent-tint: rgba(16, 185, 129, 0.12);
-	--accent-glow: rgba(16, 185, 129, 0.35);
-	--font-serif: 'Georgia', serif;
+	/* riteangle base screen variables (light) */
+	--bg-1: #FFF3F0;
+	--bg-2: #FFFFFF;
+	--bg-3: #FBE9E6;
+	--text-1: #1B1020;
+	--text-2: #4A3F47;
+	--text-3: #6E5F64;
+	--text-4: #8A7A80;
+	--border-1: #F1E0E3;
+	--border-2: #E7D2D7;
+	--border-3: #F5C6D2;
+	--accent: #FF3B6B;
+	--accent-bright: #E11D54;
+	--accent-dim: #7A1133;
+	--accent-tint: rgba(255, 59, 107, 0.12);
+	--accent-glow: rgba(255, 59, 107, 0.35);
+	--font-serif: 'Gabarito', system-ui, sans-serif;
 	--font-mono: 'Menlo', 'Monaco', 'Courier New', monospace;
 	--r-lg: 0.75rem;
 
@@ -98,7 +115,7 @@
 	   ============================================ */
 
 	/* Font Family */
-	--font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+	--font-sans: 'Gabarito', system-ui, -apple-system, sans-serif;
 	--font-mono: 'Menlo', 'Monaco', 'Courier New', monospace;
 
 	/* Font Size */
@@ -169,40 +186,8 @@
 	--transition-opacity: opacity var(--duration-base) var(--ease-in-out);
 }
 
-/* Dark mode overrides for Verified Vibe colors */
-@media (prefers-color-scheme: dark) {
-	:root {
-		--color-vibe-bg-1: #111827;
-		--color-vibe-bg-2: #1f2937;
-		--color-vibe-bg-3: #374151;
-		--color-vibe-text-1: #f9fafb;
-		--color-vibe-text-2: #e5e7eb;
-		--color-vibe-text-3: #d1d5db;
-		--color-vibe-text-4: #9ca3af;
-		--color-vibe-border: #4b5563;
-		--color-vibe-border-light: #374151;
-
-		/* Verified Vibe Gate Screen Variables (dark mode) */
-		--bg-1: #111827;
-		--bg-2: #1f2937;
-		--bg-3: #374151;
-		--text-1: #f9fafb;
-		--text-2: #e5e7eb;
-		--text-3: #d1d5db;
-		--text-4: #9ca3af;
-		--border-1: #4b5563;
-		--border-2: #6b7280;
-		--border-3: #9ca3af;
-
-		/* Dark mode shadow adjustments */
-		--shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-		--shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
-		--shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
-		--shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.15);
-		--shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-		--shadow-inset: inset 0 2px 4px 0 rgba(0, 0, 0, 0.3);
-	}
-}
+/* riteangle is a light brand — the cream theme holds regardless of OS dark mode.
+   (The previous emerald dark-mode overrides were intentionally removed.) */
 
 * {
 	box-sizing: border-box;
@@ -210,7 +195,7 @@
 
 html, body {
 	font-family: var(--font-sans);
-	background-color: #0b1120;
+	background-color: #FFF3F0;
 	margin: 0;
 	padding: 0;
 }

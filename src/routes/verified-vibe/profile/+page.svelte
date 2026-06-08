@@ -280,11 +280,11 @@
     'Hotels & Stays':      '#06B6D4',
     'Nightlife':           '#F97316',
     'Gifting':             '#EF4444',
-    'Wellness & Fitness':  '#10B981',
+    'Wellness & Fitness':  '#FF3B6B',
   };
 
   function spendColor(cat: string): string {
-    return SPEND_CAT_COLORS[cat] ?? '#34D399';
+    return SPEND_CAT_COLORS[cat] ?? '#FF3B6B';
   }
 
   function maxMonthly(items: SpendingCategory[]): number {
@@ -416,7 +416,7 @@
 
   function getBrandStyle(make: string): { accent: string; logo: string } {
     const key = make.toLowerCase().trim();
-    return BRAND_COLORS[key] ?? { accent: '#34D399', logo: make.slice(0, 2).toUpperCase() };
+    return BRAND_COLORS[key] ?? { accent: '#FF3B6B', logo: make.slice(0, 2).toUpperCase() };
   }
 
   function getCarSVG(car: GarageCar, accent: string): string {
@@ -3256,7 +3256,7 @@
           <svg viewBox="0 0 280 280" width="100%" style="display:block; max-height: 260px;">
             <defs>
               <radialGradient id="constGrad" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stop-color="rgba(52,211,153,0.08)"/>
+                <stop offset="0%" stop-color="rgba(255,59,107,0.08)"/>
                 <stop offset="100%" stop-color="transparent"/>
               </radialGradient>
             </defs>
@@ -3278,7 +3278,7 @@
                 const r2 = 96 * (t.percentage / 100);
                 return (i === 0 ? 'M' : 'L') + (140 + Math.cos(a) * r2) + ',' + (140 + Math.sin(a) * r2);
               }).join(' ') + ' Z'}
-              fill="rgba(52,211,153,0.16)" stroke="var(--accent-bright)" stroke-width="1.5" stroke-linejoin="round"
+              fill="rgba(255,59,107,0.16)" stroke="var(--accent-bright)" stroke-width="1.5" stroke-linejoin="round"
             />
             {#each personalityReads as t, i}
               {@const a = (Math.PI * 2 * i) / personalityReads.length - Math.PI / 2}
@@ -4103,7 +4103,7 @@
     border-color: var(--accent-bright);
     color: #052819;
     font-weight: 600;
-    box-shadow: 0 0 20px rgba(52,211,153,0.22);
+    box-shadow: 0 0 20px rgba(255,59,107,0.22);
   }
 
   @media (min-width: 768px) {
@@ -4434,8 +4434,8 @@
     gap: 3px;
     padding: 3px 6px;
     border-radius: 999px;
-    background: rgba(16, 185, 129, 0.2);
-    border: 1px solid rgba(52, 211, 153, 0.4);
+    background: rgba(255, 59, 107, 0.2);
+    border: 1px solid rgba(255, 59, 107, 0.4);
     color: var(--accent-bright);
     font-size: 11px;
     font-weight: 600;
@@ -4692,7 +4692,7 @@
 
   .tag.lifestyle {
     background: var(--accent-tint);
-    border-color: rgba(52,211,153,0.25);
+    border-color: rgba(255,59,107,0.25);
     color: var(--accent-bright);
   }
 
@@ -4816,7 +4816,7 @@
     width: 36px;
     height: 36px;
     border-radius: 10px;
-    background: rgba(52,211,153,0.10);
+    background: rgba(255,59,107,0.10);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -5009,7 +5009,7 @@
   .section-edit-btn:hover { color: var(--accent-bright); }
   .section-edit-btn--active {
     color: var(--accent-bright);
-    background: rgba(99,102,241,0.12);
+    background: rgba(255,59,107,0.12);
     border-radius: 6px;
   }
 
@@ -5080,7 +5080,7 @@
   .inline-save-btn {
     padding: 7px 16px;
     background: var(--accent-bright);
-    color: #06281e;
+    color: #ffffff;
     border: none;
     border-radius: 8px;
     font-size: 13px;
@@ -5787,8 +5787,8 @@
   }
 
   .tier-item.unlocked {
-    background: rgba(52, 211, 153, 0.08);
-    border-color: rgba(52, 211, 153, 0.2);
+    background: rgba(255, 59, 107, 0.08);
+    border-color: rgba(255, 59, 107, 0.2);
   }
 
   .tier-item.locked {
@@ -5863,7 +5863,7 @@
 
   .habit-tracker-cta:hover {
     border-color: var(--accent-bright);
-    background: rgba(52, 211, 153, 0.05);
+    background: rgba(255, 59, 107, 0.05);
   }
 
   .habit-icon {
@@ -6113,7 +6113,7 @@
     background: var(--accent-tint);
     padding: 2px 9px;
     border-radius: 999px;
-    border: 1px solid rgba(52,211,153,0.18);
+    border: 1px solid rgba(255,59,107,0.18);
   }
 
   .archetype-qa-text {
@@ -6392,7 +6392,7 @@
 
   .money-spend-verified {
     font-size: 10px;
-    color: #34D399;
+    color: #FF3B6B;
     font-weight: 600;
   }
 
@@ -6785,9 +6785,9 @@
     transition: background 0.15s, transform 0.12s;
   }
   .garage-upload-btn:hover {
-    background: rgba(52,211,153,0.35);
-    border-color: #34d399;
-    color: #34d399;
+    background: rgba(255,59,107,0.35);
+    border-color: #FF3B6B;
+    color: #FF3B6B;
     transform: scale(1.1);
   }
   .garage-upload-input {
@@ -6808,14 +6808,14 @@
   .garage-upload-spin-ring {
     width: 24px;
     height: 24px;
-    border: 2px solid rgba(52,211,153,0.25);
-    border-top-color: #34d399;
+    border: 2px solid rgba(255,59,107,0.25);
+    border-top-color: #FF3B6B;
     border-radius: 50%;
     animation: spin 0.75s linear infinite;
   }
   .garage-upload-spin-label {
     font-size: 9px;
-    color: #34d399;
+    color: #FF3B6B;
     font-weight: 600;
     letter-spacing: 0.04em;
     white-space: nowrap;
@@ -6856,7 +6856,7 @@
     font-size: 10px;
     font-weight: 600;
     letter-spacing: 0.04em;
-    color: #34D399;
+    color: #FF3B6B;
     text-transform: uppercase;
   }
 
@@ -7134,12 +7134,12 @@
   }
 
   .signal-tile--editing {
-    border-color: rgba(52, 211, 153, 0.3);
+    border-color: rgba(255, 59, 107, 0.3);
   }
 
   .signal-tile--pending {
-    border: 1px dashed rgba(52, 211, 153, 0.45);
-    background: rgba(52, 211, 153, 0.05);
+    border: 1px dashed rgba(255, 59, 107, 0.45);
+    background: rgba(255, 59, 107, 0.05);
   }
 
   .signal-tile-emoji {
@@ -7211,8 +7211,8 @@
     transition: all 0.15s;
   }
   .vs-tab--active {
-    background: rgba(52,211,153,0.10);
-    border-color: rgba(52,211,153,0.32);
+    background: rgba(255,59,107,0.10);
+    border-color: rgba(255,59,107,0.32);
     color: var(--accent-bright);
   }
   .career-card-header {
@@ -7331,7 +7331,7 @@
     overflow: hidden;
     aspect-ratio: 3/4;
     max-height: 460px;
-    background: #1a2030;
+    background: #FBE9E6;
   }
 
   .portrait-img {
@@ -7368,8 +7368,8 @@
     font-size: 11px;
     font-weight: 600;
     color: var(--accent);
-    background: rgba(52,211,153,0.12);
-    border: 1px solid rgba(52,211,153,0.25);
+    background: rgba(255,59,107,0.12);
+    border: 1px solid rgba(255,59,107,0.25);
     border-radius: 20px;
     padding: 4px 10px;
     cursor: pointer;
@@ -7418,8 +7418,8 @@
     align-items: center;
     gap: 6px;
     padding: 20px 16px;
-    background: rgba(52,211,153,0.06);
-    border: 1.5px dashed rgba(52,211,153,0.3);
+    background: rgba(255,59,107,0.06);
+    border: 1.5px dashed rgba(255,59,107,0.3);
     border-radius: 16px;
     color: var(--accent);
     font-size: 15px;
@@ -7429,8 +7429,8 @@
   }
 
   .portrait-generate-btn:hover {
-    background: rgba(52,211,153,0.1);
-    border-color: rgba(52,211,153,0.5);
+    background: rgba(255,59,107,0.1);
+    border-color: rgba(255,59,107,0.5);
   }
 
   .portrait-generate-hint {
@@ -7452,8 +7452,8 @@
     align-items: flex-start;
     gap: 8px;
     padding: 10px 13px;
-    background: rgba(99,102,241,0.09);
-    border: 1px solid rgba(99,102,241,0.22);
+    background: rgba(255,59,107,0.09);
+    border: 1px solid rgba(255,59,107,0.22);
     border-radius: 12px;
   }
   .gen-privacy-lock { font-size: 13px; flex-shrink: 0; margin-top: 1px; }
@@ -7702,7 +7702,7 @@
     font-size: 10px;
     font-weight: 700;
     color: var(--accent);
-    background: rgba(52,211,153,0.12);
+    background: rgba(255,59,107,0.12);
     padding: 2px 6px;
     border-radius: 100px;
   }

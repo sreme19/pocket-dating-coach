@@ -561,8 +561,8 @@
     gap: 10px;
     margin: 0 16px;
     padding: 12px 14px;
-    background: linear-gradient(135deg, rgba(52,211,153,0.12), rgba(52,211,153,0.06));
-    border: 1px solid rgba(52, 211, 153, 0.35);
+    background: linear-gradient(135deg, rgba(255, 122, 77,0.12), rgba(255, 122, 77,0.06));
+    border: 1px solid rgba(255, 122, 77, 0.35);
     border-radius: 14px;
     animation: tier-pop 0.4s cubic-bezier(0.34,1.56,0.64,1);
   }
@@ -1137,7 +1137,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #818cf8;
+    color: #FF7A4D;
   }
   .bgv-body {
     flex: 1;
@@ -1227,8 +1227,8 @@
   }
 
   .social-btn--done {
-    border-color: rgba(52, 211, 153, 0.4);
-    background: rgba(52, 211, 153, 0.06);
+    border-color: rgba(255, 122, 77, 0.4);
+    background: rgba(255, 122, 77, 0.06);
     color: var(--accent);
   }
 
@@ -1242,7 +1242,7 @@
     font-size: 10px;
     font-weight: 700;
     color: var(--accent);
-    background: rgba(52, 211, 153, 0.12);
+    background: rgba(255, 122, 77, 0.12);
     padding: 2px 6px;
     border-radius: 100px;
   }

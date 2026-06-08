@@ -90,7 +90,7 @@
 
   .mute-button.muted:hover:not(:disabled) {
     background: var(--accent);
-    color: #06281e;
+    color: #ffffff;
   }
 
   @media (max-width: 767px) {

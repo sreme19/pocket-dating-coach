@@ -373,8 +373,8 @@
     transition: all 0.2s ease;
   }
   .count-pip--filled {
-    background: rgba(52, 211, 153, 0.1);
-    border-color: rgba(52, 211, 153, 0.3);
+    background: rgba(255, 122, 77, 0.1);
+    border-color: rgba(255, 122, 77, 0.3);
     color: var(--accent-bright);
   }
   .count-denom { opacity: 0.55; }
@@ -412,8 +412,8 @@
     font-family: inherit;
   }
   .slot--empty-next {
-    border-color: rgba(52, 211, 153, 0.4);
-    background: rgba(52, 211, 153, 0.04);
+    border-color: rgba(255, 122, 77, 0.4);
+    background: rgba(255, 122, 77, 0.04);
     color: var(--accent-bright);
   }
   .slot--empty:active {
@@ -429,7 +429,7 @@
     justify-content: center;
   }
   .slot-plus-icon--next {
-    background: rgba(52, 211, 153, 0.12);
+    background: rgba(255, 122, 77, 0.12);
   }
   .plus-symbol {
     font-size: 18px;
@@ -487,15 +487,15 @@
     align-items: center;
     gap: 10px;
     padding: 10px 14px;
-    background: rgba(52, 211, 153, 0.04);
-    border: 1px solid rgba(52, 211, 153, 0.18);
+    background: rgba(255, 122, 77, 0.04);
+    border: 1px solid rgba(255, 122, 77, 0.18);
     border-radius: 12px;
   }
   .ai-strip-icon {
     width: 32px;
     height: 32px;
     border-radius: 10px;
-    background: rgba(52, 211, 153, 0.10);
+    background: rgba(255, 122, 77, 0.10);
     color: var(--accent-bright);
     display: flex;
     align-items: center;
@@ -536,7 +536,7 @@
     color: var(--text-3);
   }
   .about-input:focus {
-    border-color: rgba(52, 211, 153, 0.4);
+    border-color: rgba(255, 122, 77, 0.4);
   }
   .about-input--name {
     flex: 1;
@@ -584,8 +584,8 @@
   .detect-btn {
     padding: 6px 10px;
     border-radius: 999px;
-    background: rgba(52, 211, 153, 0.08);
-    border: 1px solid rgba(52, 211, 153, 0.3);
+    background: rgba(255, 122, 77, 0.08);
+    border: 1px solid rgba(255, 122, 77, 0.3);
     color: var(--accent-bright);
     font-size: 10.5px;
     font-weight: 600;
@@ -625,8 +625,8 @@
     text-align: left;
   }
   .travel-toggle--on {
-    background: rgba(52, 211, 153, 0.06);
-    border-color: rgba(52, 211, 153, 0.3);
+    background: rgba(255, 122, 77, 0.06);
+    border-color: rgba(255, 122, 77, 0.3);
   }
   .travel-icon {
     width: 32px;
@@ -641,7 +641,7 @@
     transition: background 0.2s ease;
   }
   .travel-icon--on {
-    background: rgba(52, 211, 153, 0.12);
+    background: rgba(255, 122, 77, 0.12);
   }
   .travel-text {
     flex: 1;
@@ -693,8 +693,8 @@
   .cta-btn {
     width: 100%;
     padding: 17px 16px;
-    background: rgba(52, 211, 153, 0.10);
-    border: 1px solid rgba(52, 211, 153, 0.16);
+    background: rgba(255, 122, 77, 0.10);
+    border: 1px solid rgba(255, 122, 77, 0.16);
     border-radius: 16px;
     color: var(--text-3);
     font-size: 15px;
@@ -709,7 +709,7 @@
     border-color: var(--accent-bright);
     color: #052819;
     cursor: pointer;
-    box-shadow: 0 12px 32px rgba(52, 211, 153, 0.32);
+    box-shadow: 0 12px 32px rgba(255, 122, 77, 0.32);
   }
   .cta-btn--ready:active {
     opacity: 0.88;

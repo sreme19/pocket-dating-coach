@@ -442,7 +442,7 @@
   }
 
   .button-primary { background-color: var(--accent-bright); color: var(--bg-1); }
-  .button-primary:hover:not(:disabled) { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
+  .button-primary:hover:not(:disabled) { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(255, 59, 107, 0.3); }
   .button-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .button-secondary { background-color: var(--bg-2); color: var(--text-1); border: 1px solid var(--border-1); }
