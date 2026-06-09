@@ -50,3 +50,7 @@ android/app/google-services.json
 
 # Supabase CLI local cache
 supabase/.temp/
+
+# App Store Connect signing keys (never commit)
+mobile/.asc-keys/
+*.p8

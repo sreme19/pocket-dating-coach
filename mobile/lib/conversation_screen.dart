@@ -166,6 +166,77 @@ class _ConversationScreenState extends State<ConversationScreen> {
     }
   }
 
+  /// Report objectionable content/behavior (separate from block, per Apple
+  /// Guideline 1.2). User picks a reason; reviewed within 24 hours. Offers to
+  /// also block on success.
+  Future<void> _reportUser() async {
+    if (_otherId == null) return;
+    final reason = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(Config.bg2),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Report $_otherName',
+                  style: const TextStyle(color: Color(Config.text1), fontSize: 18, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              const Text(
+                'Tell us what’s wrong. Our team reviews every report within 24 hours and removes objectionable content or users.',
+                style: TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4),
+              ),
+            ]),
+          ),
+          for (final r in const [
+            ['inappropriate_content', 'Inappropriate or offensive content'],
+            ['harassment', 'Harassment or abuse'],
+            ['fake_profile', 'Fake profile or impersonation'],
+            ['scam', 'Scam or spam'],
+            ['other', 'Something else'],
+          ])
+            ListTile(
+              title: Text(r[1], style: const TextStyle(color: Color(Config.text1))),
+              onTap: () => Navigator.pop(ctx, r[0]),
+            ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+    if (reason == null || _otherId == null) return;
+    try {
+      await reportUser(_otherId!, reason: reason, matchId: widget.conversationId);
+      if (!mounted) return;
+      // Offer to block too — reporting and blocking are independent actions.
+      final alsoBlock = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(Config.bg2),
+          title: const Text('Report received', style: TextStyle(color: Color(Config.text1))),
+          content: Text(
+            'Thanks — our team reviews every report within 24 hours. Do you also want to unmatch & block $_otherName?',
+            style: const TextStyle(color: Color(Config.text2)),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Not now', style: TextStyle(color: Color(Config.text2)))),
+            TextButton(onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Unmatch & block', style: TextStyle(color: Color(0xFFF87171), fontWeight: FontWeight.w700))),
+          ],
+        ),
+      );
+      if (alsoBlock == true && _otherId != null) {
+        await blockUser(_otherId!, matchId: widget.conversationId);
+        if (mounted) Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not report: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasAvatar = _otherAvatar != null && _otherAvatar!.startsWith('http');
@@ -193,8 +264,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
           PopupMenuButton<String>(
             color: const Color(Config.bg2),
             icon: const Icon(Icons.more_vert, color: Color(Config.text2)),
-            onSelected: (v) { if (v == 'block') _confirmBlock(); },
+            onSelected: (v) {
+              if (v == 'block') _confirmBlock();
+              if (v == 'report') _reportUser();
+            },
             itemBuilder: (ctx) => [
+              const PopupMenuItem(value: 'report',
+                  child: Text('Report', style: TextStyle(color: Color(Config.text1)))),
               const PopupMenuItem(value: 'block',
                   child: Text('Unmatch & block', style: TextStyle(color: Color(0xFFF87171)))),
             ],

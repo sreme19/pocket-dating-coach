@@ -943,6 +943,27 @@ Future<void> blockUser(String blockedUserId, {String? matchId}) async {
   );
 }
 
+/// Report a user for objectionable content/behavior (separate from block).
+/// [reason] is one of: inappropriate_content, harassment, fake_profile, scam, other.
+/// The moderation team reviews every report within 24 hours.
+Future<void> reportUser(
+  String reportedUserId, {
+  required String reason,
+  String? description,
+  String? matchId,
+}) async {
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/report-user',
+    data: {
+      'reportedUserId': reportedUserId,
+      'reason': reason,
+      if (description != null && description.trim().isNotEmpty) 'description': description.trim(),
+      if (matchId != null) 'matchId': matchId,
+    },
+    options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
+  );
+}
+
 /// A received secret-admirer / craving-attention message (inbox).
 class Admirer {
   final String id;

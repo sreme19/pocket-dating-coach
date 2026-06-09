@@ -109,7 +109,7 @@ class GateStep extends StatelessWidget {
               _genderCard('woman', '♀', 'Woman', 'See Spoilt & Safety-First', gender == 'woman', () => onGender('woman')),
             ]),
             const SizedBox(height: 28),
-            const Text("I'm 18 or older", style: TextStyle(color: Color(Config.text2), fontWeight: FontWeight.w600)),
+            const Text('Age confirmation', style: TextStyle(color: Color(Config.text2), fontWeight: FontWeight.w600)),
             const SizedBox(height: 12),
             GestureDetector(
               onTap: () => onOver18(!over18),
@@ -124,9 +124,9 @@ class GateStep extends StatelessWidget {
                   Icon(over18 ? Icons.check_box : Icons.check_box_outline_blank, color: over18 ? const Color(Config.accent) : const Color(Config.text3)),
                   const SizedBox(width: 12),
                   const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text("Yes, I'm 18+", style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w600)),
+                    Text('I confirm I am 18 years of age or older.', style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w600)),
                     SizedBox(height: 2),
-                    Text('Required — we ID-verify everyone, no exceptions.', style: TextStyle(color: Color(Config.text3), fontSize: 12)),
+                    Text('riteangle is strictly 18+. We ID-verify everyone — no exceptions.', style: TextStyle(color: Color(Config.text3), fontSize: 12)),
                   ])),
                 ]),
               ),
