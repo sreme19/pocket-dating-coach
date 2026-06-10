@@ -118,10 +118,15 @@ class _VerificationScreenState extends State<VerificationScreen> {
   }
 
   Future<void> _pickPhotos() async {
-    final files = await _picker.pickMultiImage(maxWidth: 1600, imageQuality: 85);
+    // Cap at 3 (matches web) + modest downscale so the combined base64 payload
+    // stays well under the serverless request-body limit — was hitting HTTP 413
+    // (Payload Too Large) when several full-size photos were sent in one request.
+    final files = await _picker.pickMultiImage(maxWidth: 1280, imageQuality: 80);
     if (files.isEmpty) return;
+    final capped = files.take(3).toList();
     final imgs = <String>[];
-    for (final f in files) { imgs.add(base64Encode(await f.readAsBytes())); }
+    for (final f in capped) { imgs.add(base64Encode(await f.readAsBytes())); }
+    if (!mounted) return;
     setState(() { _photoB64..clear()..addAll(imgs); });
   }
 
@@ -341,7 +346,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
                   ? const Column(mainAxisSize: MainAxisSize.min, children: [
                       Icon(Icons.add_a_photo_outlined, color: Color(Config.text2)),
                       SizedBox(height: 6),
-                      Text('Add your photos', style: TextStyle(color: Color(Config.text2))),
+                      Text('Add up to 3 photos', style: TextStyle(color: Color(Config.text2))),
                     ])
                   : Text('✓ ${_photoB64.length} photo${_photoB64.length == 1 ? '' : 's'} · tap to change',
                       style: const TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w600))),
