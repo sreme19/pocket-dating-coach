@@ -220,6 +220,7 @@
     color: var(--text-1);
     font-family: 'Gabarito', system-ui, sans-serif;
     margin: 0 auto;
+    padding-top: env(safe-area-inset-top, 0);
   }
 
   /* Mobile viewport constraint - ensure content fits mobile screens */

@@ -3266,11 +3266,11 @@
                 const a = (Math.PI * 2 * i) / personalityReads.length - Math.PI / 2;
                 return [140 + Math.cos(a) * 96 * ring, 140 + Math.sin(a) * 96 * ring];
               })}
-              <path d={rpts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' ') + ' Z'} fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+              <path d={rpts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' ') + ' Z'} fill="none" stroke="rgba(0,0,0,0.08)" stroke-width="1"/>
             {/each}
             {#each personalityReads as _, i}
               {@const a = (Math.PI * 2 * i) / personalityReads.length - Math.PI / 2}
-              <line x1="140" y1="140" x2={140 + Math.cos(a) * 96} y2={140 + Math.sin(a) * 96} stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <line x1="140" y1="140" x2={140 + Math.cos(a) * 96} y2={140 + Math.sin(a) * 96} stroke="rgba(0,0,0,0.06)" stroke-width="1"/>
             {/each}
             <path
               d={personalityReads.map((t, i) => {
@@ -3292,7 +3292,7 @@
               <text
                 x={lx} y={ly - 3}
                 text-anchor={ta2 > -85 && ta2 < 85 ? 'start' : ta2 > 95 || ta2 < -95 ? 'end' : 'middle'}
-                fill="rgba(255,255,255,0.85)" font-size="11" font-weight="600"
+                fill="#1B1020" font-size="11" font-weight="600"
                 font-family="inherit"
               >{t.name}</text>
               <text
@@ -6521,12 +6521,12 @@
   }
 
   .money-boost-key {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--text-2);
     font-size: 12px;
   }
 
   .money-boost-val {
-    color: rgba(255, 255, 255, 0.85);
+    color: var(--text-1);
     font-weight: 600;
     font-size: 13px;
   }
@@ -7686,15 +7686,15 @@
     border: 1px solid var(--border-2);
     border-radius: 14px;
     cursor: pointer;
-    color: rgba(255,255,255,0.55);
+    color: var(--text-2);
     transition: background 0.15s, border-color 0.15s, color 0.15s;
   }
-  .gen-social-btn:active { background: var(--bg-3); }
+  .gen-social-btn:active { background: var(--bg-1); }
   @media (hover: hover) {
     .gen-social-btn:hover {
-      background: var(--bg-3);
+      background: var(--bg-1);
       border-color: var(--border-1);
-      color: rgba(255,255,255,0.85);
+      color: var(--text-1);
     }
   }
   .gen-social-logo { width: 26px; height: 26px; flex-shrink: 0; }

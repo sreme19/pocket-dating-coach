@@ -45,7 +45,15 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>UIUserInterfaceStyle</key>
+	<string>Light</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We use your location to auto-fill your city on your profile.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>We need microphone access to let you dictate messages using voice input.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>We use speech recognition to convert your voice to text when composing messages.</string>
 </dict>
 </plist>

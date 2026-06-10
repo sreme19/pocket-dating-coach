@@ -72,11 +72,11 @@
             const a = (Math.PI * 2 * i) / personalityReads.length - Math.PI / 2;
             return [140 + Math.cos(a) * 96 * ring, 140 + Math.sin(a) * 96 * ring];
           })}
-          <path d={rpts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' ') + ' Z'} fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+          <path d={rpts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0] + ',' + p[1]).join(' ') + ' Z'} fill="none" stroke="rgba(0,0,0,0.08)" stroke-width="1"/>
         {/each}
         {#each personalityReads as _, i}
           {@const a = (Math.PI * 2 * i) / personalityReads.length - Math.PI / 2}
-          <line x1="140" y1="140" x2={140 + Math.cos(a) * 96} y2={140 + Math.sin(a) * 96} stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+          <line x1="140" y1="140" x2={140 + Math.cos(a) * 96} y2={140 + Math.sin(a) * 96} stroke="rgba(0,0,0,0.06)" stroke-width="1"/>
         {/each}
         <path
           d={personalityReads.map((t, i) => {
@@ -95,7 +95,7 @@
           {@const ly = 140 + Math.sin(a) * 120}
           {@const ta2 = a * 180 / Math.PI}
           <circle cx={px} cy={py} r="3.5" fill="#FF3B6B" stroke="#FFF3F0" stroke-width="2"/>
-          <text x={lx} y={ly - 3} text-anchor={ta2 > -85 && ta2 < 85 ? 'start' : ta2 > 95 || ta2 < -95 ? 'end' : 'middle'} fill="rgba(255,255,255,0.85)" font-size="11" font-weight="600" font-family="inherit">{t.name}</text>
+          <text x={lx} y={ly - 3} text-anchor={ta2 > -85 && ta2 < 85 ? 'start' : ta2 > 95 || ta2 < -95 ? 'end' : 'middle'} fill="#1B1020" font-size="11" font-weight="600" font-family="inherit">{t.name}</text>
           <text x={lx} y={ly + 11} text-anchor={ta2 > -85 && ta2 < 85 ? 'start' : ta2 > 95 || ta2 < -95 ? 'end' : 'middle'} fill="#FF3B6B" font-size="10" font-family="inherit">{t.percentage}</text>
         {/each}
       </svg>
@@ -271,15 +271,15 @@
 
   .section-label {
     display: flex; align-items: center; gap: 5px;
-    font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.4);
+    font-size: 10px; font-weight: 700; color: #A08B91;
     text-transform: uppercase; letter-spacing: 0.06em;
   }
   .section-hint {
-    margin-left: auto; font-size: 9px; font-weight: 400; color: rgba(255,255,255,0.28);
+    margin-left: auto; font-size: 9px; font-weight: 400; color: #C2B0B5;
     text-transform: none; letter-spacing: 0;
   }
 
-  .about-text { font-size: 14.5px; line-height: 1.6; color: #d8d8d8; margin: 0; }
+  .about-text { font-size: 14.5px; line-height: 1.6; color: #1B1020; margin: 0; }
 
   /* Vibe tags */
   .vibe-tags { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -292,32 +292,32 @@
 
   /* Personality radar */
   .personality-constellation {
-    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(0,0,0,0.02); border: 1px solid #F1E0E3;
     border-radius: 18px; padding: 10px 4px 14px; overflow: hidden;
   }
   .constellation-sig {
     text-align: center; font-style: italic; font-size: 14px;
-    color: rgba(255,255,255,0.7); margin: 4px 16px 0; line-height: 1.4;
+    color: #6E5F64; margin: 4px 16px 0; line-height: 1.4;
     font-family: Georgia, serif;
   }
 
   /* What He Brings — pillar list */
   .brings-pillar-list {
-    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+    background: #FFFFFF; border: 1px solid #F1E0E3;
     border-radius: 16px; overflow: hidden;
   }
   .brings-pillar-item { display: flex; align-items: center; gap: 12px; padding: 13px 14px; }
-  .brings-pillar-item + .brings-pillar-item { border-top: 1px solid rgba(255,255,255,0.05); }
+  .brings-pillar-item + .brings-pillar-item { border-top: 1px solid #F1E0E3; }
   .brings-pillar-icon {
     width: 36px; height: 36px; border-radius: 10px; background: rgba(255,59,107,0.10);
     display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0;
   }
-  .brings-pillar-text { flex: 1; font-size: 14px; font-weight: 600; color: #f0f0f0; }
+  .brings-pillar-text { flex: 1; font-size: 14px; font-weight: 600; color: #1B1020; }
 
   /* Archetype chips */
   .chip-group { margin-bottom: 14px; }
   .chip-group:last-child { margin-bottom: 0; }
-  .chip-group-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.3); margin: 0 0 8px; }
+  .chip-group-label { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #A08B91; margin: 0 0 8px; }
   .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
   .chip-pill { padding: 7px 13px; border-radius: 999px; background: rgba(255,59,107,0.08); border: 1px solid rgba(255,59,107,0.25); font-size: 12.5px; color: #FF3B6B; }
 
@@ -326,8 +326,8 @@
   .vs-tab-row::-webkit-scrollbar { display: none; }
   .vs-tab {
     flex-shrink: 0; display: flex; align-items: center; gap: 5px; padding: 7px 12px;
-    border-radius: 999px; background: transparent; border: 1px solid rgba(255,255,255,0.12);
-    color: rgba(255,255,255,0.5); font: 500 12px/1 inherit; cursor: pointer; white-space: nowrap; transition: all 0.15s;
+    border-radius: 999px; background: transparent; border: 1px solid #E7D2D7;
+    color: #6E5F64; font: 500 12px/1 inherit; cursor: pointer; white-space: nowrap; transition: all 0.15s;
   }
   .vs-tab--active { background: rgba(255,59,107,0.10); border-color: rgba(255,59,107,0.32); color: #FF3B6B; }
 
@@ -349,12 +349,12 @@
   .signal-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
   .signal-tile {
     display: flex; flex-direction: column; align-items: center; gap: 6px;
-    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09);
+    background: #FFFFFF; border: 1px solid #F1E0E3;
     border-radius: 12px; padding: 12px 8px 10px; text-align: center;
   }
   .signal-tile-emoji { font-size: 28px; line-height: 1; }
-  .signal-tile-label { font-size: 11px; color: rgba(255,255,255,0.65); line-height: 1.3; }
-  .signal-summary { font-size: 12px; color: rgba(255,255,255,0.45); line-height: 1.55; font-style: italic; margin: 0; }
+  .signal-tile-label { font-size: 11px; color: #6E5F64; line-height: 1.3; }
+  .signal-summary { font-size: 12px; color: #A08B91; line-height: 1.55; font-style: italic; margin: 0; }
 
   /* Garage */
   .garage-card-simple {
@@ -370,10 +370,10 @@
   .magnets-board { display: flex; flex-wrap: wrap; gap: 8px; }
   .magnet {
     display: flex; align-items: center; gap: 6px; padding: 9px 14px; border-radius: 12px;
-    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+    background: #FBE9E6; border: 1px solid #F1E0E3;
   }
   .magnet-flag { font-size: 16px; }
-  .magnet-name { font-size: 11.5px; font-weight: 700; color: #d0d0d0; text-transform: uppercase; letter-spacing: 0.04em; }
+  .magnet-name { font-size: 11.5px; font-weight: 700; color: #1B1020; text-transform: uppercase; letter-spacing: 0.04em; }
 
   /* Money Matters */
   .money-card {
