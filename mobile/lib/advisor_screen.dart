@@ -313,9 +313,16 @@ class _Bubble extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.82),
         decoration: BoxDecoration(
-          color: mine ? const Color(Config.accent) : const Color(Config.bg3),
+          // Light-theme bubbles (parity with web AI Wingman fix): white assistant
+          // bubble + light-pink border, accent-bright greeting border, pink user bubble.
+          color: mine ? const Color(Config.accentBright) : const Color(Config.bg2),
           borderRadius: BorderRadius.circular(16),
-          border: greeting ? Border.all(color: const Color(0x4DFF3B6B)) : null,
+          border: mine
+              ? null
+              : Border.all(
+                  color: greeting ? const Color(Config.accentBright) : const Color(0xFFF1E0E3),
+                  width: greeting ? 1.5 : 1,
+                ),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           if (greeting)
