@@ -18,6 +18,9 @@
 }
 
 :root {
+	/* Force light color scheme — prevent iOS WKWebView dark mode adaptation */
+	color-scheme: light;
+
 	/* ============================================
 	   COLOR TOKENS — riteangle (hot pink / coral / cream)
 	   ============================================ */
@@ -199,3 +202,39 @@ html, body {
 	margin: 0;
 	padding: 0;
 }
+
+/* ── AI Wingman chat bubbles ─────────────────────────────────────────────────
+   These MUST live in app.css (loaded statically in index.html).
+   The route-specific CSS is lazy-loaded by SvelteKit's router, which can
+   arrive too late (or not at all) in Capacitor's WKWebView.
+   Svelte 5 also skips the scope hash on template-literal class strings
+   (`bubble assistant ${pending}`), so :global() is required here too.
+   ─────────────────────────────────────────────────────────────────────────── */
+.bubble {
+	max-width: 78vw;
+	padding: 10px 14px;
+	border-radius: 16px;
+	font-size: 14px;
+	line-height: 1.5;
+	word-break: break-word;
+}
+.bubble.assistant {
+	background: #ffffff;
+	border: 1px solid #F1E0E3;
+	border-bottom-left-radius: 4px;
+	color: #1B1020 !important;
+}
+.bubble.user {
+	background: var(--accent-bright);
+	color: #ffffff;
+	border-bottom-right-radius: 4px;
+	font-weight: 500;
+}
+.bubble.pending {
+	padding: 14px;
+}
+.bubble.assistant ul { margin: 6px 0; padding-left: 18px; color: #1B1020 !important; }
+.bubble.assistant li { color: #1B1020 !important; }
+.bubble.assistant p { margin: 0 0 6px; color: #1B1020 !important; }
+.bubble.assistant p:last-child { margin-bottom: 0; }
+.bubble.assistant strong { color: #1B1020 !important; }

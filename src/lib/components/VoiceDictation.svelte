@@ -23,9 +23,9 @@
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 		recognition = new SR();
-		recognition.continuous = true;
+		recognition.continuous = false;
 		recognition.interimResults = true;
-		recognition.lang = 'en-IN';
+		recognition.lang = 'en-US';
 
 		let finalText = '';
 		errorMsg = null;
