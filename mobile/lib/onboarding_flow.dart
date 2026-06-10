@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'api.dart';
 import 'archetypes.dart';
 import 'config.dart';
+import 'live_now_carousel.dart';
 import 'verification_screen.dart';
 
 /// Gender chosen on the pre-auth "Two questions" gate during Create-account.
@@ -93,7 +94,7 @@ class GateStep extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const SizedBox(height: 12),
@@ -132,7 +133,7 @@ class GateStep extends StatelessWidget {
                 ]),
               ),
             ),
-            const Spacer(),
+            const SizedBox(height: 28),
             SizedBox(
               width: double.infinity, height: 54,
               child: FilledButton(
@@ -153,6 +154,8 @@ class GateStep extends StatelessWidget {
                   child: const Text('Already a member?  Sign in →', style: TextStyle(color: Color(Config.text2))),
                 ),
               ),
+            const SizedBox(height: 24),
+            const LiveNowCarousel(showMixed: true),
           ]),
         ),
       ),
@@ -205,6 +208,7 @@ class _Lane extends StatelessWidget {
         ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
+            LiveNowCarousel(viewerGender: gender),
             for (final s in sections) ...[
               Padding(
                 padding: const EdgeInsets.fromLTRB(4, 16, 4, 8),

@@ -34,18 +34,34 @@ const _men = <_Live>[
   _Live('Ryan', 31, '/male_profiles/ryan_Serial_Dater_f4m2px/photos/Ryan_1.jpg', true, 'online'),
 ];
 
-/// "Verified women/men online now" social-proof carousel (gender-aware: a man
-/// sees women, a woman sees men).
+// Interleave women + men for the mixed (pre-gender) gate view — mirrors the
+// web LiveWomenCarousel's mixedProfiles.
+List<_Live> _interleaved() {
+  final out = <_Live>[];
+  final n = _women.length > _men.length ? _women.length : _men.length;
+  for (var i = 0; i < n; i++) {
+    if (i < _women.length) out.add(_women[i]);
+    if (i < _men.length) out.add(_men[i]);
+  }
+  return out;
+}
+
+/// "Verified … online now" social-proof carousel. Gender-aware (a man sees
+/// women, a woman sees men); pass [showMixed] on the gate (gender unknown) to
+/// interleave both, like the web.
 class LiveNowCarousel extends StatelessWidget {
   final String? viewerGender;
-  const LiveNowCarousel({super.key, required this.viewerGender});
+  final bool showMixed;
+  const LiveNowCarousel({super.key, this.viewerGender, this.showMixed = false});
 
   @override
   Widget build(BuildContext context) {
     final showMen = viewerGender == 'woman';
-    final people = showMen ? _men : _women;
+    final people = showMixed ? _interleaved() : (showMen ? _men : _women);
     final online = people.where((p) => p.online).length;
-    final title = 'VERIFIED ${showMen ? 'MEN' : 'WOMEN'} ONLINE NOW';
+    final title = showMixed
+        ? 'VERIFIED MEMBERS ONLINE NOW'
+        : 'VERIFIED ${showMen ? 'MEN' : 'WOMEN'} ONLINE NOW';
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
