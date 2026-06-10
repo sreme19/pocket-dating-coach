@@ -4,7 +4,6 @@ import 'api.dart';
 import 'config.dart';
 import 'profile_body.dart';
 import 'engage_sheets.dart';
-import 'live_now_carousel.dart';
 
 /// Discover: one full profile at a time (the web "Public Read") with Tip /
 /// Notice-me / Next. This product has no like/pass — Next just advances.
@@ -128,7 +127,6 @@ class _DiscoverScreenState extends State<DiscoverScreen>
               physics: const AlwaysScrollableScrollPhysics(),
               padding: EdgeInsets.zero,
               children: [
-                LiveNowCarousel(viewerGender: _viewerGender),
                 _photo(avatar, trust),
                 if (loading)
                   const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator(color: Color(Config.accent))))
