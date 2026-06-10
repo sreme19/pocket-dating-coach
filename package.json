@@ -74,6 +74,7 @@
 		"livekit-server-sdk": "^2.15.4",
 		"lucide-svelte": "^1.0.1",
 		"pdf-parse": "^1.1.1",
+		"pipx": "^1.0.1",
 		"voyageai": "^0.2.1"
 	}
 }

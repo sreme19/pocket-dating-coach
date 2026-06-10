@@ -571,7 +571,9 @@
         </div>
 
 
-        <PublicProfileBody profile={richProfile} />
+        <div class="profile-body-wrap">
+          <PublicProfileBody profile={richProfile} />
+        </div>
 
         <!-- AI Bestie flags — female viewer + male profile only -->
         {#if $user?.gender === 'woman' && currentProfile?.gender === 'man'}
@@ -849,6 +851,9 @@
 
   /* Identity */
   .identity-block { padding: 16px 20px 8px; }
+
+  /* Profile body wrapper — horizontal breathing room */
+  .profile-body-wrap { padding: 0 16px 24px; }
 
   .profile-name {
     font-size: 26px;
