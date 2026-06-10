@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'api.dart';
 import 'config.dart';
+import 'onboarding_questions.dart';
+import 'onboarding_qa_step.dart';
 
 /// Staged, one-step-at-a-time verification (mirrors the web's high-intent flow):
 /// 1 Identity Check (live selfie) → 2 Drawn To → 3 How You Live → 4 Photos.
@@ -12,7 +14,9 @@ import 'config.dart';
 /// is stored server-side as the anchor face for that later ID match.
 class VerificationScreen extends StatefulWidget {
   final VoidCallback onDone;
-  const VerificationScreen({super.key, required this.onDone});
+  /// Archetype chosen in the lane step — drives the Step 2 & 3 question sets.
+  final String archetype;
+  const VerificationScreen({super.key, required this.onDone, this.archetype = ''});
 
   @override
   State<VerificationScreen> createState() => _VerificationScreenState();
@@ -40,26 +44,41 @@ class _VerificationScreenState extends State<VerificationScreen> {
   bool _busy = false;
   String? _error;
 
+  // Archetype drives which questions Steps 2 & 3 ask (mirrors the web flow).
+  String _arch = '';
   // Step 1 — identity (live selfie only; no government ID at onboarding)
   bool _livenessDone = false;
   String _livenessResult = '';
-  // Step 2 — drawn to
-  String? _intent;
-  // Step 3 — how you live
-  String? _spending;
+  // Step 2 — "Drawn To" picks  (section.key → selected labels)
+  final Map<String, List<String>> _drawn = {};
+  // Step 3 — "How You Live" picks
+  final Map<String, List<String>> _how = {};
   // Step 4 — about you, photos & place
   final _nameCtrl = TextEditingController();
   final _ageCtrl = TextEditingController();
   final _cityCtrl = TextEditingController();
   final List<String> _photoB64 = [];
+  bool _openToTravel = false;
 
   int? get _age => int.tryParse(_ageCtrl.text.trim());
+
+  @override
+  void initState() {
+    super.initState();
+    _arch = widget.archetype;
+    if (_arch.isEmpty) {
+      // Re-entry without an archetype passed in — recover it from the profile.
+      fetchProfile().then((p) {
+        if (mounted && p.archetype.isNotEmpty) setState(() => _arch = p.archetype);
+      }).catchError((_) {});
+    }
+  }
 
   bool get _stepComplete {
     switch (_step) {
       case 0: return _livenessDone;
-      case 1: return _intent != null;
-      case 2: return _spending != null;
+      case 1: return drawnToRequiredKeys(_arch).every((k) => (_drawn[k]?.isNotEmpty ?? false));
+      case 2: return howYouLiveRequiredKeys(_arch).every((k) => (_how[k]?.isNotEmpty ?? false));
       case 3:
         final a = _age;
         return _photoB64.isNotEmpty
@@ -113,10 +132,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
     try {
       switch (_step) {
         case 1:
-          await verifyStep('spending_or_qa', {'responses': {'dating_intent': _intent}, 'mimeType': 'application/json'});
+          // Archetype-specific "Drawn To" picks (section.key → labels), matching web.
+          await verifyStep('spending_or_qa', {'responses': _drawn, 'mimeType': 'application/json'});
           break;
         case 2:
-          await verifyStep('spending_or_qa', {'responses': {'spending_comfort': _spending}, 'mimeType': 'application/json'});
+          // Archetype-specific "How You Live" picks, matching web.
+          await verifyStep('spending_or_qa', {'responses': _how, 'mimeType': 'application/json'});
           break;
         case 3:
           final labels = {for (var i = 0; i < _photoB64.length; i++) '$i': i == 0 ? 'main' : 'photo'};
@@ -125,7 +146,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
             'mimeTypes': List.filled(_photoB64.length, 'image/jpeg'),
             'labels': labels,
             'city': _cityCtrl.text.trim(),
-            'openToTravel': true,
+            'openToTravel': _openToTravel,
           });
           // Name + age are now collected here (no longer auto-filled from a government ID).
           try {
@@ -144,12 +165,40 @@ class _VerificationScreenState extends State<VerificationScreen> {
     }
   }
 
+  /// Apply a Q&A selection. Multi sections cap at section.max (FIFO slide when
+  /// full); single/card sections hold one pick (tap again to clear) — mirrors
+  /// the web toggle()/pickSingle() behaviour.
+  void _togglePick(Map<String, List<String>> map, QSection s, String label) {
+    setState(() {
+      final cur = List<String>.from(map[s.key] ?? const []);
+      if (s.kind == QKind.multi) {
+        if (cur.contains(label)) {
+          cur.remove(label);
+        } else if (cur.length >= s.max) {
+          cur.removeAt(0);
+          cur.add(label);
+        } else {
+          cur.add(label);
+        }
+        map[s.key] = cur;
+      } else {
+        map[s.key] = cur.contains(label) ? <String>[] : <String>[label];
+      }
+    });
+  }
+
   String _err(Object e) => e.toString().replaceFirst('Exception: ', '');
 
   @override
   Widget build(BuildContext context) {
     final meta = _steps[_step];
     final completed = _step + (_stepComplete ? 1 : 0);
+    // Steps 2 & 3 use the archetype-specific hero title (e.g. "What you're drawn to.").
+    final heroTitle = _step == 1
+        ? drawnToTitle(_arch)
+        : _step == 2
+            ? howYouLiveTitle(_arch)
+            : meta.title;
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(Config.bg1),
@@ -180,7 +229,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
             children: [
               Text(meta.emoji, style: const TextStyle(fontSize: 44)),
               const SizedBox(height: 12),
-              Text(meta.title, style: const TextStyle(color: Color(Config.text1), fontSize: 26, fontWeight: FontWeight.w800)),
+              Text(heroTitle, style: const TextStyle(color: Color(Config.text1), fontSize: 26, fontWeight: FontWeight.w800)),
               const SizedBox(height: 4),
               Row(children: [
                 Text(meta.desc, style: const TextStyle(color: Color(Config.text2), fontSize: 15)),
@@ -240,15 +289,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
               primaryLabel: 'Take selfie', onPrimary: _runLiveness),
         ]);
       case 1:
-        return Column(children: [
-          for (final o in const [('casual', 'Casual'), ('relationship', 'Serious relationship'), ('marriage', 'Marriage-minded'), ('exploring', 'Still exploring')])
-            _optionTile(o.$2, _intent == o.$1, () => setState(() => _intent = o.$1)),
-        ]);
+        return QaStep(sections: drawnToSections(_arch), picks: _drawn, onTap: (s, l) => _togglePick(_drawn, s, l));
       case 2:
-        return Column(children: [
-          for (final o in const [('budget', 'Budget-conscious'), ('moderate', 'Moderate spender'), ('generous', 'Generous spender'), ('luxury', 'Luxury lifestyle')])
-            _optionTile(o.$2, _spending == o.$1, () => setState(() => _spending = o.$1)),
-        ]);
+        return QaStep(sections: howYouLiveSections(_arch), picks: _how, onTap: (s, l) => _togglePick(_how, s, l));
       case 3:
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           // About you — first name + age (collected here now that ID is gone from onboarding)
@@ -317,6 +360,20 @@ class _VerificationScreenState extends State<VerificationScreen> {
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
             ),
           ),
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: () => setState(() => _openToTravel = !_openToTravel),
+            behavior: HitTestBehavior.opaque,
+            child: Row(children: [
+              Icon(_openToTravel ? Icons.check_box : Icons.check_box_outline_blank,
+                  color: _openToTravel ? const Color(Config.accent) : const Color(Config.text3), size: 22),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text('✈️  Open to travel matches',
+                    style: TextStyle(color: Color(Config.text1), fontSize: 14, fontWeight: FontWeight.w600)),
+              ),
+            ]),
+          ),
         ]);
       default:
         return const SizedBox.shrink();
@@ -366,27 +423,4 @@ class _VerificationScreenState extends State<VerificationScreen> {
     );
   }
 
-  Widget _optionTile(String label, bool selected, VoidCallback onTap) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: selected ? const Color(0x22FF3B6B) : const Color(Config.bg2),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: selected ? const Color(Config.accent) : const Color(0x181B1020), width: selected ? 2 : 1),
-          ),
-          child: Row(children: [
-            Expanded(child: Text(label, style: TextStyle(
-                color: selected ? const Color(Config.accent) : const Color(Config.text1),
-                fontWeight: FontWeight.w600, fontSize: 16))),
-            Icon(selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                color: selected ? const Color(Config.accent) : const Color(Config.text3), size: 22),
-          ]),
-        ),
-      ),
-    );
-  }
 }

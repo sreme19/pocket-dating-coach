@@ -22,6 +22,7 @@ class OnboardingFlow extends StatefulWidget {
 class _OnboardingFlowState extends State<OnboardingFlow> {
   int _step = 0; // 0 gate, 1 lane, 2 verification
   String _gender = 'man';
+  String _archetype = ''; // chosen in the lane; drives verification questions
   bool _over18 = false;
   bool _saving = false;
   String? _error;
@@ -45,7 +46,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     setState(() { _saving = true; _error = null; });
     try {
       await saveGenderArchetype(_gender, archetypeId);
-      if (mounted) setState(() { _saving = false; _step = 2; });
+      if (mounted) setState(() { _saving = false; _archetype = archetypeId; _step = 2; });
     } catch (e) {
       if (mounted) setState(() { _saving = false; _error = 'Could not save: $e'; });
     }
@@ -55,7 +56,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   Widget build(BuildContext context) {
     switch (_step) {
       case 2:
-        return VerificationScreen(onDone: widget.onComplete);
+        return VerificationScreen(onDone: widget.onComplete, archetype: _archetype);
       case 1:
         return _Lane(
           gender: _gender,
