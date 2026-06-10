@@ -192,6 +192,41 @@ class _VerificationScreenState extends State<VerificationScreen> {
     });
   }
 
+  /// Skip the CURRENT step only (mirrors the web's per-step "Skip this step" +
+  /// confirmation) — advance to the next step, or finish if this is the last.
+  /// Previously the top "Skip" called onDone() and abandoned the whole flow.
+  Future<void> _skipStep() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(Config.bg2),
+        title: const Text('Skip this step?',
+            style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w800)),
+        content: const Text(
+            'Skipping verification steps may reduce your trust score and limit your matches.',
+            style: TextStyle(color: Color(Config.text2))),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: Color(Config.text2))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Skip anyway',
+                style: TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _error = null);
+    if (_step >= _steps.length - 1) {
+      widget.onDone(); // last step skipped → enter the app (matches web)
+    } else {
+      setState(() => _step++);
+    }
+  }
+
   String _err(Object e) => e.toString().replaceFirst('Exception: ', '');
 
   @override
@@ -213,7 +248,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
             : null,
         title: Text('Step ${_step + 1} of ${_steps.length}',
             style: const TextStyle(color: Color(Config.text2), fontSize: 14, fontWeight: FontWeight.w600)),
-        actions: [TextButton(onPressed: widget.onDone, child: const Text('Skip', style: TextStyle(color: Color(Config.text3))))],
+        actions: [TextButton(onPressed: _busy ? null : _skipStep, child: const Text('Skip', style: TextStyle(color: Color(Config.text3))))],
       ),
       body: Column(children: [
         // Progress bar
