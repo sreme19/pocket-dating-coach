@@ -179,6 +179,31 @@
     finally { submittingFeedback = false; }
   }
 
+  // Fix: make parent containers constrained so header/input stay sticky,
+  // AND inject critical bubble styles at runtime to bypass CSS lazy-loading issues
+  // in Capacitor's WKWebView (route-specific CSS loads asynchronously after render).
+  onMount(() => {
+    const style = document.createElement('style');
+    style.id = 'wingman-layout-fix';
+    style.textContent = [
+      '.verified-vibe-content { overflow: hidden !important; }',
+      '.verified-vibe-content > div { height: 100%; display: flex; flex-direction: column; }',
+      // Bubble styles — must be here because SvelteKit lazy-loads route CSS which may
+      // arrive after the first render, leaving bubbles unstyled in WKWebView.
+      '.bubble { max-width: 78vw; padding: 10px 14px; border-radius: 16px; font-size: 14px; line-height: 1.5; word-break: break-word; }',
+      '.bubble.assistant { background: #ffffff !important; border: 1px solid #F1E0E3 !important; border-bottom-left-radius: 4px !important; color: #1B1020 !important; }',
+      '.bubble.user { background: #E11D54 !important; color: #ffffff !important; border-bottom-right-radius: 4px !important; font-weight: 500 !important; }',
+      '.bubble.pending { padding: 14px !important; }',
+      '.bubble.assistant p { color: #1B1020 !important; margin: 0 0 6px !important; }',
+      '.bubble.assistant p:last-child { margin-bottom: 0 !important; }',
+      '.bubble.assistant ul { color: #1B1020 !important; margin: 6px 0 !important; padding-left: 18px !important; }',
+      '.bubble.assistant li { color: #1B1020 !important; }',
+      '.bubble.assistant strong { color: #1B1020 !important; }',
+    ].join(' ');
+    document.head.appendChild(style);
+    return () => style.remove();
+  });
+
   onMount(async () => {
     user.hydrate();
     const persisted = loadPersistedMessages();
@@ -497,7 +522,7 @@
         <div class="wm-bubble-avatar">🛡️</div>
         <div class="assistant-col">
           <div class="greeting-badge">✨ New from AI Wingman</div>
-          <div class="bubble assistant greeting-bubble">
+          <div class="msg-ai msg-ai--greeting">
             {@html renderMarkdown(greeting.content)}
           </div>
 
@@ -563,13 +588,15 @@
         {#if msg.role === 'assistant'}
           <div class="wm-bubble-avatar">🛡️</div>
           <div class="assistant-col">
-            <div class="bubble assistant {msg.pending ? 'pending' : ''}">
-              {#if msg.pending}
+            {#if msg.pending}
+              <div class="msg-pending">
                 <span class="typing-dots"><span></span><span></span><span></span></span>
-              {:else}
+              </div>
+            {:else}
+              <div class="msg-ai">
                 {@html renderMarkdown(msg.content)}
-              {/if}
-            </div>
+              </div>
+            {/if}
             {#if !msg.pending}
               {#if msgFeedbackDone.has(i)}
                 <div class="feedback-done">Thanks for the feedback 👍</div>
@@ -609,7 +636,7 @@
             {/if}
           </div>
         {:else}
-          <div class="bubble user">{msg.content}</div>
+          <div class="msg-user">{msg.content}</div>
         {/if}
       </div>
     {/each}
@@ -1002,41 +1029,54 @@
     min-width: 0;
   }
 
-  .bubble {
+  /* ── Message bubbles ──────────────────────────────────────────────────────────
+     Static class names → Svelte adds the scope hash → scoped CSS works correctly.
+     For {@html} inner content (p, ul, li, strong) use :global() within the
+     scoped context: compiles to .msg-ai.svelte-xxx p (no hash on p needed). */
+
+  .msg-ai {
     max-width: 78vw;
     padding: 10px 14px;
+    background: #ffffff;
+    border: 1px solid #F1E0E3;
     border-radius: 16px;
+    border-bottom-left-radius: 4px;
     font-size: 14px;
     line-height: 1.5;
     word-break: break-word;
+    color: #1B1020;
   }
-
-  .bubble.assistant {
-    background: var(--bg-2);
-    border: 1px solid var(--border-1);
-    border-bottom-left-radius: 4px;
-    color: var(--text-1);
+  .msg-ai--greeting {
+    border-color: var(--accent-bright);
+    border-width: 1.5px;
   }
+  .msg-ai :global(p) { margin: 0 0 6px; color: #1B1020; }
+  .msg-ai :global(p:last-child) { margin-bottom: 0; }
+  .msg-ai :global(ul) { margin: 6px 0; padding-left: 18px; }
+  .msg-ai :global(li) { color: #1B1020; }
+  .msg-ai :global(strong) { color: #1B1020; font-weight: 600; }
 
-  .bubble.user {
+  .msg-user {
+    max-width: 78vw;
+    padding: 10px 14px;
     background: var(--accent-bright);
     color: #ffffff;
+    border-radius: 16px;
     border-bottom-right-radius: 4px;
+    font-size: 14px;
+    line-height: 1.5;
     font-weight: 500;
+    word-break: break-word;
   }
 
-  .bubble.pending {
+  .msg-pending {
+    max-width: 78vw;
     padding: 14px;
+    background: #ffffff;
+    border: 1px solid #F1E0E3;
+    border-radius: 16px;
+    border-bottom-left-radius: 4px;
   }
-
-  :global(.bubble.assistant ul) {
-    margin: 6px 0;
-    padding-left: 18px;
-  }
-  :global(.bubble.assistant p) {
-    margin: 0 0 6px;
-  }
-  :global(.bubble.assistant p:last-child) { margin-bottom: 0; }
 
   .feedback-row {
     display: flex;
