@@ -130,6 +130,14 @@ const FEMALE_INTENT_BY_ARCHETYPE: Record<string, string> = {
   just_friends: 'friendship / platonic',
 };
 
+// Structured preferences on verified_vibe_users.preferences (seed profiles, and
+// any user whose prefs were set outside the onboarding Q&A) → preference buckets.
+const PREF_KEY_BUCKET: Record<string, PrefBucket> = {
+  nonNegotiables: 'dealbreakers', notLookingFor: 'dealbreakers', redFlags: 'dealbreakers', yellowFlags: 'dealbreakers',
+  greenFlags: 'emotional', communicationStyle: 'emotional',
+  strongPreferences: 'maturity', openTo: 'lifestyle',
+};
+
 function asStrArray(v: unknown): string[] {
   if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string' && x.trim().length > 0);
   if (typeof v === 'string' && v.trim()) return [v];
@@ -139,6 +147,7 @@ function asStrArray(v: unknown): string[] {
 function distillFemalePreferenceModel(
   masterData: Record<string, unknown>,
   archetype = '',
+  preferences: Record<string, unknown> | null = null,
 ): Record<string, unknown> {
   const onboarding = (masterData.onboarding ?? {}) as Record<string, unknown>;
 
@@ -167,19 +176,31 @@ function distillFemalePreferenceModel(
   for (const l of asStrArray(onboarding.maturity_signals)) buckets.maturity.add(l);
   for (const l of asStrArray(onboarding.dealbreakers ?? onboarding.here_for_hard_nos)) buckets.dealbreakers.add(l);
 
+  // Structured preferences fallback/augment — covers seed profiles, which have no
+  // onboarding section picks but a rich verified_vibe_users.preferences row.
+  let prefLookingFor: string[] = [];
+  if (preferences && typeof preferences === 'object') {
+    for (const [key, bucket] of Object.entries(PREF_KEY_BUCKET)) {
+      for (const l of asStrArray((preferences as Record<string, unknown>)[key])) buckets[bucket].add(l);
+    }
+    prefLookingFor = asStrArray((preferences as Record<string, unknown>).lookingFor);
+  }
+
   const archKey = archetype.replace(/_(man|woman)$/, '');
   const relationshipIntent =
     timelineIntent ||
+    prefLookingFor[0] ||
     (typeof onboarding.relationship_timeline === 'string' ? onboarding.relationship_timeline : '') ||
     (typeof onboarding.dating_intent === 'string' ? onboarding.dating_intent : '') ||
     FEMALE_INTENT_BY_ARCHETYPE[archKey] ||
     '';
 
+  const cap = (s: Set<string>) => [...s].slice(0, 10);
   return {
-    dealbreakers:      [...buckets.dealbreakers],
-    emotionalSignals:  [...buckets.emotional],
-    lifestyleSignals:  [...buckets.lifestyle],
-    maturitySignals:   [...buckets.maturity],
+    dealbreakers:      cap(buckets.dealbreakers),
+    emotionalSignals:  cap(buckets.emotional),
+    lifestyleSignals:  cap(buckets.lifestyle),
+    maturitySignals:   cap(buckets.maturity),
     relationshipIntent,
     // Do NOT include sensitiveTranslations / chemistry / income — those stay private to AI Bestie.
   };
@@ -235,7 +256,7 @@ export async function refreshBestiePoolEntry(userId: string): Promise<void> {
 
   const { data: user, error: userErr } = await db
     .from('verified_vibe_users')
-    .select('archetype, trust_score, city, gender')
+    .select('archetype, trust_score, city, gender, preferences')
     .eq('id', userId)
     .single();
 
@@ -251,7 +272,7 @@ export async function refreshBestiePoolEntry(userId: string): Promise<void> {
 
   const trustBand      = getTrustScoreBand(user.trust_score ?? 0);
   const matchProfile   = distillFemaleMatchProfile(masterData);
-  const prefModel      = distillFemalePreferenceModel(masterData, user.archetype);
+  const prefModel      = distillFemalePreferenceModel(masterData, user.archetype, user.preferences ?? null);
   const city           = (masterData.identity as any)?.city ?? user.city ?? null;
 
   await db.from('vv_pool_besties').upsert(
