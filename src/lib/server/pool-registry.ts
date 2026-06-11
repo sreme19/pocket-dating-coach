@@ -88,23 +88,100 @@ function distillFemaleMatchProfile(masterData: Record<string, unknown>): Record<
 
 // ── Distill female preference model (normalize, no raw sensitive translations) ─
 
-function distillFemalePreferenceModel(masterData: Record<string, unknown>): Record<string, unknown> {
+// The live female onboarding (DrawnToStep + HowYouLiveStep) stores archetype-
+// specific section picks under onboarding.vv_qa_responses / vv_how_you_live,
+// keyed by section (e.g. `standards`, `emotional_openness`, `vibe`, `timeline`).
+// Map those section keys into the four buckets the matcher's prompt reads.
+// Private/intimate sections (chemistry, income, marital status) are intentionally
+// EXCLUDED — they stay private to AI Bestie.
+type PrefBucket = 'emotional' | 'lifestyle' | 'maturity' | 'dealbreakers';
+
+const FEMALE_SECTION_BUCKET: Record<string, PrefBucket> = {
+  // standards / values / non-negotiables → dealbreakers
+  standards: 'dealbreakers', non_negotiables: 'dealbreakers', what_youre_done_with: 'dealbreakers',
+  what_you_value: 'dealbreakers', core_values: 'dealbreakers', values: 'dealbreakers',
+  good_friend_traits: 'dealbreakers',
+  // emotional / connection / what she needs
+  partner_energy: 'emotional', energy: 'emotional', emotional_openness: 'emotional',
+  connection_style: 'emotional', what_you_need: 'emotional', energy_needed: 'emotional',
+  love_language: 'emotional', how_you_show_up: 'emotional', partner_qualities: 'emotional',
+  partner_fit: 'emotional', friend_energy: 'emotional', great_connection: 'emotional',
+  what_you_hope_for: 'emotional', what_you_seek: 'emotional', appreciation: 'emotional',
+  how_you_like_to_be_treated: 'emotional', what_matters: 'emotional', what_you_appreciate: 'emotional',
+  // lifestyle / experiences / vibe
+  experiences: 'lifestyle', lifestyle: 'lifestyle', vibe: 'lifestyle', activities: 'lifestyle',
+  what_you_enjoy: 'lifestyle', what_excites_you: 'lifestyle', family_approach: 'lifestyle',
+  religion: 'lifestyle',
+  // readiness / maturity / pace
+  this_chapter: 'maturity', what_is_different: 'maturity', comfort_level: 'maturity',
+  life_stage: 'maturity', experience_level: 'maturity', what_slow_means: 'maturity',
+  partnership_vision: 'maturity', relationship_approach: 'maturity', where_you_are: 'maturity',
+  comfort_zone: 'maturity', social_style: 'maturity',
+};
+
+const FEMALE_PRIVATE_SECTIONS = new Set(['chemistry', 'income', 'marital_status']);
+
+// Fallback relationship intent by archetype family (when no explicit `timeline` pick).
+const FEMALE_INTENT_BY_ARCHETYPE: Record<string, string> = {
+  casual_generous: 'casual', spoiled_casual: 'casual',
+  hopeless_romantic: 'serious relationship', forever_focused: 'marriage-minded',
+  traditional_matrimony: 'marriage / matrimony', rebound_healing: 'taking it slow — healing, no pressure',
+  untouched_heart: 'sincere first relationship, unhurried', second_chapter: 'serious — a considered second chance',
+  just_friends: 'friendship / platonic',
+};
+
+function asStrArray(v: unknown): string[] {
+  if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string' && x.trim().length > 0);
+  if (typeof v === 'string' && v.trim()) return [v];
+  return [];
+}
+
+function distillFemalePreferenceModel(
+  masterData: Record<string, unknown>,
+  archetype = '',
+): Record<string, unknown> {
   const onboarding = (masterData.onboarding ?? {}) as Record<string, unknown>;
 
-  // Extract normalized preference fields — avoid raw sensitiveTranslations
-  const emotionalSignals  = (onboarding.emotional_signals ?? onboarding.vv_emotional_signals ?? []) as string[];
-  const lifestyleSignals  = (onboarding.lifestyle_signals ?? []) as string[];
-  const maturitySignals   = (onboarding.maturity_signals ?? []) as string[];
-  const dealbreakers      = (onboarding.dealbreakers ?? onboarding.here_for_hard_nos ?? []) as string[];
-  const relationshipIntent = (onboarding.relationship_timeline ?? onboarding.dating_intent ?? '') as string;
+  const buckets: Record<PrefBucket, Set<string>> = {
+    emotional: new Set(), lifestyle: new Set(), maturity: new Set(), dealbreakers: new Set(),
+  };
+  let timelineIntent = '';
+
+  // Real shape: section-keyed picks from the live DrawnTo + HowYouLive steps.
+  for (const sourceKey of ['vv_qa_responses', 'vv_how_you_live']) {
+    const src = onboarding[sourceKey];
+    if (!src || typeof src !== 'object') continue;
+    for (const [section, picks] of Object.entries(src as Record<string, unknown>)) {
+      if (FEMALE_PRIVATE_SECTIONS.has(section)) continue;
+      const labels = asStrArray(picks);
+      if (!labels.length) continue;
+      if (section === 'timeline') { timelineIntent = labels[0]; continue; }
+      const bucket = FEMALE_SECTION_BUCKET[section];
+      if (bucket) for (const l of labels) buckets[bucket].add(l);
+    }
+  }
+
+  // Legacy snake_case shape (older rows) — merge in if present.
+  for (const l of asStrArray(onboarding.emotional_signals ?? onboarding.vv_emotional_signals)) buckets.emotional.add(l);
+  for (const l of asStrArray(onboarding.lifestyle_signals)) buckets.lifestyle.add(l);
+  for (const l of asStrArray(onboarding.maturity_signals)) buckets.maturity.add(l);
+  for (const l of asStrArray(onboarding.dealbreakers ?? onboarding.here_for_hard_nos)) buckets.dealbreakers.add(l);
+
+  const archKey = archetype.replace(/_(man|woman)$/, '');
+  const relationshipIntent =
+    timelineIntent ||
+    (typeof onboarding.relationship_timeline === 'string' ? onboarding.relationship_timeline : '') ||
+    (typeof onboarding.dating_intent === 'string' ? onboarding.dating_intent : '') ||
+    FEMALE_INTENT_BY_ARCHETYPE[archKey] ||
+    '';
 
   return {
-    dealbreakers,
-    emotionalSignals,
-    lifestyleSignals,
-    maturitySignals,
+    dealbreakers:      [...buckets.dealbreakers],
+    emotionalSignals:  [...buckets.emotional],
+    lifestyleSignals:  [...buckets.lifestyle],
+    maturitySignals:   [...buckets.maturity],
     relationshipIntent,
-    // Do NOT include sensitiveTranslations — those stay private to AI Bestie
+    // Do NOT include sensitiveTranslations / chemistry / income — those stay private to AI Bestie.
   };
 }
 
@@ -174,7 +251,7 @@ export async function refreshBestiePoolEntry(userId: string): Promise<void> {
 
   const trustBand      = getTrustScoreBand(user.trust_score ?? 0);
   const matchProfile   = distillFemaleMatchProfile(masterData);
-  const prefModel      = distillFemalePreferenceModel(masterData);
+  const prefModel      = distillFemalePreferenceModel(masterData, user.archetype);
   const city           = (masterData.identity as any)?.city ?? user.city ?? null;
 
   await db.from('vv_pool_besties').upsert(

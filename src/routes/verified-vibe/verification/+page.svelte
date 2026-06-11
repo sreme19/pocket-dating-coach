@@ -974,8 +974,15 @@
     error = null;
     clearError();
 
-    // Persist locally immediately
-    localStorage.setItem('vv_qa_responses', JSON.stringify(data.responses));
+    // Persist locally immediately — MERGE so step-2 "Drawn To" picks aren't
+    // clobbered when step-3 "How You Live" submits (both feed the female
+    // preference model used for match scoring).
+    let mergedResponses: Record<string, unknown> = { ...data.responses };
+    try {
+      const prev = JSON.parse(localStorage.getItem('vv_qa_responses') ?? '{}');
+      if (prev && typeof prev === 'object') mergedResponses = { ...prev, ...data.responses };
+    } catch { /* ignore malformed */ }
+    localStorage.setItem('vv_qa_responses', JSON.stringify(mergedResponses));
 
     // Mark step done and advance — do not gate on API success
     completedSteps.add(currentStep);

@@ -1332,7 +1332,7 @@
 
   // All localStorage keys that form the universal profile
   const ALL_ONBOARDING_KEYS = [
-    'vv_qa_responses',
+    'vv_qa_responses', 'vv_how_you_live',
     'vv_casual_generous_profile', 'vv_casual_generous_preferences',
     'vv_matrimony_profile', 'vv_matrimony_preferences',
     'vv_forever_intent', 'vv_forever_profile', 'vv_forever_preferences',
