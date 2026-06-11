@@ -51,17 +51,60 @@ function distillMaleMatchProfile(masterData: Record<string, unknown>): Record<st
 
 // ── Distill male preference model ─────────────────────────────────────────────
 
-function distillMalePreferenceSignals(masterData: Record<string, unknown>): Record<string, unknown> {
+// Mirrors distillFemalePreferenceModel — the section/preference buckets and the
+// archetype-intent map are gender-agnostic. Output shape matches what the scorer
+// reads for the man (ms.lookingFor + ms.emotionalSignals) plus dealbreakers.
+function distillMalePreferenceSignals(
+  masterData: Record<string, unknown>,
+  archetype = '',
+  preferences: Record<string, unknown> | null = null,
+): Record<string, unknown> {
   const onboarding = (masterData.onboarding ?? {}) as Record<string, unknown>;
-
-  // Preferences may be stored in onboarding QA responses or profile draft
   const draft = (masterData.profileDraft ?? {}) as Record<string, unknown>;
 
-  return {
-    dealbreakers:     (onboarding.dealbreakers ?? draft.dealbreakers ?? []) as string[],
-    lookingFor:       (onboarding.relationship_timeline ?? draft.lookingFor ?? '') as string,
-    emotionalSignals: (onboarding.lifestyle_values ?? []) as string[],
+  const buckets: Record<PrefBucket, Set<string>> = {
+    emotional: new Set(), lifestyle: new Set(), maturity: new Set(), dealbreakers: new Set(),
   };
+  let timelineIntent = '';
+
+  // Section-keyed picks from his DrawnTo + HowYouLive steps (what he's drawn to /
+  // his standards) — same bucketing as the female side.
+  for (const sourceKey of ['vv_qa_responses', 'vv_how_you_live']) {
+    const src = onboarding[sourceKey];
+    if (!src || typeof src !== 'object') continue;
+    for (const [section, picks] of Object.entries(src as Record<string, unknown>)) {
+      if (PRIVATE_SECTIONS.has(section)) continue;
+      const labels = asStrArray(picks);
+      if (!labels.length) continue;
+      if (section === 'timeline') { timelineIntent = labels[0]; continue; }
+      const bucket = SECTION_BUCKET[section];
+      if (bucket) for (const l of labels) buckets[bucket].add(l);
+    }
+  }
+
+  // Structured preferences fallback (verified_vibe_users.preferences).
+  let prefLookingFor: string[] = [];
+  if (preferences && typeof preferences === 'object') {
+    for (const [key, bucket] of Object.entries(PREF_KEY_BUCKET)) {
+      for (const l of asStrArray((preferences as Record<string, unknown>)[key])) buckets[bucket].add(l);
+    }
+    prefLookingFor = asStrArray((preferences as Record<string, unknown>).lookingFor);
+  }
+
+  const archKey = archetype.replace(/_(man|woman)$/, '');
+  const lookingFor =
+    timelineIntent ||
+    prefLookingFor[0] ||
+    (typeof onboarding.relationship_timeline === 'string' ? onboarding.relationship_timeline : '') ||
+    (typeof draft.lookingFor === 'string' ? draft.lookingFor : '') ||
+    INTENT_BY_ARCHETYPE[archKey] ||
+    '';
+
+  // What he values in a partner — the scorer reads ms.emotionalSignals as his "Values".
+  const values = [...buckets.emotional, ...buckets.lifestyle, ...buckets.maturity].slice(0, 12);
+  const dealbreakers = [...buckets.dealbreakers, ...asStrArray(draft.dealbreakers)].slice(0, 10);
+
+  return { dealbreakers, lookingFor, emotionalSignals: values };
 }
 
 // ── Distill female master profile ─────────────────────────────────────────────
@@ -96,7 +139,7 @@ function distillFemaleMatchProfile(masterData: Record<string, unknown>): Record<
 // EXCLUDED — they stay private to AI Bestie.
 type PrefBucket = 'emotional' | 'lifestyle' | 'maturity' | 'dealbreakers';
 
-const FEMALE_SECTION_BUCKET: Record<string, PrefBucket> = {
+const SECTION_BUCKET: Record<string, PrefBucket> = {
   // standards / values / non-negotiables → dealbreakers
   standards: 'dealbreakers', non_negotiables: 'dealbreakers', what_youre_done_with: 'dealbreakers',
   what_you_value: 'dealbreakers', core_values: 'dealbreakers', values: 'dealbreakers',
@@ -119,10 +162,10 @@ const FEMALE_SECTION_BUCKET: Record<string, PrefBucket> = {
   comfort_zone: 'maturity', social_style: 'maturity',
 };
 
-const FEMALE_PRIVATE_SECTIONS = new Set(['chemistry', 'income', 'marital_status']);
+const PRIVATE_SECTIONS = new Set(['chemistry', 'income', 'marital_status']);
 
 // Fallback relationship intent by archetype family (when no explicit `timeline` pick).
-const FEMALE_INTENT_BY_ARCHETYPE: Record<string, string> = {
+const INTENT_BY_ARCHETYPE: Record<string, string> = {
   casual_generous: 'casual', spoiled_casual: 'casual',
   hopeless_romantic: 'serious relationship', forever_focused: 'marriage-minded',
   traditional_matrimony: 'marriage / matrimony', rebound_healing: 'taking it slow — healing, no pressure',
@@ -161,11 +204,11 @@ function distillFemalePreferenceModel(
     const src = onboarding[sourceKey];
     if (!src || typeof src !== 'object') continue;
     for (const [section, picks] of Object.entries(src as Record<string, unknown>)) {
-      if (FEMALE_PRIVATE_SECTIONS.has(section)) continue;
+      if (PRIVATE_SECTIONS.has(section)) continue;
       const labels = asStrArray(picks);
       if (!labels.length) continue;
       if (section === 'timeline') { timelineIntent = labels[0]; continue; }
-      const bucket = FEMALE_SECTION_BUCKET[section];
+      const bucket = SECTION_BUCKET[section];
       if (bucket) for (const l of labels) buckets[bucket].add(l);
     }
   }
@@ -192,7 +235,7 @@ function distillFemalePreferenceModel(
     prefLookingFor[0] ||
     (typeof onboarding.relationship_timeline === 'string' ? onboarding.relationship_timeline : '') ||
     (typeof onboarding.dating_intent === 'string' ? onboarding.dating_intent : '') ||
-    FEMALE_INTENT_BY_ARCHETYPE[archKey] ||
+    INTENT_BY_ARCHETYPE[archKey] ||
     '';
 
   const cap = (s: Set<string>) => [...s].slice(0, 10);
@@ -214,7 +257,7 @@ export async function refreshWingmanPoolEntry(userId: string): Promise<void> {
   // Load user base data
   const { data: user, error: userErr } = await db
     .from('verified_vibe_users')
-    .select('archetype, trust_score, city, gender')
+    .select('archetype, trust_score, city, gender, preferences')
     .eq('id', userId)
     .single();
 
@@ -231,7 +274,7 @@ export async function refreshWingmanPoolEntry(userId: string): Promise<void> {
 
   const trustBand       = getTrustScoreBand(user.trust_score ?? 0);
   const matchProfile    = distillMaleMatchProfile(masterData);
-  const prefSignals     = distillMalePreferenceSignals(masterData);
+  const prefSignals     = distillMalePreferenceSignals(masterData, user.archetype, user.preferences ?? null);
   const city            = (masterData.identity as any)?.city ?? user.city ?? null;
 
   await db.from('vv_pool_wingmen').upsert(

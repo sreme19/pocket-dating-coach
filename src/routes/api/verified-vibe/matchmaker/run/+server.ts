@@ -17,7 +17,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { runNightlyBatch } from '$lib/server/matchmaker-service';
 import { runTrustNormalization } from '$lib/server/trust-normalize';
 import { runAllMatchScores } from '$lib/server/match-scoring';
-import { refreshBestiePoolEntry } from '$lib/server/pool-registry';
+import { refreshBestiePoolEntry, refreshWingmanPoolEntry } from '$lib/server/pool-registry';
 import { getSupabase } from '$lib/server/supabase';
 import { MATCHMAKER_RUN_SECRET } from '$env/static/private';
 
@@ -26,7 +26,7 @@ export const POST: RequestHandler = async ({ request }) => {
     const body = await request.json() as {
       secret?: string;
       cityScoped?: boolean;
-      task?: 'trust-normalize' | 'match-scores' | 'refresh-besties';
+      task?: 'trust-normalize' | 'match-scores' | 'refresh-besties' | 'refresh-wingmen';
     };
 
     // Validate secret
@@ -63,6 +63,21 @@ export const POST: RequestHandler = async ({ request }) => {
         catch { failed++; }
       }
       return json({ task: 'refresh-besties', total: women?.length ?? 0, refreshed, failed });
+    }
+
+    // Re-distill every man's pool entry (match_profile + preference_signals).
+    if (body.task === 'refresh-wingmen') {
+      const db = getSupabase() as any;
+      const { data: men } = await db
+        .from('verified_vibe_users')
+        .select('id')
+        .eq('gender', 'man');
+      let refreshed = 0, failed = 0;
+      for (const m of (men ?? [])) {
+        try { await refreshWingmanPoolEntry(m.id); refreshed++; }
+        catch { failed++; }
+      }
+      return json({ task: 'refresh-wingmen', total: men?.length ?? 0, refreshed, failed });
     }
 
     const cityScoped = body.cityScoped ?? false;
