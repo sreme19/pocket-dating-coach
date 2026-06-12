@@ -17,8 +17,6 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { runNightlyBatch } from '$lib/server/matchmaker-service';
 import { runTrustNormalization } from '$lib/server/trust-normalize';
 import { runAllMatchScores } from '$lib/server/match-scoring';
-import { refreshBestiePoolEntry, refreshWingmanPoolEntry } from '$lib/server/pool-registry';
-import { getSupabase } from '$lib/server/supabase';
 import { MATCHMAKER_RUN_SECRET } from '$env/static/private';
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -26,7 +24,7 @@ export const POST: RequestHandler = async ({ request }) => {
     const body = await request.json() as {
       secret?: string;
       cityScoped?: boolean;
-      task?: 'trust-normalize' | 'match-scores' | 'refresh-besties' | 'refresh-wingmen';
+      task?: 'trust-normalize' | 'match-scores';
     };
 
     // Validate secret
@@ -46,38 +44,6 @@ export const POST: RequestHandler = async ({ request }) => {
     if (body.task === 'match-scores') {
       const result = await runAllMatchScores();
       return json({ task: 'match-scores', ...result });
-    }
-
-    // Re-distill every woman's pool entry (preference_model) from her current
-    // master-profile onboarding. Run after a distillation change, then follow
-    // with task:'match-scores'. Synchronous so the caller sees the count.
-    if (body.task === 'refresh-besties') {
-      const db = getSupabase() as any;
-      const { data: women } = await db
-        .from('verified_vibe_users')
-        .select('id')
-        .eq('gender', 'woman');
-      let refreshed = 0, failed = 0;
-      for (const w of (women ?? [])) {
-        try { await refreshBestiePoolEntry(w.id); refreshed++; }
-        catch { failed++; }
-      }
-      return json({ task: 'refresh-besties', total: women?.length ?? 0, refreshed, failed });
-    }
-
-    // Re-distill every man's pool entry (match_profile + preference_signals).
-    if (body.task === 'refresh-wingmen') {
-      const db = getSupabase() as any;
-      const { data: men } = await db
-        .from('verified_vibe_users')
-        .select('id')
-        .eq('gender', 'man');
-      let refreshed = 0, failed = 0;
-      for (const m of (men ?? [])) {
-        try { await refreshWingmanPoolEntry(m.id); refreshed++; }
-        catch { failed++; }
-      }
-      return json({ task: 'refresh-wingmen', total: men?.length ?? 0, refreshed, failed });
     }
 
     const cityScoped = body.cityScoped ?? false;

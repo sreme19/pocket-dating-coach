@@ -7,9 +7,16 @@ import 'push_service.dart';
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
-  Future<void> _signOut(BuildContext context) async {
+  Future<void> _signOut(BuildContext context, {bool localOnly = false}) async {
     await PushService.signOutCleanup();
-    await Supabase.instance.client.auth.signOut();
+    try {
+      await Supabase.instance.client.auth.signOut(
+        scope: localOnly ? SignOutScope.local : SignOutScope.global,
+      );
+    } catch (_) {
+      // If server-side user was already deleted, force local session clear.
+      await Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
+    }
     if (context.mounted) Navigator.of(context).popUntil((r) => r.isFirst);
   }
 
@@ -123,8 +130,10 @@ class _DeleteAccountSheetState extends State<_DeleteAccountSheet> {
     setState(() { _busy = true; _error = null; });
     try {
       await deleteAccount(reason: _reason, feedback: _feedback.text.trim());
-      if (mounted) Navigator.of(context).pop();
-      widget.onDeleted();
+      // Server deleted the auth user — clear local session immediately.
+      await PushService.signOutCleanup();
+      await Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
+      if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
     } catch (e) {
       setState(() { _busy = false; _error = 'Could not delete: $e'; });
     }
