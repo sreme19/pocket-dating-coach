@@ -9,12 +9,12 @@ import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
 import { getSupabase } from '$lib/server/supabase';
 import { loadPreferences } from '$lib/server/profile-service';
 import type { PreferencesProfile } from '$lib/server/profile-service';
-import { buildBestieReplyPrompt } from '$lib/prompts';
+import { buildBestieReplyPrompt, stripBannedDashes } from '$lib/prompts';
 
 export interface BestieReply {
 	signal: string;
 	read: string;
-	suggestedQuestion: string;
+	reply: string;
 }
 
 function formatStructuredPreferences(prefs: PreferencesProfile): string {
@@ -150,7 +150,14 @@ export async function generateBestieReply(
 	const content = message.content[0];
 	if (content.type !== 'text') throw new Error('Unexpected response type from Claude');
 	const raw = content.text.trim().replace(/^```json\s*/i, '').replace(/```$/, '');
-	return JSON.parse(raw) as BestieReply;
+	// Accept the legacy "suggestedQuestion" key in case a stale prompt or cached
+	// model output still produces it.
+	const parsed = JSON.parse(raw) as Partial<BestieReply> & { suggestedQuestion?: string };
+	return {
+		signal: parsed.signal ?? '✅',
+		read: stripBannedDashes(parsed.read ?? ''),
+		reply: stripBannedDashes(parsed.reply ?? parsed.suggestedQuestion ?? '')
+	};
 }
 
 /**
@@ -187,13 +194,13 @@ export async function generateAndSendBestieReply(
 	// Send the reply as a message from the user, flagged as AI.
 	let replyMessageId: string | null = null;
 	let generatedAt: string | null = null;
-	if (reply.suggestedQuestion) {
+	if (reply.reply) {
 		const { data: inserted } = await (supabase as any)
 			.from('verified_vibe_messages')
 			.insert({
 				match_id: matchId,
 				sender_id: userId,
-				content: reply.suggestedQuestion,
+				content: reply.reply,
 				is_ai: true
 			})
 			.select('id, created_at')

@@ -669,8 +669,8 @@ export async function runMatchReply(
 			.replace(/^```\s*/i, '')
 			.replace(/```\s*$/i, '')
 			.trim();
-		const parsed = JSON.parse(cleaned) as { signal?: string; read?: string; suggestedQuestion?: string };
-		reply = parsed.suggestedQuestion ?? raw;
+		const parsed = JSON.parse(cleaned) as { signal?: string; read?: string; reply?: string; suggestedQuestion?: string };
+		reply = parsed.reply ?? parsed.suggestedQuestion ?? raw;
 		signalColor = SIGNAL_COLOR[parsed.signal ?? '✅'] ?? 'green';
 		signalText = parsed.read ?? '';
 	} catch {

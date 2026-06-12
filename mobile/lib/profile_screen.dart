@@ -4,7 +4,6 @@ import 'api.dart';
 import 'archetypes.dart';
 import 'config.dart';
 import 'profile_body.dart' show travelMagnets, moneyMattersCard;
-import 'api.dart' show saveMoneyMatters;
 import 'profile_edit.dart';
 import 'proof_upload_screen.dart';
 import 'settings_screen.dart';
@@ -326,22 +325,23 @@ class _ProfileBody extends StatelessWidget {
           ),
 
         // ── Money matters ────────────────────────────────────────────────
-        if (data.isMan && (data.wealth != null || data.annualIncome != null ||
-            data.netWorth != null || data.spending.isNotEmpty))
-          _Section(
-            emoji: '💰',
-            title: 'MONEY MATTERS',
-            child: moneyMattersCard(
-              income: data.annualIncome ?? data.netWorth,
-              tiles: [
-                if (data.wealth != null) for (final c in data.wealth!.chips) (c.emoji, c.label),
-                for (final s in data.spending) (s.emoji, s.category),
-              ],
-              footer: '✓ AI verified via bank statement / financial document',
-              onUpload: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const ProofUploadScreen())).then((_) => onChanged()),
-            ),
+        _Section(
+          emoji: '💰',
+          title: 'MONEY MATTERS',
+          onEdit: () => _editMoneyMatters(context, data, onChanged),
+          child: moneyMattersCard(
+            income: data.annualIncome ?? data.netWorth,
+            tiles: [
+              if (data.wealth != null) for (final c in data.wealth!.chips) (c.emoji, c.label),
+              for (final s in data.spending) (s.emoji, s.category),
+            ],
+            footer: data.annualIncome != null || data.netWorth != null
+                ? '✓ AI verified via bank statement / financial document'
+                : null,
+            onUpload: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ProofUploadScreen())).then((_) => onChanged()),
           ),
+        ),
 
         // ── AI portraits (generate from your photos) ─────────────────────
         _Section(
@@ -449,6 +449,25 @@ Future<void> _editIdentity(BuildContext context, ProfileData d, VoidCallback onC
         city: cityCtrl.text.trim(),
       );
     },
+    onChanged: onChanged,
+  );
+}
+
+Future<void> _editMoneyMatters(BuildContext context, ProfileData d, VoidCallback onChanged) async {
+  final incomeCtrl = TextEditingController(text: d.annualIncome ?? '');
+  final netWorthCtrl = TextEditingController(text: d.netWorth ?? '');
+  await _editSheet(
+    context,
+    title: 'Money Matters',
+    fields: [
+      _EditField(controller: incomeCtrl, label: 'Annual income (e.g. Rp 250,000,000)', textCapitalization: TextCapitalization.sentences),
+      _EditField(controller: netWorthCtrl, label: 'Net worth (optional)', textCapitalization: TextCapitalization.sentences),
+    ],
+    onSave: () => saveMoneyMatters(
+      income: incomeCtrl.text,
+      netWorth: netWorthCtrl.text,
+      existingGenerated: d.rawGenerated,
+    ),
     onChanged: onChanged,
   );
 }

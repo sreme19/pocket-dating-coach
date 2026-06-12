@@ -174,23 +174,29 @@ Widget moneyMattersCard({
   return Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: [Color(0xFFFFF6E6), Color(Config.bg2)]),
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft, end: Alignment.bottomRight,
+        colors: [Color(Config.accentTint), Color(Config.bg2)],
+      ),
       borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: const Color(0x33F59E0B)),
+      border: Border.all(color: const Color(Config.accent).withValues(alpha: 0.15)),
     ),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       if (income != null) ...[
-        const Text('ANNUAL INCOME', style: TextStyle(color: Color(0xFFF59E0B), fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+        Text('ANNUAL INCOME', style: TextStyle(color: const Color(Config.accent).withValues(alpha: 0.8), fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
         const SizedBox(height: 6),
         Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           const Text('💼', style: TextStyle(fontSize: 26)),
           const SizedBox(width: 8),
-          Text(income, style: const TextStyle(color: Color(Config.text1), fontSize: 26, fontWeight: FontWeight.w800)),
+          Expanded(child: Text(income, style: const TextStyle(color: Color(Config.text1), fontSize: 22, fontWeight: FontWeight.w800))),
         ]),
         const SizedBox(height: 2),
         const Text('SELF DECLARED', style: TextStyle(color: Color(Config.text3), fontSize: 10, letterSpacing: 0.5)),
         const SizedBox(height: 16),
+      ] else ...[
+        const Text('Tap ✏️ to add your income and financial info.',
+            style: TextStyle(color: Color(Config.text3), fontSize: 14, height: 1.4)),
+        const SizedBox(height: 12),
       ],
       if (tiles.isNotEmpty)
         Wrap(spacing: 10, runSpacing: 10, children: [
@@ -222,7 +228,7 @@ Widget _moneyTile(String emoji, String label) {
     width: 96,
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      decoration: BoxDecoration(color: const Color(Config.bg3), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0x181B1020))),
+      decoration: BoxDecoration(color: const Color(Config.bg3), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(Config.accent), width: 0.4)),
       child: Column(children: [
         Text(emoji, style: const TextStyle(fontSize: 22)),
         const SizedBox(height: 6),
