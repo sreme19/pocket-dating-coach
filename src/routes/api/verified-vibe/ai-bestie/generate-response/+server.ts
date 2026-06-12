@@ -3,7 +3,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
 import { loadPreferences } from '$lib/server/profile-service';
 import type { PreferencesProfile } from '$lib/server/profile-service';
-import { buildBestieReplyPrompt } from '$lib/prompts';
+import { buildBestieReplyPrompt, stripBannedDashes } from '$lib/prompts';
 
 function formatStructuredPreferences(prefs: PreferencesProfile): string {
 	const lines: string[] = ['\nHer known preferences:'];
@@ -152,7 +152,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			throw new Error('Unexpected response type from Claude');
 		}
 
-		let parsed: { signal: string; read: string; suggestedQuestion: string };
+		let parsed: { signal: string; read: string; reply?: string; suggestedQuestion?: string };
 		try {
 			const raw = content.text.trim().replace(/^```json\s*/i, '').replace(/```$/,'');
 			parsed = JSON.parse(raw);
@@ -160,7 +160,14 @@ export const POST: RequestHandler = async ({ request }) => {
 			throw new Error('Claude returned invalid JSON');
 		}
 
-		return json(parsed);
+		const reply = stripBannedDashes(parsed.reply ?? parsed.suggestedQuestion ?? '');
+		return json({
+			signal: parsed.signal,
+			read: stripBannedDashes(parsed.read ?? ''),
+			reply,
+			// Legacy alias: older clients read the reply from this key.
+			suggestedQuestion: reply
+		});
 	} catch (error) {
 		console.error('Error generating AI Bestie response:', error);
 		return json(
