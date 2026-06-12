@@ -42,7 +42,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = fetchTrust());
+    setState(() { _future = fetchTrust(); });
     await _future;
   }
 

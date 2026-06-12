@@ -51,6 +51,8 @@
 		<true/>
 		<key>ITSAppUsesNonExemptEncryption</key>
 		<false/>
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>riteangle uses your location to fill in your city automatically.</string>
 		<key>NSCameraUsageDescription</key>
 		<string>riteangle uses the camera to verify your ID, take a liveness selfie, and add profile photos.</string>
 		<key>NSPhotoLibraryUsageDescription</key>

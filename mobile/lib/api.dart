@@ -288,7 +288,8 @@ Future<ProfileData> fetchProfile() async {
     trustScore: trust,
     proofsCount: proofs.length,
     about: about,
-    profileComplete: draft != null || generated != null,
+    profileComplete: (draft != null || generated != null)
+        || (row?['first_name'] != null && row?['age'] != null),
     gender: gender,
     archetype: archetype,
     hardNos: hardNos,
@@ -363,6 +364,30 @@ Future<void> saveAbout(String about, Map<String, dynamic> existingGenerated) asy
   final session = Supabase.instance.client.auth.currentSession;
   if (session == null) throw StateError('Not authenticated');
   final merged = Map<String, dynamic>.from(existingGenerated)..['about'] = about.trim();
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/master-profile',
+    data: {'generatedProfile': merged},
+    options: Options(headers: {
+      'Authorization': 'Bearer ${session.accessToken}',
+      'Content-Type': 'application/json',
+    }),
+  );
+}
+
+/// Save Money Matters (income / net worth). Merges into moneyMatters sub-map
+/// of generatedProfile without dropping other fields.
+Future<void> saveMoneyMatters({
+  required String income,
+  required String netWorth,
+  required Map<String, dynamic> existingGenerated,
+}) async {
+  final session = Supabase.instance.client.auth.currentSession;
+  if (session == null) throw StateError('Not authenticated');
+  final merged = Map<String, dynamic>.from(existingGenerated);
+  final money = Map<String, dynamic>.from(merged['moneyMatters'] as Map? ?? {});
+  money['annualIncome'] = income.trim();
+  money['netWorth'] = netWorth.trim();
+  merged['moneyMatters'] = money;
   await _dio.post(
     '${Config.apiBase}/api/verified-vibe/master-profile',
     data: {'generatedProfile': merged},

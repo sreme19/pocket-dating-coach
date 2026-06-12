@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'api.dart';
@@ -67,6 +68,38 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
     });
   }
 
+  String _friendlyError(dynamic e) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      String? msg;
+      if (data is Map) msg = (data['error'] ?? data['message'])?.toString();
+      if (data is String && data.isNotEmpty) msg = data;
+      if (msg != null && msg.isNotEmpty && msg.length < 200) return msg;
+      final code = e.response?.statusCode;
+      if (code == 403) return 'Permission denied. Please sign out and sign back in, then try again.';
+      if (code == 401) return 'Session expired. Please sign out and sign back in.';
+      if (code != null) return 'Server error ($code). Please try again.';
+    }
+    return 'Something went wrong. Please try again.';
+  }
+
+  void _showError(String msg) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(Config.bg2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Upload failed', style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700)),
+        content: Text(msg, style: const TextStyle(color: Color(Config.text2), fontSize: 14, height: 1.5)),
+        actions: [TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Got it', style: TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w700)),
+        )],
+      ),
+    );
+  }
+
   /// The server requires a verified government ID before accepting this
   /// name-bearing document. Capture an ID, verify it, then retry the upload.
   Future<void> _runIdGate(_Cat cat, List<String> paths) async {
@@ -113,7 +146,8 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
       final res = await uploadProof(cat.id, paths);
       _applyResult(cat, res);
     } catch (e) {
-      setState(() { _busy = false; _activeCat = null; _resultGood = false; _resultText = 'ID verification failed: $e'; });
+      setState(() { _busy = false; _activeCat = null; });
+      _showError(_friendlyError(e));
     }
   }
 
@@ -131,7 +165,8 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
       if (res['requiresIdVerification'] == true) { await _runIdGate(cat, paths); return; }
       _applyResult(cat, res);
     } catch (e) {
-      setState(() { _busy = false; _activeCat = null; _resultText = 'Upload failed: $e'; _resultGood = false; });
+      setState(() { _busy = false; _activeCat = null; });
+      _showError(_friendlyError(e));
     }
   }
 
@@ -171,7 +206,8 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
       final res = await uploadProofUrl(cat.id, url);
       _applyResult(cat, res);
     } catch (e) {
-      setState(() { _busy = false; _activeCat = null; _resultText = 'Verify failed: $e'; _resultGood = false; });
+      setState(() { _busy = false; _activeCat = null; });
+      _showError(_friendlyError(e));
     }
   }
 

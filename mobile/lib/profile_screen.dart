@@ -4,6 +4,7 @@ import 'api.dart';
 import 'archetypes.dart';
 import 'config.dart';
 import 'profile_body.dart' show travelMagnets, moneyMattersCard;
+import 'api.dart' show saveMoneyMatters;
 import 'profile_edit.dart';
 import 'proof_upload_screen.dart';
 import 'settings_screen.dart';
@@ -131,6 +132,88 @@ class _ProfileBody extends StatelessWidget {
       children: [
         Stack(children: [
           _Hero(photos: data.photos, fallback: data.heroPhotoUrl),
+          // Bottom gradient overlay
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: const [0.0, 0.45, 1.0],
+                  colors: [Colors.transparent, Colors.transparent, const Color(0xE5000000)],
+                ),
+              ),
+            ),
+          ),
+          // Bottom overlay: name (with inline trust badge) + city + edit
+          Positioned(
+            bottom: 20, left: 20, right: 56,
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              RichText(
+                text: TextSpan(
+                  style: const TextStyle(
+                    fontSize: 32, fontWeight: FontWeight.w800,
+                    fontStyle: FontStyle.italic, color: Colors.white,
+                    shadows: [Shadow(color: Color(0x66000000), blurRadius: 8)],
+                  ),
+                  children: [
+                    TextSpan(text: data.age != null ? '${data.name}, ${data.age}' : data.name),
+                    const WidgetSpan(child: SizedBox(width: 8)),
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: GestureDetector(
+                        onTap: () => Navigator.of(context)
+                            .push(MaterialPageRoute(builder: (_) => const TrustBoostScreen()))
+                            .then((_) => onChanged()),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xAAFF3B6B),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            const Icon(Icons.shield_outlined, size: 13, color: Colors.white),
+                            const SizedBox(width: 4),
+                            Text(
+                              data.trustScore > 0 ? '${data.trustScore}' : '—',
+                              style: const TextStyle(
+                                color: Colors.white, fontWeight: FontWeight.w700,
+                                fontSize: 13, fontStyle: FontStyle.normal,
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (data.city != null) ...[
+                const SizedBox(height: 6),
+                Row(children: [
+                  const Icon(Icons.location_on_outlined, size: 15, color: Color(0xCCFFFFFF)),
+                  const SizedBox(width: 4),
+                  Text(data.city!, style: const TextStyle(color: Color(0xCCFFFFFF), fontSize: 14)),
+                ]),
+              ],
+            ]),
+          ),
+          // Edit button (bottom-right)
+          Positioned(
+            bottom: 20, right: 14,
+            child: GestureDetector(
+              onTap: () => _editIdentity(context, data, onChanged),
+              child: Container(
+                width: 34, height: 34,
+                decoration: BoxDecoration(
+                  color: const Color(0xCC1B1020),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Icon(Icons.edit_outlined, size: 17, color: Colors.white),
+              ),
+            ),
+          ),
+          // Manage photos button (top-right)
           Positioned(
             right: 12, top: 12,
             child: Material(
@@ -146,66 +229,26 @@ class _ProfileBody extends StatelessWidget {
         ]),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                Expanded(
-                  child: Text(
-                    data.age != null ? '${data.name}, ${data.age}' : data.name,
-                    style: const TextStyle(
-                      fontSize: 30, fontWeight: FontWeight.w700,
-                      fontStyle: FontStyle.italic, color: Color(Config.text1),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Edit',
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.edit_outlined, size: 20, color: Color(Config.text2)),
-                  onPressed: () => _editIdentity(context, data, onChanged),
-                ),
-              ]),
-              const SizedBox(height: 8),
-              Row(children: [
-                if (arch != null) ...[
-                  GestureDetector(
-                    onTap: () => editArchetype(context, data, onChanged),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Text(arch.emoji, style: const TextStyle(fontSize: 16)),
-                      const SizedBox(width: 6),
-                      Text(arch.name,
-                          style: const TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w600)),
-                      const SizedBox(width: 4),
-                      const Icon(Icons.edit_outlined, size: 13, color: Color(Config.text3)),
-                    ]),
-                  ),
-                ],
-                if (data.city != null) ...[
-                  if (arch != null)
-                    const Text('  ·  ', style: TextStyle(color: Color(Config.text3))),
-                  const Icon(Icons.location_on_outlined, size: 15, color: Color(Config.text2)),
-                  const SizedBox(width: 3),
-                  Text(data.city!, style: const TextStyle(color: Color(Config.text2))),
-                ],
-              ]),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-          child: Row(
-            children: [
-              _Stat(label: 'TRUST', value: data.trustScore > 0 ? '${data.trustScore}' : '—',
-                  sub: data.trustScore > 0 ? 'score' : 'not yet'),
-              _divider(),
-              _Stat(label: 'PROFILE', value: data.profileComplete ? '✓' : '—',
-                  sub: data.profileComplete ? 'complete' : 'incomplete',
-                  valueColor: const Color(0xFFF59E0B)),
-              _divider(),
-              _Stat(label: 'VERIFIED', value: '${data.proofsCount}',
-                  sub: 'proofs', valueColor: const Color(Config.accent)),
-            ],
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _Stat(label: 'TRUST',
+                    value: data.trustScore > 0 ? '${data.trustScore}' : '—',
+                    sub: _trustLabel(data.trustScore),
+                    valueColor: const Color(Config.accent)),
+                _divider(),
+                _Stat(label: 'PROFILE',
+                    value: data.profileComplete ? '✓' : null,
+                    sub: 'complete',
+                    valueColor: const Color(0xFFF59E0B)),
+                _divider(),
+                _Stat(label: 'VERIFIED',
+                    value: '${data.proofsCount}',
+                    sub: 'proofs',
+                    valueColor: const Color(Config.accent)),
+              ],
+            ),
           ),
         ),
         Padding(
@@ -213,9 +256,9 @@ class _ProfileBody extends StatelessWidget {
           child: SizedBox(
             width: double.infinity, height: 50,
             child: FilledButton.icon(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const TrustBoostScreen()),
-              ),
+              onPressed: () => Navigator.of(context)
+                  .push(MaterialPageRoute(builder: (_) => const TrustBoostScreen()))
+                  .then((_) => onChanged()),
               icon: const Icon(Icons.bolt),
               label: const Text('Trust & Boost', style: TextStyle(fontWeight: FontWeight.w700)),
               style: FilledButton.styleFrom(
@@ -228,18 +271,36 @@ class _ProfileBody extends StatelessWidget {
         ),
 
         // ── The vibe in three words ──────────────────────────────────────
-        if (data.isMan && data.vibeWords.isNotEmpty)
-          _Section(
-            icon: Icons.shield_outlined,
-            title: 'THE VIBE IN THREE WORDS',
+        Builder(builder: (context) {
+          const defaultTags = <String, List<String>>{
+            'casual_man':               ['Laid-back', 'Genuine', 'Present'],
+            'casual_generous_man':      ['Generous', 'Sophisticated', 'Discreet'],
+            'forever_focused_man':      ['Intentional', 'Loyal', 'Grounded'],
+            'marriage_minded_man':      ['Committed', 'Family-first', 'Stable'],
+            'hopeless_romantic_man':    ['Romantic', 'Emotionally available', 'All-in'],
+            'traditional_matrimony_man':['Traditional', 'Respectful', 'Family-led'],
+            'second_chapter_man':       ['Mature', 'Clear-headed', 'Experienced'],
+            'spiritual_connector_man':  ['Spiritual', 'Thoughtful', 'Grounded'],
+            'adventure_seeker_man':     ['Adventurous', 'Spontaneous', 'Free-spirited'],
+            'spoilt_woman':             ['Selective', 'High-standard', 'Worth it'],
+            'safety_first_woman':       ['Careful', 'Values-led', 'Intentional'],
+          };
+          final tags = data.vibeWords.isNotEmpty
+              ? data.vibeWords
+              : (defaultTags[data.archetype] ?? []);
+          if (tags.isEmpty) return const SizedBox.shrink();
+          return _Section(
+            icon: Icons.pentagon_outlined,
+            title: 'THE VIBE IN THREE WORDS (OR FIVE)',
             child: Wrap(
               spacing: 8, runSpacing: 8,
               children: [
-                for (var i = 0; i < data.vibeWords.length; i++)
-                  _Pill(data.vibeWords[i], highlight: i == 0),
+                for (var i = 0; i < tags.length; i++)
+                  _Pill(tags[i], highlight: i == 0),
               ],
             ),
-          ),
+          );
+        }),
 
         // ── About ────────────────────────────────────────────────────────
         _Section(
@@ -248,7 +309,7 @@ class _ProfileBody extends StatelessWidget {
           onEdit: () => _editAbout(context, data, onChanged),
           child: Text(
             data.about.isNotEmpty ? data.about : 'Your story goes here.',
-            style: const TextStyle(fontSize: 16, height: 1.5, color: Color(Config.text1)),
+            style: const TextStyle(fontSize: 16, height: 1.5, color: Color(Config.text1), fontWeight: FontWeight.w400),
           ),
         ),
 
@@ -353,7 +414,16 @@ class _ProfileBody extends StatelessWidget {
     );
   }
 
-  Widget _divider() => Container(width: 1, height: 36, color: const Color(0x141B1020));
+  Widget _divider() => const VerticalDivider(width: 1, thickness: 1, color: Color(0x25FFFFFF));
+
+  static String _trustLabel(int score) {
+    if (score == 0)   return 'not yet';
+    if (score < 25)   return 'Minimal Trust';
+    if (score < 50)   return 'Low Trust';
+    if (score < 75)   return 'Medium Trust';
+    if (score < 100)  return 'High Trust';
+    return 'Fully Verified';
+  }
 }
 
 // ── Edit sheets ──────────────────────────────────────────────────────────────
@@ -550,17 +620,17 @@ class _Pill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
       decoration: BoxDecoration(
-        color: highlight ? const Color(0x22FF3B6B) : const Color(Config.bg3),
+        color: highlight ? const Color(Config.accent) : Colors.transparent,
         borderRadius: BorderRadius.circular(999),
-        border: highlight ? Border.all(color: const Color(0x4DFF3B6B)) : null,
+        border: highlight ? null : Border.all(color: const Color(0x40FFFFFF)),
       ),
       child: Text(text,
           style: TextStyle(
-            fontSize: 13,
-            color: highlight ? const Color(Config.accent) : const Color(Config.text1),
-            fontWeight: highlight ? FontWeight.w600 : FontWeight.w500,
+            fontSize: 14,
+            color: highlight ? Colors.white : const Color(Config.text1),
+            fontWeight: highlight ? FontWeight.w700 : FontWeight.w500,
           )),
     );
   }
@@ -1007,23 +1077,44 @@ class _PhotoPlaceholder extends StatelessWidget {
 }
 
 class _Stat extends StatelessWidget {
-  final String label, value, sub;
+  final String label, sub;
+  final String? value; // null = show amber bar (PROFILE when about is empty)
   final Color? valueColor;
-  const _Stat({required this.label, required this.value, required this.sub, this.valueColor});
+  const _Stat({required this.label, this.value, required this.sub, this.valueColor});
   @override
   Widget build(BuildContext context) {
+    final color = valueColor ?? const Color(Config.text1);
     return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
-              letterSpacing: 0.5, color: Color(Config.text3))),
-          const SizedBox(height: 6),
-          Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700,
-              color: valueColor ?? const Color(Config.text1))),
-          const SizedBox(height: 2),
-          Text(sub, style: const TextStyle(fontSize: 12, color: Color(Config.text2))),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Top: label + value
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                  letterSpacing: 0.5, color: Color(Config.text3))),
+              const SizedBox(height: 8),
+              if (value == null)
+                Container(width: 42, height: 4, decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B),
+                  borderRadius: BorderRadius.circular(2),
+                ))
+              else
+                Text(value!, style: TextStyle(
+                  fontSize: 40, fontWeight: FontWeight.w700,
+                  fontStyle: FontStyle.italic, color: color,
+                  height: 1.1,
+                )),
+            ]),
+            // Bottom: always at same level
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(sub, style: const TextStyle(fontSize: 12, color: Color(Config.text2))),
+            ),
+          ],
+        ),
       ),
     );
   }
