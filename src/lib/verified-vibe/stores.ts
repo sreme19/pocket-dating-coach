@@ -323,7 +323,7 @@ function mapStepsToRecords(steps: VVVerificationStep[]): VerificationRecord[] {
     id: s.id,
     userId: s.user_id,
     step: s.step,
-    status: 'completed' as const,
+    status: (s.status ?? 'completed') as 'pending' | 'completed' | 'failed',
     data: s.data ?? {},
     completedAt: s.completed_at ? new Date(s.completed_at) : null,
     createdAt: s.completed_at ? new Date(s.completed_at) : new Date()

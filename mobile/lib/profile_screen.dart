@@ -1,6 +1,8 @@
+import 'dart:math' show pi, cos, sin, min;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'api.dart';
+import 'archetype_detail_sheet.dart';
 import 'archetypes.dart';
 import 'config.dart';
 import 'profile_body.dart' show travelMagnets, moneyMattersCard;
@@ -122,8 +124,18 @@ class _ProfileBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final arch = data.archetype.isNotEmpty ? archetypeFor(data.archetype) : null;
-    final brings = data.isMan ? archetypeBrings[data.archetype] : null;
+    // Prefer user-edited brings saved in rawGenerated; fall back to archetype defaults.
+    List<BringsItem>? brings;
+    if (data.isMan) {
+      final raw = data.rawGenerated['brings'];
+      if (raw is List && raw.isNotEmpty) {
+        brings = raw.whereType<Map>().map<BringsItem>((b) => BringsItem(
+          (b['emoji'] ?? '•').toString(),
+          (b['text'] ?? '').toString(),
+        )).toList();
+      }
+      brings ??= archetypeBrings[data.archetype];
+    }
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -318,7 +330,8 @@ class _ProfileBody extends StatelessWidget {
           title: 'MONEY MATTERS',
           onEdit: () => _editMoneyMatters(context, data, onChanged),
           child: moneyMattersCard(
-            income: data.annualIncome ?? data.netWorth,
+            income: data.annualIncome,
+            netWorth: data.netWorth,
             tiles: [
               if (data.wealth != null) for (final c in data.wealth!.chips) (c.emoji, c.label),
               for (final s in data.spending) (s.emoji, s.category),
@@ -336,36 +349,13 @@ class _ProfileBody extends StatelessWidget {
           _Section(
             icon: Icons.favorite_border,
             title: 'WHAT HE BRINGS',
+            onEdit: () => _editBrings(context, data, brings!, onChanged),
             child: Column(
               children: [
                 for (final b in brings) _BringsRow(b),
               ],
             ),
           ),
-
-        // ── AI portraits (generate from your photos) ─────────────────────
-        _Section(
-          icon: Icons.auto_awesome,
-          title: 'AI PORTRAIT',
-          subtitle: 'generated from your photos',
-          child: _PortraitTile(
-            url: data.personalityPortraitUrl,
-            referenceUrl: data.heroPhotoUrl,
-            lifestyle: false,
-            onChanged: onChanged,
-          ),
-        ),
-        _Section(
-          icon: Icons.auto_awesome,
-          title: 'AI LIFESTYLE PORTRAIT',
-          subtitle: 'evening city vibe',
-          child: _PortraitTile(
-            url: data.garagePortraitUrl,
-            referenceUrl: data.heroPhotoUrl,
-            lifestyle: true,
-            onChanged: onChanged,
-          ),
-        ),
 
         // ── Verified signals ─────────────────────────────────────────────
         if (data.career != null || data.lifestyle != null ||
@@ -378,36 +368,35 @@ class _ProfileBody extends StatelessWidget {
           ),
 
         // ── Garage ───────────────────────────────────────────────────────
-        if (data.garage.isNotEmpty)
-          _Section(
-            emoji: '🏎️',
-            title: 'WHAT MY GARAGE LOOKS LIKE',
-            child: Column(children: [for (final c in data.garage) _GarageCard(c)]),
-          ),
+        _Section(
+          emoji: '🏎️',
+          title: 'WHAT MY GARAGE LOOKS LIKE',
+          child: data.garage.isEmpty
+              ? const Text('No garage yet. Upload asset photos to verify.',
+                  style: TextStyle(color: Color(Config.text3)))
+              : Column(children: [for (final c in data.garage) _GarageCard(c)]),
+        ),
 
         // ── Travel magnets ───────────────────────────────────────────────
-        if (data.countries.isNotEmpty)
-          _Section(
-            emoji: '✈️',
-            title: 'TRAVEL MAGNETS',
-            subtitle: 'detected from uploads',
-            child: travelMagnets(data.countries),
-          ),
+        _Section(
+          emoji: '✈️',
+          title: 'TRAVEL MAGNETS',
+          subtitle: 'detected from uploads',
+          onEdit: () => _editCountries(context, data, onChanged),
+          child: data.countries.isEmpty
+              ? const Text('No travel destinations yet. Tap edit to add.',
+                  style: TextStyle(color: Color(Config.text3)))
+              : travelMagnets(data.countries),
+        ),
 
-        // ── Hard nos ─────────────────────────────────────────────────────
-        if (data.gender != null)
-          _Section(
-            icon: Icons.block,
-            title: 'HARD NOS',
-            onEdit: () => editHardNos(context, data, onChanged),
-            child: data.hardNos.isEmpty
-                ? const Text('Tap edit to add your dealbreakers.',
-                    style: TextStyle(color: Color(Config.text3)))
-                : Wrap(
-                    spacing: 8, runSpacing: 8,
-                    children: [for (final h in data.hardNos) _Pill('✕ $h')],
-                  ),
-          ),
+        // ── What I'm about (My lane + Hard nos tabs) ─────────────────────
+        _WhatImAboutSection(data: data, onChanged: onChanged),
+
+        // ── Personality Reads radar ───────────────────────────────────────
+        _PersonalityReadsSection(data: data),
+
+        // ── Photo Story ──────────────────────────────────────────────────────
+        _PhotoStorySection(data: data, onChanged: onChanged),
 
         const SizedBox(height: 48),
       ],
@@ -454,23 +443,180 @@ Future<void> _editIdentity(BuildContext context, ProfileData d, VoidCallback onC
 }
 
 Future<void> _editMoneyMatters(BuildContext context, ProfileData d, VoidCallback onChanged) async {
-  final incomeCtrl = TextEditingController(text: d.annualIncome ?? '');
-  final netWorthCtrl = TextEditingController(text: d.netWorth ?? '');
-  await _editSheet(
-    context,
-    title: 'Money Matters',
-    fields: [
-      _EditField(controller: incomeCtrl, label: 'Annual income (e.g. Rp 250,000,000)', textCapitalization: TextCapitalization.sentences),
-      _EditField(controller: netWorthCtrl, label: 'Net worth (optional)', textCapitalization: TextCapitalization.sentences),
-    ],
-    onSave: () => saveMoneyMatters(
-      income: incomeCtrl.text,
-      netWorth: netWorthCtrl.text,
-      existingGenerated: d.rawGenerated,
+  String currency   = _detectMoneyCurrency(d.annualIncome, d.netWorth);
+  String? selIncome = d.annualIncome;
+  String? selNW     = d.netWorth;
+  bool saving       = false;
+  String? saveError;
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: const Color(Config.bg2),
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setS) {
+        void onCurrencyChange(String sym) {
+          setS(() {
+            currency = sym;
+            if (selIncome != null && !selIncome!.contains(sym)) selIncome = null;
+            if (selNW     != null && !selNW!.contains(sym))     selNW     = null;
+          });
+        }
+        return SingleChildScrollView(
+          padding: EdgeInsets.only(
+            left: 20, right: 20, top: 24,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 28,
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Money Matters',
+                style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700, fontSize: 18)),
+            const SizedBox(height: 4),
+            const Text('Self-declared — shown on your public profile.',
+                style: TextStyle(color: Color(Config.text3), fontSize: 12)),
+            const SizedBox(height: 20),
+            const Text('Currency',
+                style: TextStyle(color: Color(Config.text2), fontSize: 13, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final (sym, code) in _moneyCurrencies)
+                GestureDetector(
+                  onTap: () => onCurrencyChange(sym),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: currency == sym ? const Color(Config.accent) : const Color(0x14FFFFFF),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: currency == sym ? const Color(Config.accent) : const Color(0x22FFFFFF),
+                      ),
+                    ),
+                    child: Text('$sym $code',
+                        style: TextStyle(
+                          color: currency == sym ? const Color(0xFFFFFFFF) : const Color(Config.text2),
+                          fontSize: 12, fontWeight: FontWeight.w600,
+                        )),
+                  ),
+                ),
+            ]),
+            const SizedBox(height: 20),
+            const Text('💼  Annual Income',
+                style: TextStyle(color: Color(Config.text2), fontSize: 13, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            _moneyRangePills(
+              ranges: _incomeRangesFor(currency),
+              selected: selIncome,
+              onSelect: (v) => setS(() => selIncome = (selIncome == v) ? null : v),
+            ),
+            const SizedBox(height: 20),
+            const Text('📈  Net Worth',
+                style: TextStyle(color: Color(Config.text2), fontSize: 13, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            _moneyRangePills(
+              ranges: _netWorthRangesFor(currency),
+              selected: selNW,
+              onSelect: (v) => setS(() => selNW = (selNW == v) ? null : v),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: saving ? null : () async {
+                  setS(() { saving = true; saveError = null; });
+                  try {
+                    await saveMoneyMattersDirect(
+                      income: selIncome,
+                      netWorth: selNW,
+                    );
+                    if (ctx.mounted) Navigator.of(ctx).pop();
+                    onChanged();
+                  } catch (e) {
+                    setS(() { saving = false; saveError = 'Failed to save. Please try again.'; });
+                  }
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(Config.accent),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: saving
+                    ? const SizedBox(width: 18, height: 18,
+                        child: CircularProgressIndicator(color: Color(0xFFFFFFFF), strokeWidth: 2))
+                    : const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+            ),
+            if (saveError != null) ...[
+              const SizedBox(height: 8),
+              Text(saveError!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+            ],
+          ]),
+        );
+      },
     ),
-    onChanged: onChanged,
   );
 }
+
+const _moneyCurrencies = <(String, String)>[
+  (r'$', 'USD'), ('£', 'GBP'), ('€', 'EUR'),
+  (r'A$', 'AUD'), (r'C$', 'CAD'), (r'S$', 'SGD'),
+  ('¥', 'JPY'), ('₹', 'INR'),
+];
+
+List<String> _incomeRangesFor(String c) => c == '₹' ? [
+  'Under ₹25L', '₹25L – ₹50L', '₹50L – ₹1Cr',
+  '₹1Cr – ₹3Cr', '₹3Cr – ₹10Cr', '₹10Cr+',
+] : [
+  'Under ${c}30K', '${c}30K – ${c}60K', '${c}60K – ${c}100K',
+  '${c}100K – ${c}150K', '${c}150K – ${c}250K', '${c}250K – ${c}500K', '${c}500K+',
+];
+
+List<String> _netWorthRangesFor(String c) => c == '₹' ? [
+  'Under ₹25L', '₹25L – ₹50L', '₹50L – ₹1Cr',
+  '₹1Cr – ₹5Cr', '₹5Cr – ₹25Cr', '₹25Cr – ₹100Cr', '₹100Cr+',
+] : [
+  'Under ${c}250K', '${c}250K – ${c}500K', '${c}500K – ${c}1M',
+  '${c}1M – ${c}5M', '${c}5M – ${c}10M', '${c}10M+',
+];
+
+String _detectMoneyCurrency(String? income, String? netWorth) {
+  final val = income ?? netWorth ?? '';
+  // Check longer symbols first so 'A$' / 'C$' / 'S$' are not matched by plain '$'.
+  const ordered = [r'A$', r'C$', r'S$', '£', '€', '¥', '₹', r'$'];
+  for (final sym in ordered) {
+    if (val.contains(sym)) return sym;
+  }
+  return r'$';
+}
+
+Widget _moneyRangePills({
+  required List<String> ranges,
+  required String? selected,
+  required void Function(String) onSelect,
+}) =>
+    Wrap(spacing: 8, runSpacing: 8, children: [
+      for (final r in ranges)
+        GestureDetector(
+          onTap: () => onSelect(r),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: selected == r ? const Color(Config.accent) : const Color(0x14FFFFFF),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: selected == r ? const Color(Config.accent) : const Color(0x22FFFFFF),
+              ),
+            ),
+            child: Text(r,
+                style: TextStyle(
+                  color: selected == r ? const Color(0xFFFFFFFF) : const Color(Config.text2),
+                  fontSize: 12, fontWeight: FontWeight.w600,
+                )),
+          ),
+        ),
+    ]);
 
 Future<void> _editAbout(BuildContext context, ProfileData d, VoidCallback onChanged) async {
   final ctrl = TextEditingController(text: d.about);
@@ -482,6 +628,101 @@ Future<void> _editAbout(BuildContext context, ProfileData d, VoidCallback onChan
     ],
     onSave: () => saveAbout(ctrl.text, d.rawGenerated),
     onChanged: onChanged,
+  );
+}
+
+Future<void> _editBrings(BuildContext context, ProfileData d, List<BringsItem> current, VoidCallback onChanged) async {
+  // Options come from the archetype's predefined brings list.
+  final options = archetypeBrings[d.archetype] ?? current;
+  // Pre-select whichever options are already saved.
+  final selected = <BringsItem>{...current};
+
+  bool saving = false;
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: const Color(Config.bg2),
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setS) => SingleChildScrollView(
+        padding: EdgeInsets.only(
+          left: 20, right: 20, top: 24,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 28,
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('What He Brings',
+              style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700, fontSize: 18)),
+          const SizedBox(height: 4),
+          const Text('Pick the ones that best describe you.',
+              style: TextStyle(color: Color(Config.text3), fontSize: 12)),
+          const SizedBox(height: 20),
+          Wrap(spacing: 10, runSpacing: 10, children: [
+            for (final opt in options)
+              GestureDetector(
+                onTap: () => setS(() {
+                  if (selected.any((s) => s.text == opt.text)) {
+                    selected.removeWhere((s) => s.text == opt.text);
+                  } else {
+                    selected.add(opt);
+                  }
+                }),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: selected.any((s) => s.text == opt.text)
+                        ? const Color(Config.accent)
+                        : const Color(0x14FFFFFF),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: selected.any((s) => s.text == opt.text)
+                          ? const Color(Config.accent)
+                          : const Color(0x22FFFFFF),
+                    ),
+                  ),
+                  child: Text('${opt.emoji}  ${opt.text}',
+                      style: TextStyle(
+                        color: selected.any((s) => s.text == opt.text)
+                            ? const Color(0xFFFFFFFF)
+                            : const Color(Config.text2),
+                        fontSize: 13, fontWeight: FontWeight.w600,
+                      )),
+                ),
+              ),
+          ]),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: saving ? null : () async {
+                setS(() => saving = true);
+                try {
+                  final updated = selected
+                      .map((b) => {'emoji': b.emoji, 'text': b.text})
+                      .toList();
+                  await saveBrings(updated, d.rawGenerated);
+                  if (ctx.mounted) Navigator.of(ctx).pop();
+                  onChanged();
+                } catch (_) {
+                  setS(() => saving = false);
+                }
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(Config.accent),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: saving
+                  ? const SizedBox(width: 18, height: 18,
+                      child: CircularProgressIndicator(color: Color(0xFFFFFFFF), strokeWidth: 2))
+                  : const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ]),
+      ),
+    ),
   );
 }
 
@@ -788,6 +1029,441 @@ class _ChipWithRemove extends StatelessWidget {
   }
 }
 
+Future<void> _editCountries(BuildContext context, ProfileData d, VoidCallback onChanged) async {
+  final ctrl = TextEditingController();
+  final countries = List<String>.from(d.countries);
+  bool saving = false;
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: const Color(Config.bg2),
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setS) => Padding(
+        padding: EdgeInsets.fromLTRB(20, 24, 20, MediaQuery.of(ctx).viewInsets.bottom + 28),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Travel Magnets',
+              style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700, fontSize: 18)),
+          const SizedBox(height: 4),
+          const Text('Add or remove countries you\'ve traveled to.',
+              style: TextStyle(color: Color(Config.text3), fontSize: 12)),
+          const SizedBox(height: 16),
+          // Add country row
+          Row(children: [
+            Expanded(
+              child: TextField(
+                controller: ctrl,
+                textCapitalization: TextCapitalization.words,
+                style: const TextStyle(color: Color(Config.text1)),
+                decoration: InputDecoration(
+                  hintText: 'e.g. Japan, France…',
+                  hintStyle: const TextStyle(color: Color(Config.text3)),
+                  filled: true,
+                  fillColor: const Color(Config.bg3),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            GestureDetector(
+              onTap: () {
+                final val = ctrl.text.trim();
+                if (val.isNotEmpty && !countries.contains(val)) {
+                  setS(() { countries.add(val); ctrl.clear(); });
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: const Color(Config.accent), borderRadius: BorderRadius.circular(12)),
+                child: const Icon(Icons.add, color: Color(0xFFFFFFFF), size: 20),
+              ),
+            ),
+          ]),
+          if (countries.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final c in countries)
+                Container(
+                  padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+                  decoration: BoxDecoration(
+                    color: const Color(Config.bg3),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text('✈️  $c', style: const TextStyle(color: Color(Config.text1), fontSize: 13)),
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      onTap: () => setS(() => countries.remove(c)),
+                      child: const Icon(Icons.close, size: 14, color: Color(Config.text3)),
+                    ),
+                  ]),
+                ),
+            ]),
+          ],
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: saving ? null : () async {
+                setS(() => saving = true);
+                try {
+                  await saveCountries(countries);
+                  if (ctx.mounted) Navigator.of(ctx).pop();
+                  onChanged();
+                } catch (_) {
+                  setS(() => saving = false);
+                }
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(Config.accent),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: saving
+                  ? const SizedBox(width: 18, height: 18,
+                      child: CircularProgressIndicator(color: Color(0xFFFFFFFF), strokeWidth: 2))
+                  : const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ]),
+      ),
+    ),
+  );
+}
+
+// ── What I'm About (My lane + Hard nos tabs) ─────────────────────────────────
+
+class _WhatImAboutSection extends StatefulWidget {
+  final ProfileData data;
+  final VoidCallback onChanged;
+  const _WhatImAboutSection({required this.data, required this.onChanged});
+  @override
+  State<_WhatImAboutSection> createState() => _WhatImAboutSectionState();
+}
+
+class _WhatImAboutSectionState extends State<_WhatImAboutSection> {
+  int _tab = 0; // 0 = My lane, 1 = Hard nos
+
+  void _onEdit() {
+    if (_tab == 0) {
+      _showLanePickerSheet(context, widget.data, () {
+        widget.onChanged();
+      });
+    } else {
+      editHardNos(context, widget.data, widget.onChanged);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final arch = archetypeFor(widget.data.archetype);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(color: Color(0x141B1020), height: 36),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header row
+              Row(children: [
+                const Icon(Icons.person_outline, size: 16, color: Color(Config.text2)),
+                const SizedBox(width: 6),
+                const Text('WHAT I\'M ABOUT',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5, color: Color(Config.text2))),
+                const Spacer(),
+                GestureDetector(
+                  onTap: _onEdit,
+                  child: const Icon(Icons.edit_outlined, size: 18, color: Color(Config.text2)),
+                ),
+              ]),
+              const SizedBox(height: 12),
+              // Tab pills
+              Row(children: [
+                _TabPill(label: 'My lane', selected: _tab == 0, onTap: () => setState(() => _tab = 0)),
+                const SizedBox(width: 8),
+                _TabPill(label: 'Hard nos', selected: _tab == 1, onTap: () => setState(() => _tab = 1)),
+              ]),
+              const SizedBox(height: 14),
+              // Content
+              if (_tab == 0) _MyLaneContent(arch: arch, archId: widget.data.archetype)
+              else _HardNosContent(hardNos: widget.data.hardNos),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TabPill extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _TabPill({required this.label, required this.selected, required this.onTap});
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0x22FF3B6B) : const Color(Config.bg2),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected ? const Color(0x4DFF3B6B) : const Color(0x181B1020),
+          ),
+        ),
+        child: Text(label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              color: selected ? const Color(Config.accent) : const Color(Config.text2),
+            )),
+      ),
+    );
+  }
+}
+
+class _MyLaneContent extends StatelessWidget {
+  final Archetype? arch;
+  final String archId;
+  const _MyLaneContent({required this.arch, required this.archId});
+  @override
+  Widget build(BuildContext context) {
+    if (arch == null) {
+      return const Text('No lane selected yet. Tap edit to pick one.',
+          style: TextStyle(color: Color(Config.text3)));
+    }
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(Config.bg2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0x4DFF3B6B)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            width: 48, height: 48,
+            decoration: BoxDecoration(color: const Color(Config.bg3), borderRadius: BorderRadius.circular(12)),
+            child: Center(child: Text(arch!.emoji, style: const TextStyle(fontSize: 24))),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text("YOU'RE A", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                letterSpacing: 1.0, color: Color(Config.text3))),
+            const SizedBox(height: 2),
+            Text(arch!.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700,
+                color: Color(Config.text1))),
+          ])),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(color: const Color(0x22FF3B6B), borderRadius: BorderRadius.circular(999)),
+            child: const Text('● Active', style: TextStyle(fontSize: 11, color: Color(Config.accent), fontWeight: FontWeight.w600)),
+          ),
+        ]),
+        if (arch!.longTag.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text(arch!.longTag, style: const TextStyle(fontSize: 13, color: Color(Config.text2), height: 1.4)),
+        ],
+        if (arch!.brings.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final b in arch!.brings.take(3))
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(color: const Color(Config.bg3), borderRadius: BorderRadius.circular(999)),
+                child: Text(b, style: const TextStyle(fontSize: 12, color: Color(Config.text1))),
+              ),
+          ]),
+        ],
+      ]),
+    );
+  }
+}
+
+class _HardNosContent extends StatelessWidget {
+  final List<String> hardNos;
+  const _HardNosContent({required this.hardNos});
+  @override
+  Widget build(BuildContext context) {
+    if (hardNos.isEmpty) {
+      return const Text('Tap edit to add your dealbreakers.',
+          style: TextStyle(color: Color(Config.text3)));
+    }
+    return Wrap(
+      spacing: 8, runSpacing: 8,
+      children: [for (final h in hardNos) _Pill('✕ $h')],
+    );
+  }
+}
+
+/// Bottom sheet: lane picker (like onboarding). Saves archetype and calls [onChanged].
+Future<void> _showLanePickerSheet(BuildContext context, ProfileData data, VoidCallback onChanged) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: const Color(Config.bg1),
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (_) => _LanePickerSheet(data: data, onChanged: onChanged),
+  );
+}
+
+class _LanePickerSheet extends StatefulWidget {
+  final ProfileData data;
+  final VoidCallback onChanged;
+  const _LanePickerSheet({required this.data, required this.onChanged});
+  @override
+  State<_LanePickerSheet> createState() => _LanePickerSheetState();
+}
+
+class _LanePickerSheetState extends State<_LanePickerSheet> {
+  String? _expandedSection;
+  bool _saving = false;
+
+  Future<void> _pick(BuildContext ctx, Archetype a) async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await saveArchetype(a.id);
+      if (ctx.mounted) Navigator.of(ctx).pop();
+      widget.onChanged();
+    } catch (e) {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sections = laneSectionsFor(widget.data.gender ?? 'man');
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (ctx, scrollCtrl) => Column(children: [
+        // Handle
+        Container(
+          margin: const EdgeInsets.only(top: 12, bottom: 8),
+          width: 40, height: 4,
+          decoration: BoxDecoration(color: const Color(0x331B1020), borderRadius: BorderRadius.circular(2)),
+        ),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 8, 20, 16),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text('Pick your lane', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+          ),
+        ),
+        Expanded(
+          child: ListView(
+            controller: scrollCtrl,
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+            children: [
+              const Text('Switch anytime.', style: TextStyle(fontSize: 13, color: Color(Config.text3))),
+              const SizedBox(height: 16),
+              for (final s in sections) _buildSection(ctx, s),
+            ],
+          ),
+        ),
+        if (_saving)
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: CircularProgressIndicator(color: Color(Config.accent)),
+          ),
+      ]),
+    );
+  }
+
+  Widget _buildSection(BuildContext ctx, LaneSection section) {
+    final isSerious = section.label == 'Serious Connection';
+    final isOpen = _expandedSection == section.label;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: const Color(Config.bg2),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0x181B1020)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(children: [
+        GestureDetector(
+          onTap: () => setState(() => _expandedSection = isOpen ? null : section.label),
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color: isSerious ? const Color(0x1FE11D54) : const Color(0x1FA78BFA),
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Text(
+                  '${isSerious ? '❤️' : '✌️'}  ${section.label.toUpperCase()}',
+                  style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.5,
+                    color: isSerious ? const Color(Config.accentBright) : const Color(0xFFA78BFA),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Text('${section.archetypes.length} options',
+                  style: const TextStyle(fontSize: 12, color: Color(Config.text3)))),
+              AnimatedRotation(
+                turns: isOpen ? 0.25 : -0.25,
+                duration: const Duration(milliseconds: 220),
+                child: const Icon(Icons.chevron_right, color: Color(Config.text3), size: 22),
+              ),
+            ]),
+          ),
+        ),
+        if (isOpen) ...[
+          const Divider(height: 1, thickness: 1, color: Color(0x181B1020)),
+          for (final a in section.archetypes) _archetypeRow(ctx, a, isLast: a == section.archetypes.last),
+        ],
+      ]),
+    );
+  }
+
+  Widget _archetypeRow(BuildContext ctx, Archetype a, {bool isLast = false}) {
+    final isCurrent = a.id == widget.data.archetype;
+    return Column(children: [
+      InkWell(
+        onTap: () => showArchetypeDetailSheet(ctx, a, onLockIn: () => _pick(ctx, a)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(children: [
+            Text(a.emoji, style: const TextStyle(fontSize: 24)),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(a.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(Config.text1))),
+              const SizedBox(height: 2),
+              Text(a.tag, style: const TextStyle(fontSize: 12, color: Color(Config.text3), height: 1.3)),
+            ])),
+            if (isCurrent)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(color: const Color(0x22FF3B6B), borderRadius: BorderRadius.circular(999)),
+                child: const Text('Current', style: TextStyle(fontSize: 11, color: Color(Config.accent), fontWeight: FontWeight.w600)),
+              )
+            else
+              const Icon(Icons.chevron_right, color: Color(Config.text3), size: 18),
+          ]),
+        ),
+      ),
+      if (!isLast) const Divider(height: 1, thickness: 1, indent: 16, color: Color(0x181B1020)),
+    ]);
+  }
+}
+
 class _BringsRow extends StatelessWidget {
   final BringsItem item;
   const _BringsRow(this.item);
@@ -1074,6 +1750,460 @@ class _HeroState extends State<_Hero> {
   }
 }
 
+// ── Personality Reads ─────────────────────────────────────────────────────────
+
+class _PersonalityReadsSection extends StatelessWidget {
+  final ProfileData data;
+  const _PersonalityReadsSection({required this.data});
+
+  static const _defaults = [
+    (name: 'Decisiveness', pct: 95),
+    (name: 'Warmth',       pct: 80),
+    (name: 'Openness',     pct: 75),
+    (name: 'Pace',         pct: 65),
+    (name: 'Stability',    pct: 78),
+  ];
+
+  List<({String name, int pct})> get _reads {
+    final raw = data.rawGenerated['personalityReads'];
+    if (raw is List && raw.isNotEmpty) {
+      final result = <({String name, int pct})>[];
+      for (final item in raw) {
+        if (item is Map) {
+          result.add((
+            name: (item['name'] ?? '').toString(),
+            pct: item['percentage'] is num
+                ? (item['percentage'] as num).toInt()
+                : 0,
+          ));
+        }
+      }
+      if (result.isNotEmpty) return result;
+    }
+    return _defaults;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reads = _reads;
+    return _Section(
+      icon: Icons.radar,
+      title: 'PERSONALITY READS',
+      subtitle: 'inferred from Q&A + lifestyle',
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: AspectRatio(
+          aspectRatio: 1.0,
+          child: CustomPaint(painter: _RadarPainter(reads)),
+        ),
+      ),
+    );
+  }
+}
+
+class _RadarPainter extends CustomPainter {
+  final List<({String name, int pct})> reads;
+  const _RadarPainter(this.reads);
+
+  // Start at top (-π/2) and go clockwise
+  double _angle(int i) => -pi / 2 + 2 * pi * i / reads.length;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (reads.isEmpty) return;
+    final n = reads.length;
+
+    // Reserve margin for axis labels
+    const margin = 52.0;
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final maxR = min(size.width, size.height) / 2 - margin;
+
+    // ── Grid ──
+    final gridPaint = Paint()
+      ..color = const Color(0x22FF3B6B)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8;
+    for (int level = 1; level <= 4; level++) {
+      _polygon(canvas, cx, cy, maxR * level / 4, n, gridPaint);
+    }
+
+    // ── Axis lines ──
+    final axisPaint = Paint()
+      ..color = const Color(0x22FF3B6B)
+      ..strokeWidth = 0.8;
+    for (int i = 0; i < n; i++) {
+      final a = _angle(i);
+      canvas.drawLine(Offset(cx, cy),
+          Offset(cx + maxR * cos(a), cy + maxR * sin(a)), axisPaint);
+    }
+
+    // ── Data polygon ──
+    final path = Path();
+    for (int i = 0; i < n; i++) {
+      final a = _angle(i);
+      final r = maxR * reads[i].pct.clamp(0, 100) / 100;
+      final pt = Offset(cx + r * cos(a), cy + r * sin(a));
+      i == 0 ? path.moveTo(pt.dx, pt.dy) : path.lineTo(pt.dx, pt.dy);
+    }
+    path.close();
+    canvas.drawPath(path,
+        Paint()..color = const Color(0x1AFF3B6B)..style = PaintingStyle.fill);
+    canvas.drawPath(path,
+        Paint()..color = const Color(0xFFFF3B6B)..style = PaintingStyle.stroke..strokeWidth = 2);
+
+    // ── Dots ──
+    for (int i = 0; i < n; i++) {
+      final a = _angle(i);
+      final r = maxR * reads[i].pct.clamp(0, 100) / 100;
+      final pt = Offset(cx + r * cos(a), cy + r * sin(a));
+      canvas.drawCircle(pt, 5,
+          Paint()..color = Colors.white..style = PaintingStyle.fill);
+      canvas.drawCircle(pt, 3.5,
+          Paint()..color = const Color(0xFFFF3B6B)..style = PaintingStyle.fill);
+    }
+
+    // ── Labels ──
+    for (int i = 0; i < n; i++) {
+      final a = _angle(i);
+      final lx = cx + (maxR + 16) * cos(a);
+      final ly = cy + (maxR + 16) * sin(a);
+      _drawLabel(canvas, reads[i].name, reads[i].pct, lx, ly, cos(a), sin(a));
+    }
+  }
+
+  void _polygon(Canvas canvas, double cx, double cy, double r, int n, Paint paint) {
+    final path = Path();
+    for (int i = 0; i < n; i++) {
+      final a = _angle(i);
+      final pt = Offset(cx + r * cos(a), cy + r * sin(a));
+      i == 0 ? path.moveTo(pt.dx, pt.dy) : path.lineTo(pt.dx, pt.dy);
+    }
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  void _drawLabel(Canvas canvas, String name, int pct,
+      double x, double y, double cosA, double sinA) {
+    final namePainter = TextPainter(
+      text: TextSpan(
+        text: name,
+        style: const TextStyle(
+          color: Color(0xFF1B1020),
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          height: 1.2,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: 90);
+
+    final pctPainter = TextPainter(
+      text: TextSpan(
+        text: '$pct',
+        style: const TextStyle(
+          color: Color(0xFFFF3B6B),
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          height: 1.2,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    // Horizontal positioning based on which side of centre
+    final double nx, px;
+    if (cosA > 0.3) {
+      // Right side: left-align text at x
+      nx = x + 4;
+      px = x + 4;
+    } else if (cosA < -0.3) {
+      // Left side: right-align text at x
+      nx = x - namePainter.width - 4;
+      px = x - pctPainter.width - 4;
+    } else {
+      // Top / bottom: center
+      nx = x - namePainter.width / 2;
+      px = x - pctPainter.width / 2;
+    }
+
+    // Vertical: name then pct; anchor point shifts for top/bottom
+    final double ny, py;
+    if (sinA < -0.3) {
+      // Top: stack upward from anchor
+      ny = y - namePainter.height - pctPainter.height - 2;
+      py = ny + namePainter.height + 2;
+    } else if (sinA > 0.3) {
+      // Bottom: stack downward
+      ny = y + 4;
+      py = ny + namePainter.height + 2;
+    } else {
+      // Left / right: vertically centred
+      final totalH = namePainter.height + 2 + pctPainter.height;
+      ny = y - totalH / 2;
+      py = ny + namePainter.height + 2;
+    }
+
+    namePainter.paint(canvas, Offset(nx, ny));
+    pctPainter.paint(canvas, Offset(px, py));
+  }
+
+  @override
+  bool shouldRepaint(_RadarPainter old) => old.reads != reads;
+}
+
+// ── Photo Story ───────────────────────────────────────────────────────────────
+
+/// Shows the 3-slot photo grid (lead / warmth / lifestyle) with AI-enhance CTA.
+/// Manages its own enhancement loading state so the rest of the profile stays
+/// interactive while the ~30s generation runs.
+class _PhotoStorySection extends StatefulWidget {
+  final ProfileData data;
+  final VoidCallback onChanged;
+  const _PhotoStorySection({required this.data, required this.onChanged});
+
+  @override
+  State<_PhotoStorySection> createState() => _PhotoStorySectionState();
+}
+
+class _PhotoStorySectionState extends State<_PhotoStorySection> {
+  bool _enhancing = false;
+  String? _enhanceError;
+  late List<AiPhotoItem> _aiPhotos;
+
+  static const _slots = ['lead', 'warmth', 'lifestyle'];
+
+  @override
+  void initState() {
+    super.initState();
+    _aiPhotos = List.of(widget.data.aiPhotoItems);
+  }
+
+  @override
+  void didUpdateWidget(_PhotoStorySection old) {
+    super.didUpdateWidget(old);
+    if (old.data != widget.data) {
+      _aiPhotos = List.of(widget.data.aiPhotoItems);
+    }
+  }
+
+  /// Resolve slot: AI photo by role → uploaded photo by label/index → null.
+  String? _resolve(String slot) {
+    for (final ai in _aiPhotos) {
+      if (ai.role == slot) return ai.url;
+    }
+    final uploaded = widget.data.uploadedPhotos;
+    for (final up in uploaded) {
+      if (up.label == slot) return up.url;
+    }
+    // Index-based fallback: lead=0, warmth=1, lifestyle=2
+    final idx = _slots.indexOf(slot);
+    if (idx >= 0 && idx < uploaded.length) return uploaded[idx].url;
+    return null;
+  }
+
+  Future<void> _handleEnhance() async {
+    final uploaded = widget.data.uploadedPhotos;
+    if (uploaded.isEmpty) return;
+    setState(() { _enhancing = true; _enhanceError = null; });
+    try {
+      final items = await enhancePhotos(uploaded.first.url);
+      await saveAiPhotos(items);
+      setState(() { _aiPhotos = items; _enhancing = false; });
+    } catch (e) {
+      setState(() { _enhancing = false; _enhanceError = 'Couldn\'t enhance: $e'; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final data = widget.data;
+    final hasAiPhotos = _aiPhotos.isNotEmpty;
+    final hasRealPhotos = data.uploadedPhotos.isNotEmpty;
+    final filled = _slots.where((s) => _resolve(s) != null).length;
+    final subtitle = hasAiPhotos ? '$filled/3  ✨ AI-enhanced' : '$filled/3';
+
+    return _Section(
+      icon: Icons.photo_library_outlined,
+      title: 'PHOTO STORY',
+      subtitle: subtitle,
+      onEdit: () => openPhotoManager(context, data, widget.onChanged),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_enhancing)
+            Container(
+              height: 72,
+              decoration: BoxDecoration(
+                  color: const Color(Config.bg3), borderRadius: BorderRadius.circular(12)),
+              child: const Center(
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  SizedBox(
+                    width: 16, height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)),
+                  ),
+                  SizedBox(width: 10),
+                  Text('Generating AI photos… (~30s)',
+                      style: TextStyle(color: Color(Config.text2), fontSize: 13)),
+                ]),
+              ),
+            )
+          else
+            GridView.count(
+              crossAxisCount: 3,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                for (final slot in _slots)
+                  _PhotoSlot(
+                    url: _resolve(slot),
+                    isAi: _aiPhotos.any((a) => a.role == slot),
+                    label: slot,
+                    isMan: data.isMan,
+                    onTap: () => openPhotoManager(context, data, widget.onChanged),
+                  ),
+              ],
+            ),
+          if (_enhanceError != null) ...[
+            const SizedBox(height: 6),
+            Text(_enhanceError!,
+                style: const TextStyle(color: Color(0xFFF87171), fontSize: 12)),
+          ],
+          const SizedBox(height: 12),
+          // Enhance with AI — always shown for men; greyed out until photos exist
+          if (data.isMan)
+            SizedBox(
+              width: double.infinity, height: 50,
+              child: FilledButton(
+                onPressed: (_enhancing || !hasRealPhotos) ? null : _handleEnhance,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(Config.accent),
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: const Color(0x44FF3B6B),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: _enhancing
+                    ? const SizedBox(width: 20, height: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : Row(mainAxisSize: MainAxisSize.min, children: [
+                        const Text('✨', style: TextStyle(fontSize: 16)),
+                        const SizedBox(width: 8),
+                        Text(
+                          hasAiPhotos ? 'Regenerate AI Photos' : 'Enhance with AI',
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                        ),
+                      ]),
+              ),
+            )
+          else
+            SizedBox(
+              width: double.infinity, height: 46,
+              child: OutlinedButton.icon(
+                onPressed: () => openPhotoManager(context, data, widget.onChanged),
+                icon: const Icon(Icons.add_a_photo_outlined, size: 18),
+                label: Text(hasRealPhotos ? 'Manage Photos' : 'Add Photos',
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(Config.accent)),
+                  foregroundColor: const Color(Config.accent),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PhotoSlot extends StatelessWidget {
+  final String? url;
+  final bool isAi;
+  final String label;
+  final bool isMan;
+  final VoidCallback onTap;
+  const _PhotoSlot({
+    required this.url,
+    required this.isAi,
+    required this.label,
+    required this.isMan,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (url != null) {
+      return GestureDetector(
+        onTap: onTap,
+        child: Stack(fit: StackFit.expand, children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: CachedNetworkImage(
+              imageUrl: url!,
+              fit: BoxFit.cover,
+              placeholder: (c, _) => const ColoredBox(
+                color: Color(Config.bg3),
+                child: Center(
+                  child: SizedBox(
+                    width: 18, height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)),
+                  ),
+                ),
+              ),
+              errorWidget: (c, _, _) => const ColoredBox(
+                color: Color(Config.bg3),
+                child: Center(
+                  child: Icon(Icons.broken_image_outlined, color: Color(Config.text3), size: 22),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 4, left: 4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xCC000000),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(label,
+                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600)),
+            ),
+          ),
+          if (isAi)
+            const Positioned(top: 4, right: 4, child: Text('✨', style: TextStyle(fontSize: 14))),
+        ]),
+      );
+    }
+    return GestureDetector(
+      onTap: onTap,
+      child: CustomPaint(
+        painter: _DashedSlotBorder(color: const Color(0x99FF3B6B), radius: 10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0x0AFF3B6B),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            const Icon(Icons.add_photo_alternate_outlined, color: Color(Config.accent), size: 28),
+            const SizedBox(height: 5),
+            const Text('Add photo', style: TextStyle(fontSize: 11, color: Color(Config.text2), fontWeight: FontWeight.w500)),
+            if (isMan)
+              const Text('AI will enhance',
+                  style: TextStyle(fontSize: 10, color: Color(Config.accent), fontStyle: FontStyle.italic)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
 class _PhotoPlaceholder extends StatelessWidget {
   const _PhotoPlaceholder();
   @override
@@ -1093,6 +2223,35 @@ class _PhotoPlaceholder extends StatelessWidget {
       ),
     );
   }
+}
+
+class _DashedSlotBorder extends CustomPainter {
+  final Color color;
+  final double radius;
+  const _DashedSlotBorder({required this.color, this.radius = 10});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.6
+      ..style = PaintingStyle.stroke;
+    const dash = 5.0, gap = 4.0;
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(1, 1, size.width - 2, size.height - 2),
+      Radius.circular(radius),
+    );
+    final path = Path()..addRRect(rrect);
+    final metric = path.computeMetrics().first;
+    double dist = 0;
+    while (dist < metric.length) {
+      canvas.drawPath(metric.extractPath(dist, dist + dash), paint);
+      dist += dash + gap;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedSlotBorder old) => old.color != color || old.radius != radius;
 }
 
 class _Stat extends StatelessWidget {

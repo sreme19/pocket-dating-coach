@@ -2638,8 +2638,8 @@
           What He Brings
           <button
             class="section-edit-btn"
-            onclick={() => goto('/verified-vibe/verification?step=archetype_qa&returnTo=/verified-vibe/profile')}
-            aria-label="Edit what you bring"
+            onclick={() => { whatImAboutTab = 'lane'; startEditLane(); document.getElementById('what-im-about-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
+            aria-label="Change lane"
             type="button"
           >
             <Pencil size={11} />
@@ -3132,7 +3132,7 @@
 
       <!-- What I'm About — Lane / Hard Nos / Looking For tabbed -->
       {#if $user?.gender !== null}
-      <section class="section">
+      <section class="section" id="what-im-about-section">
         <div class="section-label">
           <Heart size={13} />
           What I'm About

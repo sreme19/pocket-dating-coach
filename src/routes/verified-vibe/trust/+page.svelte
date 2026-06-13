@@ -7,7 +7,9 @@
   let showEditModal = $state(false);
 
   let trustScoreBreakdown = $derived(calculateTrustScore($userVerification || []));
-  let trustScore = $derived(trustScoreBreakdown.total);
+  // Fall back to the profile's trust_score (set server-side) when local
+  // verification records haven't been loaded yet (e.g. RLS not yet resolved).
+  let trustScore = $derived(trustScoreBreakdown.total || $user?.trustScore || 0);
   let trustLabel = $derived(getTrustScoreLabel(trustScore));
 
   let trustBreakdown = $derived([
