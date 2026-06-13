@@ -68,7 +68,7 @@ export const GET: RequestHandler = async ({ request }) => {
       matches.map(match =>
         supabase
           .from('verified_vibe_messages')
-          .select('content, created_at')
+          .select('content, created_at, sender_id')
           .eq('match_id', match.id)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -124,6 +124,7 @@ export const GET: RequestHandler = async ({ request }) => {
           updatedAt: new Date(otherUser.updated_at)
         },
         lastMessage: lastMsg?.content ?? 'No messages yet',
+        lastMessageSenderId: lastMsg?.sender_id ?? null,
         lastMessageTime: lastMsg?.created_at ? new Date(lastMsg.created_at) : new Date(match.created_at),
         unreadCount: unreadMap.get(match.id) ?? 0,
         hasMessages: !!lastMsg,

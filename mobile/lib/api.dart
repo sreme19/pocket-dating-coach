@@ -1118,6 +1118,7 @@ class Conversation {
   final int? age;
   final String? avatar;
   final String lastMessage;
+  final String? lastMessageSenderId;
   final DateTime? lastMessageTime;
   final int unreadCount;
   final bool hasMessages;
@@ -1131,6 +1132,7 @@ class Conversation {
     required this.age,
     required this.avatar,
     required this.lastMessage,
+    this.lastMessageSenderId,
     required this.lastMessageTime,
     required this.unreadCount,
     required this.hasMessages,
@@ -1158,6 +1160,7 @@ Future<List<Conversation>> fetchConversations() async {
       age: u['age'] is num ? (u['age'] as num).toInt() : null,
       avatar: u['avatar'] as String?,
       lastMessage: (c['lastMessage'] ?? '').toString(),
+      lastMessageSenderId: c['lastMessageSenderId'] as String?,
       lastMessageTime: _dt(c['lastMessageTime']),
       unreadCount: c['unreadCount'] is num ? (c['unreadCount'] as num).toInt() : 0,
       hasMessages: c['hasMessages'] == true,

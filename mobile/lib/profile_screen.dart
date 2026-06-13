@@ -341,7 +341,7 @@ class _ProfileBody extends StatelessWidget {
                 ? '✓ AI verified via bank statement / financial document'
                 : null,
             onUpload: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ProofUploadScreen())).then((_) => onChanged()),
+              MaterialPageRoute(builder: (_) => const TrustBoostScreen())).then((_) => onChanged()),
           ),
         ),
 

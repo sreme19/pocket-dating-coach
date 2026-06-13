@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api.dart';
 import 'archetypes.dart';
 import 'config.dart';
@@ -140,7 +141,11 @@ class _ChatListScreenState extends State<ChatListScreen>
                     ),
                   )
                 else
-                  ...active.map((c) => _ConversationTile(convo: c, onTap: () => _open(c))),
+                  ...active.map((c) => _ConversationTile(
+                    convo: c,
+                    onTap: () => _open(c),
+                    myId: Supabase.instance.client.auth.currentUser?.id,
+                  )),
               ],
             ),
           );
@@ -597,7 +602,8 @@ class _SentAdmirerCard extends StatelessWidget {
 class _ConversationTile extends StatelessWidget {
   final Conversation convo;
   final VoidCallback onTap;
-  const _ConversationTile({required this.convo, required this.onTap});
+  final String? myId;
+  const _ConversationTile({required this.convo, required this.onTap, this.myId});
 
   @override
   Widget build(BuildContext context) {
@@ -627,14 +633,20 @@ class _ConversationTile extends StatelessWidget {
             const SizedBox(width: 8),
           ],
           Expanded(
-            child: Text(
-              convo.lastMessage.isNotEmpty ? convo.lastMessage : 'Say hello 👋',
-              maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: convo.unreadCount > 0 ? const Color(Config.text1) : const Color(Config.text2),
-                fontWeight: convo.unreadCount > 0 ? FontWeight.w600 : FontWeight.w400,
-              ),
-            ),
+            child: Builder(builder: (_) {
+              final isMe = myId != null && convo.lastMessageSenderId == myId;
+              final preview = convo.lastMessage.isNotEmpty
+                  ? (isMe ? 'You: ${convo.lastMessage}' : convo.lastMessage)
+                  : 'Say hello 👋';
+              return Text(
+                preview,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: convo.unreadCount > 0 ? const Color(Config.text1) : const Color(Config.text2),
+                  fontWeight: convo.unreadCount > 0 ? FontWeight.w600 : FontWeight.w400,
+                ),
+              );
+            }),
           ),
         ]),
       ),
