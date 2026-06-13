@@ -38,8 +38,9 @@ class _ChatListScreenState extends State<ChatListScreen>
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = _load());
-    await _future;
+    final f = _load();
+    setState(() => _future = f);
+    await f;
   }
 
   void _open(Conversation c) {

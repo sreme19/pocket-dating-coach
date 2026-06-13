@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -38,7 +39,6 @@ class ProofUploadScreen extends StatefulWidget {
 }
 
 class _ProofUploadScreenState extends State<ProofUploadScreen> {
-  final _picker = ImagePicker();
   bool _busy = false;
   String? _activeCat;
   String? _resultText;
@@ -63,111 +63,20 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
       _resultChips = verified ? chips : const [];
       _resultText = verified
           ? '✓ ${cat.label} verified · +$pts trust${agg.isNotEmpty ? '\n$agg' : ''}'
-              '${nameMismatch ? '\n⚠️ Name on the document didn’t match your ID — flagged for review.' : ''}'
-          : 'Couldn’t verify ${cat.label}.${agg.isNotEmpty ? '\n$agg' : ''}';
+              '${nameMismatch ? '\n⚠️ Name on the document didn\'t match your ID — flagged for review.' : ''}'
+          : 'Couldn\'t verify ${cat.label}.${agg.isNotEmpty ? '\n$agg' : ''}';
     });
   }
 
-  String _friendlyError(dynamic e) {
-    if (e is DioException) {
-      final data = e.response?.data;
-      String? msg;
-      if (data is Map) msg = (data['error'] ?? data['message'])?.toString();
-      if (data is String && data.isNotEmpty) msg = data;
-      if (msg != null && msg.isNotEmpty && msg.length < 200) return msg;
-      final code = e.response?.statusCode;
-      if (code == 403) return 'Permission denied. Please sign out and sign back in, then try again.';
-      if (code == 401) return 'Session expired. Please sign out and sign back in.';
-      if (code != null) return 'Server error ($code). Please try again.';
-    }
-    return 'Something went wrong. Please try again.';
-  }
-
-  void _showError(String msg) {
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(Config.bg2),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Upload failed', style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700)),
-        content: Text(msg, style: const TextStyle(color: Color(Config.text2), fontSize: 14, height: 1.5)),
-        actions: [TextButton(
-          onPressed: () => Navigator.pop(ctx),
-          child: const Text('Got it', style: TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w700)),
-        )],
-      ),
-    );
-  }
-
-  /// The server requires a verified government ID before accepting this
-  /// name-bearing document. Capture an ID, verify it, then retry the upload.
-  Future<void> _runIdGate(_Cat cat, List<String> paths) async {
-    setState(() { _busy = false; _activeCat = null; });
-    final source = await showDialog<ImageSource>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(Config.bg2),
-        title: const Text('Verify your identity', style: TextStyle(color: Color(Config.text1), fontSize: 18)),
-        content: const Text(
-          'Documents that carry your name — bank statements, ownership papers, payslips — need a quick one-time government-ID check first. Upload the front of your Aadhaar, PAN, or passport. It stays private and only confirms the document is really yours.',
-          style: TextStyle(color: Color(Config.text2), height: 1.4),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Not now', style: TextStyle(color: Color(Config.text2)))),
-          TextButton(onPressed: () => Navigator.pop(ctx, ImageSource.gallery), child: const Text('Gallery', style: TextStyle(color: Color(Config.text2)))),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, ImageSource.camera),
-            style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFFFFFFFF)),
-            child: const Text('Camera'),
-          ),
-        ],
-      ),
-    );
-    if (source == null) return;
-
-    final x = await _picker.pickImage(source: source, maxWidth: 1800, imageQuality: 85);
-    if (x == null) return;
-
-    setState(() { _busy = true; _activeCat = cat.id; _resultText = null; _resultChips = const []; });
-    try {
-      final b64 = base64Encode(await x.readAsBytes());
-      final idRes = await verifyStep('id', {'image': b64, 'mimeType': 'image/jpeg'});
-      Map idData = idRes; if (idRes['data'] is Map) idData = idRes['data'] as Map;
-      final idName = (idData['idName'] as String?)?.trim();
-      if (idName == null || idName.isEmpty) {
-        setState(() {
-          _busy = false; _activeCat = null; _resultGood = false;
-          _resultText = "Couldn’t read your ID — retake with better lighting and hold the card flat.";
-        });
-        return;
-      }
-      // ID verified — retry the original document upload now that the gate is cleared.
-      final res = await uploadProof(cat.id, paths);
-      _applyResult(cat, res);
-    } catch (e) {
-      setState(() { _busy = false; _activeCat = null; });
-      _showError(_friendlyError(e));
-    }
-  }
-
+  /// Navigate to the staging screen — picks images there, uploads there,
+  /// returns the server result map on success.
   Future<void> _upload(_Cat cat, ImageSource source) async {
     if (_busy) return;
-    setState(() { _busy = true; _activeCat = cat.id; _resultText = null; _resultChips = const []; });
-    try {
-      final List<XFile> files = source == ImageSource.gallery
-          ? await _picker.pickMultiImage(maxWidth: 1800, imageQuality: 85)
-          : [if (await _picker.pickImage(source: ImageSource.camera, maxWidth: 1800, imageQuality: 85) case final x?) x];
-      if (files.isEmpty) { setState(() { _busy = false; _activeCat = null; }); return; }
-      final paths = files.map((f) => f.path).toList();
-      final res = await uploadProof(cat.id, paths);
-      // Name-bearing document needs a verified government ID first → run the gate, then retry.
-      if (res['requiresIdVerification'] == true) { await _runIdGate(cat, paths); return; }
-      _applyResult(cat, res);
-    } catch (e) {
-      setState(() { _busy = false; _activeCat = null; });
-      _showError(_friendlyError(e));
-    }
+    final res = await Navigator.of(context).push<Map>(
+      MaterialPageRoute(builder: (_) => _ProofStagingScreen(cat: cat, initialSource: source)),
+    );
+    if (res == null) return;
+    _applyResult(cat, res);
   }
 
   Future<void> _uploadUrl(_Cat cat) async {
@@ -209,6 +118,38 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
       setState(() { _busy = false; _activeCat = null; });
       _showError(_friendlyError(e));
     }
+  }
+
+  String _friendlyError(dynamic e) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      String? msg;
+      if (data is Map) msg = (data['error'] ?? data['message'])?.toString();
+      if (data is String && data.isNotEmpty) msg = data;
+      if (msg != null && msg.isNotEmpty && msg.length < 200) return msg;
+      final code = e.response?.statusCode;
+      if (code == 403) return 'Permission denied. Please sign out and sign back in, then try again.';
+      if (code == 401) return 'Session expired. Please sign out and sign back in.';
+      if (code != null) return 'Server error ($code). Please try again.';
+    }
+    return 'Something went wrong. Please try again.';
+  }
+
+  void _showError(String msg) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(Config.bg2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Upload failed', style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700)),
+        content: Text(msg, style: const TextStyle(color: Color(Config.text2), fontSize: 14, height: 1.5)),
+        actions: [TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Got it', style: TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w700)),
+        )],
+      ),
+    );
   }
 
   @override
@@ -309,4 +250,320 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
       ]),
     );
   }
+}
+
+// ── Staging screen ────────────────────────────────────────────────────────────
+
+/// Full-screen image staging area.
+/// User picks images → previews them in a grid → taps "Analyse & Verify".
+/// Pops with the server result Map on success, null on cancel.
+class _ProofStagingScreen extends StatefulWidget {
+  final _Cat cat;
+  final ImageSource initialSource;
+  const _ProofStagingScreen({super.key, required this.cat, required this.initialSource});
+
+  @override
+  State<_ProofStagingScreen> createState() => _ProofStagingScreenState();
+}
+
+class _ProofStagingScreenState extends State<_ProofStagingScreen> {
+  final _picker = ImagePicker();
+  List<XFile> _files = [];
+  bool _loading = true; // picking initial images
+  bool _busy    = false; // uploading
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _pickInitial());
+  }
+
+  Future<void> _pickInitial() async {
+    final files = widget.initialSource == ImageSource.gallery
+        ? await _picker.pickMultiImage(maxWidth: 1800, imageQuality: 85)
+        : [if (await _picker.pickImage(source: ImageSource.camera, maxWidth: 1800, imageQuality: 85) case final x?) x];
+    if (!mounted) return;
+    if (files.isEmpty) { Navigator.pop(context); return; }
+    setState(() { _files = files; _loading = false; });
+  }
+
+  Future<void> _addMore() async {
+    final extra = await _picker.pickMultiImage(maxWidth: 1800, imageQuality: 85);
+    if (extra.isNotEmpty && mounted) setState(() => _files = [..._files, ...extra]);
+  }
+
+  Future<void> _verify() async {
+    if (_files.isEmpty || _busy) return;
+    setState(() => _busy = true);
+    try {
+      final paths = _files.map((f) => f.path).toList();
+      final res = await uploadProof(widget.cat.id, paths);
+
+      if (res['requiresIdVerification'] == true) {
+        setState(() => _busy = false);
+        await _runIdGate(paths);
+        return;
+      }
+      if (mounted) Navigator.pop(context, res);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(Config.bg2),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Upload failed', style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700)),
+          content: Text(_friendlyError(e), style: const TextStyle(color: Color(Config.text2), fontSize: 14, height: 1.5)),
+          actions: [TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Got it', style: TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w700)),
+          )],
+        ),
+      );
+    }
+  }
+
+  /// Government-ID gate: verify ID first, then retry the original upload.
+  Future<void> _runIdGate(List<String> paths) async {
+    final source = await showDialog<ImageSource>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(Config.bg2),
+        title: const Text('Verify your identity', style: TextStyle(color: Color(Config.text1), fontSize: 18)),
+        content: const Text(
+          'Documents that carry your name — bank statements, ownership papers, payslips — need a quick one-time government-ID check first. Upload the front of your Aadhaar, PAN, or passport. It stays private and only confirms the document is really yours.',
+          style: TextStyle(color: Color(Config.text2), height: 1.4),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Not now', style: TextStyle(color: Color(Config.text2)))),
+          TextButton(onPressed: () => Navigator.pop(ctx, ImageSource.gallery), child: const Text('Gallery', style: TextStyle(color: Color(Config.text2)))),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, ImageSource.camera),
+            style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFFFFFFFF)),
+            child: const Text('Camera'),
+          ),
+        ],
+      ),
+    );
+    if (source == null || !mounted) return;
+
+    final x = await _picker.pickImage(source: source, maxWidth: 1800, imageQuality: 85);
+    if (x == null || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      final b64 = base64Encode(await x.readAsBytes());
+      final idRes = await verifyStep('id', {'image': b64, 'mimeType': 'image/jpeg'});
+      Map idData = idRes; if (idRes['data'] is Map) idData = idRes['data'] as Map;
+      final idName = (idData['idName'] as String?)?.trim();
+      if (idName == null || idName.isEmpty) {
+        if (mounted) {
+          setState(() => _busy = false);
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text("Couldn't read your ID — retake with better lighting and hold the card flat."),
+          ));
+        }
+        return;
+      }
+      // ID verified — retry the original proof upload.
+      final res = await uploadProof(widget.cat.id, paths);
+      if (mounted) Navigator.pop(context, res);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _busy = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_friendlyError(e))));
+      }
+    }
+  }
+
+  String _friendlyError(dynamic e) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      String? msg;
+      if (data is Map) msg = (data['error'] ?? data['message'])?.toString();
+      if (data is String && data.isNotEmpty) msg = data;
+      if (msg != null && msg.isNotEmpty && msg.length < 200) return msg;
+      final code = e.response?.statusCode;
+      if (code == 403) return 'Permission denied. Please sign out and sign back in, then try again.';
+      if (code == 401) return 'Session expired. Please sign out and sign back in.';
+      if (code != null) return 'Server error ($code). Please try again.';
+    }
+    return 'Something went wrong. Please try again.';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(Config.bg1),
+      appBar: AppBar(
+        backgroundColor: const Color(Config.bg1),
+        elevation: 0,
+        leading: IconButton(
+          onPressed: _busy ? null : () => Navigator.pop(context),
+          icon: const Icon(Icons.close, color: Color(Config.text1)),
+        ),
+        title: Row(children: [
+          Text(widget.cat.emoji, style: const TextStyle(fontSize: 20)),
+          const SizedBox(width: 8),
+          Text(widget.cat.label,
+              style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700, fontSize: 17)),
+        ]),
+        actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(color: const Color(0x22FF3B6B), borderRadius: BorderRadius.circular(999)),
+            child: Text('+${widget.cat.points} pts',
+                style: const TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w700, fontSize: 13)),
+          ),
+        ],
+      ),
+      body: Column(children: [
+        // Hint text
+        if (widget.cat.hint.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Text(widget.cat.hint,
+                style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4)),
+          ),
+        const SizedBox(height: 12),
+
+        // Image grid
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator(color: Color(Config.accent)))
+              : Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: GridView.builder(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                    ),
+                    itemCount: _files.length + 1, // last tile = "Add more"
+                    itemBuilder: (ctx, i) {
+                      if (i == _files.length) return _addMoreTile();
+                      return _imageTile(i);
+                    },
+                  ),
+                ),
+        ),
+
+        // Count pill
+        if (!_loading && _files.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              '${_files.length} photo${_files.length == 1 ? '' : 's'} selected',
+              style: const TextStyle(color: Color(Config.text3), fontSize: 13),
+            ),
+          ),
+
+        // Analyse & Verify button
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: FilledButton(
+                onPressed: (_busy || _files.isEmpty) ? null : _verify,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(Config.accent),
+                  foregroundColor: const Color(0xFFFFFFFF),
+                  disabledBackgroundColor: const Color(0x44FF3B6B),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: _busy
+                    ? const SizedBox(
+                        width: 24, height: 24,
+                        child: CircularProgressIndicator(color: Color(0xFFFFFFFF), strokeWidth: 2.5))
+                    : const Text('Analyse & Verify',
+                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, letterSpacing: 0.2)),
+              ),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _imageTile(int i) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Image.file(File(_files[i].path), fit: BoxFit.cover),
+        ),
+        // Remove button
+        Positioned(
+          top: 6, right: 6,
+          child: GestureDetector(
+            onTap: _busy ? null : () => setState(() => _files.removeAt(i)),
+            child: Container(
+              width: 26, height: 26,
+              decoration: const BoxDecoration(color: Color(0xCC000000), shape: BoxShape.circle),
+              child: const Icon(Icons.close, color: Color(0xFFFFFFFF), size: 15),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _addMoreTile() {
+    return GestureDetector(
+      onTap: _busy ? null : _addMore,
+      child: CustomPaint(
+        painter: _DashedBorderPainter(color: const Color(0x99FF3B6B), radius: 16),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0x0AFF3B6B),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.add_photo_alternate_outlined, size: 38, color: Color(Config.accent)),
+            SizedBox(height: 8),
+            Text('Add more', style: TextStyle(color: Color(Config.accent), fontSize: 13, fontWeight: FontWeight.w600)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Dashed border painter ─────────────────────────────────────────────────────
+
+class _DashedBorderPainter extends CustomPainter {
+  final Color color;
+  final double radius;
+  const _DashedBorderPainter({required this.color, this.radius = 12});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.8
+      ..style = PaintingStyle.stroke;
+
+    const dashLen = 6.0;
+    const gapLen  = 4.0;
+
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(1, 1, size.width - 2, size.height - 2),
+      Radius.circular(radius),
+    );
+    final path = Path()..addRRect(rrect);
+    final metrics = path.computeMetrics().first;
+    double dist = 0;
+    while (dist < metrics.length) {
+      canvas.drawPath(metrics.extractPath(dist, dist + dashLen), paint);
+      dist += dashLen + gapLen;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedBorderPainter old) => old.color != color || old.radius != radius;
 }

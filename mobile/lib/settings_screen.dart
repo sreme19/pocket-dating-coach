@@ -62,7 +62,7 @@ class SettingsScreen extends StatelessWidget {
                 isScrollControlled: true,
                 backgroundColor: const Color(Config.bg2),
                 shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-                builder: (_) => _DeleteAccountSheet(onDeleted: () => _signOut(context)),
+                builder: (_) => DeleteAccountSheet(onDeleted: () => _signOut(context)),
               ),
               child: const Text('Delete account',
                   style: TextStyle(color: Color(Config.text3), decoration: TextDecoration.underline)),
@@ -99,14 +99,14 @@ class SettingsScreen extends StatelessWidget {
 
 /// Delete-account flow: optional churn reason + feedback, then type DELETE to
 /// confirm. Calls DELETE /api/verified-vibe/account, then signs out.
-class _DeleteAccountSheet extends StatefulWidget {
+class DeleteAccountSheet extends StatefulWidget {
   final VoidCallback onDeleted;
-  const _DeleteAccountSheet({required this.onDeleted});
+  const DeleteAccountSheet({super.key, required this.onDeleted});
   @override
-  State<_DeleteAccountSheet> createState() => _DeleteAccountSheetState();
+  State<DeleteAccountSheet> createState() => _DeleteAccountSheetState();
 }
 
-class _DeleteAccountSheetState extends State<_DeleteAccountSheet> {
+class _DeleteAccountSheetState extends State<DeleteAccountSheet> {
   static const _reasons = <({String value, String label, String emoji})>[
     (value: 'found_someone', label: 'I met someone', emoji: '🎉'),
     (value: 'taking_break', label: 'Taking a break', emoji: '🌿'),

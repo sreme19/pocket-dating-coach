@@ -145,15 +145,22 @@ export async function upsertProfile(
  */
 export async function getVerificationSteps(): Promise<VVVerificationStep[]> {
   const supabase = getSupabaseClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    console.warn('[getVerificationSteps] no active session — returning []');
+    return [];
+  }
   const { data, error } = await (supabase as any)
     .from('verified_vibe_verification')
     .select('*')
+    .eq('user_id', session.user.id)
     .order('completed_at', { ascending: true });
 
   if (error) {
     console.error('getVerificationSteps error:', error);
     return [];
   }
+  console.log(`[getVerificationSteps] fetched ${data?.length ?? 0} steps for user ${session.user.id}`);
   return (data ?? []) as VVVerificationStep[];
 }
 
