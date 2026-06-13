@@ -312,18 +312,6 @@ class _ProfileBody extends StatelessWidget {
           ),
         ),
 
-        // ── What he brings ───────────────────────────────────────────────
-        if (brings != null && brings.isNotEmpty)
-          _Section(
-            icon: Icons.favorite_border,
-            title: 'WHAT HE BRINGS',
-            child: Column(
-              children: [
-                for (final b in brings) _BringsRow(b),
-              ],
-            ),
-          ),
-
         // ── Money matters ────────────────────────────────────────────────
         _Section(
           emoji: '💰',
@@ -342,6 +330,18 @@ class _ProfileBody extends StatelessWidget {
               MaterialPageRoute(builder: (_) => const ProofUploadScreen())).then((_) => onChanged()),
           ),
         ),
+
+        // ── What he brings ───────────────────────────────────────────────
+        if (brings != null && brings.isNotEmpty)
+          _Section(
+            icon: Icons.favorite_border,
+            title: 'WHAT HE BRINGS',
+            child: Column(
+              children: [
+                for (final b in brings) _BringsRow(b),
+              ],
+            ),
+          ),
 
         // ── AI portraits (generate from your photos) ─────────────────────
         _Section(

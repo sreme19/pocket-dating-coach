@@ -1869,7 +1869,9 @@
   const trustScoreBreakdown = $derived(calculateTrustScore($userVerification || []));
   const trustLabel = $derived(getTrustScoreLabel(trustScore));
   const trustBreakdown = $derived([
-    { category: 'Identity', score: trustScoreBreakdown.idScore, max: 100, items: ['ID Verified', 'Face Match', 'Liveness'] },
+    // Verification flow saves 'liveness' (not 'id') for the identity check step.
+    // Use livenessScore so the Identity bar reflects actual completion.
+    { category: 'Identity', score: trustScoreBreakdown.livenessScore, max: 100, items: ['Face Match', 'Liveness'] },
     { category: 'Lifestyle', score: trustScoreBreakdown.photoScore, max: 100, items: ['Photo Consistency', 'Self-Presentation'] },
     { category: 'Intent', score: trustScoreBreakdown.qaScore, max: 100, items: ['Q&A Complete', 'Authentic Responses'] }
   ]);

@@ -3,6 +3,7 @@ import 'api.dart';
 import 'archetypes.dart';
 import 'config.dart';
 import 'proof_upload_screen.dart';
+import 'verification_screen.dart';
 
 /// A boostable proof category shown on the Trust & Boost page.
 class _Cat {
@@ -231,54 +232,147 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
         Text(label, style: TextStyle(fontSize: 12, color: on ? const Color(Config.text1) : const Color(Config.text3))),
       ]);
 
+  // ── Safety Check — 3 categories matching website layout ───────────────────
+
+  Future<void> _goVerify() async {
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => VerificationScreen(onDone: () { Navigator.of(context).pop(); _refresh(); }),
+    ));
+    _refresh();
+  }
+
   Widget _safetyCheck(TrustData d) {
-    final identity = d.identityVerified ? 100 : 50;
-    final hasIntro = d.proofFor('intro') != null;
-    final emotional = (45 + d.proofs.length * 5 + (hasIntro ? 25 : 0)).clamp(0, 100);
+    // Identity = liveness step score. The verification flow saves 'liveness'
+    // (not 'id') when the user completes the identity check, so use livenessScore.
+    final identityScore = d.livenessScore;
+    // Lifestyle = photos step score
+    final lifestyleScore = d.photoScore;
+    // Intent = spending_or_qa step score
+    final intentScore = d.qaScore;
+
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: const Color(Config.bg2), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0x181B1020))),
+      decoration: BoxDecoration(
+        color: const Color(Config.bg2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0x181B1020)),
+      ),
       child: Column(children: [
-        _meter('Identity', identity, d.identityVerified ? 'ID verified · Face matched' : 'Verify your ID to boost'),
-        const SizedBox(height: 14),
-        _meter('Emotional Safety', emotional, null),
-        if (!hasIntro) ...[
-          const SizedBox(height: 12),
-          GestureDetector(
-            onTap: _upload,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(color: const Color(Config.bg3), borderRadius: BorderRadius.circular(10)),
-              child: Row(children: [
-                const Expanded(child: Text('Add a video intro to complete your safety signal',
-                    style: TextStyle(color: Color(Config.text2), fontSize: 13))),
-                const Text('boost →', style: TextStyle(color: Color(0xFFF59E0B), fontWeight: FontWeight.w700, fontSize: 13)),
-              ]),
-            ),
-          ),
-        ],
+        _safetyItem(
+          label: 'Identity',
+          score: identityScore,
+          lowText:  'Verify your identity — required to appear in search',
+          midText:  'Complete face match to maximise identity score',
+          lowPts:   '+50 pts →',
+          onTap:    _goVerify,
+        ),
+        const SizedBox(height: 16),
+        _safetyItem(
+          label: 'Lifestyle',
+          score: lifestyleScore,
+          lowText:  'Upload photos to verify your lifestyle and stand out',
+          midText:  'Add more photos to complete your lifestyle score',
+          lowPts:   '+8 pts →',
+          onTap:    _upload,
+        ),
+        const SizedBox(height: 16),
+        _safetyItem(
+          label: 'Intent',
+          score: intentScore,
+          lowText:  'Answer Q&A questions — reveals your real intentions',
+          midText:  'Add more answers to complete your intent signal',
+          lowPts:   '+12 pts →',
+          onTap:    _goVerify,
+        ),
       ]),
     );
   }
 
-  Widget _meter(String label, int value, String? sub) {
-    final c = value >= 80 ? const Color(Config.accent) : const Color(0xFFF59E0B);
+  Widget _safetyItem({
+    required String label,
+    required int score,
+    required String lowText,
+    required String midText,
+    required String lowPts,
+    required VoidCallback onTap,
+  }) {
+    final Color barColor;
+    final Color scoreColor;
+    final String nudgeVariant;
+    if (score < 50) {
+      barColor   = const Color(0xFFEF4444);
+      scoreColor = const Color(0xFFEF4444);
+      nudgeVariant = 'red';
+    } else if (score < 75) {
+      barColor   = const Color(0xFFF4B95C);
+      scoreColor = const Color(0xFFF4B95C);
+      nudgeVariant = 'amber';
+    } else {
+      barColor   = const Color(0xFF10B981);
+      scoreColor = const Color(0xFF10B981);
+      nudgeVariant = 'ok';
+    }
+
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Text(label, style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w600)),
         const Spacer(),
-        Text('$value/100', style: TextStyle(color: c, fontWeight: FontWeight.w700, fontSize: 13)),
+        Text('$score/100', style: TextStyle(color: scoreColor, fontWeight: FontWeight.w700, fontSize: 13)),
       ]),
       const SizedBox(height: 6),
       ClipRRect(
         borderRadius: BorderRadius.circular(999),
-        child: LinearProgressIndicator(value: value / 100, minHeight: 5,
-            backgroundColor: const Color(0x221B1020), valueColor: AlwaysStoppedAnimation(c)),
+        child: LinearProgressIndicator(
+          value: score / 100,
+          minHeight: 5,
+          backgroundColor: const Color(0x221B1020),
+          valueColor: AlwaysStoppedAnimation(barColor),
+        ),
       ),
-      if (sub != null) ...[
-        const SizedBox(height: 4),
-        Text(sub, style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
-      ],
+      const SizedBox(height: 6),
+      if (score >= 75)
+        Text('✓ $label verified',
+            style: const TextStyle(color: Color(0xFF10B981), fontSize: 12, fontWeight: FontWeight.w600))
+      else
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: nudgeVariant == 'red'
+                  ? const Color(0x1AEF4444)
+                  : const Color(0x1AF4B95C),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: nudgeVariant == 'red'
+                    ? const Color(0x33EF4444)
+                    : const Color(0x33F4B95C),
+              ),
+            ),
+            child: Row(children: [
+              Expanded(child: Text(
+                score < 50 ? lowText : midText,
+                style: TextStyle(
+                  color: nudgeVariant == 'red'
+                      ? const Color(0xFFEF4444)
+                      : const Color(0xFFF4B95C),
+                  fontSize: 13,
+                ),
+              )),
+              const SizedBox(width: 8),
+              Text(
+                score < 50 ? lowPts : 'boost →',
+                style: TextStyle(
+                  color: nudgeVariant == 'red'
+                      ? const Color(0xFFEF4444)
+                      : const Color(0xFFF4B95C),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+            ]),
+          ),
+        ),
     ]);
   }
 

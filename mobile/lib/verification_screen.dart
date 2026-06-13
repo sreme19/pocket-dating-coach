@@ -69,6 +69,8 @@ const _drawnToSections = <_Section>[
       _Chip('Community-oriented',      emoji: '🌍'),
       _Chip('Financially responsible', emoji: '💰'),
       _Chip('Parenting-aligned',       emoji: '👨‍👩‍👧'),
+      _Chip('Emotionally mature',       emoji: '🧠'),
+      _Chip('Ambitious but grounded',   emoji: '🎯'),
     ],
   ),
   _Section(
@@ -94,8 +96,9 @@ const _drawnToSections = <_Section>[
       _Chip('Stable career',       emoji: '💼'),
       _Chip('Cultural fit',        emoji: '🌍'),
       _Chip('Similar upbringing',  emoji: '🏡'),
-      _Chip('Financially settled', emoji: '💰'),
-      _Chip('Aligned on children', emoji: '🌸'),
+      _Chip('Financially settled',        emoji: '💰'),
+      _Chip('Aligned on children',        emoji: '🌸'),
+      _Chip('Shared language/dialect',    emoji: '🗣️'),
     ],
   ),
   _Section(
@@ -108,7 +111,8 @@ const _drawnToSections = <_Section>[
       _Chip('Meeting families early',     emoji: '👨‍👩‍👧'),
       _Chip('Demonstrating seriousness',  emoji: '✅'),
       _Chip('Honest about intent',        emoji: '💬'),
-      _Chip('Letting it develop properly',emoji: '🌱'),
+      _Chip('Letting it develop properly', emoji: '🌱'),
+      _Chip('No games or ambiguity',       emoji: '🚫'),
     ],
   ),
 ];
@@ -134,8 +138,10 @@ const _howYouLiveSections = <_Section>[
       _Chip('Christian', emoji: '✝️'),
       _Chip('Sikh',      emoji: '🔱'),
       _Chip('Buddhist',  emoji: '☸️'),
-      _Chip('Jain',      emoji: '🔶'),
-      _Chip('Other',     emoji: '🌐'),
+      _Chip('Jain',                           emoji: '🔶'),
+      _Chip('Other',                          emoji: '🌐'),
+      _Chip('No religion / Atheist',          emoji: '🌿'),
+      _Chip('Spiritual but not religious',    emoji: '🌌'),
     ],
   ),
   _Section(
@@ -148,6 +154,13 @@ const _howYouLiveSections = <_Section>[
       _Chip('Religiously practicing', emoji: '🙏'),
       _Chip('Family-oriented',        emoji: '👨‍👩‍👧'),
       _Chip('Fitness-focused',        emoji: '💪'),
+      _Chip('Vegan',                  emoji: '🌱'),
+      _Chip('Occasional drinker',     emoji: '🍷'),
+      _Chip('Social smoker',          emoji: '🚬'),
+      _Chip('Night owl',              emoji: '🌙'),
+      _Chip('Early riser',            emoji: '☀️'),
+      _Chip('Homebody',               emoji: '🏠'),
+      _Chip('Outdoorsy',              emoji: '🌳'),
     ],
   ),
   _Section(
@@ -160,6 +173,261 @@ const _howYouLiveSections = <_Section>[
       _Chip('₹25L – ₹50L'),
       _Chip('₹50L+'),
       _Chip('Prefer not to say', emoji: '🔒'),
+    ],
+  ),
+  _Section(
+    key: 'relationship_pace', icon: '⏳', title: 'Your ideal relationship pace',
+    sub: 'Select one', max: 1,
+    chips: [
+      _Chip('Ready to meet family soon',         emoji: '👨‍👩‍👧'),
+      _Chip('Taking it slow, but intentional',   emoji: '⏳'),
+      _Chip('Open, let it unfold naturally',      emoji: '🌸'),
+      _Chip('I know quickly — strong gut feel',  emoji: '⚡'),
+    ],
+  ),
+  _Section(
+    key: 'what_you_bring', icon: '🎁', title: 'What do you bring to a relationship?',
+    sub: 'Pick up to 3', max: 3,
+    chips: [
+      _Chip('Emotional stability',      emoji: '🧘'),
+      _Chip('Loyalty & commitment',     emoji: '🤝'),
+      _Chip('Financial security',       emoji: '💰'),
+      _Chip('Humour & lightness',       emoji: '😄'),
+      _Chip('Ambition & drive',         emoji: '🎯'),
+      _Chip('Spiritual grounding',      emoji: '🕊'),
+      _Chip('Family values',            emoji: '🏡'),
+      _Chip('Patience & understanding', emoji: '🌸'),
+    ],
+  ),
+];
+
+// ── Modern Dater archetype — Step 1 & 2 ──────────────────────────────────────
+
+const _modernDaterDrawnToSections = <_Section>[
+  _Section(
+    key: 'what_matters', icon: '💞', title: 'What matters most to you?',
+    sub: 'Pick up to 3', max: 3,
+    chips: [
+      _Chip('Intellectual chemistry', emoji: '🧠'),
+      _Chip('Physical attraction',    emoji: '🔥'),
+      _Chip('Emotional depth',        emoji: '💞'),
+      _Chip('Shared humour',          emoji: '😂'),
+      _Chip('Life goals alignment',   emoji: '🎯'),
+      _Chip('Independence & space',   emoji: '🕊'),
+      _Chip('Spontaneity & adventure',emoji: '🌍'),
+      _Chip('Stability & reliability',emoji: '🏠'),
+    ],
+  ),
+  _Section(
+    key: 'relationship_style', icon: '🔄', title: 'Your relationship style',
+    sub: 'Pick up to 2', max: 2,
+    chips: [
+      _Chip('Exclusive from the start',              emoji: '💍'),
+      _Chip('Dating multiple people until it\'s right', emoji: '🔄'),
+      _Chip('Going with the flow',                   emoji: '🌊'),
+      _Chip('Taking it slow',                        emoji: '🐢'),
+      _Chip('Moving fast when it feels right',       emoji: '⚡'),
+    ],
+  ),
+  _Section(
+    key: 'open_to', icon: '🌐', title: 'What are you open to?',
+    sub: 'Select all that apply', max: 99,
+    chips: [
+      _Chip('Long distance',              emoji: '🌐'),
+      _Chip('Different cultural backgrounds', emoji: '🌏'),
+      _Chip('Age gap relationships',      emoji: '⏳'),
+      _Chip('Someone with kids',          emoji: '👶'),
+      _Chip('Divorced / separated',       emoji: '🔄'),
+      _Chip('Different religion / faith', emoji: '🕊'),
+    ],
+  ),
+  _Section(
+    key: 'communication_style', icon: '💬', title: 'Communication style',
+    sub: 'Pick up to 3', max: 3,
+    chips: [
+      _Chip('Deep 1-on-1 conversations',              emoji: '💬'),
+      _Chip('Light, fun banter',                      emoji: '😄'),
+      _Chip('Texting a lot throughout the day',       emoji: '📱'),
+      _Chip('Quality time in person',                 emoji: '🏡'),
+      _Chip('Space to breathe between conversations', emoji: '🌿'),
+      _Chip('Direct and upfront',                     emoji: '🎯'),
+    ],
+  ),
+];
+
+const _modernDaterLiveSections = <_Section>[
+  _Section(
+    key: 'vibe', icon: '🏙️', title: 'Your vibe',
+    sub: 'Pick up to 2', max: 2,
+    chips: [
+      _Chip('City life',                    emoji: '🏙️'),
+      _Chip('Quiet suburbia',               emoji: '🌳'),
+      _Chip('Anywhere (flexible)',           emoji: '🌍'),
+      _Chip('Travel often',                 emoji: '✈️'),
+      _Chip('Working towards something big',emoji: '🚀'),
+      _Chip('Content and grounded',         emoji: '🧘'),
+    ],
+  ),
+  _Section(
+    key: 'lifestyle', icon: '🌿', title: 'Your lifestyle',
+    sub: 'Select all that apply', max: 99,
+    chips: [
+      _Chip('Vegan / Vegetarian', emoji: '🥗'),
+      _Chip('Occasional drinker', emoji: '🍷'),
+      _Chip('Social smoker',      emoji: '🚬'),
+      _Chip('Fitness-focused',    emoji: '💪'),
+      _Chip('Night owl',          emoji: '🌙'),
+      _Chip('Early riser',        emoji: '☀️'),
+      _Chip('Homebody',           emoji: '🏠'),
+      _Chip('Outdoorsy',          emoji: '🌳'),
+      _Chip('Socially active',    emoji: '🎉'),
+    ],
+  ),
+  _Section(
+    key: 'dealbreakers', icon: '🚫', title: 'Dealbreakers',
+    sub: 'Select any that apply', max: 99, optional: true,
+    chips: [
+      _Chip('Wants kids (if you don\'t)',     emoji: '🚫'),
+      _Chip('Doesn\'t want kids (if you do)', emoji: '🚫'),
+      _Chip('Smoker',                          emoji: '🚬'),
+      _Chip('Heavy drinker',                   emoji: '🍺'),
+      _Chip('No ambition or direction',        emoji: '🎯'),
+      _Chip('Closed-mindedness',               emoji: '🚪'),
+      _Chip('Dishonesty',                      emoji: '🚫'),
+      _Chip('Clingy or codependent',           emoji: '🔒'),
+    ],
+  ),
+];
+
+// ── Casual Connector archetype — Step 1 & 2 ──────────────────────────────────
+
+const _casualConnectorDrawnToSections = <_Section>[
+  _Section(
+    key: 'connection_type', icon: '✨', title: 'What kind of connection?',
+    sub: 'Pick up to 3', max: 3,
+    chips: [
+      _Chip('Fun & flirty energy',       emoji: '✨'),
+      _Chip('Physical chemistry first',  emoji: '🔥'),
+      _Chip('Hanging out, no pressure',  emoji: '🛋️'),
+      _Chip('Something that might grow', emoji: '🌱'),
+      _Chip('Company & good vibes',      emoji: '😊'),
+      _Chip('Exploring attraction openly', emoji: '💫'),
+    ],
+  ),
+  _Section(
+    key: 'social_style', icon: '🦋', title: 'Your social style',
+    sub: 'Pick up to 3', max: 3,
+    chips: [
+      _Chip('Big social butterfly',           emoji: '🦋'),
+      _Chip('Selective — quality over quantity', emoji: '🎯'),
+      _Chip('Mostly 1-on-1',                  emoji: '💬'),
+      _Chip('Group hangs',                    emoji: '🎉'),
+      _Chip('Late night energy',              emoji: '🌙'),
+      _Chip('Daytime / outdoor plans',        emoji: '☀️'),
+    ],
+  ),
+  _Section(
+    key: 'what_matters_casual', icon: '🤝', title: 'What matters in a connection?',
+    sub: 'Pick up to 3', max: 3,
+    chips: [
+      _Chip('Physical chemistry',       emoji: '🔥'),
+      _Chip('Fun & laughter',           emoji: '😂'),
+      _Chip('Good energy',              emoji: '✨'),
+      _Chip('No expectations',          emoji: '🕊'),
+      _Chip('Honesty about what it is', emoji: '💬'),
+      _Chip('Mutual respect always',    emoji: '🤝'),
+    ],
+  ),
+];
+
+const _casualConnectorLiveSections = <_Section>[
+  _Section(
+    key: 'vibe_now', icon: '🎉', title: 'Your vibe right now',
+    sub: 'Select one', max: 1,
+    chips: [
+      _Chip('Single & loving it',        emoji: '🎉'),
+      _Chip('Coming out of something',   emoji: '🌱'),
+      _Chip('Just exploring options',    emoji: '🔄'),
+      _Chip('Not labelling anything',    emoji: '🚫'),
+      _Chip('Living in the moment',      emoji: '⚡'),
+      _Chip('Open, just seeing what happens', emoji: '🌊'),
+    ],
+  ),
+  _Section(
+    key: 'lifestyle', icon: '🌿', title: 'Lifestyle',
+    sub: 'Select all that apply', max: 99,
+    chips: [
+      _Chip('Goes out often',    emoji: '🎉'),
+      _Chip('More of a home person', emoji: '🏠'),
+      _Chip('Active / sporty',   emoji: '💪'),
+      _Chip('Creative types',    emoji: '🎨'),
+      _Chip('Night owl',         emoji: '🌙'),
+      _Chip('Chill, relaxed pace', emoji: '😌'),
+    ],
+  ),
+];
+
+// ── Self-Explorer archetype — Step 1 & 2 ─────────────────────────────────────
+
+const _selfExplorerDrawnToSections = <_Section>[
+  _Section(
+    key: 'what_brought_you', icon: '🌱', title: 'What brought you here?',
+    sub: 'Pick up to 3', max: 3,
+    chips: [
+      _Chip('Getting back out there',         emoji: '🌱'),
+      _Chip('Understanding myself better',    emoji: '🧠'),
+      _Chip('Building confidence',            emoji: '💪'),
+      _Chip('Healing from the past',          emoji: '💞'),
+      _Chip('Figuring out what I want',       emoji: '🔍'),
+      _Chip('Not ready to date yet, just exploring', emoji: '🕊'),
+    ],
+  ),
+  _Section(
+    key: 'what_would_help', icon: '🎯', title: 'What would help most?',
+    sub: 'Pick up to 3', max: 3,
+    chips: [
+      _Chip('Honest conversation practice', emoji: '💬'),
+      _Chip('Understanding my patterns',    emoji: '🔄'),
+      _Chip('Boosting my confidence',       emoji: '✨'),
+      _Chip('Learning to open up emotionally', emoji: '🧘'),
+      _Chip('Setting healthy expectations', emoji: '🎯'),
+      _Chip('Knowing my worth',             emoji: '💎'),
+    ],
+  ),
+  _Section(
+    key: 'past_relationships', icon: '💞', title: 'What have past relationships felt like?',
+    sub: 'Pick up to 3', max: 3,
+    chips: [
+      _Chip('I gave too much',               emoji: '💞'),
+      _Chip('I kept walls up',               emoji: '🚪'),
+      _Chip('I lost myself',                 emoji: '🌊'),
+      _Chip('I struggled to communicate',    emoji: '💬'),
+      _Chip('They were mostly healthy',      emoji: '✅'),
+      _Chip('I\'m still figuring it out',    emoji: '🔍'),
+    ],
+  ),
+];
+
+const _selfExplorerLiveSections = <_Section>[
+  _Section(
+    key: 'emotional_state', icon: '🌱', title: 'Where are you emotionally?',
+    sub: 'Select one', max: 1,
+    chips: [
+      _Chip('Healing and growing',           emoji: '🌱'),
+      _Chip('Pretty stable, ready to explore', emoji: '🧘'),
+      _Chip('Ups and downs, being honest',   emoji: '🌊'),
+      _Chip('Not sure yet — just here',      emoji: '🕊'),
+    ],
+  ),
+  _Section(
+    key: 'eventual_goal', icon: '💍', title: 'What do you want eventually?',
+    sub: 'Select one', max: 1,
+    chips: [
+      _Chip('Long-term commitment',            emoji: '💍'),
+      _Chip('Genuine connection, no rush',     emoji: '💞'),
+      _Chip('Something light while I grow',   emoji: '🌸'),
+      _Chip('Just company and conversations', emoji: '😊'),
+      _Chip('I genuinely don\'t know yet',    emoji: '🔍'),
     ],
   ),
 ];
@@ -209,7 +477,8 @@ const _testimonials = <_Testimonial>[
 class VerificationScreen extends StatefulWidget {
   final VoidCallback onDone;
   final VoidCallback? onBack; // called when back is pressed on step 0
-  const VerificationScreen({super.key, required this.onDone, this.onBack});
+  final String? archetypeId;  // determines which question set to show
+  const VerificationScreen({super.key, required this.onDone, this.onBack, this.archetypeId});
 
   @override
   State<VerificationScreen> createState() => _VerificationScreenState();
@@ -225,14 +494,50 @@ class _VerificationScreenState extends State<VerificationScreen> {
   bool _livenessDone = false;
   String _livenessResult = '';
 
-  // Step 1 — drawn to (matrimony): sectionKey → selected label set (max 3 each)
+  // Step 1 — generic: sectionKey → selected label set
   final _drawnTo = <String, Set<String>>{};
 
-  // Step 2 — background & lifestyle (matrimony)
+  // Step 2 — matrimony-specific state
   String? _maritalStatus;
   String? _religion;
   final _lifestyle = <String>{};
   String? _income;
+  String? _relationshipPace;
+  final _whatYouBring = <String>{};
+
+  // Step 2 — generic state (non-matrimony archetypes)
+  final _step2Generic = <String, Set<String>>{};
+
+  // ── Archetype category helpers ────────────────────────────────────────────
+
+  bool get _isMatrimonyArch {
+    final id = widget.archetypeId ?? '';
+    return id.isEmpty || id.contains('traditional_matrimony');
+  }
+
+  bool get _isModernDaterArch {
+    final id = widget.archetypeId ?? '';
+    return ['forever_focused', 'hopeless_romantic', 'second_chapter'].any((s) => id.contains(s));
+  }
+
+  bool get _isCasualConnectorArch {
+    final id = widget.archetypeId ?? '';
+    return ['casual_generous', 'spoiled_casual', 'rebound_healing'].any((s) => id.contains(s));
+  }
+
+  List<_Section> get _step1Sections {
+    if (_isModernDaterArch) return _modernDaterDrawnToSections;
+    if (_isCasualConnectorArch) return _casualConnectorDrawnToSections;
+    if (!_isMatrimonyArch) return _selfExplorerDrawnToSections;
+    return _drawnToSections;
+  }
+
+  List<_Section> get _step2Sections {
+    if (_isModernDaterArch) return _modernDaterLiveSections;
+    if (_isCasualConnectorArch) return _casualConnectorLiveSections;
+    if (!_isMatrimonyArch) return _selfExplorerLiveSections;
+    return _howYouLiveSections;
+  }
 
   // Step 3 — photos & place
   final _nameCtrl  = TextEditingController();
@@ -247,8 +552,14 @@ class _VerificationScreenState extends State<VerificationScreen> {
   bool get _stepComplete {
     switch (_step) {
       case 0: return _livenessDone;
-      case 1: return _drawnToSections.every((s) => (_drawnTo[s.key]?.isNotEmpty ?? false));
-      case 2: return _maritalStatus != null && _religion != null && _lifestyle.isNotEmpty;
+      case 1: return _step1Sections.every((s) => (_drawnTo[s.key]?.isNotEmpty ?? false));
+      case 2:
+        if (_isMatrimonyArch) {
+          return _maritalStatus != null && _religion != null && _lifestyle.isNotEmpty
+              && _relationshipPace != null && _whatYouBring.isNotEmpty;
+        }
+        return _step2Sections.where((s) => !s.optional)
+            .every((s) => (_step2Generic[s.key]?.isNotEmpty ?? false));
       case 3:
         final a = int.tryParse(_ageCtrl.text.trim());
         return _photoCount > 0
@@ -445,13 +756,24 @@ class _VerificationScreenState extends State<VerificationScreen> {
           });
           break;
         case 2:
-          await verifyStep('spending_or_qa', {
-            'responses': {
+          final Map<String, dynamic> step2Payload;
+          if (_isMatrimonyArch) {
+            step2Payload = {
               'marital_status': _maritalStatus,
               'religion': _religion,
               'lifestyle': _lifestyle.toList(),
               if (_income != null) 'income': _income,
-            },
+              if (_relationshipPace != null) 'relationship_pace': _relationshipPace,
+              'what_you_bring': _whatYouBring.toList(),
+            };
+          } else {
+            step2Payload = {
+              for (final s in _step2Sections)
+                s.key: (_step2Generic[s.key] ?? {}).toList(),
+            };
+          }
+          await verifyStep('spending_or_qa', {
+            'responses': step2Payload,
             'mimeType': 'application/json',
           });
           break;
@@ -729,7 +1051,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         _stepTitle('What you\'re\n', 'drawn to.'),
         _timeTag('~2 min'),
         const SizedBox(height: 24),
-        for (final s in _drawnToSections)
+        for (final s in _step1Sections)
           _chipSection(
             section: s,
             selected: _drawnTo[s.key] ?? {},
@@ -756,34 +1078,37 @@ class _VerificationScreenState extends State<VerificationScreen> {
   // ── Step 2: Background & lifestyle ────────────────────────────────────────
 
   Widget _howYouLiveStep() {
+    if (!_isMatrimonyArch) return _howYouLiveStepGeneric();
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
       children: [
         _stepTitle('Your background\n', 'and lifestyle.'),
-        _timeTag('~45 sec'),
+        _timeTag('~2 min'),
         const SizedBox(height: 24),
+        // marital_status
         _chipSection(
           section: _howYouLiveSections[0],
           selected: _maritalStatus != null ? {_maritalStatus!} : {},
           onToggle: (label) => setState(() =>
               _maritalStatus = _maritalStatus == label ? null : label),
         ),
+        // religion
         _chipSection(
           section: _howYouLiveSections[1],
           selected: _religion != null ? {_religion!} : {},
           onToggle: (label) => setState(() =>
               _religion = _religion == label ? null : label),
         ),
+        // lifestyle
         _chipSection(
           section: _howYouLiveSections[2],
           selected: _lifestyle,
-          onToggle: (label) {
-            setState(() {
-              if (_lifestyle.contains(label)) _lifestyle.remove(label);
-              else _lifestyle.add(label);
-            });
-          },
+          onToggle: (label) => setState(() {
+            if (_lifestyle.contains(label)) _lifestyle.remove(label);
+            else _lifestyle.add(label);
+          }),
         ),
+        // income (optional)
         _chipSection(
           section: _howYouLiveSections[3],
           selected: _income != null ? {_income!} : {},
@@ -795,6 +1120,53 @@ class _VerificationScreenState extends State<VerificationScreen> {
           '🔒  Your income is never shown — only used as a matching signal.',
           style: TextStyle(fontSize: 11, color: Color(Config.text3), height: 1.5),
         ),
+        const SizedBox(height: 20),
+        // relationship_pace
+        _chipSection(
+          section: _howYouLiveSections[4],
+          selected: _relationshipPace != null ? {_relationshipPace!} : {},
+          onToggle: (label) => setState(() =>
+              _relationshipPace = _relationshipPace == label ? null : label),
+        ),
+        // what_you_bring
+        _chipSection(
+          section: _howYouLiveSections[5],
+          selected: _whatYouBring,
+          onToggle: (label) => setState(() {
+            if (_whatYouBring.contains(label)) _whatYouBring.remove(label);
+            else if (_whatYouBring.length < _howYouLiveSections[5].max) _whatYouBring.add(label);
+          }),
+        ),
+        const SizedBox(height: 24),
+        _testimonialCard(_testimonials[2]),
+        const SizedBox(height: 16),
+        _skipLink(onConfirm: () => setState(() { _step = 3; _error = null; })),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  Widget _howYouLiveStepGeneric() {
+    final sections = _step2Sections;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
+      children: [
+        _stepTitle('How you\n', 'live.'),
+        _timeTag('~1 min'),
+        const SizedBox(height: 24),
+        for (final s in sections)
+          _chipSection(
+            section: s,
+            selected: _step2Generic[s.key] ?? {},
+            onToggle: (label) => setState(() {
+              final set = _step2Generic.putIfAbsent(s.key, () => {});
+              if (set.contains(label)) {
+                set.remove(label);
+              } else if (set.length < s.max) {
+                set.add(label);
+              }
+            }),
+          ),
         const SizedBox(height: 24),
         _testimonialCard(_testimonials[2]),
         const SizedBox(height: 16),

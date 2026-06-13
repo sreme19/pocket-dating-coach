@@ -34,6 +34,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   String? _error;
 
   String? _pendingArchetypeId;
+  String? _savedArchetypeId;
 
   @override
   void initState() {
@@ -50,6 +51,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     final pendingArch = pendingSignupArchetype;
     if (pendingArch != null) {
       _pendingArchetypeId = pendingArch;
+      _savedArchetypeId = pendingArch;
       pendingSignupArchetype = null;
       _step = 2; // start at EarnProfileScreen, skip lane
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -70,7 +72,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
       await saveGenderArchetype(_gender, archetypeId);
       // Only advance to step 2 if not already at step 2+ (prevents going
       // back from VerificationScreen when the background save finishes late).
-      if (mounted) setState(() { _saving = false; if (_step < 2) _step = 2; });
+      if (mounted) setState(() { _saving = false; _savedArchetypeId = archetypeId; if (_step < 2) _step = 2; });
     } catch (e) {
       if (mounted) setState(() { _saving = false; _error = 'Could not save: $e'; });
     }
@@ -83,6 +85,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
       child = VerificationScreen(
         onDone: widget.onComplete,
         onBack: () => setState(() => _step = 2),
+        archetypeId: _savedArchetypeId,
       );
     } else if (_step == 2) {
       child = EarnProfileScreen(
