@@ -12,6 +12,7 @@ import {
   evaluateQAResponsesWithClaude
 } from '$lib/verified-vibe/server/verification';
 import { enrollInPoolIfVerified } from '$lib/server/pool-registry';
+import { recomputeAndNormalize } from '$lib/server/trust-normalize';
 
 /**
  * POST /api/verified-vibe/verify-step
@@ -79,6 +80,8 @@ async function persistVerificationStep(
         { user_id: userId, step, status: 'completed', data: data ?? null, completed_at: new Date().toISOString() },
         { onConflict: 'user_id,step' }
       );
+    // Recompute + normalize trust score after every verification step
+    recomputeAndNormalize(userId).catch((e) => console.warn('trust recompute failed (non-fatal):', e));
   } catch (e) {
     console.error('persistVerificationStep error (non-fatal):', e);
   }

@@ -41,7 +41,7 @@ function proofsToLocalStorage(verifiedProofs: unknown[]): object[] {
   const CATEGORY_PTS: Record<string, number> = {
     lifestyle: 8, hosting: 6, discipline: 4, social_proof: 4,
     linkedin: 5, instagram: 3, twitter: 2, habit_tracker: 2,
-    intro: 8, spending: 10, assets: 10, wealth: 12,
+    intro: 8, spending: 10, assets: 10, wealth: 12, travel: 8,
   };
   return verifiedProofs.map((p: any) => {
     const entry: Record<string, unknown> = {
