@@ -619,7 +619,21 @@ class TrustData {
   final bool identityVerified;
   final String archetype;
   final List<ProofItem> proofs;
-  TrustData({required this.trustScore, required this.identityVerified, required this.archetype, required this.proofs});
+  // Per-step breakdown scores (0–100), matching website calculateTrustScore()
+  final int idScore;
+  final int livenessScore;
+  final int photoScore;
+  final int qaScore;
+  TrustData({
+    required this.trustScore,
+    required this.identityVerified,
+    required this.archetype,
+    required this.proofs,
+    this.idScore = 0,
+    this.livenessScore = 0,
+    this.photoScore = 0,
+    this.qaScore = 0,
+  });
   int get proofPoints => proofs.fold(0, (s, p) => s + p.points);
   ProofItem? proofFor(String category) {
     for (final p in proofs) {
@@ -629,14 +643,51 @@ class TrustData {
   }
 }
 
+/// Compute a 0–100 score for one verification step, mirroring the website's
+/// calculateStepScore() in trustScore.ts.
+int _stepScore(Map? record) {
+  if (record == null) return 0;
+  final status = record['status']?.toString() ?? '';
+  if (status != 'completed') return 0;
+  final data = record['data'];
+  if (data is Map && data['confidenceScore'] is num) {
+    return (data['confidenceScore'] as num).round().clamp(0, 100);
+  }
+  return 100; // completed but no confidence score → full marks
+}
+
 Future<TrustData> fetchTrust() async {
   final uid = Supabase.instance.client.auth.currentUser!.id;
   final session = Supabase.instance.client.auth.currentSession!;
-  final row = await Supabase.instance.client
-      .from('verified_vibe_users')
-      .select('trust_score, identity_verified, archetype')
-      .eq('id', uid)
-      .maybeSingle();
+
+  // Fetch user row and verification steps in parallel
+  final futures = await Future.wait<dynamic>([
+    Supabase.instance.client
+        .from('verified_vibe_users')
+        .select('trust_score, identity_verified, archetype')
+        .eq('id', uid)
+        .maybeSingle(),
+    Supabase.instance.client
+        .from('verified_vibe_verification')
+        .select('step, status, data')
+        .eq('user_id', uid),
+  ]);
+
+  final row = futures[0] as Map?;
+  final steps = (futures[1] as List).cast<Map>();
+
+  Map? stepFor(String name) {
+    for (final s in steps) {
+      if (s['step'] == name) return s;
+    }
+    return null;
+  }
+
+  final idScore       = _stepScore(stepFor('id'));
+  final livenessScore = _stepScore(stepFor('liveness'));
+  // Website maps 'photos' → Lifestyle, 'spending_or_qa' → Intent
+  final photoScore    = _stepScore(stepFor('photos'));
+  final qaScore       = _stepScore(stepFor('spending_or_qa'));
 
   List<ProofItem> proofs = [];
   try {
@@ -658,10 +709,14 @@ Future<TrustData> fetchTrust() async {
   } catch (_) {}
 
   return TrustData(
-    trustScore: row?['trust_score'] is num ? (row!['trust_score'] as num).toInt() : 0,
+    trustScore:      row?['trust_score'] is num ? (row!['trust_score'] as num).toInt() : 0,
     identityVerified: row?['identity_verified'] == true,
-    archetype: (row?['archetype'] ?? '').toString(),
-    proofs: proofs,
+    archetype:       (row?['archetype'] ?? '').toString(),
+    proofs:          proofs,
+    idScore:         idScore,
+    livenessScore:   livenessScore,
+    photoScore:      photoScore,
+    qaScore:         qaScore,
   );
 }
 
