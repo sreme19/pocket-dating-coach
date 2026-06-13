@@ -72,7 +72,15 @@ class _AuthGateState extends State<AuthGate> {
           future: needsOnboarding(),
           builder: (context, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
-              return const Scaffold(body: Center(child: CircularProgressIndicator(color: Color(Config.accent))));
+              return Scaffold(
+                backgroundColor: const Color(Config.bg1),
+                body: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const BrandLockup(),
+                  const SizedBox(height: 40),
+                  const SizedBox(width: 24, height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2.5, color: Color(Config.accent))),
+                ])),
+              );
             }
             if (snap.data == true) {
               return OnboardingFlow(onComplete: () => setState(() => _recheck++));

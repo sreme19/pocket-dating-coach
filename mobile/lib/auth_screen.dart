@@ -148,7 +148,7 @@ class _AuthScreenState extends State<AuthScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const _Brand(),
+                  const BrandLockup(),
                   const SizedBox(height: 32),
                   // Card
                   Container(
@@ -376,8 +376,8 @@ class _Transition extends StatelessWidget {
 
 /// riteangle brand lockup — icon mark + wordmark + tagline.
 /// SVG paths ported from RiteLogo.svelte (web project).
-class _Brand extends StatelessWidget {
-  const _Brand();
+class BrandLockup extends StatelessWidget {
+  const BrandLockup();
 
   @override
   Widget build(BuildContext context) {
@@ -394,7 +394,7 @@ class _Brand extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
           ),
           child: CustomPaint(
-            painter: _RiteMarkPainter(),
+            painter: RiteMarkPainter(),
           ),
         ),
         const SizedBox(width: 14),
@@ -446,7 +446,7 @@ class _Brand extends StatelessWidget {
 
 /// Paints the riteangle mark: rotated L-angle (coral + pink) with heart.
 /// Ported from RiteLogo.svelte viewBox="0 0 100 100".
-class _RiteMarkPainter extends CustomPainter {
+class RiteMarkPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final s = size.width / 100.0;

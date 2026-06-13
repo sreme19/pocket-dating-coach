@@ -186,6 +186,66 @@ const _configs = <String, _CatConfig>{
     connectUrl: 'https://x.com/i/flow/login',
     connectColor: Color(0xFF000000),
   ),
+  'travel': _CatConfig(
+    id: 'travel',
+    icon: '✈️',
+    title: 'Travel Proof',
+    subtitle: 'Passport stamps, boarding passes, visa stickers',
+    privacyCopy: 'Your uploads stay private. AI scans for country names and adds them to your Travel Magnets automatically.',
+    examples: [
+      'Passport pages with entry/exit stamps',
+      'Boarding passes (origin and destination visible)',
+      'Visa stickers or approval letters',
+      'Hotel booking confirmation or travel itinerary',
+    ],
+    hintLine: 'More stamps = more countries detected. Up to 20 photos.',
+    maxFiles: 20,
+  ),
+  'spending': _CatConfig(
+    id: 'spending',
+    icon: '🧾',
+    title: 'Spending Proof',
+    subtitle: 'Restaurant bills, travel receipts, event tickets',
+    privacyCopy: 'Your uploads stay private. AI reads spend amounts to verify generosity — shown as a lifestyle signal on your profile.',
+    examples: [
+      'Restaurant or bar receipt (amount and venue visible)',
+      'Hotel or travel booking confirmation',
+      'Event, concert or experience ticket receipt',
+      'Shopping or luxury purchase receipt',
+    ],
+    hintLine: 'Receipts with visible amounts work best. Up to 5 photos.',
+    maxFiles: 5,
+  ),
+  'wealth': _CatConfig(
+    id: 'wealth',
+    icon: '🏦',
+    title: 'Wealth Proof',
+    subtitle: 'Bank statement, investment or financial document',
+    privacyCopy: 'Documents are private. AI only reads balance ranges — your actual amounts are never stored or shared.',
+    examples: [
+      'Bank statement (balance page)',
+      'Investment account or brokerage statement',
+      'Crypto portfolio screenshot',
+      'Property valuation or mortgage document',
+    ],
+    hintLine: 'Statement pages showing balances work best. Up to 5 files.',
+    maxFiles: 5,
+  ),
+  'assets': _CatConfig(
+    id: 'assets',
+    icon: '🚗',
+    title: 'Assets Proof',
+    subtitle: 'Car registration, property deed, company docs',
+    privacyCopy: 'Documents stay private. AI extracts make, model and year to build your Garage section on your profile.',
+    examples: [
+      'Vehicle registration certificate',
+      'Car insurance document (make/model visible)',
+      'Property title or deed',
+      'Company registration or shareholding document',
+    ],
+    hintLine: 'Registration docs are the easiest. Up to 5 files.',
+    maxFiles: 5,
+  ),
 };
 
 // ── Screen ────────────────────────────────────────────────────────────────────
@@ -194,7 +254,8 @@ const _configs = <String, _CatConfig>{
 /// Mirrors the Svelte /verified-vibe/proof-upload?category=X page.
 class CategoryProofScreen extends StatefulWidget {
   final String categoryId;
-  const CategoryProofScreen({super.key, required this.categoryId});
+  final ProofItem? existingProof;
+  const CategoryProofScreen({super.key, required this.categoryId, this.existingProof});
 
   @override
   State<CategoryProofScreen> createState() => _CategoryProofScreenState();
@@ -298,6 +359,120 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
     return false;
   }
 
+  // ── Lightweight ID gate: just upload KTP and let AI verify ──────────────────
+  Future<void> _showIdGateSheet() async {
+    XFile? picked;
+    bool verifying = false;
+    String? error;
+    bool done = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setS) {
+        return Container(
+          padding: EdgeInsets.fromLTRB(24, 20, 24, MediaQuery.of(ctx).padding.bottom + 24),
+          decoration: const BoxDecoration(
+            color: Color(Config.bg2),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: 40, height: 4, decoration: BoxDecoration(
+              color: const Color(Config.text3), borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 20),
+            const Text('🪪  Verify your identity', style: TextStyle(
+              fontSize: 18, fontWeight: FontWeight.w800, color: Color(Config.text1))),
+            const SizedBox(height: 8),
+            const Text(
+              'This category requires a quick identity check.\nUpload a photo of your government ID or passport — AI verifies it in seconds.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Color(Config.text2), height: 1.5),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0x1AFBBF24),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Tips for best results:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFFFBBF24))),
+                SizedBox(height: 4),
+                Text('• Real ID card or passport (not a screenshot)\n• All text clearly readable\n• Good lighting, no blur or glare', style: TextStyle(fontSize: 12, color: Color(Config.text2), height: 1.5)),
+              ]),
+            ),
+            const SizedBox(height: 20),
+            if (picked == null)
+              SizedBox(width: double.infinity, child: OutlinedButton.icon(
+                onPressed: () async {
+                  final img = await ImagePicker().pickImage(source: ImageSource.gallery);
+                  if (img != null) setS(() { picked = img; error = null; });
+                },
+                icon: const Icon(Icons.upload_file_rounded),
+                label: const Text('Choose ID photo'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  foregroundColor: const Color(Config.accent),
+                  side: const BorderSide(color: Color(Config.accent)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ))
+            else
+              Row(children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.file(File(picked!.path), width: 72, height: 72, fit: BoxFit.cover),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Text(picked!.name,
+                  style: const TextStyle(fontSize: 13, color: Color(Config.text2)),
+                  maxLines: 2, overflow: TextOverflow.ellipsis)),
+                TextButton(
+                  onPressed: () => setS(() { picked = null; error = null; }),
+                  child: const Text('Change'),
+                ),
+              ]),
+            if (error != null) ...[
+              const SizedBox(height: 10),
+              Text(error!, style: const TextStyle(color: Color(0xFFF87171), fontSize: 13)),
+            ],
+            const SizedBox(height: 20),
+            SizedBox(width: double.infinity, child: FilledButton(
+              onPressed: (picked == null || verifying || done) ? null : () async {
+                setS(() { verifying = true; error = null; });
+                try {
+                  final ok = await verifyIdStep(picked!.path);
+                  if (ok) {
+                    setS(() { done = true; verifying = false; });
+                    if (ctx.mounted) Navigator.of(ctx).pop(true);
+                  } else {
+                    setS(() { verifying = false; error = 'ID could not be verified. Please try a clearer photo.'; });
+                  }
+                } catch (e) {
+                  final msg = e.toString().replaceFirst('Exception: ', '');
+                  setS(() { verifying = false; error = msg; });
+                }
+              },
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(Config.accent),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: verifying
+                  ? const SizedBox(width: 20, height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Verify ID', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+            )),
+          ]),
+        );
+      }),
+    );
+
+    // If ID was verified, retry the proof upload automatically
+    if (mounted) _analyse();
+  }
+
   Future<void> _analyse() async {
     if (!_canAnalyse) return;
     setState(() { _analysing = true; _result = null; });
@@ -318,6 +493,13 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
           res = await uploadProof(widget.categoryId, paths);
         }
       }
+      // Gated categories (spending/wealth/assets) require ID verification first
+      if (res['requiresIdVerification'] == true) {
+        setState(() { _analysing = false; });
+        if (mounted) await _showIdGateSheet();
+        return;
+      }
+
       final verified = res['verified'] == true;
       final pts = res['pts_awarded'] is num ? (res['pts_awarded'] as num).toInt() : 0;
       final agg = (res['aggregated'] ?? res['reason'] ?? '').toString();
@@ -343,6 +525,88 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
         _result = _UploadResult(verified: false, text: 'Upload failed: $e', chips: const []);
       });
     }
+  }
+
+  // ── Existing proof history ────────────────────────────────────────────────
+  Widget _buildHistorySection(ProofItem proof) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0x1A22C55E),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF22C55E), width: 1.5),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Header
+        Row(children: [
+          const Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '${_cfg.title} verified · +${proof.points} pts',
+              style: const TextStyle(
+                  color: Color(0xFF22C55E), fontWeight: FontWeight.w700, fontSize: 14),
+            ),
+          ),
+          if (proof.photoCount > 0)
+            Text('${proof.photoCount} photo${proof.photoCount == 1 ? '' : 's'}',
+                style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
+        ]),
+
+        // AI summary
+        if (proof.aggregated.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text('"${proof.aggregated}"',
+              style: const TextStyle(
+                  color: Color(Config.text2), fontSize: 13, fontStyle: FontStyle.italic, height: 1.4)),
+        ],
+
+        // Insight chips
+        if (proof.insights.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Wrap(spacing: 6, runSpacing: 6, children: [
+            for (final chip in proof.insights)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                    color: const Color(Config.bg3), borderRadius: BorderRadius.circular(999)),
+                child: Text('${chip.emoji} ${chip.label}',
+                    style: const TextStyle(color: Color(Config.text1), fontSize: 12)),
+              ),
+          ]),
+        ],
+
+        // Thumbnail photos
+        if (proof.thumbnails.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 72,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: proof.thumbnails.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              itemBuilder: (_, i) => ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.network(
+                  proof.thumbnails[i],
+                  width: 72, height: 72, fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 72, height: 72,
+                    color: const Color(Config.bg3),
+                    child: const Icon(Icons.image_not_supported_outlined,
+                        color: Color(Config.text3), size: 20),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+
+        const SizedBox(height: 10),
+        const Text('Upload more below to strengthen your proof →',
+            style: TextStyle(color: Color(Config.text3), fontSize: 11, fontStyle: FontStyle.italic)),
+      ]),
+    );
   }
 
   @override
@@ -393,6 +657,12 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
           ),
 
           const SizedBox(height: 20),
+
+          // ── Already verified history ─────────────────────────────────────
+          if (widget.existingProof != null) ...[
+            _buildHistorySection(widget.existingProof!),
+            const SizedBox(height: 20),
+          ],
 
           // WHAT WORKS
           if (cfg.examples.isNotEmpty) ...[
@@ -514,75 +784,136 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
               ]),
             ],
             const SizedBox(height: 20),
-            const Text('OR UPLOAD A SCREENSHOT',
-                style: TextStyle(
-                    color: Color(Config.text3),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.6)),
-            const SizedBox(height: 12),
           ],
 
-          // Upload area
-          GestureDetector(
-            onTap: _pickPhotos,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 32),
-              decoration: BoxDecoration(
-                color: const Color(Config.bg2),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: const Color(0x33FF3B6B),
-                  width: 1.5,
-                ),
-              ),
-              child: Column(children: [
-                Container(
-                  width: 48, height: 48,
+          // Upload area — hidden for URL-only categories (social: linkedin/instagram/twitter)
+          if (!cfg.hasUrlInput) ...[
+            if (_files.isEmpty)
+              // ── Empty state ──────────────────────────────────────────────────
+              GestureDetector(
+                onTap: _analysing ? null : _pickPhotos,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 36),
                   decoration: BoxDecoration(
-                    color: const Color(Config.bg3),
-                    borderRadius: BorderRadius.circular(12),
+                    color: const Color(Config.bg2),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0x33FF3B6B), width: 1.5),
                   ),
-                  child: const Icon(Icons.add, color: Color(Config.text2), size: 28),
+                  child: Column(children: [
+                    Container(
+                      width: 52, height: 52,
+                      decoration: BoxDecoration(
+                        color: const Color(Config.bg3),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.add_photo_alternate_outlined,
+                          color: Color(Config.text2), size: 28),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text('Tap to select photos',
+                        style: TextStyle(
+                            color: Color(Config.text2), fontSize: 15, fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 4),
+                    Text('Up to ${cfg.maxFiles} files · JPEG / PNG / HEIC',
+                        style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
+                  ]),
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  _files.isEmpty
-                      ? 'Tap to select photos'
-                      : '${_files.length} photo${_files.length == 1 ? '' : 's'} selected',
-                  style: TextStyle(
-                    color: _files.isEmpty ? const Color(Config.text2) : const Color(Config.text1),
-                    fontSize: 15,
-                    fontWeight: _files.isEmpty ? FontWeight.w400 : FontWeight.w600,
+              )
+            else
+              // ── Photo grid preview ───────────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(Config.bg2),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0x4DFF3B6B), width: 1.5),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  // Header row
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8, left: 2),
+                    child: Row(children: [
+                      Text('${_files.length} photo${_files.length == 1 ? '' : 's'} selected',
+                          style: const TextStyle(
+                              color: Color(Config.text1),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13)),
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: _analysing ? null : () => setState(() => _files.clear()),
+                        child: const Text('Clear all',
+                            style: TextStyle(
+                                color: Color(Config.text3),
+                                fontSize: 12,
+                                decoration: TextDecoration.underline)),
+                      ),
+                    ]),
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Up to ${cfg.maxFiles} files · JPEG / PNG',
-                  style: const TextStyle(color: Color(Config.text3), fontSize: 12),
-                ),
-              ]),
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // Choose Photos button
-          SizedBox(
-            width: double.infinity, height: 48,
-            child: OutlinedButton(
-              onPressed: _analysing ? null : _pickPhotos,
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(Config.accent)),
-                foregroundColor: const Color(Config.accent),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  // Grid
+                  GridView.count(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 6,
+                    mainAxisSpacing: 6,
+                    children: [
+                      // Thumbnails with remove button
+                      for (final f in _files)
+                        Stack(children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.file(
+                              File(f.path),
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              height: double.infinity,
+                            ),
+                          ),
+                          if (!_analysing)
+                            Positioned(
+                              top: 4, right: 4,
+                              child: GestureDetector(
+                                onTap: () => setState(() => _files.remove(f)),
+                                child: Container(
+                                  width: 22, height: 22,
+                                  decoration: const BoxDecoration(
+                                      color: Colors.black54, shape: BoxShape.circle),
+                                  child: const Icon(Icons.close,
+                                      size: 14, color: Colors.white),
+                                ),
+                              ),
+                            ),
+                        ]),
+                      // Add-more tile
+                      if (_files.length < cfg.maxFiles)
+                        GestureDetector(
+                          onTap: _analysing ? null : _pickPhotos,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: const Color(Config.bg3),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0x33FF3B6B)),
+                            ),
+                            child: const Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add, color: Color(Config.text3), size: 28),
+                                SizedBox(height: 4),
+                                Text('Add more',
+                                    style: TextStyle(
+                                        color: Color(Config.text3), fontSize: 11)),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ]),
               ),
-              child: const Text('Choose Photos', style: TextStyle(fontWeight: FontWeight.w600)),
-            ),
-          ),
 
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
+          ],
 
           // Result banner
           if (_result != null)
