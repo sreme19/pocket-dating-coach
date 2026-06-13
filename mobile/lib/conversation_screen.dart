@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api.dart';
 import 'config.dart';
+import 'match_profile_screen.dart';
 import 'voice_call_screen.dart';
 
 class ConversationScreen extends StatefulWidget {
@@ -27,6 +28,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
   String? _error;
   Timer? _poll;
   RealtimeChannel? _channel;
+  RealtimeChannel? _presenceChannel;
+  bool _partnerOnline = false;
   String? _otherId;
   String? _otherAvatar;
   String _otherName = '';
@@ -39,8 +42,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
     _initialLoad();
     fetchCurrentUserGender().then((g) { if (mounted) setState(() => _viewerGender = g); });
     _subscribeRealtime();
-    // Polling backstop (mirrors the web client; covers the case where Supabase
-    // realtime isn't enabled for the messages table yet).
+    _subscribePresence();
+    // Polling backstop
     _poll = Timer.periodic(const Duration(seconds: 5), (_) => _pollOnce());
   }
 
@@ -48,9 +51,28 @@ class _ConversationScreenState extends State<ConversationScreen> {
   void dispose() {
     _poll?.cancel();
     if (_channel != null) Supabase.instance.client.removeChannel(_channel!);
+    if (_presenceChannel != null) Supabase.instance.client.removeChannel(_presenceChannel!);
     _composer.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  void _subscribePresence() {
+    final ch = Supabase.instance.client.channel('presence:${widget.conversationId}');
+    ch.onPresenceSync((_) {
+      if (!mounted) return;
+      final state = ch.presenceState();
+      final otherOnline = state.any(
+        (s) => s.presences.any((p) => p.payload['uid']?.toString() == _otherId),
+      );
+      setState(() => _partnerOnline = otherOnline);
+    });
+    ch.subscribe((status, _) async {
+      if (status == RealtimeSubscribeStatus.subscribed) {
+        await ch.track({'uid': _myId});
+      }
+    });
+    _presenceChannel = ch;
   }
 
   void _merge(List<ChatMessage> incoming, {bool scroll = false}) {
@@ -71,6 +93,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
   Future<void> _initialLoad() async {
     try {
+      // Refresh session if expired before loading
+      try { await Supabase.instance.client.auth.refreshSession(); } catch (_) {}
       final thread = await fetchConversation(widget.conversationId);
       _otherId = thread.otherId;
       _otherAvatar = thread.otherAvatar;
@@ -78,8 +102,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
       _otherGender = thread.otherGender;
       _merge(thread.messages, scroll: true);
       if (mounted) setState(() => _loading = false);
+      markConversationRead(widget.conversationId).catchError((_) {});
     } catch (e) {
-      if (mounted) setState(() { _loading = false; _error = e.toString(); });
+      final msg = e.toString();
+      final friendly = msg.contains('401') || msg.contains('Unauthorized')
+          ? 'Session expired — please close and reopen the app.'
+          : 'Could not load messages. Check your connection.';
+      if (mounted) setState(() { _loading = false; _error = friendly; });
     }
   }
 
@@ -111,9 +140,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
   }
 
   void _scrollToBottom() {
+    // ListView is reversed, so position 0 = newest message (bottom of screen).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scroll.hasClients) {
-        _scroll.animateTo(_scroll.position.maxScrollExtent,
+        _scroll.animateTo(0,
             duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
       }
     });
@@ -245,21 +275,46 @@ class _ConversationScreenState extends State<ConversationScreen> {
         backgroundColor: const Color(Config.bg1),
         elevation: 0,
         titleSpacing: 0,
-        title: Row(children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: const Color(Config.bg3),
-            backgroundImage: hasAvatar ? CachedNetworkImageProvider(_otherAvatar!) : null,
-            child: hasAvatar ? null : Text(_otherName.isNotEmpty ? _otherName[0].toUpperCase() : '?',
-                style: const TextStyle(color: Color(Config.text1), fontSize: 13)),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(widget.title,
-                maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w600)),
-          ),
-        ]),
+        title: GestureDetector(
+          onTap: _otherId == null ? null : () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => MatchProfileScreen(userId: _otherId!, title: widget.title),
+          )),
+          child: Row(children: [
+            Stack(children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: const Color(Config.bg3),
+                backgroundImage: hasAvatar ? CachedNetworkImageProvider(_otherAvatar!) : null,
+                child: hasAvatar ? null : Text(_otherName.isNotEmpty ? _otherName[0].toUpperCase() : '?',
+                    style: const TextStyle(color: Color(Config.text1), fontSize: 13)),
+              ),
+              Positioned(
+                right: 0, bottom: 0,
+                child: Container(
+                  width: 11, height: 11,
+                  decoration: BoxDecoration(
+                    color: _partnerOnline ? const Color(0xFF22C55E) : const Color(0xFFAAAAAA),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(Config.bg1), width: 2),
+                  ),
+                ),
+              ),
+            ]),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(widget.title,
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w600, fontSize: 15)),
+                Text(_partnerOnline ? 'Online' : 'Away',
+                    style: TextStyle(
+                      color: _partnerOnline ? const Color(0xFF22C55E) : const Color(0xFFAAAAAA),
+                      fontSize: 11, fontWeight: FontWeight.w500,
+                    )),
+              ]),
+            ),
+          ]),
+        ),
         actions: [
           PopupMenuButton<String>(
             color: const Color(Config.bg2),
@@ -288,9 +343,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
                         ? const Center(child: Text('Say hello 👋', style: TextStyle(color: Color(Config.text2))))
                         : ListView.builder(
                             controller: _scroll,
+                            reverse: true,
                             padding: const EdgeInsets.all(12),
                             itemCount: _messages.length,
-                            itemBuilder: (context, i) => _Bubble(msg: _messages[i], mine: _messages[i].senderId == _myId, otherName: _otherName),
+                            itemBuilder: (context, i) {
+                              final msg = _messages[_messages.length - 1 - i];
+                              return _Bubble(msg: msg, mine: msg.senderId == _myId, otherName: _otherName);
+                            },
                           ),
           ),
           if (_viewerGender == 'man' && _otherGender == 'woman' && _otherId != null)

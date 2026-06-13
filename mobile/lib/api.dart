@@ -31,7 +31,8 @@ class GarageCar {
   final String model;
   final String? year;
   final String? color;
-  GarageCar({required this.make, required this.model, this.year, this.color});
+  final String? vehicleType;
+  GarageCar({required this.make, required this.model, this.year, this.color, this.vehicleType});
   String get title => [make, model].where((s) => s.isNotEmpty).join(' ');
 }
 
@@ -1335,6 +1336,60 @@ Future<List<Admirer>> fetchAdmirers() async {
       )).toList();
 }
 
+/// A sent admirer/craving-attention message (outbox).
+class SentAdmirer {
+  final String id;
+  final String recipientId;
+  final String name;
+  final int? age;
+  final String? avatar;
+  final String archetype;
+  final String messageType; // secret_admirer | craving_attention
+  final String content;
+  final String? replyContent;
+  final String? replySentAt;
+  final DateTime createdAt;
+  SentAdmirer({
+    required this.id,
+    required this.recipientId,
+    required this.name,
+    required this.age,
+    required this.avatar,
+    required this.archetype,
+    required this.messageType,
+    required this.content,
+    required this.replyContent,
+    required this.replySentAt,
+    required this.createdAt,
+  });
+  bool get replied => replyContent != null && replyContent!.isNotEmpty;
+}
+
+/// Fetch sent admirer/attention messages for the signed-in user.
+Future<List<SentAdmirer>> fetchSentAdmirers() async {
+  final uid = Supabase.instance.client.auth.currentUser?.id;
+  if (uid == null) return [];
+  final resp = await _dio.get(
+    '${Config.apiBase}/api/verified-vibe/attention',
+    queryParameters: {'senderId': uid, 'withDetails': 'true'},
+    options: Options(headers: {'Authorization': _bearer()}),
+  );
+  final msgs = (resp.data is Map ? resp.data['messages'] : null) as List? ?? const [];
+  return msgs.whereType<Map>().map((m) => SentAdmirer(
+        id: (m['id'] ?? '').toString(),
+        recipientId: (m['recipientId'] ?? '').toString(),
+        name: (m['recipientName'] ?? '—').toString(),
+        age: m['recipientAge'] is num ? (m['recipientAge'] as num).toInt() : null,
+        avatar: m['recipientAvatar'] as String?,
+        archetype: (m['recipientArchetype'] ?? '').toString(),
+        messageType: (m['messageType'] ?? 'craving_attention').toString(),
+        content: (m['content'] ?? '').toString(),
+        replyContent: m['replyContent'] as String?,
+        replySentAt: m['replySentAt'] as String?,
+        createdAt: DateTime.tryParse((m['createdAt'] ?? '').toString()) ?? DateTime.now(),
+      )).toList();
+}
+
 /// Reply to an admirer message — creates a mutual match + seeds the chat.
 /// Returns the matchId of the (new or existing) conversation.
 Future<String?> replyToAdmirer(String messageId, String replyContent) async {
@@ -1344,6 +1399,20 @@ Future<String?> replyToAdmirer(String messageId, String replyContent) async {
     options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
   );
   return (resp.data is Map ? resp.data['matchId'] : null) as String?;
+}
+
+/// Mark a conversation as read — clears the unread badge on the Messages list.
+Future<void> markConversationRead(String matchId) async {
+  final uid = Supabase.instance.client.auth.currentUser?.id;
+  if (uid == null) return;
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/chat/mark-read',
+    data: {'matchId': matchId, 'userId': uid},
+    options: Options(
+      headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'},
+      validateStatus: (s) => true,
+    ),
+  );
 }
 
 Future<ChatMessage?> sendMessage(String conversationId, String content) async {
@@ -1503,6 +1572,7 @@ Future<MatchDetail> fetchMatchDetail(String profileId) async {
           model: (a['model'] ?? '').toString(),
           year: a['year']?.toString(),
           color: a['color']?.toString(),
+          vehicleType: a['vehicleType']?.toString(),
         ));
       }
     }

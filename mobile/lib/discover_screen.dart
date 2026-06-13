@@ -225,7 +225,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
             Text("BESTIE'S TAKE",
                 style: TextStyle(color: Color(0xFFFBBF24), fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
             Text('What to double-check before you match',
-                style: TextStyle(color: Color(0x66FFFFFF), fontSize: 11)),
+                style: TextStyle(color: Color(Config.text2), fontSize: 11)),
           ]),
         ]),
         const SizedBox(height: 12),
@@ -236,7 +236,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
               child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFBBF24)),
             ),
             SizedBox(width: 8),
-            Text('Bestie is reading his profile…', style: TextStyle(color: Color(0x66FFFFFF), fontSize: 12)),
+            Text('Bestie is reading his profile…', style: TextStyle(color: Color(Config.text2), fontSize: 12)),
           ])
         else if (_bestieFlags.isEmpty)
           const Text(
@@ -260,10 +260,10 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                 const SizedBox(width: 10),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(flag.title,
-                      style: const TextStyle(color: Color(0xE6FFFFFF), fontSize: 13, fontWeight: FontWeight.w600, height: 1.3)),
+                      style: const TextStyle(color: Color(Config.text1), fontSize: 13, fontWeight: FontWeight.w600, height: 1.3)),
                   const SizedBox(height: 3),
                   Text(flag.detail,
-                      style: const TextStyle(color: Color(0x8CFFFFFF), fontSize: 12, height: 1.5)),
+                      style: const TextStyle(color: Color(Config.text2), fontSize: 12, height: 1.5)),
                 ])),
               ]),
             ),
