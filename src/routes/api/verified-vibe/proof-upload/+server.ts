@@ -5,7 +5,8 @@
  * Returns an array of insights (up to 5) so the boost tab can list them individually.
  *
  * Categories: lifestyle | hosting | discipline | social_proof |
- *             linkedin  | instagram | twitter | habit_tracker | intro
+ *             linkedin  | instagram | twitter | habit_tracker | intro |
+ *             spending  | wealth | assets | travel
  *
  * Special handling:
  *  - intro:     audio/video — auto-verified, no Vision call
@@ -208,6 +209,17 @@ Write one punchy "aggregated" sentence (8–12 words) suitable for a dating prof
 YOU MUST return ONLY raw JSON — no explanation, no preamble, no markdown, no code fences. Start your response with { and end with }:
 {"verified":true,"documentName":"full name on document or null","insights":[{"label":"3-5 words e.g. 'BMW X5 owner'","emoji":"🚗"}],"aggregated":"e.g. 'Licensed driver with multi-vehicle authorisation across India'","assets":[{"type":"car","make":"","model":"","year":"","color":"","vehicleType":""}],"confidence":0.0-1.0,"reason":"one sentence"}
 Only populate fields you can actually read. For a DL with no RC, omit make/model and set type to "car" with vehicleType matching the COV class.`,
+
+  travel: `You are reviewing 1–20 travel proof images for a dating-app "Travel Magnets" section.
+Images may include: passport pages (entry/exit stamps), boarding passes, visa stickers, hotel booking confirmations, travel itineraries, airport photos, or any document showing travel to a country.
+Analyse ALL images. For each image, identify every country or city that appears — from passport stamps, visa labels, boarding pass destinations, hotel names/addresses, airport codes, or visible landmarks.
+
+Extract UP TO 5 insights about the person's travel style or history (e.g. "Frequent Asia traveller", "Business-class flyer", "Multi-continent explorer").
+List ALL distinct countries or cities you can confirm — be thorough, include every country from every stamp or boarding pass visible.
+Write one punchy "aggregated" sentence (10–15 words) that captures their travel personality.
+
+Return ONLY raw JSON — no markdown, no code fences:
+{"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Multi-continent traveller'","emoji":"single emoji"},...],"locations":["Country or City","..."],"aggregated":"e.g. 'Has explored 12+ countries across Asia, Europe and the Americas'","confidence":0.0-1.0,"reason":"one sentence"}`,
 };
 
 // intro + URL-only social categories are auto-verified without Vision
@@ -227,6 +239,7 @@ const CATEGORY_PTS: Record<string, number> = {
   spending:     10,
   assets:       10,
   wealth:       12,
+  travel:       8,
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
