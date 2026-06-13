@@ -7,6 +7,7 @@ import 'archetypes.dart';
 import 'config.dart';
 import 'profile_body.dart' show travelMagnets, moneyMattersCard;
 import 'profile_edit.dart';
+import 'category_proof_screen.dart';
 import 'proof_upload_screen.dart';
 import 'settings_screen.dart';
 import 'trust_boost_screen.dart';
@@ -340,7 +341,7 @@ class _ProfileBody extends StatelessWidget {
                 ? '✓ AI verified via bank statement / financial document'
                 : null,
             onUpload: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ProofUploadScreen())).then((_) => onChanged()),
+              MaterialPageRoute(builder: (_) => const TrustBoostScreen())).then((_) => onChanged()),
           ),
         ),
 
@@ -381,11 +382,34 @@ class _ProfileBody extends StatelessWidget {
         _Section(
           emoji: '✈️',
           title: 'TRAVEL MAGNETS',
-          subtitle: 'detected from uploads',
+          subtitle: 'countries you\'ve visited',
           onEdit: () => _editCountries(context, data, onChanged),
           child: data.countries.isEmpty
-              ? const Text('No travel destinations yet. Tap edit to add.',
-                  style: TextStyle(color: Color(Config.text3)))
+              ? GestureDetector(
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const CategoryProofScreen(categoryId: 'travel'))),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+                    decoration: BoxDecoration(
+                      color: const Color(Config.bg2),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0x33FF3B6B), width: 1.5),
+                    ),
+                    child: const Row(children: [
+                      Text('🗺️', style: TextStyle(fontSize: 28)),
+                      SizedBox(width: 14),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('No destinations yet',
+                            style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w600, fontSize: 14)),
+                        SizedBox(height: 3),
+                        Text('Upload passport or travel photos to detect countries automatically',
+                            style: TextStyle(color: Color(Config.text3), fontSize: 12, height: 1.4)),
+                      ])),
+                      SizedBox(width: 8),
+                      Icon(Icons.chevron_right, color: Color(Config.text3), size: 20),
+                    ]),
+                  ),
+                )
               : travelMagnets(data.countries),
         ),
 
@@ -2011,7 +2035,7 @@ class _PhotoStorySectionState extends State<_PhotoStorySection> {
     if (uploaded.isEmpty) return;
     setState(() { _enhancing = true; _enhanceError = null; });
     try {
-      final items = await enhancePhotos(uploaded.first.url);
+      final items = await enhancePhotos(uploaded.first.url, archetype: widget.data.archetype);
       await saveAiPhotos(items);
       setState(() { _aiPhotos = items; _enhancing = false; });
     } catch (e) {

@@ -98,7 +98,9 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
                 const SizedBox(height: 20),
                 _moneyMatters(d),
                 const SizedBox(height: 20),
-                _verifiedInsights(d),
+                _garageSection(d),
+                const SizedBox(height: 20),
+                _travelMagnetsSection(d),
               ],
             ),
           );
@@ -348,7 +350,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
     return GestureDetector(
       onTap: () => Navigator.of(context)
           .push(MaterialPageRoute(
-              builder: (_) => CategoryProofScreen(categoryId: c.id)))
+              builder: (_) => CategoryProofScreen(categoryId: c.id, existingProof: p)))
           .then((_) => _refresh()),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
@@ -388,11 +390,12 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
   }
 
   Widget _socialTile(TrustData d, _Cat c) {
-    final verified = d.proofFor(c.id) != null;
+    final p = d.proofFor(c.id);
+    final verified = p != null;
     return GestureDetector(
       onTap: () => Navigator.of(context)
           .push(MaterialPageRoute(
-              builder: (_) => CategoryProofScreen(categoryId: c.id)))
+              builder: (_) => CategoryProofScreen(categoryId: c.id, existingProof: p)))
           .then((_) => _refresh()),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
@@ -486,20 +489,107 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          // Spending nudge
-          GestureDetector(
-            onTap: () => Navigator.of(context)
-                .push(MaterialPageRoute(
-                    builder: (_) => const CategoryProofScreen(categoryId: 'spending')))
-                .then((_) => _refresh()),
-            child: const Row(children: [
-              Text('🧾', style: TextStyle(fontSize: 13)),
-              SizedBox(width: 6),
-              Expanded(child: Text(
-                'Upload receipts to verify spending — shows on your public profile →',
-                style: TextStyle(color: Color(Config.text3), fontSize: 12, height: 1.4),
-              )),
+          // Spending proof upload card
+          _miniProofCard(
+            d: d, categoryId: 'spending',
+            icon: '🧾', title: 'Upload Receipts',
+            subtitle: 'Restaurant, travel & event spend',
+            pts: 10,
+          ),
+          const SizedBox(height: 8),
+          // Wealth proof upload card
+          _miniProofCard(
+            d: d, categoryId: 'wealth',
+            icon: '🏦', title: 'Upload Bank / Investment Doc',
+            subtitle: 'Verify your financial standing',
+            pts: 12,
+          ),
+        ]),
+      ),
+    ]);
+  }
+
+  Widget _miniProofCard({
+    required TrustData d,
+    required String categoryId,
+    required String icon,
+    required String title,
+    required String subtitle,
+    required int pts,
+  }) {
+    final verified = d.proofFor(categoryId) != null;
+    return GestureDetector(
+      onTap: () => Navigator.of(context)
+          .push(MaterialPageRoute(
+              builder: (_) => CategoryProofScreen(categoryId: categoryId)))
+          .then((_) => _refresh()),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(Config.bg3),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: verified ? const Color(0x4DFF3B6B) : const Color(0x181B1020),
+          ),
+        ),
+        child: Row(children: [
+          Text(icon, style: const TextStyle(fontSize: 20)),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title,
+                style: const TextStyle(
+                    color: Color(Config.text1), fontWeight: FontWeight.w600, fontSize: 13)),
+            Text(subtitle,
+                style: const TextStyle(color: Color(Config.text3), fontSize: 11)),
+          ])),
+          if (verified)
+            const Icon(Icons.check_circle, size: 18, color: Color(Config.accent))
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0x22FF3B6B),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text('+$pts',
+                  style: const TextStyle(
+                      color: Color(Config.accent), fontWeight: FontWeight.w700, fontSize: 12)),
+            ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _garageSection(TrustData d) {
+    final assetsProof = d.proofFor('assets');
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _label('🚗  GARAGE'),
+      const SizedBox(height: 10),
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(Config.bg2),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0x181B1020)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (assetsProof != null && assetsProof.aggregated.isNotEmpty) ...[
+            Text(assetsProof.aggregated,
+                style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4)),
+            const SizedBox(height: 6),
+            const Row(children: [
+              Icon(Icons.check, size: 11, color: Color(Config.text3)),
+              SizedBox(width: 4),
+              Expanded(child: Text('AI verified via registration / ownership document',
+                  style: TextStyle(color: Color(Config.text3), fontSize: 11))),
             ]),
+            const SizedBox(height: 14),
+          ],
+          _miniProofCard(
+            d: d, categoryId: 'assets',
+            icon: '📄', title: 'Upload Registration / Docs',
+            subtitle: 'Car, property or company documents',
+            pts: 15,
           ),
         ]),
       ),
@@ -554,6 +644,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
     String? selIncome = d.annualIncome;
     String? selNW     = d.netWorth;
     bool saving       = false;
+    String? errorMsg;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -639,7 +730,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
                 width: double.infinity,
                 child: FilledButton(
                   onPressed: saving ? null : () async {
-                    setS(() => saving = true);
+                    setS(() { saving = true; errorMsg = null; });
                     try {
                       await saveMoneyMattersDirect(
                         income: selIncome,
@@ -647,8 +738,8 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
                       );
                       if (ctx.mounted) Navigator.of(ctx).pop();
                       _refresh();
-                    } catch (_) {
-                      setS(() => saving = false);
+                    } catch (e) {
+                      setS(() { saving = false; errorMsg = e.toString(); });
                     }
                   },
                   style: FilledButton.styleFrom(
@@ -662,6 +753,11 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
                       : const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
                 ),
               ),
+              if (errorMsg != null) ...[
+                const SizedBox(height: 10),
+                Text(errorMsg!,
+                    style: const TextStyle(color: Color(0xFFF87171), fontSize: 12)),
+              ],
             ]),
           );
         },
@@ -697,24 +793,49 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
           ),
       ]);
 
-  Widget _verifiedInsights(TrustData d) {
-    final labels = <String>[];
-    for (final p in d.proofs) {
-      if (p.insightLabel.isNotEmpty) labels.add(p.insightLabel);
-    }
-    if (labels.isEmpty) return const SizedBox.shrink();
-    final shown = labels.take(2).join(', ');
-    final more = labels.length - 2;
+
+  Widget _travelMagnetsSection(TrustData d) {
+    final travelProof = d.proofFor('travel');
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _label('🗂  VERIFIED INSIGHTS'),
-      const SizedBox(height: 8),
-      RichText(text: TextSpan(
-        style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4),
-        children: [
-          TextSpan(text: shown),
-          if (more > 0) TextSpan(text: '  +$more more', style: const TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w700)),
-        ],
-      )),
+      _label('✈️  TRAVEL MAGNETS'),
+      const SizedBox(height: 10),
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(Config.bg2),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0x181B1020)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (travelProof != null && travelProof.aggregated.isNotEmpty) ...[
+            Text(travelProof.aggregated,
+                style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4)),
+            const SizedBox(height: 6),
+            const Row(children: [
+              Icon(Icons.check, size: 11, color: Color(Config.text3)),
+              SizedBox(width: 4),
+              Expanded(child: Text('Countries auto-detected from your travel documents',
+                  style: TextStyle(color: Color(Config.text3), fontSize: 11))),
+            ]),
+            const SizedBox(height: 14),
+          ],
+          _miniProofCard(
+            d: d, categoryId: 'travel',
+            icon: '🛂', title: 'Upload Passport / Boarding Pass',
+            subtitle: 'AI detects countries automatically',
+            pts: 8,
+          ),
+          const SizedBox(height: 8),
+          const Row(children: [
+            Icon(Icons.info_outline, size: 12, color: Color(Config.text3)),
+            SizedBox(width: 6),
+            Expanded(child: Text(
+              'You can also add countries manually from your Profile screen.',
+              style: TextStyle(color: Color(Config.text3), fontSize: 11, height: 1.4),
+            )),
+          ]),
+        ]),
+      ),
     ]);
   }
 

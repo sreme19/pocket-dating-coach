@@ -17,13 +17,15 @@ String _pretty(String slug) => slug
     .join(' ');
 
 /// Anonymous tip: tag chips + optional note → POST /tips.
-Future<void> showTipSheet(BuildContext context, {required String targetUserId, required String viewerGender}) {
+/// Returns true if the tip was sent successfully.
+Future<bool> showTipSheet(BuildContext context, {required String targetUserId, required String viewerGender}) async {
   final tags = viewerGender == 'woman' ? _womanViewerTags : _manViewerTags;
   final selected = <String>{};
   final textCtrl = TextEditingController();
   var sending = false;
+  var sent = false;
 
-  return showModalBottomSheet(
+  await showModalBottomSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: const Color(Config.bg2),
@@ -72,6 +74,7 @@ Future<void> showTipSheet(BuildContext context, {required String targetUserId, r
                       setSheet(() => sending = true);
                       try {
                         await submitTip(targetUserId, viewerGender, selected.toList(), textCtrl.text.trim());
+                        sent = true;
                         if (ctx.mounted) Navigator.pop(ctx);
                         if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Tip sent 💬')));
                       } catch (e) {
@@ -89,15 +92,18 @@ Future<void> showTipSheet(BuildContext context, {required String targetUserId, r
       );
     }),
   );
+  return sent;
 }
 
 /// Admire / craving-attention note → POST /attention (one-time per pair).
-Future<void> showAdmireSheet(BuildContext context, {required String recipientId, required String viewerGender, required String name}) {
+/// Returns true if the note was sent (or was already sent previously).
+Future<bool> showAdmireSheet(BuildContext context, {required String recipientId, required String viewerGender, required String name}) async {
   final textCtrl = TextEditingController();
   var sending = false;
+  var sent = false;
   final title = viewerGender == 'woman' ? '🌹 Secret admirer' : '👀 Notice me';
 
-  return showModalBottomSheet(
+  await showModalBottomSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: const Color(Config.bg2),
@@ -131,12 +137,18 @@ Future<void> showAdmireSheet(BuildContext context, {required String recipientId,
                       setSheet(() => sending = true);
                       try {
                         await sendAttention(recipientId, viewerGender, textCtrl.text.trim());
+                        sent = true;
                         if (ctx.mounted) Navigator.pop(ctx);
                         if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sent to $name ✓')));
                       } catch (e) {
                         setSheet(() => sending = false);
-                        final msg = e == 'already' ? "You've already sent $name a note." : 'Failed: $e';
-                        if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(msg)));
+                        if (e == 'already') {
+                          sent = true; // already sent = treat as sent state
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("You've already sent $name a note.")));
+                        } else {
+                          if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Failed: $e')));
+                        }
                       }
                     },
               style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFFFFFFFF), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
@@ -149,4 +161,5 @@ Future<void> showAdmireSheet(BuildContext context, {required String recipientId,
       );
     }),
   );
+  return sent;
 }

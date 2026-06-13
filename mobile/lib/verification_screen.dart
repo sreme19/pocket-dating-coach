@@ -1962,18 +1962,20 @@ class _LivenessCaptureScreenState extends State<_LivenessCaptureScreen> {
   // ── Verifying spinner ─────────────────────────────────────────────────────
 
   Widget _verifyingScreen() {
-    return const Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        SizedBox(width: 64, height: 64,
-          child: CircularProgressIndicator(strokeWidth: 4, color: Color(Config.accentBright))),
-        SizedBox(height: 24),
-        Text('Verifying your selfie…',
-            style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700)),
-        SizedBox(height: 8),
-        Text('Confirming you\'re a real, live person',
-            style: TextStyle(color: Color(0xFF9B8B8F), fontSize: 13)),
-      ],
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(width: 64, height: 64,
+            child: CircularProgressIndicator(strokeWidth: 4, color: Color(Config.accentBright))),
+          SizedBox(height: 24),
+          Text('Verifying your selfie…',
+              style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700)),
+          SizedBox(height: 8),
+          Text('Confirming you\'re a real, live person',
+              style: TextStyle(color: Color(0xFF9B8B8F), fontSize: 13)),
+        ],
+      ),
     );
   }
 

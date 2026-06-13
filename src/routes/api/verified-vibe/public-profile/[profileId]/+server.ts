@@ -159,11 +159,21 @@ export const GET: RequestHandler = async ({ params }) => {
     // Money Matters
     const wealthProof = proofByCategory('wealth');
     const careerProof = proofByCategory('linkedin');
+    // Primary: self-reported income saved in master profile
+    const savedMoneyMatters = (masterData.moneyMatters as Record<string, unknown>) ?? {};
+    const savedIncome = typeof savedMoneyMatters.annualIncome === 'string' && savedMoneyMatters.annualIncome.trim()
+      ? savedMoneyMatters.annualIncome.trim() : null;
+    const savedNetWorth = typeof savedMoneyMatters.netWorth === 'string' && savedMoneyMatters.netWorth.trim()
+      ? savedMoneyMatters.netWorth.trim() : null;
+    // Fallback: income_range from casual generous onboarding QA
     const casualPrefs = (onboarding['vv_casual_generous_preferences'] as Record<string, unknown>) ?? {};
     const incomeCode = typeof casualPrefs.income_range === 'string' ? casualPrefs.income_range : null;
-    const annualIncome = incomeCode ? (INCOME_MAP[incomeCode] ?? incomeCode) : null;
-    const moneyMatters = (wealthProof || annualIncome) ? {
+    const incomeFromQa = incomeCode ? (INCOME_MAP[incomeCode] ?? incomeCode) : null;
+    const annualIncome = savedIncome ?? incomeFromQa;
+    const netWorth = savedNetWorth ?? null;
+    const moneyMatters = (wealthProof || annualIncome || netWorth || careerProof) ? {
       annualIncome,
+      netWorth,
       careerLines: careerProof ? (careerProof.insights as Array<{ emoji: string; label: string }> ?? []).slice(0, 2) : [],
       wealthInsights: wealthProof ? (wealthProof.insights as Array<{ emoji: string; label: string }> ?? []) : [],
     } : null;

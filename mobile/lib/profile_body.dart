@@ -58,15 +58,16 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
             ]),
           ),
       ])),
-    if (d.annualIncome != null || d.netWorth != null || d.wealthInsights.isNotEmpty || d.careerLines.isNotEmpty)
+    if (d.annualIncome != null || d.netWorth != null || d.careerLines.isNotEmpty)
       pSection('💰 MONEY MATTERS', moneyMattersCard(
         income: d.annualIncome,
         netWorth: d.netWorth,
         tiles: [
-          for (final c in d.wealthInsights) (c.emoji, c.label),
           for (final c in d.careerLines) (c.emoji, c.label),
         ],
-        footer: '✓ AI verified via bank statement / financial document',
+        footer: d.annualIncome != null || d.netWorth != null
+            ? '✓ AI verified via bank statement / financial document'
+            : null,
       )),
     if (d.personalityPortraitUrl != null)
       pSection('✨ AI PORTRAIT', _portrait(d.personalityPortraitUrl!), hint: 'generated from photos'),
@@ -84,8 +85,11 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(car.title, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
-            Text([car.year, car.color].where((s) => s != null && s.isNotEmpty).join(' · '),
-                style: const TextStyle(fontSize: 13, color: Color(Config.text2))),
+            if (car.vehicleType != null && car.vehicleType!.isNotEmpty)
+              Text(car.vehicleType!, style: const TextStyle(fontSize: 13, color: Color(Config.text2))),
+            if ([car.color, car.year].any((s) => s != null && s!.isNotEmpty))
+              Text([car.color, car.year].where((s) => s != null && s!.isNotEmpty).join(' · '),
+                  style: const TextStyle(fontSize: 12, color: Color(Config.text3))),
             const Text('✅ Ownership verified', style: TextStyle(fontSize: 12, color: Color(Config.accent))),
           ])),
         ]),
@@ -243,7 +247,7 @@ Widget moneyMattersCard({
           const Text('SELF DECLARED', style: TextStyle(color: Color(Config.text3), fontSize: 10, letterSpacing: 0.5)),
         ],
         const SizedBox(height: 16),
-      ] else ...[
+      ] else if (onUpload != null) ...[
         const Text('Tap ✏️ to add your income and financial info.',
             style: TextStyle(color: Color(Config.text3), fontSize: 14, height: 1.4)),
         const SizedBox(height: 12),

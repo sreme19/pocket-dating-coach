@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api.dart';
 import 'archetypes.dart';
 import 'config.dart';
@@ -31,15 +32,18 @@ class _ChatListScreenState extends State<ChatListScreen>
     final gender = await fetchCurrentUserGender();
     final convos = await fetchConversations();
     List<Admirer> admirers = const [];
+    List<SentAdmirer> sentAdmirers = const [];
     try {
-      admirers = await fetchAdmirers();
+      final results = await Future.wait([fetchAdmirers(), fetchSentAdmirers()]);
+      admirers = results[0] as List<Admirer>;
+      sentAdmirers = results[1] as List<SentAdmirer>;
     } catch (_) {/* non-fatal */}
-    return _ChatData(gender: gender, conversations: convos, admirers: admirers);
+    return _ChatData(gender: gender, conversations: convos, admirers: admirers, sentAdmirers: sentAdmirers);
   }
 
   Future<void> _refresh() async {
     final f = _load();
-    setState(() => _future = f);
+    setState(() { _future = f; });
     await f;
   }
 
@@ -85,30 +89,44 @@ class _ChatListScreenState extends State<ChatListScreen>
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.only(bottom: 16),
               children: [
-                if (isMan || isWoman)
+                if ((isMan || isWoman) && _filter != 3)
                   _AdvisorRow(
                     wingman: isMan,
                     onTap: () => Navigator.of(context).push(MaterialPageRoute(
                       builder: (_) => AdvisorScreen(wingman: isMan),
                     )),
                   ),
-                if (newMatches.isNotEmpty && _filter != 2) _NewMatches(matches: newMatches, onTap: _open),
+                if (newMatches.isNotEmpty && _filter != 2 && _filter != 3) _NewMatches(matches: newMatches, onTap: _open),
                 _FilterTabs(
                   filter: _filter,
                   allCount: data.conversations.where((c) => c.hasMessages).length,
                   unreadCount: unreadTotal,
                   admirerCount: data.admirers.length,
+                  sentCount: data.sentAdmirers.length,
                   onChanged: (i) => setState(() => _filter = i),
                 ),
                 if (_filter == 2) ...[
                   if (data.admirers.isEmpty)
                     const Padding(
                       padding: EdgeInsets.fromLTRB(20, 40, 20, 0),
-                      child: Text('No admirers yet — when someone notices you, they’ll show up here. 🌹',
+                      child: Text('No admirers yet — when someone notices you, they\'ll show up here. 🌹',
                           textAlign: TextAlign.center, style: TextStyle(color: Color(Config.text2))),
                     )
                   else
                     ...data.admirers.map((a) => _AdmirerCard(admirer: a, onReplied: _refresh)),
+                ] else if (_filter == 3) ...[
+                  const _MatchmakerCard(),
+                  if (data.sentAdmirers.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(20, 24, 20, 0),
+                      child: Text(
+                        'No notices sent yet \u2014 admire someone from Discover to get started.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Color(Config.text2)),
+                      ),
+                    )
+                  else
+                    ...data.sentAdmirers.map((s) => _SentAdmirerCard(admirer: s)),
                 ] else if (active.isEmpty)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 40, 20, 0),
@@ -123,7 +141,11 @@ class _ChatListScreenState extends State<ChatListScreen>
                     ),
                   )
                 else
-                  ...active.map((c) => _ConversationTile(convo: c, onTap: () => _open(c))),
+                  ...active.map((c) => _ConversationTile(
+                    convo: c,
+                    onTap: () => _open(c),
+                    myId: Supabase.instance.client.auth.currentUser?.id,
+                  )),
               ],
             ),
           );
@@ -150,7 +172,8 @@ class _ChatData {
   final String? gender;
   final List<Conversation> conversations;
   final List<Admirer> admirers;
-  _ChatData({required this.gender, required this.conversations, required this.admirers});
+  final List<SentAdmirer> sentAdmirers;
+  _ChatData({required this.gender, required this.conversations, required this.admirers, required this.sentAdmirers});
 }
 
 String _ago(DateTime? t) {
@@ -239,11 +262,13 @@ class _FilterTabs extends StatelessWidget {
   final int allCount;
   final int unreadCount;
   final int admirerCount;
+  final int sentCount;
   final ValueChanged<int> onChanged;
-  const _FilterTabs({required this.filter, required this.allCount, required this.unreadCount, required this.admirerCount, required this.onChanged});
+  const _FilterTabs({required this.filter, required this.allCount, required this.unreadCount, required this.admirerCount, required this.sentCount, required this.onChanged});
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
       child: Row(children: [
         _tab('All $allCount', 0),
@@ -251,6 +276,8 @@ class _FilterTabs extends StatelessWidget {
         _tab(unreadCount > 0 ? 'Unread $unreadCount' : 'Unread', 1),
         const SizedBox(width: 8),
         _tab(admirerCount > 0 ? '🌹 Admirers $admirerCount' : '🌹 Admirers', 2),
+        const SizedBox(width: 8),
+        _tab(sentCount > 0 ? '💌 Sent $sentCount' : '💌 Sent', 3),
       ]),
     );
   }
@@ -427,10 +454,156 @@ class _AdmirerCard extends StatelessWidget {
   }
 }
 
+/// Informational card explaining how AI Matchmaker works (shown in Sent tab).
+class _MatchmakerCard extends StatelessWidget {
+  const _MatchmakerCard();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0x22FF3B6B), Color(0x11A855F7)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0x33FF3B6B)),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          width: 44, height: 44,
+          decoration: BoxDecoration(
+            color: const Color(0x22FF3B6B),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Center(child: Text('✨', style: TextStyle(fontSize: 22))),
+        ),
+        const SizedBox(width: 12),
+        const Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Text('AI Matchmaker',
+                  style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700, fontSize: 15)),
+              SizedBox(width: 8),
+              _ActiveBadge(),
+            ]),
+            SizedBox(height: 4),
+            Text(
+              'Running every night — when your compatibility score with someone reaches 70+, a match is created automatically.',
+              style: TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+class _ActiveBadge extends StatelessWidget {
+  const _ActiveBadge();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0x2222C55E),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: const Text('ACTIVE',
+          style: TextStyle(color: Color(0xFF16A34A), fontSize: 10, fontWeight: FontWeight.w700)),
+    );
+  }
+}
+
+/// A card showing a sent admire/attention message and its reply status.
+class _SentAdmirerCard extends StatelessWidget {
+  final SentAdmirer admirer;
+  const _SentAdmirerCard({required this.admirer});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasReplied = admirer.replied;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(Config.bg2),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: hasReplied ? const Color(0x3322C55E) : const Color(0x33FF3B6B),
+        ),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.fromBorderSide(
+                BorderSide(color: hasReplied ? const Color(0xFF22C55E) : const Color(Config.accent), width: 2),
+              ),
+            ),
+            child: CircleAvatar(
+              radius: 22,
+              backgroundColor: const Color(Config.bg3),
+              backgroundImage: (admirer.avatar != null && admirer.avatar!.startsWith('http'))
+                  ? CachedNetworkImageProvider(admirer.avatar!) : null,
+              child: (admirer.avatar == null || !admirer.avatar!.startsWith('http'))
+                  ? Text(admirer.name.isNotEmpty ? admirer.name[0].toUpperCase() : '?',
+                      style: const TextStyle(color: Color(Config.text1))) : null,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(admirer.age != null ? '${admirer.name}, ${admirer.age}' : admirer.name,
+                  style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700)),
+              Text(
+                hasReplied ? '✅ They replied!' : '⏳ Waiting for reply…',
+                style: TextStyle(
+                  color: hasReplied ? const Color(0xFF16A34A) : const Color(Config.text2),
+                  fontSize: 12,
+                ),
+              ),
+            ]),
+          ),
+          Text(_ago(admirer.createdAt),
+              style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
+        ]),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: const Color(0x0A1B1020),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text('You: ${admirer.content}',
+              style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.3)),
+        ),
+        if (hasReplied) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0x1122C55E),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text('${admirer.name}: ${admirer.replyContent}',
+                style: const TextStyle(color: Color(Config.text1), fontSize: 13, height: 1.3)),
+          ),
+        ],
+      ]),
+    );
+  }
+}
+
 class _ConversationTile extends StatelessWidget {
   final Conversation convo;
   final VoidCallback onTap;
-  const _ConversationTile({required this.convo, required this.onTap});
+  final String? myId;
+  const _ConversationTile({required this.convo, required this.onTap, this.myId});
 
   @override
   Widget build(BuildContext context) {
@@ -448,10 +621,6 @@ class _ConversationTile extends StatelessWidget {
           const SizedBox(width: 6),
           Text(arch.emoji, style: const TextStyle(fontSize: 13)),
         ],
-        const Spacer(),
-        if (convo.lastMessageTime != null)
-          Text(_ago(convo.lastMessageTime),
-              style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
       ]),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 2),
@@ -464,25 +633,37 @@ class _ConversationTile extends StatelessWidget {
             const SizedBox(width: 8),
           ],
           Expanded(
-            child: Text(
-              convo.lastMessage.isNotEmpty ? convo.lastMessage : 'Say hello 👋',
-              maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: convo.unreadCount > 0 ? const Color(Config.text1) : const Color(Config.text2),
-                fontWeight: convo.unreadCount > 0 ? FontWeight.w600 : FontWeight.w400,
-              ),
-            ),
+            child: Builder(builder: (_) {
+              final isMe = myId != null && convo.lastMessageSenderId == myId;
+              final preview = convo.lastMessage.isNotEmpty
+                  ? (isMe ? 'You: ${convo.lastMessage}' : convo.lastMessage)
+                  : 'Say hello 👋';
+              return Text(
+                preview,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: convo.unreadCount > 0 ? const Color(Config.text1) : const Color(Config.text2),
+                  fontWeight: convo.unreadCount > 0 ? FontWeight.w600 : FontWeight.w400,
+                ),
+              );
+            }),
           ),
         ]),
       ),
-      trailing: convo.unreadCount > 0
-          ? CircleAvatar(
-              radius: 11,
-              backgroundColor: const Color(Config.accent),
-              child: Text('${convo.unreadCount}',
-                  style: const TextStyle(color: Color(0xFFFFFFFF), fontSize: 12, fontWeight: FontWeight.w700)),
-            )
-          : null,
+      trailing: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        if (convo.lastMessageTime != null)
+          Text(_ago(convo.lastMessageTime),
+              style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
+        if (convo.unreadCount > 0) ...[
+          const SizedBox(height: 4),
+          CircleAvatar(
+            radius: 10,
+            backgroundColor: const Color(Config.accent),
+            child: Text('${convo.unreadCount}',
+                style: const TextStyle(color: Color(0xFFFFFFFF), fontSize: 11, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ]),
     );
   }
 }

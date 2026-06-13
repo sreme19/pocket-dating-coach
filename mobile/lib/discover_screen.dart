@@ -24,6 +24,8 @@ class _DiscoverScreenState extends State<DiscoverScreen>
   final _scroll = ScrollController();
   List<BestieFlag> _bestieFlags = [];
   bool _bestieFlagsLoading = false;
+  final Set<String> _sentAttentionIds = {}; // profiles already noticed/admired
+  final Set<String> _tippedIds = {}; // profiles tipped this session
 
   @override
   bool get wantKeepAlive => true;
@@ -50,6 +52,10 @@ class _DiscoverScreenState extends State<DiscoverScreen>
           _maybeFetchBestie();
         }
       });
+      // Load already-sent attention IDs so buttons show correct state
+      fetchSentAdmirers().then((sent) {
+        if (mounted) setState(() => _sentAttentionIds.addAll(sent.map((s) => s.recipientId)));
+      }).catchError((_) {});
       if (!mounted) return;
       setState(() {
         _feed = list;
@@ -225,7 +231,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
             Text("BESTIE'S TAKE",
                 style: TextStyle(color: Color(0xFFFBBF24), fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
             Text('What to double-check before you match',
-                style: TextStyle(color: Color(0x66FFFFFF), fontSize: 11)),
+                style: TextStyle(color: Color(Config.text2), fontSize: 11)),
           ]),
         ]),
         const SizedBox(height: 12),
@@ -236,7 +242,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
               child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFBBF24)),
             ),
             SizedBox(width: 8),
-            Text('Bestie is reading his profile…', style: TextStyle(color: Color(0x66FFFFFF), fontSize: 12)),
+            Text('Bestie is reading his profile…', style: TextStyle(color: Color(Config.text2), fontSize: 12)),
           ])
         else if (_bestieFlags.isEmpty)
           const Text(
@@ -260,10 +266,10 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                 const SizedBox(width: 10),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(flag.title,
-                      style: const TextStyle(color: Color(0xE6FFFFFF), fontSize: 13, fontWeight: FontWeight.w600, height: 1.3)),
+                      style: const TextStyle(color: Color(Config.text1), fontSize: 13, fontWeight: FontWeight.w600, height: 1.3)),
                   const SizedBox(height: 3),
                   Text(flag.detail,
-                      style: const TextStyle(color: Color(0x8CFFFFFF), fontSize: 12, height: 1.5)),
+                      style: const TextStyle(color: Color(Config.text2), fontSize: 12, height: 1.5)),
                 ])),
               ]),
             ),
@@ -273,6 +279,8 @@ class _DiscoverScreenState extends State<DiscoverScreen>
 
   Widget _actionBar(DiscoveryProfile cur) {
     final g = _viewerGender;
+    final alreadySent = _sentAttentionIds.contains(cur.id);
+    final alreadyTipped = _tippedIds.contains(cur.id);
     return SafeArea(
       top: false,
       child: Container(
@@ -284,12 +292,17 @@ class _DiscoverScreenState extends State<DiscoverScreen>
         child: Row(children: [
           Expanded(
             child: OutlinedButton.icon(
-              onPressed: g == null ? null : () => showTipSheet(context, targetUserId: cur.id, viewerGender: g),
-              icon: const Icon(Icons.chat_bubble_outline, size: 18),
-              label: const Text('Tip'),
+              onPressed: g == null || alreadyTipped ? null : () async {
+                final sent = await showTipSheet(context, targetUserId: cur.id, viewerGender: g);
+                if (sent && mounted) setState(() => _tippedIds.add(cur.id));
+              },
+              icon: alreadyTipped
+                  ? const Icon(Icons.check, size: 18)
+                  : const Icon(Icons.chat_bubble_outline, size: 18),
+              label: Text(alreadyTipped ? 'Tipped ✓' : 'Tip'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(Config.text1),
-                side: const BorderSide(color: Color(0x331B1020)),
+                foregroundColor: alreadyTipped ? const Color(Config.text3) : const Color(Config.text1),
+                side: BorderSide(color: alreadyTipped ? const Color(0x221B1020) : const Color(0x331B1020)),
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -298,12 +311,17 @@ class _DiscoverScreenState extends State<DiscoverScreen>
           const SizedBox(width: 10),
           Expanded(
             child: OutlinedButton.icon(
-              onPressed: g == null ? null : () => showAdmireSheet(context, recipientId: cur.id, viewerGender: g, name: cur.firstName),
-              icon: Text(g == 'woman' ? '🌹' : '👀', style: const TextStyle(fontSize: 15)),
-              label: Text(g == 'woman' ? 'Admire' : 'Notice me'),
+              onPressed: g == null || alreadySent ? null : () async {
+                final sent = await showAdmireSheet(context, recipientId: cur.id, viewerGender: g, name: cur.firstName);
+                if (sent && mounted) setState(() => _sentAttentionIds.add(cur.id));
+              },
+              icon: alreadySent
+                  ? const Icon(Icons.check, size: 15)
+                  : Text(g == 'woman' ? '🌹' : '👀', style: const TextStyle(fontSize: 15)),
+              label: Text(alreadySent ? 'Sent ✓' : (g == 'woman' ? 'Admire' : 'Notice me')),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFFEC4899),
-                side: const BorderSide(color: Color(0x55EC4899)),
+                foregroundColor: alreadySent ? const Color(Config.text3) : const Color(0xFFEC4899),
+                side: BorderSide(color: alreadySent ? const Color(0x221B1020) : const Color(0x55EC4899)),
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
