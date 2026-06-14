@@ -1,6 +1,8 @@
-import 'dart:io' show Platform;
+import 'dart:convert' show base64Encode;
+import 'dart:io' show Platform, File;
 import 'package:dio/dio.dart';
-// hide MultipartFile: both dio and http (via supabase) export it; we use dio's.
+import 'package:http_parser/http_parser.dart' show MediaType;
+// hide MultipartFile + MediaType: both dio and supabase export them; we use dio's.
 import 'package:supabase_flutter/supabase_flutter.dart' hide MultipartFile;
 import 'config.dart';
 
@@ -29,7 +31,8 @@ class GarageCar {
   final String model;
   final String? year;
   final String? color;
-  GarageCar({required this.make, required this.model, this.year, this.color});
+  final String? vehicleType;
+  GarageCar({required this.make, required this.model, this.year, this.color, this.vehicleType});
   String get title => [make, model].where((s) => s.isNotEmpty).join(' ');
 }
 
@@ -49,6 +52,14 @@ class PhotoItem {
   PhotoItem(this.url, this.label);
 }
 
+/// An AI-enhanced profile photo with its role (slot) and scene description.
+class AiPhotoItem {
+  final String url;
+  final String role; // 'lead', 'warmth', 'lifestyle'
+  final String scene;
+  AiPhotoItem(this.url, this.role, this.scene);
+}
+
 class ProfileData {
   final String name;
   final int? age;
@@ -56,6 +67,7 @@ class ProfileData {
   final String? heroPhotoUrl;
   final List<String> photos; // all displayable photo URLs (ai + uploaded)
   final List<PhotoItem> uploadedPhotos; // editable uploaded photos (url+label)
+  final List<AiPhotoItem> aiPhotoItems; // AI-enhanced photos with role info
   final int trustScore;
   final int proofsCount;
   final String about;
@@ -92,6 +104,7 @@ class ProfileData {
     required this.heroPhotoUrl,
     required this.photos,
     required this.uploadedPhotos,
+    required this.aiPhotoItems,
     required this.trustScore,
     required this.proofsCount,
     required this.about,
@@ -119,6 +132,14 @@ class ProfileData {
 final _dio = Dio(BaseOptions(
   connectTimeout: const Duration(seconds: 15),
   receiveTimeout: const Duration(seconds: 20),
+  // SvelteKit CSRF protection blocks multipart/form-data POSTs without a matching
+  // Origin header (it only exempts application/json). Native apps never send Origin,
+  // so we must set it explicitly to match the server's own host.
+  headers: {
+    'Origin': 'https://pocket-dating-coach.vercel.app',
+    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) '
+        'AppleWebKit/605.1.15 (like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+  },
 ));
 
 int _asInt(dynamic v) => v is num ? v.toInt() : (int.tryParse('$v') ?? 0);
@@ -132,11 +153,18 @@ Future<ProfileData> fetchProfile() async {
   }
 
   // 1. Identity + avatar + trust — direct Supabase (RLS lets a user read self).
-  final row = await supabase
+  final rowFuture = supabase
       .from('verified_vibe_users')
       .select('first_name, age, city, avatar_url, trust_score, gender, archetype, hard_nos')
       .eq('id', user.id)
       .maybeSingle();
+  final stepsFuture = supabase
+      .from('verified_vibe_verification')
+      .select('step, status, data')
+      .eq('user_id', user.id);
+  final parallel = await Future.wait<dynamic>([rowFuture, stepsFuture]);
+  final row = parallel[0] as Map?;
+  final verifySteps = (parallel[1] as List).cast<Map>();
 
   // 2. Master profile — remote API with Bearer token.
   Map<String, dynamic> master = {};
@@ -159,8 +187,16 @@ Future<ProfileData> fetchProfile() async {
   // All displayable photo URLs: AI photos first, then uploaded (http/data only).
   final photos = <String>[];
   final uploaded = <PhotoItem>[];
+  final aiPhotoItemsList = <AiPhotoItem>[];
   for (final p in aiPhotos) {
-    if (p is Map && p['url'] is String) photos.add(p['url'] as String);
+    if (p is Map && p['url'] is String) {
+      photos.add(p['url'] as String);
+      aiPhotoItemsList.add(AiPhotoItem(
+        p['url'] as String,
+        (p['role'] ?? '').toString(),
+        (p['scene'] ?? '').toString(),
+      ));
+    }
   }
   for (final p in photosRaw) {
     if (p is Map && p['dataUrl'] is String) {
@@ -178,7 +214,20 @@ Future<ProfileData> fetchProfile() async {
   final age = row?['age'] != null ? _asInt(row!['age']) : (draft?['age'] != null ? _asInt(draft!['age']) : null);
   final city = (row?['city'] ?? draft?['city'])?.toString();
   final about = (generated?['about'] ?? '').toString();
-  final trust = row?['trust_score'] != null ? _asInt(row!['trust_score']) : 0;
+  // Compute trust score as sum of pts (matches Trust & Boost screen logic)
+  Map? _vstepFor(String name) {
+    for (final s in verifySteps) { if (s['step'] == name) return s; }
+    return null;
+  }
+  final _idScore  = _stepScore(_vstepFor('id'));
+  final _livScore = _stepScore(_vstepFor('liveness'));
+  final _phScore  = _stepScore(_vstepFor('photos'));
+  final _qaScore  = _stepScore(_vstepFor('spending_or_qa'));
+  final _vPts = (_idScore > 0 ? 10 : 0) + (_livScore > 0 ? 10 : 0)
+              + (_phScore > 0 ? 15 : 0) + (_qaScore  > 0 ? 10 : 0);
+  final _proofPts = proofs.fold<int>(0, (s, p) =>
+      s + (p is Map && p['pts_awarded'] is num ? (p['pts_awarded'] as num).toInt() : 0));
+  final trust = (_vPts + _proofPts).clamp(0, 100);
   final gender = row?['gender']?.toString();
   final archetype = (row?['archetype'] ?? '').toString();
   final hardNos = <String>[];
@@ -272,7 +321,7 @@ Future<ProfileData> fetchProfile() async {
     }
   }
 
-  final money = master['moneyMatters'] as Map?;
+  final money = (master['moneyMatters'] ?? generated?['moneyMatters']) as Map?;
   String? nonEmpty(dynamic v) {
     final s = v?.toString().trim();
     return (s != null && s.isNotEmpty) ? s : null;
@@ -285,6 +334,7 @@ Future<ProfileData> fetchProfile() async {
     heroPhotoUrl: hero,
     photos: photos,
     uploadedPhotos: uploaded,
+    aiPhotoItems: aiPhotoItemsList,
     trustScore: trust,
     proofsCount: proofs.length,
     about: about,
@@ -358,6 +408,35 @@ Future<String> generatePortrait({required String referenceImageUrl, bool lifesty
   return url;
 }
 
+/// Replace the user's countries-traveled list (Travel Magnets).
+Future<void> saveCountries(List<String> countries) async {
+  final session = Supabase.instance.client.auth.currentSession;
+  if (session == null) throw StateError('Not authenticated');
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/master-profile',
+    data: {'countriesTraveled': countries, 'countriesReplace': true},
+    options: Options(headers: {
+      'Authorization': 'Bearer ${session.accessToken}',
+      'Content-Type': 'application/json',
+    }),
+  );
+}
+
+/// Save customised "What He Brings" items under `brings` in generatedProfile.
+Future<void> saveBrings(List<Map<String, String>> items, Map<String, dynamic> existingGenerated) async {
+  final session = Supabase.instance.client.auth.currentSession;
+  if (session == null) throw StateError('Not authenticated');
+  final merged = Map<String, dynamic>.from(existingGenerated)..['brings'] = items;
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/master-profile',
+    data: {'generatedProfile': merged},
+    options: Options(headers: {
+      'Authorization': 'Bearer ${session.accessToken}',
+      'Content-Type': 'application/json',
+    }),
+  );
+}
+
 /// Save the About text. POST master-profile replaces generatedProfile wholesale,
 /// so we merge `about` into the existing map to avoid dropping other fields.
 Future<void> saveAbout(String about, Map<String, dynamic> existingGenerated) async {
@@ -367,6 +446,24 @@ Future<void> saveAbout(String about, Map<String, dynamic> existingGenerated) asy
   await _dio.post(
     '${Config.apiBase}/api/verified-vibe/master-profile',
     data: {'generatedProfile': merged},
+    options: Options(headers: {
+      'Authorization': 'Bearer ${session.accessToken}',
+      'Content-Type': 'application/json',
+    }),
+  );
+}
+
+/// Save Money Matters directly to the top-level moneyMatters field (used from
+/// Trust & Boost — no existingGenerated required).
+Future<void> saveMoneyMattersDirect({String? income, String? netWorth}) async {
+  final session = Supabase.instance.client.auth.currentSession;
+  if (session == null) throw StateError('Not authenticated');
+  final mm = <String, dynamic>{};
+  if (income != null && income.trim().isNotEmpty) mm['annualIncome'] = income.trim();
+  if (netWorth != null && netWorth.trim().isNotEmpty) mm['netWorth'] = netWorth.trim();
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/master-profile',
+    data: {'moneyMatters': mm},
     options: Options(headers: {
       'Authorization': 'Bearer ${session.accessToken}',
       'Content-Type': 'application/json',
@@ -431,6 +528,59 @@ Future<void> savePhotos(List<PhotoItem> photos) async {
   if (user != null && photos.isNotEmpty) {
     await supabase.from('verified_vibe_users').update({'avatar_url': photos.first.url}).eq('id', user.id);
   }
+}
+
+/// Generate AI-enhanced profile photos via the photo-enhance pipeline.
+/// Slow — allow up to 120s. Returns list of AiPhotoItem for each generated slot.
+Future<List<AiPhotoItem>> enhancePhotos(String referenceUrl, {String archetype = 'casual_man'}) async {
+  // Server requires a base64 data URL — download the image first
+  final imgResp = await _dio.get<List<int>>(
+    referenceUrl,
+    options: Options(responseType: ResponseType.bytes),
+  );
+  final bytes = imgResp.data ?? <int>[];
+  final ext = referenceUrl.split('?').first.split('.').last.toLowerCase();
+  final mime = switch (ext) {
+    'png'  => 'image/png',
+    'webp' => 'image/webp',
+    'gif'  => 'image/gif',
+    _      => 'image/jpeg',
+  };
+  final dataUrl = 'data:$mime;base64,${base64Encode(bytes)}';
+
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/photo-enhance/generate',
+    data: {'referenceDataUrl': dataUrl, 'archetype': archetype.isNotEmpty ? archetype : 'casual_man', 'count': 3},
+    options: Options(
+      headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'},
+      receiveTimeout: const Duration(seconds: 120),
+    ),
+  );
+  final raw = (resp.data is Map)
+      ? ((resp.data as Map)['photos'] as List?) ?? <dynamic>[]
+      : <dynamic>[];
+  return [
+    for (final p in raw)
+      if (p is Map && p['url'] is String)
+        AiPhotoItem(
+          p['url'] as String,
+          (p['role'] ?? '').toString(),
+          (p['scene'] ?? '').toString(),
+        ),
+  ];
+}
+
+/// Persist AI-enhanced photos to master-profile (replaces aiPhotos[]).
+Future<void> saveAiPhotos(List<AiPhotoItem> aiPhotos) async {
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/master-profile',
+    data: {
+      'aiPhotos': [
+        for (final p in aiPhotos) {'url': p.url, 'role': p.role, 'scene': p.scene},
+      ],
+    },
+    options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
+  );
 }
 
 /// Change the user's archetype (direct Supabase update — RLS allows self).
@@ -522,6 +672,7 @@ class DiscoveryProfile {
   final String? intent;
   final String? distance;
   final int verifiedCount;
+  final String? gender;
 
   DiscoveryProfile({
     required this.id,
@@ -534,6 +685,7 @@ class DiscoveryProfile {
     required this.intent,
     required this.distance,
     required this.verifiedCount,
+    this.gender,
   });
 
   String get trustLabel {
@@ -582,6 +734,7 @@ Future<List<DiscoveryProfile>> fetchDiscovery({int limit = 12}) async {
       intent: (p['looking'] ?? p['hereFor']) as String?,
       distance: p['distance'] as String?,
       verifiedCount: (p['verified'] as List?)?.length ?? 0,
+      gender: p['gender'] as String?,
     );
   }).toList();
 }
@@ -604,13 +757,19 @@ class ProofItem {
   final String aggregated;
   final int points;
   final int photoCount;
-  final String insightLabel; // headline insight, e.g. "Multi-continent globe-trotter"
+  final String insightLabel;
+  final List<InsightChip> insights;
+  final List<String> thumbnails;
+  final String verifiedAt;
   ProofItem({
     required this.category,
     required this.aggregated,
     required this.points,
     this.photoCount = 0,
     this.insightLabel = '',
+    this.insights = const [],
+    this.thumbnails = const [],
+    this.verifiedAt = '',
   });
 }
 
@@ -619,7 +778,26 @@ class TrustData {
   final bool identityVerified;
   final String archetype;
   final List<ProofItem> proofs;
-  TrustData({required this.trustScore, required this.identityVerified, required this.archetype, required this.proofs});
+  // Per-step breakdown scores (0–100), matching website calculateTrustScore()
+  final int idScore;
+  final int livenessScore;
+  final int photoScore;
+  final int qaScore;
+  // Money Matters (self-declared from master-profile)
+  final String? annualIncome;
+  final String? netWorth;
+  TrustData({
+    required this.trustScore,
+    required this.identityVerified,
+    required this.archetype,
+    required this.proofs,
+    this.idScore = 0,
+    this.livenessScore = 0,
+    this.photoScore = 0,
+    this.qaScore = 0,
+    this.annualIncome,
+    this.netWorth,
+  });
   int get proofPoints => proofs.fold(0, (s, p) => s + p.points);
   ProofItem? proofFor(String category) {
     for (final p in proofs) {
@@ -629,16 +807,55 @@ class TrustData {
   }
 }
 
+/// Compute a 0–100 score for one verification step, mirroring the website's
+/// calculateStepScore() in trustScore.ts.
+int _stepScore(Map? record) {
+  if (record == null) return 0;
+  final status = record['status']?.toString() ?? '';
+  if (status != 'completed') return 0;
+  final data = record['data'];
+  if (data is Map && data['confidenceScore'] is num) {
+    return (data['confidenceScore'] as num).round().clamp(0, 100);
+  }
+  return 100; // completed but no confidence score → full marks
+}
+
 Future<TrustData> fetchTrust() async {
   final uid = Supabase.instance.client.auth.currentUser!.id;
   final session = Supabase.instance.client.auth.currentSession!;
-  final row = await Supabase.instance.client
-      .from('verified_vibe_users')
-      .select('trust_score, identity_verified, archetype')
-      .eq('id', uid)
-      .maybeSingle();
+
+  // Fetch user row and verification steps in parallel
+  final futures = await Future.wait<dynamic>([
+    Supabase.instance.client
+        .from('verified_vibe_users')
+        .select('trust_score, identity_verified, archetype')
+        .eq('id', uid)
+        .maybeSingle(),
+    Supabase.instance.client
+        .from('verified_vibe_verification')
+        .select('step, status, data')
+        .eq('user_id', uid),
+  ]);
+
+  final row = futures[0] as Map?;
+  final steps = (futures[1] as List).cast<Map>();
+
+  Map? stepFor(String name) {
+    for (final s in steps) {
+      if (s['step'] == name) return s;
+    }
+    return null;
+  }
+
+  final idScore       = _stepScore(stepFor('id'));
+  final livenessScore = _stepScore(stepFor('liveness'));
+  // Website maps 'photos' → Lifestyle, 'spending_or_qa' → Intent
+  final photoScore    = _stepScore(stepFor('photos'));
+  final qaScore       = _stepScore(stepFor('spending_or_qa'));
 
   List<ProofItem> proofs = [];
+  String? annualIncome;
+  String? netWorth;
   try {
     final resp = await _dio.get(
       '${Config.apiBase}/api/verified-vibe/master-profile',
@@ -647,22 +864,68 @@ Future<TrustData> fetchTrust() async {
     final body = resp.data is Map ? resp.data as Map : const {};
     final list = (body['proofInsightsLocalStorage'] as List?) ?? const [];
     proofs = list.whereType<Map>().map((p) {
+      final chips = (p['insights'] as List? ?? []).whereType<Map>().map((i) =>
+          InsightChip((i['emoji'] ?? '').toString(), (i['label'] ?? '').toString())).toList();
+      final thumbs = (p['thumbnails'] as List? ?? []).whereType<String>().toList();
       return ProofItem(
         category: (p['category'] ?? '').toString(),
         aggregated: (p['aggregated'] ?? p['insight_label'] ?? '').toString(),
         points: p['pts_awarded'] is num ? (p['pts_awarded'] as num).toInt() : 0,
         photoCount: p['photo_count'] is num ? (p['photo_count'] as num).toInt() : 0,
         insightLabel: (p['insight_label'] ?? '').toString(),
+        insights: chips,
+        thumbnails: thumbs,
+        verifiedAt: (p['verified_at'] ?? '').toString(),
       );
     }).toList();
+    String? ne(dynamic v) { final s = v?.toString().trim(); return (s != null && s.isNotEmpty) ? s : null; }
+    final mm = body['moneyMatters'] as Map?;
+    annualIncome = ne(mm?['annualIncome']);
+    netWorth     = ne(mm?['netWorth']);
   } catch (_) {}
 
+  // Trust score = direct sum of completed verification pts + proof pts_awarded.
+  // This matches the "+N pts" shown on Show-Off cards so the chart reacts
+  // predictably when a user uploads a proof.
+  // Verification step pts (mirrors getTrustPoints in verify-step server):
+  //   id=10, liveness=10, photos=15, spending_or_qa=10 → max 45 pts
+  final verifyPts = (idScore       > 0 ? 10 : 0)
+                  + (livenessScore > 0 ? 10 : 0)
+                  + (photoScore    > 0 ? 15 : 0)
+                  + (qaScore       > 0 ? 10 : 0);
+  final proofPts = proofs.fold(0, (sum, p) => sum + p.points);
+  final computedScore = (verifyPts + proofPts).clamp(0, 100);
+
   return TrustData(
-    trustScore: row?['trust_score'] is num ? (row!['trust_score'] as num).toInt() : 0,
+    trustScore:      computedScore,
     identityVerified: row?['identity_verified'] == true,
-    archetype: (row?['archetype'] ?? '').toString(),
-    proofs: proofs,
+    archetype:       (row?['archetype'] ?? '').toString(),
+    proofs:          proofs,
+    idScore:         idScore,
+    livenessScore:   livenessScore,
+    photoScore:      photoScore,
+    qaScore:         qaScore,
+    annualIncome:    annualIncome,
+    netWorth:        netWorth,
   );
+}
+
+/// Detect MIME type from file extension so the server can filter images/audio/video.
+MediaType _mimeOf(String path) {
+  final ext = path.split('.').last.toLowerCase();
+  return switch (ext) {
+    'jpg' || 'jpeg' => MediaType('image', 'jpeg'),
+    'png'           => MediaType('image', 'png'),
+    'webp'          => MediaType('image', 'webp'),
+    'gif'           => MediaType('image', 'gif'),
+    'heic'          => MediaType('image', 'heic'),
+    'mp4'           => MediaType('video', 'mp4'),
+    'mov'           => MediaType('video', 'quicktime'),
+    'm4a' || 'aac'  => MediaType('audio', 'mp4'),
+    'mp3'           => MediaType('audio', 'mpeg'),
+    'webm'          => MediaType('video', 'webm'),
+    _               => MediaType('application', 'octet-stream'),
+  };
 }
 
 /// Upload a proof artifact (multipart) for a category → returns the API result
@@ -671,7 +934,8 @@ Future<Map> uploadProof(String category, List<String> filePaths) async {
   final form = FormData();
   form.fields.add(MapEntry('category', category));
   for (final path in filePaths) {
-    form.files.add(MapEntry('files', await MultipartFile.fromFile(path)));
+    form.files.add(MapEntry('files',
+        await MultipartFile.fromFile(path, contentType: _mimeOf(path))));
   }
   final resp = await _dio.post(
     '${Config.apiBase}/api/verified-vibe/proof-upload',
@@ -679,6 +943,38 @@ Future<Map> uploadProof(String category, List<String> filePaths) async {
     options: Options(headers: {'Authorization': _bearer()}, receiveTimeout: const Duration(seconds: 120)),
   );
   return resp.data is Map ? resp.data as Map : const {};
+}
+
+/// Submit a government-ID photo (KTP/passport) for the lightweight ID gate.
+/// Returns true on success, throws a user-friendly message on failure.
+Future<bool> verifyIdStep(String imagePath) async {
+  final bytes = await File(imagePath).readAsBytes();
+  final ext = imagePath.split('.').last.toLowerCase();
+  final mime = switch (ext) {
+    'png' => 'image/png', 'webp' => 'image/webp', _ => 'image/jpeg',
+  };
+  final b64 = base64Encode(bytes);
+  late Response resp;
+  try {
+    resp = await _dio.post(
+      '${Config.apiBase}/api/verified-vibe/verify-step',
+      data: {'step': 'id', 'data': {'image': b64, 'mimeType': mime}},
+      options: Options(
+        headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'},
+        receiveTimeout: const Duration(seconds: 60),
+        validateStatus: (s) => true, // handle all status codes manually
+      ),
+    );
+  } on DioException catch (e) {
+    throw Exception('Network error — check your connection and try again.');
+  }
+  final body = resp.data is Map ? resp.data as Map : const {};
+  if (resp.statusCode == 201 || body['status'] == 'completed') return true;
+  if (resp.statusCode == 422) {
+    throw Exception('ID photo could not be read. Make sure it\'s clear, well-lit, and not a screenshot.');
+  }
+  final msg = body['error']?.toString();
+  throw Exception(msg?.isNotEmpty == true ? msg : 'ID verification failed. Please try again.');
 }
 
 /// Verify a social proof by profile URL (linkedin / instagram / twitter) — the
@@ -822,6 +1118,7 @@ class Conversation {
   final int? age;
   final String? avatar;
   final String lastMessage;
+  final String? lastMessageSenderId;
   final DateTime? lastMessageTime;
   final int unreadCount;
   final bool hasMessages;
@@ -835,6 +1132,7 @@ class Conversation {
     required this.age,
     required this.avatar,
     required this.lastMessage,
+    this.lastMessageSenderId,
     required this.lastMessageTime,
     required this.unreadCount,
     required this.hasMessages,
@@ -862,6 +1160,7 @@ Future<List<Conversation>> fetchConversations() async {
       age: u['age'] is num ? (u['age'] as num).toInt() : null,
       avatar: u['avatar'] as String?,
       lastMessage: (c['lastMessage'] ?? '').toString(),
+      lastMessageSenderId: c['lastMessageSenderId'] as String?,
       lastMessageTime: _dt(c['lastMessageTime']),
       unreadCount: c['unreadCount'] is num ? (c['unreadCount'] as num).toInt() : 0,
       hasMessages: c['hasMessages'] == true,
@@ -1040,6 +1339,60 @@ Future<List<Admirer>> fetchAdmirers() async {
       )).toList();
 }
 
+/// A sent admirer/craving-attention message (outbox).
+class SentAdmirer {
+  final String id;
+  final String recipientId;
+  final String name;
+  final int? age;
+  final String? avatar;
+  final String archetype;
+  final String messageType; // secret_admirer | craving_attention
+  final String content;
+  final String? replyContent;
+  final String? replySentAt;
+  final DateTime createdAt;
+  SentAdmirer({
+    required this.id,
+    required this.recipientId,
+    required this.name,
+    required this.age,
+    required this.avatar,
+    required this.archetype,
+    required this.messageType,
+    required this.content,
+    required this.replyContent,
+    required this.replySentAt,
+    required this.createdAt,
+  });
+  bool get replied => replyContent != null && replyContent!.isNotEmpty;
+}
+
+/// Fetch sent admirer/attention messages for the signed-in user.
+Future<List<SentAdmirer>> fetchSentAdmirers() async {
+  final uid = Supabase.instance.client.auth.currentUser?.id;
+  if (uid == null) return [];
+  final resp = await _dio.get(
+    '${Config.apiBase}/api/verified-vibe/attention',
+    queryParameters: {'senderId': uid, 'withDetails': 'true'},
+    options: Options(headers: {'Authorization': _bearer()}),
+  );
+  final msgs = (resp.data is Map ? resp.data['messages'] : null) as List? ?? const [];
+  return msgs.whereType<Map>().map((m) => SentAdmirer(
+        id: (m['id'] ?? '').toString(),
+        recipientId: (m['recipientId'] ?? '').toString(),
+        name: (m['recipientName'] ?? '—').toString(),
+        age: m['recipientAge'] is num ? (m['recipientAge'] as num).toInt() : null,
+        avatar: m['recipientAvatar'] as String?,
+        archetype: (m['recipientArchetype'] ?? '').toString(),
+        messageType: (m['messageType'] ?? 'craving_attention').toString(),
+        content: (m['content'] ?? '').toString(),
+        replyContent: m['replyContent'] as String?,
+        replySentAt: m['replySentAt'] as String?,
+        createdAt: DateTime.tryParse((m['createdAt'] ?? '').toString()) ?? DateTime.now(),
+      )).toList();
+}
+
 /// Reply to an admirer message — creates a mutual match + seeds the chat.
 /// Returns the matchId of the (new or existing) conversation.
 Future<String?> replyToAdmirer(String messageId, String replyContent) async {
@@ -1049,6 +1402,20 @@ Future<String?> replyToAdmirer(String messageId, String replyContent) async {
     options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
   );
   return (resp.data is Map ? resp.data['matchId'] : null) as String?;
+}
+
+/// Mark a conversation as read — clears the unread badge on the Messages list.
+Future<void> markConversationRead(String matchId) async {
+  final uid = Supabase.instance.client.auth.currentUser?.id;
+  if (uid == null) return;
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/chat/mark-read',
+    data: {'matchId': matchId, 'userId': uid},
+    options: Options(
+      headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'},
+      validateStatus: (s) => true,
+    ),
+  );
 }
 
 Future<ChatMessage?> sendMessage(String conversationId, String content) async {
@@ -1116,6 +1483,7 @@ class MatchDetail {
   final List<NamedSignal> verifiedSignals;
   final List<GarageCar> garage;
   final String? annualIncome;
+  final String? netWorth;
   final List<InsightChip> careerLines;
   final List<InsightChip> wealthInsights;
   final String? personalityPortraitUrl;
@@ -1138,6 +1506,7 @@ class MatchDetail {
     required this.verifiedSignals,
     required this.garage,
     required this.annualIncome,
+    this.netWorth,
     required this.careerLines,
     required this.wealthInsights,
     required this.personalityPortraitUrl,
@@ -1206,6 +1575,7 @@ Future<MatchDetail> fetchMatchDetail(String profileId) async {
           model: (a['model'] ?? '').toString(),
           year: a['year']?.toString(),
           color: a['color']?.toString(),
+          vehicleType: a['vehicleType']?.toString(),
         ));
       }
     }
@@ -1234,6 +1604,7 @@ Future<MatchDetail> fetchMatchDetail(String profileId) async {
     verifiedSignals: signals,
     garage: garage,
     annualIncome: incomeNonEmpty(money?['annualIncome']),
+    netWorth: incomeNonEmpty(money?['netWorth']),
     careerLines: _parseChips(money?['careerLines']),
     wealthInsights: _parseChips(money?['wealthInsights']),
     personalityPortraitUrl: incomeNonEmpty(d['personalityPortraitUrl']),
@@ -1368,6 +1739,36 @@ Future<({String id, String content})?> fetchGreeting() async {
     return (id: id, content: content);
   } catch (_) {
     return null; // non-fatal — advisor still works without a greeting
+  }
+}
+
+/// An AI Bestie flag shown when a woman views a man's profile on the discover screen.
+class BestieFlag {
+  final String level; // 'orange' | 'red'
+  final String title;
+  final String detail;
+  BestieFlag(this.level, this.title, this.detail);
+}
+
+/// Fetches AI Bestie profile flags for a male profile. Non-fatal — returns [] on error.
+Future<List<BestieFlag>> fetchBestieFlags(String profileId) async {
+  try {
+    final resp = await _dio.post(
+      '${Config.apiBase}/api/verified-vibe/bestie-profile-flags',
+      data: {'profileId': profileId},
+      options: Options(
+        headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'},
+        receiveTimeout: const Duration(seconds: 30),
+      ),
+    );
+    final flags = (resp.data is Map ? resp.data['flags'] : null) as List? ?? const [];
+    return flags.whereType<Map>().map((f) => BestieFlag(
+      (f['level'] ?? 'orange').toString(),
+      (f['title'] ?? '').toString(),
+      (f['detail'] ?? '').toString(),
+    )).toList();
+  } catch (_) {
+    return [];
   }
 }
 

@@ -31,7 +31,14 @@ const config = {
 			? adapterStatic({ fallback: 'index.html', strict: false })
 			: adapterVercel({
 					runtime: 'nodejs22.x'
-				})
+				}),
+		// Disable SvelteKit's built-in CSRF origin check for API routes.
+		// All /api/* endpoints are protected by Bearer token auth — CSRF cookies
+		// don't apply. Native mobile apps (Flutter/Capacitor) send multipart/form-data
+		// without an Origin header, which would otherwise be blocked with 403.
+		csrf: {
+			checkOrigin: false
+		}
 	}
 };
 

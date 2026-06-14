@@ -118,8 +118,25 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: CachedNetworkImage(imageUrl: _photos[i].url, fit: BoxFit.cover,
-                errorWidget: (c, _, _) => const ColoredBox(color: Color(Config.bg3))),
+            child: CachedNetworkImage(
+              imageUrl: _photos[i].url,
+              fit: BoxFit.cover,
+              placeholder: (c, _) => const ColoredBox(
+                color: Color(Config.bg3),
+                child: Center(
+                  child: SizedBox(
+                    width: 18, height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)),
+                  ),
+                ),
+              ),
+              errorWidget: (c, _, _) => const ColoredBox(
+                color: Color(Config.bg3),
+                child: Center(
+                  child: Icon(Icons.broken_image_outlined, color: Color(Config.text3), size: 22),
+                ),
+              ),
+            ),
           ),
           if (i == 0)
             Positioned(

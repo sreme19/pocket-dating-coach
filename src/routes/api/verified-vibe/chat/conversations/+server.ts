@@ -20,55 +20,12 @@ interface ConversationsResponse {
   };
 }
 
-/**
- * GET /api/verified-vibe/chat/conversations
- *
- * Retrieves all active conversations for the current user.
- * Conversations are sorted by most recent message first.
- * Each conversation includes:
- * - Match ID
- * - Matched user's name, photo, and basic info
- * - Last message preview
- * - Last message timestamp
- * - Unread message count
- *
- * Response:
- * {
- *   data: {
- *     conversations: Conversation[]
- *   }
- * }
- *
- * Conversation structure:
- * {
- *   id: string (conversation ID)
- *   matchId: string (match ID)
- *   matchedUser: {
- *     id: string
- *     firstName: string
- *     age: number
- *     avatar: string | null
- *     ...
- *   }
- *   lastMessage: string (message preview)
- *   lastMessageTime: Date
- *   unreadCount: number
- * }
- */
 export const GET: RequestHandler = async ({ request }) => {
   try {
-    // Get auth token from header
     const authHeader = request.headers.get('authorization') ?? '';
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!token) return json({ error: 'Unauthorized' }, { status: 401 });
 
-    if (!token) {
-      return json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    // Create a client with the user's token to get their ID
     const { createClient } = await import('@supabase/supabase-js');
     const { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } = await import('$env/static/public');
     const userClient = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
@@ -76,104 +33,79 @@ export const GET: RequestHandler = async ({ request }) => {
     });
 
     const { data: { user }, error: userError } = await userClient.auth.getUser();
-
-    if (userError || !user?.id) {
-      return json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    if (userError || !user?.id) return json({ error: 'Unauthorized' }, { status: 401 });
 
     const userId = user.id;
     const supabase = getSupabase();
 
-    // Get all matches for the current user
+    // 1. Fetch all mutual matches (single query)
     const { data: matches, error: matchesError } = await supabase
       .from('verified_vibe_matches')
-      .select('id, user1_id, user2_id, status, created_at')
+      .select('id, user1_id, user2_id, status, created_at, user1_last_read_at, user2_last_read_at')
       .eq('status', 'mutual')
       .or(`user1_id.eq.${userId},user2_id.eq.${userId}`);
 
     if (matchesError) {
       console.error('Error fetching matches:', matchesError);
-      return json(
-        { error: 'Failed to fetch matches' },
-        { status: 500 }
-      );
+      return json({ error: 'Failed to fetch matches' }, { status: 500 });
     }
 
     if (!matches || matches.length === 0) {
-      return json({
-        data: {
-          conversations: []
-        }
-      });
+      return json({ data: { conversations: [] } });
     }
 
-    // Build conversations
-    const conversations: Conversation[] = [];
+    // 2. Collect other user IDs and fetch all profiles in ONE batch query
+    const otherUserIds = matches.map(m => m.user1_id === userId ? m.user2_id : m.user1_id);
+    const { data: users } = await supabase
+      .from('verified_vibe_users')
+      .select('id, first_name, age, city, avatar_url, gender, archetype, trust_score, about, looking, created_at, updated_at')
+      .in('id', otherUserIds);
 
-    for (const match of matches) {
-      // Determine the other user ID
-      const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
+    const userMap = new Map((users ?? []).map(u => [u.id, u]));
 
-      // Get the other user's profile
-      const { data: otherUser, error: userError } = await supabase
-        .from('verified_vibe_users')
-        .select('*')
-        .eq('id', otherUserId)
-        .single();
+    // 3. Fetch last messages for ALL matches in parallel
+    const lastMessageResults = await Promise.all(
+      matches.map(match =>
+        supabase
+          .from('verified_vibe_messages')
+          .select('content, created_at, sender_id')
+          .eq('match_id', match.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .then(r => ({ matchId: match.id, data: r.data }))
+      )
+    );
+    const lastMessageMap = new Map(lastMessageResults.map(r => [r.matchId, r.data?.[0]]));
 
-      if (userError || !otherUser) {
-        console.error('Error fetching user:', userError);
-        continue;
-      }
-
-      // Get the last message for this match
-      const { data: messages, error: messagesError } = await supabase
-        .from('verified_vibe_messages')
-        .select('content, created_at')
-        .eq('match_id', match.id)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (messagesError) {
-        console.error('Error fetching messages:', messagesError);
-        continue;
-      }
-
-      const lastMessage = messages?.[0];
-      const lastMessageTime = lastMessage?.created_at ? new Date(lastMessage.created_at) : new Date();
-      const lastMessageContent = lastMessage?.content || 'No messages yet';
-
-      // Count unread messages — gracefully falls back to 0 if the
-      // last_read columns haven't been migrated yet.
-      let unreadCount = 0;
-      try {
+    // 4. Fetch unread counts for ALL matches in parallel
+    const unreadResults = await Promise.all(
+      matches.map(match => {
         const isUser1 = match.user1_id === userId;
-        const colAlias = isUser1 ? 'user1_last_read_at' : 'user2_last_read_at';
+        const myLastReadAt: string | null = isUser1
+          ? (match.user1_last_read_at ?? null)
+          : (match.user2_last_read_at ?? null);
 
-        const { data: readRow } = await supabase
-          .from('verified_vibe_matches')
-          .select(colAlias)
-          .eq('id', match.id)
-          .single();
+        if (!myLastReadAt) return Promise.resolve({ matchId: match.id, count: 0 });
 
-        const myLastReadAt: string | null = readRow ? (readRow as unknown as Record<string, string | null>)[colAlias] ?? null : null;
+        return supabase
+          .from('verified_vibe_messages')
+          .select('id', { count: 'exact', head: true })
+          .eq('match_id', match.id)
+          .neq('sender_id', userId)
+          .gt('created_at', myLastReadAt)
+          .then(r => ({ matchId: match.id, count: r.count ?? 0 }));
+      })
+    );
+    const unreadMap = new Map(unreadResults.map(r => [r.matchId, r.count]));
 
-        if (myLastReadAt) {
-          const { count } = await supabase
-            .from('verified_vibe_messages')
-            .select('id', { count: 'exact', head: true })
-            .eq('match_id', match.id)
-            .neq('sender_id', userId)
-            .gt('created_at', myLastReadAt);
-          unreadCount = count ?? 0;
-        }
-      } catch {
-        // Column not yet migrated — treat as 0 unread
-      }
+    // 5. Build conversations
+    const conversations: Conversation[] = [];
+    for (const match of matches) {
+      const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
+      const otherUser = userMap.get(otherUserId);
+      if (!otherUser) continue;
 
+      const lastMsg = lastMessageMap.get(match.id);
       conversations.push({
         id: match.id,
         matchId: match.id,
@@ -191,31 +123,20 @@ export const GET: RequestHandler = async ({ request }) => {
           createdAt: new Date(otherUser.created_at),
           updatedAt: new Date(otherUser.updated_at)
         },
-        lastMessage: lastMessageContent,
-        lastMessageTime,
-        unreadCount,
-        hasMessages: !!lastMessage,
+        lastMessage: lastMsg?.content ?? 'No messages yet',
+        lastMessageSenderId: lastMsg?.sender_id ?? null,
+        lastMessageTime: lastMsg?.created_at ? new Date(lastMsg.created_at) : new Date(match.created_at),
+        unreadCount: unreadMap.get(match.id) ?? 0,
+        hasMessages: !!lastMsg,
         matchedAt: new Date(match.created_at)
       });
     }
 
-    // Sort by most recent message first
-    const sorted = conversations.sort(
-      (a, b) => b.lastMessageTime.getTime() - a.lastMessageTime.getTime()
-    );
+    const sorted = conversations.sort((a, b) => b.lastMessageTime.getTime() - a.lastMessageTime.getTime());
+    return json({ data: { conversations: sorted } });
 
-    const response: ConversationsResponse = {
-      data: {
-        conversations: sorted
-      }
-    };
-
-    return json(response);
   } catch (error) {
     console.error('Conversations fetch error:', error);
-    return json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return json({ error: 'Internal server error' }, { status: 500 });
   }
 };

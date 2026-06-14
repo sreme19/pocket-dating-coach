@@ -4,7 +4,6 @@ import 'api.dart';
 import 'config.dart';
 import 'profile_body.dart';
 import 'engage_sheets.dart';
-import 'live_now_carousel.dart';
 
 /// Discover: one full profile at a time (the web "Public Read") with Tip /
 /// Notice-me / Next. This product has no like/pass — Next just advances.
@@ -23,6 +22,10 @@ class _DiscoverScreenState extends State<DiscoverScreen>
   String? _error;
   Future<MatchDetail>? _detail;
   final _scroll = ScrollController();
+  List<BestieFlag> _bestieFlags = [];
+  bool _bestieFlagsLoading = false;
+  final Set<String> _sentAttentionIds = {}; // profiles already noticed/admired
+  final Set<String> _tippedIds = {}; // profiles tipped this session
 
   @override
   bool get wantKeepAlive => true;
@@ -40,10 +43,19 @@ class _DiscoverScreenState extends State<DiscoverScreen>
   }
 
   Future<void> _load() async {
-    setState(() { _feed = null; _error = null; _idx = 0; });
+    setState(() { _feed = null; _error = null; _idx = 0; _bestieFlags = []; _bestieFlagsLoading = false; });
     try {
       final list = await fetchDiscovery();
-      fetchCurrentUserGender().then((g) { if (mounted) setState(() => _viewerGender = g); });
+      fetchCurrentUserGender().then((g) {
+        if (mounted) {
+          setState(() => _viewerGender = g);
+          _maybeFetchBestie();
+        }
+      });
+      // Load already-sent attention IDs so buttons show correct state
+      fetchSentAdmirers().then((sent) {
+        if (mounted) setState(() => _sentAttentionIds.addAll(sent.map((s) => s.recipientId)));
+      }).catchError((_) {});
       if (!mounted) return;
       setState(() {
         _feed = list;
@@ -52,6 +64,15 @@ class _DiscoverScreenState extends State<DiscoverScreen>
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
     }
+  }
+
+  void _maybeFetchBestie() {
+    final cur = _current;
+    if (_viewerGender != 'woman' || cur == null || cur.gender != 'man') return;
+    setState(() { _bestieFlags = []; _bestieFlagsLoading = true; });
+    fetchBestieFlags(cur.id).then((flags) {
+      if (mounted) setState(() { _bestieFlags = flags; _bestieFlagsLoading = false; });
+    });
   }
 
   void _next() {
@@ -64,7 +85,10 @@ class _DiscoverScreenState extends State<DiscoverScreen>
     setState(() {
       _idx += 1;
       _detail = fetchMatchDetail(feed[_idx].id);
+      _bestieFlags = [];
+      _bestieFlagsLoading = false;
     });
+    _maybeFetchBestie();
     if (_scroll.hasClients) _scroll.jumpTo(0);
   }
 
@@ -128,7 +152,6 @@ class _DiscoverScreenState extends State<DiscoverScreen>
               physics: const AlwaysScrollableScrollPhysics(),
               padding: EdgeInsets.zero,
               children: [
-                LiveNowCarousel(viewerGender: _viewerGender),
                 _photo(avatar, trust),
                 if (loading)
                   const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator(color: Color(Config.accent))))
@@ -138,8 +161,11 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                     child: Text('Couldn’t load this profile.\n${snap.error ?? ''}',
                         textAlign: TextAlign.center, style: const TextStyle(color: Color(Config.text2))),
                   )
-                else
+                else ...[
                   ...richProfileBody(context, d),
+                  if (_viewerGender == 'woman' && _current?.gender == 'man')
+                    _bestieTake(),
+                ],
                 const SizedBox(height: 24),
               ],
             );
@@ -188,8 +214,73 @@ class _DiscoverScreenState extends State<DiscoverScreen>
     );
   }
 
+  Widget _bestieTake() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0x0DFBBF24),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0x33FBBF24)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Text('💬', style: TextStyle(fontSize: 22)),
+          const SizedBox(width: 10),
+          const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text("BESTIE'S TAKE",
+                style: TextStyle(color: Color(0xFFFBBF24), fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.6)),
+            Text('What to double-check before you match',
+                style: TextStyle(color: Color(Config.text2), fontSize: 11)),
+          ]),
+        ]),
+        const SizedBox(height: 12),
+        if (_bestieFlagsLoading)
+          const Row(children: [
+            SizedBox(
+              width: 13, height: 13,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFBBF24)),
+            ),
+            SizedBox(width: 8),
+            Text('Bestie is reading his profile…', style: TextStyle(color: Color(Config.text2), fontSize: 12)),
+          ])
+        else if (_bestieFlags.isEmpty)
+          const Text(
+            '✓ Nothing suspicious — profile claims look consistent with what was verified.',
+            style: TextStyle(color: Color(Config.accent), fontSize: 13),
+          )
+        else
+          for (final flag in _bestieFlags)
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: flag.level == 'red' ? const Color(0x1AEF4444) : const Color(0x1AFB923C),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: flag.level == 'red' ? const Color(0x4DEF4444) : const Color(0x4DFB923C),
+                ),
+              ),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(flag.level == 'red' ? '🚨' : '⚠️', style: const TextStyle(fontSize: 15)),
+                const SizedBox(width: 10),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(flag.title,
+                      style: const TextStyle(color: Color(Config.text1), fontSize: 13, fontWeight: FontWeight.w600, height: 1.3)),
+                  const SizedBox(height: 3),
+                  Text(flag.detail,
+                      style: const TextStyle(color: Color(Config.text2), fontSize: 12, height: 1.5)),
+                ])),
+              ]),
+            ),
+      ]),
+    );
+  }
+
   Widget _actionBar(DiscoveryProfile cur) {
     final g = _viewerGender;
+    final alreadySent = _sentAttentionIds.contains(cur.id);
+    final alreadyTipped = _tippedIds.contains(cur.id);
     return SafeArea(
       top: false,
       child: Container(
@@ -201,12 +292,17 @@ class _DiscoverScreenState extends State<DiscoverScreen>
         child: Row(children: [
           Expanded(
             child: OutlinedButton.icon(
-              onPressed: g == null ? null : () => showTipSheet(context, targetUserId: cur.id, viewerGender: g),
-              icon: const Icon(Icons.chat_bubble_outline, size: 18),
-              label: const Text('Tip'),
+              onPressed: g == null || alreadyTipped ? null : () async {
+                final sent = await showTipSheet(context, targetUserId: cur.id, viewerGender: g);
+                if (sent && mounted) setState(() => _tippedIds.add(cur.id));
+              },
+              icon: alreadyTipped
+                  ? const Icon(Icons.check, size: 18)
+                  : const Icon(Icons.chat_bubble_outline, size: 18),
+              label: Text(alreadyTipped ? 'Tipped ✓' : 'Tip'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(Config.text1),
-                side: const BorderSide(color: Color(0x331B1020)),
+                foregroundColor: alreadyTipped ? const Color(Config.text3) : const Color(Config.text1),
+                side: BorderSide(color: alreadyTipped ? const Color(0x221B1020) : const Color(0x331B1020)),
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -215,12 +311,17 @@ class _DiscoverScreenState extends State<DiscoverScreen>
           const SizedBox(width: 10),
           Expanded(
             child: OutlinedButton.icon(
-              onPressed: g == null ? null : () => showAdmireSheet(context, recipientId: cur.id, viewerGender: g, name: cur.firstName),
-              icon: Text(g == 'woman' ? '🌹' : '👀', style: const TextStyle(fontSize: 15)),
-              label: Text(g == 'woman' ? 'Admire' : 'Notice me'),
+              onPressed: g == null || alreadySent ? null : () async {
+                final sent = await showAdmireSheet(context, recipientId: cur.id, viewerGender: g, name: cur.firstName);
+                if (sent && mounted) setState(() => _sentAttentionIds.add(cur.id));
+              },
+              icon: alreadySent
+                  ? const Icon(Icons.check, size: 15)
+                  : Text(g == 'woman' ? '🌹' : '👀', style: const TextStyle(fontSize: 15)),
+              label: Text(alreadySent ? 'Sent ✓' : (g == 'woman' ? 'Admire' : 'Notice me')),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFFEC4899),
-                side: const BorderSide(color: Color(0x55EC4899)),
+                foregroundColor: alreadySent ? const Color(Config.text3) : const Color(0xFFEC4899),
+                side: BorderSide(color: alreadySent ? const Color(0x221B1020) : const Color(0x55EC4899)),
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),

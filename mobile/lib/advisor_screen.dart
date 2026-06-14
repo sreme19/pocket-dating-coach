@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
 import 'config.dart';
 import 'markdown.dart';
@@ -31,6 +33,7 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
 
   bool get _wm => widget.wingman;
   String get _name => _wm ? 'AI Wingman' : 'AI Bestie';
+  String get _historyKey => _wm ? 'vv_advisor_history_wingman' : 'vv_advisor_history_bestie';
 
   List<({String label, String intent})> get _chips => [
         (label: 'Summarize matches', intent: 'summary'),
@@ -42,7 +45,32 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
   @override
   void initState() {
     super.initState();
-    _loadGreeting();
+    _loadHistory().then((_) => _loadGreeting());
+  }
+
+  Future<void> _loadHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_historyKey);
+    if (raw == null || !mounted) return;
+    try {
+      final list = jsonDecode(raw) as List<dynamic>;
+      setState(() {
+        for (final item in list) {
+          _turns.add(_Turn(item['role'] as String, item['content'] as String));
+        }
+      });
+      _scrollToBottom();
+    } catch (_) {}
+  }
+
+  Future<void> _saveHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final toSave = _turns
+        .where((t) => t.role == 'user' || t.role == 'assistant')
+        .map((t) => {'role': t.role, 'content': t.content})
+        .toList();
+    final trimmed = toSave.length > 30 ? toSave.sublist(toSave.length - 30) : toSave;
+    await prefs.setString(_historyKey, jsonEncode(trimmed));
   }
 
   Future<void> _loadGreeting() async {
@@ -66,6 +94,7 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
       setState(() => _turns.add(_Turn('assistant',
           'Head to your **Profile** tab to edit your photos, About, archetype, and proof signals. Boosting your trust score there is the fastest way to better matches.')));
       _scrollToBottom();
+      _saveHistory();
       return;
     }
     if (intent == 'better_matches') {
@@ -95,6 +124,7 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
         _turns.add(_Turn('assistant', r.reply, drafts: r.drafts));
         _thinking = false;
       });
+      _saveHistory();
     } catch (e) {
       setState(() {
         _turns.add(_Turn('assistant', '⚠️ Could not reach $_name: $e'));

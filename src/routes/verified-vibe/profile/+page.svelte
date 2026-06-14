@@ -1869,7 +1869,9 @@
   const trustScoreBreakdown = $derived(calculateTrustScore($userVerification || []));
   const trustLabel = $derived(getTrustScoreLabel(trustScore));
   const trustBreakdown = $derived([
-    { category: 'Identity', score: trustScoreBreakdown.idScore, max: 100, items: ['ID Verified', 'Face Match', 'Liveness'] },
+    // Verification flow saves 'liveness' (not 'id') for the identity check step.
+    // Use livenessScore so the Identity bar reflects actual completion.
+    { category: 'Identity', score: trustScoreBreakdown.livenessScore, max: 100, items: ['Face Match', 'Liveness'] },
     { category: 'Lifestyle', score: trustScoreBreakdown.photoScore, max: 100, items: ['Photo Consistency', 'Self-Presentation'] },
     { category: 'Intent', score: trustScoreBreakdown.qaScore, max: 100, items: ['Q&A Complete', 'Authentic Responses'] }
   ]);
@@ -2636,8 +2638,8 @@
           What He Brings
           <button
             class="section-edit-btn"
-            onclick={() => goto('/verified-vibe/verification?step=archetype_qa&returnTo=/verified-vibe/profile')}
-            aria-label="Edit what you bring"
+            onclick={() => { whatImAboutTab = 'lane'; startEditLane(); document.getElementById('what-im-about-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
+            aria-label="Change lane"
             type="button"
           >
             <Pencil size={11} />
@@ -3130,7 +3132,7 @@
 
       <!-- What I'm About — Lane / Hard Nos / Looking For tabbed -->
       {#if $user?.gender !== null}
-      <section class="section">
+      <section class="section" id="what-im-about-section">
         <div class="section-label">
           <Heart size={13} />
           What I'm About

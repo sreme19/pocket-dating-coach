@@ -58,14 +58,16 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
             ]),
           ),
       ])),
-    if (d.annualIncome != null || d.wealthInsights.isNotEmpty || d.careerLines.isNotEmpty)
+    if (d.annualIncome != null || d.netWorth != null || d.careerLines.isNotEmpty)
       pSection('💰 MONEY MATTERS', moneyMattersCard(
         income: d.annualIncome,
+        netWorth: d.netWorth,
         tiles: [
-          for (final c in d.wealthInsights) (c.emoji, c.label),
           for (final c in d.careerLines) (c.emoji, c.label),
         ],
-        footer: '✓ AI verified via bank statement / financial document',
+        footer: d.annualIncome != null || d.netWorth != null
+            ? '✓ AI verified via bank statement / financial document'
+            : null,
       )),
     if (d.personalityPortraitUrl != null)
       pSection('✨ AI PORTRAIT', _portrait(d.personalityPortraitUrl!), hint: 'generated from photos'),
@@ -83,8 +85,11 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(car.title, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
-            Text([car.year, car.color].where((s) => s != null && s.isNotEmpty).join(' · '),
-                style: const TextStyle(fontSize: 13, color: Color(Config.text2))),
+            if (car.vehicleType != null && car.vehicleType!.isNotEmpty)
+              Text(car.vehicleType!, style: const TextStyle(fontSize: 13, color: Color(Config.text2))),
+            if ([car.color, car.year].any((s) => s != null && s!.isNotEmpty))
+              Text([car.color, car.year].where((s) => s != null && s!.isNotEmpty).join(' · '),
+                  style: const TextStyle(fontSize: 12, color: Color(Config.text3))),
             const Text('✅ Ownership verified', style: TextStyle(fontSize: 12, color: Color(Config.accent))),
           ])),
         ]),
@@ -164,13 +169,48 @@ Widget travelMagnets(List<String> places) {
   );
 }
 
-/// Playful Money Matters card: income hero + a grid of emoji tiles + footer.
+String _moneyEmoji(String? val) {
+  if (val == null) return '💰';
+  if (val.contains('A\$') || val.contains('C\$') || val.contains('S\$')) return '💵';
+  if (val.contains('€')) return '💶';
+  if (val.contains('£')) return '💷';
+  if (val.contains('¥')) return '💴';
+  if (val.contains('₹')) return '🪙';
+  return '💵'; // default USD / other $
+}
+
+/// If [val] is a plain integer/decimal string (no currency symbols or letters),
+/// add comma separators so "1000000" → "1,000,000".
+/// Otherwise return as-is (range strings like "₹25L – ₹50L" are already readable).
+String _formatMoneyValue(String val) {
+  final trimmed = val.trim();
+  // Only reformat if it looks like a bare number (digits, optional decimal point/comma)
+  final bareNum = RegExp(r'^[\d,\.]+$').hasMatch(trimmed);
+  if (!bareNum) return trimmed;
+  // Parse and reformat with commas
+  final parsed = double.tryParse(trimmed.replaceAll(',', ''));
+  if (parsed == null) return trimmed;
+  final intPart = parsed.truncate().toInt();
+  // Insert commas every 3 digits
+  final s = intPart.abs().toString();
+  final buf = StringBuffer();
+  for (int i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
+    buf.write(s[i]);
+  }
+  if (intPart < 0) return '-${buf.toString()}';
+  return buf.toString();
+}
+
+/// Playful Money Matters card: income + net worth hero + a grid of emoji tiles + footer.
 Widget moneyMattersCard({
   String? income,
+  String? netWorth,
   required List<(String emoji, String label)> tiles,
   String? footer,
   VoidCallback? onUpload,
 }) {
+  final hasData = income != null || netWorth != null;
   return Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
@@ -182,18 +222,32 @@ Widget moneyMattersCard({
       border: Border.all(color: const Color(Config.accent).withValues(alpha: 0.15)),
     ),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      if (income != null) ...[
-        Text('ANNUAL INCOME', style: TextStyle(color: const Color(Config.accent).withValues(alpha: 0.8), fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
-        const SizedBox(height: 6),
-        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          const Text('💼', style: TextStyle(fontSize: 26)),
-          const SizedBox(width: 8),
-          Expanded(child: Text(income, style: const TextStyle(color: Color(Config.text1), fontSize: 22, fontWeight: FontWeight.w800))),
-        ]),
-        const SizedBox(height: 2),
-        const Text('SELF DECLARED', style: TextStyle(color: Color(Config.text3), fontSize: 10, letterSpacing: 0.5)),
+      if (hasData) ...[
+        if (income != null) ...[
+          Text('ANNUAL INCOME', style: TextStyle(color: const Color(Config.accent).withValues(alpha: 0.8), fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+          const SizedBox(height: 6),
+          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(_moneyEmoji(income), style: const TextStyle(fontSize: 26)),
+            const SizedBox(width: 8),
+            Expanded(child: Text(_formatMoneyValue(income), style: const TextStyle(color: Color(Config.text1), fontSize: 22, fontWeight: FontWeight.w800))),
+          ]),
+          const SizedBox(height: 2),
+          const Text('SELF DECLARED', style: TextStyle(color: Color(Config.text3), fontSize: 10, letterSpacing: 0.5)),
+          if (netWorth != null) const SizedBox(height: 14),
+        ],
+        if (netWorth != null) ...[
+          Text('NET WORTH', style: TextStyle(color: const Color(Config.accent).withValues(alpha: 0.8), fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+          const SizedBox(height: 6),
+          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(_moneyEmoji(netWorth), style: const TextStyle(fontSize: 26)),
+            const SizedBox(width: 8),
+            Expanded(child: Text(_formatMoneyValue(netWorth), style: const TextStyle(color: Color(Config.text1), fontSize: 22, fontWeight: FontWeight.w800))),
+          ]),
+          const SizedBox(height: 2),
+          const Text('SELF DECLARED', style: TextStyle(color: Color(Config.text3), fontSize: 10, letterSpacing: 0.5)),
+        ],
         const SizedBox(height: 16),
-      ] else ...[
+      ] else if (onUpload != null) ...[
         const Text('Tap ✏️ to add your income and financial info.',
             style: TextStyle(color: Color(Config.text3), fontSize: 14, height: 1.4)),
         const SizedBox(height: 12),

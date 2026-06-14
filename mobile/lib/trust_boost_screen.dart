@@ -1,29 +1,29 @@
 import 'package:flutter/material.dart';
 import 'api.dart';
 import 'archetypes.dart';
+import 'category_proof_screen.dart';
 import 'config.dart';
-import 'proof_upload_screen.dart';
+import 'verification_screen.dart';
 
 /// A boostable proof category shown on the Trust & Boost page.
 class _Cat {
-  final String id, emoji, title, subtitle;
+  final String id, emoji, title, subtitle, time;
   final int pts;
-  const _Cat(this.id, this.emoji, this.title, this.subtitle, this.pts);
+  const _Cat(this.id, this.emoji, this.title, this.subtitle, this.pts, {this.time = ''});
 }
 
+// Matches the web "Prove It" section exactly (4 tiles, same labels/desc/pts)
 const _showOff = <_Cat>[
-  _Cat('lifestyle', '🌍', 'Lifestyle', 'Travel & experiences', 8),
-  _Cat('hosting', '🍽️', 'Hosting', 'Dinners, celebrations', 6),
-  _Cat('discipline', '💪', 'Discipline', 'Fitness & routine', 4),
-  _Cat('social_proof', '🤝', 'Social Proof', 'Your social side', 4),
-  _Cat('wealth', '💎', 'Wealth', 'Financial standing', 12),
-  _Cat('assets', '🚗', 'Assets', 'Car, home', 10),
+  _Cat('lifestyle',    '📸', 'Lifestyle Photos', 'Travel, dining, events',       8, time: '2 min'),
+  _Cat('intro',        '🎙️', 'Voice Intro',      'Let them hear you first',      8, time: '1 min'),
+  _Cat('discipline',   '💪', 'Discipline',       'Gym, sleep, reading routines', 4, time: '1 min'),
+  _Cat('social_proof', '🤝', 'Social Proof',     'Friends & communities',        4, time: '2 min'),
 ];
 
 const _socials = <_Cat>[
-  _Cat('linkedin', '💼', 'LinkedIn', '', 5),
-  _Cat('instagram', '📸', 'Instagram', '', 3),
-  _Cat('twitter', '𝕏', 'X', '', 2),
+  _Cat('linkedin',  '', 'LinkedIn',  '', 5),
+  _Cat('instagram', '', 'Instagram', '', 3),
+  _Cat('twitter',   '', 'X',         '', 2),
 ];
 
 class TrustBoostScreen extends StatefulWidget {
@@ -44,11 +44,6 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
   Future<void> _refresh() async {
     setState(() { _future = fetchTrust(); });
     await _future;
-  }
-
-  Future<void> _upload() async {
-    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProofUploadScreen()));
-    _refresh();
   }
 
   @override
@@ -101,9 +96,11 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
                   )),
                 ]),
                 const SizedBox(height: 20),
-                _backgroundCheck(),
+                _moneyMatters(d),
                 const SizedBox(height: 20),
-                _verifiedInsights(d),
+                _garageSection(d),
+                const SizedBox(height: 20),
+                _travelMagnetsSection(d),
               ],
             ),
           );
@@ -132,7 +129,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
         ]),
       );
 
-  Widget _vline() => Container(width: 1, height: 40, color: const Color(0x141B1020));
+  Widget _vline() => Container(width: 1, height: 40, color: const Color(0x141B1020), margin: const EdgeInsets.symmetric(horizontal: 12));
 
   Widget _privacyBanner() => Container(
         padding: const EdgeInsets.all(14),
@@ -231,54 +228,119 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
         Text(label, style: TextStyle(fontSize: 12, color: on ? const Color(Config.text1) : const Color(Config.text3))),
       ]);
 
+  // ── Safety Check — 3 categories matching website layout ───────────────────
+
+  Future<void> _goVerify() async {
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => VerificationScreen(onDone: () { Navigator.of(context).pop(); _refresh(); }),
+    ));
+    _refresh();
+  }
+
   Widget _safetyCheck(TrustData d) {
-    final identity = d.identityVerified ? 100 : 50;
-    final hasIntro = d.proofFor('intro') != null;
-    final emotional = (45 + d.proofs.length * 5 + (hasIntro ? 25 : 0)).clamp(0, 100);
+    // Identity = liveness step score. The verification flow saves 'liveness'
+    // (not 'id') when the user completes the identity check, so use livenessScore.
+    final identityScore = d.livenessScore;
+    // Lifestyle = photos step score
+    final lifestyleScore = d.photoScore;
+    // Intent = spending_or_qa step score
+    final intentScore = d.qaScore;
+
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: const Color(Config.bg2), borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0x181B1020))),
+      decoration: BoxDecoration(
+        color: const Color(Config.bg2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0x181B1020)),
+      ),
       child: Column(children: [
-        _meter('Identity', identity, d.identityVerified ? 'ID verified · Face matched' : 'Verify your ID to boost'),
-        const SizedBox(height: 14),
-        _meter('Emotional Safety', emotional, null),
-        if (!hasIntro) ...[
-          const SizedBox(height: 12),
-          GestureDetector(
-            onTap: _upload,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(color: const Color(Config.bg3), borderRadius: BorderRadius.circular(10)),
-              child: Row(children: [
-                const Expanded(child: Text('Add a video intro to complete your safety signal',
-                    style: TextStyle(color: Color(Config.text2), fontSize: 13))),
-                const Text('boost →', style: TextStyle(color: Color(0xFFF59E0B), fontWeight: FontWeight.w700, fontSize: 13)),
-              ]),
-            ),
-          ),
-        ],
+        _safetyItem(
+          label: 'Identity',
+          score: identityScore,
+          lowText:  'Verify your identity — required to appear in search',
+          midText:  'Complete face match to maximise identity score',
+          lowPts:   '+50 pts →',
+          onTap:    _goVerify,
+        ),
+        const SizedBox(height: 16),
+        _safetyItem(
+          label: 'Lifestyle',
+          score: lifestyleScore,
+          lowText:  'Upload photos to verify your lifestyle and stand out',
+          midText:  'Add more photos to complete your lifestyle score',
+          lowPts:   '+8 pts →',
+        ),
+        const SizedBox(height: 16),
+        _safetyItem(
+          label: 'Intent',
+          score: intentScore,
+          lowText:  'Answer Q&A questions — reveals your real intentions',
+          midText:  'Add more answers to complete your intent signal',
+          lowPts:   '+12 pts →',
+          onTap:    _goVerify,
+        ),
       ]),
     );
   }
 
-  Widget _meter(String label, int value, String? sub) {
-    final c = value >= 80 ? const Color(Config.accent) : const Color(0xFFF59E0B);
+  Widget _safetyItem({
+    required String label,
+    required int score,
+    required String lowText,
+    required String midText,
+    required String lowPts,
+    VoidCallback? onTap,
+  }) {
+    const barColor   = Color(Config.accent);
+    const scoreColor = Color(Config.accent);
+
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Text(label, style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w600)),
         const Spacer(),
-        Text('$value/100', style: TextStyle(color: c, fontWeight: FontWeight.w700, fontSize: 13)),
+        Text('$score/100', style: const TextStyle(color: scoreColor, fontWeight: FontWeight.w700, fontSize: 13)),
       ]),
       const SizedBox(height: 6),
       ClipRRect(
         borderRadius: BorderRadius.circular(999),
-        child: LinearProgressIndicator(value: value / 100, minHeight: 5,
-            backgroundColor: const Color(0x221B1020), valueColor: AlwaysStoppedAnimation(c)),
+        child: LinearProgressIndicator(
+          value: score / 100,
+          minHeight: 5,
+          backgroundColor: const Color(0x22FF3B6B),
+          valueColor: const AlwaysStoppedAnimation(barColor),
+        ),
       ),
-      if (sub != null) ...[
-        const SizedBox(height: 4),
-        Text(sub, style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
-      ],
+      const SizedBox(height: 6),
+      if (score >= 75)
+        Text('✓ $label verified',
+            style: const TextStyle(color: Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w600))
+      else if (onTap != null)
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(
+              color: const Color(0x1AFF3B6B),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0x33FF3B6B)),
+            ),
+            child: Row(children: [
+              Expanded(child: Text(
+                score < 50 ? lowText : midText,
+                style: const TextStyle(color: Color(Config.accent), fontSize: 13),
+              )),
+              const SizedBox(width: 8),
+              Text(
+                score < 50 ? lowPts : 'boost →',
+                style: const TextStyle(
+                  color: Color(Config.accent),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+            ]),
+          ),
+        ),
     ]);
   }
 
@@ -286,7 +348,10 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
     final p = d.proofFor(c.id);
     final verified = p != null;
     return GestureDetector(
-      onTap: _upload,
+      onTap: () => Navigator.of(context)
+          .push(MaterialPageRoute(
+              builder: (_) => CategoryProofScreen(categoryId: c.id, existingProof: p)))
+          .then((_) => _refresh()),
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
@@ -303,13 +368,14 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
             const SizedBox(height: 2),
             Text(verified && p.insightLabel.isNotEmpty ? p.insightLabel : c.subtitle,
                 style: const TextStyle(color: Color(Config.text2), fontSize: 13)),
-            const SizedBox(height: 3),
+            const SizedBox(height: 4),
             if (verified)
               Text('✓ Verified${p.photoCount > 0 ? ' · ${p.photoCount} photo${p.photoCount == 1 ? '' : 's'}' : ''}',
                   style: const TextStyle(color: Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w600))
-            else
-              const Text('Tap to add', style: TextStyle(color: Color(Config.text3), fontSize: 12)),
+            else if (c.time.isNotEmpty)
+              Text(c.time, style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
           ])),
+          const SizedBox(width: 10),
           if (verified)
             const CircleAvatar(radius: 16, backgroundColor: Color(Config.accent), child: Icon(Icons.check, size: 18, color: Color(0xFFFFFFFF)))
           else
@@ -324,9 +390,13 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
   }
 
   Widget _socialTile(TrustData d, _Cat c) {
-    final verified = d.proofFor(c.id) != null;
+    final p = d.proofFor(c.id);
+    final verified = p != null;
     return GestureDetector(
-      onTap: _upload,
+      onTap: () => Navigator.of(context)
+          .push(MaterialPageRoute(
+              builder: (_) => CategoryProofScreen(categoryId: c.id, existingProof: p)))
+          .then((_) => _refresh()),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
@@ -335,7 +405,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
           border: Border.all(color: verified ? const Color(0x4DFF3B6B) : const Color(0x181B1020)),
         ),
         child: Column(children: [
-          Text(c.emoji, style: const TextStyle(fontSize: 24)),
+          _brandIcon(c.id),
           const SizedBox(height: 8),
           if (verified)
             const Icon(Icons.check, size: 16, color: Color(Config.accent))
@@ -346,44 +416,426 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
     );
   }
 
-  Widget _backgroundCheck() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _label('🔎  BACKGROUND VERIFICATION', hint: 'optional'),
-        const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: const Color(0x1A6366F1), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0x336366F1))),
-          child: Row(children: [
-            const CircleAvatar(radius: 20, backgroundColor: Color(0x336366F1), child: Icon(Icons.verified_user_outlined, color: Color(0xFF4338CA))),
-            const SizedBox(width: 12),
-            const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Run a background check', style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700)),
-              SizedBox(height: 2),
-              Text('Criminal, identity & address verification — report stays private, only a badge shows on your profile.',
-                  style: TextStyle(color: Color(Config.text2), fontSize: 12, height: 1.3)),
-            ])),
-            const Icon(Icons.chevron_right, color: Color(Config.text3)),
-          ]),
+  /// Monochrome brand icon — white background with black icon, matching web style.
+  Widget _brandIcon(String platform) {
+    const double s = 36;
+    const iconColor = Color(0xFF111111);
+    return Container(
+      width: s, height: s,
+      decoration: BoxDecoration(color: const Color(0xFFFFFFFF), borderRadius: BorderRadius.circular(8)),
+      child: switch (platform) {
+        'linkedin' => const Center(
+            child: Text('in',
+                style: TextStyle(color: iconColor, fontWeight: FontWeight.w800, fontSize: 16, height: 1))),
+        'instagram' => CustomPaint(
+            size: const Size(s, s),
+            painter: _InstagramPainter(iconColor)),
+        'twitter' => const Center(
+            child: Text('𝕏',
+                style: TextStyle(color: iconColor, fontWeight: FontWeight.w700, fontSize: 18, height: 1.15))),
+        _ => const SizedBox.shrink(),
+      },
+    );
+  }
+
+  Widget _moneyMatters(TrustData d) {
+    final wealthProof = d.proofFor('wealth');
+    final hasIncome   = d.annualIncome != null;
+    final hasNetWorth = d.netWorth != null;
+    final hasWealth   = wealthProof != null && wealthProof.aggregated.isNotEmpty;
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _label('💰  MONEY MATTERS'),
+      const SizedBox(height: 10),
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(Config.bg2),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0x181B1020)),
         ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Income row
+          if (hasIncome) _moneyRow('🧳', 'Income', d.annualIncome!),
+          // Net Worth row
+          if (hasNetWorth) _moneyRow('📈', 'Net Worth', d.netWorth!),
+          // Wealth insights
+          if (hasWealth) ...[
+            if (hasIncome || hasNetWorth) const SizedBox(height: 10),
+            Text(wealthProof.aggregated,
+                style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4)),
+            const SizedBox(height: 6),
+            const Row(children: [
+              Icon(Icons.check, size: 11, color: Color(Config.text3)),
+              SizedBox(width: 4),
+              Expanded(child: Text('AI verified via bank statement / financial document',
+                  style: TextStyle(color: Color(Config.text3), fontSize: 11))),
+            ]),
+          ],
+          if (hasIncome || hasNetWorth || hasWealth) const SizedBox(height: 14),
+          // Edit button — always shown
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => _editMoneyMatters(d),
+              icon: const Icon(Icons.edit_outlined, size: 14, color: Color(0xFFF59E0B)),
+              label: const Text('Edit income & net worth',
+                  style: TextStyle(color: Color(0xFFF59E0B), fontWeight: FontWeight.w600, fontSize: 13)),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0x80F59E0B)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Spending proof upload card
+          _miniProofCard(
+            d: d, categoryId: 'spending',
+            icon: '🧾', title: 'Upload Receipts',
+            subtitle: 'Restaurant, travel & event spend',
+            pts: 10,
+          ),
+          const SizedBox(height: 8),
+          // Wealth proof upload card
+          _miniProofCard(
+            d: d, categoryId: 'wealth',
+            icon: '🏦', title: 'Upload Bank / Investment Doc',
+            subtitle: 'Verify your financial standing',
+            pts: 12,
+          ),
+        ]),
+      ),
+    ]);
+  }
+
+  Widget _miniProofCard({
+    required TrustData d,
+    required String categoryId,
+    required String icon,
+    required String title,
+    required String subtitle,
+    required int pts,
+  }) {
+    final verified = d.proofFor(categoryId) != null;
+    return GestureDetector(
+      onTap: () => Navigator.of(context)
+          .push(MaterialPageRoute(
+              builder: (_) => CategoryProofScreen(categoryId: categoryId)))
+          .then((_) => _refresh()),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(Config.bg3),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: verified ? const Color(0x4DFF3B6B) : const Color(0x181B1020),
+          ),
+        ),
+        child: Row(children: [
+          Text(icon, style: const TextStyle(fontSize: 20)),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title,
+                style: const TextStyle(
+                    color: Color(Config.text1), fontWeight: FontWeight.w600, fontSize: 13)),
+            Text(subtitle,
+                style: const TextStyle(color: Color(Config.text3), fontSize: 11)),
+          ])),
+          if (verified)
+            const Icon(Icons.check_circle, size: 18, color: Color(Config.accent))
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0x22FF3B6B),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text('+$pts',
+                  style: const TextStyle(
+                      color: Color(Config.accent), fontWeight: FontWeight.w700, fontSize: 12)),
+            ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _garageSection(TrustData d) {
+    final assetsProof = d.proofFor('assets');
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _label('🚗  GARAGE'),
+      const SizedBox(height: 10),
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(Config.bg2),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0x181B1020)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (assetsProof != null && assetsProof.aggregated.isNotEmpty) ...[
+            Text(assetsProof.aggregated,
+                style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4)),
+            const SizedBox(height: 6),
+            const Row(children: [
+              Icon(Icons.check, size: 11, color: Color(Config.text3)),
+              SizedBox(width: 4),
+              Expanded(child: Text('AI verified via registration / ownership document',
+                  style: TextStyle(color: Color(Config.text3), fontSize: 11))),
+            ]),
+            const SizedBox(height: 14),
+          ],
+          _miniProofCard(
+            d: d, categoryId: 'assets',
+            icon: '📄', title: 'Upload Registration / Docs',
+            subtitle: 'Car, property or company documents',
+            pts: 15,
+          ),
+        ]),
+      ),
+    ]);
+  }
+
+  Widget _moneyRow(String emoji, String label, String value) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(children: [
+          Text('$emoji  $label', style: const TextStyle(color: Color(Config.text2), fontSize: 14)),
+          const Spacer(),
+          Text(value,
+              style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700, fontSize: 14)),
+        ]),
+      );
+
+  // ── Currency + range constants ─────────────────────────────────────────────
+
+  static final _currencies = <(String, String)>[
+    (r'$',  'USD'), ('£', 'GBP'), ('€', 'EUR'),
+    (r'A$', 'AUD'), (r'C$', 'CAD'), (r'S$', 'SGD'),
+    ('¥',  'JPY'), ('₹', 'INR'),
+  ];
+
+  static List<String> _incomeRanges(String c) => c == '₹' ? [
+    'Under ₹25L', '₹25L – ₹50L', '₹50L – ₹1Cr',
+    '₹1Cr – ₹3Cr', '₹3Cr – ₹10Cr', '₹10Cr+',
+  ] : [
+    'Under ${c}30K', '${c}30K – ${c}60K', '${c}60K – ${c}100K',
+    '${c}100K – ${c}150K', '${c}150K – ${c}250K', '${c}250K – ${c}500K', '${c}500K+',
+  ];
+
+  static List<String> _netWorthRanges(String c) => c == '₹' ? [
+    'Under ₹25L', '₹25L – ₹50L', '₹50L – ₹1Cr',
+    '₹1Cr – ₹5Cr', '₹5Cr – ₹25Cr', '₹25Cr – ₹100Cr', '₹100Cr+',
+  ] : [
+    'Under ${c}250K', '${c}250K – ${c}500K', '${c}500K – ${c}1M',
+    '${c}1M – ${c}5M', '${c}5M – ${c}10M', '${c}10M+',
+  ];
+
+  /// Detect currency symbol from a saved value like "£30K – £60K" → "£".
+  static String _detectCurrency(String? income, String? netWorth) {
+    final val = income ?? netWorth ?? '';
+    for (final (sym, _) in _currencies) {
+      if (val.contains(sym)) return sym;
+    }
+    return '\$';
+  }
+
+  Future<void> _editMoneyMatters(TrustData d) async {
+    String currency   = _detectCurrency(d.annualIncome, d.netWorth);
+    String? selIncome = d.annualIncome;
+    String? selNW     = d.netWorth;
+    bool saving       = false;
+    String? errorMsg;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(Config.bg2),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) {
+          // Reset selections if currency changed and old value doesn't match
+          void onCurrencyChange(String sym) {
+            setS(() {
+              currency = sym;
+              if (selIncome != null && !selIncome!.contains(sym)) selIncome = null;
+              if (selNW     != null && !selNW!.contains(sym))     selNW     = null;
+            });
+          }
+
+          return SingleChildScrollView(
+            padding: EdgeInsets.only(
+              left: 20, right: 20, top: 24,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 28,
+            ),
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Money Matters',
+                  style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700, fontSize: 18)),
+              const SizedBox(height: 4),
+              const Text('Self-declared — shown on your public profile.',
+                  style: TextStyle(color: Color(Config.text3), fontSize: 12)),
+              const SizedBox(height: 20),
+
+              // Currency selector
+              const Text('Currency',
+                  style: TextStyle(color: Color(Config.text2), fontSize: 13, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Wrap(spacing: 8, runSpacing: 8, children: [
+                for (final (sym, code) in _currencies)
+                  GestureDetector(
+                    onTap: () => onCurrencyChange(sym),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: currency == sym ? const Color(Config.accent) : const Color(0x14FFFFFF),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: currency == sym ? const Color(Config.accent) : const Color(0x22FFFFFF),
+                        ),
+                      ),
+                      child: Text('$sym $code',
+                          style: TextStyle(
+                            color: currency == sym ? const Color(0xFFFFFFFF) : const Color(Config.text2),
+                            fontSize: 12, fontWeight: FontWeight.w600,
+                          )),
+                    ),
+                  ),
+              ]),
+              const SizedBox(height: 20),
+
+              // Income pills
+              const Text('💼  Annual Income',
+                  style: TextStyle(color: Color(Config.text2), fontSize: 13, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              _rangePills(
+                ranges: _incomeRanges(currency),
+                selected: selIncome,
+                onSelect: (v) => setS(() => selIncome = (selIncome == v) ? null : v),
+              ),
+              const SizedBox(height: 20),
+
+              // Net worth pills
+              const Text('📈  Net Worth',
+                  style: TextStyle(color: Color(Config.text2), fontSize: 13, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              _rangePills(
+                ranges: _netWorthRanges(currency),
+                selected: selNW,
+                onSelect: (v) => setS(() => selNW = (selNW == v) ? null : v),
+              ),
+              const SizedBox(height: 24),
+
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: saving ? null : () async {
+                    setS(() { saving = true; errorMsg = null; });
+                    try {
+                      await saveMoneyMattersDirect(
+                        income: selIncome,
+                        netWorth: selNW,
+                      );
+                      if (ctx.mounted) Navigator.of(ctx).pop();
+                      _refresh();
+                    } catch (e) {
+                      setS(() { saving = false; errorMsg = e.toString(); });
+                    }
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(Config.accent),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: saving
+                      ? const SizedBox(width: 18, height: 18,
+                          child: CircularProgressIndicator(color: Color(0xFFFFFFFF), strokeWidth: 2))
+                      : const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+              if (errorMsg != null) ...[
+                const SizedBox(height: 10),
+                Text(errorMsg!,
+                    style: const TextStyle(color: Color(0xFFF87171), fontSize: 12)),
+              ],
+            ]),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _rangePills({
+    required List<String> ranges,
+    required String? selected,
+    required void Function(String) onSelect,
+  }) =>
+      Wrap(spacing: 8, runSpacing: 8, children: [
+        for (final r in ranges)
+          GestureDetector(
+            onTap: () => onSelect(r),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: selected == r ? const Color(Config.accent) : const Color(0x14FFFFFF),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: selected == r ? const Color(Config.accent) : const Color(0x22FFFFFF),
+                ),
+              ),
+              child: Text(r,
+                  style: TextStyle(
+                    color: selected == r ? const Color(0xFFFFFFFF) : const Color(Config.text2),
+                    fontSize: 12, fontWeight: FontWeight.w600,
+                  )),
+            ),
+          ),
       ]);
 
-  Widget _verifiedInsights(TrustData d) {
-    final labels = <String>[];
-    for (final p in d.proofs) {
-      if (p.insightLabel.isNotEmpty) labels.add(p.insightLabel);
-    }
-    if (labels.isEmpty) return const SizedBox.shrink();
-    final shown = labels.take(2).join(', ');
-    final more = labels.length - 2;
+
+  Widget _travelMagnetsSection(TrustData d) {
+    final travelProof = d.proofFor('travel');
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      _label('🗂  VERIFIED INSIGHTS'),
-      const SizedBox(height: 8),
-      RichText(text: TextSpan(
-        style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4),
-        children: [
-          TextSpan(text: shown),
-          if (more > 0) TextSpan(text: '  +$more more', style: const TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w700)),
-        ],
-      )),
+      _label('✈️  TRAVEL MAGNETS'),
+      const SizedBox(height: 10),
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(Config.bg2),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0x181B1020)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (travelProof != null && travelProof.aggregated.isNotEmpty) ...[
+            Text(travelProof.aggregated,
+                style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4)),
+            const SizedBox(height: 6),
+            const Row(children: [
+              Icon(Icons.check, size: 11, color: Color(Config.text3)),
+              SizedBox(width: 4),
+              Expanded(child: Text('Countries auto-detected from your travel documents',
+                  style: TextStyle(color: Color(Config.text3), fontSize: 11))),
+            ]),
+            const SizedBox(height: 14),
+          ],
+          _miniProofCard(
+            d: d, categoryId: 'travel',
+            icon: '🛂', title: 'Upload Passport / Boarding Pass',
+            subtitle: 'AI detects countries automatically',
+            pts: 8,
+          ),
+          const SizedBox(height: 8),
+          const Row(children: [
+            Icon(Icons.info_outline, size: 12, color: Color(Config.text3)),
+            SizedBox(width: 6),
+            Expanded(child: Text(
+              'You can also add countries manually from your Profile screen.',
+              style: TextStyle(color: Color(Config.text3), fontSize: 11, height: 1.4),
+            )),
+          ]),
+        ]),
+      ),
     ]);
   }
 
@@ -394,4 +846,47 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
           Text(hint, style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
         ],
       ]);
+}
+
+// ── Instagram logo CustomPainter ───────────────────────────────────────────
+
+class _InstagramPainter extends CustomPainter {
+  final Color color;
+  const _InstagramPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.width * 0.085
+      ..strokeCap = StrokeCap.round;
+
+    // Outer rounded square
+    canvas.drawRRect(
+      RRect.fromLTRBR(
+        size.width * 0.10, size.height * 0.10,
+        size.width * 0.90, size.height * 0.90,
+        Radius.circular(size.width * 0.22),
+      ),
+      stroke,
+    );
+
+    // Inner circle
+    canvas.drawCircle(
+      Offset(size.width / 2, size.height / 2),
+      size.width * 0.21,
+      stroke,
+    );
+
+    // Corner dot (top-right)
+    canvas.drawCircle(
+      Offset(size.width * 0.71, size.height * 0.29),
+      size.width * 0.06,
+      Paint()..color = color,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _InstagramPainter old) => old.color != color;
 }

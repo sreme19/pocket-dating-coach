@@ -625,6 +625,9 @@
             {:else if alreadySentAttention}
               <span class="attention-sent">Sent ✓</span>
             {/if}
+            <button class="like-btn" onclick={handleLike} disabled={isAnimating || likedIds.has(currentProfile!.id)} title="Like this profile">
+              {likedIds.has(currentProfile!.id) ? '❤️ Liked' : '🤍 Like'}
+            </button>
             <button class="next-btn" onclick={handleSkip} disabled={isAnimating}>Next →</button>
           </div>
         {/if}
@@ -1093,6 +1096,22 @@
 
   .next-btn:hover:not(:disabled) { background: var(--bg-3); color: var(--text-1); }
   .next-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .like-btn {
+    padding: 0 20px;
+    height: 44px;
+    border-radius: 12px;
+    border: 1.5px solid #1D9E75;
+    background: transparent;
+    color: #1D9E75;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 150ms, color 150ms;
+  }
+  .like-btn:hover:not(:disabled) { background: rgba(29, 158, 117, 0.12); }
+  .like-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
   /* Empty / Loading states */
   .empty-state {

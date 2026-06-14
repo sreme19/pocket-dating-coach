@@ -41,7 +41,7 @@ function proofsToLocalStorage(verifiedProofs: unknown[]): object[] {
   const CATEGORY_PTS: Record<string, number> = {
     lifestyle: 8, hosting: 6, discipline: 4, social_proof: 4,
     linkedin: 5, instagram: 3, twitter: 2, habit_tracker: 2,
-    intro: 8, spending: 10, assets: 10, wealth: 12,
+    intro: 8, spending: 10, assets: 10, wealth: 12, travel: 8,
   };
   return verifiedProofs.map((p: any) => {
     const entry: Record<string, unknown> = {
@@ -89,10 +89,60 @@ export const GET: RequestHandler = async ({ request }: { request: Request }) => 
 
   const masterData = (row?.data as Record<string, unknown>) ?? {};
 
-  // verifiedProofs lives inside the master profile blob
-  const verifiedProofs: unknown[] = Array.isArray(masterData.verifiedProofs)
+  // verifiedProofs lives inside the master profile blob.
+  // Fall back to verified_vibe_verification rows (proof_* steps) when the
+  // master-profile blob is missing proofs — e.g. older accounts that uploaded
+  // proofs before server-side persistence was added, or if persistInsight
+  // failed to update master_profile but did write to verification table.
+  let verifiedProofs: unknown[] = Array.isArray(masterData.verifiedProofs)
     ? masterData.verifiedProofs as unknown[]
     : [];
+
+  // Always check verified_vibe_verification for proof_* steps and merge any
+  // categories missing from master_profile. This ensures cross-device sync even
+  // if persistInsight only partially updated user_master_profile.
+  {
+    const { data: vvRows } = await db
+      .from('verified_vibe_verification')
+      .select('step, data, completed_at')
+      .eq('user_id', userId)
+      .like('step', 'proof_%')
+      .eq('status', 'completed');
+
+    if (Array.isArray(vvRows) && vvRows.length > 0) {
+      const existingCategories = new Set(
+        (verifiedProofs as any[]).map((p: any) => p.category)
+      );
+      const missing = vvRows.filter(
+        (row: any) => !existingCategories.has((row.step as string).replace(/^proof_/, ''))
+      );
+      if (missing.length > 0) {
+        const rebuilt = missing.map((row: any) => {
+          const category = (row.step as string).replace(/^proof_/, '');
+          const d = (row.data as Record<string, unknown>) ?? {};
+          return {
+            category,
+            insights:    Array.isArray(d.insights) && (d.insights as unknown[]).length > 0
+                           ? d.insights
+                           : [{ label: d.insight_label ?? 'Proof verified', emoji: d.insight_emoji ?? '✅' }],
+            aggregated:  d.aggregated ?? '',
+            locations:   d.locations  ?? [],
+            assets:      d.assets,
+            spendingBreakdown: d.spendingBreakdown,
+            thumbnail_urls: d.thumbnail_urls,
+            pts_awarded: d.pts_awarded,
+            photo_count: d.photo_count,
+            verified_at: row.completed_at ?? new Date().toISOString(),
+          };
+        });
+        verifiedProofs = [...(verifiedProofs as unknown[]), ...rebuilt];
+        // Back-fill so future requests don't need the fallback
+        const updatedMaster = { ...masterData, verifiedProofs };
+        await db.from('user_master_profile')
+          .upsert({ user_id: userId, data: updatedMaster, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+      }
+    }
+  }
 
   // Collect countries from verifiedProofs locations as well as stored list
   const dbCountries: string[] = verifiedProofs.flatMap((p: any) =>
@@ -144,10 +194,12 @@ export const POST: RequestHandler = async ({ request }: { request: Request }) =>
   const newOnboarding    = (body.onboarding  as Record<string, unknown>) ?? {};
   const mergedOnboarding = { ...prevOnboarding, ...newOnboarding };
 
-  // Countries: union merge from both sources
+  // Countries: replace when countriesReplace=true (explicit edit), otherwise union-merge.
   const prevCountries  = Array.isArray(prev.countriesTraveled) ? prev.countriesTraveled as string[] : [];
   const newCountries   = Array.isArray(body.countriesTraveled) ? body.countriesTraveled as string[] : [];
-  const mergedCountries = Array.from(new Set([...prevCountries, ...newCountries]));
+  const mergedCountries = body.countriesReplace === true
+    ? newCountries
+    : Array.from(new Set([...prevCountries, ...newCountries]));
 
   // Keep verifiedProofs from DB — proof-upload owns that field
   const updated: Record<string, unknown> = {
@@ -160,6 +212,7 @@ export const POST: RequestHandler = async ({ request }: { request: Request }) =>
   if (body.identity              !== undefined) updated.identity              = body.identity;
   if (body.profileDraft          !== undefined) updated.profileDraft          = body.profileDraft;
   if (body.generatedProfile      !== undefined) updated.generatedProfile      = body.generatedProfile;
+  if (body.moneyMatters          !== undefined) updated.moneyMatters          = body.moneyMatters;
   if (body.personalityPortraitUrl !== undefined) updated.personalityPortraitUrl = body.personalityPortraitUrl;
   if (body.garagePortraitUrl      !== undefined) updated.garagePortraitUrl      = body.garagePortraitUrl;
   // Photos: full-replace (client owns the canonical ordered list of hosted URLs)
