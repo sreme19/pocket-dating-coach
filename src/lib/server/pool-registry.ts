@@ -49,18 +49,115 @@ function distillMaleMatchProfile(masterData: Record<string, unknown>): Record<st
   };
 }
 
-// ── Distill male preference model ─────────────────────────────────────────────
+// ── Onboarding answer resolution ──────────────────────────────────────────────
+// The client stores Q&A + archetype-preference answers in
+// user_master_profile.data.onboarding, but NESTED under localStorage-key names
+// (vv_qa_responses, vv_romantic_preferences, vv_forever_preferences, …), each
+// holding a map of question-id → answer. The distillers need flat access to
+// individual answers by question id, so we merge every nested bag into one flat
+// id→answer map. Q&A answers pulled straight from verified_vibe_verification
+// (passed in as `qaResponses`) take priority, since those land server-side even
+// before the client ever syncs the master profile.
 
-function distillMalePreferenceSignals(masterData: Record<string, unknown>): Record<string, unknown> {
+function buildAnswerMap(
+  masterData: Record<string, unknown>,
+  qaResponses: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const flat: Record<string, unknown> = {};
   const onboarding = (masterData.onboarding ?? {}) as Record<string, unknown>;
 
-  // Preferences may be stored in onboarding QA responses or profile draft
+  const absorb = (bag: Record<string, unknown>) => {
+    for (const [qid, ans] of Object.entries(bag ?? {})) {
+      const empty = flat[qid] === undefined || flat[qid] === '' ||
+        (Array.isArray(flat[qid]) && (flat[qid] as unknown[]).length === 0);
+      if (empty && ans !== undefined && ans !== '') flat[qid] = ans;
+    }
+  };
+
+  // 1. verified_vibe_verification responses (most reliable) win first.
+  absorb(qaResponses);
+
+  // 2. Merge every nested onboarding bag, plus any flat onboarding keys.
+  for (const [key, val] of Object.entries(onboarding)) {
+    if (val && typeof val === 'object' && !Array.isArray(val)) {
+      absorb(val as Record<string, unknown>); // nested answer bag
+    } else {
+      absorb({ [key]: val }); // legacy / already-flat key
+    }
+  }
+
+  return flat;
+}
+
+/** Collect one or more answers (string or string[]) into a clean signal array. */
+function toSignalArray(...vals: unknown[]): string[] {
+  const out: string[] = [];
+  for (const v of vals) {
+    if (Array.isArray(v)) {
+      for (const item of v) if (typeof item === 'string' && item.trim()) out.push(item.trim());
+    } else if (typeof v === 'string' && v.trim()) {
+      for (const part of v.split(/[,;\n•]+/)) if (part.trim()) out.push(part.trim());
+    }
+  }
+  return Array.from(new Set(out)).slice(0, 12);
+}
+
+/** First non-empty answer as a string (arrays are comma-joined). */
+function firstString(...vals: unknown[]): string {
+  for (const v of vals) {
+    if (typeof v === 'string' && v.trim()) return v.trim();
+    if (Array.isArray(v) && v.length) {
+      const joined = (v as unknown[]).filter((x) => typeof x === 'string' && x.trim()).join(', ');
+      if (joined) return joined;
+    }
+  }
+  return '';
+}
+
+// ── DrawnTo preference keys (archetype-specific "what you're drawn to") ────────
+// Same key set for men and women — see DrawnToStep.svelte buildSections(). These
+// are folded into emotionalSignals for both genders. Keys not present for a given
+// archetype resolve to undefined and are skipped by toSignalArray.
+const DRAWN_TO_KEYS = [
+  'energy', 'experiences', 'appreciation', 'chemistry',
+  'partner_energy', 'connection_style', 'love_language',
+  'partner_qualities', 'partnership_vision', 'what_you_value',
+  'core_values', 'family_approach', 'partner_fit',
+  'energy_needed', 'what_slow_means', 'what_you_seek',
+  'what_you_hope_for', 'what_matters', 'this_chapter', 'what_you_appreciate',
+  'friend_energy', 'activities', 'great_connection', 'vibe',
+] as const;
+
+/** Pull every DrawnTo answer present in the flat answer map. */
+function drawnToValues(a: Record<string, unknown>): unknown[] {
+  return DRAWN_TO_KEYS.map((k) => a[k]);
+}
+
+// ── Distill male preference model ─────────────────────────────────────────────
+
+function distillMalePreferenceSignals(
+  masterData: Record<string, unknown>,
+  qaResponses: Record<string, unknown> = {},
+): Record<string, unknown> {
   const draft = (masterData.profileDraft ?? {}) as Record<string, unknown>;
+  const a = buildAnswerMap(masterData, qaResponses);
 
   return {
-    dealbreakers:     (onboarding.dealbreakers ?? draft.dealbreakers ?? []) as string[],
-    lookingFor:       (onboarding.relationship_timeline ?? draft.lookingFor ?? '') as string,
-    emotionalSignals: (onboarding.lifestyle_values ?? []) as string[],
+    dealbreakers: toSignalArray(
+      a.deal_breakers, a.red_flags, a.dealbreakers, a.here_for_hard_nos, draft.dealbreakers,
+    ),
+    lookingFor: firstString(
+      a.relationship_timeline, a.dating_intent, a.future_intent, a.future_vision,
+      a.future_romance, a.ideal_relationship, draft.lookingFor,
+    ),
+    emotionalSignals: toSignalArray(
+      a.lifestyle_values, a.partner_qualities, a.partner_energy, a.relationship_energy,
+      a.relationship_vibe, a.appreciation, a.show_appreciation, a.communication_expectation,
+      a.communication_style, a.ideal_partner_energy, a.preferred_energy, a.partner_approach,
+      a.chemistry_type,
+      // DrawnTo "what you're drawn to" answers (all archetypes)
+      ...drawnToValues(a),
+    ),
   };
 }
 
@@ -88,15 +185,37 @@ function distillFemaleMatchProfile(masterData: Record<string, unknown>): Record<
 
 // ── Distill female preference model (normalize, no raw sensitive translations) ─
 
-function distillFemalePreferenceModel(masterData: Record<string, unknown>): Record<string, unknown> {
-  const onboarding = (masterData.onboarding ?? {}) as Record<string, unknown>;
+function distillFemalePreferenceModel(
+  masterData: Record<string, unknown>,
+  qaResponses: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const a = buildAnswerMap(masterData, qaResponses);
 
   // Extract normalized preference fields — avoid raw sensitiveTranslations
-  const emotionalSignals  = (onboarding.emotional_signals ?? onboarding.vv_emotional_signals ?? []) as string[];
-  const lifestyleSignals  = (onboarding.lifestyle_signals ?? []) as string[];
-  const maturitySignals   = (onboarding.maturity_signals ?? []) as string[];
-  const dealbreakers      = (onboarding.dealbreakers ?? onboarding.here_for_hard_nos ?? []) as string[];
-  const relationshipIntent = (onboarding.relationship_timeline ?? onboarding.dating_intent ?? '') as string;
+  const dealbreakers = toSignalArray(
+    a.deal_breakers, a.red_flags, a.dealbreakers, a.here_for_hard_nos,
+  );
+  const emotionalSignals = toSignalArray(
+    a.emotional_signals, a.vv_emotional_signals, a.partner_qualities, a.partner_energy,
+    a.relationship_energy, a.relationship_vibe, a.appreciation, a.show_appreciation,
+    a.communication_expectation, a.communication_style, a.ideal_partner_energy,
+    a.preferred_energy, a.partner_approach, a.chemistry_type, a.ideal_partner_energy,
+    // DrawnTo "what you're drawn to" answers (all archetypes)
+    ...drawnToValues(a),
+  );
+  const lifestyleSignals = toSignalArray(
+    a.lifestyle_signals, a.lifestyle_values, a.lifestyle_experiences, a.shared_experiences,
+    a.lifestyle_today, a.lifestyle, a.lifestyle_profile, a.partner_lifestyle, a.career_alignment,
+  );
+  const maturitySignals = toSignalArray(
+    a.maturity_signals, a.partner_maturity, a.relationship_standards, a.relationship_foundation,
+    a.boundaries, a.boundary_expectation, a.partner_commitment_style, a.relationship_approach,
+    a.partner_life_direction, a.partner_life_stage, a.partner_commitment_style,
+  );
+  const relationshipIntent = firstString(
+    a.relationship_timeline, a.dating_intent, a.future_intent, a.future_vision,
+    a.future_romance, a.ideal_relationship, a.future_possibility, a.future_friendship,
+  );
 
   return {
     dealbreakers,
@@ -106,6 +225,24 @@ function distillFemalePreferenceModel(masterData: Record<string, unknown>): Reco
     relationshipIntent,
     // Do NOT include sensitiveTranslations — those stay private to AI Bestie
   };
+}
+
+// ── Load Q&A responses from the verification table ────────────────────────────
+// The spending_or_qa step stores the user's onboarding answers (deal_breakers,
+// lifestyle_values, relationship_timeline, dating_intent, …) keyed by question id.
+// This lands server-side immediately, so it's a reliable source even if the client
+// never synced the master profile.
+
+async function loadQAResponses(db: any, userId: string): Promise<Record<string, unknown>> {
+  const { data } = await db
+    .from('verified_vibe_verification')
+    .select('data')
+    .eq('user_id', userId)
+    .eq('step', 'spending_or_qa')
+    .eq('status', 'completed')
+    .maybeSingle();
+  const responses = (data?.data as any)?.responses;
+  return responses && typeof responses === 'object' ? responses : {};
 }
 
 // ── Public: refresh male user's pool entry ────────────────────────────────────
@@ -130,10 +267,11 @@ export async function refreshWingmanPoolEntry(userId: string): Promise<void> {
     .maybeSingle();
 
   const masterData = (masterRow?.data ?? {}) as Record<string, unknown>;
+  const qaResponses = await loadQAResponses(db, userId);
 
   const trustBand       = getTrustScoreBand(user.trust_score ?? 0);
   const matchProfile    = distillMaleMatchProfile(masterData);
-  const prefSignals     = distillMalePreferenceSignals(masterData);
+  const prefSignals     = distillMalePreferenceSignals(masterData, qaResponses);
   const city            = (masterData.identity as any)?.city ?? user.city ?? null;
 
   await db.from('vv_pool_wingmen').upsert(
@@ -171,10 +309,11 @@ export async function refreshBestiePoolEntry(userId: string): Promise<void> {
     .maybeSingle();
 
   const masterData = (masterRow?.data ?? {}) as Record<string, unknown>;
+  const qaResponses = await loadQAResponses(db, userId);
 
   const trustBand      = getTrustScoreBand(user.trust_score ?? 0);
   const matchProfile   = distillFemaleMatchProfile(masterData);
-  const prefModel      = distillFemalePreferenceModel(masterData);
+  const prefModel      = distillFemalePreferenceModel(masterData, qaResponses);
   const city           = (masterData.identity as any)?.city ?? user.city ?? null;
 
   await db.from('vv_pool_besties').upsert(
