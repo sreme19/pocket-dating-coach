@@ -110,7 +110,16 @@ class PushService {
       return;
     }
 
-    // Anything else (profile_tip, etc.) just brings the app forward.
+    // Notice Me / Secret Admirer / Tip → Chat tab (Messages lives there).
+    if (link == '/messages' ||
+        data['type'] == 'secret_admirer' ||
+        data['type'] == 'craving_attention' ||
+        data['type'] == 'profile_tip') {
+      onSwitchTab?.call(1);
+      return;
+    }
+
+    // Anything else just brings the app forward.
   }
 
   /// Clear the once-flag on sign-out so the next user re-registers.

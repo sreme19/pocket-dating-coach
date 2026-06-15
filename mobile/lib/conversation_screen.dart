@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api.dart';
 import 'config.dart';
 import 'match_profile_screen.dart';
-import 'voice_call_screen.dart';
 
 class ConversationScreen extends StatefulWidget {
   final String conversationId;
@@ -35,6 +35,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
   String _otherName = '';
   String? _otherGender;
   String? _viewerGender;
+  String _myName = '';
+  String? _myAvatar;
 
   @override
   void initState() {
@@ -101,6 +103,27 @@ class _ConversationScreenState extends State<ConversationScreen> {
       _otherName = thread.otherName;
       _otherGender = thread.otherGender;
       _merge(thread.messages, scroll: true);
+      // Re-check presence now that _otherId is known — fixes race condition
+      // where onPresenceSync fired before _initialLoad completed (Android).
+      if (_presenceChannel != null) {
+        final ps = _presenceChannel!.presenceState();
+        final online = ps.any(
+          (s) => s.presences.any((p) => p.payload['uid']?.toString() == _otherId),
+        );
+        if (mounted) setState(() => _partnerOnline = online);
+      }
+      // Fetch current user's name + avatar for bubble display
+      try {
+        final me = await Supabase.instance.client
+            .from('verified_vibe_users')
+            .select('first_name, avatar_url')
+            .eq('id', _myId)
+            .maybeSingle();
+        if (me != null) {
+          _myName = (me['first_name'] ?? '').toString();
+          _myAvatar = me['avatar_url'] as String?;
+        }
+      } catch (_) {}
       if (mounted) setState(() => _loading = false);
       markConversationRead(widget.conversationId).catchError((_) {});
     } catch (e) {
@@ -171,13 +194,24 @@ class _ConversationScreenState extends State<ConversationScreen> {
     }
   }
 
+  Future<void> _sendImageMessage(String url) async {
+    try {
+      final sent = await sendMessage(widget.conversationId, '[IMG]$url');
+      if (sent != null) _merge([sent], scroll: true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Image send failed: $e')));
+      }
+    }
+  }
+
   Future<void> _confirmBlock() async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(Config.bg2),
         title: const Text('Unmatch & block?', style: TextStyle(color: Color(Config.text1))),
-        content: Text('You won’t see $_otherName again and the conversation will be removed.',
+        content: Text("You won't see $_otherName again and the conversation will be removed.",
             style: const TextStyle(color: Color(Config.text2))),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false),
@@ -216,7 +250,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                   style: const TextStyle(color: Color(Config.text1), fontSize: 18, fontWeight: FontWeight.w700)),
               const SizedBox(height: 6),
               const Text(
-                'Tell us what’s wrong. Our team reviews every report within 24 hours and removes objectionable content or users.',
+                "Tell us what's wrong. Our team reviews every report within 24 hours and removes objectionable content or users.",
                 style: TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4),
               ),
             ]),
@@ -348,147 +382,476 @@ class _ConversationScreenState extends State<ConversationScreen> {
                             itemCount: _messages.length,
                             itemBuilder: (context, i) {
                               final msg = _messages[_messages.length - 1 - i];
-                              return _Bubble(msg: msg, mine: msg.senderId == _myId, otherName: _otherName);
+                              final prevMsg = i < _messages.length - 1
+                                  ? _messages[_messages.length - 2 - i]
+                                  : null;
+                              final showName = prevMsg == null || prevMsg.senderId != msg.senderId;
+                              return _Bubble(
+                                msg: msg,
+                                mine: msg.senderId == _myId,
+                                otherName: _otherName,
+                                otherAvatar: _otherAvatar,
+                                myName: _myName,
+                                myAvatar: _myAvatar,
+                                showName: showName,
+                              );
                             },
                           ),
           ),
-          if (_viewerGender == 'man' && _otherGender == 'woman' && _otherId != null)
-            _CallBestieButton(
-              name: _otherName,
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => VoiceCallScreen(matchId: widget.conversationId, name: _otherName),
-              )),
-            ),
-          _Composer(controller: _composer, sending: _sending, onSend: _send),
+          // _CallBestieButton is intentionally hidden
+          _Composer(
+            controller: _composer,
+            sending: _sending,
+            onSend: _send,
+            conversationId: widget.conversationId,
+            viewerGender: _viewerGender,
+            otherGender: _otherGender,
+            onImagePicked: _sendImageMessage,
+          ),
         ],
       ),
     );
   }
 }
 
-/// "Talk to {name}'s AI bestie" CTA — a male viewer can voice-call a female
-/// match's AI bestie (gated server-side on her opt-in; shown optimistically).
-class _CallBestieButton extends StatelessWidget {
-  final String name;
-  final VoidCallback onTap;
-  const _CallBestieButton({required this.name, required this.onTap});
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-      child: SizedBox(
-        width: double.infinity, height: 48,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [Color(0xFFA855F7), Color(0xFFEC4899)]),
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: TextButton.icon(
-            onPressed: onTap,
-            icon: const Icon(Icons.call, color: Colors.white, size: 18),
-            label: Text("Talk to $name's AI bestie",
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-            style: TextButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999))),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _Bubble extends StatelessWidget {
   final ChatMessage msg;
   final bool mine;
   final String otherName;
-  const _Bubble({required this.msg, required this.mine, required this.otherName});
+  final String? otherAvatar;
+  final String myName;
+  final String? myAvatar;
+  final bool showName;
+
+  const _Bubble({
+    required this.msg,
+    required this.mine,
+    required this.otherName,
+    required this.otherAvatar,
+    required this.myName,
+    required this.myAvatar,
+    required this.showName,
+  });
+
+  String _formatTime(DateTime? dt) {
+    if (dt == null) return '';
+    final local = dt.toLocal();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final msgDay = DateTime(local.year, local.month, local.day);
+    if (msgDay == today) {
+      final h = local.hour % 12 == 0 ? 12 : local.hour % 12;
+      final m = local.minute.toString().padLeft(2, '0');
+      final ampm = local.hour < 12 ? 'AM' : 'PM';
+      return '$h:$m $ampm';
+    }
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${months[local.month - 1]} ${local.day}';
+  }
 
   @override
   Widget build(BuildContext context) {
     final ai = msg.isAi;
-    final bg = mine
+    final displayName = mine ? myName : (ai ? "${otherName.isNotEmpty ? otherName : 'AI'}'s AI Bestie" : otherName);
+    final avatarUrl = mine ? myAvatar : otherAvatar;
+    final initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : '?';
+    final resolvedUrl = (avatarUrl != null && avatarUrl.startsWith('http')) ? avatarUrl : null;
+
+    final bubbleBg = mine
         ? const Color(Config.accent)
         : ai
             ? const Color(0x22FF3B6B)
             : const Color(Config.bg3);
-    final fg = mine ? const Color(0xFFFFFFFF) : const Color(Config.text1);
-    return Align(
-      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(16),
-          border: ai ? Border.all(color: const Color(Config.accent)) : null,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (ai)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 2),
-                child: Text(otherName.isNotEmpty ? "$otherName's AI Bestie" : 'AI Bestie',
-                    style: const TextStyle(color: Color(Config.accent), fontSize: 10, fontWeight: FontWeight.w700)),
-              ),
-            Text(
-              '${msg.aiSignal != null ? '${msg.aiSignal} ' : ''}${msg.content}',
-              style: TextStyle(color: fg, fontSize: 15, height: 1.3),
+    final textColor = mine ? const Color(0xFFFFFFFF) : const Color(Config.text1);
+    final timeColor = mine ? const Color(0x99FFFFFF) : const Color(Config.text3);
+
+    final avatar = showName
+        ? CircleAvatar(
+            radius: 15,
+            backgroundColor: const Color(Config.bg3),
+            backgroundImage: resolvedUrl != null ? CachedNetworkImageProvider(resolvedUrl) : null,
+            child: resolvedUrl != null
+                ? null
+                : Text(initial,
+                    style: const TextStyle(color: Color(Config.text1), fontSize: 11, fontWeight: FontWeight.w600)),
+          )
+        : const SizedBox(width: 30);
+
+    // Detect image messages: [IMG]https://...
+    final isImage = msg.content.startsWith('[IMG]');
+    final imageUrl = isImage ? msg.content.substring(5) : null;
+
+    final bubbleChild = isImage && imageUrl != null
+        ? ClipRRect(
+            borderRadius: BorderRadius.only(
+              topLeft: const Radius.circular(16),
+              topRight: const Radius.circular(16),
+              bottomLeft: Radius.circular(mine ? 16 : 4),
+              bottomRight: Radius.circular(mine ? 4 : 16),
             ),
-          ],
+            child: CachedNetworkImage(
+              imageUrl: imageUrl,
+              width: MediaQuery.of(context).size.width * 0.55,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => Container(
+                width: MediaQuery.of(context).size.width * 0.55,
+                height: 160,
+                color: const Color(Config.bg3),
+                child: const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent))),
+              ),
+              errorWidget: (_, __, ___) => Container(
+                width: MediaQuery.of(context).size.width * 0.55,
+                height: 80,
+                color: const Color(Config.bg3),
+                child: const Icon(Icons.broken_image, color: Color(Config.text3)),
+              ),
+            ),
+          )
+        : Container(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 7),
+            decoration: BoxDecoration(
+              color: bubbleBg,
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(16),
+                topRight: const Radius.circular(16),
+                bottomLeft: Radius.circular(mine ? 16 : 4),
+                bottomRight: Radius.circular(mine ? 4 : 16),
+              ),
+              border: ai ? Border.all(color: const Color(Config.accent)) : null,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '${msg.aiSignal != null ? '${msg.aiSignal} ' : ''}${msg.content}',
+                  style: TextStyle(color: textColor, fontSize: 15, height: 1.35),
+                ),
+                const SizedBox(height: 3),
+                Align(
+                  alignment: Alignment.bottomRight,
+                  child: Text(_formatTime(msg.createdAt),
+                      style: TextStyle(color: timeColor, fontSize: 10.5)),
+                ),
+              ],
+            ),
+          );
+
+    final bubble = ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.65),
+      child: bubbleChild,
+    );
+
+    return Padding(
+      padding: EdgeInsets.only(top: showName ? 10 : 2, bottom: 2, left: 8, right: 8),
+      child: Column(
+        crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          if (showName)
+            Padding(
+              padding: EdgeInsets.only(
+                left: mine ? 0 : 36,
+                right: mine ? 36 : 0,
+                bottom: 3,
+              ),
+              child: Text(displayName,
+                  style: const TextStyle(
+                      color: Color(Config.text3), fontSize: 11, fontWeight: FontWeight.w500)),
+            ),
+          Row(
+            mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: mine
+                ? [bubble, const SizedBox(width: 6), avatar]
+                : [avatar, const SizedBox(width: 6), bubble],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Composer extends StatefulWidget {
+  final TextEditingController controller;
+  final bool sending;
+  final VoidCallback onSend;
+  final String conversationId;
+  final String? viewerGender;
+  final String? otherGender;
+  final Future<void> Function(String url) onImagePicked;
+
+  const _Composer({
+    required this.controller,
+    required this.sending,
+    required this.onSend,
+    required this.conversationId,
+    required this.viewerGender,
+    required this.otherGender,
+    required this.onImagePicked,
+  });
+
+  @override
+  State<_Composer> createState() => _ComposerState();
+}
+
+class _ComposerState extends State<_Composer> {
+  bool _imageUploading = false;
+  bool _wingmanLoading = false;
+
+  bool get _showWingman =>
+      widget.viewerGender == 'man' && widget.otherGender == 'woman';
+
+  Future<void> _pickAndSendImage() async {
+    // Let user choose gallery or camera
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: const Color(Config.bg2),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(height: 8),
+          ListTile(
+            leading: const Icon(Icons.photo_library, color: Color(Config.text1)),
+            title: const Text('Choose from gallery', style: TextStyle(color: Color(Config.text1))),
+            onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+          ),
+          ListTile(
+            leading: const Icon(Icons.camera_alt, color: Color(Config.text1)),
+            title: const Text('Take a photo', style: TextStyle(color: Color(Config.text1))),
+            onTap: () => Navigator.pop(ctx, ImageSource.camera),
+          ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+    if (source == null) return;
+
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: source, imageQuality: 85);
+    if (file == null) return;
+
+    setState(() => _imageUploading = true);
+    try {
+      final bytes = await file.readAsBytes();
+      final ext = file.path.split('.').last.toLowerCase();
+      final safeExt = ['jpg', 'jpeg', 'png', 'webp', 'gif'].contains(ext) ? ext : 'jpg';
+      final url = await uploadChatImage(bytes, safeExt);
+      await widget.onImagePicked(url);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _imageUploading = false);
+    }
+  }
+
+  Future<void> _showWingmanSheet() async {
+    setState(() => _wingmanLoading = true);
+    try {
+      final result = await fetchWingmanSuggestion(widget.conversationId);
+      if (!mounted) return;
+      final suggestion = (result['suggestion'] ?? '').toString();
+      final coaching = result['coaching'] as String?;
+      if (suggestion.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not generate a suggestion. Try again.')),
+        );
+        return;
+      }
+      await showModalBottomSheet(
+        context: context,
+        backgroundColor: const Color(Config.bg2),
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (ctx) => _WingmanBottomSheet(
+          suggestion: suggestion,
+          coaching: coaching,
+          onUse: (text) {
+            widget.controller.text = text;
+            widget.controller.selection = TextSelection.fromPosition(
+              TextPosition(offset: text.length),
+            );
+          },
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Wingman error: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _wingmanLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: const Color(Config.bg2),
+      child: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+          child: Row(children: [
+            // 📷 Image button
+            SizedBox(
+              width: 40,
+              height: 40,
+              child: _imageUploading
+                  ? const Padding(
+                      padding: EdgeInsets.all(10),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)),
+                    )
+                  : IconButton(
+                      onPressed: _pickAndSendImage,
+                      icon: const Icon(Icons.image_outlined, color: Color(Config.text2)),
+                      padding: EdgeInsets.zero,
+                    ),
+            ),
+            // ✨ AI Wingman button (men chatting with women only)
+            if (_showWingman) ...[
+              const SizedBox(width: 2),
+              SizedBox(
+                width: 40,
+                height: 40,
+                child: _wingmanLoading
+                    ? const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFA855F7)),
+                      )
+                    : IconButton(
+                        onPressed: _showWingmanSheet,
+                        icon: const Icon(Icons.auto_awesome, color: Color(0xFFA855F7)),
+                        padding: EdgeInsets.zero,
+                        tooltip: 'AI Bestie',
+                      ),
+              ),
+            ],
+            const SizedBox(width: 4),
+            Expanded(
+              child: TextField(
+                controller: widget.controller,
+                style: const TextStyle(color: Color(Config.text1)),
+                minLines: 1,
+                maxLines: 4,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => widget.onSend(),
+                decoration: InputDecoration(
+                  hintText: 'Message…',
+                  hintStyle: const TextStyle(color: Color(Config.text3)),
+                  filled: true,
+                  fillColor: const Color(Config.bg3),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: widget.onSend,
+              child: CircleAvatar(
+                radius: 22,
+                backgroundColor: const Color(Config.accent),
+                child: widget.sending
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFFFFFF)))
+                    : const Icon(Icons.arrow_upward, color: Color(0xFFFFFFFF)),
+              ),
+            ),
+          ]),
         ),
       ),
     );
   }
 }
 
-class _Composer extends StatelessWidget {
-  final TextEditingController controller;
-  final bool sending;
-  final VoidCallback onSend;
-  const _Composer({required this.controller, required this.sending, required this.onSend});
+class _WingmanBottomSheet extends StatelessWidget {
+  final String suggestion;
+  final String? coaching;
+  final void Function(String text) onUse;
+
+  const _WingmanBottomSheet({
+    required this.suggestion,
+    required this.coaching,
+    required this.onUse,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-        color: const Color(Config.bg2),
-        child: Row(children: [
-          Expanded(
-            child: TextField(
-              controller: controller,
-              style: const TextStyle(color: Color(Config.text1)),
-              minLines: 1,
-              maxLines: 4,
-              textInputAction: TextInputAction.send,
-              onSubmitted: (_) => onSend(),
-              decoration: InputDecoration(
-                hintText: 'Message…',
-                hintStyle: const TextStyle(color: Color(Config.text3)),
-                filled: true,
-                fillColor: const Color(Config.bg3),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                const Icon(Icons.auto_awesome, color: Color(0xFFA855F7), size: 20),
+                const SizedBox(width: 8),
+                const Text('AI Bestie suggestion',
+                    style: TextStyle(color: Color(Config.text1), fontSize: 16, fontWeight: FontWeight.w700)),
+              ]),
+              const SizedBox(height: 14),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(Config.bg3),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0x33A855F7)),
                 ),
+                child: Text(suggestion,
+                    style: const TextStyle(color: Color(Config.text1), fontSize: 15, height: 1.4)),
               ),
-            ),
+              if (coaching != null && coaching!.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(coaching!,
+                    style: const TextStyle(color: Color(Config.text3), fontSize: 12, height: 1.4)),
+              ],
+              const SizedBox(height: 18),
+              Row(children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(Config.text2),
+                      side: const BorderSide(color: Color(Config.bg3)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                    ),
+                    child: const Text('Dismiss'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      onUse(suggestion);
+                      Navigator.of(context).pop();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFA855F7),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                    ),
+                    child: const Text('Use this reply', style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ]),
+            ],
           ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: onSend,
-            child: CircleAvatar(
-              radius: 22,
-              backgroundColor: const Color(Config.accent),
-              child: sending
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFFFFFF)))
-                  : const Icon(Icons.arrow_upward, color: Color(0xFFFFFFFF)),
-            ),
-          ),
-        ]),
+        ),
       ),
     );
   }

@@ -126,8 +126,14 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
       });
       _saveHistory();
     } catch (e) {
+      final err = e.toString();
+      final msg = (err.contains('404'))
+          ? 'Sorry, $_name is temporarily unavailable. Please try again later.'
+          : (err.contains('timeout') || err.contains('SocketException') || err.contains('DioException'))
+              ? 'No internet connection. Please check your network and try again.'
+              : 'Something went wrong. Please try again.';
       setState(() {
-        _turns.add(_Turn('assistant', '⚠️ Could not reach $_name: $e'));
+        _turns.add(_Turn('assistant', '⚠️ $msg'));
         _thinking = false;
       });
     }

@@ -61,7 +61,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             return const _Loading();
           }
           if (snap.hasError || !snap.hasData) {
-            return _ErrorState(onRetry: _refresh, error: '${snap.error ?? 'No data'}');
+            final e = snap.error?.toString() ?? '';
+            final msg = (e.contains('timeout') || e.contains('SocketException') || e.contains('DioException'))
+                ? 'No internet connection. Please check your network.'
+                : (e.contains('401') || e.contains('Unauthorized'))
+                    ? 'Session expired. Please sign out and back in.'
+                    : 'Could not load profile. Please try again.';
+            return _ErrorState(onRetry: _refresh, error: msg);
           }
           // Data is ready — the entire populated UI is built in one pass and
           // painted in a single frame. No empty-then-mutate, so nothing to
