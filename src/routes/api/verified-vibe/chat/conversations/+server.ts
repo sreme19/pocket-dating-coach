@@ -64,16 +64,18 @@ export const GET: RequestHandler = async ({ request }) => {
     const userMap = new Map((users ?? []).map(u => [u.id, u]));
 
     // 3. Fetch last messages for ALL matches in parallel
+    // Use nullsFirst: false so rows with NULL created_at (edge-case old messages)
+    // are pushed to the bottom and don't shadow newer messages in DESC order.
     const lastMessageResults = await Promise.all(
-      matches.map(match =>
-        supabase
+      matches.map(async (match) => {
+        const { data } = await supabase
           .from('verified_vibe_messages')
           .select('content, created_at, sender_id')
           .eq('match_id', match.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .then(r => ({ matchId: match.id, data: r.data }))
-      )
+          .order('created_at', { ascending: false, nullsFirst: false })
+          .limit(1);
+        return { matchId: match.id, data: data ?? [] };
+      })
     );
     const lastMessageMap = new Map(lastMessageResults.map(r => [r.matchId, r.data?.[0]]));
 

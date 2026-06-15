@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -15,9 +16,12 @@ class ChatListScreen extends StatefulWidget {
 }
 
 class _ChatListScreenState extends State<ChatListScreen>
-    with AutomaticKeepAliveClientMixin {
+    with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
   late Future<_ChatData> _future;
   int _filter = 0; // 0 = All, 1 = Unread
+  RealtimeChannel? _msgChannel;
+  RealtimeChannel? _attentionChannel;
+  Timer? _periodicRefresh;
 
   @override
   bool get wantKeepAlive => true;
@@ -25,23 +29,89 @@ class _ChatListScreenState extends State<ChatListScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _future = _load();
+    _subscribeToMessages();
+    // Periodic backstop: refresh every 15 s in case realtime misses an event.
+    _periodicRefresh = Timer.periodic(const Duration(seconds: 15), (_) => _refresh());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _periodicRefresh?.cancel();
+    if (_msgChannel != null) Supabase.instance.client.removeChannel(_msgChannel!);
+    if (_attentionChannel != null) Supabase.instance.client.removeChannel(_attentionChannel!);
+    super.dispose();
+  }
+
+  // Refresh when app comes back to foreground
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refresh();
+  }
+
+  void _subscribeToMessages() {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid == null) return;
+
+    // Real-time: new chat messages → refresh conversation list
+    _msgChannel = Supabase.instance.client
+        .channel('chat-list-messages:$uid')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'verified_vibe_messages',
+          callback: (_) => _refresh(),
+        )
+        .subscribe();
+
+    // Real-time: Notice Me / Secret Admirer sent OR received → refresh
+    // so Admirers tab and Sent tab update instantly without manual pull-to-refresh.
+    _attentionChannel = Supabase.instance.client
+        .channel('chat-list-attention:$uid')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'attention_messages',
+          callback: (_) => _refresh(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'attention_messages',
+          callback: (_) => _refresh(),
+        )
+        .subscribe();
   }
 
   Future<_ChatData> _load() async {
-    final gender = await fetchCurrentUserGender();
-    final convos = await fetchConversations();
-    List<Admirer> admirers = const [];
-    List<SentAdmirer> sentAdmirers = const [];
     try {
-      final results = await Future.wait([fetchAdmirers(), fetchSentAdmirers()]);
-      admirers = results[0] as List<Admirer>;
-      sentAdmirers = results[1] as List<SentAdmirer>;
-    } catch (_) {/* non-fatal */}
-    return _ChatData(gender: gender, conversations: convos, admirers: admirers, sentAdmirers: sentAdmirers);
+      final gender = await fetchCurrentUserGender();
+      final convos = await fetchConversations();
+      List<Admirer> admirers = const [];
+      List<SentAdmirer> sentAdmirers = const [];
+      try {
+        final results = await Future.wait([fetchAdmirers(), fetchSentAdmirers()]);
+        admirers = results[0] as List<Admirer>;
+        sentAdmirers = results[1] as List<SentAdmirer>;
+      } catch (_) {/* non-fatal */}
+      return _ChatData(gender: gender, conversations: convos, admirers: admirers, sentAdmirers: sentAdmirers);
+    } catch (e) {
+      final msg = e.toString();
+      if (msg.contains('SocketException') || msg.contains('timeout') ||
+          msg.contains('connection') || msg.contains('DioException')) {
+        throw Exception('No internet connection. Please check your network and retry.');
+      }
+      if (msg.contains('401') || msg.contains('Unauthorized')) {
+        throw Exception('Session expired. Please sign out and sign back in.');
+      }
+      rethrow;
+    }
   }
 
   Future<void> _refresh() async {
+    if (!mounted) return;
     final f = _load();
     setState(() { _future = f; });
     await f;
@@ -154,18 +224,27 @@ class _ChatListScreenState extends State<ChatListScreen>
     );
   }
 
-  Widget _error(String e) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.cloud_off, color: Color(Config.text3), size: 48),
-            const SizedBox(height: 12),
-            Text(e, textAlign: TextAlign.center, style: const TextStyle(color: Color(Config.text2))),
-            const SizedBox(height: 16),
-            FilledButton(onPressed: _refresh, child: const Text('Retry')),
-          ]),
-        ),
-      );
+  Widget _error(String e) {
+    final friendly = e.contains('No internet') ? e
+        : e.contains('Session expired') ? e
+        : e.contains('401') || e.contains('Unauthorized')
+            ? 'Session expired. Please sign out and sign back in.'
+        : e.contains('timeout') || e.contains('SocketException') || e.contains('DioException')
+            ? 'No internet connection. Please check your network and retry.'
+        : 'Something went wrong. Please try again.';
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.cloud_off, color: Color(Config.text3), size: 48),
+          const SizedBox(height: 12),
+          Text(friendly, textAlign: TextAlign.center, style: const TextStyle(color: Color(Config.text2))),
+          const SizedBox(height: 16),
+          FilledButton(onPressed: _refresh, child: const Text('Retry')),
+        ]),
+      ),
+    );
+  }
 }
 
 class _ChatData {

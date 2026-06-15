@@ -1,5 +1,6 @@
 import 'dart:convert' show base64Encode;
 import 'dart:io' show Platform, File;
+import 'dart:typed_data' show Uint8List;
 import 'package:dio/dio.dart';
 import 'package:http_parser/http_parser.dart' show MediaType;
 // hide MultipartFile + MediaType: both dio and supabase export them; we use dio's.
@@ -95,7 +96,7 @@ class ProfileData {
   // Raw generatedProfile map, kept so edits can merge without dropping fields.
   final Map<String, dynamic> rawGenerated;
 
-  bool get isMan => gender == null || gender == 'man';
+  bool get isMan => gender == 'man';
 
   ProfileData({
     required this.name,
@@ -225,8 +226,23 @@ Future<ProfileData> fetchProfile() async {
   final _qaScore  = _stepScore(_vstepFor('spending_or_qa'));
   final _vPts = (_idScore > 0 ? 10 : 0) + (_livScore > 0 ? 10 : 0)
               + (_phScore > 0 ? 15 : 0) + (_qaScore  > 0 ? 10 : 0);
-  final _proofPts = proofs.fold<int>(0, (s, p) =>
-      s + (p is Map && p['pts_awarded'] is num ? (p['pts_awarded'] as num).toInt() : 0));
+  // Proof pts + count computed directly from verifySteps so they are accurate
+  // even if the master-profile API call fails (proofs list would be empty).
+  const _catPts = <String, int>{
+    'lifestyle': 8, 'hosting': 6, 'discipline': 4, 'social_proof': 4,
+    'linkedin': 5, 'instagram': 3, 'twitter': 2, 'habit_tracker': 2,
+    'intro': 8, 'spending': 10, 'assets': 10, 'wealth': 12,
+  };
+  int _proofPts = 0;
+  int _proofCount = 0;
+  for (final s in verifySteps) {
+    final step = s['step']?.toString() ?? '';
+    if (step.startsWith('proof_') && s['status'] == 'completed') {
+      _proofCount++;
+      final cat = step.replaceFirst('proof_', '');
+      _proofPts += _catPts[cat] ?? 4;
+    }
+  }
   final trust = (_vPts + _proofPts).clamp(0, 100);
   final gender = row?['gender']?.toString();
   final archetype = (row?['archetype'] ?? '').toString();
@@ -336,7 +352,7 @@ Future<ProfileData> fetchProfile() async {
     uploadedPhotos: uploaded,
     aiPhotoItems: aiPhotoItemsList,
     trustScore: trust,
-    proofsCount: proofs.length,
+    proofsCount: _proofCount,
     about: about,
     profileComplete: (draft != null || generated != null)
         || (row?['first_name'] != null && row?['age'] != null),
@@ -1114,6 +1130,7 @@ String _bearer() {
 /// conversation id == match id (verified_vibe_matches.id).
 class Conversation {
   final String id;
+  final String? otherId; // matched user's UUID
   final String name;
   final int? age;
   final String? avatar;
@@ -1128,6 +1145,7 @@ class Conversation {
 
   Conversation({
     required this.id,
+    this.otherId,
     required this.name,
     required this.age,
     required this.avatar,
@@ -1156,6 +1174,7 @@ Future<List<Conversation>> fetchConversations() async {
     final u = (c['matchedUser'] as Map?) ?? const {};
     return Conversation(
       id: (c['id'] ?? c['matchId']).toString(),
+      otherId: u['id'] as String?,
       name: (u['firstName'] ?? '—').toString(),
       age: u['age'] is num ? (u['age'] as num).toInt() : null,
       avatar: u['avatar'] as String?,
@@ -1488,6 +1507,8 @@ class MatchDetail {
   final List<InsightChip> wealthInsights;
   final String? personalityPortraitUrl;
   final String? garagePortraitUrl;
+  // Personality radar: decisiveness / warmth / openness / pace (0-100 each)
+  final Map<String, int>? traitScores;
 
   MatchDetail({
     required this.name,
@@ -1511,6 +1532,7 @@ class MatchDetail {
     required this.wealthInsights,
     required this.personalityPortraitUrl,
     required this.garagePortraitUrl,
+    this.traitScores,
   });
 }
 
@@ -1609,6 +1631,10 @@ Future<MatchDetail> fetchMatchDetail(String profileId) async {
     wealthInsights: _parseChips(money?['wealthInsights']),
     personalityPortraitUrl: incomeNonEmpty(d['personalityPortraitUrl']),
     garagePortraitUrl: incomeNonEmpty(d['garagePortraitUrl']),
+    traitScores: d['traitScores'] is Map ? {
+      for (final e in (d['traitScores'] as Map).entries)
+        e.key.toString(): (e.value is num ? (e.value as num).toInt() : 0),
+    } : null,
   );
 }
 
@@ -1801,4 +1827,36 @@ Future<void> submitMessageFeedback({
     },
     options: Options(headers: {'Content-Type': 'application/json'}),
   );
+}
+
+/// Upload an image to the `chat-images` Supabase storage bucket and return its public URL.
+/// [bytes] is the raw image data; [ext] is the file extension (e.g. 'jpg', 'png').
+Future<String> uploadChatImage(Uint8List bytes, String ext) async {
+  final uid = Supabase.instance.client.auth.currentUser?.id;
+  if (uid == null) throw StateError('Not authenticated');
+  final path = '$uid/${DateTime.now().millisecondsSinceEpoch}.$ext';
+  await Supabase.instance.client.storage
+      .from('chat-images')
+      .uploadBinary(
+        path,
+        bytes,
+        fileOptions: FileOptions(contentType: 'image/$ext', upsert: false),
+      );
+  return Supabase.instance.client.storage.from('chat-images').getPublicUrl(path);
+}
+
+/// Fetch an AI Bestie reply suggestion for [conversationId] (shown to women chatting with men).
+/// Returns `{'suggestion': str, 'coaching': str?}`.
+Future<Map<String, dynamic>> fetchWingmanSuggestion(String conversationId) async {
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/ai-wingman/generate-response',
+    data: {'conversationId': conversationId},
+    options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
+  );
+  final body = resp.data is Map ? resp.data as Map : const {};
+  final data = body['data'] is Map ? body['data'] as Map : const {};
+  return {
+    'suggestion': (data['suggestion'] ?? '').toString(),
+    'coaching': data['coaching'] as String?,
+  };
 }

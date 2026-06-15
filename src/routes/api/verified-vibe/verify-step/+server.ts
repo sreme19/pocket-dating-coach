@@ -542,13 +542,35 @@ async function handleQAVerification(responses: Record<string, string>, gender: s
       return json({ error: 'Q&A responses are required' }, { status: 400 });
     }
 
+    // Merge with any previously-saved Q&A answers so a later step (HowYouLive)
+    // doesn't overwrite an earlier one (DrawnTo). The row is upserted on
+    // (user_id, step), so without this the second POST would replace the first.
+    // New answers win per-key; previously-saved keys are preserved.
+    let mergedResponses: Record<string, unknown> = { ...responses };
+    if (userId) {
+      try {
+        const supabase = getSupabase();
+        const { data: existing } = await (supabase as any)
+          .from('verified_vibe_verification')
+          .select('data')
+          .eq('user_id', userId)
+          .eq('step', 'spending_or_qa')
+          .eq('status', 'completed')
+          .maybeSingle();
+        const prev = (existing?.data?.responses as Record<string, unknown>) ?? {};
+        mergedResponses = { ...prev, ...responses };
+      } catch (e) {
+        console.warn('Q&A merge: could not load existing responses (non-fatal):', e);
+      }
+    }
+
     const trustPoints = getTrustPoints('spending_or_qa');
     const stepData = {
       type: 'qa',
       satisfactory: true,
       confidence: 100,
       reasoning: 'Responses collected',
-      responses
+      responses: mergedResponses
     };
 
     if (userId) {

@@ -26,6 +26,8 @@ class _DiscoverScreenState extends State<DiscoverScreen>
   bool _bestieFlagsLoading = false;
   final Set<String> _sentAttentionIds = {}; // profiles already noticed/admired
   final Set<String> _tippedIds = {}; // profiles tipped this session
+  final Set<String> _matchedUserIds = {}; // already mutual matches — hide Tip/Notice me
+  bool _autoSkipping = false; // guard against re-entrant auto-skip
 
   @override
   bool get wantKeepAlive => true;
@@ -55,6 +57,16 @@ class _DiscoverScreenState extends State<DiscoverScreen>
       // Load already-sent attention IDs so buttons show correct state
       fetchSentAdmirers().then((sent) {
         if (mounted) setState(() => _sentAttentionIds.addAll(sent.map((s) => s.recipientId)));
+      }).catchError((_) {});
+      // Load matched user IDs — hide Tip/Notice me for existing matches
+      fetchConversations().then((convos) {
+        if (mounted) {
+          setState(() {
+            for (final c in convos) {
+              if (c.otherId != null) _matchedUserIds.add(c.otherId!);
+            }
+          });
+        }
       }).catchError((_) {});
       if (!mounted) return;
       setState(() {
@@ -87,6 +99,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
       _detail = fetchMatchDetail(feed[_idx].id);
       _bestieFlags = [];
       _bestieFlagsLoading = false;
+      _autoSkipping = false;
     });
     _maybeFetchBestie();
     if (_scroll.hasClients) _scroll.jumpTo(0);
@@ -155,14 +168,11 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                 _photo(avatar, trust),
                 if (loading)
                   const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator(color: Color(Config.accent))))
-                else if (d == null)
-                  Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text('Couldn’t load this profile.\n${snap.error ?? ''}',
-                        textAlign: TextAlign.center, style: const TextStyle(color: Color(Config.text2))),
-                  )
+                else if (d == null && snap.hasError) ...[
+                  _profileError(snap.error),
+                ]
                 else ...[
-                  ...richProfileBody(context, d),
+                  if (d != null) ...richProfileBody(context, d),
                   if (_viewerGender == 'woman' && _current?.gender == 'man')
                     _bestieTake(),
                 ],
@@ -174,6 +184,37 @@ class _DiscoverScreenState extends State<DiscoverScreen>
       ),
       _actionBar(cur),
     ]);
+  }
+
+  Widget _profileError(Object? err) {
+    final is404 = err.toString().contains('404');
+    // Auto-skip deleted/unavailable profiles without user interaction.
+    if (is404 && !_autoSkipping) {
+      _autoSkipping = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) { _autoSkipping = false; _next(); }
+      });
+    }
+    return Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text(
+          is404 ? 'This profile is no longer available.' : "Couldn't load this profile.",
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Color(Config.text2), fontSize: 14),
+        ),
+        const SizedBox(height: 16),
+        FilledButton(
+          onPressed: _next,
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(Config.bg3),
+            foregroundColor: const Color(Config.text1),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          child: const Text('Skip →'),
+        ),
+      ]),
+    );
   }
 
   Widget _photo(String? avatar, int trust) {
@@ -281,6 +322,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
     final g = _viewerGender;
     final alreadySent = _sentAttentionIds.contains(cur.id);
     final alreadyTipped = _tippedIds.contains(cur.id);
+    final alreadyMatched = _matchedUserIds.contains(cur.id);
     return SafeArea(
       top: false,
       child: Container(
@@ -290,43 +332,61 @@ class _DiscoverScreenState extends State<DiscoverScreen>
           border: Border(top: BorderSide(color: Color(0x141B1020))),
         ),
         child: Row(children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: g == null || alreadyTipped ? null : () async {
-                final sent = await showTipSheet(context, targetUserId: cur.id, viewerGender: g);
-                if (sent && mounted) setState(() => _tippedIds.add(cur.id));
-              },
-              icon: alreadyTipped
-                  ? const Icon(Icons.check, size: 18)
-                  : const Icon(Icons.chat_bubble_outline, size: 18),
-              label: Text(alreadyTipped ? 'Tipped ✓' : 'Tip'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: alreadyTipped ? const Color(Config.text3) : const Color(Config.text1),
-                side: BorderSide(color: alreadyTipped ? const Color(0x221B1020) : const Color(0x331B1020)),
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          if (!alreadyMatched) ...[
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: g == null || alreadyTipped ? null : () async {
+                  final sent = await showTipSheet(context, targetUserId: cur.id, viewerGender: g);
+                  if (sent && mounted) setState(() => _tippedIds.add(cur.id));
+                },
+                icon: alreadyTipped
+                    ? const Icon(Icons.check, size: 18)
+                    : const Icon(Icons.chat_bubble_outline, size: 18),
+                label: Text(alreadyTipped ? 'Tipped ✓' : 'Tip'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: alreadyTipped ? const Color(Config.text3) : const Color(Config.text1),
+                  side: BorderSide(color: alreadyTipped ? const Color(0x221B1020) : const Color(0x331B1020)),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: g == null || alreadySent ? null : () async {
-                final sent = await showAdmireSheet(context, recipientId: cur.id, viewerGender: g, name: cur.firstName);
-                if (sent && mounted) setState(() => _sentAttentionIds.add(cur.id));
-              },
-              icon: alreadySent
-                  ? const Icon(Icons.check, size: 15)
-                  : Text(g == 'woman' ? '🌹' : '👀', style: const TextStyle(fontSize: 15)),
-              label: Text(alreadySent ? 'Sent ✓' : (g == 'woman' ? 'Admire' : 'Notice me')),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: alreadySent ? const Color(Config.text3) : const Color(0xFFEC4899),
-                side: BorderSide(color: alreadySent ? const Color(0x221B1020) : const Color(0x55EC4899)),
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: g == null || alreadySent ? null : () async {
+                  final sent = await showAdmireSheet(context, recipientId: cur.id, viewerGender: g, name: cur.firstName);
+                  if (sent && mounted) setState(() => _sentAttentionIds.add(cur.id));
+                },
+                icon: alreadySent
+                    ? const Icon(Icons.check, size: 15)
+                    : Text(g == 'woman' ? '🌹' : '👀', style: const TextStyle(fontSize: 15)),
+                label: Text(alreadySent ? 'Sent ✓' : (g == 'woman' ? 'Admire' : 'Notice me')),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: alreadySent ? const Color(Config.text3) : const Color(0xFFEC4899),
+                  side: BorderSide(color: alreadySent ? const Color(0x221B1020) : const Color(0x55EC4899)),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
               ),
             ),
-          ),
+            const SizedBox(width: 10),
+          ] else ...[
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: null,
+                icon: const Icon(Icons.favorite, size: 16),
+                label: const Text('Matched ✓'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(Config.text3),
+                  side: const BorderSide(color: Color(0x221B1020)),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
           const SizedBox(width: 10),
           Expanded(
             child: FilledButton(

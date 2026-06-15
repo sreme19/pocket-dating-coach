@@ -19,7 +19,9 @@ export const MAX_BODY_LENGTH = 240;
 export const NOTIFICATION_TYPES = [
 	'conversation_reminder',
 	'follow_up_prompt',
-	'profile_tip'
+	'profile_tip',
+	'secret_admirer',
+	'craving_attention'
 ] as const;
 
 /** Union type for notification categories */
@@ -121,9 +123,6 @@ export function buildNotificationPayload(params: BuildNotificationPayloadParams)
 }
 
 
-/** FCM error codes that indicate an invalid/expired token */
-const INVALID_TOKEN_ERRORS = ['NotRegistered', 'InvalidRegistration', 'MismatchSenderId'] as const;
-
 /** Result of a notification send attempt */
 export interface SendNotificationResult {
 	success: boolean;
@@ -131,44 +130,84 @@ export interface SendNotificationResult {
 	tokenRemoved?: boolean;
 }
 
-/** FCM legacy HTTP API response structure */
-interface FcmResponse {
-	multicast_id: number;
-	success: number;
-	failure: number;
-	results: Array<{
-		message_id?: string;
-		error?: string;
-	}>;
+// ─── FCM V1 API (OAuth2 + Service Account) ────────────────────────────────
+
+/** Cached OAuth2 access token */
+let _cachedToken: string | null = null;
+let _tokenExpiresAt = 0;
+
+/**
+ * Gets a Google OAuth2 access token for FCM V1 API using the service account.
+ * Token is cached for 50 minutes (tokens last 60 min).
+ */
+async function getFcmAccessToken(): Promise<string> {
+	const now = Math.floor(Date.now() / 1000);
+	if (_cachedToken && now < _tokenExpiresAt) return _cachedToken;
+
+	const raw = env.FCM_SERVICE_ACCOUNT;
+	if (!raw) throw new Error('FCM_SERVICE_ACCOUNT env var not set');
+
+	const sa = JSON.parse(raw) as { client_email: string; private_key: string };
+
+	// Build JWT (RS256)
+	const header = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
+		.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+	const claimset = btoa(JSON.stringify({
+		iss: sa.client_email,
+		scope: 'https://www.googleapis.com/auth/firebase.messaging',
+		aud: 'https://oauth2.googleapis.com/token',
+		iat: now,
+		exp: now + 3600,
+	})).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+
+	const signingInput = `${header}.${claimset}`;
+
+	// Sign with RSA-SHA256 using Node.js crypto
+	const { createSign } = await import('crypto');
+	const sign = createSign('RSA-SHA256');
+	sign.update(signingInput);
+	const sig = sign.sign(sa.private_key, 'base64')
+		.replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+
+	const jwt = `${signingInput}.${sig}`;
+
+	// Exchange JWT for access token
+	const res = await fetch('https://oauth2.googleapis.com/token', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+		body: new URLSearchParams({
+			grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+			assertion: jwt,
+		}),
+	});
+
+	if (!res.ok) throw new Error(`OAuth2 token exchange failed: ${res.status}`);
+	const data = await res.json() as { access_token: string };
+
+	_cachedToken = data.access_token;
+	_tokenExpiresAt = now + 3000; // cache for 50 min
+	return _cachedToken;
 }
 
 /**
- * Sends a notification payload to FCM HTTP API.
+ * Sends a notification payload via FCM V1 API (HTTP v1).
  *
- * - Only sends to tokens that exist in the device_tokens table
- * - On FCM delivery failure due to invalid token (NotRegistered, InvalidRegistration),
- *   removes the token from the database
- * - Returns success/failure status with optional error details
+ * - Reads project_id from FCM_SERVICE_ACCOUNT env var
+ * - Uses OAuth2 service account credentials (not legacy server key)
+ * - Removes invalid tokens from device_tokens on UNREGISTERED error
  *
  * Requirements: 6.5, 5.6
- *
- * @param payload - A pre-built FCM notification payload (from buildNotificationPayload)
- * @returns Result indicating success/failure and whether the token was removed
  */
 export async function sendNotification(payload: NotificationPayload): Promise<SendNotificationResult> {
-	const fcmServerKey = env.FCM_SERVER_KEY;
-
-	if (!fcmServerKey) {
-		return {
-			success: false,
-			error: 'FCM_SERVER_KEY environment variable is not configured'
-		};
+	const raw = env.FCM_SERVICE_ACCOUNT;
+	if (!raw) {
+		return { success: false, error: 'FCM_SERVICE_ACCOUNT env var not configured' };
 	}
 
 	const supabase = getSupabase();
 	const token = payload.to;
 
-	// Verify the token exists in storage and is not flagged invalid
+	// Verify token exists in DB (service role bypasses RLS)
 	const { data: tokenRecord, error: lookupError } = await supabase
 		.from('device_tokens')
 		.select('id, token')
@@ -176,78 +215,57 @@ export async function sendNotification(payload: NotificationPayload): Promise<Se
 		.maybeSingle();
 
 	if (lookupError) {
-		return {
-			success: false,
-			error: `Failed to verify token in database: ${lookupError.message}`
-		};
+		return { success: false, error: `DB lookup failed: ${lookupError.message}` };
 	}
-
 	if (!tokenRecord) {
-		return {
-			success: false,
-			error: 'Token does not exist in storage or has been flagged invalid'
-		};
+		return { success: false, error: 'Token not found in device_tokens' };
 	}
 
-	// Send to FCM HTTP API (legacy endpoint)
-	let fcmResponse: Response;
+	let accessToken: string;
 	try {
-		fcmResponse = await fetch('https://fcm.googleapis.com/fcm/send', {
+		accessToken = await getFcmAccessToken();
+	} catch (e) {
+		return { success: false, error: `Auth failed: ${e instanceof Error ? e.message : String(e)}` };
+	}
+
+	const { project_id } = JSON.parse(raw) as { project_id: string };
+	const url = `https://fcm.googleapis.com/v1/projects/${project_id}/messages:send`;
+
+	// FCM V1 payload format
+	const body = {
+		message: {
+			token,
+			notification: payload.notification,
+			data: Object.fromEntries(
+				Object.entries(payload.data).map(([k, v]) => [k, String(v ?? '')])
+			),
+		},
+	};
+
+	let fcmRes: Response;
+	try {
+		fcmRes = await fetch(url, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
-				Authorization: `key=${fcmServerKey}`
+				Authorization: `Bearer ${accessToken}`,
 			},
-			body: JSON.stringify(payload)
+			body: JSON.stringify(body),
 		});
-	} catch (fetchError) {
-		return {
-			success: false,
-			error: `FCM request failed: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`
-		};
+	} catch (e) {
+		return { success: false, error: `FCM request failed: ${e instanceof Error ? e.message : String(e)}` };
 	}
 
-	if (!fcmResponse.ok) {
-		return {
-			success: false,
-			error: `FCM API returned HTTP ${fcmResponse.status}: ${fcmResponse.statusText}`
-		};
+	if (fcmRes.ok) return { success: true };
+
+	const errBody = await fcmRes.json().catch(() => ({})) as { error?: { details?: Array<{ errorCode?: string }> } };
+	const errCode = errBody?.error?.details?.[0]?.errorCode ?? '';
+
+	// Remove stale/invalid tokens
+	if (fcmRes.status === 404 || errCode === 'UNREGISTERED') {
+		await supabase.from('device_tokens').delete().eq('token', token);
+		return { success: false, error: 'Token unregistered — removed from DB', tokenRemoved: true };
 	}
 
-	// Parse FCM response
-	let responseBody: FcmResponse;
-	try {
-		responseBody = await fcmResponse.json();
-	} catch {
-		return {
-			success: false,
-			error: 'Failed to parse FCM response'
-		};
-	}
-
-	// Check for delivery failures
-	if (responseBody.failure > 0 && responseBody.results?.length > 0) {
-		const result = responseBody.results[0];
-
-		if (result.error && INVALID_TOKEN_ERRORS.includes(result.error as typeof INVALID_TOKEN_ERRORS[number])) {
-			// Token is invalid — remove from database
-			await supabase
-				.from('device_tokens')
-				.delete()
-				.eq('token', token);
-
-			return {
-				success: false,
-				error: `FCM delivery failed: ${result.error}`,
-				tokenRemoved: true
-			};
-		}
-
-		return {
-			success: false,
-			error: `FCM delivery failed: ${result.error || 'Unknown error'}`
-		};
-	}
-
-	return { success: true };
+	return { success: false, error: `FCM V1 error ${fcmRes.status}: ${errCode || fcmRes.statusText}` };
 }
