@@ -61,8 +61,24 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
             return const Center(child: CircularProgressIndicator(color: Color(Config.accent)));
           }
           if (snap.hasError || !snap.hasData) {
-            return Center(child: Text('Could not load trust.\n${snap.error ?? ''}',
-                textAlign: TextAlign.center, style: const TextStyle(color: Color(Config.text2))));
+            final e = snap.error?.toString() ?? '';
+            final msg = (e.contains('timeout') || e.contains('SocketException') || e.contains('DioException'))
+                ? 'No internet connection. Please check your network.'
+                : (e.contains('401') || e.contains('Unauthorized'))
+                    ? 'Session expired. Please sign out and back in.'
+                    : 'Could not load. Please try again.';
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.cloud_off, size: 44, color: Color(Config.text3)),
+                  const SizedBox(height: 12),
+                  Text(msg, textAlign: TextAlign.center, style: const TextStyle(color: Color(Config.text2))),
+                  const SizedBox(height: 16),
+                  FilledButton(onPressed: _refresh, child: const Text('Retry')),
+                ]),
+              ),
+            );
           }
           final d = snap.data!;
           return RefreshIndicator(

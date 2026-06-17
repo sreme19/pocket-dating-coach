@@ -30,8 +30,10 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
     ),
     if (d.hereFor != null && d.hereFor!.isNotEmpty)
       pSection('🧭 HERE FOR', Text(d.hereFor!, style: const TextStyle(color: Color(Config.text1), fontSize: 16, height: 1.4))),
-    // Personality Reads (radar) — matches the web's inferred constellation.
-    pSection('🧠 PERSONALITY READS', const PersonalityRadar(), hint: 'inferred from Q&A + lifestyle'),
+    // Personality Reads (radar) — use server scores when available, else archetype defaults.
+    pSection('🧠 PERSONALITY READS',
+      PersonalityRadar(traits: d.traitScores ?? _archetypeBaseScores(d.archetypeLabel)),
+      hint: 'inferred from Q&A + lifestyle'),
     if (d.about != null && d.about!.isNotEmpty)
       pSection('ABOUT', Text(d.about!, style: const TextStyle(color: Color(Config.text1), fontSize: 16, height: 1.5))),
     if (d.archetypeChips.isNotEmpty)
@@ -111,6 +113,25 @@ Widget _portrait(String url) {
           child: Text('✨ Generated from verified photos', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600))),
     ]),
   );
+}
+
+/// Archetype-based trait score fallback when server doesn't return traitScores yet.
+Map<String, int> _archetypeBaseScores(String archetypeLabel) {
+  final a = archetypeLabel.toLowerCase();
+  if (a.contains('forever') || a.contains('matrimony') || a.contains('marriage'))
+    return {'decisiveness': 70, 'warmth': 80, 'openness': 60, 'pace': 55};
+  if (a.contains('casual') && a.contains('generous'))
+    return {'decisiveness': 80, 'warmth': 65, 'openness': 70, 'pace': 72};
+  if (a.contains('romantic') || a.contains('hopeless'))
+    return {'decisiveness': 62, 'warmth': 88, 'openness': 75, 'pace': 58};
+  if (a.contains('second chapter'))
+    return {'decisiveness': 78, 'warmth': 75, 'openness': 65, 'pace': 50};
+  if (a.contains('safety'))
+    return {'decisiveness': 60, 'warmth': 75, 'openness': 55, 'pace': 45};
+  if (a.contains('spoilt'))
+    return {'decisiveness': 65, 'warmth': 65, 'openness': 65, 'pace': 60};
+  // casual_man / default
+  return {'decisiveness': 75, 'warmth': 60, 'openness': 70, 'pace': 70};
 }
 
 // ── Playful shared sections ──────────────────────────────────────────────────
@@ -363,27 +384,24 @@ class _SignalTabsState extends State<SignalTabs> {
   }
 }
 
-/// The "Personality Reads" radar — a 5-axis constellation. Mirrors the web's
-/// inferred sample (Decisiveness/Warmth/Openness/Pace/Stability) + signature.
+/// The "Personality Reads" radar — 4-axis constellation from per-user AI scores.
 class PersonalityRadar extends StatelessWidget {
-  const PersonalityRadar({super.key});
+  final Map<String, int> traits;
+  const PersonalityRadar({super.key, required this.traits});
 
-  static const _traits = <(String, int)>[
-    ('Decisiveness', 95), ('Warmth', 80), ('Openness', 75), ('Pace', 65), ('Stability', 78),
+  List<(String, int)> get _traitList => [
+    ('Decisiveness', traits['decisiveness'] ?? 60),
+    ('Warmth',       traits['warmth']       ?? 60),
+    ('Openness',     traits['openness']      ?? 60),
+    ('Pace',         traits['pace']          ?? 60),
   ];
 
   @override
   Widget build(BuildContext context) {
-    return Column(children: [
-      SizedBox(
-        height: 230,
-        child: CustomPaint(size: Size.infinite, painter: _RadarPainter(_traits)),
-      ),
-      const SizedBox(height: 8),
-      const Text('"Decisive and warm — moves fast, lands soft."',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Color(Config.text2), fontStyle: FontStyle.italic, fontSize: 13)),
-    ]);
+    return SizedBox(
+      height: 230,
+      child: CustomPaint(size: Size.infinite, painter: _RadarPainter(_traitList)),
+    );
   }
 }
 

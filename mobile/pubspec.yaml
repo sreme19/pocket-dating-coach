@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 # 1.0.1+N — distinct from the live Capacitor build (1.0 / build 1) on the same
 # App Store Connect app (com.pocketdatingcoach.app). Bump +N if a build collides.
-version: 1.0.1+25
+version: 1.0.1+26
 
 environment:
   sdk: ^3.12.1
@@ -116,12 +116,10 @@ flutter_launcher_icons:
   android: true
   ios: true
   remove_alpha_ios: true
-  adaptive_icon_background: "#FFF3F0"
-  adaptive_icon_foreground: "assets/branding/icon_foreground.png"
+  adaptive_icon_background: "#FFE1EA"
+  adaptive_icon_foreground: "assets/branding/splash.png"
 
 flutter_native_splash:
-  color: "#0B1120"
-  image: "assets/branding/splash.png"
+  color: "#FFF3F0"
   android_12:
-    color: "#0B1120"
-    image: "assets/branding/splash.png"
+    color: "#FFF3F0"

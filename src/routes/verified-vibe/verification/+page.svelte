@@ -974,8 +974,19 @@
     error = null;
     clearError();
 
+    // Merge with any previously-stored QA answers. The QA flow runs in two steps
+    // (DrawnTo, then HowYouLive), each submitting a different subset of keys. A
+    // plain setItem would let the later step overwrite the earlier one, so we
+    // merge to keep every section. HowYouLive keys keep the exact same path —
+    // DrawnTo keys are simply added alongside.
+    let mergedResponses: Record<string, string | string[]> = {};
+    try {
+      mergedResponses = JSON.parse(localStorage.getItem('vv_qa_responses') || '{}');
+    } catch { mergedResponses = {}; }
+    mergedResponses = { ...mergedResponses, ...data.responses };
+
     // Persist locally immediately
-    localStorage.setItem('vv_qa_responses', JSON.stringify(data.responses));
+    localStorage.setItem('vv_qa_responses', JSON.stringify(mergedResponses));
 
     // Mark step done and advance — do not gate on API success
     completedSteps.add(currentStep);
@@ -991,14 +1002,16 @@
       goto('/verified-vibe/discover');
     }
 
-    // Fire-and-forget background sync
+    // Fire-and-forget background sync — send the merged set so the server row
+    // (verified_vibe_verification, upserted on user_id,step) also keeps every
+    // section instead of being overwritten by the last step.
     getAuthHeaders().then(headers =>
       fetch('/api/verified-vibe/verify-step', {
         method: 'POST',
         headers,
         body: JSON.stringify({
           step: 'spending_or_qa',
-          data: { responses: data.responses, gender: $user?.gender, archetype: $user?.archetype }
+          data: { responses: mergedResponses, gender: $user?.gender, archetype: $user?.archetype }
         })
       }).then(async res => {
         if (res.ok) {

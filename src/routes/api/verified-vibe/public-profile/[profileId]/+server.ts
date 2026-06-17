@@ -7,6 +7,37 @@ function snakeToTitle(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
+function deriveTraitScores(personality: Record<string, unknown> | null, archetype: string) {
+  const allText = [
+    personality?.communicationStyle ?? '',
+    personality?.personalityVibe ?? '',
+    personality?.mattersMost ?? '',
+    ...(Array.isArray(personality?.values) ? (personality.values as string[]) : []),
+    ...(Array.isArray(personality?.datingPatterns) ? (personality.datingPatterns as string[]) : []),
+  ].join(' ').toLowerCase();
+
+  function score(keywords: string[], antiKeywords: string[] = []): number {
+    const pos = keywords.filter((k) => allText.includes(k)).length;
+    const neg = antiKeywords.filter((k) => allText.includes(k)).length;
+    return Math.min(100, Math.max(0, 50 + pos * 15 - neg * 15));
+  }
+
+  const base: Record<string, { dec: number; warm: number; open: number; pace: number }> = {
+    casual_man:          { dec: 75, warm: 60, open: 70, pace: 70 },
+    marriage_minded_man: { dec: 70, warm: 80, open: 60, pace: 55 },
+    spoilt_woman:        { dec: 65, warm: 65, open: 65, pace: 60 },
+    safety_first_woman:  { dec: 60, warm: 75, open: 55, pace: 45 },
+  };
+  const b = base[archetype] ?? { dec: 60, warm: 60, open: 60, pace: 60 };
+
+  const dec  = Math.min(100, Math.max(10, b.dec  + score(['direct','decisive','clear','assertive','confident','takes charge','straightforward']) - 50));
+  const warm = Math.min(100, Math.max(10, b.warm + score(['warm','caring','generous','emotional','empathetic','loving','affectionate']) - 50));
+  const open = Math.min(100, Math.max(10, b.open + score(['open','curious','adventurous','flexible','creative','spontaneous'], ['rigid','traditional only']) - 50));
+  const pace = Math.min(100, Math.max(10, b.pace + score(['busy','driven','ambitious','hustle','goal-oriented','fast-paced'], ['patient','relaxed','slow']) - 50));
+
+  return { decisiveness: dec, warmth: warm, openness: open, pace };
+}
+
 // Mirror of ARCHETYPE_BRINGS from the owner profile page (emoji + text)
 const ARCHETYPE_BRINGS: Record<string, Array<{ emoji: string; text: string }>> = {
   casual_man: [
@@ -64,12 +95,13 @@ export const GET: RequestHandler = async ({ params }) => {
     const supabase = getSupabase();
     const db = supabase as any;
 
-    const [profileRes, masterRes, verificationRes] = await Promise.all([
+    const [profileRes, masterRes, verificationRes, personalityRes] = await Promise.all([
       db.from('verified_vibe_users')
         .select('id, first_name, age, city, avatar_url, about, looking, trust_score, archetype, gender')
         .eq('id', profileId).single(),
       db.from('user_master_profile').select('data').eq('user_id', profileId).maybeSingle(),
       db.from('verified_vibe_verification').select('step, status').eq('user_id', profileId),
+      db.from('verified_vibe_ai_profiles').select('data').eq('user_id', profileId).eq('profile_type', 'personality').maybeSingle(),
     ]);
 
     if (profileRes.error || !profileRes.data) return json({ error: 'Profile not found' }, { status: 404 });
@@ -182,6 +214,10 @@ export const GET: RequestHandler = async ({ params }) => {
     const personalityPortraitUrl = typeof masterData.personalityPortraitUrl === 'string' ? masterData.personalityPortraitUrl : null;
     const garagePortraitUrl = typeof masterData.garagePortraitUrl === 'string' ? masterData.garagePortraitUrl : null;
 
+    // Personality trait scores
+    const personalityData = (personalityRes?.data?.data as Record<string, unknown>) ?? null;
+    const traitScores = deriveTraitScores(personalityData, archetype);
+
     return json({
       data: {
         id: profile.id, firstName, age: profile.age, city: profile.city,
@@ -189,7 +225,7 @@ export const GET: RequestHandler = async ({ params }) => {
         archetype, archetypeName: archetypeDef?.name ?? archetype, archetypeEmoji: archetypeDef?.emoji ?? '✨',
         hereFor, about, vibeWords, whatBrings, archetypeChips,
         verifiedSignals, travelLocations, garageCars, moneyMatters,
-        personalityPortraitUrl, garagePortraitUrl,
+        personalityPortraitUrl, garagePortraitUrl, traitScores,
       },
     });
   } catch (err) {

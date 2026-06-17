@@ -16,6 +16,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getSupabase } from '$lib/server/supabase';
+import { buildNotificationPayload, sendNotification } from '$lib/server/notifications';
 
 const VALID_TAGS_BY_GENDER: Record<string, string[]> = {
   woman: [
@@ -64,6 +65,30 @@ export const POST: RequestHandler = async ({ request }) => {
       console.error('[Tips] DB insert error:', error);
       return json({ error: 'Failed to save tip' }, { status: 500 });
     }
+
+    // Fire-and-forget push notification to target user (anonymous tip)
+    (async () => {
+      try {
+        const supabase = getSupabase();
+        const { data: tokenRow } = await supabase
+          .from('device_tokens')
+          .select('token')
+          .eq('user_id', targetUserId!)
+          .maybeSingle();
+        if (tokenRow?.token) {
+          const payload = buildNotificationPayload({
+            token: tokenRow.token,
+            title: '💬 You got a tip!',
+            body: 'Someone left anonymous feedback on your profile',
+            type: 'profile_tip',
+            deepLink: '/messages',
+          });
+          await sendNotification(payload);
+        }
+      } catch {
+        // best-effort
+      }
+    })();
 
     return json({ ok: true });
   } catch (err) {

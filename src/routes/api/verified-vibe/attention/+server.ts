@@ -17,6 +17,8 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getSupabase } from '$lib/server/supabase';
+import { buildNotificationPayload, sendNotification } from '$lib/server/notifications';
+import type { NotificationType } from '$lib/server/notifications';
 
 export const POST: RequestHandler = async ({ request }) => {
   try {
@@ -55,6 +57,33 @@ export const POST: RequestHandler = async ({ request }) => {
       console.error('[Attention] insert error:', error);
       return json({ error: 'Failed to save message' }, { status: 500 });
     }
+
+    // Fire-and-forget push notification to recipient
+    (async () => {
+      try {
+        const supabase = getSupabase();
+        const [{ data: sender }, { data: tokenRow }] = await Promise.all([
+          supabase.from('verified_vibe_users').select('first_name').eq('id', senderId!).single(),
+          supabase.from('device_tokens').select('token').eq('user_id', recipientId!).maybeSingle(),
+        ]);
+        if (tokenRow?.token) {
+          const name = (sender as any)?.first_name ?? 'Someone';
+          const isAdmirer = messageType === 'secret_admirer';
+          const payload = buildNotificationPayload({
+            token: tokenRow.token,
+            title: isAdmirer ? '💝 Secret Admirer' : '✨ Someone Noticed You',
+            body: isAdmirer
+              ? `${name} has a secret crush on you`
+              : `${name} is craving your attention`,
+            type: messageType as NotificationType,
+            deepLink: '/messages',
+          });
+          await sendNotification(payload);
+        }
+      } catch {
+        // best-effort — don't block the response
+      }
+    })();
 
     return json({ ok: true, id: data.id });
   } catch (err) {

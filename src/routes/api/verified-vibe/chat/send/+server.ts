@@ -205,6 +205,7 @@ export const POST: RequestHandler = async ({ request }) => {
         match_id: body.conversationId,
         sender_id: user.id,
         content: body.content.trim(),
+        created_at: new Date().toISOString(), // explicit timestamp to avoid NULL ordering issues
         // Only include is_ai if the column exists (migration may not have run yet)
         ...(body.isAi === true ? { is_ai: true } : {})
       } as any)
