@@ -698,21 +698,21 @@ class _ComposerState extends State<_Composer> {
         child: Container(
           padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
           child: Row(children: [
-            // 📷 Image button
-            SizedBox(
-              width: 40,
-              height: 40,
-              child: _imageUploading
-                  ? const Padding(
-                      padding: EdgeInsets.all(10),
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)),
-                    )
-                  : IconButton(
-                      onPressed: _pickAndSendImage,
-                      icon: const Icon(Icons.image_outlined, color: Color(Config.text2)),
-                      padding: EdgeInsets.zero,
-                    ),
-            ),
+            // 📷 Image button — temporarily disabled
+            // SizedBox(
+            //   width: 40,
+            //   height: 40,
+            //   child: _imageUploading
+            //       ? const Padding(
+            //           padding: EdgeInsets.all(10),
+            //           child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)),
+            //         )
+            //       : IconButton(
+            //           onPressed: _pickAndSendImage,
+            //           icon: const Icon(Icons.image_outlined, color: Color(Config.text2)),
+            //           padding: EdgeInsets.zero,
+            //         ),
+            // ),
             // ✨ AI Wingman button (men chatting with women only)
             if (_showWingman) ...[
               const SizedBox(width: 2),

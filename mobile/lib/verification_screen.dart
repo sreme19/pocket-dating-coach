@@ -810,6 +810,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
               city: _cityCtrl.text.trim(),
             );
           } catch (_) {}
+          // Sync Q&A onboarding responses to user_master_profile so web
+          // profile and AI context can read them.
+          syncVerificationToMasterProfile().catchError((_) {});
           if (mounted) widget.onDone();
           return;
       }

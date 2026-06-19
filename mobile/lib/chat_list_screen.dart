@@ -23,6 +23,13 @@ class _ChatListScreenState extends State<ChatListScreen>
   RealtimeChannel? _attentionChannel;
   Timer? _periodicRefresh;
 
+  // ── Find Match ────────────────────────────────────────────────────────────
+  bool _fmEligible = true;
+  int _fmRunsUsed = 0;
+  int _fmRunsLimit = 3;
+  bool _fmLoading = false;
+  int get _fmRemaining => (_fmRunsLimit - _fmRunsUsed).clamp(0, _fmRunsLimit);
+
   @override
   bool get wantKeepAlive => true;
 
@@ -34,6 +41,64 @@ class _ChatListScreenState extends State<ChatListScreen>
     _subscribeToMessages();
     // Periodic backstop: refresh every 15 s in case realtime misses an event.
     _periodicRefresh = Timer.periodic(const Duration(seconds: 15), (_) => _refresh());
+    _loadMatchmakerStatus();
+  }
+
+  Future<void> _loadMatchmakerStatus() async {
+    try {
+      final s = await getMatchmakerStatus();
+      if (!mounted) return;
+      setState(() {
+        _fmEligible = s.eligible;
+        _fmRunsUsed = s.runsUsed;
+        _fmRunsLimit = s.runsLimit;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _runFindMatches() async {
+    if (_fmLoading) return;
+    if (!_fmEligible) { _showFmPopup('verify'); return; }
+    if (_fmRemaining <= 0) { _showFmPopup('limit'); return; }
+
+    setState(() => _fmLoading = true);
+    try {
+      final result = await runFindMatches();
+      if (!mounted) return;
+      if (result.runsUsed != null) _fmRunsUsed = result.runsUsed!;
+      if (result.runsLimit != null) _fmRunsLimit = result.runsLimit!;
+      _showFmPopup(result.status, match: result.match, bestScore: result.bestScore);
+    } finally {
+      if (mounted) setState(() => _fmLoading = false);
+    }
+  }
+
+  void _showFmPopup(String status, {MatchmakerMatch? match, int? bestScore}) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (_) => _FindMatchDialog(
+        status: status,
+        match: match,
+        bestScore: bestScore,
+        fmRemaining: _fmRemaining,
+        fmRunsLimit: _fmRunsLimit,
+        onGoVerify: () {
+          Navigator.pop(context);
+          // Navigate to verification screen
+          Navigator.of(context).pushNamed('/verification');
+        },
+        onOpenChat: (matchId, firstName, age) {
+          Navigator.pop(context);
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => ConversationScreen(
+              conversationId: matchId,
+              title: age != null ? '$firstName, $age' : firstName,
+            ),
+          )).then((_) => _refresh());
+        },
+      ),
+    );
   }
 
   @override
@@ -136,6 +201,17 @@ class _ChatListScreenState extends State<ChatListScreen>
         titleSpacing: 20,
         title: const Text('Messages',
             style: TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: _FindMatchButton(
+              loading: _fmLoading,
+              eligible: _fmEligible,
+              remaining: _fmRemaining,
+              onTap: _runFindMatches,
+            ),
+          ),
+        ],
       ),
       body: FutureBuilder<_ChatData>(
         future: _future,
@@ -747,4 +823,248 @@ class _ConversationTile extends StatelessWidget {
       ]),
     );
   }
+}
+
+// ── Find Match Button ──────────────────────────────────────────────────────
+
+class _FindMatchButton extends StatelessWidget {
+  final bool loading;
+  final bool eligible;
+  final int remaining;
+  final VoidCallback onTap;
+  const _FindMatchButton({required this.loading, required this.eligible, required this.remaining, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: loading ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFF3B6B), Color(0xFFFF7A4D)],
+          ),
+          borderRadius: BorderRadius.circular(999),
+          boxShadow: [BoxShadow(color: const Color(0xFFFF3B6B).withOpacity(0.35), blurRadius: 10, offset: const Offset(0, 3))],
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (loading)
+            const SizedBox(
+              width: 13, height: 13,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            )
+          else
+            const Text('✨', style: TextStyle(fontSize: 13)),
+          const SizedBox(width: 5),
+          Text(
+            loading ? 'Finding…' : 'Find Match',
+            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+          if (!loading && eligible && remaining > 0) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.25),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text('$remaining', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ]),
+      ),
+    );
+  }
+}
+
+// ── Find Match Dialog ──────────────────────────────────────────────────────
+
+class _FindMatchDialog extends StatelessWidget {
+  final String status;
+  final MatchmakerMatch? match;
+  final int? bestScore;
+  final int fmRemaining;
+  final int fmRunsLimit;
+  final VoidCallback onGoVerify;
+  final void Function(String matchId, String firstName, int? age) onOpenChat;
+
+  const _FindMatchDialog({
+    required this.status,
+    required this.match,
+    required this.bestScore,
+    required this.fmRemaining,
+    required this.fmRunsLimit,
+    required this.onGoVerify,
+    required this.onOpenChat,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: const Color(Config.bg2),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+        child: _body(context),
+      ),
+    );
+  }
+
+  Widget _body(BuildContext context) {
+    switch (status) {
+      case 'matched':
+        final m = match!;
+        return Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('💕', style: TextStyle(fontSize: 40)),
+          const SizedBox(height: 12),
+          const Text("It's a Match!", style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+          const SizedBox(height: 16),
+          _Avatar(url: m.avatarUrl, name: m.firstName),
+          const SizedBox(height: 14),
+          RichText(text: TextSpan(
+            style: const TextStyle(fontSize: 14, color: Color(Config.text2), height: 1.5),
+            children: [
+              TextSpan(text: 'You and ${m.firstName}'),
+              if (m.age != null) TextSpan(text: ', ${m.age}'),
+              const TextSpan(text: ' are a '),
+              TextSpan(text: '${m.score}% compatibility', style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
+              const TextSpan(text: ' match.'),
+            ],
+          )),
+          const SizedBox(height: 22),
+          Row(children: [
+            Expanded(child: _GhostBtn(label: 'Later', onTap: () => Navigator.pop(context))),
+            const SizedBox(width: 10),
+            Expanded(child: _PrimaryBtn(label: 'Say Hi 👋', onTap: () => onOpenChat(m.matchId, m.firstName, m.age))),
+          ]),
+        ]);
+
+      case 'needs_verification':
+        return Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('🔒', style: TextStyle(fontSize: 40)),
+          const SizedBox(height: 12),
+          const Text('Finish verification first', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+          const SizedBox(height: 10),
+          const Text('Complete verification to join the matchmaking pool — then AI can find you a match.',
+              textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Color(Config.text2), height: 1.5)),
+          const SizedBox(height: 22),
+          Row(children: [
+            Expanded(child: _GhostBtn(label: 'Not now', onTap: () => Navigator.pop(context))),
+            const SizedBox(width: 10),
+            Expanded(child: _PrimaryBtn(label: 'Verify now', onTap: onGoVerify)),
+          ]),
+        ]);
+
+      case 'limit_reached':
+        return Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('✨', style: TextStyle(fontSize: 40)),
+          const SizedBox(height: 12),
+          const Text("You've used all your matches", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+          const SizedBox(height: 10),
+          Text("You've used all $fmRunsLimit AI match searches. More will be available to unlock soon.",
+              textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: Color(Config.text2), height: 1.5)),
+          const SizedBox(height: 22),
+          _PrimaryBtn(label: 'Got it', onTap: () => Navigator.pop(context)),
+        ]);
+
+      case 'no_match':
+        final searchesLeft = fmRemaining;
+        return Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('🔍', style: TextStyle(fontSize: 40)),
+          const SizedBox(height: 12),
+          const Text('No match this time', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+          const SizedBox(height: 10),
+          Text(
+            bestScore != null
+                ? 'The closest candidate scored $bestScore% — below the match bar. Enriching your profile improves your matches.'
+                : 'No compatible match right now. Check back as more people join the pool.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 14, color: Color(Config.text2), height: 1.5),
+          ),
+          const SizedBox(height: 8),
+          Text('$searchesLeft search${searchesLeft == 1 ? '' : 'es'} left',
+              style: const TextStyle(fontSize: 12, color: Color(Config.text3))),
+          const SizedBox(height: 22),
+          _PrimaryBtn(label: 'Got it', onTap: () => Navigator.pop(context)),
+        ]);
+
+      default: // error
+        return Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('⚠️', style: TextStyle(fontSize: 40)),
+          const SizedBox(height: 12),
+          const Text('Something went wrong', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+          const SizedBox(height: 10),
+          const Text("We couldn't run the matchmaker. Please try again in a moment.",
+              textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Color(Config.text2), height: 1.5)),
+          const SizedBox(height: 22),
+          _PrimaryBtn(label: 'Close', onTap: () => Navigator.pop(context)),
+        ]);
+    }
+  }
+}
+
+class _Avatar extends StatelessWidget {
+  final String? url;
+  final String name;
+  const _Avatar({required this.url, required this.name});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 80, height: 80,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: const Color(Config.accent), width: 2.5),
+      ),
+      child: ClipOval(child: url != null
+        ? CachedNetworkImage(imageUrl: url!, fit: BoxFit.cover, width: 80, height: 80)
+        : Container(
+            color: const Color(Config.bg3),
+            alignment: Alignment.center,
+            child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: Color(Config.accent))),
+          ),
+      ),
+    );
+  }
+}
+
+class _PrimaryBtn extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _PrimaryBtn({required this.label, required this.onTap});
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 13),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFFF7A4D)]),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      alignment: Alignment.center,
+      child: Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15)),
+    ),
+  );
+}
+
+class _GhostBtn extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _GhostBtn({required this.label, required this.onTap});
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 13),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0x331B1020)),
+      ),
+      alignment: Alignment.center,
+      child: Text(label, style: const TextStyle(color: Color(Config.text2), fontWeight: FontWeight.w500, fontSize: 15)),
+    ),
+  );
 }
