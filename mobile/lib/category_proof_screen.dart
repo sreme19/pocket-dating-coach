@@ -267,6 +267,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
   final List<XFile> _files = [];
   bool _analysing = false;
   _UploadResult? _result;
+  final List<XFile> _resumeImages = [];
 
   // ── Intro-only recording state ──────────────────────────────────────────────
   AudioRecorder? _audioRec;
@@ -315,6 +316,17 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
     });
   }
 
+  Future<void> _pickResumeImages() async {
+    if (_analysing) return;
+    final picked = await _picker.pickMultiImage(maxWidth: 1800, imageQuality: 90);
+    if (picked.isEmpty) return;
+    setState(() {
+      _resumeImages
+        ..clear()
+        ..addAll(picked.take(5));
+    });
+  }
+
   // ── Voice recording ─────────────────────────────────────────────────────────
   Future<void> _startVoice() async {
     final rec = _audioRec;
@@ -350,11 +362,22 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
   String _fmtSec(int s) =>
       '${(s ~/ 60).toString().padLeft(2, '0')}:${(s % 60).toString().padLeft(2, '0')}';
 
+  String? _extractLinkedInUsername(String url) {
+    final normalized = url.contains('://') ? url : 'https://$url';
+    final uri = Uri.tryParse(normalized);
+    if (uri == null) return null;
+    final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+    final inIdx = segments.indexOf('in');
+    if (inIdx >= 0 && inIdx + 1 < segments.length) return segments[inIdx + 1];
+    return null;
+  }
+
   // ── Can submit ───────────────────────────────────────────────────────────────
   bool get _canAnalyse {
     if (_analysing) return false;
     if (widget.categoryId == 'intro') return _voicePath != null || _videoPath != null;
     if (_files.isNotEmpty) return true;
+    if (_resumeImages.isNotEmpty) return true;
     if (_cfg.hasUrlInput && _urlController.text.trim().isNotEmpty) return true;
     return false;
   }
@@ -486,7 +509,12 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
         res = await uploadProof('intro', paths);
       } else {
         final url = _urlController.text.trim();
-        if (url.isNotEmpty && _files.isEmpty) {
+        if (_resumeImages.isNotEmpty && url.isNotEmpty) {
+          res = await uploadProofWithUrl(widget.categoryId, url, _resumeImages.first.path);
+        } else if (_resumeImages.isNotEmpty) {
+          final paths = _resumeImages.map((f) => f.path).toList();
+          res = await uploadProof(widget.categoryId, paths);
+        } else if (url.isNotEmpty && _files.isEmpty) {
           res = await uploadProofUrl(widget.categoryId, url);
         } else {
           final paths = _files.map((f) => f.path).toList();
@@ -775,14 +803,108 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
               ),
             ),
             if (_urlController.text.trim().isNotEmpty) ...[
-              const SizedBox(height: 6),
-              const Row(children: [
-                Icon(Icons.check_circle, size: 14, color: Color(Config.accent)),
-                SizedBox(width: 4),
-                Text('URL captured',
-                    style: TextStyle(color: Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w600)),
-              ]),
+              const SizedBox(height: 8),
+              // LinkedIn: show extracted username preview card
+              if (widget.categoryId == 'linkedin') ...[
+                Builder(builder: (_) {
+                  final username = _extractLinkedInUsername(_urlController.text.trim());
+                  if (username == null) {
+                    return const Row(children: [
+                      Icon(Icons.check_circle, size: 14, color: Color(Config.accent)),
+                      SizedBox(width: 4),
+                      Text('URL captured',
+                          style: TextStyle(color: Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w600)),
+                    ]);
+                  }
+                  return Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0A66C2).withOpacity(0.07),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF0A66C2).withOpacity(0.2)),
+                    ),
+                    child: Row(children: [
+                      Container(
+                        width: 36, height: 36,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0A66C2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Center(child: Text('in',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16))),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('linkedin.com/in/$username',
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF0A66C2))),
+                        const SizedBox(height: 2),
+                        const Text('Profile will be read & verified',
+                            style: TextStyle(fontSize: 11, color: Color(Config.text2))),
+                      ])),
+                      const Icon(Icons.check_circle, size: 16, color: Color(0xFF00C853)),
+                    ]),
+                  );
+                }),
+              ] else ...[
+                const Row(children: [
+                  Icon(Icons.check_circle, size: 14, color: Color(Config.accent)),
+                  SizedBox(width: 4),
+                  Text('URL captured',
+                      style: TextStyle(color: Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w600)),
+                ]),
+              ],
             ],
+            const SizedBox(height: 20),
+          ],
+
+          // Resume upload — shown only for LinkedIn
+          if (widget.categoryId == 'linkedin') ...[
+            Text('RESUME / CV',
+                style: const TextStyle(
+                    color: Color(Config.text2),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6)),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: _analysing ? null : _pickResumeImages,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
+                decoration: BoxDecoration(
+                  color: _resumeImages.isNotEmpty ? const Color(0x08FF3B6B) : const Color(Config.bg2),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _resumeImages.isNotEmpty
+                        ? const Color(Config.accent).withOpacity(0.4)
+                        : const Color(0x221B1020),
+                    width: _resumeImages.isNotEmpty ? 1.5 : 1,
+                  ),
+                ),
+                child: _resumeImages.isNotEmpty
+                    ? Row(children: [
+                        const Icon(Icons.description_outlined, color: Color(Config.accent), size: 22),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text('${_resumeImages.length} page${_resumeImages.length > 1 ? 's' : ''} uploaded',
+                            style: const TextStyle(fontSize: 13, color: Color(Config.text1), fontWeight: FontWeight.w500))),
+                        GestureDetector(
+                          onTap: () => setState(() => _resumeImages.clear()),
+                          child: const Icon(Icons.close, size: 16, color: Color(Config.text3)),
+                        ),
+                      ])
+                    : const Row(children: [
+                        Icon(Icons.upload_file_outlined, color: Color(Config.text2), size: 22),
+                        SizedBox(width: 10),
+                        Expanded(child: Text('Tap to upload resume screenshots',
+                            style: TextStyle(fontSize: 13, color: Color(Config.text2)))),
+                        Text('Optional', style: TextStyle(fontSize: 11, color: Color(Config.text3))),
+                      ]),
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text('Screenshot each page of your CV · Optional but boosts your Career signal',
+                style: TextStyle(fontSize: 11, color: Color(Config.text3))),
             const SizedBox(height: 20),
           ],
 

@@ -34,16 +34,18 @@ class TrustBoostScreen extends StatefulWidget {
 
 class _TrustBoostScreenState extends State<TrustBoostScreen> {
   late Future<TrustData> _future;
+  TrustData? _cachedData;
 
   @override
   void initState() {
     super.initState();
     _future = fetchTrust();
+    _future.then((d) => _cachedData = d).catchError((_) {});
   }
 
   Future<void> _refresh() async {
     setState(() { _future = fetchTrust(); });
-    await _future;
+    await _future.then((d) => _cachedData = d).catchError((_) {});
   }
 
   @override
@@ -247,8 +249,20 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
   // ── Safety Check — 3 categories matching website layout ───────────────────
 
   Future<void> _goVerify() async {
+    final d = _cachedData;
+    int initialStep = 0;
+    if (d != null) {
+      if (d.livenessScore > 0 && d.qaScore > 0) {
+        initialStep = 3; // liveness + qa done, go to photos step
+      } else if (d.livenessScore > 0) {
+        initialStep = 1; // liveness done, go to drawn_to step
+      }
+    }
     await Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => VerificationScreen(onDone: () { Navigator.of(context).pop(); _refresh(); }),
+      builder: (_) => VerificationScreen(
+        initialStep: initialStep,
+        onDone: () { Navigator.of(context).pop(); _refresh(); },
+      ),
     ));
     _refresh();
   }

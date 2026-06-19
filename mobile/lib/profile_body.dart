@@ -350,6 +350,7 @@ class _SignalTabsState extends State<SignalTabs> {
     final active = _tab.clamp(0, widget.signals.length - 1);
     final s = widget.signals[active];
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // Category tabs
       SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(children: [
@@ -358,28 +359,96 @@ class _SignalTabsState extends State<SignalTabs> {
               padding: const EdgeInsets.only(right: 8),
               child: GestureDetector(
                 onTap: () => setState(() => _tab = i),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                   decoration: BoxDecoration(
-                    color: i == active ? const Color(0x22FF3B6B) : const Color(Config.bg3),
+                    color: i == active ? const Color(Config.accent) : const Color(Config.bg2),
                     borderRadius: BorderRadius.circular(999),
-                    border: i == active ? Border.all(color: const Color(0x4DFF3B6B)) : null,
+                    border: Border.all(
+                      color: i == active ? const Color(Config.accent) : const Color(0x1A1B1020),
+                      width: 1.5,
+                    ),
+                    boxShadow: i == active ? [
+                      BoxShadow(color: const Color(Config.accent).withOpacity(0.25), blurRadius: 8, offset: const Offset(0, 3)),
+                    ] : null,
                   ),
-                  child: Text('${widget.signals[i].emoji} ${widget.signals[i].label}',
-                      style: TextStyle(fontSize: 13,
-                          color: i == active ? const Color(Config.accent) : const Color(Config.text2),
-                          fontWeight: i == active ? FontWeight.w600 : FontWeight.w500)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text(widget.signals[i].emoji, style: const TextStyle(fontSize: 14)),
+                    const SizedBox(width: 5),
+                    Text(widget.signals[i].label,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: i == active ? Colors.white : const Color(Config.text2),
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.1,
+                        )),
+                  ]),
                 ),
               ),
             ),
         ]),
       ),
-      const SizedBox(height: 12),
-      Wrap(spacing: 8, runSpacing: 8, children: [for (final c in s.group.chips) pPill('${c.emoji} ${c.label}')]),
-      if (s.group.aggregated.isNotEmpty) ...[
-        const SizedBox(height: 10),
-        Text(s.group.aggregated, style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: Color(Config.text2))),
-      ],
+      const SizedBox(height: 14),
+      // Content card
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(Config.bg2),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0x0F1B1020)),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Verified badge row
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: const Color(0x1500C853),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.verified, size: 11, color: Color(0xFF00C853)),
+                const SizedBox(width: 4),
+                Text('Verified ${s.label}', style: const TextStyle(fontSize: 11, color: Color(0xFF00C853), fontWeight: FontWeight.w600)),
+              ]),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          // Chips
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            for (final c in s.group.chips)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: const Color(Config.bg3),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: const Color(0x0F1B1020)),
+                ),
+                child: Text('${c.emoji}  ${c.label}',
+                    style: const TextStyle(fontSize: 13, color: Color(Config.text1), fontWeight: FontWeight.w500)),
+              ),
+          ]),
+          if (s.group.aggregated.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0x08FF3B6B),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('✨', style: TextStyle(fontSize: 13)),
+                const SizedBox(width: 8),
+                Expanded(child: Text(s.group.aggregated,
+                    style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: Color(Config.text2), height: 1.5))),
+              ]),
+            ),
+          ],
+        ]),
+      ),
     ]);
   }
 }

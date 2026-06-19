@@ -940,6 +940,7 @@ MediaType _mimeOf(String path) {
     'm4a' || 'aac'  => MediaType('audio', 'mp4'),
     'mp3'           => MediaType('audio', 'mpeg'),
     'webm'          => MediaType('video', 'webm'),
+    'pdf'           => MediaType('application', 'pdf'),
     _               => MediaType('application', 'octet-stream'),
   };
 }
@@ -991,6 +992,21 @@ Future<bool> verifyIdStep(String imagePath) async {
   }
   final msg = body['error']?.toString();
   throw Exception(msg?.isNotEmpty == true ? msg : 'ID verification failed. Please try again.');
+}
+
+/// Upload proof with both a profile URL and a file (e.g. LinkedIn URL + resume PDF).
+Future<Map> uploadProofWithUrl(String category, String profileUrl, String filePath) async {
+  final form = FormData();
+  form.fields.add(MapEntry('category', category));
+  form.fields.add(MapEntry('profile_url', profileUrl));
+  form.files.add(MapEntry('files',
+      await MultipartFile.fromFile(filePath, contentType: _mimeOf(filePath))));
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/proof-upload',
+    data: form,
+    options: Options(headers: {'Authorization': _bearer()}, receiveTimeout: const Duration(seconds: 120)),
+  );
+  return resp.data is Map ? resp.data as Map : const {};
 }
 
 /// Verify a social proof by profile URL (linkedin / instagram / twitter) — the

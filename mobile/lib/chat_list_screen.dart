@@ -714,8 +714,10 @@ class _ConversationTile extends StatelessWidget {
           Expanded(
             child: Builder(builder: (_) {
               final isMe = myId != null && convo.lastMessageSenderId == myId;
-              final preview = convo.lastMessage.isNotEmpty
-                  ? (isMe ? 'You: ${convo.lastMessage}' : convo.lastMessage)
+              final rawMsg = convo.lastMessage;
+              final displayMsg = rawMsg.startsWith('[IMG]') ? '📷 Photo' : rawMsg;
+              final preview = rawMsg.isNotEmpty
+                  ? (isMe ? 'You: $displayMsg' : displayMsg)
                   : 'Say hello 👋';
               return Text(
                 preview,
