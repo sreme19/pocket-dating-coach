@@ -356,7 +356,6 @@ class _ProfileBody extends StatelessWidget {
           _Section(
             icon: Icons.favorite_border,
             title: 'WHAT HE BRINGS',
-            onEdit: () => _editBrings(context, data, brings!, onChanged),
             child: Column(
               children: [
                 for (final b in brings) _BringsRow(b),

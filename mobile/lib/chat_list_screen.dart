@@ -67,13 +67,13 @@ class _ChatListScreenState extends State<ChatListScreen>
       if (!mounted) return;
       if (result.runsUsed != null) _fmRunsUsed = result.runsUsed!;
       if (result.runsLimit != null) _fmRunsLimit = result.runsLimit!;
-      _showFmPopup(result.status, match: result.match, bestScore: result.bestScore);
+      _showFmPopup(result.status, match: result.match, bestScore: result.bestScore, debugInfo: result.debugInfo);
     } finally {
       if (mounted) setState(() => _fmLoading = false);
     }
   }
 
-  void _showFmPopup(String status, {MatchmakerMatch? match, int? bestScore}) {
+  void _showFmPopup(String status, {MatchmakerMatch? match, int? bestScore, String? debugInfo}) {
     showDialog(
       context: context,
       barrierColor: Colors.black54,
@@ -81,6 +81,7 @@ class _ChatListScreenState extends State<ChatListScreen>
         status: status,
         match: match,
         bestScore: bestScore,
+        debugInfo: debugInfo,
         fmRemaining: _fmRemaining,
         fmRunsLimit: _fmRunsLimit,
         onGoVerify: () {
@@ -886,6 +887,7 @@ class _FindMatchDialog extends StatelessWidget {
   final int? bestScore;
   final int fmRemaining;
   final int fmRunsLimit;
+  final String? debugInfo;
   final VoidCallback onGoVerify;
   final void Function(String matchId, String firstName, int? age) onOpenChat;
 
@@ -895,6 +897,7 @@ class _FindMatchDialog extends StatelessWidget {
     required this.bestScore,
     required this.fmRemaining,
     required this.fmRunsLimit,
+    this.debugInfo,
     required this.onGoVerify,
     required this.onOpenChat,
   });
@@ -997,6 +1000,11 @@ class _FindMatchDialog extends StatelessWidget {
           const SizedBox(height: 10),
           const Text("We couldn't run the matchmaker. Please try again in a moment.",
               textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Color(Config.text2), height: 1.5)),
+          if (debugInfo != null) ...[
+            const SizedBox(height: 8),
+            Text(debugInfo!, textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 11, color: Color(Config.text3), fontFamily: 'monospace')),
+          ],
           const SizedBox(height: 22),
           _PrimaryBtn(label: 'Close', onTap: () => Navigator.pop(context)),
         ]);

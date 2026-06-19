@@ -15,7 +15,6 @@ class _Cat {
 // Matches the web "Prove It" section exactly (4 tiles, same labels/desc/pts)
 const _showOff = <_Cat>[
   _Cat('lifestyle',    '📸', 'Lifestyle Photos', 'Travel, dining, events',       8, time: '2 min'),
-  _Cat('intro',        '🎙️', 'Voice Intro',      'Let them hear you first',      8, time: '1 min'),
   _Cat('discipline',   '💪', 'Discipline',       'Gym, sleep, reading routines', 4, time: '1 min'),
   _Cat('social_proof', '🤝', 'Social Proof',     'Friends & communities',        4, time: '2 min'),
 ];

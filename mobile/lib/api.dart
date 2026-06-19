@@ -1,6 +1,7 @@
 import 'dart:convert' show base64Encode;
 import 'dart:io' show Platform, File;
 import 'dart:typed_data' show Uint8List;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:dio/dio.dart';
 import 'package:http_parser/http_parser.dart' show MediaType;
 // hide MultipartFile + MediaType: both dio and supabase export them; we use dio's.
@@ -1924,7 +1925,8 @@ class MatchmakerResult {
   final int? bestScore;
   final int? runsUsed;
   final int? runsLimit;
-  MatchmakerResult({required this.status, this.match, this.bestScore, this.runsUsed, this.runsLimit});
+  final String? debugInfo; // temporary debug info
+  MatchmakerResult({required this.status, this.match, this.bestScore, this.runsUsed, this.runsLimit, this.debugInfo});
 }
 
 Future<MatchmakerStatus> getMatchmakerStatus() async {
@@ -1957,9 +1959,12 @@ Future<MatchmakerResult> runFindMatches() async {
         validateStatus: (s) => true,
       ),
     );
+    debugPrint('[Matchmaker] status=${resp.statusCode} body=${resp.data}');
     // Non-2xx = server error
     if ((resp.statusCode ?? 0) >= 400) {
-      return MatchmakerResult(status: 'error');
+      final errBody = resp.data is Map ? (resp.data as Map)['error']?.toString() : resp.data?.toString();
+      debugPrint('[Matchmaker] server error: ${resp.statusCode} $errBody');
+      return MatchmakerResult(status: 'error', debugInfo: 'HTTP ${resp.statusCode}: $errBody');
     }
     final body = resp.data is Map ? resp.data as Map : const {};
     final status = (body['status'] ?? 'error').toString();
@@ -1982,13 +1987,11 @@ Future<MatchmakerResult> runFindMatches() async {
       runsLimit: (body['runsLimit'] as num?)?.toInt(),
     );
   } on DioException catch (e) {
-    // Timeout specifically → server still processing, treat as error
-    if (e.type == DioExceptionType.receiveTimeout) {
-      return MatchmakerResult(status: 'error');
-    }
-    return MatchmakerResult(status: 'error');
-  } catch (_) {
-    return MatchmakerResult(status: 'error');
+    debugPrint('[Matchmaker] DioException type=${e.type} msg=${e.message}');
+    return MatchmakerResult(status: 'error', debugInfo: 'Network: ${e.type} ${e.message}');
+  } catch (e) {
+    debugPrint('[Matchmaker] catch: $e');
+    return MatchmakerResult(status: 'error', debugInfo: '$e');
   }
 }
 
