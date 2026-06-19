@@ -18,11 +18,11 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDNmMomAWY50TYysqUeUVrNiBDPbRAbssc',
-    appId: '1:395638659709:android:6939ed98d92242b4efef14',
-    messagingSenderId: '395638659709',
-    projectId: 'pocket-dating-coach',
-    storageBucket: 'pocket-dating-coach.firebasestorage.app',
+    apiKey: 'AIzaSyCLFfPXUz982sJ86HIPXJCjQrItjOU1ofg',
+    appId: '1:239928106804:android:030881f68a5be632544f61',
+    messagingSenderId: '239928106804',
+    projectId: 'pocket-dating-coach-8bc26',
+    storageBucket: 'pocket-dating-coach-8bc26.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
