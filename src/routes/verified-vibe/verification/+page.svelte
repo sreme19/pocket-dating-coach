@@ -1009,6 +1009,7 @@
       fetch('/api/verified-vibe/verify-step', {
         method: 'POST',
         headers,
+        keepalive: true,
         body: JSON.stringify({
           step: 'spending_or_qa',
           data: { responses: mergedResponses, gender: $user?.gender, archetype: $user?.archetype }

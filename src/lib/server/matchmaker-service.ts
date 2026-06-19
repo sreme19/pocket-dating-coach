@@ -400,6 +400,224 @@ export async function runNightlyBatch(cityScoped = false): Promise<void> {
   }
 }
 
+// ── On-demand single-user matchmaking (chat "Find Matches" button) ────────────
+// Scores ONE user against the opposite-gender active pool and creates a match
+// with the single highest-compatibility candidate (>= threshold). AI usage is
+// bounded: the free hard filter runs first, survivors are capped, then exactly
+// one Claude call per surviving candidate — no loops. Each press consumes one
+// lifetime run (charged up-front, regardless of whether a match is found).
+
+const ON_DEMAND_THRESHOLD     = 50; // minimum soft score to create a match
+const ON_DEMAND_CANDIDATE_CAP = 50; // max candidates scored per press (bounds Claude calls)
+
+export type FindMatchResult =
+  | { status: 'needs_verification' }
+  | { status: 'limit_reached'; runsUsed: number; runsLimit: number }
+  | { status: 'no_match'; runsUsed: number; runsLimit: number; candidatesEvaluated: number; bestScore: number | null }
+  | {
+      status: 'matched';
+      runsUsed: number;
+      runsLimit: number;
+      candidatesEvaluated: number;
+      match: {
+        matchId:   string;
+        userId:    string;
+        firstName: string;
+        age:       number | null;
+        avatarUrl: string | null;
+        score:     number;
+      };
+    };
+
+async function logOnDemandRun(db: any, evaluated: number, fired: number): Promise<void> {
+  try {
+    await db.from('vv_matchmaker_runs').insert({
+      run_type:        'on_demand',
+      pairs_evaluated: evaluated,
+      soft_scored:     evaluated,
+      matches_fired:   fired,
+      completed_at:    new Date().toISOString(),
+    });
+  } catch { /* observability only — non-fatal */ }
+}
+
+export async function runMatchmakerForUser(userId: string): Promise<FindMatchResult> {
+  const db = getSupabase() as any;
+
+  // Load the requesting user + quota.
+  const { data: me } = await db
+    .from('verified_vibe_users')
+    .select('id, gender, matchmaker_runs_used, matchmaker_runs_limit')
+    .eq('id', userId)
+    .maybeSingle();
+  if (!me) return { status: 'needs_verification' };
+
+  const isMan   = me.gender === 'man';
+  const isWoman = me.gender === 'woman';
+  if (!isMan && !isWoman) return { status: 'needs_verification' }; // no hetero pool side
+
+  const myPoolTable    = isMan ? 'vv_pool_wingmen' : 'vv_pool_besties';
+  const otherPoolTable = isMan ? 'vv_pool_besties' : 'vv_pool_wingmen';
+
+  // Eligibility: the user must have an ACTIVE pool entry (fully verified).
+  const { data: myPool } = await db
+    .from(myPoolTable)
+    .select('*')
+    .eq('user_id', userId)
+    .eq('availability_status', 'active')
+    .maybeSingle();
+  if (!myPool) return { status: 'needs_verification' };
+
+  // Quota check.
+  const runsUsed  = me.matchmaker_runs_used  ?? 0;
+  const runsLimit = me.matchmaker_runs_limit ?? 0;
+  if (runsUsed >= runsLimit) {
+    return { status: 'limit_reached', runsUsed, runsLimit };
+  }
+
+  // Charge one run up-front (per-press billing; bounds AI usage even on no-match).
+  const newRunsUsed = runsUsed + 1;
+  await db.from('verified_vibe_users').update({ matchmaker_runs_used: newRunsUsed }).eq('id', userId);
+
+  // Load opposite-gender active candidates + this user's existing matches.
+  const [{ data: candidates }, { data: myMatches }] = await Promise.all([
+    db.from(otherPoolTable).select('*').eq('availability_status', 'active'),
+    db.from('verified_vibe_matches').select('user1_id, user2_id').or(`user1_id.eq.${userId},user2_id.eq.${userId}`),
+  ]);
+
+  const matchedPartnerIds = new Set<string>(
+    (myMatches ?? []).map((m: any) => (m.user1_id === userId ? m.user2_id : m.user1_id))
+  );
+
+  // Orient each pair correctly for the shared hard filter / soft scorer.
+  const asPair = (candidate: any) => ({
+    male:   (isMan ? myPool : candidate) as WingmanPoolRow,
+    female: (isMan ? candidate : myPool) as BestiePoolRow,
+  });
+
+  // Hard filter (free, no AI), then cap to bound Claude calls.
+  const survivors = (candidates ?? [])
+    .filter((c: any) => c.user_id !== userId && !matchedPartnerIds.has(c.user_id))
+    .filter((c: any) => { const { male, female } = asPair(c); return !hardFilter(male, female, false); })
+    .slice(0, ON_DEMAND_CANDIDATE_CAP);
+
+  if (!survivors.length) {
+    await logOnDemandRun(db, 0, 0);
+    return { status: 'no_match', runsUsed: newRunsUsed, runsLimit, candidatesEvaluated: 0, bestScore: null };
+  }
+
+  // Soft score each survivor (one Claude call each) and keep the highest.
+  const scored = await Promise.all(
+    survivors.map(async (c: any) => {
+      const { male, female } = asPair(c);
+      const s = await softScore(male, female);
+      return { candidateId: c.user_id as string, score: s.score };
+    })
+  );
+  scored.sort((a, b) => b.score - a.score);
+  const best = scored[0];
+
+  await logOnDemandRun(db, scored.length, best && best.score >= ON_DEMAND_THRESHOLD ? 1 : 0);
+
+  if (!best || best.score < ON_DEMAND_THRESHOLD) {
+    return {
+      status: 'no_match', runsUsed: newRunsUsed, runsLimit,
+      candidatesEvaluated: scored.length, bestScore: best?.score ?? null,
+    };
+  }
+
+  // Create the match (men stored as user1 to mirror the nightly batch).
+  const maleId   = isMan ? userId : best.candidateId;
+  const femaleId = isMan ? best.candidateId : userId;
+
+  // Guard against a pre-existing row in either orientation.
+  const { data: existing } = await db
+    .from('verified_vibe_matches')
+    .select('id')
+    .or(`and(user1_id.eq.${maleId},user2_id.eq.${femaleId}),and(user1_id.eq.${femaleId},user2_id.eq.${maleId})`)
+    .maybeSingle();
+
+  let matchId = existing?.id as string | undefined;
+  if (!matchId) {
+    const { data: created, error: createErr } = await db
+      .from('verified_vibe_matches')
+      .insert({ user1_id: maleId, user2_id: femaleId, status: 'mutual' })
+      .select('id')
+      .single();
+    if (createErr || !created) {
+      // Couldn't persist the match — surface as no_match (run already charged).
+      return {
+        status: 'no_match', runsUsed: newRunsUsed, runsLimit,
+        candidatesEvaluated: scored.length, bestScore: best.score,
+      };
+    }
+    matchId = created.id;
+    await Promise.allSettled([
+      sendMatchNotification(maleId, femaleId),
+      sendMatchNotification(femaleId, maleId),
+    ]);
+  }
+
+  // Fetch the matched person's display info for the success popup.
+  const { data: partner } = await db
+    .from('verified_vibe_users')
+    .select('first_name, age, avatar_url')
+    .eq('id', best.candidateId)
+    .maybeSingle();
+
+  return {
+    status: 'matched',
+    runsUsed: newRunsUsed,
+    runsLimit,
+    candidatesEvaluated: scored.length,
+    match: {
+      matchId:   matchId!,
+      userId:    best.candidateId,
+      firstName: partner?.first_name ?? 'Your match',
+      age:       partner?.age ?? null,
+      avatarUrl: partner?.avatar_url ?? null,
+      score:     best.score,
+    },
+  };
+}
+
+// ── On-demand: read a user's eligibility + remaining quota (no AI, no charge) ──
+
+export async function getMatchmakerStatus(userId: string): Promise<{
+  eligible: boolean;
+  runsUsed: number;
+  runsLimit: number;
+}> {
+  const db = getSupabase() as any;
+
+  const { data: me } = await db
+    .from('verified_vibe_users')
+    .select('gender, matchmaker_runs_used, matchmaker_runs_limit')
+    .eq('id', userId)
+    .maybeSingle();
+  if (!me) return { eligible: false, runsUsed: 0, runsLimit: 0 };
+
+  const poolTable = me.gender === 'man' ? 'vv_pool_wingmen'
+                  : me.gender === 'woman' ? 'vv_pool_besties' : null;
+
+  let eligible = false;
+  if (poolTable) {
+    const { data: poolRow } = await db
+      .from(poolTable)
+      .select('user_id')
+      .eq('user_id', userId)
+      .eq('availability_status', 'active')
+      .maybeSingle();
+    eligible = !!poolRow;
+  }
+
+  return {
+    eligible,
+    runsUsed:  me.matchmaker_runs_used  ?? 0,
+    runsLimit: me.matchmaker_runs_limit ?? 0,
+  };
+}
+
 // ── Queue an intelligence report for async processing ─────────────────────────
 
 export async function queueIntelligenceReport(

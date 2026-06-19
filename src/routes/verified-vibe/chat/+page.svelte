@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
-  import { fade } from 'svelte/transition';
+  import { fade, scale } from 'svelte/transition';
   import { user } from '$lib/verified-vibe/stores';
   import BestieAvatar from '$lib/components/BestieAvatar.svelte';
   import type { Conversation } from '../../api/verified-vibe/chat/conversations/+server';
@@ -274,6 +274,78 @@
   function truncate(str: string, max = 44): string {
     return str.length <= max ? str : str.slice(0, max) + '…';
   }
+
+  // ── Find Matches (on-demand AI matchmaker) ──────────────────────────────────
+  let fmEligible  = $state(true);
+  let fmRunsUsed  = $state(0);
+  let fmRunsLimit = $state(3);
+  let fmLoading   = $state(false);
+  let fmPopup     = $state<null | 'verify' | 'limit' | 'matched' | 'nomatch' | 'error'>(null);
+  let fmMatch     = $state<{ matchId: string; firstName: string; age: number | null; avatarUrl: string | null; score: number } | null>(null);
+  let fmBestScore = $state<number | null>(null);
+
+  let fmRemaining = $derived(Math.max(0, fmRunsLimit - fmRunsUsed));
+
+  async function fmGetToken(): Promise<string | null> {
+    const { getSupabaseClient } = await import('$lib/client/supabase');
+    const { data: { session } } = await getSupabaseClient().auth.getSession();
+    return session?.access_token ?? null;
+  }
+
+  async function loadMatchmakerStatus() {
+    try {
+      const token = await fmGetToken();
+      if (!token) return;
+      const res = await fetch('/api/verified-vibe/matchmaker/find-matches', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      fmEligible  = !!data.eligible;
+      fmRunsUsed  = data.runsUsed ?? 0;
+      fmRunsLimit = data.runsLimit ?? 3;
+    } catch { /* non-critical */ }
+  }
+
+  async function runFindMatches() {
+    if (fmLoading) return;
+    // Instant client-side feedback; the server re-validates everything.
+    if (!fmEligible)      { fmPopup = 'verify'; return; }
+    if (fmRemaining <= 0) { fmPopup = 'limit';  return; }
+
+    fmLoading = true;
+    try {
+      const token = await fmGetToken();
+      if (!token) { fmPopup = 'error'; return; }
+      const res = await fetch('/api/verified-vibe/matchmaker/find-matches', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) { fmPopup = 'error'; return; }
+
+      if (typeof data.runsUsed === 'number')  fmRunsUsed  = data.runsUsed;
+      if (typeof data.runsLimit === 'number') fmRunsLimit = data.runsLimit;
+
+      switch (data.status) {
+        case 'needs_verification': fmEligible = false; fmPopup = 'verify'; break;
+        case 'limit_reached':      fmPopup = 'limit'; break;
+        case 'no_match':           fmBestScore = data.bestScore ?? null; fmPopup = 'nomatch'; break;
+        case 'matched':            fmMatch = data.match; fmPopup = 'matched'; break;
+        default:                   fmPopup = 'error';
+      }
+    } catch {
+      fmPopup = 'error';
+    } finally {
+      fmLoading = false;
+    }
+  }
+
+  function fmClosePopup()   { fmPopup = null; }
+  function fmGoVerify()     { goto('/verified-vibe/verification'); }
+  function fmOpenMatchChat() { if (fmMatch?.matchId) goto(`/verified-vibe/chat/${fmMatch.matchId}`); }
+
+  onMount(loadMatchmakerStatus);
 </script>
 
 <div class="chat-list-screen">
@@ -287,7 +359,26 @@
         </svg>
       </button>
       <h1 class="page-title">Messages<span class="title-dot">.</span></h1>
-      <div class="header-right"></div>
+      <div class="header-right">
+        <button
+          class="find-match-btn"
+          onclick={runFindMatches}
+          disabled={fmLoading}
+          title={fmEligible ? `AI matchmaker · ${fmRemaining} left` : 'Finish verification to unlock'}
+          aria-label="Find a match with the AI matchmaker"
+        >
+          {#if fmLoading}
+            <span class="fm-spinner" aria-hidden="true"></span>
+            <span class="fm-btn-label">Finding…</span>
+          {:else}
+            <span class="fm-btn-icon" aria-hidden="true">✨</span>
+            <span class="fm-btn-label">Find Match</span>
+            {#if fmEligible && fmRunsLimit > 0}
+              <span class="fm-btn-count">{fmRemaining}</span>
+            {/if}
+          {/if}
+        </button>
+      </div>
     </div>
     {#if !isLoading && !error && conversations.length > 0}
       <div class="stats-bar" transition:fade={{ duration: 200 }}>
@@ -581,6 +672,77 @@
     {/if}
   </div>
 </div>
+
+<!-- ── Find Matches popups ── -->
+{#if fmPopup}
+  <div
+    class="fm-overlay"
+    transition:fade={{ duration: 180 }}
+    role="dialog"
+    aria-modal="true"
+    tabindex="-1"
+    onclick={(e) => { if (e.target === e.currentTarget) fmClosePopup(); }}
+    onkeydown={(e) => { if (e.key === 'Escape') fmClosePopup(); }}
+  >
+    <div class="fm-modal" transition:scale={{ duration: 220, start: 0.95 }}>
+      {#if fmPopup === 'matched' && fmMatch}
+        <div class="fm-emoji">💕</div>
+        <h2 class="fm-title">It's a Match!</h2>
+        <div class="fm-avatar-wrap">
+          {#if fmMatch.avatarUrl}
+            <img class="fm-avatar" src={fmMatch.avatarUrl} alt={fmMatch.firstName} />
+          {:else}
+            <div class="fm-avatar fm-avatar-ph">{fmMatch.firstName.charAt(0).toUpperCase()}</div>
+          {/if}
+        </div>
+        <p class="fm-sub">
+          You and {fmMatch.firstName}{fmMatch.age ? `, ${fmMatch.age}` : ''} are a
+          <strong>{fmMatch.score}%</strong> compatibility match.
+        </p>
+        <div class="fm-actions">
+          <button class="fm-btn fm-btn-ghost" onclick={fmClosePopup}>Later</button>
+          <button class="fm-btn fm-btn-primary" onclick={fmOpenMatchChat}>Say Hi 👋</button>
+        </div>
+      {:else if fmPopup === 'verify'}
+        <div class="fm-emoji">🔒</div>
+        <h2 class="fm-title">Finish verification first</h2>
+        <p class="fm-sub">Complete verification to join the matchmaking pool — then the AI can find you a match.</p>
+        <div class="fm-actions">
+          <button class="fm-btn fm-btn-ghost" onclick={fmClosePopup}>Not now</button>
+          <button class="fm-btn fm-btn-primary" onclick={fmGoVerify}>Complete verification</button>
+        </div>
+      {:else if fmPopup === 'limit'}
+        <div class="fm-emoji">✨</div>
+        <h2 class="fm-title">You've used all your matches</h2>
+        <p class="fm-sub">You've used all {fmRunsLimit} AI match searches. More will be available to unlock soon.</p>
+        <div class="fm-actions">
+          <button class="fm-btn fm-btn-primary" onclick={fmClosePopup}>Got it</button>
+        </div>
+      {:else if fmPopup === 'nomatch'}
+        <div class="fm-emoji">🔍</div>
+        <h2 class="fm-title">No match this time</h2>
+        <p class="fm-sub">
+          {#if fmBestScore != null}
+            The closest candidate scored {fmBestScore}% — below the match bar. Enriching your profile improves your matches.
+          {:else}
+            No compatible match right now. Check back as more people join the pool.
+          {/if}
+        </p>
+        <p class="fm-note">{fmRemaining} search{fmRemaining === 1 ? '' : 'es'} left</p>
+        <div class="fm-actions">
+          <button class="fm-btn fm-btn-primary" onclick={fmClosePopup}>Got it</button>
+        </div>
+      {:else}
+        <div class="fm-emoji">⚠️</div>
+        <h2 class="fm-title">Something went wrong</h2>
+        <p class="fm-sub">We couldn't run the matchmaker. Please try again in a moment.</p>
+        <div class="fm-actions">
+          <button class="fm-btn fm-btn-primary" onclick={fmClosePopup}>Close</button>
+        </div>
+      {/if}
+    </div>
+  </div>
+{/if}
 
 <style>
   /* ── Layout ── */
@@ -1315,5 +1477,138 @@
     .convo-time   { font-size: 11px; }
     .convo-preview { font-size: 12px; }
     .archetype-chip { max-width: 100px; }
+  }
+
+  /* ── Find Match button ── */
+  .find-match-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: none;
+    background: linear-gradient(135deg, #FF3B6B 0%, #FF7A4D 100%);
+    color: #fff;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(255, 59, 107, 0.32);
+    transition: transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+    white-space: nowrap;
+    touch-action: manipulation;
+  }
+  .find-match-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(255, 59, 107, 0.42); }
+  .find-match-btn:active:not(:disabled) { transform: translateY(0); }
+  .find-match-btn:disabled { opacity: 0.7; cursor: progress; }
+  .fm-btn-icon { font-size: 14px; }
+  .fm-btn-label { line-height: 1; }
+  .fm-btn-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.28);
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .fm-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.45);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: fm-spin 0.7s linear infinite;
+  }
+  @keyframes fm-spin { to { transform: rotate(360deg); } }
+
+  /* ── Find Match popups ── */
+  .fm-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+  .fm-modal {
+    width: 100%;
+    max-width: 360px;
+    background: var(--color-vibe-bg-1, #15171c);
+    border: 1px solid var(--color-vibe-border, rgba(255,255,255,0.08));
+    border-radius: 20px;
+    padding: 26px 22px;
+    text-align: center;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  }
+  .fm-emoji { font-size: 44px; line-height: 1; margin-bottom: 10px; }
+  .fm-title {
+    margin: 0 0 8px;
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--color-vibe-text-1, #fff);
+  }
+  .fm-sub {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--color-vibe-text-2, rgba(255,255,255,0.7));
+  }
+  .fm-sub strong { color: var(--color-vibe-text-1, #fff); }
+  .fm-note {
+    margin: 12px 0 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-vibe-text-3, rgba(255,255,255,0.5));
+  }
+  .fm-avatar-wrap { display: flex; justify-content: center; margin: 14px 0; }
+  .fm-avatar {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #FF3B6B;
+    box-shadow: 0 0 0 4px rgba(255, 59, 107, 0.18);
+  }
+  .fm-avatar-ph {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #FF3B6B 0%, #FF7A4D 100%);
+    color: #fff;
+    font-size: 38px;
+    font-weight: 800;
+  }
+  .fm-actions { display: flex; gap: 10px; margin-top: 20px; }
+  .fm-btn {
+    flex: 1;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: none;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 150ms ease, opacity 150ms ease;
+    touch-action: manipulation;
+  }
+  .fm-btn:active { transform: translateY(1px); }
+  .fm-btn-primary { background: linear-gradient(135deg, #FF3B6B 0%, #FF7A4D 100%); color: #fff; }
+  .fm-btn-ghost {
+    background: var(--color-vibe-bg-2, rgba(255,255,255,0.06));
+    color: var(--color-vibe-text-1, #fff);
+    border: 1px solid var(--color-vibe-border, rgba(255,255,255,0.1));
+  }
+
+  @media (max-width: 767px) {
+    .find-match-btn { padding: 7px 10px; font-size: 12px; }
+    .fm-btn-icon { font-size: 13px; }
   }
 </style>
