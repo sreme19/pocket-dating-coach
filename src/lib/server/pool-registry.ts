@@ -293,6 +293,73 @@ export function deriveDealbreakers(archetype: string, a: Record<string, unknown>
   return Array.from(new Set(out)).slice(0, 12);
 }
 
+// ── Intent derivation (lookingFor / relationshipIntent) ───────────────────────
+// Two tiers: (1) the archetype's explicit onboarding intent answer; (2) ONLY
+// when no such answer exists (casual / spoiled / romantic lanes, where the
+// archetype itself IS the intent) a fixed archetype phrase. The fallback can
+// never override a real answer — it only fills a void.
+
+const ARCHETYPE_INTENT_FALLBACK: Record<string, string> = {
+  casual_generous:   'Casual, no-strings — experiences and generosity over labels',
+  spoiled_casual:    'Casual, no-strings — wants to be treated well, no labels',
+  hopeless_romantic: 'Serious, emotionally deep relationship',
+};
+
+/** Onboarding answer keys that state relationship goal/timeline, per archetype. */
+function intentSourceKeys(archetype: string): string[] {
+  switch (archetypeBase(archetype)) {
+    case 'forever_focused':       return ['life_stage', 'timeline'];
+    case 'rebound_healing':       return ['comfort_level', 'where_you_are'];
+    case 'second_chapter':        return ['where_you_are', 'this_chapter'];
+    case 'untouched_heart':       return ['experience_level'];
+    case 'just_friends':          return ['comfort_zone'];
+    case 'traditional_matrimony': return ['connection_style', 'marital_status'];
+    default:                      return []; // casual / spoiled / romantic → fallback phrase
+  }
+}
+
+/** Resolve a single relationship-intent string: explicit answer first, then fallback. */
+export function deriveIntent(archetype: string, a: Record<string, unknown>, ...extra: unknown[]): string {
+  const explicit = firstString(
+    ...intentSourceKeys(archetype).map((k) => a[k]),
+    // Legacy keys from the old SpendingQA flow.
+    a.relationship_timeline, a.dating_intent, a.future_intent, a.future_vision,
+    a.future_romance, a.ideal_relationship,
+    ...extra,
+  );
+  return explicit || (ARCHETYPE_INTENT_FALLBACK[archetypeBase(archetype)] ?? '');
+}
+
+// ── Maturity-signal derivation (women) ────────────────────────────────────────
+// The maturity / standards qualities she values in a partner. Unlike dealbreakers
+// these need NO negation — the picks are already positive. just_friends is
+// platonic, so it has no romantic-maturity axis and stays empty by design.
+
+/** Onboarding answer keys carrying maturity/standards, per archetype. */
+function maturitySourceKeys(archetype: string): string[] {
+  switch (archetypeBase(archetype)) {
+    case 'just_friends':          return [];                                    // platonic — empty by design
+    case 'forever_focused':       return ['non_negotiables', 'relationship_approach'];
+    case 'second_chapter':        return ['non_negotiables', 'what_is_different'];
+    case 'untouched_heart':       return ['values'];
+    case 'traditional_matrimony': return ['partner_fit', 'core_values', 'connection_style'];
+    case 'spoiled_casual':        // spoiled_casual_woman
+    case 'hopeless_romantic':
+    case 'rebound_healing':       return ['standards'];
+    default:                      return ['standards', 'non_negotiables', 'values']; // safe net
+  }
+}
+
+export function deriveMaturitySignals(archetype: string, a: Record<string, unknown>): string[] {
+  if (archetypeBase(archetype) === 'just_friends') return [];
+  return toSignalArray(
+    ...maturitySourceKeys(archetype).map((k) => a[k]),
+    // Legacy keys from the old SpendingQA flow.
+    a.maturity_signals, a.partner_maturity, a.relationship_standards, a.boundaries,
+    a.partner_commitment_style, a.relationship_foundation,
+  );
+}
+
 // ── Distill male preference model ─────────────────────────────────────────────
 
 function distillMalePreferenceSignals(
@@ -310,10 +377,7 @@ function distillMalePreferenceSignals(
       // Legacy literal answers (old SpendingQA flow) kept as a fallback.
       ...toSignalArray(a.deal_breakers, a.red_flags, a.dealbreakers, a.here_for_hard_nos, draft.dealbreakers),
     ])).slice(0, 12),
-    lookingFor: firstString(
-      a.relationship_timeline, a.dating_intent, a.future_intent, a.future_vision,
-      a.future_romance, a.ideal_relationship, draft.lookingFor,
-    ),
+    lookingFor: deriveIntent(archetype, a, draft.lookingFor),
     emotionalSignals: toSignalArray(
       a.lifestyle_values, a.partner_qualities, a.partner_energy, a.relationship_energy,
       a.relationship_vibe, a.appreciation, a.show_appreciation, a.communication_expectation,
@@ -375,15 +439,8 @@ function distillFemalePreferenceModel(
     a.lifestyle_signals, a.lifestyle_values, a.lifestyle_experiences, a.shared_experiences,
     a.lifestyle_today, a.lifestyle, a.lifestyle_profile, a.partner_lifestyle, a.career_alignment,
   );
-  const maturitySignals = toSignalArray(
-    a.maturity_signals, a.partner_maturity, a.relationship_standards, a.relationship_foundation,
-    a.boundaries, a.boundary_expectation, a.partner_commitment_style, a.relationship_approach,
-    a.partner_life_direction, a.partner_life_stage, a.partner_commitment_style,
-  );
-  const relationshipIntent = firstString(
-    a.relationship_timeline, a.dating_intent, a.future_intent, a.future_vision,
-    a.future_romance, a.ideal_relationship, a.future_possibility, a.future_friendship,
-  );
+  const maturitySignals = deriveMaturitySignals(archetype, a);
+  const relationshipIntent = deriveIntent(archetype, a, a.future_possibility, a.future_friendship);
 
   return {
     dealbreakers,
