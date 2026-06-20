@@ -247,32 +247,40 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
 
   // ── Safety Check — 3 categories matching website layout ───────────────────
 
-  Future<void> _goToStep(int step) async {
+  Future<void> _goToStep(int step, {Set<int> skipSteps = const {}}) async {
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => VerificationScreen(
         initialStep: step,
+        skipSteps: skipSteps,
         onDone: () { Navigator.of(context).pop(); _refresh(); },
       ),
     ));
     _refresh();
   }
 
-  void _goToIdentity() => _goToStep(0);
+  void _goToIdentity() {
+    final d = _cachedData;
+    final skip = <int>{};
+    if ((d?.qaScore ?? 0) > 0) skip.addAll({1, 2}); // skip Q&A if already done
+    if ((d?.photoScore ?? 0) > 0) skip.add(3);       // skip photos if already done
+    _goToStep(0, skipSteps: skip);
+  }
 
   void _goToIntent() {
     final d = _cachedData;
-    // If identity not done yet, must start from step 0 first
-    _goToStep((d?.livenessScore ?? 0) > 0 ? 1 : 0);
+    final skip = <int>{};
+    if ((d?.livenessScore ?? 0) > 0) skip.add(0);  // skip selfie if already done
+    if ((d?.photoScore ?? 0) > 0) skip.add(3);     // skip photos if already done
+    // start from step 0 if liveness not done, else step 1
+    _goToStep((d?.livenessScore ?? 0) > 0 ? 1 : 0, skipSteps: skip);
   }
 
   void _goToLifestyle() {
     final d = _cachedData;
-    // If identity not done yet, must start from step 0 first
-    if ((d?.livenessScore ?? 0) == 0) { _goToStep(0); return; }
-    _goToStep(3);
+    final skip = <int>{0, 1, 2}; // always skip to photos directly
+    _goToStep(3, skipSteps: skip);
   }
 
-  // Keep for backward compat
   Future<void> _goVerify() async => _goToIdentity();
 
   Widget _safetyCheck(TrustData d) {

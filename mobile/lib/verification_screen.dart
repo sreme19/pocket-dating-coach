@@ -5,6 +5,7 @@ import 'package:camera/camera.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:dio/dio.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api.dart';
 import 'config.dart';
 
@@ -488,7 +489,9 @@ class VerificationScreen extends StatefulWidget {
   final VoidCallback? onBack; // called when back is pressed on step 0
   final String? archetypeId;  // determines which question set to show
   final int initialStep;
-  const VerificationScreen({super.key, required this.onDone, this.onBack, this.archetypeId, this.initialStep = 0});
+  /// Steps to skip because they're already completed (0=liveness, 1=qa1, 2=qa2, 3=photos)
+  final Set<int> skipSteps;
+  const VerificationScreen({super.key, required this.onDone, this.onBack, this.archetypeId, this.initialStep = 0, this.skipSteps = const {}});
 
   @override
   State<VerificationScreen> createState() => _VerificationScreenState();
@@ -500,10 +503,41 @@ class _VerificationScreenState extends State<VerificationScreen> {
   bool _busy = false;
   String? _error;
 
+  /// Find the next step that isn't already skipped
+  int _nextStep(int from) {
+    int next = from + 1;
+    while (next <= 3 && widget.skipSteps.contains(next)) next++;
+    return next;
+  }
+
   @override
   void initState() {
     super.initState();
     _step = widget.initialStep;
+    _preloadUserData();
+  }
+
+  Future<void> _preloadUserData() async {
+    try {
+      final uid = Supabase.instance.client.auth.currentUser?.id;
+      if (uid == null) return;
+      final row = await Supabase.instance.client
+          .from('verified_vibe_users')
+          .select('first_name, age, city')
+          .eq('id', uid)
+          .maybeSingle();
+      if (!mounted || row == null) return;
+      if ((row['first_name'] ?? '').toString().isNotEmpty && _nameCtrl.text.isEmpty) {
+        _nameCtrl.text = row['first_name'].toString();
+      }
+      if (row['age'] != null && _ageCtrl.text.isEmpty) {
+        _ageCtrl.text = row['age'].toString();
+      }
+      if ((row['city'] ?? '').toString().isNotEmpty && _cityCtrl.text.isEmpty) {
+        _cityCtrl.text = row['city'].toString();
+      }
+      if (mounted) setState(() {});
+    } catch (_) {}
   }
 
   // Step 0 — identity check
@@ -766,7 +800,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
     // Step 0 just advances — liveness was already submitted in _takeSelfie.
     if (_step == 0) {
-      setState(() { _step = 1; _error = null; });
+      final next = _nextStep(0);
+      if (next > 3) { widget.onDone(); return; }
+      setState(() { _step = next; _error = null; });
       return;
     }
 
@@ -825,7 +861,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
           if (mounted) widget.onDone();
           return;
       }
-      if (mounted) setState(() { _busy = false; _step++; _error = null; });
+      final next = _nextStep(_step);
+      if (next > 3) { if (mounted) { setState(() { _busy = false; }); widget.onDone(); } return; }
+      if (mounted) setState(() { _busy = false; _step = next; _error = null; });
     } catch (e) {
       if (mounted) setState(() { _busy = false; _error = _friendlyError(e); });
     }
