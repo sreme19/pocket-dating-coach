@@ -1941,10 +1941,11 @@ Future<MatchmakerStatus> getMatchmakerStatus() async {
     return MatchmakerStatus(eligible: false, runsUsed: 0, runsLimit: 3);
   }
   final body = resp.data is Map ? resp.data as Map : const {};
+  final runsLimit = (body['runsLimit'] as num?)?.toInt() ?? 0;
   return MatchmakerStatus(
     eligible: body['eligible'] == true,
     runsUsed: (body['runsUsed'] as num?)?.toInt() ?? 0,
-    runsLimit: (body['runsLimit'] as num?)?.toInt() ?? 3,
+    runsLimit: runsLimit > 0 ? runsLimit : 3, // 0 = not set yet → default 3
   );
 }
 
@@ -1955,16 +1956,12 @@ Future<MatchmakerResult> runFindMatches() async {
       options: Options(
         headers: {'Authorization': _bearer()},
         receiveTimeout: const Duration(seconds: 120),
-        // Don't throw on non-2xx — handle status codes ourselves
         validateStatus: (s) => true,
       ),
     );
-    debugPrint('[Matchmaker] status=${resp.statusCode} body=${resp.data}');
-    // Non-2xx = server error
     if ((resp.statusCode ?? 0) >= 400) {
       final errBody = resp.data is Map ? (resp.data as Map)['error']?.toString() : resp.data?.toString();
-      debugPrint('[Matchmaker] server error: ${resp.statusCode} $errBody');
-      return MatchmakerResult(status: 'error', debugInfo: 'HTTP ${resp.statusCode}: $errBody');
+      return MatchmakerResult(status: 'error');
     }
     final body = resp.data is Map ? resp.data as Map : const {};
     final status = (body['status'] ?? 'error').toString();
@@ -1979,19 +1976,18 @@ Future<MatchmakerResult> runFindMatches() async {
         score: (m['score'] as num?)?.toInt() ?? 0,
       );
     }
+    final runsLimit = (body['runsLimit'] as num?)?.toInt() ?? 0;
     return MatchmakerResult(
       status: status,
       match: match,
       bestScore: (body['bestScore'] as num?)?.toInt(),
       runsUsed: (body['runsUsed'] as num?)?.toInt(),
-      runsLimit: (body['runsLimit'] as num?)?.toInt(),
+      runsLimit: runsLimit > 0 ? runsLimit : 3,
     );
-  } on DioException catch (e) {
-    debugPrint('[Matchmaker] DioException type=${e.type} msg=${e.message}');
-    return MatchmakerResult(status: 'error', debugInfo: 'Network: ${e.type} ${e.message}');
-  } catch (e) {
-    debugPrint('[Matchmaker] catch: $e');
-    return MatchmakerResult(status: 'error', debugInfo: '$e');
+  } on DioException catch (_) {
+    return MatchmakerResult(status: 'error');
+  } catch (_) {
+    return MatchmakerResult(status: 'error');
   }
 }
 
