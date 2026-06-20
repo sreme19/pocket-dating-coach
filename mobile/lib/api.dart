@@ -1961,7 +1961,7 @@ Future<MatchmakerResult> runFindMatches() async {
     );
     if ((resp.statusCode ?? 0) >= 400) {
       final errBody = resp.data is Map ? (resp.data as Map)['error']?.toString() : resp.data?.toString();
-      return MatchmakerResult(status: 'error');
+      return MatchmakerResult(status: 'error', debugInfo: 'HTTP ${resp.statusCode}: $errBody');
     }
     final body = resp.data is Map ? resp.data as Map : const {};
     final status = (body['status'] ?? 'error').toString();
@@ -1984,10 +1984,10 @@ Future<MatchmakerResult> runFindMatches() async {
       runsUsed: (body['runsUsed'] as num?)?.toInt(),
       runsLimit: runsLimit > 0 ? runsLimit : 3,
     );
-  } on DioException catch (_) {
-    return MatchmakerResult(status: 'error');
-  } catch (_) {
-    return MatchmakerResult(status: 'error');
+  } on DioException catch (e) {
+    return MatchmakerResult(status: 'error', debugInfo: 'DioException: ${e.type} ${e.message}');
+  } catch (e) {
+    return MatchmakerResult(status: 'error', debugInfo: 'catch: $e');
   }
 }
 

@@ -58,7 +58,7 @@ class _ChatListScreenState extends State<ChatListScreen>
 
   Future<void> _runFindMatches() async {
     if (_fmLoading) return;
-    if (!_fmEligible) { _showFmPopup('verify'); return; }
+    if (!_fmEligible) { _showFmPopup('needs_verification'); return; }
     if (_fmRemaining <= 0) { _showFmPopup('limit_reached'); return; }
 
     setState(() => _fmLoading = true);
@@ -1000,6 +1000,14 @@ class _FindMatchDialog extends StatelessWidget {
           const SizedBox(height: 10),
           const Text("We couldn't run the matchmaker. Please try again in a moment.",
               textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Color(Config.text2), height: 1.5)),
+          if (debugInfo != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: Colors.red.shade900, borderRadius: BorderRadius.circular(8)),
+              child: Text(debugInfo!, style: const TextStyle(fontSize: 11, color: Colors.white, fontFamily: 'monospace')),
+            ),
+          ],
           const SizedBox(height: 22),
           _PrimaryBtn(label: 'Close', onTap: () => Navigator.pop(context)),
         ]);
