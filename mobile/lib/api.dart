@@ -1937,16 +1937,19 @@ Future<MatchmakerStatus> getMatchmakerStatus() async {
       validateStatus: (s) => true,
     ),
   );
+  debugPrint('[MM-status] HTTP ${resp.statusCode} body=${resp.data}');
   if ((resp.statusCode ?? 0) >= 400) {
     return MatchmakerStatus(eligible: false, runsUsed: 0, runsLimit: 3);
   }
   final body = resp.data is Map ? resp.data as Map : const {};
   final runsLimit = (body['runsLimit'] as num?)?.toInt() ?? 0;
-  return MatchmakerStatus(
+  final status = MatchmakerStatus(
     eligible: body['eligible'] == true,
     runsUsed: (body['runsUsed'] as num?)?.toInt() ?? 0,
     runsLimit: runsLimit > 0 ? runsLimit : 3, // 0 = not set yet → default 3
   );
+  debugPrint('[MM-status] eligible=${status.eligible} runsUsed=${status.runsUsed} runsLimit=${status.runsLimit}');
+  return status;
 }
 
 Future<MatchmakerResult> runFindMatches() async {
