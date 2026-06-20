@@ -141,7 +141,10 @@ class _ProfileBody extends StatelessWidget {
           (b['text'] ?? '').toString(),
         )).toList();
       }
-      brings ??= archetypeBrings[data.archetype];
+      brings ??= archetypeBrings[data.archetype] ??
+          archetypeFor(data.archetype)?.brings
+              .map((t) => BringsItem('•', t))
+              .toList();
     }
     final bringsTitle = data.isMan ? 'WHAT HE BRINGS' : 'WHAT SHE BRINGS';
 

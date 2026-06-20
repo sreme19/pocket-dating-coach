@@ -324,6 +324,21 @@ const Map<String, List<BringsItem>> archetypeBrings = {
     BringsItem('💙', 'Emotional depth'), BringsItem('🌿', 'Shared values'),
     BringsItem('🎯', 'Long-term focus'),
   ],
+  'traditional_matrimony_woman': [
+    BringsItem('🏛️', 'Family-first values'), BringsItem('🤝', 'Cultural alignment'),
+    BringsItem('💍', 'Commitment with zero ambiguity'), BringsItem('📋', 'Clear expectations upfront'),
+    BringsItem('🏠', 'Stability & long-term partnership'),
+  ],
+  'second_chapter_woman': [
+    BringsItem('🌺', 'Emotional maturity'), BringsItem('🎯', 'Clarity on what she needs'),
+    BringsItem('💬', 'No games — only real'), BringsItem('💚', 'Appreciation without desperation'),
+    BringsItem('💪', 'Strength that comes from having survived'),
+  ],
+  'just_friends_woman': [
+    BringsItem('🫂', 'Zero pressure or hidden agenda'), BringsItem('☀️', 'Warm, genuine company'),
+    BringsItem('🛡️', 'Emotional safety'), BringsItem('💬', 'Real conversation'),
+    BringsItem('🌱', 'Friendship that actually sticks'),
+  ],
 };
 
 List<LaneSection> laneSectionsFor(String gender) {
