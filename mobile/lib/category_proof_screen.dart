@@ -7,6 +7,15 @@ import 'package:url_launcher/url_launcher.dart';
 import 'api.dart';
 import 'config.dart';
 
+String _friendlyError(Object e) {
+  final s = e.toString();
+  if (s.contains('DioException') || s.contains('SocketException') ||
+      s.contains('connection') || s.contains('network') || s.contains('timeout')) {
+    return 'Connection issue. Please check your internet and try again.';
+  }
+  return 'Something went wrong. Please try again.';
+}
+
 // ── Category config ───────────────────────────────────────────────────────────
 
 class _CatConfig {
@@ -473,8 +482,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                     setS(() { verifying = false; error = 'ID could not be verified. Please try a clearer photo.'; });
                   }
                 } catch (e) {
-                  final msg = e.toString().replaceFirst('Exception: ', '');
-                  setS(() { verifying = false; error = msg; });
+                  setS(() { verifying = false; error = _friendlyError(e); });
                 }
               },
               style: FilledButton.styleFrom(
@@ -550,7 +558,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
     } catch (e) {
       setState(() {
         _analysing = false;
-        _result = _UploadResult(verified: false, text: 'Upload failed: $e', chips: const []);
+        _result = _UploadResult(verified: false, text: _friendlyError(e), chips: const []);
       });
     }
   }

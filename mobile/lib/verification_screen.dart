@@ -8,6 +8,15 @@ import 'package:dio/dio.dart';
 import 'api.dart';
 import 'config.dart';
 
+String _friendlyError(Object e) {
+  final s = e.toString();
+  if (s.contains('DioException') || s.contains('SocketException') ||
+      s.contains('connection') || s.contains('network') || s.contains('timeout')) {
+    return 'Connection issue. Please check your internet and try again.';
+  }
+  return 'Something went wrong. Please try again.';
+}
+
 // ── Data models ───────────────────────────────────────────────────────────────
 
 class _Chip {
@@ -818,7 +827,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
       }
       if (mounted) setState(() { _busy = false; _step++; _error = null; });
     } catch (e) {
-      if (mounted) setState(() { _busy = false; _error = e.toString().replaceFirst('Exception: ', ''); });
+      if (mounted) setState(() { _busy = false; _error = _friendlyError(e); });
     }
   }
 
