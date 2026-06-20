@@ -356,7 +356,6 @@ class _ProfileBody extends StatelessWidget {
           _Section(
             icon: Icons.favorite_border,
             title: 'WHAT HE BRINGS',
-            onEdit: () => _editBrings(context, data, brings!, onChanged),
             child: Column(
               children: [
                 for (final b in brings) _BringsRow(b),
@@ -982,21 +981,31 @@ class _EditableChipsState extends State<_EditableChips> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final c in _chips)
-            _ChipWithRemove(text: '${c.emoji} ${c.label}', editing: _edit, onRemove: () => _remove(c)),
-          GestureDetector(
-            onTap: () => setState(() { _edit = !_edit; _pending.clear(); }),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: const Color(0x331B1020)),
+        LayoutBuilder(builder: (context, constraints) {
+          final chipW = (constraints.maxWidth - 8) / 2;
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final c in _chips)
+                SizedBox(
+                  width: chipW,
+                  child: _ChipWithRemove(text: '${c.emoji} ${c.label}', editing: _edit, onRemove: () => _remove(c)),
+                ),
+              GestureDetector(
+                onTap: () => setState(() { _edit = !_edit; _pending.clear(); }),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: const Color(0x331B1020)),
+                  ),
+                  child: Icon(_edit ? Icons.check : Icons.edit_outlined, size: 14, color: const Color(Config.text2)),
+                ),
               ),
-              child: Icon(_edit ? Icons.check : Icons.edit_outlined, size: 14, color: const Color(Config.text2)),
-            ),
-          ),
-        ]),
+            ],
+          );
+        }),
         if (_edit) ...[
           const SizedBox(height: 10),
           if (_pending.isNotEmpty)
@@ -1046,7 +1055,7 @@ class _ChipWithRemove extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(12, 7, editing ? 6 : 12, 7),
       decoration: BoxDecoration(color: const Color(Config.bg3), borderRadius: BorderRadius.circular(999)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Text(text, style: const TextStyle(fontSize: 13, color: Color(Config.text1), fontWeight: FontWeight.w500)),
+        Flexible(child: Text(text, style: const TextStyle(fontSize: 13, color: Color(Config.text1), fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis, maxLines: 1)),
         if (editing) ...[
           const SizedBox(width: 6),
           GestureDetector(
@@ -1618,60 +1627,111 @@ class _VerifiedSignalsState extends State<_VerifiedSignals> {
   @override
   Widget build(BuildContext context) {
     final d = widget.data;
-    final tabs = <(String, SignalGroup, String)>[
-      if (d.career != null) ('💼 Career', d.career!, 'linkedin'),
-      if (d.lifestyle != null) ('🌍 Lifestyle', d.lifestyle!, 'lifestyle'),
-      if (d.health != null) ('💪 Health', d.health!, 'discipline'),
-      if (d.social != null) ('🤝 Social', d.social!, 'social_proof'),
+    final tabs = <(String, String, SignalGroup, String)>[
+      if (d.career != null)    ('💼', 'Career',    d.career!,    'linkedin'),
+      if (d.lifestyle != null) ('🌍', 'Lifestyle', d.lifestyle!, 'lifestyle'),
+      if (d.health != null)    ('💪', 'Health',    d.health!,    'discipline'),
+      if (d.social != null)    ('🤝', 'Social',    d.social!,    'social_proof'),
     ];
     if (tabs.isEmpty) return const SizedBox.shrink();
     final active = _tab.clamp(0, tabs.length - 1);
-    final group = tabs[active].$2;
-    final category = tabs[active].$3;
+    final tab = tabs[active];
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(children: [
-            for (var i = 0; i < tabs.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: GestureDetector(
-                  onTap: () => setState(() => _tab = i),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: i == active ? const Color(0x22FF3B6B) : const Color(Config.bg3),
-                      borderRadius: BorderRadius.circular(999),
-                      border: i == active ? Border.all(color: const Color(0x4DFF3B6B)) : null,
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // ── Category tabs ──
+      SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(children: [
+          for (var i = 0; i < tabs.length; i++)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: GestureDetector(
+                onTap: () => setState(() => _tab = i),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: i == active ? const Color(Config.accent) : const Color(Config.bg2),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: i == active ? const Color(Config.accent) : const Color(0x1A1B1020),
+                      width: 1.5,
                     ),
-                    child: Text(tabs[i].$1,
+                    boxShadow: i == active ? [
+                      BoxShadow(color: const Color(Config.accent).withOpacity(0.25), blurRadius: 8, offset: const Offset(0, 3)),
+                    ] : null,
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text(tabs[i].$1, style: const TextStyle(fontSize: 14)),
+                    const SizedBox(width: 5),
+                    Text(tabs[i].$2,
                         style: TextStyle(
                           fontSize: 13,
-                          color: i == active ? const Color(Config.accent) : const Color(Config.text2),
-                          fontWeight: i == active ? FontWeight.w600 : FontWeight.w500,
+                          color: i == active ? Colors.white : const Color(Config.text2),
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.1,
                         )),
-                  ),
+                  ]),
                 ),
               ),
-          ]),
+            ),
+        ]),
+      ),
+      const SizedBox(height: 14),
+      // ── Content card ──
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(Config.bg2),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0x0F1B1020)),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
         ),
-        const SizedBox(height: 12),
-        _EditableChips(
-          key: ValueKey('sig_$category'),
-          category: category,
-          initial: group.chips,
-          aggregated: group.aggregated,
-        ),
-        if (group.aggregated.isNotEmpty) ...[
-          const SizedBox(height: 10),
-          Text(group.aggregated,
-              style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: Color(Config.text2))),
-        ],
-      ],
-    );
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Verified badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: const Color(0x1500C853),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.verified, size: 11, color: Color(0xFF00C853)),
+              const SizedBox(width: 4),
+              Text('Verified ${tab.$2}',
+                  style: const TextStyle(fontSize: 11, color: Color(0xFF00C853), fontWeight: FontWeight.w600)),
+            ]),
+          ),
+          const SizedBox(height: 12),
+          // Editable chips
+          _EditableChips(
+            key: ValueKey('sig_${tab.$4}'),
+            category: tab.$4,
+            initial: tab.$3.chips,
+            aggregated: tab.$3.aggregated,
+          ),
+          // AI summary
+          if (tab.$3.aggregated.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0x08FF3B6B),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('✨', style: TextStyle(fontSize: 13)),
+                const SizedBox(width: 8),
+                Expanded(child: Text(tab.$3.aggregated,
+                    style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic,
+                        color: Color(Config.text2), height: 1.5))),
+              ]),
+            ),
+          ],
+        ]),
+      ),
+    ]);
   }
 }
 
@@ -1780,6 +1840,24 @@ class _HeroState extends State<_Hero> {
   }
 }
 
+// ── Archetype base scores (mirrors profile_body.dart) ─────────────────────────
+Map<String, int> _archetypeBaseScores(String archetype) {
+  final a = archetype.toLowerCase();
+  if (a.contains('forever') || a.contains('matrimony') || a.contains('marriage'))
+    return {'decisiveness': 70, 'warmth': 80, 'openness': 60, 'pace': 55};
+  if (a.contains('casual') && a.contains('generous'))
+    return {'decisiveness': 80, 'warmth': 65, 'openness': 70, 'pace': 72};
+  if (a.contains('romantic') || a.contains('hopeless'))
+    return {'decisiveness': 62, 'warmth': 88, 'openness': 75, 'pace': 58};
+  if (a.contains('second chapter'))
+    return {'decisiveness': 78, 'warmth': 75, 'openness': 65, 'pace': 50};
+  if (a.contains('safety'))
+    return {'decisiveness': 60, 'warmth': 75, 'openness': 55, 'pace': 45};
+  if (a.contains('spoilt'))
+    return {'decisiveness': 65, 'warmth': 65, 'openness': 65, 'pace': 60};
+  return {'decisiveness': 75, 'warmth': 60, 'openness': 70, 'pace': 70};
+}
+
 // ── Personality Reads ─────────────────────────────────────────────────────────
 
 class _PersonalityReadsSection extends StatelessWidget {
@@ -1795,6 +1873,7 @@ class _PersonalityReadsSection extends StatelessWidget {
   ];
 
   List<({String name, int pct})> get _reads {
+    // 1. Try rawGenerated personalityReads first
     final raw = data.rawGenerated['personalityReads'];
     if (raw is List && raw.isNotEmpty) {
       final result = <({String name, int pct})>[];
@@ -1809,6 +1888,32 @@ class _PersonalityReadsSection extends StatelessWidget {
         }
       }
       if (result.isNotEmpty) return result;
+    }
+    // 2. Try rawGenerated traitScores (same data Discovery uses)
+    final ts = data.rawGenerated['traitScores'];
+    if (ts is Map && ts.isNotEmpty) {
+      const order = ['decisiveness', 'warmth', 'openness', 'pace', 'stability'];
+      final result = <({String name, int pct})>[];
+      for (final key in order) {
+        if (ts.containsKey(key)) {
+          final val = ts[key];
+          result.add((
+            name: key[0].toUpperCase() + key.substring(1),
+            pct: val is num ? val.toInt() : 0,
+          ));
+        }
+      }
+      if (result.isNotEmpty) return result;
+    }
+    // 3. Fallback: derive from archetype (same as Discovery does)
+    const order = ['decisiveness', 'warmth', 'openness', 'pace', 'stability'];
+    final archScores = _archetypeBaseScores(data.archetype);
+    if (archScores.isNotEmpty) {
+      return [
+        for (final key in order)
+          if (archScores.containsKey(key))
+            (name: key[0].toUpperCase() + key.substring(1), pct: archScores[key]!),
+      ];
     }
     return _defaults;
   }

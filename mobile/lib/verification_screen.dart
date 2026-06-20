@@ -478,7 +478,8 @@ class VerificationScreen extends StatefulWidget {
   final VoidCallback onDone;
   final VoidCallback? onBack; // called when back is pressed on step 0
   final String? archetypeId;  // determines which question set to show
-  const VerificationScreen({super.key, required this.onDone, this.onBack, this.archetypeId});
+  final int initialStep;
+  const VerificationScreen({super.key, required this.onDone, this.onBack, this.archetypeId, this.initialStep = 0});
 
   @override
   State<VerificationScreen> createState() => _VerificationScreenState();
@@ -486,9 +487,15 @@ class VerificationScreen extends StatefulWidget {
 
 class _VerificationScreenState extends State<VerificationScreen> {
   final _picker = ImagePicker();
-  int _step = 0;
+  late int _step;
   bool _busy = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _step = widget.initialStep;
+  }
 
   // Step 0 — identity check
   bool _livenessDone = false;
@@ -619,7 +626,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
     try {
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
-      );
+      ).timeout(const Duration(seconds: 10));
       final resp = await Dio().get(
         'https://nominatim.openstreetmap.org/reverse',
         queryParameters: {'lat': pos.latitude, 'lon': pos.longitude, 'format': 'json'},
@@ -629,9 +636,19 @@ class _VerificationScreenState extends State<VerificationScreen> {
       final city = addr['city'] ?? addr['town'] ?? addr['village'] ?? addr['county'] ?? '';
       if (city.toString().isNotEmpty) {
         setState(() => _cityCtrl.text = city.toString());
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Could not detect city. Please type it manually.')),
+          );
+        }
       }
     } catch (_) {
-      // silently ignore; user can type manually
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not detect location. Please type your city manually.')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _detectingCity = false);
     }
@@ -793,6 +810,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
               city: _cityCtrl.text.trim(),
             );
           } catch (_) {}
+          // Sync Q&A onboarding responses to user_master_profile so web
+          // profile and AI context can read them.
+          syncVerificationToMasterProfile().catchError((_) {});
           if (mounted) widget.onDone();
           return;
       }

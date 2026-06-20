@@ -1,6 +1,7 @@
 import 'dart:convert' show base64Encode;
 import 'dart:io' show Platform, File;
 import 'dart:typed_data' show Uint8List;
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:dio/dio.dart';
 import 'package:http_parser/http_parser.dart' show MediaType;
 // hide MultipartFile + MediaType: both dio and supabase export them; we use dio's.
@@ -940,6 +941,7 @@ MediaType _mimeOf(String path) {
     'm4a' || 'aac'  => MediaType('audio', 'mp4'),
     'mp3'           => MediaType('audio', 'mpeg'),
     'webm'          => MediaType('video', 'webm'),
+    'pdf'           => MediaType('application', 'pdf'),
     _               => MediaType('application', 'octet-stream'),
   };
 }
@@ -991,6 +993,21 @@ Future<bool> verifyIdStep(String imagePath) async {
   }
   final msg = body['error']?.toString();
   throw Exception(msg?.isNotEmpty == true ? msg : 'ID verification failed. Please try again.');
+}
+
+/// Upload proof with both a profile URL and a file (e.g. LinkedIn URL + resume PDF).
+Future<Map> uploadProofWithUrl(String category, String profileUrl, String filePath) async {
+  final form = FormData();
+  form.fields.add(MapEntry('category', category));
+  form.fields.add(MapEntry('profile_url', profileUrl));
+  form.files.add(MapEntry('files',
+      await MultipartFile.fromFile(filePath, contentType: _mimeOf(filePath))));
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/proof-upload',
+    data: form,
+    options: Options(headers: {'Authorization': _bearer()}, receiveTimeout: const Duration(seconds: 120)),
+  );
+  return resp.data is Map ? resp.data as Map : const {};
 }
 
 /// Verify a social proof by profile URL (linkedin / instagram / twitter) — the
@@ -1449,6 +1466,44 @@ Future<ChatMessage?> sendMessage(String conversationId, String content) async {
   return m == null ? null : ChatMessage.fromApi(m);
 }
 
+/// After mobile onboarding completes, sync Q&A responses from
+/// `verified_vibe_verification` into `user_master_profile.onboarding`
+/// so the web profile and AI context can read them.
+/// Fire-and-forget safe — catch errors at the call site.
+Future<void> syncVerificationToMasterProfile() async {
+  final session = Supabase.instance.client.auth.currentSession;
+  if (session == null) return;
+  final uid = session.user.id;
+
+  // Read all Q&A rows from verified_vibe_verification
+  final rows = await Supabase.instance.client
+      .from('verified_vibe_verification')
+      .select('step, data')
+      .eq('user_id', uid)
+      .eq('status', 'completed');
+
+  // Merge all `responses` fields from spending_or_qa steps
+  final mergedResponses = <String, dynamic>{};
+  for (final row in (rows as List)) {
+    final data = row['data'] as Map?;
+    final responses = data?['responses'];
+    if (responses is Map) {
+      mergedResponses.addAll(Map<String, dynamic>.from(responses));
+    }
+  }
+
+  if (mergedResponses.isEmpty) return;
+
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/master-profile',
+    data: {'onboarding': mergedResponses},
+    options: Options(headers: {
+      'Authorization': 'Bearer ${session.accessToken}',
+      'Content-Type': 'application/json',
+    }),
+  );
+}
+
 /// Current user's gender ('man' / 'woman') — gates the AI Wingman vs Bestie row.
 Future<String?> fetchCurrentUserGender() async {
   final uid = Supabase.instance.client.auth.currentUser?.id;
@@ -1843,6 +1898,97 @@ Future<String> uploadChatImage(Uint8List bytes, String ext) async {
         fileOptions: FileOptions(contentType: 'image/$ext', upsert: false),
       );
   return Supabase.instance.client.storage.from('chat-images').getPublicUrl(path);
+}
+
+// ── AI Matchmaker ──────────────────────────────────────────────────────────
+
+class MatchmakerStatus {
+  final bool eligible;
+  final int runsUsed;
+  final int runsLimit;
+  MatchmakerStatus({required this.eligible, required this.runsUsed, required this.runsLimit});
+  int get remaining => (runsLimit - runsUsed).clamp(0, runsLimit);
+}
+
+class MatchmakerMatch {
+  final String matchId;
+  final String firstName;
+  final int? age;
+  final String? avatarUrl;
+  final int score;
+  MatchmakerMatch({required this.matchId, required this.firstName, this.age, this.avatarUrl, required this.score});
+}
+
+class MatchmakerResult {
+  final String status; // 'matched' | 'no_match' | 'limit_reached' | 'needs_verification' | 'error'
+  final MatchmakerMatch? match;
+  final int? bestScore;
+  final int? runsUsed;
+  final int? runsLimit;
+  final String? debugInfo; // temporary debug info
+  MatchmakerResult({required this.status, this.match, this.bestScore, this.runsUsed, this.runsLimit, this.debugInfo});
+}
+
+Future<MatchmakerStatus> getMatchmakerStatus() async {
+  final resp = await _dio.get(
+    '${Config.apiBase}/api/verified-vibe/matchmaker/find-matches',
+    options: Options(
+      headers: {'Authorization': _bearer()},
+      validateStatus: (s) => true,
+    ),
+  );
+  if ((resp.statusCode ?? 0) >= 400) {
+    return MatchmakerStatus(eligible: false, runsUsed: 0, runsLimit: 3);
+  }
+  final body = resp.data is Map ? resp.data as Map : const {};
+  final runsLimit = (body['runsLimit'] as num?)?.toInt() ?? 0;
+  return MatchmakerStatus(
+    eligible: body['eligible'] == true,
+    runsUsed: (body['runsUsed'] as num?)?.toInt() ?? 0,
+    runsLimit: runsLimit > 0 ? runsLimit : 3, // 0 = not set yet → default 3
+  );
+}
+
+Future<MatchmakerResult> runFindMatches() async {
+  try {
+    final resp = await _dio.post(
+      '${Config.apiBase}/api/verified-vibe/matchmaker/find-matches',
+      options: Options(
+        headers: {'Authorization': _bearer()},
+        receiveTimeout: const Duration(seconds: 120),
+        validateStatus: (s) => true,
+      ),
+    );
+    if ((resp.statusCode ?? 0) >= 400) {
+      final errBody = resp.data is Map ? (resp.data as Map)['error']?.toString() : resp.data?.toString();
+      return MatchmakerResult(status: 'error', debugInfo: 'HTTP ${resp.statusCode}: $errBody');
+    }
+    final body = resp.data is Map ? resp.data as Map : const {};
+    final status = (body['status'] ?? 'error').toString();
+    MatchmakerMatch? match;
+    if (status == 'matched' && body['match'] is Map) {
+      final m = body['match'] as Map;
+      match = MatchmakerMatch(
+        matchId: m['matchId']?.toString() ?? '',
+        firstName: m['firstName']?.toString() ?? '',
+        age: (m['age'] as num?)?.toInt(),
+        avatarUrl: m['avatarUrl']?.toString(),
+        score: (m['score'] as num?)?.toInt() ?? 0,
+      );
+    }
+    final runsLimit = (body['runsLimit'] as num?)?.toInt() ?? 0;
+    return MatchmakerResult(
+      status: status,
+      match: match,
+      bestScore: (body['bestScore'] as num?)?.toInt(),
+      runsUsed: (body['runsUsed'] as num?)?.toInt(),
+      runsLimit: runsLimit > 0 ? runsLimit : 3,
+    );
+  } on DioException catch (e) {
+    return MatchmakerResult(status: 'error', debugInfo: 'DioException: ${e.type} ${e.message}');
+  } catch (e) {
+    return MatchmakerResult(status: 'error', debugInfo: 'catch: $e');
+  }
 }
 
 /// Fetch an AI Bestie reply suggestion for [conversationId] (shown to women chatting with men).

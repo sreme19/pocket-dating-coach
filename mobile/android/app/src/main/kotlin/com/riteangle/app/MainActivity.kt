@@ -1,4 +1,4 @@
-package com.pocketdatingcoach.verified_vibe
+package com.riteangle.app
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -914,20 +914,61 @@
 
       // ── Fire-and-forget background sync (city to DB + photo upload to API) ─
       const syncInBackground = async () => {
-        // Persist city to DB (non-critical)
+        // The verified_vibe_users row is created HERE (first point we have
+        // name/age/city). Every verified_vibe_verification row has a NOT NULL FK
+        // to it, so we must AWAIT this before persisting any step — otherwise the
+        // insert silently FK-fails. This is why the Q&A POSTed during the DrawnTo
+        // / HowYouLive steps never landed in the table (no account existed yet).
         if ($user) {
-          upsertProfile({
-            gender: $user?.gender ?? null,
-            archetype: $user?.archetype ?? null,
-            ...(data.firstName ? { first_name: data.firstName } : {}),
-            ...(data.age ? { age: data.age } : {}),
-            city: data.city
-          } as any).catch(e => console.warn('[photos] profile upsert failed (non-critical):', e));
+          try {
+            await upsertProfile({
+              gender: $user?.gender ?? null,
+              archetype: $user?.archetype ?? null,
+              ...(data.firstName ? { first_name: data.firstName } : {}),
+              ...(data.age ? { age: data.age } : {}),
+              city: data.city
+            } as any);
+          } catch (e) {
+            console.warn('[photos] profile upsert failed (non-critical):', e);
+          }
+        }
+
+        const headers = await getAuthHeaders();
+
+        // Re-persist the onboarding Q&A now that the account row exists — this is
+        // the write that actually lands the spending_or_qa row for new users (the
+        // earlier POST during the DrawnTo/HowYouLive steps FK-failed pre-account).
+        try {
+          const responses = JSON.parse(localStorage.getItem('vv_qa_responses') || '{}');
+          if (responses && Object.keys(responses).length > 0) {
+            const qaRes = await fetch('/api/verified-vibe/verify-step', {
+              method: 'POST',
+              headers,
+              keepalive: true,
+              body: JSON.stringify({
+                step: 'spending_or_qa',
+                data: { responses, gender: $user?.gender, archetype: $user?.archetype }
+              })
+            });
+            if (qaRes.ok) {
+              const qaResult = await qaRes.json();
+              addVerificationRecord({
+                id: `${$user?.id}-spending_or_qa`,
+                userId: $user?.id || '',
+                step: 'spending_or_qa',
+                status: 'completed',
+                data: qaResult.data,
+                completedAt: new Date(),
+                createdAt: new Date()
+              });
+            }
+          }
+        } catch (e) {
+          console.warn('[photos] Q&A re-sync failed (non-critical):', e);
         }
 
         // Upload photos to API for Supabase Storage + trust score
         try {
-          const headers = await getAuthHeaders();
           const response = await fetch('/api/verified-vibe/verify-step', {
             method: 'POST',
             headers,
@@ -1009,6 +1050,7 @@
       fetch('/api/verified-vibe/verify-step', {
         method: 'POST',
         headers,
+        keepalive: true,
         body: JSON.stringify({
           step: 'spending_or_qa',
           data: { responses: mergedResponses, gender: $user?.gender, archetype: $user?.archetype }

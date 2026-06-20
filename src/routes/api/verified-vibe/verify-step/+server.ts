@@ -424,29 +424,24 @@ async function handleSpendingOrQAVerification(data: any, userId: string | null =
       );
     }
 
-    // Spending upload only for casual_generous_man — everyone else does Q&A
-    const needsSpendingProof = data.archetype === 'casual_generous_man';
+    // The current onboarding flow is Q&A-only for EVERY archetype (DrawnTo +
+    // HowYouLive); the old spending-receipt upload is no longer part of the
+    // flow. So whenever responses are present we persist them as Q&A regardless
+    // of archetype — previously casual_generous_man was gated to a spending
+    // proof that the client never sends, so its answers were silently dropped
+    // (returned 400 and never written to verified_vibe_verification).
+    const hasResponses = responses && typeof responses === 'object' && Object.keys(responses).length > 0;
 
-    if (needsSpendingProof) {
-      if (!spendingImage) {
-        return json(
-          { error: 'Spending image is required for this archetype' },
-          { status: 400 }
-        );
-      }
-
-      return await handleSpendingVerification(spendingImage, mimeType, userId);
-    } else {
-      // Q&A for all other archetypes
-      if (!responses || typeof responses !== 'object') {
-        return json(
-          { error: 'Q&A responses are required' },
-          { status: 400 }
-        );
-      }
-
+    if (hasResponses) {
       return await handleQAVerification(responses, gender, userId);
     }
+
+    // Legacy fallback: only analyse a spending image when one is actually supplied.
+    if (spendingImage) {
+      return await handleSpendingVerification(spendingImage, mimeType, userId);
+    }
+
+    return json({ error: 'Q&A responses are required' }, { status: 400 });
   } catch (error) {
     console.error('Spending/Q&A verification error:', error);
 
