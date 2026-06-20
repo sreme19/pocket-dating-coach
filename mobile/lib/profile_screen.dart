@@ -133,7 +133,7 @@ class _ProfileBody extends StatelessWidget {
   Widget build(BuildContext context) {
     // Prefer user-edited brings saved in rawGenerated; fall back to archetype defaults.
     List<BringsItem>? brings;
-    if (data.isMan) {
+    {
       final raw = data.rawGenerated['brings'];
       if (raw is List && raw.isNotEmpty) {
         brings = raw.whereType<Map>().map<BringsItem>((b) => BringsItem(
@@ -143,6 +143,7 @@ class _ProfileBody extends StatelessWidget {
       }
       brings ??= archetypeBrings[data.archetype];
     }
+    final bringsTitle = data.isMan ? 'WHAT HE BRINGS' : 'WHAT SHE BRINGS';
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -355,7 +356,7 @@ class _ProfileBody extends StatelessWidget {
         if (brings != null && brings.isNotEmpty)
           _Section(
             icon: Icons.favorite_border,
-            title: 'WHAT HE BRINGS',
+            title: bringsTitle,
             child: Column(
               children: [
                 for (final b in brings) _BringsRow(b),

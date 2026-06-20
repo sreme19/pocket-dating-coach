@@ -298,6 +298,32 @@ const Map<String, List<BringsItem>> archetypeBrings = {
     BringsItem('✨', 'Fun energy'), BringsItem('🧘', 'Present focus'),
     BringsItem('📸', 'Real moments'),
   ],
+  // ── Female archetypes ──────────────────────────────────────────────────────
+  'spoiled_casual_woman': [
+    BringsItem('✨', 'High standards'), BringsItem('💅', 'Effortless charm'),
+    BringsItem('😄', 'Fun energy'), BringsItem('🎯', 'Knows what she wants'),
+    BringsItem('💬', 'Honest vibes'),
+  ],
+  'hopeless_romantic_woman': [
+    BringsItem('🌹', 'Deep affection'), BringsItem('💕', 'Emotional warmth'),
+    BringsItem('🎁', 'Thoughtful gestures'), BringsItem('🌊', 'All-in energy'),
+    BringsItem('✨', 'Magic in small moments'),
+  ],
+  'rebound_healing_woman': [
+    BringsItem('🌿', 'Growth mindset'), BringsItem('🧘', 'Emotional awareness'),
+    BringsItem('💬', 'Honest communication'), BringsItem('🌸', 'Gentle energy'),
+    BringsItem('🤝', 'Real intentions'),
+  ],
+  'untouched_heart_woman': [
+    BringsItem('🌸', 'Pure heart'), BringsItem('👁️', 'Fresh perspective'),
+    BringsItem('💚', 'Openness'), BringsItem('🕊️', 'No baggage'),
+    BringsItem('✨', 'Genuine curiosity'),
+  ],
+  'forever_focused_woman': [
+    BringsItem('💍', 'Clarity on commitment'), BringsItem('🏡', 'Family vision'),
+    BringsItem('💙', 'Emotional depth'), BringsItem('🌿', 'Shared values'),
+    BringsItem('🎯', 'Long-term focus'),
+  ],
 };
 
 List<LaneSection> laneSectionsFor(String gender) {
