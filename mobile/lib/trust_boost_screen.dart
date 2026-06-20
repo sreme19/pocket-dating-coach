@@ -247,24 +247,33 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
 
   // ── Safety Check — 3 categories matching website layout ───────────────────
 
-  Future<void> _goVerify() async {
-    final d = _cachedData;
-    int initialStep = 0;
-    if (d != null) {
-      if (d.livenessScore > 0 && d.qaScore > 0) {
-        initialStep = 3; // liveness + qa done, go to photos step
-      } else if (d.livenessScore > 0) {
-        initialStep = 1; // liveness done, go to drawn_to step
-      }
-    }
+  Future<void> _goToStep(int step) async {
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => VerificationScreen(
-        initialStep: initialStep,
+        initialStep: step,
         onDone: () { Navigator.of(context).pop(); _refresh(); },
       ),
     ));
     _refresh();
   }
+
+  void _goToIdentity() => _goToStep(0);
+
+  void _goToIntent() {
+    final d = _cachedData;
+    // If identity not done yet, must start from step 0 first
+    _goToStep((d?.livenessScore ?? 0) > 0 ? 1 : 0);
+  }
+
+  void _goToLifestyle() {
+    final d = _cachedData;
+    // If identity not done yet, must start from step 0 first
+    if ((d?.livenessScore ?? 0) == 0) { _goToStep(0); return; }
+    _goToStep(3);
+  }
+
+  // Keep for backward compat
+  Future<void> _goVerify() async => _goToIdentity();
 
   Widget _safetyCheck(TrustData d) {
     // Identity = liveness step score. The verification flow saves 'liveness'
@@ -289,7 +298,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
           lowText:  'Verify your identity — required to appear in search',
           midText:  'Complete face match to maximise identity score',
           lowPts:   '+50 pts →',
-          onTap:    _goVerify,
+          onTap:    _goToIdentity,
         ),
         const SizedBox(height: 16),
         _safetyItem(
@@ -298,6 +307,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
           lowText:  'Upload photos to verify your lifestyle and stand out',
           midText:  'Add more photos to complete your lifestyle score',
           lowPts:   '+8 pts →',
+          onTap:    _goToLifestyle,
         ),
         const SizedBox(height: 16),
         _safetyItem(
@@ -306,7 +316,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
           lowText:  'Answer Q&A questions — reveals your real intentions',
           midText:  'Add more answers to complete your intent signal',
           lowPts:   '+12 pts →',
-          onTap:    _goVerify,
+          onTap:    _goToIntent,
         ),
       ]),
     );
