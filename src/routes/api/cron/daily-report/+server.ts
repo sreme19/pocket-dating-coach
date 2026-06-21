@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getSupabase } from '$lib/server/supabase';
-import { runHealthCheck } from '../../health/+server';
+import { runHealthCheck } from '$lib/server/health';
 
 /**
  * Daily report cron — runs at 08:00 UTC every day.
