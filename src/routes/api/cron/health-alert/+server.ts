@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { runHealthCheck } from '../../health/+server';
+import { runHealthCheck } from '$lib/server/health';
 
 /**
  * Health alert cron — runs every 10 minutes via Vercel Cron.
