@@ -247,24 +247,41 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
 
   // ── Safety Check — 3 categories matching website layout ───────────────────
 
-  Future<void> _goVerify() async {
-    final d = _cachedData;
-    int initialStep = 0;
-    if (d != null) {
-      if (d.livenessScore > 0 && d.qaScore > 0) {
-        initialStep = 3; // liveness + qa done, go to photos step
-      } else if (d.livenessScore > 0) {
-        initialStep = 1; // liveness done, go to drawn_to step
-      }
-    }
+  Future<void> _goToStep(int step, {Set<int> skipSteps = const {}}) async {
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => VerificationScreen(
-        initialStep: initialStep,
+        initialStep: step,
+        skipSteps: skipSteps,
         onDone: () { Navigator.of(context).pop(); _refresh(); },
       ),
     ));
     _refresh();
   }
+
+  void _goToIdentity() {
+    final d = _cachedData;
+    final skip = <int>{};
+    if ((d?.qaScore ?? 0) > 0) skip.addAll({1, 2}); // skip Q&A if already done
+    if ((d?.photoScore ?? 0) > 0) skip.add(3);       // skip photos if already done
+    _goToStep(0, skipSteps: skip);
+  }
+
+  void _goToIntent() {
+    final d = _cachedData;
+    final skip = <int>{};
+    if ((d?.livenessScore ?? 0) > 0) skip.add(0);  // skip selfie if already done
+    if ((d?.photoScore ?? 0) > 0) skip.add(3);     // skip photos if already done
+    // start from step 0 if liveness not done, else step 1
+    _goToStep((d?.livenessScore ?? 0) > 0 ? 1 : 0, skipSteps: skip);
+  }
+
+  void _goToLifestyle() {
+    final d = _cachedData;
+    final skip = <int>{0, 1, 2}; // always skip to photos directly
+    _goToStep(3, skipSteps: skip);
+  }
+
+  Future<void> _goVerify() async => _goToIdentity();
 
   Widget _safetyCheck(TrustData d) {
     // Identity = liveness step score. The verification flow saves 'liveness'
@@ -289,7 +306,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
           lowText:  'Verify your identity — required to appear in search',
           midText:  'Complete face match to maximise identity score',
           lowPts:   '+50 pts →',
-          onTap:    _goVerify,
+          onTap:    _goToIdentity,
         ),
         const SizedBox(height: 16),
         _safetyItem(
@@ -298,6 +315,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
           lowText:  'Upload photos to verify your lifestyle and stand out',
           midText:  'Add more photos to complete your lifestyle score',
           lowPts:   '+8 pts →',
+          onTap:    _goToLifestyle,
         ),
         const SizedBox(height: 16),
         _safetyItem(
@@ -306,7 +324,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
           lowText:  'Answer Q&A questions — reveals your real intentions',
           midText:  'Add more answers to complete your intent signal',
           lowPts:   '+12 pts →',
-          onTap:    _goVerify,
+          onTap:    _goToIntent,
         ),
       ]),
     );

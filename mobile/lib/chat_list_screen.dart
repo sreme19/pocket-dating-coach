@@ -178,9 +178,14 @@ class _ChatListScreenState extends State<ChatListScreen>
 
   Future<void> _refresh() async {
     if (!mounted) return;
-    final f = _load();
-    setState(() { _future = f; });
-    await f;
+    // Load in background — don't replace _future until data is ready so the
+    // existing list stays visible (no loading spinner on every 15s poll).
+    try {
+      final data = await _load();
+      if (mounted) setState(() { _future = Future.value(data); });
+    } catch (e) {
+      if (mounted) setState(() { _future = Future.error(e); });
+    }
   }
 
   void _open(Conversation c) {

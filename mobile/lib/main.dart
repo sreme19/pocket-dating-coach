@@ -41,6 +41,22 @@ class VerifiedVibeApp extends StatelessWidget {
           seedColor: const Color(Config.accent),
           brightness: Brightness.light,
         ),
+        // Dark-themed dialogs & snackbars consistent with app design
+        dialogTheme: const DialogThemeData(
+          backgroundColor: Color(Config.bg2),
+          titleTextStyle: TextStyle(
+            color: Color(Config.text1), fontSize: 18, fontWeight: FontWeight.w700, fontFamily: 'Gabarito',
+          ),
+          contentTextStyle: TextStyle(color: Color(Config.text2), fontSize: 14, fontFamily: 'Gabarito'),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
+        ),
+        snackBarTheme: const SnackBarThemeData(
+          backgroundColor: Color(Config.bg2),
+          contentTextStyle: TextStyle(color: Color(Config.text1), fontFamily: 'Gabarito'),
+          actionTextColor: Color(Config.accent),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+        ),
       ),
       home: const AuthGate(),
     );
