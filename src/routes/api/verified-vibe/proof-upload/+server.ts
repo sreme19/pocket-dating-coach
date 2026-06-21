@@ -28,6 +28,35 @@ import { recomputeAndNormalize } from '$lib/server/trust-normalize';
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_MODEL   = 'claude-sonnet-4-6';
 
+/**
+ * Fetch with automatic retry on transient Claude API errors (503, 529, 5xx).
+ * Retries up to 3 times with exponential backoff (1s, 2s, 4s).
+ */
+async function fetchWithRetry(url: string, init: RequestInit, maxAttempts = 3): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const resp = await fetch(url, init);
+      // Retry on Anthropic overload (529) or server errors (5xx), but not 4xx
+      if (resp.status === 529 || (resp.status >= 500 && attempt < maxAttempts)) {
+        const delay = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s
+        console.warn(`Claude API ${resp.status} on attempt ${attempt}/${maxAttempts} — retrying in ${delay}ms`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      return resp;
+    } catch (err) {
+      lastError = err;
+      if (attempt < maxAttempts) {
+        const delay = Math.pow(2, attempt - 1) * 1000;
+        console.warn(`Claude API network error on attempt ${attempt}/${maxAttempts} — retrying in ${delay}ms`);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+  }
+  throw lastError ?? new Error('Claude API unreachable after retries');
+}
+
 // ── Per-category prompts (all return insights array) ─────────────────────────
 
 const PROMPTS: Record<string, string> = {
@@ -484,7 +513,7 @@ export const POST: RequestHandler = async ({ request }) => {
     /** Call Claude with PDF documents and parse the JSON response */
     async function callClaudeWithPdfs(pdfFiles: File[], promptText: string) {
       const content = await buildPdfContent(pdfFiles, promptText);
-      const resp = await fetch(CLAUDE_API_URL, {
+      const resp = await fetchWithRetry(CLAUDE_API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -578,7 +607,7 @@ export const POST: RequestHandler = async ({ request }) => {
       return json({ error: 'No valid images found (JPEG/PNG/WEBP)' }, { status: 400 });
     }
 
-    const claudeResp = await fetch(CLAUDE_API_URL, {
+    const claudeResp = await fetchWithRetry(CLAUDE_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
@@ -586,11 +615,11 @@ export const POST: RequestHandler = async ({ request }) => {
         max_tokens: 768,
         messages: [{ role: 'user', content: [...imageBlocks, { type: 'text', text: PROMPTS[category] }] }]
       }),
-      signal: AbortSignal.timeout(35_000),
+      signal: AbortSignal.timeout(60_000),
     });
 
     if (!claudeResp.ok) {
-      console.error('Claude API error:', claudeResp.status);
+      console.error('Claude API error after retries:', claudeResp.status);
       return json({ error: 'Vision API unavailable — try again' }, { status: 503 });
     }
 
