@@ -1359,7 +1359,10 @@ DateTime? _dt(dynamic v) => v == null ? null : DateTime.tryParse(v.toString());
 Future<List<Conversation>> fetchConversations() async {
   final resp = await _dio.get(
     '${Config.apiBase}/api/verified-vibe/chat/conversations',
-    options: Options(headers: {'Authorization': _bearer()}),
+    options: Options(
+      headers: {'Authorization': _bearer()},
+      receiveTimeout: const Duration(seconds: 45),
+    ),
   );
   final body = resp.data is Map ? resp.data as Map : const {};
   final data = body['data'] is Map ? body['data'] as Map : const {};

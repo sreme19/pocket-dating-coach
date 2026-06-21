@@ -260,19 +260,17 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
 
   void _goToIdentity() {
     final d = _cachedData;
-    final skip = <int>{};
-    if ((d?.qaScore ?? 0) > 0) skip.addAll({1, 2}); // skip Q&A if already done
-    if ((d?.photoScore ?? 0) > 0) skip.add(3);       // skip photos if already done
+    // Always skip photos (step 3) — photos belong to Lifestyle.
+    // Skip Q&A (steps 1 & 2) only if already answered.
+    final skip = <int>{3};
+    if ((d?.qaScore ?? 0) > 0) skip.addAll({1, 2});
     _goToStep(0, skipSteps: skip);
   }
 
   void _goToIntent() {
-    final d = _cachedData;
-    final skip = <int>{};
-    if ((d?.livenessScore ?? 0) > 0) skip.add(0);  // skip selfie if already done
-    if ((d?.photoScore ?? 0) > 0) skip.add(3);     // skip photos if already done
-    // start from step 0 if liveness not done, else step 1
-    _goToStep((d?.livenessScore ?? 0) > 0 ? 1 : 0, skipSteps: skip);
+    // Intent = Q&A steps only (1 & 2). Always skip selfie (step 0) and photos
+    // (step 3) — those belong to Identity and Lifestyle respectively.
+    _goToStep(1, skipSteps: const {0, 3});
   }
 
   void _goToLifestyle() {
