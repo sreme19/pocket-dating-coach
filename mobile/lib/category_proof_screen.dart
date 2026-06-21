@@ -391,116 +391,239 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
     return false;
   }
 
-  // ── Lightweight ID gate: just upload KTP and let AI verify ──────────────────
+  // ── 2-step ID gate: (1) upload government ID → extract name, (2) selfie → face match ──
   Future<void> _showIdGateSheet() async {
-    XFile? picked;
-    bool verifying = false;
+    // Shared state
+    int step = 1; // 1 = upload ID, 2 = take selfie
+    XFile? idPicked;
+    XFile? selfiePicked;
+    bool busy = false;
     String? error;
-    bool done = false;
+    String? detectedName;
+    String? idBase64;
+    String? idMime;
 
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(builder: (ctx, setS) {
-        return Container(
-          padding: EdgeInsets.fromLTRB(24, 20, 24, MediaQuery.of(ctx).padding.bottom + 24),
-          decoration: const BoxDecoration(
-            color: Color(Config.bg2),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+
+        // ── Step 1 content ──
+        Widget stepOneBody() => Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('🪪  Government ID', style: TextStyle(
+            fontSize: 18, fontWeight: FontWeight.w800, color: Color(Config.text1))),
+          const SizedBox(height: 8),
+          const Text(
+            'Upload a photo of your government ID or passport.\nYour name and face will be matched.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 14, color: Color(Config.text2), height: 1.5),
           ),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(width: 40, height: 4, decoration: BoxDecoration(
-              color: const Color(Config.text3), borderRadius: BorderRadius.circular(2))),
-            const SizedBox(height: 20),
-            const Text('🪪  Verify your identity', style: TextStyle(
-              fontSize: 18, fontWeight: FontWeight.w800, color: Color(Config.text1))),
-            const SizedBox(height: 8),
-            const Text(
-              'This category requires a quick identity check.\nUpload a photo of your government ID or passport — AI verifies it in seconds.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Color(Config.text2), height: 1.5),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(color: const Color(0x1AFBBF24), borderRadius: BorderRadius.circular(10)),
+            child: const Text(
+              '• Real ID card or passport (not a screenshot)\n• All text clearly readable\n• Good lighting, no blur or glare',
+              style: TextStyle(fontSize: 12, color: Color(Config.text2), height: 1.5),
             ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0x1AFBBF24),
-                borderRadius: BorderRadius.circular(10),
+          ),
+          const SizedBox(height: 16),
+          if (idPicked == null)
+            SizedBox(width: double.infinity, child: OutlinedButton.icon(
+              onPressed: () async {
+                final img = await ImagePicker().pickImage(source: ImageSource.gallery);
+                if (img != null) setS(() { idPicked = img; error = null; });
+              },
+              icon: const Icon(Icons.upload_file_rounded),
+              label: const Text('Choose ID photo'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                foregroundColor: const Color(Config.accent),
+                side: const BorderSide(color: Color(Config.accent)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Tips for best results:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFFFBBF24))),
-                SizedBox(height: 4),
-                Text('• Real ID card or passport (not a screenshot)\n• All text clearly readable\n• Good lighting, no blur or glare', style: TextStyle(fontSize: 12, color: Color(Config.text2), height: 1.5)),
+            ))
+          else
+            Row(children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.file(File(idPicked!.path), width: 72, height: 72, fit: BoxFit.cover),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text(idPicked!.name,
+                style: const TextStyle(fontSize: 13, color: Color(Config.text2)),
+                maxLines: 2, overflow: TextOverflow.ellipsis)),
+              TextButton(
+                onPressed: () => setS(() { idPicked = null; error = null; }),
+                child: const Text('Change'),
+              ),
+            ]),
+          if (error != null) ...[
+            const SizedBox(height: 10),
+            Text(error!, style: const TextStyle(color: Color(0xFFF87171), fontSize: 13)),
+          ],
+          const SizedBox(height: 16),
+          SizedBox(width: double.infinity, child: FilledButton(
+            onPressed: (idPicked == null || busy) ? null : () async {
+              setS(() { busy = true; error = null; });
+              try {
+                final result = await verifyIdExtract(idPicked!.path);
+                idBase64 = result['idBase64'] as String?;
+                idMime = result['idMime'] as String?;
+                final name = result['idName']?.toString();
+                setS(() { busy = false; detectedName = name; step = 2; });
+              } catch (e) {
+                setS(() { busy = false; error = e.toString().replaceFirst('Exception: ', ''); });
+              }
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(Config.accent),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: busy
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Continue', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+          )),
+        ]);
+
+        // ── Step 2 content ──
+        Widget stepTwoBody() => Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('🤳  Face match', style: TextStyle(
+            fontSize: 18, fontWeight: FontWeight.w800, color: Color(Config.text1))),
+          const SizedBox(height: 8),
+          if (detectedName != null && detectedName!.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0x1A22C55E),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0x6622C55E)),
+              ),
+              child: Row(children: [
+                const Icon(Icons.check_circle_outline_rounded, color: Color(0xFF22C55E), size: 16),
+                const SizedBox(width: 8),
+                Expanded(child: Text(
+                  'Name detected: $detectedName',
+                  style: const TextStyle(fontSize: 13, color: Color(0xFF22C55E), fontWeight: FontWeight.w600),
+                )),
               ]),
             ),
-            const SizedBox(height: 20),
-            if (picked == null)
-              SizedBox(width: double.infinity, child: OutlinedButton.icon(
+            const SizedBox(height: 10),
+          ],
+          const Text(
+            'Now take a quick selfie so we can confirm the face on your ID matches you.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 14, color: Color(Config.text2), height: 1.5),
+          ),
+          const SizedBox(height: 16),
+          if (selfiePicked == null)
+            Row(children: [
+              Expanded(child: OutlinedButton.icon(
                 onPressed: () async {
-                  final img = await ImagePicker().pickImage(source: ImageSource.gallery);
-                  if (img != null) setS(() { picked = img; error = null; });
+                  final img = await ImagePicker().pickImage(source: ImageSource.camera, preferredCameraDevice: CameraDevice.front);
+                  if (img != null) setS(() { selfiePicked = img; error = null; });
                 },
-                icon: const Icon(Icons.upload_file_rounded),
-                label: const Text('Choose ID photo'),
+                icon: const Icon(Icons.camera_front_rounded),
+                label: const Text('Take selfie'),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   foregroundColor: const Color(Config.accent),
                   side: const BorderSide(color: Color(Config.accent)),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-              ))
-            else
-              Row(children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.file(File(picked!.path), width: 72, height: 72, fit: BoxFit.cover),
+              )),
+              const SizedBox(width: 10),
+              Expanded(child: OutlinedButton.icon(
+                onPressed: () async {
+                  final img = await ImagePicker().pickImage(source: ImageSource.gallery);
+                  if (img != null) setS(() { selfiePicked = img; error = null; });
+                },
+                icon: const Icon(Icons.photo_library_rounded),
+                label: const Text('From gallery'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  foregroundColor: const Color(Config.text2),
+                  side: const BorderSide(color: Color(Config.text3)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                const SizedBox(width: 12),
-                Expanded(child: Text(picked!.name,
-                  style: const TextStyle(fontSize: 13, color: Color(Config.text2)),
-                  maxLines: 2, overflow: TextOverflow.ellipsis)),
-                TextButton(
-                  onPressed: () => setS(() { picked = null; error = null; }),
-                  child: const Text('Change'),
-                ),
-              ]),
-            if (error != null) ...[
-              const SizedBox(height: 10),
-              Text(error!, style: const TextStyle(color: Color(0xFFF87171), fontSize: 13)),
-            ],
-            const SizedBox(height: 20),
-            SizedBox(width: double.infinity, child: FilledButton(
-              onPressed: (picked == null || verifying || done) ? null : () async {
-                setS(() { verifying = true; error = null; });
-                try {
-                  final ok = await verifyIdStep(picked!.path);
-                  if (ok) {
-                    setS(() { done = true; verifying = false; });
-                    if (ctx.mounted) Navigator.of(ctx).pop(true);
-                  } else {
-                    setS(() { verifying = false; error = 'ID could not be verified. Please try a clearer photo.'; });
-                  }
-                } catch (e) {
-                  setS(() { verifying = false; error = _friendlyError(e); });
-                }
-              },
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(Config.accent),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              )),
+            ])
+          else
+            Row(children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.file(File(selfiePicked!.path), width: 72, height: 72, fit: BoxFit.cover),
               ),
-              child: verifying
-                  ? const SizedBox(width: 20, height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Verify ID', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-            )),
-          ]),
+              const SizedBox(width: 12),
+              const Expanded(child: Text('Selfie ready',
+                  style: TextStyle(fontSize: 13, color: Color(Config.text2)))),
+              TextButton(
+                onPressed: () => setS(() { selfiePicked = null; error = null; }),
+                child: const Text('Retake'),
+              ),
+            ]),
+          if (error != null) ...[
+            const SizedBox(height: 10),
+            Text(error!, style: const TextStyle(color: Color(0xFFF87171), fontSize: 13)),
+          ],
+          const SizedBox(height: 16),
+          SizedBox(width: double.infinity, child: FilledButton(
+            onPressed: (selfiePicked == null || busy || idBase64 == null) ? null : () async {
+              setS(() { busy = true; error = null; });
+              try {
+                final matched = await verifySelfieVsId(selfiePicked!.path, idBase64!, idMime ?? 'image/jpeg');
+                if (matched) {
+                  if (ctx.mounted) Navigator.of(ctx).pop(true);
+                } else {
+                  setS(() { busy = false; error = 'Face does not match the ID. Please retake your selfie in good lighting.'; });
+                }
+              } catch (e) {
+                setS(() { busy = false; error = e.toString().replaceFirst('Exception: ', ''); });
+              }
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(Config.accent),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: busy
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Match face', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+          )),
+          TextButton(
+            onPressed: busy ? null : () => setS(() { step = 1; idPicked = null; idBase64 = null; error = null; }),
+            child: const Text('← Back', style: TextStyle(color: Color(Config.text3), fontSize: 13)),
+          ),
+        ]);
+
+        return Container(
+          padding: EdgeInsets.fromLTRB(24, 20, 24, MediaQuery.of(ctx).padding.bottom + 24),
+          decoration: const BoxDecoration(
+            color: Color(Config.bg2),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(width: 40, height: 4, decoration: BoxDecoration(
+                color: const Color(Config.text3), borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 20),
+              // Step indicator
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                _StepDot(active: step == 1, done: step > 1, label: '1'),
+                Container(width: 24, height: 2, color: step > 1 ? const Color(Config.accent) : const Color(Config.text3)),
+                _StepDot(active: step == 2, done: false, label: '2'),
+              ]),
+              const SizedBox(height: 20),
+              step == 1 ? stepOneBody() : stepTwoBody(),
+            ]),
+          ),
         );
       }),
     );
 
-    // If ID was verified, retry the proof upload automatically
+    // If both steps passed, retry the proof upload automatically
     if (mounted) _analyse();
   }
 
@@ -1359,4 +1482,34 @@ class _UploadResult {
   final String text;
   final List<String> chips;
   const _UploadResult({required this.verified, required this.text, required this.chips});
+}
+
+class _StepDot extends StatelessWidget {
+  final bool active;
+  final bool done;
+  final String label;
+  const _StepDot({required this.active, required this.done, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final filled = active || done;
+    return Container(
+      width: 28, height: 28,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: filled ? const Color(Config.accent) : const Color(Config.bg3),
+        border: Border.all(
+          color: filled ? const Color(Config.accent) : const Color(Config.text3),
+        ),
+      ),
+      child: Center(
+        child: done
+            ? const Icon(Icons.check_rounded, color: Colors.white, size: 14)
+            : Text(label, style: TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w700,
+                color: active ? Colors.white : const Color(Config.text3),
+              )),
+      ),
+    );
+  }
 }

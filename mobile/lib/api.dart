@@ -1028,6 +1028,84 @@ Future<bool> verifyIdStep(String imagePath) async {
   throw Exception(msg?.isNotEmpty == true ? msg : 'ID verification failed. Please try again.');
 }
 
+/// Extract name and face from government ID. Returns map with keys:
+///   idName (String?), faceMatch (bool?), faceConfidence (num?), idBase64 (String)
+Future<Map<String, dynamic>> verifyIdExtract(String imagePath) async {
+  final bytes = await File(imagePath).readAsBytes();
+  final ext = imagePath.split('.').last.toLowerCase();
+  final mime = switch (ext) {
+    'png' => 'image/png', 'webp' => 'image/webp', _ => 'image/jpeg',
+  };
+  final b64 = base64Encode(bytes);
+  late Response resp;
+  try {
+    resp = await _dio.post(
+      '${Config.apiBase}/api/verified-vibe/verify-step',
+      data: {'step': 'id', 'data': {'image': b64, 'mimeType': mime}},
+      options: Options(
+        headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'},
+        receiveTimeout: const Duration(seconds: 60),
+        validateStatus: (s) => true,
+      ),
+    );
+  } on DioException {
+    throw Exception('Network error — check your connection and try again.');
+  }
+  final body = resp.data is Map ? resp.data as Map : const {};
+  if (resp.statusCode != 201 && body['status'] != 'completed') {
+    if (resp.statusCode == 422) {
+      throw Exception('ID photo could not be read. Make sure it\'s clear, well-lit, and not a screenshot.');
+    }
+    final msg = body['error']?.toString();
+    throw Exception(msg?.isNotEmpty == true ? msg : 'ID verification failed. Please try again.');
+  }
+  final data = body['data'] is Map ? body['data'] as Map : const {};
+  return {
+    'idName': data['idName']?.toString(),
+    'faceMatch': data['faceMatch'] as bool?,
+    'faceConfidence': data['faceConfidence'] as num?,
+    'idBase64': b64,
+    'idMime': mime,
+  };
+}
+
+/// Verify selfie face against the government ID photo.
+/// Returns true if match confidence >= 50.
+Future<bool> verifySelfieVsId(String selfiePath, String idBase64, String idMime) async {
+  final bytes = await File(selfiePath).readAsBytes();
+  final selfieB64 = base64Encode(bytes);
+  late Response resp;
+  try {
+    resp = await _dio.post(
+      '${Config.apiBase}/api/verified-vibe/verify-step',
+      data: {
+        'step': 'liveness',
+        'data': {
+          'selfieImage': selfieB64,
+          'mimeType': 'image/jpeg',
+          'idPhotoBase64': idBase64,
+        },
+      },
+      options: Options(
+        headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'},
+        receiveTimeout: const Duration(seconds: 60),
+        validateStatus: (s) => true,
+      ),
+    );
+  } on DioException {
+    throw Exception('Network error — check your connection and try again.');
+  }
+  final body = resp.data is Map ? resp.data as Map : const {};
+  if (resp.statusCode != 201 && body['status'] != 'completed') {
+    final msg = body['error']?.toString();
+    throw Exception(msg?.isNotEmpty == true ? msg : 'Face verification failed. Please try again.');
+  }
+  final data = body['data'] is Map ? body['data'] as Map : const {};
+  final match = data['match'] == true;
+  final conf = (data['confidence'] as num?)?.toDouble() ?? 0;
+  return match || conf >= 50;
+}
+
 /// Upload proof with both a profile URL and a file (e.g. LinkedIn URL + resume PDF).
 Future<Map> uploadProofWithUrl(String category, String profileUrl, String filePath) async {
   final form = FormData();
