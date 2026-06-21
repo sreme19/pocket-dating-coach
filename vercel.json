@@ -3,6 +3,14 @@
     {
       "path": "/api/voice/cron/reap-stale-calls",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/health-alert",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/daily-report",
+      "schedule": "0 8 * * *"
     }
   ]
 }
