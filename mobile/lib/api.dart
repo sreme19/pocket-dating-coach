@@ -641,6 +641,19 @@ Future<void> saveArchetype(String archetype) async {
   await supabase.from('verified_vibe_users').update({'archetype': archetype}).eq('id', user.id);
 }
 
+/// Delete the spending_or_qa verification step so the user re-fills Q&A
+/// after changing their lane/archetype (different archetypes have different questions).
+Future<void> resetQAVerification() async {
+  final supabase = Supabase.instance.client;
+  final user = supabase.auth.currentUser;
+  if (user == null) return;
+  await supabase
+      .from('verified_vibe_verification')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('step', 'spending_or_qa');
+}
+
 /// Persist hard-nos (dealbreakers) to verified_vibe_users.hard_nos.
 Future<void> saveHardNos(List<String> hardNos) async {
   final supabase = Supabase.instance.client;
@@ -836,6 +849,8 @@ class TrustData {
   // Money Matters (self-declared from master-profile)
   final String? annualIncome;
   final String? netWorth;
+  // Travel Magnets (manual + AI-detected countries)
+  final List<String> countries;
   TrustData({
     required this.trustScore,
     required this.identityVerified,
@@ -847,6 +862,7 @@ class TrustData {
     this.qaScore = 0,
     this.annualIncome,
     this.netWorth,
+    this.countries = const [],
   });
   int get proofPoints => proofs.fold(0, (s, p) => s + p.points);
   ProofItem? proofFor(String category) {
@@ -906,6 +922,7 @@ Future<TrustData> fetchTrust() async {
   List<ProofItem> proofs = [];
   String? annualIncome;
   String? netWorth;
+  final List<String> countries = [];
   try {
     final resp = await _dio.get(
       '${Config.apiBase}/api/verified-vibe/master-profile',
@@ -932,6 +949,12 @@ Future<TrustData> fetchTrust() async {
     final mm = body['moneyMatters'] as Map?;
     annualIncome = ne(mm?['annualIncome']);
     netWorth     = ne(mm?['netWorth']);
+    if (body['countriesTraveled'] is List) {
+      for (final c in (body['countriesTraveled'] as List)) {
+        final s = c?.toString().trim() ?? '';
+        if (s.isNotEmpty && !countries.contains(s)) countries.add(s);
+      }
+    }
   } catch (_) {}
 
   // Trust score = direct sum of completed verification pts + proof pts_awarded.
@@ -957,6 +980,7 @@ Future<TrustData> fetchTrust() async {
     qaScore:         qaScore,
     annualIncome:    annualIncome,
     netWorth:        netWorth,
+    countries:       countries,
   );
 }
 

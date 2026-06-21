@@ -1608,7 +1608,15 @@ class _LanePickerSheetState extends State<_LanePickerSheet> {
     setState(() => _saving = true);
     try {
       await saveArchetype(a.id);
-      if (ctx.mounted) Navigator.of(ctx).pop();
+      // Reset Q&A so user re-fills with new archetype's questions
+      await resetQAVerification();
+      if (ctx.mounted) {
+        Navigator.of(ctx).pop();
+        ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+          content: Text('Lane updated! Please re-fill your Intent Q&A in Trust & Boost.'),
+          duration: Duration(seconds: 4),
+        ));
+      }
       widget.onChanged();
     } catch (e) {
       if (mounted) setState(() => _saving = false);
