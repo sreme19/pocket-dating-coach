@@ -470,6 +470,39 @@ Future<void> saveAbout(String about, Map<String, dynamic> existingGenerated) asy
   );
 }
 
+/// Ask AI to generate an About bio based on current profile data.
+/// Returns a suggested about string, or throws on error.
+Future<String> generateAboutText(ProfileData d) async {
+  final session = Supabase.instance.client.auth.currentSession;
+  if (session == null) throw StateError('Not authenticated');
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/generate-profile',
+    data: {
+      'intake': {
+        'firstName': d.name,
+        'age': d.age ?? 0,
+        'city': d.city ?? '',
+        'about': d.about,
+        'lookingFor': '',
+        'personalityTags': d.vibeWords,
+        'interests': d.countries,
+      },
+      'photoLabels': [],
+      'archetype': d.archetype,
+      'trustScore': d.trustScore,
+    },
+    options: Options(headers: {
+      'Authorization': 'Bearer ${session.accessToken}',
+      'Content-Type': 'application/json',
+    }),
+  );
+  final body = resp.data;
+  if (body is Map && body['about'] is String && (body['about'] as String).isNotEmpty) {
+    return body['about'] as String;
+  }
+  throw 'Could not generate — try again.';
+}
+
 /// Save Money Matters directly to the top-level moneyMatters field (used from
 /// Trust & Boost — no existingGenerated required).
 Future<void> saveMoneyMattersDirect({String? income, String? netWorth}) async {

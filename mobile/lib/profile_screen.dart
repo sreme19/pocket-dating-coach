@@ -1,6 +1,8 @@
 import 'dart:math' show pi, cos, sin, min;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:dio/dio.dart';
+import 'package:geolocator/geolocator.dart';
 import 'api.dart';
 import 'archetype_detail_sheet.dart';
 import 'archetypes.dart';
@@ -452,26 +454,168 @@ class _ProfileBody extends StatelessWidget {
 
 Future<void> _editIdentity(BuildContext context, ProfileData d, VoidCallback onChanged) async {
   final nameCtrl = TextEditingController(text: d.name == 'You' ? '' : d.name);
-  final ageCtrl = TextEditingController(text: d.age?.toString() ?? '');
+  final ageCtrl  = TextEditingController(text: d.age?.toString() ?? '');
   final cityCtrl = TextEditingController(text: d.city ?? '');
-  await _editSheet(
-    context,
-    title: 'Edit your details',
-    fields: [
-      _EditField(controller: nameCtrl, label: 'First name', textCapitalization: TextCapitalization.words),
-      _EditField(controller: ageCtrl, label: 'Age', keyboardType: TextInputType.number),
-      _EditField(controller: cityCtrl, label: 'City'),
-    ],
-    onSave: () async {
-      final name = nameCtrl.text.trim();
-      if (name.isEmpty) throw 'Name can’t be empty';
-      await saveIdentity(
-        firstName: name,
-        age: int.tryParse(ageCtrl.text.trim()),
-        city: cityCtrl.text.trim(),
-      );
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: const Color(Config.bg2),
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (ctx) {
+      var saving = false;
+      var detecting = false;
+      String? error;
+      return StatefulBuilder(builder: (ctx, setS) {
+        Future<void> detectCity() async {
+          LocationPermission perm = await Geolocator.checkPermission();
+          if (perm == LocationPermission.denied) perm = await Geolocator.requestPermission();
+          if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+            if (ctx.mounted) {
+              showDialog(
+                context: ctx,
+                builder: (_) => AlertDialog(
+                  title: const Text('Location access needed'),
+                  content: const Text('Enable location in Settings so we can detect your city.'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                    TextButton(
+                      onPressed: () { Navigator.pop(ctx); Geolocator.openAppSettings(); },
+                      child: const Text('Open Settings'),
+                    ),
+                  ],
+                ),
+              );
+            }
+            return;
+          }
+          setS(() => detecting = true);
+          try {
+            final pos = await Geolocator.getCurrentPosition(
+              locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
+            ).timeout(const Duration(seconds: 10));
+            final resp = await Dio().get(
+              'https://nominatim.openstreetmap.org/reverse',
+              queryParameters: {'lat': pos.latitude, 'lon': pos.longitude, 'format': 'json'},
+              options: Options(headers: {'User-Agent': 'riteangle-app/1.0'}),
+            );
+            final addr = resp.data['address'] as Map? ?? {};
+            final city = (addr['city'] ?? addr['town'] ?? addr['village'] ?? addr['county'] ?? '').toString();
+            if (city.isNotEmpty && ctx.mounted) setS(() => cityCtrl.text = city);
+          } catch (_) {
+          } finally {
+            if (ctx.mounted) setS(() => detecting = false);
+          }
+        }
+
+        return Padding(
+          padding: EdgeInsets.fromLTRB(20, 18, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Edit your details',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+              const SizedBox(height: 16),
+              // First name
+              TextField(
+                controller: nameCtrl,
+                textCapitalization: TextCapitalization.words,
+                style: const TextStyle(color: Color(Config.text1)),
+                decoration: InputDecoration(
+                  labelText: 'First name',
+                  labelStyle: const TextStyle(color: Color(Config.text2)),
+                  filled: true, fillColor: const Color(Config.bg3),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Age
+              TextField(
+                controller: ageCtrl,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: Color(Config.text1)),
+                decoration: InputDecoration(
+                  labelText: 'Age',
+                  labelStyle: const TextStyle(color: Color(Config.text2)),
+                  filled: true, fillColor: const Color(Config.bg3),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+              const SizedBox(height: 12),
+              // City + detect button
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: cityCtrl,
+                      style: const TextStyle(color: Color(Config.text1)),
+                      decoration: InputDecoration(
+                        labelText: 'City',
+                        labelStyle: const TextStyle(color: Color(Config.text2)),
+                        filled: true, fillColor: const Color(Config.bg3),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    height: 56,
+                    child: FilledButton(
+                      onPressed: detecting ? null : detectCity,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(Config.bg3),
+                        foregroundColor: const Color(Config.accent),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                      child: detecting
+                          ? const SizedBox(width: 18, height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)))
+                          : const Icon(Icons.my_location_rounded, size: 20),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (error != null) ...[
+                Text(error!, style: const TextStyle(color: Color(0xFFF87171), fontSize: 13)),
+                const SizedBox(height: 8),
+              ],
+              SizedBox(
+                width: double.infinity, height: 50,
+                child: FilledButton(
+                  onPressed: saving ? null : () async {
+                    final name = nameCtrl.text.trim();
+                    if (name.isEmpty) { setS(() => error = 'Name can\'t be empty'); return; }
+                    setS(() { saving = true; error = null; });
+                    try {
+                      await saveIdentity(
+                        firstName: name,
+                        age: int.tryParse(ageCtrl.text.trim()),
+                        city: cityCtrl.text.trim(),
+                      );
+                      if (ctx.mounted) Navigator.of(ctx).pop();
+                      onChanged();
+                    } catch (e) {
+                      setS(() { saving = false; error = '$e'; });
+                    }
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(Config.accent),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: saving
+                      ? const SizedBox(width: 18, height: 18,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        );
+      });
     },
-    onChanged: onChanged,
   );
 }
 
@@ -653,14 +797,102 @@ Widget _moneyRangePills({
 
 Future<void> _editAbout(BuildContext context, ProfileData d, VoidCallback onChanged) async {
   final ctrl = TextEditingController(text: d.about);
-  await _editSheet(
-    context,
-    title: 'Edit your About',
-    fields: [
-      _EditField(controller: ctrl, label: 'About you', maxLines: 5, textCapitalization: TextCapitalization.sentences),
-    ],
-    onSave: () => saveAbout(ctrl.text, d.rawGenerated),
-    onChanged: onChanged,
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: const Color(Config.bg2),
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (ctx) {
+      var saving = false;
+      var generating = false;
+      String? error;
+      return StatefulBuilder(builder: (ctx, setS) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(20, 18, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Edit your About',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+              const SizedBox(height: 16),
+              TextField(
+                controller: ctrl,
+                maxLines: 5,
+                textCapitalization: TextCapitalization.sentences,
+                style: const TextStyle(color: Color(Config.text1)),
+                decoration: InputDecoration(
+                  labelText: 'About you',
+                  alignLabelWithHint: true,
+                  labelStyle: const TextStyle(color: Color(Config.text2)),
+                  filled: true, fillColor: const Color(Config.bg3),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+              const SizedBox(height: 10),
+              // AI generate button
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: (generating || saving) ? null : () async {
+                    setS(() { generating = true; error = null; });
+                    try {
+                      final text = await generateAboutText(d);
+                      if (ctx.mounted) setS(() { ctrl.text = text; generating = false; });
+                    } catch (e) {
+                      if (ctx.mounted) setS(() { error = '$e'; generating = false; });
+                    }
+                  },
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(Config.accentBright),
+                    side: const BorderSide(color: Color(Config.accentBright)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  icon: generating
+                      ? const SizedBox(width: 16, height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accentBright)))
+                      : const Text('✨', style: TextStyle(fontSize: 16)),
+                  label: Text(
+                    generating ? 'Generating…' : 'Generate with AI',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (error != null) ...[
+                Text(error!, style: const TextStyle(color: Color(0xFFF87171), fontSize: 13)),
+                const SizedBox(height: 8),
+              ],
+              SizedBox(
+                width: double.infinity, height: 50,
+                child: FilledButton(
+                  onPressed: saving ? null : () async {
+                    setS(() { saving = true; error = null; });
+                    try {
+                      await saveAbout(ctrl.text, d.rawGenerated);
+                      if (ctx.mounted) Navigator.of(ctx).pop();
+                      onChanged();
+                    } catch (e) {
+                      setS(() { saving = false; error = '$e'; });
+                    }
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(Config.accent),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: saving
+                      ? const SizedBox(width: 18, height: 18,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        );
+      });
+    },
   );
 }
 
@@ -1555,7 +1787,7 @@ class _PortraitTileState extends State<_PortraitTile> {
       await generatePortrait(referenceImageUrl: ref, lifestyle: widget.lifestyle);
       widget.onChanged();
     } catch (e) {
-      setState(() { _busy = false; _error = 'Couldn’t generate: $e'; });
+      setState(() { _busy = false; _error = 'Couldn\'t generate: $e'; });
     }
   }
 
