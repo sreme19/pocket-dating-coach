@@ -470,6 +470,39 @@ Future<void> saveAbout(String about, Map<String, dynamic> existingGenerated) asy
   );
 }
 
+/// Ask AI to generate an About bio based on current profile data.
+/// Returns a suggested about string, or throws on error.
+Future<String> generateAboutText(ProfileData d) async {
+  final session = Supabase.instance.client.auth.currentSession;
+  if (session == null) throw StateError('Not authenticated');
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/generate-profile',
+    data: {
+      'intake': {
+        'firstName': d.name,
+        'age': d.age ?? 0,
+        'city': d.city ?? '',
+        'about': d.about,
+        'lookingFor': '',
+        'personalityTags': d.vibeWords,
+        'interests': d.countries,
+      },
+      'photoLabels': [],
+      'archetype': d.archetype,
+      'trustScore': d.trustScore,
+    },
+    options: Options(headers: {
+      'Authorization': 'Bearer ${session.accessToken}',
+      'Content-Type': 'application/json',
+    }),
+  );
+  final body = resp.data;
+  if (body is Map && body['about'] is String && (body['about'] as String).isNotEmpty) {
+    return body['about'] as String;
+  }
+  throw 'Could not generate — try again.';
+}
+
 /// Save Money Matters directly to the top-level moneyMatters field (used from
 /// Trust & Boost — no existingGenerated required).
 Future<void> saveMoneyMattersDirect({String? income, String? netWorth}) async {
@@ -955,12 +988,30 @@ Future<Map> uploadProof(String category, List<String> filePaths) async {
     form.files.add(MapEntry('files',
         await MultipartFile.fromFile(path, contentType: _mimeOf(path))));
   }
-  final resp = await _dio.post(
-    '${Config.apiBase}/api/verified-vibe/proof-upload',
-    data: form,
-    options: Options(headers: {'Authorization': _bearer()}, receiveTimeout: const Duration(seconds: 120)),
-  );
-  return resp.data is Map ? resp.data as Map : const {};
+  late Response resp;
+  try {
+    resp = await _dio.post(
+      '${Config.apiBase}/api/verified-vibe/proof-upload',
+      data: form,
+      options: Options(
+        headers: {'Authorization': _bearer()},
+        receiveTimeout: const Duration(seconds: 120),
+        validateStatus: (s) => true,
+      ),
+    );
+  } on DioException {
+    throw Exception('Connection error — please check your internet and try again.');
+  }
+  final body = resp.data is Map ? resp.data as Map : const {};
+  if ((resp.statusCode ?? 0) >= 400) {
+    final code = resp.statusCode;
+    final serverMsg = (body['error'] ?? body['message'])?.toString();
+    if (code == 503) throw Exception('AI service temporarily unavailable. Please try again in a moment.');
+    if (code == 401 || code == 403) throw Exception('Session expired — please sign out and back in.');
+    if (serverMsg != null && serverMsg.isNotEmpty && serverMsg.length < 200) throw Exception(serverMsg);
+    throw Exception('Upload failed (error $code). Please try again.');
+  }
+  return body;
 }
 
 /// Submit a government-ID photo (KTP/passport) for the lightweight ID gate.
@@ -995,6 +1046,84 @@ Future<bool> verifyIdStep(String imagePath) async {
   throw Exception(msg?.isNotEmpty == true ? msg : 'ID verification failed. Please try again.');
 }
 
+/// Extract name and face from government ID. Returns map with keys:
+///   idName (String?), faceMatch (bool?), faceConfidence (num?), idBase64 (String)
+Future<Map<String, dynamic>> verifyIdExtract(String imagePath) async {
+  final bytes = await File(imagePath).readAsBytes();
+  final ext = imagePath.split('.').last.toLowerCase();
+  final mime = switch (ext) {
+    'png' => 'image/png', 'webp' => 'image/webp', _ => 'image/jpeg',
+  };
+  final b64 = base64Encode(bytes);
+  late Response resp;
+  try {
+    resp = await _dio.post(
+      '${Config.apiBase}/api/verified-vibe/verify-step',
+      data: {'step': 'id', 'data': {'image': b64, 'mimeType': mime}},
+      options: Options(
+        headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'},
+        receiveTimeout: const Duration(seconds: 60),
+        validateStatus: (s) => true,
+      ),
+    );
+  } on DioException {
+    throw Exception('Network error — check your connection and try again.');
+  }
+  final body = resp.data is Map ? resp.data as Map : const {};
+  if (resp.statusCode != 201 && body['status'] != 'completed') {
+    if (resp.statusCode == 422) {
+      throw Exception('ID photo could not be read. Make sure it\'s clear, well-lit, and not a screenshot.');
+    }
+    final msg = body['error']?.toString();
+    throw Exception(msg?.isNotEmpty == true ? msg : 'ID verification failed. Please try again.');
+  }
+  final data = body['data'] is Map ? body['data'] as Map : const {};
+  return {
+    'idName': data['idName']?.toString(),
+    'faceMatch': data['faceMatch'] as bool?,
+    'faceConfidence': data['faceConfidence'] as num?,
+    'idBase64': b64,
+    'idMime': mime,
+  };
+}
+
+/// Verify selfie face against the government ID photo.
+/// Returns true if match confidence >= 50.
+Future<bool> verifySelfieVsId(String selfiePath, String idBase64, String idMime) async {
+  final bytes = await File(selfiePath).readAsBytes();
+  final selfieB64 = base64Encode(bytes);
+  late Response resp;
+  try {
+    resp = await _dio.post(
+      '${Config.apiBase}/api/verified-vibe/verify-step',
+      data: {
+        'step': 'liveness',
+        'data': {
+          'selfieImage': selfieB64,
+          'mimeType': 'image/jpeg',
+          'idPhotoBase64': idBase64,
+        },
+      },
+      options: Options(
+        headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'},
+        receiveTimeout: const Duration(seconds: 60),
+        validateStatus: (s) => true,
+      ),
+    );
+  } on DioException {
+    throw Exception('Network error — check your connection and try again.');
+  }
+  final body = resp.data is Map ? resp.data as Map : const {};
+  if (resp.statusCode != 201 && body['status'] != 'completed') {
+    final msg = body['error']?.toString();
+    throw Exception(msg?.isNotEmpty == true ? msg : 'Face verification failed. Please try again.');
+  }
+  final data = body['data'] is Map ? body['data'] as Map : const {};
+  final match = data['match'] == true;
+  final conf = (data['confidence'] as num?)?.toDouble() ?? 0;
+  return match || conf >= 50;
+}
+
 /// Upload proof with both a profile URL and a file (e.g. LinkedIn URL + resume PDF).
 Future<Map> uploadProofWithUrl(String category, String profileUrl, String filePath) async {
   final form = FormData();
@@ -1002,12 +1131,7 @@ Future<Map> uploadProofWithUrl(String category, String profileUrl, String filePa
   form.fields.add(MapEntry('profile_url', profileUrl));
   form.files.add(MapEntry('files',
       await MultipartFile.fromFile(filePath, contentType: _mimeOf(filePath))));
-  final resp = await _dio.post(
-    '${Config.apiBase}/api/verified-vibe/proof-upload',
-    data: form,
-    options: Options(headers: {'Authorization': _bearer()}, receiveTimeout: const Duration(seconds: 120)),
-  );
-  return resp.data is Map ? resp.data as Map : const {};
+  return _uploadProofPost(form);
 }
 
 /// Verify a social proof by profile URL (linkedin / instagram / twitter) — the
@@ -1016,12 +1140,34 @@ Future<Map> uploadProofUrl(String category, String profileUrl) async {
   final form = FormData();
   form.fields.add(MapEntry('category', category));
   form.fields.add(MapEntry('profile_url', profileUrl));
-  final resp = await _dio.post(
-    '${Config.apiBase}/api/verified-vibe/proof-upload',
-    data: form,
-    options: Options(headers: {'Authorization': _bearer()}, receiveTimeout: const Duration(seconds: 120)),
-  );
-  return resp.data is Map ? resp.data as Map : const {};
+  return _uploadProofPost(form);
+}
+
+Future<Map> _uploadProofPost(FormData form) async {
+  late Response resp;
+  try {
+    resp = await _dio.post(
+      '${Config.apiBase}/api/verified-vibe/proof-upload',
+      data: form,
+      options: Options(
+        headers: {'Authorization': _bearer()},
+        receiveTimeout: const Duration(seconds: 120),
+        validateStatus: (s) => true,
+      ),
+    );
+  } on DioException {
+    throw Exception('Connection error — please check your internet and try again.');
+  }
+  final body = resp.data is Map ? resp.data as Map : const {};
+  if ((resp.statusCode ?? 0) >= 400) {
+    final code = resp.statusCode;
+    final serverMsg = (body['error'] ?? body['message'])?.toString();
+    if (code == 503) throw Exception('AI service temporarily unavailable. Please try again in a moment.');
+    if (code == 401 || code == 403) throw Exception('Session expired — please sign out and back in.');
+    if (serverMsg != null && serverMsg.isNotEmpty && serverMsg.length < 200) throw Exception(serverMsg);
+    throw Exception('Upload failed (error $code). Please try again.');
+  }
+  return body;
 }
 
 /// Permanently delete the account + all data (DELETE /api/verified-vibe/account).
@@ -1213,7 +1359,10 @@ DateTime? _dt(dynamic v) => v == null ? null : DateTime.tryParse(v.toString());
 Future<List<Conversation>> fetchConversations() async {
   final resp = await _dio.get(
     '${Config.apiBase}/api/verified-vibe/chat/conversations',
-    options: Options(headers: {'Authorization': _bearer()}),
+    options: Options(
+      headers: {'Authorization': _bearer()},
+      receiveTimeout: const Duration(seconds: 45),
+    ),
   );
   final body = resp.data is Map ? resp.data as Map : const {};
   final data = body['data'] is Map ? body['data'] as Map : const {};
@@ -1497,25 +1646,35 @@ Future<ChatMessage?> sendMessage(String conversationId, String content) async {
   return m == null ? null : ChatMessage.fromApi(m);
 }
 
-/// After mobile onboarding completes, sync Q&A responses from
-/// `verified_vibe_verification` into `user_master_profile.onboarding`
-/// so the web profile and AI context can read them.
+/// After mobile onboarding completes, sync data from `verified_vibe_users` and
+/// `verified_vibe_verification` into `user_master_profile` so the web profile
+/// and AI context can read them. Also pushes profileDraft (name/age/city).
 /// Fire-and-forget safe — catch errors at the call site.
 Future<void> syncVerificationToMasterProfile() async {
   final session = Supabase.instance.client.auth.currentSession;
   if (session == null) return;
   final uid = session.user.id;
 
-  // Read all Q&A rows from verified_vibe_verification
-  final rows = await Supabase.instance.client
-      .from('verified_vibe_verification')
-      .select('step, data')
-      .eq('user_id', uid)
-      .eq('status', 'completed');
+  // Run verification rows + user row fetches in parallel
+  final results = await Future.wait<dynamic>([
+    Supabase.instance.client
+        .from('verified_vibe_verification')
+        .select('step, data')
+        .eq('user_id', uid)
+        .eq('status', 'completed'),
+    Supabase.instance.client
+        .from('verified_vibe_users')
+        .select('first_name, age, city')
+        .eq('id', uid)
+        .maybeSingle(),
+  ]);
 
-  // Merge all `responses` fields from spending_or_qa steps
+  final rows = results[0] as List;
+  final userRow = results[1] as Map?;
+
+  // Merge all `responses` fields from spending_or_qa rows
   final mergedResponses = <String, dynamic>{};
-  for (final row in (rows as List)) {
+  for (final row in rows) {
     final data = row['data'] as Map?;
     final responses = data?['responses'];
     if (responses is Map) {
@@ -1523,11 +1682,28 @@ Future<void> syncVerificationToMasterProfile() async {
     }
   }
 
-  if (mergedResponses.isEmpty) return;
+  final payload = <String, dynamic>{};
+
+  if (mergedResponses.isNotEmpty) {
+    payload['onboarding'] = mergedResponses;
+  }
+
+  // Push profileDraft so web profile displays name/age/city without a separate save
+  if (userRow != null) {
+    final draft = <String, dynamic>{};
+    final name = (userRow['first_name'] ?? '').toString();
+    if (name.isNotEmpty) draft['firstName'] = name;
+    if (userRow['age'] != null) draft['age'] = userRow['age'];
+    final city = (userRow['city'] ?? '').toString();
+    if (city.isNotEmpty) draft['city'] = city;
+    if (draft.isNotEmpty) payload['profileDraft'] = draft;
+  }
+
+  if (payload.isEmpty) return;
 
   await _dio.post(
     '${Config.apiBase}/api/verified-vibe/master-profile',
-    data: {'onboarding': mergedResponses},
+    data: payload,
     options: Options(headers: {
       'Authorization': 'Bearer ${session.accessToken}',
       'Content-Type': 'application/json',

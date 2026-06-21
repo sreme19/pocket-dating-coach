@@ -167,9 +167,14 @@ class _ChatListScreenState extends State<ChatListScreen>
       return _ChatData(gender: gender, conversations: convos, admirers: admirers, sentAdmirers: sentAdmirers, tipSummary: tipSummary);
     } catch (e) {
       final msg = e.toString();
-      if (msg.contains('SocketException') || msg.contains('timeout') ||
-          msg.contains('connection') || msg.contains('DioException')) {
+      if (msg.contains('SocketException') || msg.contains('Failed host lookup') ||
+          msg.contains('connection timeout') || msg.contains('receive timeout') ||
+          msg.contains('connect timeout') || msg.contains('Network is unreachable') ||
+          msg.contains('Connection refused')) {
         throw Exception('No internet connection. Please check your network and retry.');
+      }
+      if (msg.contains('timed out') && !msg.contains('401')) {
+        throw Exception('Server took too long to respond. Please try again.');
       }
       if (msg.contains('401') || msg.contains('Unauthorized')) {
         throw Exception('Session expired. Please sign out and sign back in.');

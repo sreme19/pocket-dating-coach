@@ -10,7 +10,7 @@ class EarnProfileScreen extends StatelessWidget {
   const EarnProfileScreen({super.key, required this.onStart, this.onSkip});
 
   static const _steps = [
-    ('01', 'Government ID',    'prove you\'re real',       '~30 sec'),
+    ('01', 'Identity Selfie',  'prove you\'re real',       '~30 sec'),
     ('02', 'Lifestyle Choices','prove you\'re solid',      '~45 sec'),
     ('03', 'Match Preferences','tell us who you want',     '~3 min' ),
   ];
@@ -122,7 +122,7 @@ class EarnProfileScreen extends StatelessWidget {
                         elevation: 0,
                       ),
                       child: const Text(
-                        'Start with Government ID →',
+                        'Start with Identity Selfie →',
                         style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                       ),
                     ),
