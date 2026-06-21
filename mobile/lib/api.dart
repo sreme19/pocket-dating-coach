@@ -1643,25 +1643,35 @@ Future<ChatMessage?> sendMessage(String conversationId, String content) async {
   return m == null ? null : ChatMessage.fromApi(m);
 }
 
-/// After mobile onboarding completes, sync Q&A responses from
-/// `verified_vibe_verification` into `user_master_profile.onboarding`
-/// so the web profile and AI context can read them.
+/// After mobile onboarding completes, sync data from `verified_vibe_users` and
+/// `verified_vibe_verification` into `user_master_profile` so the web profile
+/// and AI context can read them. Also pushes profileDraft (name/age/city).
 /// Fire-and-forget safe — catch errors at the call site.
 Future<void> syncVerificationToMasterProfile() async {
   final session = Supabase.instance.client.auth.currentSession;
   if (session == null) return;
   final uid = session.user.id;
 
-  // Read all Q&A rows from verified_vibe_verification
-  final rows = await Supabase.instance.client
-      .from('verified_vibe_verification')
-      .select('step, data')
-      .eq('user_id', uid)
-      .eq('status', 'completed');
+  // Run verification rows + user row fetches in parallel
+  final results = await Future.wait<dynamic>([
+    Supabase.instance.client
+        .from('verified_vibe_verification')
+        .select('step, data')
+        .eq('user_id', uid)
+        .eq('status', 'completed'),
+    Supabase.instance.client
+        .from('verified_vibe_users')
+        .select('first_name, age, city')
+        .eq('id', uid)
+        .maybeSingle(),
+  ]);
 
-  // Merge all `responses` fields from spending_or_qa steps
+  final rows = results[0] as List;
+  final userRow = results[1] as Map?;
+
+  // Merge all `responses` fields from spending_or_qa rows
   final mergedResponses = <String, dynamic>{};
-  for (final row in (rows as List)) {
+  for (final row in rows) {
     final data = row['data'] as Map?;
     final responses = data?['responses'];
     if (responses is Map) {
@@ -1669,11 +1679,28 @@ Future<void> syncVerificationToMasterProfile() async {
     }
   }
 
-  if (mergedResponses.isEmpty) return;
+  final payload = <String, dynamic>{};
+
+  if (mergedResponses.isNotEmpty) {
+    payload['onboarding'] = mergedResponses;
+  }
+
+  // Push profileDraft so web profile displays name/age/city without a separate save
+  if (userRow != null) {
+    final draft = <String, dynamic>{};
+    final name = (userRow['first_name'] ?? '').toString();
+    if (name.isNotEmpty) draft['firstName'] = name;
+    if (userRow['age'] != null) draft['age'] = userRow['age'];
+    final city = (userRow['city'] ?? '').toString();
+    if (city.isNotEmpty) draft['city'] = city;
+    if (draft.isNotEmpty) payload['profileDraft'] = draft;
+  }
+
+  if (payload.isEmpty) return;
 
   await _dio.post(
     '${Config.apiBase}/api/verified-vibe/master-profile',
-    data: {'onboarding': mergedResponses},
+    data: payload,
     options: Options(headers: {
       'Authorization': 'Bearer ${session.accessToken}',
       'Content-Type': 'application/json',
