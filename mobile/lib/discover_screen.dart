@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api.dart';
 import 'config.dart';
 import 'profile_body.dart';
@@ -45,8 +46,11 @@ class _DiscoverScreenState extends State<DiscoverScreen>
   }
 
   Future<void> _load() async {
-    setState(() { _feed = null; _error = null; _idx = 0; _bestieFlags = []; _bestieFlagsLoading = false; });
+    // Don't clear the existing feed — keep it visible while reloading.
+    setState(() { _error = null; });
     try {
+      // Refresh auth session first to avoid 401 errors after returning from other screens.
+      try { await Supabase.instance.client.auth.refreshSession(); } catch (_) {}
       final list = await fetchDiscovery();
       fetchCurrentUserGender().then((g) {
         if (mounted) {
@@ -71,10 +75,22 @@ class _DiscoverScreenState extends State<DiscoverScreen>
       if (!mounted) return;
       setState(() {
         _feed = list;
+        _idx = 0;
+        _bestieFlags = [];
+        _bestieFlagsLoading = false;
         _detail = list.isEmpty ? null : fetchMatchDetail(list.first.id);
       });
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      if (!mounted) return;
+      final msg = e.toString();
+      final friendly = msg.contains('401') || msg.contains('Unauthorized')
+          ? 'Session expired — please restart the app.'
+          : (msg.contains('SocketException') || msg.contains('network') ||
+                  msg.contains('connection') || msg.contains('timeout') ||
+                  msg.contains('DioException'))
+              ? 'No internet connection. Pull down to retry.'
+              : 'Could not load profiles. Pull down to retry.';
+      setState(() => _error = friendly);
     }
   }
 
