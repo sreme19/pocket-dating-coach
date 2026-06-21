@@ -521,21 +521,91 @@ class _VerificationScreenState extends State<VerificationScreen> {
     try {
       final uid = Supabase.instance.client.auth.currentUser?.id;
       if (uid == null) return;
-      final row = await Supabase.instance.client
+
+      // Fetch user info + all verification rows in parallel
+      final userRowFuture = Supabase.instance.client
           .from('verified_vibe_users')
           .select('first_name, age, city')
           .eq('id', uid)
           .maybeSingle();
-      if (!mounted || row == null) return;
-      if ((row['first_name'] ?? '').toString().isNotEmpty && _nameCtrl.text.isEmpty) {
-        _nameCtrl.text = row['first_name'].toString();
+      final verifyRowsFuture = Supabase.instance.client
+          .from('verified_vibe_verification')
+          .select('step, data')
+          .eq('user_id', uid);
+      final parallel = await Future.wait<dynamic>([userRowFuture, verifyRowsFuture]);
+      if (!mounted) return;
+
+      // ── Step 3: name / age / city ─────────────────────────────────────────
+      final userRow = parallel[0] as Map?;
+      if (userRow != null) {
+        if ((userRow['first_name'] ?? '').toString().isNotEmpty && _nameCtrl.text.isEmpty)
+          _nameCtrl.text = userRow['first_name'].toString();
+        if (userRow['age'] != null && _ageCtrl.text.isEmpty)
+          _ageCtrl.text = userRow['age'].toString();
+        if ((userRow['city'] ?? '').toString().isNotEmpty && _cityCtrl.text.isEmpty)
+          _cityCtrl.text = userRow['city'].toString();
       }
-      if (row['age'] != null && _ageCtrl.text.isEmpty) {
-        _ageCtrl.text = row['age'].toString();
+
+      // ── Steps 1, 2 & 3: Q&A answers + photos from verification rows ───────
+      final verifyRows = (parallel[1] as List).cast<Map>();
+      for (final row in verifyRows) {
+        final step = row['step'] as String?;
+        final data = row['data'] as Map?;
+        if (data == null) continue;
+
+        if (step == 'spending_or_qa') {
+          final responses = data['responses'] as Map?;
+          if (responses == null) continue;
+
+          // Step 1: drawn_to answers → _drawnTo map
+          final drawnTo = responses['drawn_to'] as Map?;
+          if (drawnTo != null) {
+            for (final e in drawnTo.entries) {
+              if (e.value is List && (e.value as List).isNotEmpty) {
+                _drawnTo[e.key.toString()] =
+                    Set<String>.from((e.value as List).map((v) => v.toString()));
+              }
+            }
+          }
+
+          // Step 2: matrimony-specific fields
+          if (_isMatrimonyArch) {
+            if (responses['marital_status'] != null)
+              _maritalStatus = responses['marital_status'].toString();
+            if (responses['religion'] != null)
+              _religion = responses['religion'].toString();
+            if (responses['lifestyle'] is List)
+              _lifestyle.addAll((responses['lifestyle'] as List).map((e) => e.toString()));
+            if (responses['income'] != null)
+              _income = responses['income'].toString();
+            if (responses['relationship_pace'] != null)
+              _relationshipPace = responses['relationship_pace'].toString();
+            if (responses['what_you_bring'] is List)
+              _whatYouBring.addAll((responses['what_you_bring'] as List).map((e) => e.toString()));
+          } else {
+            // Step 2: generic (modern dater / casual / self-explorer)
+            for (final s in _step2Sections) {
+              final vals = responses[s.key];
+              if (vals is List && vals.isNotEmpty)
+                _step2Generic[s.key] = Set<String>.from(vals.map((e) => e.toString()));
+            }
+          }
+        }
+
+        if (step == 'photos') {
+          // Step 3: pre-fill photos + city + open-to-travel
+          final images = data['images'] as List?;
+          if (images != null) {
+            for (var i = 0; i < images.length && i < _photos.length; i++) {
+              if (_photos[i] == null) _photos[i] = images[i]?.toString();
+            }
+          }
+          if (data['openToTravel'] == true) _openToTravel = true;
+          if ((data['city'] ?? '').toString().isNotEmpty && _cityCtrl.text.isEmpty)
+            _cityCtrl.text = data['city'].toString();
+        }
       }
-      if ((row['city'] ?? '').toString().isNotEmpty && _cityCtrl.text.isEmpty) {
-        _cityCtrl.text = row['city'].toString();
-      }
+
       if (mounted) setState(() {});
     } catch (_) {}
   }

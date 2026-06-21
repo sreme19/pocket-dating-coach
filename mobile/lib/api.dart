@@ -1046,6 +1046,37 @@ String trustLabel(int score) {
 
 // ── Tip / Attention ─────────────────────────────────────────────────────────
 
+class TipSummary {
+  final int total;
+  final Map<String, int> tagCounts;
+  final List<String> textSamples;
+  const TipSummary({required this.total, required this.tagCounts, required this.textSamples});
+}
+
+/// Fetch aggregated tips received by the current user.
+Future<TipSummary> fetchMyTips() async {
+  final uid = Supabase.instance.client.auth.currentUser?.id;
+  if (uid == null) return const TipSummary(total: 0, tagCounts: {}, textSamples: []);
+  final resp = await _dio.get(
+    '${Config.apiBase}/api/verified-vibe/tips',
+    queryParameters: {'targetUserId': uid},
+    options: Options(headers: {'Authorization': _bearer()}),
+  );
+  final body = resp.data is Map ? resp.data as Map : const {};
+  final rawTags = body['tagCounts'];
+  final tags = rawTags is Map
+      ? rawTags.map((k, v) => MapEntry(k.toString(), (v is num ? v.toInt() : 0)))
+      : <String, int>{};
+  final texts = body['textSamples'] is List
+      ? (body['textSamples'] as List).map((e) => e.toString()).toList()
+      : <String>[];
+  return TipSummary(
+    total: (body['totalTips'] as num?)?.toInt() ?? 0,
+    tagCounts: tags,
+    textSamples: texts,
+  );
+}
+
 Future<void> submitTip(String targetUserId, String submitterGender, List<String> tags, String? text) async {
   await _dio.post(
     '${Config.apiBase}/api/verified-vibe/tips',

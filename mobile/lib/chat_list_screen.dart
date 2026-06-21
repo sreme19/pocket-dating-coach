@@ -157,12 +157,14 @@ class _ChatListScreenState extends State<ChatListScreen>
       final convos = await fetchConversations();
       List<Admirer> admirers = const [];
       List<SentAdmirer> sentAdmirers = const [];
+      TipSummary? tipSummary;
       try {
-        final results = await Future.wait([fetchAdmirers(), fetchSentAdmirers()]);
+        final results = await Future.wait([fetchAdmirers(), fetchSentAdmirers(), fetchMyTips()]);
         admirers = results[0] as List<Admirer>;
         sentAdmirers = results[1] as List<SentAdmirer>;
+        tipSummary = results[2] as TipSummary;
       } catch (_) {/* non-fatal */}
-      return _ChatData(gender: gender, conversations: convos, admirers: admirers, sentAdmirers: sentAdmirers);
+      return _ChatData(gender: gender, conversations: convos, admirers: admirers, sentAdmirers: sentAdmirers, tipSummary: tipSummary);
     } catch (e) {
       final msg = e.toString();
       if (msg.contains('SocketException') || msg.contains('timeout') ||
@@ -258,6 +260,8 @@ class _ChatListScreenState extends State<ChatListScreen>
                   onChanged: (i) => setState(() => _filter = i),
                 ),
                 if (_filter == 2) ...[
+                  if (data.tipSummary != null && data.tipSummary!.total > 0)
+                    _TipSummaryCard(tip: data.tipSummary!),
                   if (data.admirers.isEmpty)
                     const Padding(
                       padding: EdgeInsets.fromLTRB(20, 40, 20, 0),
@@ -334,7 +338,73 @@ class _ChatData {
   final List<Conversation> conversations;
   final List<Admirer> admirers;
   final List<SentAdmirer> sentAdmirers;
-  _ChatData({required this.gender, required this.conversations, required this.admirers, required this.sentAdmirers});
+  final TipSummary? tipSummary;
+  _ChatData({required this.gender, required this.conversations, required this.admirers, required this.sentAdmirers, this.tipSummary});
+}
+
+/// Shows anonymous tip feedback received on the user's profile.
+class _TipSummaryCard extends StatelessWidget {
+  final TipSummary tip;
+  const _TipSummaryCard({required this.tip});
+
+  String _label(String tag) => tag.replaceAll('-', ' ');
+
+  @override
+  Widget build(BuildContext context) {
+    // Sort tags by count descending, take top 5
+    final sorted = tip.tagCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final topTags = sorted.take(5).toList();
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(Config.bg2),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0x33FFB800)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Text('💬', style: TextStyle(fontSize: 18)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '${tip.total} anonymous tip${tip.total == 1 ? '' : 's'} on your profile',
+              style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700, fontSize: 15),
+            ),
+          ),
+        ]),
+        if (topTags.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: topTags.map((e) => Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0x1AFFB800),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0x44FFB800)),
+              ),
+              child: Text(
+                '${_label(e.key)} ×${e.value}',
+                style: const TextStyle(color: Color(Config.text1), fontSize: 12),
+              ),
+            )).toList(),
+          ),
+        ],
+        if (tip.textSamples.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text('"${tip.textSamples.first}"',
+              style: const TextStyle(color: Color(Config.text2), fontSize: 13, fontStyle: FontStyle.italic)),
+        ],
+        const SizedBox(height: 8),
+        const Text('Tips are anonymous — only aggregated feedback is shown.',
+            style: TextStyle(color: Color(Config.text3), fontSize: 11)),
+      ]),
+    );
+  }
 }
 
 String _ago(DateTime? t) {

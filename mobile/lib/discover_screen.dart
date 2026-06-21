@@ -49,15 +49,15 @@ class _DiscoverScreenState extends State<DiscoverScreen>
     // Don't clear the existing feed — keep it visible while reloading.
     setState(() { _error = null; });
     try {
-      // Refresh auth session first to avoid 401 errors after returning from other screens.
-      try { await Supabase.instance.client.auth.refreshSession(); } catch (_) {}
-      final list = await fetchDiscovery();
-      fetchCurrentUserGender().then((g) {
-        if (mounted) {
-          setState(() => _viewerGender = g);
-          _maybeFetchBestie();
-        }
-      });
+      // Fetch profiles + gender in parallel so Tip/Notice buttons are
+      // enabled immediately when profiles appear (not after a second setState).
+      final results = await Future.wait([fetchDiscovery(), fetchCurrentUserGender()]);
+      final list = results[0] as List<DiscoveryProfile>;
+      final g = results[1] as String?;
+      if (mounted) {
+        setState(() => _viewerGender = g);
+        _maybeFetchBestie();
+      }
       // Load already-sent attention IDs so buttons show correct state
       fetchSentAdmirers().then((sent) {
         if (mounted) setState(() => _sentAttentionIds.addAll(sent.map((s) => s.recipientId)));
