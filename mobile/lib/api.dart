@@ -988,12 +988,30 @@ Future<Map> uploadProof(String category, List<String> filePaths) async {
     form.files.add(MapEntry('files',
         await MultipartFile.fromFile(path, contentType: _mimeOf(path))));
   }
-  final resp = await _dio.post(
-    '${Config.apiBase}/api/verified-vibe/proof-upload',
-    data: form,
-    options: Options(headers: {'Authorization': _bearer()}, receiveTimeout: const Duration(seconds: 120)),
-  );
-  return resp.data is Map ? resp.data as Map : const {};
+  late Response resp;
+  try {
+    resp = await _dio.post(
+      '${Config.apiBase}/api/verified-vibe/proof-upload',
+      data: form,
+      options: Options(
+        headers: {'Authorization': _bearer()},
+        receiveTimeout: const Duration(seconds: 120),
+        validateStatus: (s) => true,
+      ),
+    );
+  } on DioException {
+    throw Exception('Connection error — please check your internet and try again.');
+  }
+  final body = resp.data is Map ? resp.data as Map : const {};
+  if ((resp.statusCode ?? 0) >= 400) {
+    final code = resp.statusCode;
+    final serverMsg = (body['error'] ?? body['message'])?.toString();
+    if (code == 503) throw Exception('AI service temporarily unavailable. Please try again in a moment.');
+    if (code == 401 || code == 403) throw Exception('Session expired — please sign out and back in.');
+    if (serverMsg != null && serverMsg.isNotEmpty && serverMsg.length < 200) throw Exception(serverMsg);
+    throw Exception('Upload failed (error $code). Please try again.');
+  }
+  return body;
 }
 
 /// Submit a government-ID photo (KTP/passport) for the lightweight ID gate.
@@ -1113,12 +1131,7 @@ Future<Map> uploadProofWithUrl(String category, String profileUrl, String filePa
   form.fields.add(MapEntry('profile_url', profileUrl));
   form.files.add(MapEntry('files',
       await MultipartFile.fromFile(filePath, contentType: _mimeOf(filePath))));
-  final resp = await _dio.post(
-    '${Config.apiBase}/api/verified-vibe/proof-upload',
-    data: form,
-    options: Options(headers: {'Authorization': _bearer()}, receiveTimeout: const Duration(seconds: 120)),
-  );
-  return resp.data is Map ? resp.data as Map : const {};
+  return _uploadProofPost(form);
 }
 
 /// Verify a social proof by profile URL (linkedin / instagram / twitter) — the
@@ -1127,12 +1140,34 @@ Future<Map> uploadProofUrl(String category, String profileUrl) async {
   final form = FormData();
   form.fields.add(MapEntry('category', category));
   form.fields.add(MapEntry('profile_url', profileUrl));
-  final resp = await _dio.post(
-    '${Config.apiBase}/api/verified-vibe/proof-upload',
-    data: form,
-    options: Options(headers: {'Authorization': _bearer()}, receiveTimeout: const Duration(seconds: 120)),
-  );
-  return resp.data is Map ? resp.data as Map : const {};
+  return _uploadProofPost(form);
+}
+
+Future<Map> _uploadProofPost(FormData form) async {
+  late Response resp;
+  try {
+    resp = await _dio.post(
+      '${Config.apiBase}/api/verified-vibe/proof-upload',
+      data: form,
+      options: Options(
+        headers: {'Authorization': _bearer()},
+        receiveTimeout: const Duration(seconds: 120),
+        validateStatus: (s) => true,
+      ),
+    );
+  } on DioException {
+    throw Exception('Connection error — please check your internet and try again.');
+  }
+  final body = resp.data is Map ? resp.data as Map : const {};
+  if ((resp.statusCode ?? 0) >= 400) {
+    final code = resp.statusCode;
+    final serverMsg = (body['error'] ?? body['message'])?.toString();
+    if (code == 503) throw Exception('AI service temporarily unavailable. Please try again in a moment.');
+    if (code == 401 || code == 403) throw Exception('Session expired — please sign out and back in.');
+    if (serverMsg != null && serverMsg.isNotEmpty && serverMsg.length < 200) throw Exception(serverMsg);
+    throw Exception('Upload failed (error $code). Please try again.');
+  }
+  return body;
 }
 
 /// Permanently delete the account + all data (DELETE /api/verified-vibe/account).
