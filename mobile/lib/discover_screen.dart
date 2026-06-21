@@ -49,8 +49,6 @@ class _DiscoverScreenState extends State<DiscoverScreen>
     // Don't clear the existing feed — keep it visible while reloading.
     setState(() { _error = null; });
     try {
-      // Refresh auth session first to avoid 401 errors after returning from other screens.
-      try { await Supabase.instance.client.auth.refreshSession(); } catch (_) {}
       final list = await fetchDiscovery();
       fetchCurrentUserGender().then((g) {
         if (mounted) {
