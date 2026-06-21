@@ -840,8 +840,8 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
 
 
   Future<void> _editCountries(TrustData d) async {
+    if (d.countries.isEmpty) return;
     final countries = List<String>.from(d.countries);
-    final ctrl = TextEditingController();
     bool saving = false;
 
     await showModalBottomSheet<void>(
@@ -855,57 +855,23 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('Travel Magnets', style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700, fontSize: 18)),
             const SizedBox(height: 4),
-            const Text('Add or remove countries you\'ve traveled to.', style: TextStyle(color: Color(Config.text3), fontSize: 12)),
+            const Text('Tap × to remove a country. Upload a passport or boarding pass to add more.', style: TextStyle(color: Color(Config.text3), fontSize: 12)),
             const SizedBox(height: 16),
-            Row(children: [
-              Expanded(
-                child: TextField(
-                  controller: ctrl,
-                  textCapitalization: TextCapitalization.words,
-                  style: const TextStyle(color: Color(Config.text1)),
-                  decoration: InputDecoration(
-                    hintText: 'e.g. Japan, France…',
-                    hintStyle: const TextStyle(color: Color(Config.text3)),
-                    filled: true,
-                    fillColor: const Color(Config.bg3),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  ),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final c in countries)
+                Container(
+                  padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+                  decoration: BoxDecoration(color: const Color(Config.bg3), borderRadius: BorderRadius.circular(999)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text('✈️  $c', style: const TextStyle(color: Color(Config.text1), fontSize: 13)),
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      onTap: () => setS(() => countries.remove(c)),
+                      child: const Icon(Icons.close, size: 14, color: Color(Config.text3)),
+                    ),
+                  ]),
                 ),
-              ),
-              const SizedBox(width: 10),
-              GestureDetector(
-                onTap: () {
-                  final val = ctrl.text.trim();
-                  if (val.isNotEmpty && !countries.contains(val)) {
-                    setS(() { countries.add(val); ctrl.clear(); });
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: const Color(Config.accent), borderRadius: BorderRadius.circular(12)),
-                  child: const Icon(Icons.add, color: Color(0xFFFFFFFF), size: 20),
-                ),
-              ),
             ]),
-            if (countries.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              Wrap(spacing: 8, runSpacing: 8, children: [
-                for (final c in countries)
-                  Container(
-                    padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
-                    decoration: BoxDecoration(color: const Color(Config.bg3), borderRadius: BorderRadius.circular(999)),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Text('✈️  $c', style: const TextStyle(color: Color(Config.text1), fontSize: 13)),
-                      const SizedBox(width: 6),
-                      GestureDetector(
-                        onTap: () => setS(() => countries.remove(c)),
-                        child: const Icon(Icons.close, size: 14, color: Color(Config.text3)),
-                      ),
-                    ]),
-                  ),
-              ]),
-            ],
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
@@ -934,7 +900,6 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
         ),
       ),
     );
-    ctrl.dispose();
   }
 
   Widget _travelMagnetsSection(TrustData d) {
@@ -968,31 +933,31 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
             subtitle: 'AI detects countries automatically',
             pts: 8,
           ),
-          const SizedBox(height: 8),
-          GestureDetector(
-            onTap: () => _editCountries(d),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0x14FFFFFF),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0x22FFFFFF)),
+          if (d.countries.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () => _editCountries(d),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0x14FFFFFF),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0x22FFFFFF)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.edit_outlined, size: 14, color: Color(Config.text2)),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(
+                    d.countries.join(' · '),
+                    style: const TextStyle(color: Color(Config.text2), fontSize: 13),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  )),
+                  const Icon(Icons.chevron_right, size: 16, color: Color(Config.text3)),
+                ]),
               ),
-              child: Row(children: [
-                const Icon(Icons.edit_outlined, size: 14, color: Color(Config.text2)),
-                const SizedBox(width: 8),
-                Expanded(child: Text(
-                  d.countries.isEmpty
-                      ? 'Add countries manually'
-                      : d.countries.join(' · '),
-                  style: const TextStyle(color: Color(Config.text2), fontSize: 13),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                )),
-                const Icon(Icons.chevron_right, size: 16, color: Color(Config.text3)),
-              ]),
             ),
-          ),
+          ],
         ]),
       ),
     ]);
