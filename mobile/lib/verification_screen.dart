@@ -1111,10 +1111,13 @@ class _VerificationScreenState extends State<VerificationScreen> {
         Center(
           child: TextButton(
             onPressed: _busy ? null : () => _showSkipDialog(
-              onConfirm: () => setState(() {
-                _livenessDone = true;
-                _livenessResult = 'Skipped';
-              }),
+              onConfirm: () {
+                setState(() {
+                  _livenessDone = true;
+                  _livenessResult = 'Skipped';
+                });
+                _advance();
+              },
             ),
             child: const Text(
               'Skip identity check — lower your trust score',
@@ -1851,6 +1854,7 @@ class _LivenessCaptureScreenState extends State<_LivenessCaptureScreen> {
   Timer? _delayTimer;
   String? _errMsg;
   int _matchPct = 0;
+  int _failCount = 0; // track consecutive failures to show skip option
 
   @override
   void dispose() {
@@ -1951,6 +1955,7 @@ class _LivenessCaptureScreenState extends State<_LivenessCaptureScreen> {
       if (!mounted) return;
       setState(() {
         _phase  = _LivenessPhase.failed;
+        _failCount++;
         _errMsg = msg.contains('network') || msg.contains('SocketException')
             ? 'Network error — check your connection and retry.'
             : 'Verification failed — please try again.';
@@ -2158,10 +2163,22 @@ class _LivenessCaptureScreenState extends State<_LivenessCaptureScreen> {
             ),
           ),
         ),
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel', style: TextStyle(color: Color(0xFF9B8B8F), fontSize: 13)),
-        ),
+        if (_failCount >= 2) ...[
+          const SizedBox(height: 4),
+          TextButton(
+            onPressed: () => Navigator.pop(context, _LivenessResult('Skipped')),
+            child: const Text(
+              'Skip selfie (lower trust score)',
+              style: TextStyle(color: Color(0xFF9B8B8F), fontSize: 13,
+                  decoration: TextDecoration.underline, decorationColor: Color(0xFF9B8B8F)),
+            ),
+          ),
+        ] else ...[
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Color(0xFF9B8B8F), fontSize: 13)),
+          ),
+        ],
       ],
     );
   }
