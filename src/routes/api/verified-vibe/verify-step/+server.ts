@@ -405,6 +405,7 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
 
     if (userId) {
       await persistVerificationStep(userId, 'photos', trustPoints, stepData);
+      enrollInPoolIfVerified(userId).catch(() => {});
     }
 
     const response = {
@@ -612,6 +613,7 @@ async function handleQAVerification(responses: Record<string, string>, gender: s
       // Mirror onboarding responses into user_master_profile so the web profile
       // and AI context have them without waiting for the mobile sync call.
       await updateMasterProfile(userId, { onboarding: mergedResponses });
+      enrollInPoolIfVerified(userId).catch(() => {});
     }
 
     return json({
