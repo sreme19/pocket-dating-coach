@@ -124,7 +124,7 @@ function buildReportHtml(
     </div>
 
     <div style="padding:16px 24px;border-top:1px solid #e5e7eb;color:#9ca3af;font-size:12px">
-      Sent by Vercel Cron · riteangle.app · <a href="https://riteangle.app/api/health" style="color:#6366f1">View live health</a>
+      Sent by Vercel Cron · riteangle.dating · <a href="https://riteangle.dating/api/health" style="color:#6366f1">View live health</a>
     </div>
   </div>
 </body>
@@ -157,7 +157,7 @@ const handle: RequestHandler = async ({ request }) => {
 			'Content-Type': 'application/json',
 		},
 		body: JSON.stringify({
-			from: 'Pocket Dating Coach Monitor <monitor@riteangle.app>',
+			from: 'Pocket Dating Coach Monitor <monitor@riteangle.dating>',
 			to: [alertEmail],
 			subject,
 			html,
