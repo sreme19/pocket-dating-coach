@@ -94,10 +94,12 @@ class PushService {
     final link = (data['deepLink'] ?? data['deep_link'])?.toString();
     if (link == null || link.isEmpty) return;
 
-    // Conversation thread → open it directly.
+    // Conversation thread → switch to Chat tab first, then open conversation.
+    // Switching tab first ensures the back button returns to Chat (not Discover).
     final convo = RegExp(r'^/(?:chat|conversations)/([^/?#]+)').firstMatch(link);
     if (convo != null) {
       final id = convo.group(1)!;
+      onSwitchTab?.call(1); // ensure Chat tab is active before pushing
       navKey?.currentState?.push(
         MaterialPageRoute(builder: (_) => ConversationScreen(conversationId: id, title: 'Chat')),
       );

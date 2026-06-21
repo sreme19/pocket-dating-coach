@@ -437,7 +437,7 @@ class _Bubble extends StatelessWidget {
   });
 
   String _formatTime(DateTime? dt) {
-    if (dt == null) return '';
+    if (dt == null || dt.year < 2020) return ''; // filter epoch/invalid dates
     final local = dt.toLocal();
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
