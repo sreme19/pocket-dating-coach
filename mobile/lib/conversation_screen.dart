@@ -180,11 +180,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
     try {
       final sent = await sendMessage(widget.conversationId, text);
       if (sent != null) _merge([sent], scroll: true);
-      // Fast-poll briefly to catch an AI auto-reply.
-      for (var i = 0; i < 6; i++) {
-        await Future.delayed(const Duration(milliseconds: 1200));
-        await _pollOnce();
-      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Send failed: $e')));
@@ -192,6 +187,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+    // Poll in background to catch an AI auto-reply (does not block the send button).
+    Future(() async {
+      for (var i = 0; i < 6; i++) {
+        await Future.delayed(const Duration(milliseconds: 1200));
+        await _pollOnce();
+      }
+    });
   }
 
   Future<void> _sendImageMessage(String url) async {
