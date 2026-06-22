@@ -214,8 +214,13 @@ class _ChatListScreenState extends State<ChatListScreen>
         automaticallyImplyLeading: false,
         centerTitle: false,
         titleSpacing: 20,
-        title: const Text('Messages',
-            style: TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Messages', style: TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
+            Text('Chat with your matches', style: TextStyle(fontSize: 12, color: Color(Config.text2), fontWeight: FontWeight.w400)),
+          ],
+        ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),
