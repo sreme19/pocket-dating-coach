@@ -570,7 +570,9 @@ export async function enrollInPoolIfVerified(userId: string): Promise<void> {
     .eq('status', 'completed');
 
   const completedSteps = new Set((steps ?? []).map((s: any) => s.step));
-  const required = ['id', 'liveness', 'photos', 'spending_or_qa'];
+  // 'id' (government ID) is only required for spending/wealth proof uploads,
+  // not for pool eligibility. The 3 Safety Check steps are sufficient.
+  const required = ['liveness', 'photos', 'spending_or_qa'];
   const allDone = required.every((s) => completedSteps.has(s));
 
   if (!allDone) return;
