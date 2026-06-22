@@ -279,7 +279,7 @@ class _ChatListScreenState extends State<ChatListScreen>
                     const Padding(
                       padding: EdgeInsets.fromLTRB(20, 40, 20, 0),
                       child: Text('No admirers yet — when someone notices you, they\'ll show up here. 🌹',
-                          textAlign: TextAlign.center, style: TextStyle(color: Color(Config.text2))),
+                          style: TextStyle(color: Color(Config.text2))),
                     )
                   else
                     ...data.admirers.map((a) => _AdmirerCard(admirer: a, onReplied: _refresh)),
@@ -290,7 +290,6 @@ class _ChatListScreenState extends State<ChatListScreen>
                       padding: EdgeInsets.fromLTRB(20, 24, 20, 0),
                       child: Text(
                         'No notices sent yet \u2014 admire someone from Discover to get started.',
-                        textAlign: TextAlign.center,
                         style: TextStyle(color: Color(Config.text2)),
                       ),
                     )
@@ -305,7 +304,6 @@ class _ChatListScreenState extends State<ChatListScreen>
                           : (data.conversations.isEmpty
                               ? 'No conversations yet — your matches will show up here.'
                               : 'No active chats yet — say hello to a new match above.'),
-                      textAlign: TextAlign.center,
                       style: const TextStyle(color: Color(Config.text2)),
                     ),
                   )
