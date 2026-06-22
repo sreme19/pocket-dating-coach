@@ -304,17 +304,21 @@ Future<ProfileData> fetchProfile() async {
     }
   }
 
-  // Spending breakdown from the `spending` proof.
+  // Spending breakdown from the `spending` proof — deduplicated by category.
   final spending = <SpendItem>[];
+  final _seenSpendCategories = <String>{};
   final spendProof = proofFor('spending');
   if (spendProof != null && spendProof['spendingBreakdown'] is List) {
     for (final s in (spendProof['spendingBreakdown'] as List)) {
       if (s is Map) {
-        spending.add(SpendItem(
-          (s['emoji'] ?? '💳').toString(),
-          (s['category'] ?? '').toString(),
-          (s['amountLabel'] ?? '').toString(),
-        ));
+        final category = (s['category'] ?? '').toString();
+        if (category.isNotEmpty && _seenSpendCategories.add(category)) {
+          spending.add(SpendItem(
+            (s['emoji'] ?? '💳').toString(),
+            category,
+            (s['amountLabel'] ?? '').toString(),
+          ));
+        }
       }
     }
   }
