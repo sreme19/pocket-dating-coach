@@ -248,10 +248,12 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
   // ── Safety Check — 3 categories matching website layout ───────────────────
 
   Future<void> _goToStep(int step, {Set<int> skipSteps = const {}}) async {
+    final archetype = _cachedData?.archetype;
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => VerificationScreen(
         initialStep: step,
         skipSteps: skipSteps,
+        archetypeId: archetype,
         onDone: () { Navigator.of(context).pop(); _refresh(); },
       ),
     ));
