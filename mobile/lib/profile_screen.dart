@@ -394,7 +394,7 @@ class _ProfileBody extends StatelessWidget {
           emoji: '✈️',
           title: 'TRAVEL MAGNETS',
           subtitle: 'countries you\'ve visited',
-          onEdit: () => _editCountries(context, data, onChanged),
+          onEdit: data.countries.isEmpty ? null : () => _editCountries(context, data, onChanged),
           child: data.countries.isEmpty
               ? GestureDetector(
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
@@ -1305,7 +1305,6 @@ class _ChipWithRemove extends StatelessWidget {
 }
 
 Future<void> _editCountries(BuildContext context, ProfileData d, VoidCallback onChanged) async {
-  final ctrl = TextEditingController();
   final countries = List<String>.from(d.countries);
   bool saving = false;
 
@@ -1322,41 +1321,9 @@ Future<void> _editCountries(BuildContext context, ProfileData d, VoidCallback on
           const Text('Travel Magnets',
               style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700, fontSize: 18)),
           const SizedBox(height: 4),
-          const Text('Add or remove countries you\'ve traveled to.',
+          const Text('Detected from your travel uploads in Trust & Boost. Tap × to remove.',
               style: TextStyle(color: Color(Config.text3), fontSize: 12)),
           const SizedBox(height: 16),
-          // Add country row
-          Row(children: [
-            Expanded(
-              child: TextField(
-                controller: ctrl,
-                textCapitalization: TextCapitalization.words,
-                style: const TextStyle(color: Color(Config.text1)),
-                decoration: InputDecoration(
-                  hintText: 'e.g. Japan, France…',
-                  hintStyle: const TextStyle(color: Color(Config.text3)),
-                  filled: true,
-                  fillColor: const Color(Config.bg3),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            GestureDetector(
-              onTap: () {
-                final val = ctrl.text.trim();
-                if (val.isNotEmpty && !countries.contains(val)) {
-                  setS(() { countries.add(val); ctrl.clear(); });
-                }
-              },
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: const Color(Config.accent), borderRadius: BorderRadius.circular(12)),
-                child: const Icon(Icons.add, color: Color(0xFFFFFFFF), size: 20),
-              ),
-            ),
-          ]),
           if (countries.isNotEmpty) ...[
             const SizedBox(height: 14),
             Wrap(spacing: 8, runSpacing: 8, children: [
