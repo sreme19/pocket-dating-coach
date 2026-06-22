@@ -211,9 +211,17 @@ class _ChatListScreenState extends State<ChatListScreen>
       appBar: AppBar(
         backgroundColor: const Color(Config.bg1),
         elevation: 0,
-        titleSpacing: 20,
-        title: const Text('Messages',
-            style: TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
+        automaticallyImplyLeading: false,
+        centerTitle: false,
+        titleSpacing: 0,
+        title: const Align(
+          alignment: Alignment.centerRight,
+          child: Padding(
+            padding: EdgeInsets.only(right: 8),
+            child: Text('Messages',
+                style: TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
+          ),
+        ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),
