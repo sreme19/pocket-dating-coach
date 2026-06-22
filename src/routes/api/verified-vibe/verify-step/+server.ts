@@ -318,33 +318,21 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
       );
     }
 
-    // Check photo consistency using Claude (bypass in dev or when only 1 photo uploaded)
-    // Non-fatal: if the Claude call fails (API error, payload too large, etc.) we proceed
-    // as consistent. The liveness step already verified the user's real face.
+    // Photo consistency check — informational only, never blocks the user.
+    // The liveness step already verified the user's real face; if someone
+    // uploads mismatched photos their profile quality suffers but we don't
+    // hard-reject them here.
     const skipVerification = import.meta.env.VITE_SKIP_VERIFICATION === 'true';
     let consistencyResult = { consistent: true, confidence: 0.99 };
     if (!skipVerification && data.images.length >= 2) {
       try {
         consistencyResult = await checkPhotoConsistencyWithClaude(data.images, data.mimeTypes[0] || 'image/jpeg');
+        if (!consistencyResult.consistent) {
+          console.warn('[verify-step] photo consistency low — proceeding anyway (non-blocking)');
+        }
       } catch (err) {
         console.warn('[verify-step] photo consistency check failed (non-fatal), proceeding:', err);
       }
-    }
-
-    // If photos are explicitly flagged as inconsistent, return error
-    if (!consistencyResult.consistent) {
-      return json(
-        {
-          status: 'failed',
-          data: {
-            confidence: consistencyResult.confidence,
-            consistent: false,
-            reason: 'Photos are not consistent. Please upload photos of the same person.'
-          },
-          trustPoints: 0
-        },
-        { status: 400 }
-      );
     }
 
     const trustPoints = getTrustPoints('photos');
