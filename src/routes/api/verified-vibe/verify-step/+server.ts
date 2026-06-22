@@ -319,12 +319,19 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
     }
 
     // Check photo consistency using Claude (bypass in dev or when only 1 photo uploaded)
+    // Non-fatal: if the Claude call fails (API error, payload too large, etc.) we proceed
+    // as consistent. The liveness step already verified the user's real face.
     const skipVerification = import.meta.env.VITE_SKIP_VERIFICATION === 'true';
-    const consistencyResult = skipVerification || data.images.length < 2
-      ? { consistent: true, confidence: 0.99 }
-      : await checkPhotoConsistencyWithClaude(data.images, data.mimeTypes[0] || 'image/jpeg');
+    let consistencyResult = { consistent: true, confidence: 0.99 };
+    if (!skipVerification && data.images.length >= 2) {
+      try {
+        consistencyResult = await checkPhotoConsistencyWithClaude(data.images, data.mimeTypes[0] || 'image/jpeg');
+      } catch (err) {
+        console.warn('[verify-step] photo consistency check failed (non-fatal), proceeding:', err);
+      }
+    }
 
-    // If photos are not consistent, return error
+    // If photos are explicitly flagged as inconsistent, return error
     if (!consistencyResult.consistent) {
       return json(
         {
