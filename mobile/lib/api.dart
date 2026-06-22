@@ -1344,6 +1344,10 @@ Future<void> saveGenderArchetype(String gender, String archetype) async {
 /// Submit a verification step (id | liveness | photos | spending_or_qa).
 /// Images go as base64 inside `data` (matches the web verify-step endpoint).
 Future<Map> verifyStep(String step, Map<String, dynamic> data) async {
+  // Refresh session if null (can happen after long inactivity during onboarding)
+  if (Supabase.instance.client.auth.currentSession == null) {
+    await Supabase.instance.client.auth.refreshSession();
+  }
   final resp = await _dio.post(
     '${Config.apiBase}/api/verified-vibe/verify-step',
     data: {'step': step, 'data': data},
