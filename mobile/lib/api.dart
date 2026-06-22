@@ -304,17 +304,21 @@ Future<ProfileData> fetchProfile() async {
     }
   }
 
-  // Spending breakdown from the `spending` proof.
+  // Spending breakdown from the `spending` proof — deduplicated by category.
   final spending = <SpendItem>[];
+  final _seenSpendCategories = <String>{};
   final spendProof = proofFor('spending');
   if (spendProof != null && spendProof['spendingBreakdown'] is List) {
     for (final s in (spendProof['spendingBreakdown'] as List)) {
       if (s is Map) {
-        spending.add(SpendItem(
-          (s['emoji'] ?? '💳').toString(),
-          (s['category'] ?? '').toString(),
-          (s['amountLabel'] ?? '').toString(),
-        ));
+        final category = (s['category'] ?? '').toString();
+        if (category.isNotEmpty && _seenSpendCategories.add(category)) {
+          spending.add(SpendItem(
+            (s['emoji'] ?? '💳').toString(),
+            category,
+            (s['amountLabel'] ?? '').toString(),
+          ));
+        }
       }
     }
   }
@@ -641,6 +645,39 @@ Future<void> saveArchetype(String archetype) async {
   await supabase.from('verified_vibe_users').update({'archetype': archetype}).eq('id', user.id);
 }
 
+/// Delete the spending_or_qa verification step so the user re-fills Q&A
+/// after changing their lane/archetype (different archetypes have different questions).
+/// Also clears the `onboarding` field in user_master_profile so the old Q&A
+/// responses are not carried over to the new archetype's questions.
+Future<void> resetQAVerification() async {
+  final supabase = Supabase.instance.client;
+  final user = supabase.auth.currentUser;
+  if (user == null) return;
+
+  // 1. Delete spending_or_qa row from verified_vibe_verification
+  await supabase
+      .from('verified_vibe_verification')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('step', 'spending_or_qa');
+
+  // 2. Clear onboarding field in user_master_profile.data so old Q&A
+  //    responses don't persist for the new archetype.
+  final row = await supabase
+      .from('user_master_profile')
+      .select('data')
+      .eq('user_id', user.id)
+      .maybeSingle();
+  if (row != null) {
+    final data = Map<String, dynamic>.from((row['data'] as Map?) ?? {});
+    data.remove('onboarding');
+    await supabase
+        .from('user_master_profile')
+        .update({'data': data})
+        .eq('user_id', user.id);
+  }
+}
+
 /// Persist hard-nos (dealbreakers) to verified_vibe_users.hard_nos.
 Future<void> saveHardNos(List<String> hardNos) async {
   final supabase = Supabase.instance.client;
@@ -836,6 +873,8 @@ class TrustData {
   // Money Matters (self-declared from master-profile)
   final String? annualIncome;
   final String? netWorth;
+  // Travel Magnets (manual + AI-detected countries)
+  final List<String> countries;
   TrustData({
     required this.trustScore,
     required this.identityVerified,
@@ -847,6 +886,7 @@ class TrustData {
     this.qaScore = 0,
     this.annualIncome,
     this.netWorth,
+    this.countries = const [],
   });
   int get proofPoints => proofs.fold(0, (s, p) => s + p.points);
   ProofItem? proofFor(String category) {
@@ -906,6 +946,7 @@ Future<TrustData> fetchTrust() async {
   List<ProofItem> proofs = [];
   String? annualIncome;
   String? netWorth;
+  final List<String> countries = [];
   try {
     final resp = await _dio.get(
       '${Config.apiBase}/api/verified-vibe/master-profile',
@@ -932,6 +973,12 @@ Future<TrustData> fetchTrust() async {
     final mm = body['moneyMatters'] as Map?;
     annualIncome = ne(mm?['annualIncome']);
     netWorth     = ne(mm?['netWorth']);
+    if (body['countriesTraveled'] is List) {
+      for (final c in (body['countriesTraveled'] as List)) {
+        final s = c?.toString().trim() ?? '';
+        if (s.isNotEmpty && !countries.contains(s)) countries.add(s);
+      }
+    }
   } catch (_) {}
 
   // Trust score = direct sum of completed verification pts + proof pts_awarded.
@@ -957,6 +1004,7 @@ Future<TrustData> fetchTrust() async {
     qaScore:         qaScore,
     annualIncome:    annualIncome,
     netWorth:        netWorth,
+    countries:       countries,
   );
 }
 
@@ -1300,6 +1348,10 @@ Future<void> saveGenderArchetype(String gender, String archetype) async {
 /// Submit a verification step (id | liveness | photos | spending_or_qa).
 /// Images go as base64 inside `data` (matches the web verify-step endpoint).
 Future<Map> verifyStep(String step, Map<String, dynamic> data) async {
+  // Refresh session if null (can happen after long inactivity during onboarding)
+  if (Supabase.instance.client.auth.currentSession == null) {
+    await Supabase.instance.client.auth.refreshSession();
+  }
   final resp = await _dio.post(
     '${Config.apiBase}/api/verified-vibe/verify-step',
     data: {'step': step, 'data': data},
@@ -1359,7 +1411,10 @@ DateTime? _dt(dynamic v) => v == null ? null : DateTime.tryParse(v.toString());
 Future<List<Conversation>> fetchConversations() async {
   final resp = await _dio.get(
     '${Config.apiBase}/api/verified-vibe/chat/conversations',
-    options: Options(headers: {'Authorization': _bearer()}),
+    options: Options(
+      headers: {'Authorization': _bearer()},
+      receiveTimeout: const Duration(seconds: 45),
+    ),
   );
   final body = resp.data is Map ? resp.data as Map : const {};
   final data = body['data'] is Map ? body['data'] as Map : const {};
@@ -1643,25 +1698,35 @@ Future<ChatMessage?> sendMessage(String conversationId, String content) async {
   return m == null ? null : ChatMessage.fromApi(m);
 }
 
-/// After mobile onboarding completes, sync Q&A responses from
-/// `verified_vibe_verification` into `user_master_profile.onboarding`
-/// so the web profile and AI context can read them.
+/// After mobile onboarding completes, sync data from `verified_vibe_users` and
+/// `verified_vibe_verification` into `user_master_profile` so the web profile
+/// and AI context can read them. Also pushes profileDraft (name/age/city).
 /// Fire-and-forget safe — catch errors at the call site.
 Future<void> syncVerificationToMasterProfile() async {
   final session = Supabase.instance.client.auth.currentSession;
   if (session == null) return;
   final uid = session.user.id;
 
-  // Read all Q&A rows from verified_vibe_verification
-  final rows = await Supabase.instance.client
-      .from('verified_vibe_verification')
-      .select('step, data')
-      .eq('user_id', uid)
-      .eq('status', 'completed');
+  // Run verification rows + user row fetches in parallel
+  final results = await Future.wait<dynamic>([
+    Supabase.instance.client
+        .from('verified_vibe_verification')
+        .select('step, data')
+        .eq('user_id', uid)
+        .eq('status', 'completed'),
+    Supabase.instance.client
+        .from('verified_vibe_users')
+        .select('first_name, age, city')
+        .eq('id', uid)
+        .maybeSingle(),
+  ]);
 
-  // Merge all `responses` fields from spending_or_qa steps
+  final rows = results[0] as List;
+  final userRow = results[1] as Map?;
+
+  // Merge all `responses` fields from spending_or_qa rows
   final mergedResponses = <String, dynamic>{};
-  for (final row in (rows as List)) {
+  for (final row in rows) {
     final data = row['data'] as Map?;
     final responses = data?['responses'];
     if (responses is Map) {
@@ -1669,11 +1734,28 @@ Future<void> syncVerificationToMasterProfile() async {
     }
   }
 
-  if (mergedResponses.isEmpty) return;
+  final payload = <String, dynamic>{};
+
+  if (mergedResponses.isNotEmpty) {
+    payload['onboarding'] = mergedResponses;
+  }
+
+  // Push profileDraft so web profile displays name/age/city without a separate save
+  if (userRow != null) {
+    final draft = <String, dynamic>{};
+    final name = (userRow['first_name'] ?? '').toString();
+    if (name.isNotEmpty) draft['firstName'] = name;
+    if (userRow['age'] != null) draft['age'] = userRow['age'];
+    final city = (userRow['city'] ?? '').toString();
+    if (city.isNotEmpty) draft['city'] = city;
+    if (draft.isNotEmpty) payload['profileDraft'] = draft;
+  }
+
+  if (payload.isEmpty) return;
 
   await _dio.post(
     '${Config.apiBase}/api/verified-vibe/master-profile',
-    data: {'onboarding': mergedResponses},
+    data: payload,
     options: Options(headers: {
       'Authorization': 'Bearer ${session.accessToken}',
       'Content-Type': 'application/json',

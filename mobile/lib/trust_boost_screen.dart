@@ -248,10 +248,12 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
   // ── Safety Check — 3 categories matching website layout ───────────────────
 
   Future<void> _goToStep(int step, {Set<int> skipSteps = const {}}) async {
+    final archetype = _cachedData?.archetype;
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => VerificationScreen(
         initialStep: step,
         skipSteps: skipSteps,
+        archetypeId: archetype,
         onDone: () { Navigator.of(context).pop(); _refresh(); },
       ),
     ));
@@ -260,19 +262,17 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
 
   void _goToIdentity() {
     final d = _cachedData;
-    final skip = <int>{};
-    if ((d?.qaScore ?? 0) > 0) skip.addAll({1, 2}); // skip Q&A if already done
-    if ((d?.photoScore ?? 0) > 0) skip.add(3);       // skip photos if already done
+    // Always skip photos (step 3) — photos belong to Lifestyle.
+    // Skip Q&A (steps 1 & 2) only if already answered.
+    final skip = <int>{3};
+    if ((d?.qaScore ?? 0) > 0) skip.addAll({1, 2});
     _goToStep(0, skipSteps: skip);
   }
 
   void _goToIntent() {
-    final d = _cachedData;
-    final skip = <int>{};
-    if ((d?.livenessScore ?? 0) > 0) skip.add(0);  // skip selfie if already done
-    if ((d?.photoScore ?? 0) > 0) skip.add(3);     // skip photos if already done
-    // start from step 0 if liveness not done, else step 1
-    _goToStep((d?.livenessScore ?? 0) > 0 ? 1 : 0, skipSteps: skip);
+    // Intent = Q&A steps only (1 & 2). Always skip selfie (step 0) and photos
+    // (step 3) — those belong to Identity and Lifestyle respectively.
+    _goToStep(1, skipSteps: const {0, 3});
   }
 
   void _goToLifestyle() {
@@ -841,6 +841,69 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
       ]);
 
 
+  Future<void> _editCountries(TrustData d) async {
+    if (d.countries.isEmpty) return;
+    final countries = List<String>.from(d.countries);
+    bool saving = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(Config.bg2),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => Padding(
+          padding: EdgeInsets.fromLTRB(20, 24, 20, MediaQuery.of(ctx).viewInsets.bottom + 28),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Travel Magnets', style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700, fontSize: 18)),
+            const SizedBox(height: 4),
+            const Text('Tap × to remove a country. Upload a passport or boarding pass to add more.', style: TextStyle(color: Color(Config.text3), fontSize: 12)),
+            const SizedBox(height: 16),
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final c in countries)
+                Container(
+                  padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+                  decoration: BoxDecoration(color: const Color(Config.bg3), borderRadius: BorderRadius.circular(999)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text('✈️  $c', style: const TextStyle(color: Color(Config.text1), fontSize: 13)),
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      onTap: () => setS(() => countries.remove(c)),
+                      child: const Icon(Icons.close, size: 14, color: Color(Config.text3)),
+                    ),
+                  ]),
+                ),
+            ]),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: saving ? null : () async {
+                  setS(() => saving = true);
+                  try {
+                    await saveCountries(countries);
+                    if (ctx.mounted) Navigator.of(ctx).pop();
+                    _refresh();
+                  } catch (_) {
+                    setS(() => saving = false);
+                  }
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(Config.accent),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: saving
+                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Color(0xFFFFFFFF), strokeWidth: 2))
+                    : const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
   Widget _travelMagnetsSection(TrustData d) {
     final travelProof = d.proofFor('travel');
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -872,15 +935,31 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
             subtitle: 'AI detects countries automatically',
             pts: 8,
           ),
-          const SizedBox(height: 8),
-          const Row(children: [
-            Icon(Icons.info_outline, size: 12, color: Color(Config.text3)),
-            SizedBox(width: 6),
-            Expanded(child: Text(
-              'You can also add countries manually from your Profile screen.',
-              style: TextStyle(color: Color(Config.text3), fontSize: 11, height: 1.4),
-            )),
-          ]),
+          if (d.countries.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () => _editCountries(d),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0x14FFFFFF),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0x22FFFFFF)),
+                ),
+                child: Row(children: [
+                  const Icon(Icons.edit_outlined, size: 14, color: Color(Config.text2)),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(
+                    d.countries.join(' · '),
+                    style: const TextStyle(color: Color(Config.text2), fontSize: 13),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  )),
+                  const Icon(Icons.chevron_right, size: 16, color: Color(Config.text3)),
+                ]),
+              ),
+            ),
+          ],
         ]),
       ),
     ]);

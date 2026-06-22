@@ -1,18 +1,11 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
+import { runHealthCheck } from '$lib/server/health';
 
-/**
- * Health check endpoint
- * Used to verify server connectivity and basic functionality
- */
-export const HEAD: RequestHandler = async () => {
-  return new Response(null, { status: 200 });
-};
+export const HEAD: RequestHandler = async () => new Response(null, { status: 200 });
 
 export const GET: RequestHandler = async () => {
-  return json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime?.() || 0
-  });
+  const report = await runHealthCheck();
+  const httpStatus = report.status === 'down' ? 503 : report.status === 'degraded' ? 207 : 200;
+  return json(report, { status: httpStatus });
 };

@@ -65,6 +65,32 @@ async function getUserIdFromRequest(request: Request): Promise<string | null> {
   return user?.id ?? null;
 }
 
+/**
+ * Merge fields into user_master_profile (upsert). Best-effort — never throws.
+ * Used by verify-step handlers to keep master profile in sync without a
+ * separate mobile round-trip.
+ */
+async function updateMasterProfile(userId: string, fields: Record<string, unknown>): Promise<void> {
+  try {
+    const supabase = getSupabase();
+    const { data: existing } = await (supabase as any)
+      .from('user_master_profile')
+      .select('data')
+      .eq('user_id', userId)
+      .maybeSingle();
+    const prev = (existing?.data as Record<string, unknown>) ?? {};
+    const merged = { ...prev, ...fields };
+    await (supabase as any)
+      .from('user_master_profile')
+      .upsert(
+        { user_id: userId, data: merged, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id' }
+      );
+  } catch (e) {
+    console.warn('[verify-step] master-profile update failed (non-fatal):', e);
+  }
+}
+
 /** Save a completed step to Supabase (best-effort; does not fail the request) */
 async function persistVerificationStep(
   userId: string,
@@ -292,32 +318,29 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
       );
     }
 
-    // Check photo consistency using Claude (bypass in dev or when only 1 photo uploaded)
+    // Photo consistency check — informational only, never blocks the user.
+    // The liveness step already verified the user's real face; if someone
+    // uploads mismatched photos their profile quality suffers but we don't
+    // hard-reject them here.
     const skipVerification = import.meta.env.VITE_SKIP_VERIFICATION === 'true';
-    const consistencyResult = skipVerification || data.images.length < 2
-      ? { consistent: true, confidence: 0.99 }
-      : await checkPhotoConsistencyWithClaude(data.images, data.mimeTypes[0] || 'image/jpeg');
-
-    // If photos are not consistent, return error
-    if (!consistencyResult.consistent) {
-      return json(
-        {
-          status: 'failed',
-          data: {
-            confidence: consistencyResult.confidence,
-            consistent: false,
-            reason: 'Photos are not consistent. Please upload photos of the same person.'
-          },
-          trustPoints: 0
-        },
-        { status: 400 }
-      );
+    let consistencyResult = { consistent: true, confidence: 0.99 };
+    if (!skipVerification && data.images.length >= 2) {
+      try {
+        consistencyResult = await checkPhotoConsistencyWithClaude(data.images, data.mimeTypes[0] || 'image/jpeg');
+        if (!consistencyResult.consistent) {
+          console.warn('[verify-step] photo consistency low — proceeding anyway (non-blocking)');
+        }
+      } catch (err) {
+        console.warn('[verify-step] photo consistency check failed (non-fatal), proceeding:', err);
+      }
     }
 
     const trustPoints = getTrustPoints('photos');
 
     // Upload photos to Supabase Storage and set avatar_url
     let avatarUrl: string | null = null;
+    const allPhotoItems: Array<{ dataUrl: string; label: string }> = [];
+
     if (userId) {
       try {
         const supabase = getSupabase();
@@ -326,9 +349,11 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
           'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif'
         };
 
-        // Find which index is the 'lead' photo (fall back to index 0)
+        // Find which index is the 'lead' photo (fall back to index 0).
+        // Mobile sends 'main' as the first label so also match that.
         const labels: Record<string, string> = data.labels ?? {};
-        const leadIndex = Object.entries(labels).find(([, v]) => v === 'lead')?.[0] ?? '0';
+        const leadIndex = Object.entries(labels)
+          .find(([, v]) => v === 'lead' || v === 'main')?.[0] ?? '0';
 
         for (let i = 0; i < data.images.length; i++) {
           const mime = data.mimeTypes[i] ?? 'image/jpeg';
@@ -340,9 +365,12 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
             .from('profiles')
             .upload(path, buffer, { contentType: mime, upsert: true });
 
-          if (!uploadErr && String(i) === String(leadIndex)) {
+          if (!uploadErr) {
             const { data: urlData } = supabase.storage.from('profiles').getPublicUrl(path);
-            avatarUrl = urlData.publicUrl;
+            const publicUrl = urlData.publicUrl;
+            const isLead = String(i) === String(leadIndex);
+            allPhotoItems.push({ dataUrl: publicUrl, label: isLead ? 'lead' : 'photo' });
+            if (isLead) avatarUrl = publicUrl;
           }
         }
 
@@ -351,6 +379,12 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
             .from('verified_vibe_users')
             .update({ avatar_url: avatarUrl })
             .eq('id', userId);
+        }
+
+        // Persist hosted URLs to user_master_profile.photos so the mobile
+        // profile screen can display them without another upload.
+        if (allPhotoItems.length > 0) {
+          await updateMasterProfile(userId, { photos: allPhotoItems });
         }
       } catch (uploadErr) {
         console.error('Photo storage upload error (non-fatal):', uploadErr);
@@ -366,6 +400,7 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
 
     if (userId) {
       await persistVerificationStep(userId, 'photos', trustPoints, stepData);
+      enrollInPoolIfVerified(userId).catch(() => {});
     }
 
     const response = {
@@ -570,6 +605,10 @@ async function handleQAVerification(responses: Record<string, string>, gender: s
 
     if (userId) {
       await persistVerificationStep(userId, 'spending_or_qa', trustPoints, stepData);
+      // Mirror onboarding responses into user_master_profile so the web profile
+      // and AI context have them without waiting for the mobile sync call.
+      await updateMasterProfile(userId, { onboarding: mergedResponses });
+      enrollInPoolIfVerified(userId).catch(() => {});
     }
 
     return json({

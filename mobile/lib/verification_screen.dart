@@ -10,10 +10,30 @@ import 'api.dart';
 import 'config.dart';
 
 String _friendlyError(Object e) {
+  if (e is DioException) {
+    if (e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.receiveTimeout ||
+        e.type == DioExceptionType.sendTimeout) {
+      return 'Connection timed out. Please check your internet and try again.';
+    }
+    if (e.type == DioExceptionType.connectionError) {
+      return 'Connection issue. Please check your internet and try again.';
+    }
+    // Extract server error message (e.g. "Photos are not consistent...")
+    final body = e.response?.data;
+    if (body is Map) {
+      final msg = body['error'] ?? body['message'];
+      if (msg is String && msg.isNotEmpty) return msg;
+    }
+    return 'Something went wrong. Please try again.';
+  }
   final s = e.toString();
-  if (s.contains('DioException') || s.contains('SocketException') ||
-      s.contains('connection') || s.contains('network') || s.contains('timeout')) {
+  if (s.contains('SocketException') || s.contains('connection') ||
+      s.contains('network') || s.contains('timeout')) {
     return 'Connection issue. Please check your internet and try again.';
+  }
+  if (s.contains('Not authenticated') || s.contains('Bad state')) {
+    return 'Session expired. Please restart the app and try again.';
   }
   return 'Something went wrong. Please try again.';
 }
@@ -510,10 +530,18 @@ class _VerificationScreenState extends State<VerificationScreen> {
     return next;
   }
 
+  /// Find the previous step that isn't already skipped (-1 means no previous step)
+  int _prevStep(int from) {
+    int prev = from - 1;
+    while (prev >= 0 && widget.skipSteps.contains(prev)) prev--;
+    return prev;
+  }
+
   @override
   void initState() {
     super.initState();
     _step = widget.initialStep;
+    _photos = List<String?>.filled(_isWoman ? 6 : 3, null);
     _preloadUserData();
   }
 
@@ -663,9 +691,11 @@ class _VerificationScreenState extends State<VerificationScreen> {
   final _nameCtrl  = TextEditingController();
   final _ageCtrl   = TextEditingController();
   final _cityCtrl  = TextEditingController();
-  final _photos    = <String?>[null, null, null]; // 3 portrait slots
+  late List<String?> _photos; // 3 slots for men, 6 for women
   bool  _openToTravel = false;
   bool  _detectingCity = false;
+
+  bool get _isWoman => (widget.archetypeId ?? '').endsWith('_woman');
 
   int get _photoCount => _photos.where((p) => p != null).length;
 
@@ -787,10 +817,29 @@ class _VerificationScreenState extends State<VerificationScreen> {
   }
 
   Future<void> _pickPhoto(int slot) async {
-    final x = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 1600, imageQuality: 85);
-    if (x == null) return;
-    final bytes = await x.readAsBytes();
-    if (mounted) setState(() => _photos[slot] = base64Encode(bytes));
+    // If tapping an empty slot, offer multi-select so the user can pick
+    // several photos at once and fill consecutive empty slots.
+    if (_photos[slot] == null) {
+      final picked = await _picker.pickMultiImage(maxWidth: 1024, imageQuality: 75);
+      if (picked.isEmpty) return;
+      // Fill starting from this slot, skipping slots that already have a photo.
+      final emptySlots = [
+        for (int i = slot; i < _photos.length; i++)
+          if (_photos[i] == null) i,
+      ];
+      final toFill = picked.take(emptySlots.length).toList();
+      for (int j = 0; j < toFill.length; j++) {
+        final bytes = await toFill[j].readAsBytes();
+        final b64 = base64Encode(bytes);
+        if (mounted) setState(() => _photos[emptySlots[j]] = b64);
+      }
+    } else {
+      // Tapping a slot that already has a photo → replace it with a single pick.
+      final x = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 1024, imageQuality: 75);
+      if (x == null) return;
+      final bytes = await x.readAsBytes();
+      if (mounted) setState(() => _photos[slot] = base64Encode(bytes));
+    }
   }
 
   void _showSkipDialog({required VoidCallback onConfirm}) {
@@ -882,7 +931,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         case 1:
           await verifyStep('spending_or_qa', {
             'responses': {
-              'drawn_to': {for (final s in _drawnToSections) s.key: (_drawnTo[s.key] ?? {}).toList()},
+              'drawn_to': {for (final s in _step1Sections) s.key: (_drawnTo[s.key] ?? {}).toList()},
             },
             'mimeType': 'application/json',
           });
@@ -984,8 +1033,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
         children: [
           GestureDetector(
             onTap: _busy ? null : () {
-              if (_step > 0) {
-                setState(() { _step--; _error = null; });
+              final prev = _prevStep(_step);
+              if (prev >= 0) {
+                setState(() { _step = prev; _error = null; });
               } else {
                 widget.onBack?.call();
               }
@@ -1348,17 +1398,24 @@ class _VerificationScreenState extends State<VerificationScreen> {
         LayoutBuilder(builder: (ctx, box) {
           final w = (box.maxWidth - 16) / 3;
           final h = w * 4 / 3;
-          return SizedBox(
-            height: h,
-            child: Row(
-              children: [
-                SizedBox(width: w, height: h, child: _photoSlot(0)),
-                const SizedBox(width: 8),
-                SizedBox(width: w, height: h, child: _photoSlot(1)),
-                const SizedBox(width: 8),
-                SizedBox(width: w, height: h, child: _photoSlot(2)),
+          final rows = _photos.length ~/ 3;
+          return Column(
+            children: [
+              for (int row = 0; row < rows; row++) ...[
+                if (row > 0) const SizedBox(height: 8),
+                SizedBox(
+                  height: h,
+                  child: Row(
+                    children: [
+                      for (int col = 0; col < 3; col++) ...[
+                        if (col > 0) const SizedBox(width: 8),
+                        SizedBox(width: w, height: h, child: _photoSlot(row * 3 + col)),
+                      ],
+                    ],
+                  ),
+                ),
               ],
-            ),
+            ],
           );
         }),
         const SizedBox(height: 8),

@@ -353,7 +353,7 @@ class _ProfileBody extends StatelessWidget {
                 ? '✓ AI verified via bank statement / financial document'
                 : null,
             onUpload: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const TrustBoostScreen())).then((_) => onChanged()),
+              MaterialPageRoute(builder: (_) => const CategoryProofScreen(categoryId: 'spending'))).then((_) => onChanged()),
           ),
         ),
 
@@ -394,7 +394,7 @@ class _ProfileBody extends StatelessWidget {
           emoji: '✈️',
           title: 'TRAVEL MAGNETS',
           subtitle: 'countries you\'ve visited',
-          onEdit: () => _editCountries(context, data, onChanged),
+          onEdit: data.countries.isEmpty ? null : () => _editCountries(context, data, onChanged),
           child: data.countries.isEmpty
               ? GestureDetector(
                   onTap: () => Navigator.of(context).push(MaterialPageRoute(
@@ -1305,7 +1305,6 @@ class _ChipWithRemove extends StatelessWidget {
 }
 
 Future<void> _editCountries(BuildContext context, ProfileData d, VoidCallback onChanged) async {
-  final ctrl = TextEditingController();
   final countries = List<String>.from(d.countries);
   bool saving = false;
 
@@ -1322,41 +1321,9 @@ Future<void> _editCountries(BuildContext context, ProfileData d, VoidCallback on
           const Text('Travel Magnets',
               style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700, fontSize: 18)),
           const SizedBox(height: 4),
-          const Text('Add or remove countries you\'ve traveled to.',
+          const Text('Detected from your travel uploads in Trust & Boost. Tap × to remove.',
               style: TextStyle(color: Color(Config.text3), fontSize: 12)),
           const SizedBox(height: 16),
-          // Add country row
-          Row(children: [
-            Expanded(
-              child: TextField(
-                controller: ctrl,
-                textCapitalization: TextCapitalization.words,
-                style: const TextStyle(color: Color(Config.text1)),
-                decoration: InputDecoration(
-                  hintText: 'e.g. Japan, France…',
-                  hintStyle: const TextStyle(color: Color(Config.text3)),
-                  filled: true,
-                  fillColor: const Color(Config.bg3),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            GestureDetector(
-              onTap: () {
-                final val = ctrl.text.trim();
-                if (val.isNotEmpty && !countries.contains(val)) {
-                  setS(() { countries.add(val); ctrl.clear(); });
-                }
-              },
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: const Color(Config.accent), borderRadius: BorderRadius.circular(12)),
-                child: const Icon(Icons.add, color: Color(0xFFFFFFFF), size: 20),
-              ),
-            ),
-          ]),
           if (countries.isNotEmpty) ...[
             const SizedBox(height: 14),
             Wrap(spacing: 8, runSpacing: 8, children: [
@@ -1608,10 +1575,24 @@ class _LanePickerSheetState extends State<_LanePickerSheet> {
     setState(() => _saving = true);
     try {
       await saveArchetype(a.id);
-      if (ctx.mounted) Navigator.of(ctx).pop();
+      // Reset Q&A so user re-fills with new archetype's questions
+      await resetQAVerification();
+      if (ctx.mounted) {
+        Navigator.of(ctx).pop();
+        ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+          content: Text('Lane updated! Please re-fill your Intent Q&A in Trust & Boost.'),
+          duration: Duration(seconds: 4),
+        ));
+      }
       widget.onChanged();
     } catch (e) {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+          content: Text('Could not update lane: $e'),
+          backgroundColor: Colors.red,
+        ));
+      }
     }
   }
 
