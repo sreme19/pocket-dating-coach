@@ -260,11 +260,22 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
 
     const passedProfileIds = (passedProfiles || []).map((pass: any) => pass.passed_user_id);
 
+    // Fetch already-matched profiles — hide them from discovery
+    const { data: matchedRows } = await (supabase as any)
+      .from('verified_vibe_matches')
+      .select('user1_id, user2_id')
+      .or(`user1_id.eq.${currentUserId},user2_id.eq.${currentUserId}`);
+
+    const matchedProfileIds = (matchedRows || []).map((m: any) =>
+      m.user1_id === currentUserId ? m.user2_id : m.user1_id
+    );
+
     // Combine all exclude IDs (from query params + database history)
     const allExcludeIds = new Set([
       ...excludeIds,
       ...likedProfileIds,
-      ...passedProfileIds
+      ...passedProfileIds,
+      ...matchedProfileIds
     ]);
 
     // Convert database profiles to DiscoveryProfile format
