@@ -530,6 +530,13 @@ class _VerificationScreenState extends State<VerificationScreen> {
     return next;
   }
 
+  /// Find the previous step that isn't already skipped (-1 means no previous step)
+  int _prevStep(int from) {
+    int prev = from - 1;
+    while (prev >= 0 && widget.skipSteps.contains(prev)) prev--;
+    return prev;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1026,8 +1033,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
         children: [
           GestureDetector(
             onTap: _busy ? null : () {
-              if (_step > 0) {
-                setState(() { _step--; _error = null; });
+              final prev = _prevStep(_step);
+              if (prev >= 0) {
+                setState(() { _step = prev; _error = null; });
               } else {
                 widget.onBack?.call();
               }
