@@ -643,15 +643,35 @@ Future<void> saveArchetype(String archetype) async {
 
 /// Delete the spending_or_qa verification step so the user re-fills Q&A
 /// after changing their lane/archetype (different archetypes have different questions).
+/// Also clears the `onboarding` field in user_master_profile so the old Q&A
+/// responses are not carried over to the new archetype's questions.
 Future<void> resetQAVerification() async {
   final supabase = Supabase.instance.client;
   final user = supabase.auth.currentUser;
   if (user == null) return;
+
+  // 1. Delete spending_or_qa row from verified_vibe_verification
   await supabase
       .from('verified_vibe_verification')
       .delete()
       .eq('user_id', user.id)
       .eq('step', 'spending_or_qa');
+
+  // 2. Clear onboarding field in user_master_profile.data so old Q&A
+  //    responses don't persist for the new archetype.
+  final row = await supabase
+      .from('user_master_profile')
+      .select('data')
+      .eq('user_id', user.id)
+      .maybeSingle();
+  if (row != null) {
+    final data = Map<String, dynamic>.from((row['data'] as Map?) ?? {});
+    data.remove('onboarding');
+    await supabase
+        .from('user_master_profile')
+        .update({'data': data})
+        .eq('user_id', user.id);
+  }
 }
 
 /// Persist hard-nos (dealbreakers) to verified_vibe_users.hard_nos.

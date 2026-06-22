@@ -1619,7 +1619,13 @@ class _LanePickerSheetState extends State<_LanePickerSheet> {
       }
       widget.onChanged();
     } catch (e) {
-      if (mounted) setState(() => _saving = false);
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+          content: Text('Could not update lane: $e'),
+          backgroundColor: Colors.red,
+        ));
+      }
     }
   }
 
