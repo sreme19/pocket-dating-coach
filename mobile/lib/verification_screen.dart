@@ -810,10 +810,29 @@ class _VerificationScreenState extends State<VerificationScreen> {
   }
 
   Future<void> _pickPhoto(int slot) async {
-    final x = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 1024, imageQuality: 75);
-    if (x == null) return;
-    final bytes = await x.readAsBytes();
-    if (mounted) setState(() => _photos[slot] = base64Encode(bytes));
+    // If tapping an empty slot, offer multi-select so the user can pick
+    // several photos at once and fill consecutive empty slots.
+    if (_photos[slot] == null) {
+      final picked = await _picker.pickMultiImage(maxWidth: 1024, imageQuality: 75);
+      if (picked.isEmpty) return;
+      // Fill starting from this slot, skipping slots that already have a photo.
+      final emptySlots = [
+        for (int i = slot; i < _photos.length; i++)
+          if (_photos[i] == null) i,
+      ];
+      final toFill = picked.take(emptySlots.length).toList();
+      for (int j = 0; j < toFill.length; j++) {
+        final bytes = await toFill[j].readAsBytes();
+        final b64 = base64Encode(bytes);
+        if (mounted) setState(() => _photos[emptySlots[j]] = b64);
+      }
+    } else {
+      // Tapping a slot that already has a photo → replace it with a single pick.
+      final x = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 1024, imageQuality: 75);
+      if (x == null) return;
+      final bytes = await x.readAsBytes();
+      if (mounted) setState(() => _photos[slot] = base64Encode(bytes));
+    }
   }
 
   void _showSkipDialog({required VoidCallback onConfirm}) {
