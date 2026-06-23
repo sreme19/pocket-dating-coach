@@ -1,3 +1,4 @@
+import 'dart:convert' show base64Decode;
 import 'dart:math' show pi, cos, sin, min;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -2008,7 +2009,8 @@ class _HeroState extends State<_Hero> {
 
   @override
   Widget build(BuildContext context) {
-    var urls = widget.photos.where((u) => u.startsWith('http')).toList();
+    // Accept both https:// URLs (Supabase Storage) and data: base64 URIs (local uploads).
+    var urls = widget.photos.where((u) => u.startsWith('http') || u.startsWith('data:')).toList();
     if (urls.isEmpty && widget.fallback != null && widget.fallback!.startsWith('http')) {
       urls = [widget.fallback!];
     }
@@ -2021,17 +2023,32 @@ class _HeroState extends State<_Hero> {
         children: [
           PageView.builder(
             controller: _ctrl,
+            physics: const PageScrollPhysics(),
             itemCount: urls.length,
             onPageChanged: (i) => setState(() => _i = i),
-            itemBuilder: (c, i) => CachedNetworkImage(
-              imageUrl: urls[i],
-              fit: BoxFit.cover,
-              placeholder: (c, _) => const ColoredBox(
-                color: Color(Config.bg2),
-                child: Center(child: CircularProgressIndicator(color: Color(Config.accent))),
-              ),
-              errorWidget: (c, _, _) => const _PhotoPlaceholder(),
-            ),
+            itemBuilder: (c, i) {
+              final url = urls[i];
+              if (url.startsWith('data:')) {
+                // base64 data URI — decode and render with Image.memory
+                try {
+                  final comma = url.indexOf(',');
+                  final bytes = base64Decode(url.substring(comma + 1));
+                  return Image.memory(bytes, fit: BoxFit.cover,
+                      errorBuilder: (c, _, _) => const _PhotoPlaceholder());
+                } catch (_) {
+                  return const _PhotoPlaceholder();
+                }
+              }
+              return CachedNetworkImage(
+                imageUrl: url,
+                fit: BoxFit.cover,
+                placeholder: (c, _) => const ColoredBox(
+                  color: Color(Config.bg2),
+                  child: Center(child: CircularProgressIndicator(color: Color(Config.accent))),
+                ),
+                errorWidget: (c, _, _) => const _PhotoPlaceholder(),
+              );
+            },
           ),
           if (urls.length > 1)
             Positioned(

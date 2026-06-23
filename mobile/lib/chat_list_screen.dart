@@ -21,6 +21,7 @@ class _ChatListScreenState extends State<ChatListScreen>
   int _filter = 0; // 0 = All, 1 = Unread
   RealtimeChannel? _msgChannel;
   RealtimeChannel? _attentionChannel;
+  RealtimeChannel? _matchChannel;
   Timer? _periodicRefresh;
 
   // ── Find Match ────────────────────────────────────────────────────────────
@@ -108,6 +109,7 @@ class _ChatListScreenState extends State<ChatListScreen>
     _periodicRefresh?.cancel();
     if (_msgChannel != null) Supabase.instance.client.removeChannel(_msgChannel!);
     if (_attentionChannel != null) Supabase.instance.client.removeChannel(_attentionChannel!);
+    if (_matchChannel != null) Supabase.instance.client.removeChannel(_matchChannel!);
     super.dispose();
   }
 
@@ -129,6 +131,34 @@ class _ChatListScreenState extends State<ChatListScreen>
           schema: 'public',
           table: 'verified_vibe_messages',
           callback: (_) => _refresh(),
+        )
+        .subscribe();
+
+    // Real-time: new match created by matchmaker → refresh list + update FM button
+    final myId = uid;
+    _matchChannel = Supabase.instance.client
+        .channel('chat-list-matches:$uid')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'verified_vibe_matches',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user1_id',
+            value: myId,
+          ),
+          callback: (_) { _refresh(); _loadMatchmakerStatus(); },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'verified_vibe_matches',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user2_id',
+            value: myId,
+          ),
+          callback: (_) { _refresh(); _loadMatchmakerStatus(); },
         )
         .subscribe();
 
@@ -245,7 +275,9 @@ class _ChatListScreenState extends State<ChatListScreen>
           final isMan = data.gender == 'man';
           final isWoman = data.gender == 'woman';
           final newMatches = data.conversations.where((c) => !c.hasMessages).toList();
-          var active = data.conversations.where((c) => c.hasMessages).toList();
+          var active = data.conversations.where((c) => c.hasMessages).toList()
+            ..sort((a, b) => (b.lastMessageTime ?? DateTime(1970))
+                .compareTo(a.lastMessageTime ?? DateTime(1970)));
           final unreadTotal = active.where((c) => c.unreadCount > 0).length;
           if (_filter == 1) active = active.where((c) => c.unreadCount > 0).toList();
 

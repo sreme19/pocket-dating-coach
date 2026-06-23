@@ -99,10 +99,14 @@ class PushService {
     final convo = RegExp(r'^/(?:chat|conversations)/([^/?#]+)').firstMatch(link);
     if (convo != null) {
       final id = convo.group(1)!;
-      onSwitchTab?.call(1); // ensure Chat tab is active before pushing
-      navKey?.currentState?.push(
-        MaterialPageRoute(builder: (_) => ConversationScreen(conversationId: id, title: 'Chat')),
-      );
+      onSwitchTab?.call(1); // triggers setState in HomeShell (_index = 1)
+      // Wait for HomeShell to rebuild with Chat tab active before pushing,
+      // so that popping ConversationScreen returns to Chat (not Discover).
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        navKey?.currentState?.push(
+          MaterialPageRoute(builder: (_) => ConversationScreen(conversationId: id, title: 'Chat')),
+        );
+      });
       return;
     }
 
