@@ -362,6 +362,7 @@ export async function runNightlyBatch(cityScoped = false): Promise<void> {
           user1_id: pair.maleUserId,
           user2_id: pair.femaleUserId,
           status:   'mutual',
+          ai_bestie_active: true,
         });
 
       if (!matchErr) {
@@ -593,7 +594,7 @@ export async function runMatchmakerForUser(userId: string): Promise<FindMatchRes
   if (!matchId) {
     const { data: created, error: createErr } = await db
       .from('verified_vibe_matches')
-      .insert({ user1_id: maleId, user2_id: femaleId, status: 'mutual' })
+      .insert({ user1_id: maleId, user2_id: femaleId, status: 'mutual', ai_bestie_active: true })
       .select('id')
       .single();
     if (createErr || !created) {
