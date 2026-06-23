@@ -16,7 +16,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { createClient } from '@supabase/supabase-js';
 import { getSupabase } from '$lib/server/supabase';
-import { refreshWingmanPoolEntry, refreshBestiePoolEntry } from '$lib/server/pool-registry';
+import { refreshPoolEntry } from '$lib/server/pool-registry';
 
 // ── Auth helper ───────────────────────────────────────────────────────────────
 
@@ -231,8 +231,7 @@ export const POST: RequestHandler = async ({ request }: { request: Request }) =>
   }
 
   // Fire-and-forget: refresh pool entry so Matchmaker has fresh data
-  refreshWingmanPoolEntry(userId).catch(() => {});
-  refreshBestiePoolEntry(userId).catch(() => {});
+  refreshPoolEntry(userId).catch(() => {});
 
   return json({ synced: true, countriesTraveled: mergedCountries });
 };

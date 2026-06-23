@@ -12,7 +12,7 @@
  *
  * Privacy contract: this service NEVER reads individual users' raw master
  * profiles or sensitive translations. It works exclusively from the distilled
- * match_profile and preference_model columns in vv_pool_wingmen/vv_pool_besties.
+ * match_profile and preferences columns in the unified vv_pool_profiles table.
  */
 
 import { getSupabase } from './supabase';
@@ -49,6 +49,55 @@ export interface ScoredPair {
   score:        number;       // 0–100
   rationale:    string;       // Claude's explanation (not shown to users directly)
   flags:        string[];     // key compatibility signals identified
+}
+
+// ── vv_pool_profiles → legacy row adapters ────────────────────────────────────
+// The pool is now the single unified vv_pool_profiles table (columns
+// match_profile + preferences). These adapters map a unified row back into the
+// legacy WingmanPoolRow / BestiePoolRow shapes so all the scoring/filtering
+// logic below keeps working unchanged:
+//   - men:   preferences            → preference_signals
+//   - women: preferences            → preference_model (+ relationshipIntent alias)
+//            match_profile.values   → match_profile.whatSheValues alias
+
+export function poolToWingmanRow(p: any): WingmanPoolRow {
+  return {
+    user_id:             p.user_id,
+    archetype:           p.archetype,
+    trust_score_band:    p.trust_score_band,
+    city:                p.city ?? null,
+    match_profile:       (p.match_profile ?? {}) as Record<string, unknown>,
+    preference_signals:  (p.preferences ?? {}) as Record<string, unknown>,
+    availability_status: p.availability_status,
+    last_updated:        p.last_updated,
+  };
+}
+
+export function poolToBestieRow(p: any): BestiePoolRow {
+  const mp = (p.match_profile ?? {}) as Record<string, unknown>;
+  const pr = (p.preferences ?? {}) as Record<string, unknown>;
+  return {
+    user_id:             p.user_id,
+    archetype:           p.archetype,
+    trust_score_band:    p.trust_score_band,
+    city:                p.city ?? null,
+    match_profile:       { ...mp, whatSheValues: mp.values ?? [] },
+    preference_model:    { ...pr, relationshipIntent: pr.lookingFor ?? '' },
+    availability_status: p.availability_status,
+    last_updated:        p.last_updated,
+  };
+}
+
+const POOL = 'vv_pool_profiles';
+
+/** Load one user's pool row (already gender-resolved) in the legacy shape. */
+async function loadWingmanRow(db: any, userId: string): Promise<WingmanPoolRow | null> {
+  const { data } = await db.from(POOL).select('*').eq('assistant_type', 'wingman').eq('user_id', userId).maybeSingle();
+  return data ? poolToWingmanRow(data) : null;
+}
+async function loadBestieRow(db: any, userId: string): Promise<BestiePoolRow | null> {
+  const { data } = await db.from(POOL).select('*').eq('assistant_type', 'bestie').eq('user_id', userId).maybeSingle();
+  return data ? poolToBestieRow(data) : null;
 }
 
 // ── Hard filter ───────────────────────────────────────────────────────────────
@@ -187,24 +236,22 @@ async function softOverrideCandidates(
   const db = getSupabase() as any;
 
   if (gender === 'man') {
-    const { data: male } = await db
-      .from('vv_pool_wingmen')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
+    const male = await loadWingmanRow(db, userId);
 
     if (!male) return [];
 
-    const { data: females } = await db
-      .from('vv_pool_besties')
+    const { data: femaleRows } = await db
+      .from(POOL)
       .select('*')
+      .eq('assistant_type', 'bestie')
       .eq('availability_status', 'active')
       .limit(50);
 
-    if (!females?.length) return [];
+    const females = ((femaleRows ?? []) as any[]).map(poolToBestieRow);
+    if (!females.length) return [];
 
     const scored = await Promise.all(
-      (females as BestiePoolRow[]).map((f) => softScore(male as WingmanPoolRow, f))
+      females.map((f) => softScore(male, f))
     );
 
     return scored
@@ -216,24 +263,22 @@ async function softOverrideCandidates(
         note:   'Best available outside your stated preferences — some dealbreakers may apply.',
       }));
   } else {
-    const { data: female } = await db
-      .from('vv_pool_besties')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
+    const female = await loadBestieRow(db, userId);
 
     if (!female) return [];
 
-    const { data: males } = await db
-      .from('vv_pool_wingmen')
+    const { data: maleRows } = await db
+      .from(POOL)
       .select('*')
+      .eq('assistant_type', 'wingman')
       .eq('availability_status', 'active')
       .limit(50);
 
-    if (!males?.length) return [];
+    const males = ((maleRows ?? []) as any[]).map(poolToWingmanRow);
+    if (!males.length) return [];
 
     const scored = await Promise.all(
-      (males as WingmanPoolRow[]).map((m) => softScore(m, female as BestiePoolRow))
+      males.map((m) => softScore(m, female))
     );
 
     return scored
@@ -263,11 +308,15 @@ export async function runNightlyBatch(cityScoped = false): Promise<void> {
   const runId = runRow?.id;
 
   try {
-    // Load active pools
-    const { data: males }   = await db.from('vv_pool_wingmen').select('*').eq('availability_status', 'active');
-    const { data: females } = await db.from('vv_pool_besties').select('*').eq('availability_status', 'active');
+    // Load active pools from the unified table, mapped to legacy shapes
+    const [{ data: maleRows }, { data: femaleRows }] = await Promise.all([
+      db.from(POOL).select('*').eq('assistant_type', 'wingman').eq('availability_status', 'active'),
+      db.from(POOL).select('*').eq('assistant_type', 'bestie').eq('availability_status', 'active'),
+    ]);
+    const males   = (maleRows ?? []).map(poolToWingmanRow);
+    const females = (femaleRows ?? []).map(poolToBestieRow);
 
-    if (!males?.length || !females?.length) {
+    if (!males.length || !females.length) {
       await db.from('vv_matchmaker_runs').update({ completed_at: new Date().toISOString(), ...runLog }).eq('id', runId);
       return;
     }
@@ -456,17 +505,19 @@ export async function runMatchmakerForUser(userId: string): Promise<FindMatchRes
   const isWoman = me.gender === 'woman';
   if (!isMan && !isWoman) return { status: 'needs_verification' }; // no hetero pool side
 
-  const myPoolTable    = isMan ? 'vv_pool_wingmen' : 'vv_pool_besties';
-  const otherPoolTable = isMan ? 'vv_pool_besties' : 'vv_pool_wingmen';
+  const myAssistant    = isMan ? 'wingman' : 'bestie';
+  const otherAssistant = isMan ? 'bestie' : 'wingman';
 
   // Eligibility: the user must have an ACTIVE pool entry (fully verified).
-  const { data: myPool } = await db
-    .from(myPoolTable)
+  const { data: myPoolRaw } = await db
+    .from(POOL)
     .select('*')
+    .eq('assistant_type', myAssistant)
     .eq('user_id', userId)
     .eq('availability_status', 'active')
     .maybeSingle();
-  if (!myPool) return { status: 'needs_verification' };
+  if (!myPoolRaw) return { status: 'needs_verification' };
+  const myPool = isMan ? poolToWingmanRow(myPoolRaw) : poolToBestieRow(myPoolRaw);
 
   // Quota check.
   const runsUsed  = me.matchmaker_runs_used  ?? 0;
@@ -480,10 +531,11 @@ export async function runMatchmakerForUser(userId: string): Promise<FindMatchRes
   await db.from('verified_vibe_users').update({ matchmaker_runs_used: newRunsUsed }).eq('id', userId);
 
   // Load opposite-gender active candidates + this user's existing matches.
-  const [{ data: candidates }, { data: myMatches }] = await Promise.all([
-    db.from(otherPoolTable).select('*').eq('availability_status', 'active'),
+  const [{ data: candidateRows }, { data: myMatches }] = await Promise.all([
+    db.from(POOL).select('*').eq('assistant_type', otherAssistant).eq('availability_status', 'active'),
     db.from('verified_vibe_matches').select('user1_id, user2_id').or(`user1_id.eq.${userId},user2_id.eq.${userId}`),
   ]);
+  const candidates = (candidateRows ?? []).map(isMan ? poolToBestieRow : poolToWingmanRow);
 
   const matchedPartnerIds = new Set<string>(
     (myMatches ?? []).map((m: any) => (m.user1_id === userId ? m.user2_id : m.user1_id))
@@ -597,14 +649,15 @@ export async function getMatchmakerStatus(userId: string): Promise<{
     .maybeSingle();
   if (!me) return { eligible: false, runsUsed: 0, runsLimit: 0 };
 
-  const poolTable = me.gender === 'man' ? 'vv_pool_wingmen'
-                  : me.gender === 'woman' ? 'vv_pool_besties' : null;
+  const assistant = me.gender === 'man' ? 'wingman'
+                  : me.gender === 'woman' ? 'bestie' : null;
 
   let eligible = false;
-  if (poolTable) {
+  if (assistant) {
     const { data: poolRow } = await db
-      .from(poolTable)
+      .from(POOL)
       .select('user_id')
+      .eq('assistant_type', assistant)
       .eq('user_id', userId)
       .eq('availability_status', 'active')
       .maybeSingle();
@@ -680,11 +733,7 @@ export async function generatePerMatchRanking(userId: string): Promise<{
   const db = getSupabase() as any;
 
   // Get the male user's pool entry
-  const { data: malePool } = await db
-    .from('vv_pool_wingmen')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
+  const malePool = await loadWingmanRow(db, userId);
 
   if (!malePool) return { summary: 'No pool entry found.', matches: [], actionList: [] };
 
@@ -703,25 +752,26 @@ export async function generatePerMatchRanking(userId: string): Promise<{
     const femaleId = match.user1_id === userId ? match.user2_id : match.user1_id;
 
     // Get female's pool entry and basic info
-    const [{ data: femalePool }, { data: femaleUser }] = await Promise.all([
-      db.from('vv_pool_besties').select('*').eq('user_id', femaleId).single(),
+    const [femalePool, { data: femaleUser }] = await Promise.all([
+      loadBestieRow(db, femaleId),
       db.from('verified_vibe_users').select('first_name').eq('id', femaleId).single(),
     ]);
 
     if (!femalePool) continue;
 
     // Score the pair
-    const pairScore = await softScore(malePool as WingmanPoolRow, femalePool as BestiePoolRow);
+    const pairScore = await softScore(malePool, femalePool);
 
     // Find all competing males who pass this female's hard filters
-    const { data: allMales } = await db
-      .from('vv_pool_wingmen')
+    const { data: allMaleRows } = await db
+      .from(POOL)
       .select('*')
+      .eq('assistant_type', 'wingman')
       .eq('availability_status', 'active')
       .neq('user_id', userId);
 
-    const competitors = (allMales ?? []).filter(
-      (m: WingmanPoolRow) => !hardFilter(m, femalePool as BestiePoolRow, false)
+    const competitors = (allMaleRows ?? []).map(poolToWingmanRow).filter(
+      (m: WingmanPoolRow) => !hardFilter(m, femalePool, false)
     );
 
     // Score top 20 competitors (limit for cost)
@@ -770,24 +820,22 @@ export async function generateFemaleCompetitiveReport(userId: string): Promise<{
 }> {
   const db = getSupabase() as any;
 
-  const { data: femalePool } = await db
-    .from('vv_pool_besties')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
+  const femalePool = await loadBestieRow(db, userId);
 
   if (!femalePool) return { summary: 'No pool entry found.', positioning: '', topMenInPool: [], actionList: [] };
 
   // Get high-value men (trust_score_band 70-84, 85-94, 95+ combined with target archetypes)
   const highValueBands = ['70-84', '85-94', '95+'];
-  const { data: highValueMen } = await db
-    .from('vv_pool_wingmen')
+  const { data: highValueMenRows } = await db
+    .from(POOL)
     .select('*')
+    .eq('assistant_type', 'wingman')
     .in('trust_score_band', highValueBands)
     .eq('availability_status', 'active')
     .limit(30);
 
-  if (!highValueMen?.length) return {
+  const highValueMen = (highValueMenRows ?? []).map(poolToWingmanRow);
+  if (!highValueMen.length) return {
     summary: 'No high-value men in the pool yet. The pool is growing — check back soon.',
     positioning: '',
     topMenInPool: [],

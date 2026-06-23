@@ -30,6 +30,8 @@ import {
 	hardFilter,
 	softScore,
 	buildSoftScorePrompt,
+	poolToWingmanRow,
+	poolToBestieRow,
 	type WingmanPoolRow,
 	type BestiePoolRow
 } from './matchmaker-service';
@@ -63,19 +65,17 @@ export function assistantFor(gender: string): 'bestie' | 'wingman' {
 /** Load the full roster of users for the picker, flagged with Matchmaker-pool membership. */
 export async function listRoster(): Promise<RosterUser[]> {
 	const sb = getSupabase();
-	const [{ data: users }, { data: wingmen }, { data: besties }] = await Promise.all([
+	const [{ data: users }, { data: poolRows }] = await Promise.all([
 		sb
 			.from('verified_vibe_users')
 			.select('id, first_name, gender, age, city, archetype, trust_score, is_seed')
 			.order('first_name', { ascending: true }),
-		sb.from('vv_pool_wingmen').select('user_id'),
-		sb.from('vv_pool_besties').select('user_id')
+		sb.from('vv_pool_profiles').select('user_id')
 	]);
 
-	const pool = new Set<string>([
-		...((wingmen ?? []) as { user_id: string }[]).map((r) => r.user_id),
-		...((besties ?? []) as { user_id: string }[]).map((r) => r.user_id)
-	]);
+	const pool = new Set<string>(
+		((poolRows ?? []) as { user_id: string }[]).map((r) => r.user_id)
+	);
 
 	return ((users ?? []) as Omit<RosterUser, 'in_pool'>[]).map((u) => ({
 		...u,
@@ -750,11 +750,18 @@ export async function runMatchReply(
 
 async function getPoolRow(
 	userId: string,
-	table: 'vv_pool_wingmen' | 'vv_pool_besties'
+	assistant: 'wingman' | 'bestie'
 ): Promise<Record<string, unknown> | null> {
 	const sb = getSupabase();
-	const { data } = await sb.from(table).select('*').eq('user_id', userId).single();
-	return (data ?? null) as Record<string, unknown> | null;
+	const { data } = await sb
+		.from('vv_pool_profiles')
+		.select('*')
+		.eq('assistant_type', assistant)
+		.eq('user_id', userId)
+		.single();
+	if (!data) return null;
+	// Map the unified row back to the legacy shape the scorer expects.
+	return (assistant === 'wingman' ? poolToWingmanRow(data) : poolToBestieRow(data)) as unknown as Record<string, unknown>;
 }
 
 export interface PairScoreResult {
@@ -882,8 +889,8 @@ export async function runMatchmaker(maleId: string, femaleId: string, opts: RunO
 	const female = await getUser(femaleId);
 	if (!male || !female) throw new Error('user not found');
 
-	const maleRow = (await getPoolRow(maleId, 'vv_pool_wingmen')) as WingmanPoolRow | null;
-	const femaleRow = (await getPoolRow(femaleId, 'vv_pool_besties')) as BestiePoolRow | null;
+	const maleRow = (await getPoolRow(maleId, 'wingman')) as WingmanPoolRow | null;
+	const femaleRow = (await getPoolRow(femaleId, 'bestie')) as BestiePoolRow | null;
 
 	if (!maleRow || !femaleRow) {
 		return {
@@ -1001,11 +1008,11 @@ export interface WarmResult {
 export async function warmMatrix(maxNewScores = 60): Promise<WarmResult> {
 	const sb = getSupabase();
 	const [{ data: wingmen }, { data: besties }] = await Promise.all([
-		sb.from('vv_pool_wingmen').select('*'),
-		sb.from('vv_pool_besties').select('*')
+		sb.from('vv_pool_profiles').select('*').eq('assistant_type', 'wingman'),
+		sb.from('vv_pool_profiles').select('*').eq('assistant_type', 'bestie')
 	]);
-	const males = (wingmen ?? []) as WingmanPoolRow[];
-	const females = (besties ?? []) as BestiePoolRow[];
+	const males = (wingmen ?? []).map(poolToWingmanRow);
+	const females = (besties ?? []).map(poolToBestieRow);
 
 	let alreadyCached = 0;
 	let scoredNow = 0;

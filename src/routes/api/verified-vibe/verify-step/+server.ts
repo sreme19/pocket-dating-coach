@@ -70,7 +70,7 @@ async function getUserIdFromRequest(request: Request): Promise<string | null> {
  * Used by verify-step handlers to keep master profile in sync without a
  * separate mobile round-trip.
  */
-async function updateMasterProfile(userId: string, fields: Record<string, unknown>): Promise<void> {
+async function updateMasterProfile(userId: string, fields: Record<string, unknown>): Promise<boolean> {
   try {
     const supabase = getSupabase();
     const { data: existing } = await (supabase as any)
@@ -80,14 +80,20 @@ async function updateMasterProfile(userId: string, fields: Record<string, unknow
       .maybeSingle();
     const prev = (existing?.data as Record<string, unknown>) ?? {};
     const merged = { ...prev, ...fields };
-    await (supabase as any)
+    const { error } = await (supabase as any)
       .from('user_master_profile')
       .upsert(
         { user_id: userId, data: merged, updated_at: new Date().toISOString() },
         { onConflict: 'user_id' }
       );
+    if (error) {
+      console.warn('[verify-step] master-profile update failed:', error);
+      return false;
+    }
+    return true;
   } catch (e) {
-    console.warn('[verify-step] master-profile update failed (non-fatal):', e);
+    console.warn('[verify-step] master-profile update failed:', e);
+    return false;
   }
 }
 
@@ -605,10 +611,15 @@ async function handleQAVerification(responses: Record<string, string>, gender: s
 
     if (userId) {
       await persistVerificationStep(userId, 'spending_or_qa', trustPoints, stepData);
-      // Mirror onboarding responses into user_master_profile so the web profile
-      // and AI context have them without waiting for the mobile sync call.
-      await updateMasterProfile(userId, { onboarding: mergedResponses });
-      enrollInPoolIfVerified(userId).catch(() => {});
+      // The pool distiller reads ONLY user_master_profile, so this mirror is the
+      // authoritative path for onboarding answers reaching the matchmaker. Gate
+      // enrollment on a successful write so we never enroll with empty preferences.
+      const synced = await updateMasterProfile(userId, { onboarding: mergedResponses });
+      if (synced) {
+        enrollInPoolIfVerified(userId).catch(() => {});
+      } else {
+        console.warn('[verify-step] skipped pool enroll — onboarding master-sync failed for', userId);
+      }
     }
 
     return json({

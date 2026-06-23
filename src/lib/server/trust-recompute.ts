@@ -20,7 +20,7 @@
 
 import { getSupabase } from './supabase';
 import { calculateCGTotal, type CGTrustSubscores } from '$lib/verified-vibe/server/trustScore';
-import { refreshWingmanPoolEntry, refreshBestiePoolEntry } from './pool-registry';
+import { refreshPoolEntry } from './pool-registry';
 
 // Proof-category → CG dimension boost (mirrors CasualGenerousBoostTab / the old
 // inline map in proof-upload). Show-off categories get a photo-count multiplier.
@@ -201,12 +201,12 @@ export async function recomputeRawTrust(userId: string): Promise<RawTrustResult>
 export async function refreshPoolBandIfEnrolled(userId: string): Promise<void> {
 	try {
 		const db = getSupabase() as any;
-		const [{ data: inWingmen }, { data: inBesties }] = await Promise.all([
-			db.from('vv_pool_wingmen').select('user_id').eq('user_id', userId).maybeSingle(),
-			db.from('vv_pool_besties').select('user_id').eq('user_id', userId).maybeSingle(),
-		]);
-		if (inWingmen) await refreshWingmanPoolEntry(userId);
-		if (inBesties) await refreshBestiePoolEntry(userId);
+		const { data: enrolled } = await db
+			.from('vv_pool_profiles')
+			.select('user_id')
+			.eq('user_id', userId)
+			.maybeSingle();
+		if (enrolled) await refreshPoolEntry(userId);
 	} catch (e) {
 		console.warn('refreshPoolBandIfEnrolled failed (non-fatal):', e);
 	}

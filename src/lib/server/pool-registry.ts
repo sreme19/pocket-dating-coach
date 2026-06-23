@@ -1,13 +1,19 @@
 /**
  * Pool Registry Service
  *
- * Writes and refreshes entries in vv_pool_wingmen (male users) and
- * vv_pool_besties (female users). Called:
+ * Writes and refreshes entries in the unified vv_pool_profiles table
+ * (assistant_type 'wingman' for men, 'bestie' for women). Called:
  *   - On verification completion (auto-enroll)
  *   - On any master-profile update (keep pool fresh)
  *
- * These tables are what AI Matchmaker reads. Keeping them fresh is the
+ * vv_pool_profiles is what AI Matchmaker reads. Keeping it fresh is the
  * only way Matchmaker has accurate data to score and rank pairs.
+ *
+ * SINGLE SOURCE: every field is distilled from user_master_profile.data
+ * (its `onboarding` blob + `generatedProfile` + `verifiedProofs`). The old
+ * direct read of verified_vibe_verification is gone — onboarding answers reach
+ * the pool only via the master-profile mirror written in verify-step. The
+ * legacy vv_pool_wingmen / vv_pool_besties tables are no longer written.
  */
 
 import { getSupabase } from './supabase';
@@ -23,26 +29,35 @@ export function getTrustScoreBand(score: number): string {
   return '0-39';
 }
 
-// ── Distill male master profile into a Matchmaker-safe match profile ──────────
+// ── Distill the unified, Matchmaker-safe match_profile (gender-neutral) ────────
+// "Who I am" (self / public-facing). List fields are derived from the user's
+// onboarding picks (see Table 3 of the field-mapping); headline/publicIntro come
+// from the AI generatedProfile when present. conversationHooks is intentionally
+// NOT produced — the field is unused and has no onboarding source.
 
-function distillMaleMatchProfile(masterData: Record<string, unknown>): Record<string, unknown> {
-  const identity = (masterData.identity ?? {}) as Record<string, unknown>;
+function distillMatchProfile(
+  masterData: Record<string, unknown>,
+  a: Record<string, unknown>,
+  archetype: string,
+): Record<string, unknown> {
   const gp = (masterData.generatedProfile ?? {}) as Record<string, unknown>;
   const proofs = (masterData.verifiedProofs ?? []) as Array<Record<string, unknown>>;
+  const base = archetypeBase(archetype);
 
-  // Pull top proof signals (label + category, no raw financial data)
+  // Pull top proof signals (label only, no raw financial data)
   const topProofSignals: string[] = proofs.flatMap((p) => {
     const insights = (p.insights ?? []) as Array<{ label?: string }>;
     return insights.slice(0, 2).map((i) => i.label ?? '').filter(Boolean);
   }).slice(0, 10);
 
   return {
-    archetype:               identity.archetype ?? '',
-    city:                    identity.city ?? '',
-    bio:                     gp.about ?? '',
-    intentStatement:         gp.intentStatement ?? '',
-    personalityDescriptors:  Array.isArray(gp.personalityDescriptors) ? gp.personalityDescriptors : [],
-    lifestyleTags:           Array.isArray(gp.lifestyleTags) ? gp.lifestyleTags : [],
+    headline:                (gp.headline as string) ?? '',
+    publicIntro:             (gp.publicIntro as string) ?? (gp.about as string) ?? '',
+    intentStatement:         deriveIntent(archetype, a),
+    values:                  deriveFromKeys(a, valuesSourceKeys(base), gp.values, gp.whatSheValues),
+    lifestyleTags:           deriveFromKeys(a, lifestyleTagsSourceKeys(base), gp.lifestyleTags),
+    personalityDescriptors:  deriveFromKeys(a, personalityDescriptorsSourceKeys(base), gp.personalityDescriptors),
+    compatibilitySignals:    deriveFromKeys(a, compatibilitySignalsSourceKeys(base), gp.compatibilitySignals),
     countriesTraveled:       Array.isArray(masterData.countriesTraveled) ? masterData.countriesTraveled : [],
     topProofSignals,
     proofCategories:         proofs.map((p) => p.category).filter(Boolean),
@@ -360,163 +375,132 @@ export function deriveMaturitySignals(archetype: string, a: Record<string, unkno
   );
 }
 
-// ── Distill male preference model ─────────────────────────────────────────────
+// ── match_profile self-field derivation (Table 3 mapping) ─────────────────────
+// Positive, public-facing "who I am" picks. No negation. Source section keys
+// differ per archetype; lanes without a relevant question resolve to [].
 
-function distillMalePreferenceSignals(
+/** Collect answers for the given section keys (+ optional extras) into a signal array. */
+function deriveFromKeys(a: Record<string, unknown>, keys: string[], ...extra: unknown[]): string[] {
+  return toSignalArray(...keys.map((k) => a[k]), ...extra);
+}
+
+/** Self-values the user holds (public). */
+function valuesSourceKeys(base: string): string[] {
+  switch (base) {
+    case 'forever_focused':       return ['what_you_value'];
+    case 'traditional_matrimony': return ['core_values'];
+    case 'untouched_heart':       return ['values'];
+    case 'second_chapter':        return ['what_is_different'];
+    case 'just_friends':          return ['good_friend_traits'];
+    default:                      return ['standards']; // casual / spoiled / romantic / rebound
+  }
+}
+
+/** Concrete lifestyle tags describing the user. */
+function lifestyleTagsSourceKeys(base: string): string[] {
+  switch (base) {
+    case 'casual_generous':       return ['lifestyle', 'experiences'];
+    case 'spoiled_casual':        return ['vibe', 'experiences'];
+    case 'forever_focused':       return ['life_stage'];
+    case 'traditional_matrimony': return ['lifestyle', 'religion', 'marital_status'];
+    case 'rebound_healing':       return ['where_you_are'];
+    case 'untouched_heart':       return ['experience_level'];
+    case 'second_chapter':        return ['where_you_are'];
+    case 'just_friends':          return ['social_style', 'what_you_enjoy'];
+    default:                      return []; // hopeless_romantic has no lifestyle question
+  }
+}
+
+/** Adjectives describing the user (self cards / show-up answers). */
+function personalityDescriptorsSourceKeys(base: string): string[] {
+  switch (base) {
+    case 'casual_generous':       return ['lifestyle'];
+    case 'spoiled_casual':        return ['vibe'];
+    case 'hopeless_romantic':     return ['emotional_openness', 'how_you_show_up'];
+    case 'forever_focused':       return ['life_stage', 'relationship_approach'];
+    case 'traditional_matrimony': return ['core_values'];
+    case 'rebound_healing':       return ['where_you_are'];
+    case 'untouched_heart':       return ['experience_level', 'what_excites_you'];
+    case 'second_chapter':        return ['what_is_different', 'where_you_are'];
+    case 'just_friends':          return ['social_style'];
+    default:                      return ['how_you_show_up', 'where_you_are'];
+  }
+}
+
+/** Self-signals the matchmaker uses for compatibility (vision / approach). */
+function compatibilitySignalsSourceKeys(base: string): string[] {
+  switch (base) {
+    case 'casual_generous':       return ['lifestyle', 'standards'];
+    case 'spoiled_casual':        return ['vibe', 'how_you_like_to_be_treated'];
+    case 'hopeless_romantic':     return ['how_you_show_up', 'emotional_openness'];
+    case 'forever_focused':       return ['partnership_vision', 'relationship_approach'];
+    case 'traditional_matrimony': return ['partner_fit', 'core_values', 'religion'];
+    case 'rebound_healing':       return ['what_you_need', 'comfort_level'];
+    case 'untouched_heart':       return ['what_you_need', 'values'];
+    case 'second_chapter':        return ['this_chapter', 'what_you_need'];
+    case 'just_friends':          return ['social_style', 'what_you_enjoy'];
+    default:                      return ['relationship_approach', 'how_you_show_up'];
+  }
+}
+
+/** Lifestyle signals the user wants in a partner / shared lifestyle (Drawn-to side). */
+function lifestyleSignalsSourceKeys(base: string): string[] {
+  switch (base) {
+    case 'casual_generous':       return ['experiences', 'appreciation'];
+    case 'spoiled_casual':        return ['how_you_like_to_be_treated', 'experiences'];
+    case 'forever_focused':       return ['partnership_vision'];
+    case 'traditional_matrimony': return ['partner_fit', 'family_approach', 'lifestyle'];
+    case 'rebound_healing':       return ['what_you_need'];
+    case 'untouched_heart':       return ['what_you_need'];
+    case 'second_chapter':        return ['what_you_need'];
+    case 'just_friends':          return ['activities', 'what_you_enjoy'];
+    default:                      return []; // hopeless_romantic has no lifestyle axis
+  }
+}
+
+// ── Distill the unified preferences model ("what I want") ──────────────────────
+
+function distillPreferences(
   masterData: Record<string, unknown>,
-  qaResponses: Record<string, unknown> = {},
-  archetype = '',
+  a: Record<string, unknown>,
+  archetype: string,
 ): Record<string, unknown> {
   const draft = (masterData.profileDraft ?? {}) as Record<string, unknown>;
-  const a = buildAnswerMap(masterData, qaResponses);
+  const base = archetypeBase(archetype);
 
   return {
+    lookingFor: deriveIntent(archetype, a, draft.lookingFor),
     dealbreakers: Array.from(new Set([
       // Derived from the archetype's standards / values / non-negotiables picks.
       ...deriveDealbreakers(archetype, a),
       // Legacy literal answers (old SpendingQA flow) kept as a fallback.
       ...toSignalArray(a.deal_breakers, a.red_flags, a.dealbreakers, a.here_for_hard_nos, draft.dealbreakers),
     ])).slice(0, 12),
-    lookingFor: deriveIntent(archetype, a, draft.lookingFor),
     emotionalSignals: toSignalArray(
-      a.lifestyle_values, a.partner_qualities, a.partner_energy, a.relationship_energy,
-      a.relationship_vibe, a.appreciation, a.show_appreciation, a.communication_expectation,
-      a.communication_style, a.ideal_partner_energy, a.preferred_energy, a.partner_approach,
-      a.chemistry_type,
+      a.emotional_signals, a.vv_emotional_signals, a.lifestyle_values, a.partner_qualities,
+      a.partner_energy, a.relationship_energy, a.relationship_vibe, a.appreciation,
+      a.show_appreciation, a.communication_expectation, a.communication_style,
+      a.ideal_partner_energy, a.preferred_energy, a.partner_approach, a.chemistry_type,
       // DrawnTo "what you're drawn to" answers (all archetypes)
       ...drawnToValues(a),
     ),
+    lifestyleSignals: toSignalArray(
+      ...lifestyleSignalsSourceKeys(base).map((k) => a[k]),
+      // Legacy keys from the old SpendingQA flow.
+      a.lifestyle_signals, a.lifestyle_experiences, a.shared_experiences,
+      a.lifestyle_today, a.lifestyle_profile, a.partner_lifestyle, a.career_alignment,
+    ),
+    maturitySignals: deriveMaturitySignals(archetype, a),
   };
 }
 
-// ── Distill female master profile ─────────────────────────────────────────────
+// ── Public: refresh a user's unified pool entry ───────────────────────────────
+// Single source: everything is distilled from user_master_profile.data. Writes
+// the gender-neutral vv_pool_profiles row (assistant_type wingman | bestie).
+// prefer_not_to_say users are NOT enrolled. The legacy vv_pool_wingmen /
+// vv_pool_besties tables are intentionally no longer written.
 
-function distillFemaleMatchProfile(masterData: Record<string, unknown>): Record<string, unknown> {
-  const gp = (masterData.generatedProfile ?? {}) as Record<string, unknown>;
-  const proofs = (masterData.verifiedProofs ?? []) as Array<Record<string, unknown>>;
-
-  const topProofSignals: string[] = proofs.flatMap((p) => {
-    const insights = (p.insights ?? []) as Array<{ label?: string }>;
-    return insights.slice(0, 2).map((i) => i.label ?? '').filter(Boolean);
-  }).slice(0, 8);
-
-  return {
-    headline:             gp.headline ?? '',
-    publicIntro:          gp.publicIntro ?? gp.about ?? '',
-    whatSheValues:        Array.isArray(gp.whatSheValues) ? gp.whatSheValues : [],
-    conversationHooks:    Array.isArray(gp.conversationHooks) ? gp.conversationHooks : [],
-    compatibilitySignals: Array.isArray(gp.compatibilitySignals) ? gp.compatibilitySignals : [],
-    topProofSignals,
-    proofCategories:      proofs.map((p) => p.category).filter(Boolean),
-  };
-}
-
-// ── Distill female preference model (normalize, no raw sensitive translations) ─
-
-function distillFemalePreferenceModel(
-  masterData: Record<string, unknown>,
-  qaResponses: Record<string, unknown> = {},
-  archetype = '',
-): Record<string, unknown> {
-  const a = buildAnswerMap(masterData, qaResponses);
-
-  // Extract normalized preference fields — avoid raw sensitiveTranslations
-  const dealbreakers = Array.from(new Set([
-    // Derived from the archetype's standards / values / non-negotiables picks.
-    ...deriveDealbreakers(archetype, a),
-    // Legacy literal answers (old SpendingQA flow) kept as a fallback.
-    ...toSignalArray(a.deal_breakers, a.red_flags, a.dealbreakers, a.here_for_hard_nos),
-  ])).slice(0, 12);
-  const emotionalSignals = toSignalArray(
-    a.emotional_signals, a.vv_emotional_signals, a.partner_qualities, a.partner_energy,
-    a.relationship_energy, a.relationship_vibe, a.appreciation, a.show_appreciation,
-    a.communication_expectation, a.communication_style, a.ideal_partner_energy,
-    a.preferred_energy, a.partner_approach, a.chemistry_type, a.ideal_partner_energy,
-    // DrawnTo "what you're drawn to" answers (all archetypes)
-    ...drawnToValues(a),
-  );
-  const lifestyleSignals = toSignalArray(
-    a.lifestyle_signals, a.lifestyle_values, a.lifestyle_experiences, a.shared_experiences,
-    a.lifestyle_today, a.lifestyle, a.lifestyle_profile, a.partner_lifestyle, a.career_alignment,
-  );
-  const maturitySignals = deriveMaturitySignals(archetype, a);
-  const relationshipIntent = deriveIntent(archetype, a, a.future_possibility, a.future_friendship);
-
-  return {
-    dealbreakers,
-    emotionalSignals,
-    lifestyleSignals,
-    maturitySignals,
-    relationshipIntent,
-    // Do NOT include sensitiveTranslations — those stay private to AI Bestie
-  };
-}
-
-// ── Load Q&A responses from the verification table ────────────────────────────
-// The spending_or_qa step stores the user's onboarding answers (deal_breakers,
-// lifestyle_values, relationship_timeline, dating_intent, …) keyed by question id.
-// This lands server-side immediately, so it's a reliable source even if the client
-// never synced the master profile.
-
-async function loadQAResponses(db: any, userId: string): Promise<Record<string, unknown>> {
-  const { data } = await db
-    .from('verified_vibe_verification')
-    .select('data')
-    .eq('user_id', userId)
-    .eq('step', 'spending_or_qa')
-    .eq('status', 'completed')
-    .maybeSingle();
-  const responses = (data?.data as any)?.responses;
-  return responses && typeof responses === 'object' ? responses : {};
-}
-
-// ── Public: refresh male user's pool entry ────────────────────────────────────
-
-export async function refreshWingmanPoolEntry(userId: string): Promise<void> {
-  const db = getSupabase() as any;
-
-  // Load user base data
-  const { data: user, error: userErr } = await db
-    .from('verified_vibe_users')
-    .select('archetype, trust_score, city, gender')
-    .eq('id', userId)
-    .single();
-
-  if (userErr || !user || user.gender !== 'man') return;
-
-  // Load master profile
-  const { data: masterRow } = await db
-    .from('user_master_profile')
-    .select('data')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  const masterData = (masterRow?.data ?? {}) as Record<string, unknown>;
-  const qaResponses = await loadQAResponses(db, userId);
-
-  const trustBand       = getTrustScoreBand(user.trust_score ?? 0);
-  const matchProfile    = distillMaleMatchProfile(masterData);
-  const prefSignals     = distillMalePreferenceSignals(masterData, qaResponses, user.archetype);
-  const city            = (masterData.identity as any)?.city ?? user.city ?? null;
-
-  await db.from('vv_pool_wingmen').upsert(
-    {
-      user_id:            userId,
-      archetype:          user.archetype,
-      trust_score_band:   trustBand,
-      city:               city,
-      match_profile:      matchProfile,
-      preference_signals: prefSignals,
-      availability_status: 'active',
-      last_updated:       new Date().toISOString(),
-    },
-    { onConflict: 'user_id' }
-  );
-}
-
-// ── Public: refresh female user's pool entry ──────────────────────────────────
-
-export async function refreshBestiePoolEntry(userId: string): Promise<void> {
+export async function refreshPoolEntry(userId: string): Promise<void> {
   const db = getSupabase() as any;
 
   const { data: user, error: userErr } = await db
@@ -525,7 +509,10 @@ export async function refreshBestiePoolEntry(userId: string): Promise<void> {
     .eq('id', userId)
     .single();
 
-  if (userErr || !user || user.gender !== 'woman') return;
+  if (userErr || !user) return;
+  const assistantType =
+    user.gender === 'man' ? 'wingman' : user.gender === 'woman' ? 'bestie' : null;
+  if (!assistantType) return; // prefer_not_to_say → not enrolled
 
   const { data: masterRow } = await db
     .from('user_master_profile')
@@ -534,21 +521,22 @@ export async function refreshBestiePoolEntry(userId: string): Promise<void> {
     .maybeSingle();
 
   const masterData = (masterRow?.data ?? {}) as Record<string, unknown>;
-  const qaResponses = await loadQAResponses(db, userId);
+  const a = buildAnswerMap(masterData); // master_profile.onboarding only — no verification read
 
-  const trustBand      = getTrustScoreBand(user.trust_score ?? 0);
-  const matchProfile   = distillFemaleMatchProfile(masterData);
-  const prefModel      = distillFemalePreferenceModel(masterData, qaResponses, user.archetype);
-  const city           = (masterData.identity as any)?.city ?? user.city ?? null;
+  const trustBand    = getTrustScoreBand(user.trust_score ?? 0);
+  const matchProfile = distillMatchProfile(masterData, a, user.archetype);
+  const preferences  = distillPreferences(masterData, a, user.archetype);
+  const city         = (masterData.identity as any)?.city ?? user.city ?? null;
 
-  await db.from('vv_pool_besties').upsert(
+  await db.from('vv_pool_profiles').upsert(
     {
       user_id:             userId,
+      assistant_type:      assistantType,
       archetype:           user.archetype,
       trust_score_band:    trustBand,
       city:                city,
       match_profile:       matchProfile,
-      preference_model:    prefModel,
+      preferences:         preferences,
       availability_status: 'active',
       last_updated:        new Date().toISOString(),
     },
@@ -577,20 +565,7 @@ export async function enrollInPoolIfVerified(userId: string): Promise<void> {
 
   if (!allDone) return;
 
-  // Determine gender and call the right refresh
-  const { data: user } = await db
-    .from('verified_vibe_users')
-    .select('gender')
-    .eq('id', userId)
-    .single();
-
-  if (!user) return;
-
-  if (user.gender === 'man') {
-    await refreshWingmanPoolEntry(userId);
-  } else if (user.gender === 'woman') {
-    await refreshBestiePoolEntry(userId);
-  }
+  await refreshPoolEntry(userId);
 }
 
 // ── Public: update last_active_at ─────────────────────────────────────────────
