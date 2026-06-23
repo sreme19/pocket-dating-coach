@@ -910,14 +910,15 @@ class _ConversationTile extends StatelessWidget {
   final Conversation convo;
   final VoidCallback onTap;
   final String? myId;
-  const _ConversationTile({required this.convo, required this.onTap, this.myId});
+  final bool online;
+  const _ConversationTile({required this.convo, required this.onTap, this.myId, this.online = false});
 
   @override
   Widget build(BuildContext context) {
     final arch = convo.archetype.isNotEmpty ? archetypeFor(convo.archetype) : null;
     return ListTile(
       onTap: onTap,
-      leading: _RingAvatar(url: convo.avatar, name: convo.name),
+      leading: _RingAvatar(url: convo.avatar, name: convo.name, online: online),
       title: Row(children: [
         Flexible(
           child: Text(convo.age != null ? '${convo.name}, ${convo.age}' : convo.name,
