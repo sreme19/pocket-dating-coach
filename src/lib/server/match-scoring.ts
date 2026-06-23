@@ -18,7 +18,20 @@ import { getSupabase } from './supabase';
 import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
 import { computeSubscores, ARTIFACT_BOOST_MAP } from './trust-recompute';
 import { normalizeScore } from './trust-normalize';
+import { poolToWingmanRow, poolToBestieRow } from './matchmaker-service';
 import { calculateCGTotal, type CGTrustSubscores } from '$lib/verified-vibe/server/trustScore';
+
+// Load a user's unified vv_pool_profiles row mapped to the legacy scoring shape.
+async function loadPoolRow(db: any, userId: string, assistant: 'wingman' | 'bestie') {
+	const { data } = await db
+		.from('vv_pool_profiles')
+		.select('*')
+		.eq('assistant_type', assistant)
+		.eq('user_id', userId)
+		.maybeSingle();
+	if (!data) return null;
+	return assistant === 'wingman' ? poolToWingmanRow(data) : poolToBestieRow(data);
+}
 
 const APPEAL_WEIGHT = 0.7;
 const TRUST_WEIGHT = 0.3;
@@ -252,9 +265,9 @@ export async function generateMatchScores(userId: string): Promise<any[]> {
 		const maleNorm = (me.gender === 'man' ? me.normalized_trust : partner.normalized_trust) ?? 0;
 		const femaleNorm = (me.gender === 'woman' ? me.normalized_trust : partner.normalized_trust) ?? 0;
 
-		const [{ data: malePool }, { data: femalePool }] = await Promise.all([
-			db.from('vv_pool_wingmen').select('*').eq('user_id', maleId).maybeSingle(),
-			db.from('vv_pool_besties').select('*').eq('user_id', femaleId).maybeSingle(),
+		const [malePool, femalePool] = await Promise.all([
+			loadPoolRow(db, maleId, 'wingman'),
+			loadPoolRow(db, femaleId, 'bestie'),
 		]);
 		if (!malePool || !femalePool) continue; // can't score without distilled profiles
 
@@ -377,9 +390,9 @@ async function rivalComposites(
 			continue;
 		}
 		// Score the rival pair fresh.
-		const [{ data: mp }, { data: fp }, { data: mu }, { data: fu }] = await Promise.all([
-			db.from('vv_pool_wingmen').select('*').eq('user_id', maleId).maybeSingle(),
-			db.from('vv_pool_besties').select('*').eq('user_id', femaleId).maybeSingle(),
+		const [mp, fp, { data: mu }, { data: fu }] = await Promise.all([
+			loadPoolRow(db, maleId, 'wingman'),
+			loadPoolRow(db, femaleId, 'bestie'),
 			db.from('verified_vibe_users').select('normalized_trust').eq('id', maleId).maybeSingle(),
 			db.from('verified_vibe_users').select('normalized_trust').eq('id', femaleId).maybeSingle(),
 		]);

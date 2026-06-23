@@ -25,7 +25,7 @@
  * "Active" = last_active_at within ACTIVE_WINDOW_DAYS.
  */
 
-import { hardFilter, type WingmanPoolRow, type BestiePoolRow } from './matchmaker-service';
+import { hardFilter, poolToWingmanRow, poolToBestieRow, type WingmanPoolRow, type BestiePoolRow } from './matchmaker-service';
 
 const ACTIVE_WINDOW_DAYS = 7;
 
@@ -124,8 +124,9 @@ export async function buildCompetitiveSnapshot(
 
 		if (Array.isArray(matches) && matches.length) {
 			// Real, active same-gender users other than the owner — the candidate
-			// rival set. Their pool rows come from the table for the owner's gender.
-			const rivalTable = isMan ? 'vv_pool_wingmen' : 'vv_pool_besties';
+			// rival set. Their pool rows come from the unified table, filtered by the
+			// owner's assistant_type.
+			const rivalAssistant: 'wingman' | 'bestie' = isMan ? 'wingman' : 'bestie';
 			const { data: rivalUsers } = await db
 				.from('verified_vibe_users')
 				.select('id')
@@ -138,22 +139,26 @@ export async function buildCompetitiveSnapshot(
 			let rivalPoolRows: Array<WingmanPoolRow | BestiePoolRow> = [];
 			if (rivalIds.length) {
 				const { data: pool } = await db
-					.from(rivalTable)
+					.from('vv_pool_profiles')
 					.select('*')
+					.eq('assistant_type', rivalAssistant)
 					.in('user_id', rivalIds);
-				rivalPoolRows = (pool ?? []) as Array<WingmanPoolRow | BestiePoolRow>;
+				rivalPoolRows = (pool ?? []).map(isMan ? poolToWingmanRow : poolToBestieRow);
 			}
 
 			// The partner of each match is the opposite gender; pull their pool row
-			// from the opposite table to run the production hard filter against.
-			const partnerTable = isMan ? 'vv_pool_besties' : 'vv_pool_wingmen';
+			// from the unified table (opposite assistant_type) for the hard filter.
+			const partnerAssistant: 'wingman' | 'bestie' = isMan ? 'bestie' : 'wingman';
 
 			for (const match of matches as Array<{ user1_id: string; user2_id: string }>) {
 				const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
-				const [{ data: partnerPool }, { data: partnerUser }] = await Promise.all([
-					db.from(partnerTable).select('*').eq('user_id', partnerId).single(),
+				const [{ data: partnerRaw }, { data: partnerUser }] = await Promise.all([
+					db.from('vv_pool_profiles').select('*').eq('assistant_type', partnerAssistant).eq('user_id', partnerId).single(),
 					db.from('verified_vibe_users').select('first_name').eq('id', partnerId).single(),
 				]);
+				const partnerPool = partnerRaw
+					? (isMan ? poolToBestieRow(partnerRaw) : poolToWingmanRow(partnerRaw))
+					: null;
 				const firstName = partnerUser?.first_name ?? 'your match';
 
 				if (partnerPool) {
