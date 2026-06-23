@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api.dart';
 import 'config.dart';
 import 'match_profile_screen.dart';
+import 'push_service.dart';
 
 class ConversationScreen extends StatefulWidget {
   final String conversationId;
@@ -311,6 +312,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
         backgroundColor: const Color(Config.bg1),
         elevation: 0,
         titleSpacing: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Color(Config.text1)),
+          onPressed: () {
+            PushService.onSwitchTab?.call(1); // always return to Chat tab
+            Navigator.of(context).pop();
+          },
+        ),
         title: GestureDetector(
           onTap: _otherId == null ? null : () => Navigator.of(context).push(MaterialPageRoute(
             builder: (_) => MatchProfileScreen(userId: _otherId!, title: widget.title),
