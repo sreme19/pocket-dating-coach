@@ -144,7 +144,7 @@
   <title>riteangle — Verified, not vibes.</title>
   <meta
     name="description"
-    content="The dating app where every match is identity-verified — and a personal AI coach reads every message, so you skip the games and the guessing."
+    content="The dating app that matches you — no swiping. Every match is identity-verified, paired on what you actually value, with a private AI coach on your side."
   />
   <meta name="theme-color" content="#FF3B6B" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -208,10 +208,11 @@
     </a>
     <div class="nav__links">
       <a href="#how">How it works</a>
+      <a href="#matching">Matching</a>
       <a href="#trust">Trust</a>
       <a href="#bestie">For Her</a>
       <a href="#wingman">For Him</a>
-      <a href="#safety">Safety</a>
+      <a href="#faq">FAQ</a>
     </div>
     <div class="nav__right">
       <a class="nav__signin" href={SIGN_IN}>Sign in</a>
@@ -227,7 +228,7 @@
         <div class="hero__copy">
           <span class="hero__pill reveal"><span class="dot"></span> <b>100% identity-verified</b> members</span>
           <h1 class="reveal d1">No swipes. Ever. Just <span class="accent">matches.</span></h1>
-          <p class="hero__sub reveal d2">The dating app where every match is identity-verified — and a personal AI coach reads every message, so you skip the games and the guessing.</p>
+          <p class="hero__sub reveal d2">No swiping. We match you with identity-verified people — paired on what you actually value, not just looks — and a private AI coach is on your side, so you skip the games and the guessing.</p>
           <div class="hero__cta reveal d3">
             <a class="btn btn--primary btn--lg" href={GET_VERIFIED}><svg><use href="#ra-mark-inv"/></svg>Get verified — it's free</a>
           </div>
@@ -410,6 +411,68 @@
     </div>
   </section>
 
+  <!-- ===== MATCHING (no swipe / value-based) ===== -->
+  <section class="match" id="matching">
+    <div class="wrap">
+      <div class="match__head">
+        <span class="eyebrow reveal">No swiping</span>
+        <h2 class="h-sec reveal d1">We do the matching.<br>You skip the work.</h2>
+        <p class="sub reveal d2">No endless feed. No inbox of randoms. Our matchmaker pairs you only with verified people whose proven value lines up with what you actually want — and who want what you bring. A short, ranked shortlist, not a thousand swipes.</p>
+      </div>
+      <div class="match__grid">
+        <div class="mcard reveal">
+          <span class="mcard__ic"><svg><use href="#ic-users"/></svg></span>
+          <h4>Both sides have to fit</h4>
+          <p>A match only happens when it works both ways — what you're looking for and what they're looking for. No one-sided dead ends.</p>
+        </div>
+        <div class="mcard reveal d1">
+          <span class="mcard__ic"><svg><use href="#ic-target"/></svg></span>
+          <h4>Matched on what you value</h4>
+          <p>Tell us what actually matters to you — ambition, lifestyle, family, generosity. We rank your matches by how much of it they genuinely bring.</p>
+        </div>
+        <div class="mcard reveal d2">
+          <span class="mcard__ic"><svg><use href="#ic-shield"/></svg></span>
+          <h4>Proven, not just claimed</h4>
+          <p>Every signal that ranks a match is backed by verification. A claim no one has proven barely counts — so the people who rise are the real ones.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== COMPARISON ===== -->
+  <section class="vs">
+    <div class="wrap">
+      <div class="vs__wrap">
+        <div class="vs__card reveal">
+          <div class="vs__hd">
+            <div class="vs__hd-old">The old way</div>
+            <div class="vs__hd-new"><svg><use href="#ra-mark-inv"/></svg> riteangle</div>
+          </div>
+          <div class="vs__row">
+            <div class="vs__cell vs__cell--old"><span class="vs__x"><svg><use href="#ic-x"/></svg></span>Endless swiping for hours</div>
+            <div class="vs__cell vs__cell--new"><span class="vs__c"><svg><use href="#ic-check"/></svg></span>We match you — a ranked shortlist</div>
+          </div>
+          <div class="vs__row">
+            <div class="vs__cell vs__cell--old"><span class="vs__x"><svg><use href="#ic-x"/></svg></span>Bios anyone can fake</div>
+            <div class="vs__cell vs__cell--new"><span class="vs__c"><svg><use href="#ic-check"/></svg></span>Claims backed by real proof</div>
+          </div>
+          <div class="vs__row">
+            <div class="vs__cell vs__cell--old"><span class="vs__x"><svg><use href="#ic-x"/></svg></span>Catfish, bots and ghosts</div>
+            <div class="vs__cell vs__cell--new"><span class="vs__c"><svg><use href="#ic-check"/></svg></span>ID + liveness verified, no exceptions</div>
+          </div>
+          <div class="vs__row">
+            <div class="vs__cell vs__cell--old"><span class="vs__x"><svg><use href="#ic-x"/></svg></span>Matched on looks alone</div>
+            <div class="vs__cell vs__cell--new"><span class="vs__c"><svg><use href="#ic-check"/></svg></span>Matched on what you actually value</div>
+          </div>
+          <div class="vs__row">
+            <div class="vs__cell vs__cell--old"><span class="vs__x"><svg><use href="#ic-x"/></svg></span>Decoding the games alone</div>
+            <div class="vs__cell vs__cell--new"><span class="vs__c"><svg><use href="#ic-check"/></svg></span>A private AI coach on your side</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ===== SAFETY (dark) ===== -->
   <section class="safety" id="safety">
     <div class="wrap">
@@ -453,6 +516,42 @@
         </div>
         <a class="plink" href={PRIVACY}><svg style="width:17px;height:17px"><use href="#ic-lock"/></svg> Read our Privacy Policy</a>
         <a class="btn btn--primary" href={GET_VERIFIED}><svg><use href="#ra-mark-inv"/></svg>Get verified</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== FAQ ===== -->
+  <section class="faq" id="faq">
+    <div class="wrap">
+      <div class="faq__head">
+        <span class="eyebrow reveal">Good questions</span>
+        <h2 class="h-sec reveal d1">The things people ask first.</h2>
+      </div>
+      <div class="faq__list reveal d1">
+        <details class="faq__item">
+          <summary class="faq__q">Is it free to join?</summary>
+          <p class="faq__a">Yes. Getting verified and matched is free. We'd rather you prove you're real than pay to skip the line.</p>
+        </details>
+        <details class="faq__item">
+          <summary class="faq__q">What happens to my ID and documents?</summary>
+          <p class="faq__a">They're processed privately to produce a signal — like "ID verified" or "income confirmed" — and then locked away. Your matches only ever see the verdict, never the file. Sensitive proof you share with your coach is tagged "only visible to you."</p>
+        </details>
+        <details class="faq__item">
+          <summary class="faq__q">How is this different from Tinder, Hinge or Bumble?</summary>
+          <p class="faq__a">No swiping — we match you. Every member is identity-verified, so there are no bots or catfish. And instead of ranking on looks, we pair you on what you actually value, backed by real proof. You get a short, ranked shortlist instead of an endless feed.</p>
+        </details>
+        <details class="faq__item">
+          <summary class="faq__q">What is the Trust Score?</summary>
+          <p class="faq__a">A public 0–100 score that reflects how verified someone is — identity, photos, intent and more. A higher score means more of their profile is proven, so a glance tells you how real they are before you ever talk.</p>
+        </details>
+        <details class="faq__item">
+          <summary class="faq__q">Who can see my income, career or other proof?</summary>
+          <p class="faq__a">You decide. Proof-backed claims only appear if you opt in, and matches see a signal — never the underlying statement or document. Your call, every time.</p>
+        </details>
+        <details class="faq__item">
+          <summary class="faq__q">Is the AI coach reading my private chats?</summary>
+          <p class="faq__a">Your coach works for you, not against you. It helps you read the room, spot red flags and reply in your own voice — and what it sees stays on your side. The other person never sees your coaching.</p>
+        </details>
       </div>
     </div>
   </section>
