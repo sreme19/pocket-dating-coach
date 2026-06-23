@@ -595,3 +595,8 @@ html:has(.vv-page), body:has(.vv-page){ background:#FFF3F0 !important; overflow-
   .match__grid{ grid-template-columns:1fr; }
   .vs__hd > div, .vs__cell{ padding-left:18px; padding-right:18px; font-size:14px; }
 }
+
+/* Profile Strength meter shows a band label, not a raw number */
+.meter__score--band{ display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
+.meter__score--band b{ font-size:26px; line-height:1; }
+.meter__score--band span{ font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--vv-ink-4); }

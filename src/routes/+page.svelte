@@ -99,30 +99,9 @@
       io.observe(el);
     }
 
-    // Trust meter: fill segments + count up to 94
+    // Profile Strength meter: fill the four verification segments
     const meter = document.getElementById('trust-meter');
-    const meterNum = document.getElementById('meter-num');
-    once(meter, () => {
-      meter?.classList.add('run');
-      if (!meterNum) return;
-      if (reduceMotion) {
-        meterNum.textContent = '94';
-        return;
-      }
-      const target = 94;
-      const steps = 36;
-      let i = 0;
-      const iv = setInterval(() => {
-        i++;
-        const p = i / steps;
-        const eased = 1 - Math.pow(1 - p, 3);
-        meterNum.textContent = String(Math.round(eased * target));
-        if (i >= steps) {
-          meterNum.textContent = String(target);
-          clearInterval(iv);
-        }
-      }, 34);
-    });
+    once(meter, () => meter?.classList.add('run'));
 
     once(document.getElementById('bestie-phone'), () =>
       runSteps(document.getElementById('bestie-chat'), 750)
@@ -209,7 +188,7 @@
     <div class="nav__links">
       <a href="#how">How it works</a>
       <a href="#matching">Matching</a>
-      <a href="#trust">Trust</a>
+      <a href="#trust">Verified</a>
       <a href="#bestie">For Her</a>
       <a href="#wingman">For Him</a>
       <a href="#faq">FAQ</a>
@@ -244,19 +223,19 @@
             <div class="pcard collage__c1">
               <img class="img-slot" src="/female_profiles/priya_High_Value_Feminist_f2k7zt/photos/Priya_5.jpg" alt="Verified member Priya" loading="lazy" />
               <div class="pcard__grad"></div>
-              <div class="pcard__top"><span class="arch-chip">🌱 Rebound-Healing</span><span class="trust-badge"><span class="ring"><svg><use href="#ic-check"/></svg></span><span class="score">88</span></span></div>
+              <div class="pcard__top"><span class="arch-chip">🌱 Rebound-Healing</span><span class="trust-badge"><span class="ring"><svg><use href="#ic-check"/></svg></span><span class="score">Strong</span></span></div>
               <div class="pcard__bot"><div class="pcard__name">Priya, 27</div><div class="pcard__meta">Verified · 2.4 mi away</div></div>
             </div>
             <div class="pcard collage__c2">
               <img class="img-slot" src="/female_profiles/anjali_Traditional_Family_First_g3s7mn/photos/Anjali_1.jpg" alt="Verified member Maya" loading="lazy" />
               <div class="pcard__grad"></div>
-              <div class="pcard__top"><span class="arch-chip">💍 Forever-Focused</span><span class="trust-badge"><span class="ring"><svg><use href="#ic-check"/></svg></span><span class="score">94</span></span></div>
+              <div class="pcard__top"><span class="arch-chip">💍 Forever-Focused</span><span class="trust-badge"><span class="ring"><svg><use href="#ic-check"/></svg></span><span class="score">Top tier</span></span></div>
               <div class="pcard__bot"><div class="pcard__name">Maya, 29</div><div class="pcard__meta">Verified · 1.1 mi away</div></div>
             </div>
             <div class="pcard collage__c3">
               <img class="img-slot" src="/male_profiles/ethan_Golden_Retriever_q7n5wc/photos/Ethan_1.jpg" alt="Verified member Jordan" loading="lazy" />
               <div class="pcard__grad"></div>
-              <div class="pcard__top"><span class="arch-chip">💞 Hopeless-Romantic</span><span class="trust-badge"><span class="ring"><svg><use href="#ic-check"/></svg></span><span class="score">91</span></span></div>
+              <div class="pcard__top"><span class="arch-chip">💞 Hopeless-Romantic</span><span class="trust-badge"><span class="ring"><svg><use href="#ic-check"/></svg></span><span class="score">Strong</span></span></div>
               <div class="pcard__bot"><div class="pcard__name">Jordan, 31</div><div class="pcard__meta">Verified · 3.0 mi away</div></div>
             </div>
             <span class="chip float-chip fc-1"><svg style="width:16px;height:16px;color:var(--vv-emerald)"><use href="#ic-id"/></svg> ID &amp; liveness verified</span>
@@ -273,21 +252,21 @@
     <div class="wrap">
       <div class="trust__head">
         <span class="eyebrow reveal">Verified, not vibes</span>
-        <h2 class="h-sec reveal d1">Four checks. One Trust Score.</h2>
-        <p class="sub reveal d2" style="margin-top:16px">Everyone earns a public score from 0–100. Each verification is worth 25 points — so a glance tells you exactly how real someone is.</p>
+        <h2 class="h-sec reveal d1">Four checks. One Profile Strength.</h2>
+        <p class="sub reveal d2" style="margin-top:16px">Identity, liveness, photos and intent — verify each one to build your Profile Strength. We show it as a band, not a leaderboard number, so a glance tells you how proven someone really is.</p>
       </div>
       <div class="trust__inner">
         <div class="steps4">
-          <div class="vstep reveal"><span class="pts">+25</span><span class="ic"><svg><use href="#ic-id"/></svg></span><h4>Government ID</h4><p>Real legal identity, checked against the document.</p></div>
-          <div class="vstep reveal d1"><span class="pts">+25</span><span class="ic"><svg><use href="#ic-scan"/></svg></span><h4>Liveness selfie</h4><p>A live face scan proves it's a real person, right now.</p></div>
-          <div class="vstep reveal d2"><span class="pts">+25</span><span class="ic"><svg><use href="#ic-image"/></svg></span><h4>Photo match</h4><p>Profile photos are confirmed to be the same person.</p></div>
-          <div class="vstep reveal d3"><span class="pts">+25</span><span class="ic"><svg><use href="#ic-target"/></svg></span><h4>Declared intent</h4><p>What they're here for, stated up front — no guessing.</p></div>
+          <div class="vstep reveal"><span class="pts">✓</span><span class="ic"><svg><use href="#ic-id"/></svg></span><h4>Government ID</h4><p>Real legal identity, checked against the document.</p></div>
+          <div class="vstep reveal d1"><span class="pts">✓</span><span class="ic"><svg><use href="#ic-scan"/></svg></span><h4>Liveness selfie</h4><p>A live face scan proves it's a real person, right now.</p></div>
+          <div class="vstep reveal d2"><span class="pts">✓</span><span class="ic"><svg><use href="#ic-image"/></svg></span><h4>Photo match</h4><p>Profile photos are confirmed to be the same person.</p></div>
+          <div class="vstep reveal d3"><span class="pts">✓</span><span class="ic"><svg><use href="#ic-target"/></svg></span><h4>Declared intent</h4><p>What they're here for, stated up front — no guessing.</p></div>
         </div>
         <div class="meter reveal d2" id="trust-meter">
           <div class="meter__row">
             <span class="meter__av"><img class="img-slot" src="/female_profiles/anjali_Traditional_Family_First_g3s7mn/photos/Anjali_2.jpg" alt="Maya" loading="lazy" /></span>
             <div class="meter__who"><b>Maya, 29</b><span>Forever-Focused · verified</span></div>
-            <div class="meter__score"><b id="meter-num">0</b><span>/ 100</span></div>
+            <div class="meter__score meter__score--band"><b>Strong</b><span>Profile Strength</span></div>
           </div>
           <div class="meter__bar"><span class="meter__seg"></span><span class="meter__seg"></span><span class="meter__seg"></span><span class="meter__seg"></span></div>
           <div class="meter__legend"><span>ID</span><span>Liveness</span><span>Photos</span><span>Intent</span></div>
@@ -365,7 +344,7 @@
           <div class="phone" id="bestie-phone">
             <div class="phone__bar">
               <span class="av"><svg style="width:20px;height:20px"><use href="#ic-heart"/></svg></span>
-              <div><b>Marcus</b><small><svg style="width:13px;height:13px"><use href="#ic-check"/></svg> Verified · Trust 86</small></div>
+              <div><b>Marcus</b><small><svg style="width:13px;height:13px"><use href="#ic-check"/></svg> Verified · Strong</small></div>
             </div>
             <div class="phone__body" id="bestie-chat">
               <div class="bubble them" data-step="1">hey gorgeous 😍 you single? was thinking we skip the small talk</div>
@@ -390,14 +369,14 @@
           <ul class="flist">
             <li><span class="tick"><svg><use href="#ic-check"/></svg></span><span>Builds a <b>proof-backed</b> profile from things you can actually verify</span></li>
             <li><span class="tick"><svg><use href="#ic-check"/></svg></span>Coaches conversations in real time — fewer dead ends</li>
-            <li><span class="tick"><svg><use href="#ic-check"/></svg></span>Raises your Trust Score the honest way</li>
+            <li><span class="tick"><svg><use href="#ic-check"/></svg></span>Raises your Profile Strength the honest way</li>
           </ul>
         </div>
         <div class="feature__media reveal d1">
           <div class="buildcard" id="wingman-build">
             <div class="buildcard__hd">
               <span class="buildcard__av"><img class="img-slot" src="/male_profiles/daniel_Emotionally_Available_v2r6ys/photos/Daniel_5.jpg" alt="Daniel" loading="lazy" /></span>
-              <div><b>Daniel, 32</b><span class="trust-badge tb"><span class="ring"><svg><use href="#ic-check"/></svg></span><span class="score">92</span></span></div>
+              <div><b>Daniel, 32</b><span class="trust-badge tb"><span class="ring"><svg><use href="#ic-check"/></svg></span><span class="score">Top tier</span></span></div>
             </div>
             <div class="buildcard__body">
               <div class="proof" data-step="1"><span class="proof__ic"><svg><use href="#ic-link"/></svg></span><div><b>Career Highlights</b><small>Verified via LinkedIn</small></div><span class="proof__ok"><svg><use href="#ic-check"/></svg> Proven</span></div>
@@ -504,7 +483,7 @@
           <b>What others see</b>
           <span>signals only</span>
           <div class="flow__sig">
-            <span>✓ Verified</span><span>Trust 92</span><span>💍 Forever-Focused</span>
+            <span>✓ Verified</span><span>Strong</span><span>💍 Forever-Focused</span>
           </div>
         </div>
       </div>
@@ -541,8 +520,8 @@
           <p class="faq__a">No swiping — we match you. Every member is identity-verified, so there are no bots or catfish. And instead of ranking on looks, we pair you on what you actually value, backed by real proof. You get a short, ranked shortlist instead of an endless feed.</p>
         </details>
         <details class="faq__item">
-          <summary class="faq__q">What is the Trust Score?</summary>
-          <p class="faq__a">A public 0–100 score that reflects how verified someone is — identity, photos, intent and more. A higher score means more of their profile is proven, so a glance tells you how real they are before you ever talk.</p>
+          <summary class="faq__q">What is Profile Strength?</summary>
+          <p class="faq__a">It's how strong a profile is in its pool — built by verifying identity and proving what you actually bring. We show it as a band (like Rising or Strong) and momentum, never a raw leaderboard number, so it reads as something you grow, not a verdict on you.</p>
         </details>
         <details class="faq__item">
           <summary class="faq__q">Who can see my income, career or other proof?</summary>
@@ -571,12 +550,12 @@
             <a class="store" href="#"><svg><use href="#ic-play"/></svg><span><small>Get it on</small><strong>Google Play</strong></span></a>
           </div>
         </div>
-        <div class="footer__col"><h5>Date</h5><a href="#how">How it works</a><a href="#trust">Trust Score</a><a href="#bestie">AI Bestie</a><a href="#wingman">AI Wingman</a></div>
+        <div class="footer__col"><h5>Date</h5><a href="#how">How it works</a><a href="#trust">Profile Strength</a><a href="#bestie">AI Bestie</a><a href="#wingman">AI Wingman</a></div>
         <div class="footer__col"><h5>Trust</h5><a href="#safety">Safety</a><a href={GET_VERIFIED}>Verification</a><a href={PRIVACY}>Privacy Policy</a><a href="#">Community guidelines</a></div>
         <div class="footer__col"><h5>Company</h5><a href="#">About</a><a href="#">Careers</a><a href="#">Support</a><a href="#">Press</a></div>
       </div>
       <div class="footer__bottom">
-        <p class="footer__legal">© 2026 riteangle, Inc. · Trust Score, AI Bestie &amp; AI Wingman are marks of riteangle. Must be 18+ to join. Dating involves real-world risk; always meet safely.</p>
+        <p class="footer__legal">© 2026 riteangle, Inc. · Profile Strength, AI Bestie &amp; AI Wingman are marks of riteangle. Must be 18+ to join. Dating involves real-world risk; always meet safely.</p>
         <div class="footer__social">
           <a href="#" aria-label="Instagram"><svg><use href="#ic-ig"/></svg></a>
           <a href="#" aria-label="X"><svg><use href="#ic-x"/></svg></a>
