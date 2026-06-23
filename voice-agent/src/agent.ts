@@ -96,16 +96,22 @@ async function finalize(
 class ClaudeLLMStream extends llm.LLMStream {
 	private readonly modelId: string;
 	private readonly systemPrompt: string;
+	private readonly fallbackText: string;
+	private readonly onError?: (err: unknown) => void;
 
 	constructor(
 		llmInstance: ClaudeLLM,
 		opts: { chatCtx: any; toolCtx?: any; connOptions: any },
 		systemPrompt: string,
-		modelId: string
+		modelId: string,
+		fallbackText: string,
+		onError?: (err: unknown) => void
 	) {
 		super(llmInstance, opts);
 		this.systemPrompt = systemPrompt;
 		this.modelId = modelId;
+		this.fallbackText = fallbackText;
+		this.onError = onError;
 	}
 
 	protected async run(): Promise<void> {
@@ -126,18 +132,36 @@ class ClaudeLLMStream extends llm.LLMStream {
 		if (messages.length === 0) messages.push({ role: 'user', content: '(the caller is quiet)' });
 		const system = sys.join('\n\n') || this.systemPrompt;
 
-		const stream = anthropic.messages.stream({
-			model: this.modelId,
-			max_tokens: 300,
-			system,
-			messages
-		});
-		for await (const ev of stream) {
-			if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') {
-				// Base class pipes this.queue -> output and closes the queue when
-				// run() resolves, so we only enqueue deltas here.
-				this.queue.put({ id: crypto.randomUUID(), delta: { role: 'assistant', content: ev.delta.text } });
+		try {
+			const stream = anthropic.messages.stream({
+				model: this.modelId,
+				max_tokens: 300,
+				system,
+				messages
+			});
+			for await (const ev of stream) {
+				if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') {
+					// Base class pipes this.queue -> output and closes the queue when
+					// run() resolves, so we only enqueue deltas here.
+					this.queue.put({
+						id: crypto.randomUUID(),
+						delta: { role: 'assistant', content: ev.delta.text }
+					});
+				}
 			}
+		} catch (err) {
+			// The brain (Anthropic) failed mid-call — e.g. out of credit, rate limit,
+			// network. Without this, the caller hears dead air and keeps saying
+			// "hello? can you hear me?" (the original silent-call bug). Instead, speak
+			// a graceful fallback so they hear SOMETHING, then let onError wind the
+			// call down. Enqueuing here works because run() hasn't resolved yet, so the
+			// base class hasn't closed the queue.
+			console.error('[ClaudeLLM] generation failed — speaking fallback then ending', err);
+			this.queue.put({
+				id: crypto.randomUUID(),
+				delta: { role: 'assistant', content: this.fallbackText }
+			});
+			this.onError?.(err);
 		}
 	}
 }
@@ -145,11 +169,20 @@ class ClaudeLLMStream extends llm.LLMStream {
 class ClaudeLLM extends llm.LLM {
 	private readonly modelId: string;
 	private readonly systemPrompt: string;
+	private readonly fallbackText: string;
+	private readonly onError?: (err: unknown) => void;
 
-	constructor(opts: { model: string; system: string }) {
+	constructor(opts: {
+		model: string;
+		system: string;
+		fallbackText: string;
+		onError?: (err: unknown) => void;
+	}) {
 		super();
 		this.modelId = opts.model;
 		this.systemPrompt = opts.system;
+		this.fallbackText = opts.fallbackText;
+		this.onError = opts.onError;
 	}
 
 	label(): string {
@@ -164,7 +197,9 @@ class ClaudeLLM extends llm.LLM {
 			this,
 			{ chatCtx, toolCtx, connOptions: connOptions ?? DEFAULT_API_CONNECT_OPTIONS },
 			this.systemPrompt,
-			this.modelId
+			this.modelId,
+			this.fallbackText,
+			this.onError
 		);
 	}
 }
@@ -201,12 +236,29 @@ export default defineAgent({
 		const transcript: Turn[] = [];
 		const startedAt = Date.now();
 		let finalized = false;
+		// Set when the brain (Anthropic) fails mid-call. A call that died this way is
+		// never a clean 'completed' even though the transcript has the greeting +
+		// fallback line.
+		let llmFatal = false;
 
-		const doFinalize = async (status: 'completed' | 'partial' | 'failed') => {
+		// Derive the call's true outcome from what actually happened, so a one-sided
+		// call (greeting played, caller talked, but the agent never really engaged —
+		// the original silent-call bug) is no longer mislabelled 'completed'. A real
+		// conversation needs at least one agent reply BEYOND the opening greeting.
+		const computeStatus = (): 'completed' | 'partial' | 'failed' => {
+			const agentTurns = transcript.filter((t) => t.role === 'agent').length;
+			const callerTurns = transcript.filter((t) => t.role === 'caller').length;
+			if (llmFatal) return callerTurns > 0 ? 'partial' : 'failed';
+			// agentTurns <= 1 means only the greeting was ever spoken.
+			if (agentTurns <= 1) return callerTurns > 0 ? 'partial' : 'failed';
+			return 'completed';
+		};
+
+		const doFinalize = async (statusOverride?: 'completed' | 'partial' | 'failed') => {
 			if (finalized) return;
 			finalized = true;
 			const durationS = Math.round((Date.now() - startedAt) / 1000);
-			await finalize(callId, transcript, durationS, status);
+			await finalize(callId, transcript, durationS, statusOverride ?? computeStatus());
 		};
 
 		// Everything below can throw (plugin construction, session start). Because
@@ -223,8 +275,26 @@ export default defineAgent({
 				apiKey: process.env.DEEPGRAM_API_KEY
 			}),
 			// Claude as the brain — required as a real `llm` or the pipeline never
-			// generates replies (only the greeting say() would be heard).
-			llm: new ClaudeLLM({ model: CLAUDE_MODEL, system: cfg.systemPrompt }),
+			// generates replies (only the greeting say() would be heard). If the brain
+			// errors mid-call it speaks `fallbackText` then onError winds the call down,
+			// so the caller never hears dead air.
+			llm: new ClaudeLLM({
+				model: CLAUDE_MODEL,
+				system: cfg.systemPrompt,
+				fallbackText: `I'm so sorry, ${cfg.matchName} — I'm having a technical issue on my end and can't keep chatting right now. I'll let ${cfg.ownerName} know you called, and she'll reach out. Take care!`,
+				onError: () => {
+					if (llmFatal) return;
+					llmFatal = true;
+					// Give TTS a few seconds to speak the fallback line, then end the
+					// call gracefully. doFinalize/Close are idempotent.
+					setTimeout(() => {
+						void (async () => {
+							await doFinalize();
+							await ctx.room.disconnect().catch(() => undefined);
+						})();
+					}, 7000);
+				}
+			}),
 			tts: new elevenlabs.TTS({
 				voiceId: cfg.voiceId,
 				apiKey: process.env.ELEVENLABS_API_KEY
@@ -246,7 +316,7 @@ export default defineAgent({
 		// is what reliably finalises the call so it never sticks in 'live'.
 		session.on(voice.AgentSessionEventTypes.Close, (ev: any) => {
 			console.log('[session] close', ev?.reason ?? '');
-			void doFinalize(transcript.length ? 'completed' : 'failed');
+			void doFinalize();
 		});
 		// Surface pipeline errors (STT/LLM/TTS) so they show up in fly logs.
 		session.on(voice.AgentSessionEventTypes.Error, (ev: any) => {
@@ -255,13 +325,13 @@ export default defineAgent({
 
 		// Fallback: caller leaves / room ends.
 		ctx.room.on('disconnected' as any, () => {
-			void doFinalize(transcript.length ? 'completed' : 'failed');
+			void doFinalize();
 		});
 		ctx.room.on('participantDisconnected' as any, () => {
 			const humans = Array.from(ctx.room.remoteParticipants.values()).filter(
 				(p: any) => !String(p.identity).startsWith('agent')
 			);
-			if (humans.length === 0) void doFinalize(transcript.length ? 'completed' : 'failed');
+			if (humans.length === 0) void doFinalize();
 		});
 
 		// Hard max-duration cap.
@@ -274,14 +344,14 @@ export default defineAgent({
 				} catch {
 					/* ignore */
 				}
-				await doFinalize(transcript.length ? 'completed' : 'partial');
+				await doFinalize();
 				await ctx.room.disconnect().catch(() => undefined);
 			})();
 		}, MAX_CALL_SECONDS * 1000);
 
 		ctx.addShutdownCallback(async () => {
 			clearTimeout(capTimer);
-			await doFinalize(transcript.length ? 'completed' : 'failed');
+			await doFinalize();
 		});
 
 		await session.start({ agent, room: ctx.room });
