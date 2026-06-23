@@ -1360,14 +1360,11 @@ class _LivenessCaptureScreenState extends State<_LivenessCaptureScreen> {
         if (mounted) Navigator.pop(context, _LivenessResult(msg));
       }
     } catch (e) {
-      final msg = e.toString();
       if (!mounted) return;
       setState(() {
         _phase  = _LivenessPhase.failed;
         _failCount++;
-        _errMsg = msg.contains('network') || msg.contains('SocketException')
-            ? 'Network error — check your connection and retry.'
-            : 'Verification failed — please try again.';
+        _errMsg = _friendlyError(e);
       });
     }
   }
