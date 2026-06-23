@@ -27,7 +27,12 @@
     label: string;
   }
 
-  const PHOTO_SLOTS = ['lead', 'warmth', 'lifestyle'];
+  // Women control up to 6 photos; men get 3 AI-enhanced portrait slots
+  const PHOTO_SLOTS = $derived(
+    $user?.gender === 'woman'
+      ? ['lead', 'warmth', 'lifestyle', 'extra-1', 'extra-2', 'extra-3']
+      : ['lead', 'warmth', 'lifestyle']
+  );
   const ARCHETYPE_LABELS: Record<string, string> = {
     casual_man: 'Casual',
     marriage_minded_man: 'Marriage-Minded',
@@ -1024,6 +1029,23 @@
       const supabase = getSupabaseClient();
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Not authenticated');
+      const token = session.access_token;
+
+      // P0-5: Rate-limit — max 3 lane changes per calendar year
+      const masterRes = await fetch('/api/verified-vibe/master-profile', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (masterRes.ok) {
+        const master = await masterRes.json();
+        const currentYear = new Date().getFullYear();
+        const changes: Array<{ ts: string }> = master.laneChanges ?? [];
+        const changesThisYear = changes.filter((c) => new Date(c.ts).getFullYear() === currentYear);
+        if (changesThisYear.length >= 3) {
+          throw new Error('You can only change your lane 3 times per year.');
+        }
+      }
+
+      const prevArchetype = $user?.archetype;
 
       const { error } = await supabase
         .from('verified_vibe_users')
@@ -1031,6 +1053,20 @@
         .eq('id', session.user.id);
 
       if (error) throw error;
+
+      // P0-5: Cascade — reset intent proof so trust score recalculates from scratch
+      await supabase
+        .from('verified_vibe_verification')
+        .delete()
+        .eq('user_id', session.user.id)
+        .eq('step', 'spending_or_qa');
+
+      // P0-5: Persist lane change entry for rate-limit tracking
+      fetch('/api/verified-vibe/master-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ laneChange: { ts: new Date().toISOString(), from: prevArchetype, to: selectedLane } })
+      }).catch(() => {});
 
       // Reflect in store immediately so the display refreshes
       if ($user) user.set({ ...$user, archetype: selectedLane as Archetype });
@@ -1224,7 +1260,8 @@
       reader.onload = async (e) => {
         if (e.target?.result && typeof e.target.result === 'string') {
           const dataUrl = e.target.result;
-          if (photos.length >= 3) { alert('Maximum 3 photos allowed'); return; }
+          const maxPhotos = $user?.gender === 'woman' ? 6 : 3;
+          if (photos.length >= maxPhotos) { alert(`Maximum ${maxPhotos} photos allowed`); return; }
 
           const label = PHOTO_SLOTS[photos.length] ?? `photo-${photos.length + 1}`;
           uploadingPhoto = true;

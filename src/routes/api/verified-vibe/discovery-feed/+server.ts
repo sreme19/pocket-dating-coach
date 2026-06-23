@@ -279,8 +279,10 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
     ]);
 
     // Convert database profiles to DiscoveryProfile format
+    // P0-4: Only show profiles that have completed liveness verification (minimum trust gate)
     const discoveryProfiles: DiscoveryProfile[] = (profiles || [])
       .filter((p: any) => !allExcludeIds.has(p.id) && !blockedIds.includes(p.id))
+      .filter((p: any) => verificationMap.get(p.id)?.has('liveness') === true)
       .map((p: any) => {
         const trustScore = trustScoreMap.get(p.id) || 0;
         const verifiedSteps = Array.from(verificationMap.get(p.id) || new Set()).map(s => {
@@ -301,7 +303,7 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
           age: p.age || 25,
           city: p.city || 'Unknown',
           avatar: p.avatar_url || null,
-          about: 'Profile being reviewed',
+          about: p.about || null,
           looking: 'Looking for connection',
           trustScore,
           createdAt: new Date(p.created_at),

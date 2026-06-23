@@ -22,6 +22,8 @@ class _ChatListScreenState extends State<ChatListScreen>
   RealtimeChannel? _msgChannel;
   RealtimeChannel? _attentionChannel;
   RealtimeChannel? _matchChannel;
+  RealtimeChannel? _onlineChannel;
+  final _onlineUsers = <String>{};
   Timer? _periodicRefresh;
 
   // ── Find Match ────────────────────────────────────────────────────────────
@@ -40,6 +42,7 @@ class _ChatListScreenState extends State<ChatListScreen>
     WidgetsBinding.instance.addObserver(this);
     _future = _load();
     _subscribeToMessages();
+    _subscribeToPresence();
     // Periodic backstop: refresh every 15 s in case realtime misses an event.
     _periodicRefresh = Timer.periodic(const Duration(seconds: 15), (_) => _refresh());
     _loadMatchmakerStatus();
@@ -110,6 +113,7 @@ class _ChatListScreenState extends State<ChatListScreen>
     if (_msgChannel != null) Supabase.instance.client.removeChannel(_msgChannel!);
     if (_attentionChannel != null) Supabase.instance.client.removeChannel(_attentionChannel!);
     if (_matchChannel != null) Supabase.instance.client.removeChannel(_matchChannel!);
+    if (_onlineChannel != null) Supabase.instance.client.removeChannel(_onlineChannel!);
     super.dispose();
   }
 
@@ -179,6 +183,30 @@ class _ChatListScreenState extends State<ChatListScreen>
           callback: (_) => _refresh(),
         )
         .subscribe();
+  }
+
+  void _subscribeToPresence() {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid == null) return;
+    final ch = Supabase.instance.client.channel('presence:online-users');
+    ch.onPresenceSync((_) {
+      final online = <String>{};
+      for (final s in ch.presenceState()) {
+        for (final p in s.presences) {
+          final u = p.payload['uid']?.toString();
+          if (u != null && u != uid) online.add(u);
+        }
+      }
+      if (mounted) setState(() => _onlineUsers
+        ..clear()
+        ..addAll(online));
+    });
+    ch.subscribe((status, _) async {
+      if (status == RealtimeSubscribeStatus.subscribed) {
+        await ch.track({'uid': uid});
+      }
+    });
+    _onlineChannel = ch;
   }
 
   Future<_ChatData> _load() async {
@@ -294,7 +322,7 @@ class _ChatListScreenState extends State<ChatListScreen>
                       builder: (_) => AdvisorScreen(wingman: isMan),
                     )),
                   ),
-                if (newMatches.isNotEmpty && _filter != 2 && _filter != 3) _NewMatches(matches: newMatches, onTap: _open),
+                if (newMatches.isNotEmpty && _filter != 2 && _filter != 3) _NewMatches(matches: newMatches, onTap: _open, onlineUsers: _onlineUsers),
                 _FilterTabs(
                   filter: _filter,
                   allCount: data.conversations.where((c) => c.hasMessages).length,
@@ -345,6 +373,7 @@ class _ChatListScreenState extends State<ChatListScreen>
                     convo: c,
                     onTap: () => _open(c),
                     myId: Supabase.instance.client.auth.currentUser?.id,
+                    online: c.otherId != null && _onlineUsers.contains(c.otherId),
                   )),
               ],
             ),
@@ -461,18 +490,20 @@ String _ago(DateTime? t) {
   return '${(d.inDays / 7).floor()}w';
 }
 
-/// Avatar with a colored ring (green for matches, customizable).
+/// Avatar with a colored ring — green when online, grey when offline.
 class _RingAvatar extends StatelessWidget {
   final String? url;
   final String name;
   final double radius;
-  const _RingAvatar({required this.url, required this.name, this.radius = 24});
+  final bool online;
+  const _RingAvatar({required this.url, required this.name, this.radius = 24, this.online = false});
   @override
   Widget build(BuildContext context) {
     final hasUrl = url != null && url!.startsWith('http');
+    final ringColor = online ? const Color(0xFF22C55E) : const Color(0xFFAAAAAA);
     return Container(
       padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: const Color(0xFF22C55E), width: 2)),
+      decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: ringColor, width: 2)),
       child: CircleAvatar(
         radius: radius,
         backgroundColor: const Color(Config.bg3),
@@ -487,7 +518,8 @@ class _RingAvatar extends StatelessWidget {
 class _NewMatches extends StatelessWidget {
   final List<Conversation> matches;
   final void Function(Conversation) onTap;
-  const _NewMatches({required this.matches, required this.onTap});
+  final Set<String> onlineUsers;
+  const _NewMatches({required this.matches, required this.onTap, required this.onlineUsers});
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -513,7 +545,7 @@ class _NewMatches extends StatelessWidget {
                   width: 64,
                   child: Column(children: [
                     Stack(clipBehavior: Clip.none, children: [
-                      _RingAvatar(url: m.avatar, name: m.name, radius: 28),
+                      _RingAvatar(url: m.avatar, name: m.name, radius: 28, online: m.otherId != null && onlineUsers.contains(m.otherId)),
                       const Positioned(right: -2, top: -2, child: Text('✨', style: TextStyle(fontSize: 14))),
                     ]),
                     const SizedBox(height: 4),

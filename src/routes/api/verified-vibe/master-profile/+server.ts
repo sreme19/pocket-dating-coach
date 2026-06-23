@@ -164,6 +164,7 @@ export const GET: RequestHandler = async ({ request }: { request: Request }) => 
     personalityPortraitUrl:   typeof masterData.personalityPortraitUrl === 'string' ? masterData.personalityPortraitUrl : null,
     garagePortraitUrl:        typeof masterData.garagePortraitUrl === 'string' ? masterData.garagePortraitUrl : null,
     moneyMatters:             masterData.moneyMatters ?? null,
+    laneChanges:              Array.isArray(masterData.laneChanges) ? masterData.laneChanges : [],
     lastSynced:               row?.updated_at ?? null,
   });
 };
@@ -218,6 +219,11 @@ export const POST: RequestHandler = async ({ request }: { request: Request }) =>
   // Photos: full-replace (client owns the canonical ordered list of hosted URLs)
   if (body.photos                !== undefined) updated.photos                = body.photos;
   if (body.aiPhotos              !== undefined) updated.aiPhotos              = body.aiPhotos;
+  // P0-5: Lane change log — append single entry {ts, from, to}
+  if (body.laneChange !== undefined && body.laneChange !== null) {
+    const prevChanges = Array.isArray(prev.laneChanges) ? (prev.laneChanges as object[]) : [];
+    updated.laneChanges = [...prevChanges, body.laneChange];
+  }
 
   if (existing) {
     await db

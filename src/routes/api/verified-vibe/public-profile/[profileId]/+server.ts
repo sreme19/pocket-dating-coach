@@ -76,6 +76,39 @@ const ARCHETYPE_BRINGS: Record<string, Array<{ emoji: string; text: string }>> =
     { emoji: '🤝', text: 'Honest intentions' }, { emoji: '🌸', text: 'Light touch' },
     { emoji: '✨', text: 'Fun energy' }, { emoji: '🧘', text: 'Present focus' }, { emoji: '📸', text: 'Real moments' },
   ],
+  // ── Female archetypes ──────────────────────────────────────────────────────
+  spoiled_casual_woman: [
+    { emoji: '✨', text: 'High standards' }, { emoji: '💅', text: 'Effortless charm' },
+    { emoji: '😄', text: 'Fun energy' }, { emoji: '🎯', text: 'Knows what she wants' }, { emoji: '💬', text: 'Honest vibes' },
+  ],
+  hopeless_romantic_woman: [
+    { emoji: '🌹', text: 'Deep affection' }, { emoji: '💕', text: 'Emotional warmth' },
+    { emoji: '🎁', text: 'Thoughtful gestures' }, { emoji: '🌊', text: 'All-in energy' }, { emoji: '✨', text: 'Magic in small moments' },
+  ],
+  rebound_healing_woman: [
+    { emoji: '🌿', text: 'Growth mindset' }, { emoji: '🧘', text: 'Emotional awareness' },
+    { emoji: '💬', text: 'Honest communication' }, { emoji: '🌸', text: 'Gentle energy' }, { emoji: '🤝', text: 'Real intentions' },
+  ],
+  untouched_heart_woman: [
+    { emoji: '🌸', text: 'Pure heart' }, { emoji: '👁️', text: 'Fresh perspective' },
+    { emoji: '💚', text: 'Openness' }, { emoji: '🕊️', text: 'No baggage' }, { emoji: '✨', text: 'Genuine curiosity' },
+  ],
+  forever_focused_woman: [
+    { emoji: '💍', text: 'Clarity on commitment' }, { emoji: '🏡', text: 'Family vision' },
+    { emoji: '💙', text: 'Emotional depth' }, { emoji: '🌿', text: 'Shared values' }, { emoji: '🎯', text: 'Long-term focus' },
+  ],
+  traditional_matrimony_woman: [
+    { emoji: '🏛️', text: 'Family-first values' }, { emoji: '🤝', text: 'Cultural alignment' },
+    { emoji: '💍', text: 'Commitment with zero ambiguity' }, { emoji: '📋', text: 'Clear expectations upfront' }, { emoji: '🏠', text: 'Stability & long-term partnership' },
+  ],
+  second_chapter_woman: [
+    { emoji: '🌺', text: 'Emotional maturity' }, { emoji: '🎯', text: 'Clarity on what she needs' },
+    { emoji: '💬', text: 'No games — only real' }, { emoji: '💚', text: 'Appreciation without desperation' }, { emoji: '💪', text: 'Strength that comes from having survived' },
+  ],
+  just_friends_woman: [
+    { emoji: '🫂', text: 'Zero pressure or hidden agenda' }, { emoji: '☀️', text: 'Warm, genuine company' },
+    { emoji: '🛡️', text: 'Emotional safety' }, { emoji: '💬', text: 'Real conversation' }, { emoji: '🌱', text: 'Friendship that actually sticks' },
+  ],
 };
 const DEFAULT_BRINGS = [
   { emoji: '⚡', text: 'Good energy' }, { emoji: '🤝', text: 'Honest intentions' },
