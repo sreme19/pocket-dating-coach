@@ -3,6 +3,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
 import { getSupabase } from '$lib/server/supabase';
 import { appendAdvisorChat } from '$lib/server/advisor-chat';
+import { logAppError } from '$lib/server/logAppError';
 import { loadPreferences, updatePreferences } from '$lib/server/profile-service';
 import type { PreferencesProfile } from '$lib/server/profile-service';
 import { touchLastActive } from '$lib/server/pool-registry';
@@ -203,6 +204,12 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ reply, userMessage, prefsUpdated: detectedPrefs.length > 0, drafts });
 	} catch (err) {
 		console.error('[AI Bestie chat]', err);
+		logAppError(err, {
+			feature: 'AI Bestie',
+			file: 'src/routes/api/verified-vibe/ai-bestie/chat/+server.ts',
+			endpoint: 'POST /api/verified-vibe/ai-bestie/chat',
+			userId,
+		}).catch(() => {});
 		return json(
 			{ error: err instanceof Error ? err.message : 'Something went wrong' },
 			{ status: 500 }
