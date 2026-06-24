@@ -26,6 +26,7 @@ import { popPendingChatMessage } from '$lib/server/intelligence-report-processor
 import { buildCompetitiveSnapshot } from '$lib/server/competitive-snapshot';
 import { loadMatchIntelligenceContext } from '$lib/server/match-intelligence';
 import { complianceGate } from '$lib/server/ai-compliance';
+import { logAppError } from '$lib/server/logAppError';
 
 export const POST: RequestHandler = async ({ request }) => {
 	// Server-half latency clock: request received → reply ready. Mirrors the
@@ -163,6 +164,12 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ reply, replyMessageId, generatedAt, responseType: 'wingman' });
 	} catch (err) {
 		console.error('[AI Wingman VV chat]', err);
+		logAppError(err, {
+			feature: 'AI Wingman',
+			file: 'src/routes/api/verified-vibe/ai-wingman/chat/+server.ts',
+			endpoint: 'POST /api/verified-vibe/ai-wingman/chat',
+			userId,
+		}).catch(() => {});
 		return json({ error: err instanceof Error ? err.message : 'Something went wrong' }, { status: 500 });
 	}
 };

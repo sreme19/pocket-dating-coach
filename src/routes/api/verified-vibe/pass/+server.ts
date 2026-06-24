@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
+import { logAppError } from '$lib/server/logAppError';
 
 /**
  * POST /api/verified-vibe/pass
@@ -118,6 +119,12 @@ export const POST: RequestHandler = async ({ request }) => {
     return json({ success: true }, { status: 201 });
   } catch (error) {
     console.error('Pass error:', error);
+    logAppError(error, {
+      feature: 'Discovery — Pass',
+      file: 'src/routes/api/verified-vibe/pass/+server.ts',
+      endpoint: 'POST /api/verified-vibe/pass',
+      userId,
+    }).catch(() => {});
     return json(
       { error: 'Failed to process pass' },
       { status: 500 }

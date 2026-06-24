@@ -18,6 +18,7 @@ import { runNightlyBatch } from '$lib/server/matchmaker-service';
 import { runTrustNormalization } from '$lib/server/trust-normalize';
 import { runAllMatchScores } from '$lib/server/match-scoring';
 import { MATCHMAKER_RUN_SECRET } from '$env/static/private';
+import { logAppError } from '$lib/server/logAppError';
 
 export const POST: RequestHandler = async ({ request }) => {
   try {
@@ -61,6 +62,11 @@ export const POST: RequestHandler = async ({ request }) => {
 
   } catch (err) {
     console.error('[matchmaker/run]', err);
+    logAppError(err, {
+      feature: 'Matchmaker',
+      file: 'src/routes/api/verified-vibe/matchmaker/run/+server.ts',
+      endpoint: 'POST /api/verified-vibe/matchmaker/run',
+    }).catch(() => {});
     return json({ error: 'Failed to start matchmaker run' }, { status: 500 });
   }
 };

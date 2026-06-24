@@ -4,6 +4,7 @@ import { waitUntil } from '@vercel/functions';
 import { getSupabase } from '$lib/server/supabase';
 import { getTrustScoreBand } from '$lib/server/pool-registry';
 import type { Message } from '$lib/verified-vibe/types';
+import { logAppError } from '$lib/server/logAppError';
 
 interface SendMessageRequest {
   conversationId: string;
@@ -317,6 +318,12 @@ export const POST: RequestHandler = async ({ request }) => {
     return json(response, { status: 201 });
   } catch (error) {
     console.error('Send message error:', error);
+    logAppError(error, {
+      feature: 'Chat',
+      file: 'src/routes/api/verified-vibe/chat/send/+server.ts',
+      endpoint: 'POST /api/verified-vibe/chat/send',
+      userId: user?.id,
+    }).catch(() => {});
     return json(
       { error: 'Internal server error', details: error instanceof Error ? error.message : String(error) },
       { status: 500 }

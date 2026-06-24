@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { checkLivenessWithClaude } from '$lib/verified-vibe/server/verification';
+import { logAppError } from '$lib/server/logAppError';
 
 /**
  * POST /api/verified-vibe/check-liveness
@@ -94,6 +95,11 @@ export const POST: RequestHandler = async ({ request }) => {
     );
   } catch (error) {
     console.error('Liveness check error:', error);
+    logAppError(error, {
+      feature: 'Face Verification',
+      file: 'src/routes/api/verified-vibe/check-liveness/+server.ts',
+      endpoint: 'POST /api/verified-vibe/check-liveness',
+    }).catch(() => {});
 
     // Handle specific error types
     if (error instanceof Error) {
