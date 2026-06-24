@@ -384,6 +384,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
   // ── Can submit ───────────────────────────────────────────────────────────────
   bool get _canAnalyse {
     if (_analysing) return false;
+    if (_result?.verified == true) return false;
     if (widget.categoryId == 'intro') return _voicePath != null || _videoPath != null;
     if (_files.isNotEmpty) return true;
     if (_resumeImages.isNotEmpty) return true;
@@ -1241,11 +1242,17 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                       SizedBox(width: 10),
                       Text('Analysing…', style: TextStyle(fontWeight: FontWeight.w700)),
                     ])
-                  : Text(
-                      cfg.hasUrlInput && _urlController.text.trim().isNotEmpty && _files.isEmpty
-                          ? 'Connect & Verify'
-                          : 'Analyse & Verify',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                  : _result?.verified == true
+                      ? const Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.check_circle_rounded, size: 18),
+                          SizedBox(width: 8),
+                          Text('Added to your profile', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                        ])
+                      : Text(
+                          cfg.hasUrlInput && _urlController.text.trim().isNotEmpty && _files.isEmpty
+                              ? 'Connect & Verify'
+                              : 'Analyse & Verify',
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
             ),
           ),
         ],
@@ -1480,8 +1487,14 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                       SizedBox(width: 10),
                       Text('Submitting…', style: TextStyle(fontWeight: FontWeight.w700)),
                     ])
-                  : const Text('Submit Intro',
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                  : _result?.verified == true
+                      ? const Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.check_circle_rounded, size: 18),
+                          SizedBox(width: 8),
+                          Text('Added to your profile', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                        ])
+                      : const Text('Submit Intro',
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
             ),
           ),
         ],
