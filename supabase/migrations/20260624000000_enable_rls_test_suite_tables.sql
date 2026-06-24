@@ -7,5 +7,9 @@
 ALTER TABLE ts_runs        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ts_pair_scores ENABLE ROW LEVEL SECURITY;
 
--- Per-match AI assistant config (server-side only; users configure via API, not direct DB)
-ALTER TABLE ai_assistant_match_configs ENABLE ROW LEVEL SECURITY;
+-- Per-match AI assistant config — only enable if the table exists in this env
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'ai_assistant_match_configs') THEN
+    ALTER TABLE ai_assistant_match_configs ENABLE ROW LEVEL SECURITY;
+  END IF;
+END $$;
