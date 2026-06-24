@@ -23,6 +23,7 @@ class _ChatListScreenState extends State<ChatListScreen>
   RealtimeChannel? _attentionChannel;
   RealtimeChannel? _matchChannel;
   RealtimeChannel? _onlineChannel;
+  RealtimeChannel? _verificationChannel;
   final _onlineUsers = <String>{};
   Timer? _periodicRefresh;
 
@@ -44,7 +45,11 @@ class _ChatListScreenState extends State<ChatListScreen>
     _subscribeToMessages();
     _subscribeToPresence();
     // Periodic backstop: refresh every 15 s in case realtime misses an event.
-    _periodicRefresh = Timer.periodic(const Duration(seconds: 15), (_) => _refresh());
+    // Also re-checks FM eligibility so Trust & Boost completions surface quickly.
+    _periodicRefresh = Timer.periodic(const Duration(seconds: 15), (_) {
+      _refresh();
+      _loadMatchmakerStatus();
+    });
     _loadMatchmakerStatus();
   }
 
@@ -114,6 +119,7 @@ class _ChatListScreenState extends State<ChatListScreen>
     if (_attentionChannel != null) Supabase.instance.client.removeChannel(_attentionChannel!);
     if (_matchChannel != null) Supabase.instance.client.removeChannel(_matchChannel!);
     if (_onlineChannel != null) Supabase.instance.client.removeChannel(_onlineChannel!);
+    if (_verificationChannel != null) Supabase.instance.client.removeChannel(_verificationChannel!);
     super.dispose();
   }
 
@@ -181,6 +187,35 @@ class _ChatListScreenState extends State<ChatListScreen>
           schema: 'public',
           table: 'attention_messages',
           callback: (_) => _refresh(),
+        )
+        .subscribe();
+
+    // Real-time: verification step completed → instantly re-check Find Match eligibility.
+    // This ensures the FM button updates immediately after Trust & Boost without needing
+    // to close and reopen the app.
+    _verificationChannel = Supabase.instance.client
+        .channel('chat-list-verification:$uid')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'verified_vibe_verification',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: uid,
+          ),
+          callback: (_) => _loadMatchmakerStatus(),
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'verified_vibe_verification',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: uid,
+          ),
+          callback: (_) => _loadMatchmakerStatus(),
         )
         .subscribe();
   }
