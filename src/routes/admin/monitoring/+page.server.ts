@@ -23,11 +23,11 @@ export const load: PageServerLoad = async () => {
 	// Summary per check_name: last status + uptime (last 100 runs)
 	const summaryMap = new Map<
 		string,
-		{ lastStatus: string; ok: number; fail: number; warn: number; avgMs: number | null }
+		{ lastStatus: string; lastError: string | null; ok: number; fail: number; warn: number; avgMs: number | null }
 	>();
 	for (const r of rows) {
 		if (!summaryMap.has(r.check_name)) {
-			summaryMap.set(r.check_name, { lastStatus: r.status, ok: 0, fail: 0, warn: 0, avgMs: null });
+			summaryMap.set(r.check_name, { lastStatus: r.status, lastError: r.error_message ?? null, ok: 0, fail: 0, warn: 0, avgMs: null });
 		}
 		const s = summaryMap.get(r.check_name)!;
 		if (r.status === 'OK') s.ok++;
@@ -50,6 +50,7 @@ export const load: PageServerLoad = async () => {
 	const summary = [...summaryMap.entries()].map(([name, s]) => ({
 		check_name: name,
 		lastStatus: s.lastStatus,
+		lastError: s.lastError,
 		total: s.ok + s.fail + s.warn,
 		ok: s.ok,
 		fail: s.fail,

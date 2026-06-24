@@ -74,6 +74,7 @@
 					<tr class="border-b border-white/[0.06] text-left text-xs text-slate-500">
 						<th class="px-4 py-3">Check</th>
 						<th class="px-4 py-3">Last status</th>
+						<th class="px-4 py-3">Last error</th>
 						<th class="px-4 py-3">Uptime</th>
 						<th class="px-4 py-3">OK / FAIL / WARN</th>
 						<th class="px-4 py-3">Avg response</th>
@@ -81,12 +82,19 @@
 				</thead>
 				<tbody>
 					{#each data.summary as s}
-						<tr class="border-b border-white/[0.04] hover:bg-white/[0.02]">
+						<tr class="border-b border-white/[0.04] {s.lastStatus === 'FAIL' ? 'bg-red-500/[0.04]' : ''} hover:bg-white/[0.02]">
 							<td class="px-4 py-2.5 font-mono text-xs text-slate-300">{s.check_name}</td>
 							<td class="px-4 py-2.5">
 								<span class="rounded border px-1.5 py-0.5 text-xs {statusBadge(s.lastStatus)}">
 									{s.lastStatus}
 								</span>
+							</td>
+							<td class="px-4 py-2.5 text-xs text-red-400">
+								{#if s.lastStatus !== 'OK' && s.lastError}
+									{s.lastError}
+								{:else}
+									<span class="text-slate-600">—</span>
+								{/if}
 							</td>
 							<td class="px-4 py-2.5 {s.uptimePct != null && s.uptimePct < 90 ? 'text-red-400' : 'text-emerald-400'}">
 								{s.uptimePct != null ? s.uptimePct + '%' : '—'}
@@ -161,7 +169,7 @@
 						<td class="px-4 py-2.5 text-xs text-slate-400">
 							{log.response_time_ms != null ? log.response_time_ms + ' ms' : '—'}
 						</td>
-						<td class="max-w-xs px-4 py-2.5 text-xs text-red-400">
+						<td class="px-4 py-2.5 text-xs text-red-400">
 							{log.error_message ?? ''}
 						</td>
 					</tr>
