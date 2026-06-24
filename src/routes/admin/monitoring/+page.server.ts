@@ -4,10 +4,10 @@ import { getSupabase } from '$lib/server/supabase';
 export const load: PageServerLoad = async () => {
 	const sb = getSupabase() as any;
 
-	// Last 500 log entries
+	// Last 500 log entries (include metadata for app_error detail)
 	const { data: logs } = await sb
 		.from('monitor_log')
-		.select('id, check_name, status, response_time_ms, error_message, created_at')
+		.select('id, check_name, status, response_time_ms, error_message, metadata, created_at')
 		.order('created_at', { ascending: false })
 		.limit(500);
 
@@ -17,17 +17,26 @@ export const load: PageServerLoad = async () => {
 		status: 'OK' | 'FAIL' | 'WARN';
 		response_time_ms: number | null;
 		error_message: string | null;
+		metadata: {
+			feature?: string;
+			file?: string;
+			endpoint?: string;
+			user_id?: string | null;
+			match_id?: string | null;
+			stack?: string | null;
+			[key: string]: unknown;
+		} | null;
 		created_at: string;
 	}[];
 
-	// Summary per check_name: last status + uptime (last 100 runs)
+	// Summary per check_name: last status + last error + uptime
 	const summaryMap = new Map<
 		string,
-		{ lastStatus: string; ok: number; fail: number; warn: number; avgMs: number | null }
+		{ lastStatus: string; lastError: string | null; ok: number; fail: number; warn: number; avgMs: number | null }
 	>();
 	for (const r of rows) {
 		if (!summaryMap.has(r.check_name)) {
-			summaryMap.set(r.check_name, { lastStatus: r.status, ok: 0, fail: 0, warn: 0, avgMs: null });
+			summaryMap.set(r.check_name, { lastStatus: r.status, lastError: r.error_message ?? null, ok: 0, fail: 0, warn: 0, avgMs: null });
 		}
 		const s = summaryMap.get(r.check_name)!;
 		if (r.status === 'OK') s.ok++;
@@ -50,6 +59,7 @@ export const load: PageServerLoad = async () => {
 	const summary = [...summaryMap.entries()].map(([name, s]) => ({
 		check_name: name,
 		lastStatus: s.lastStatus,
+		lastError: s.lastError,
 		total: s.ok + s.fail + s.warn,
 		ok: s.ok,
 		fail: s.fail,

@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
 import type { LikeRequest, LikeResponse } from '$lib/verified-vibe/types';
+import { logAppError } from '$lib/server/logAppError';
 
 /**
  * POST /api/verified-vibe/like
@@ -210,6 +211,12 @@ export const POST: RequestHandler = async ({ request }) => {
     return json(response, { status: 201 });
   } catch (error) {
     console.error('Like error:', error);
+    logAppError(error, {
+      feature: 'Discovery — Like',
+      file: 'src/routes/api/verified-vibe/like/+server.ts',
+      endpoint: 'POST /api/verified-vibe/like',
+      userId,
+    }).catch(() => {});
     return json(
       { error: 'Failed to process like' },
       { status: 500 }
