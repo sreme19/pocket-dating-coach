@@ -432,7 +432,11 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
           if (idPicked == null)
             SizedBox(width: double.infinity, child: OutlinedButton.icon(
               onPressed: () async {
-                final img = await ImagePicker().pickImage(source: ImageSource.gallery);
+                final img = await ImagePicker().pickImage(
+                  source: ImageSource.gallery,
+                  imageQuality: 75,  // compress: full-res HEIC/JPEG can be 5MB+
+                  maxWidth: 1600,
+                );
                 if (img != null) setS(() { idPicked = img; error = null; });
               },
               icon: const Icon(Icons.upload_file_rounded),
@@ -522,7 +526,12 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
             Row(children: [
               Expanded(child: OutlinedButton.icon(
                 onPressed: () async {
-                  final img = await ImagePicker().pickImage(source: ImageSource.camera, preferredCameraDevice: CameraDevice.front);
+                  final img = await ImagePicker().pickImage(
+                  source: ImageSource.camera,
+                  preferredCameraDevice: CameraDevice.front,
+                  imageQuality: 70,
+                  maxWidth: 1024,
+                );
                   if (img != null) setS(() { selfiePicked = img; error = null; });
                 },
                 icon: const Icon(Icons.camera_front_rounded),
@@ -537,7 +546,11 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
               const SizedBox(width: 10),
               Expanded(child: OutlinedButton.icon(
                 onPressed: () async {
-                  final img = await ImagePicker().pickImage(source: ImageSource.gallery);
+                  final img = await ImagePicker().pickImage(
+                    source: ImageSource.gallery,
+                    imageQuality: 70,
+                    maxWidth: 1024,
+                  );
                   if (img != null) setS(() { selfiePicked = img; error = null; });
                 },
                 icon: const Icon(Icons.photo_library_rounded),

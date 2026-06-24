@@ -1,0 +1,171 @@
+name: Daily AI Credit Probe
+
+# Runs once daily at 02:00 WIB (19:00 UTC).
+# Sends a minimal request to Claude and FAL AI to verify credit availability.
+# Sends WARNING email (via Resend) if either returns HTTP 429 or quota error.
+# Cost target: < $0.30 USD/month total (spec NFR-02).
+
+on:
+  schedule:
+    - cron: '0 19 * * *'   # 02:00 WIB = 19:00 UTC
+  workflow_dispatch:
+
+jobs:
+  ai-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    env:
+      APP_URL:               ${{ secrets.APP_URL }}
+      SUPABASE_URL:          ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY:          ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      ANTHROPIC_API_KEY:     ${{ secrets.ANTHROPIC_API_KEY }}
+      FAL_KEY:               ${{ secrets.FAL_KEY }}
+      RESEND_API_KEY:        ${{ secrets.RESEND_API_KEY }}
+      ALERT_EMAIL_CRITICAL:  ${{ secrets.ALERT_EMAIL_CRITICAL }}   # chris@wardrobeofamonk.com
+      ALERT_EMAIL_WARNING:   ${{ secrets.ALERT_EMAIL_WARNING }}     # ekasaputra0324@gmail.com
+
+    steps:
+      # ── 1. Claude API minimal probe ───────────────────────────────────────────
+      # Single-token request (~$0.000003) — just enough to verify credits exist.
+      - name: Claude API probe
+        id: claude_probe
+        run: |
+          START=$(date +%s%3N)
+          HTTP=$(curl -s -o /tmp/claude_body.json -w "%{http_code}" \
+            --max-time 15 \
+            -X POST "https://api.anthropic.com/v1/messages" \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "Content-Type: application/json" \
+            -d '{"model":"claude-haiku-4-5-20251001","max_tokens":1,"messages":[{"role":"user","content":"1"}]}')
+          END=$(date +%s%3N)
+          MS=$(( END - START ))
+          BODY=$(cat /tmp/claude_body.json)
+          echo "http_code=$HTTP" >> $GITHUB_OUTPUT
+          echo "response_ms=$MS"   >> $GITHUB_OUTPUT
+
+          if [ "$HTTP" = "200" ]; then
+            echo "status=OK" >> $GITHUB_OUTPUT
+          elif [ "$HTTP" = "429" ]; then
+            echo "status=WARN" >> $GITHUB_OUTPUT
+            echo "error=Claude API rate-limited / quota exceeded (HTTP 429)" >> $GITHUB_OUTPUT
+          else
+            echo "status=FAIL" >> $GITHUB_OUTPUT
+            ERROR=$(echo "$BODY" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('error',{}).get('message','Unknown'))" 2>/dev/null || echo "HTTP $HTTP")
+            echo "error=$ERROR" >> $GITHUB_OUTPUT
+          fi
+
+      # ── 2. FAL AI minimal probe ───────────────────────────────────────────────
+      # Queue status endpoint — no generation triggered, zero credit cost.
+      - name: FAL AI probe
+        id: fal_probe
+        run: |
+          START=$(date +%s%3N)
+          HTTP=$(curl -s -o /tmp/fal_body.json -w "%{http_code}" \
+            --max-time 10 \
+            -H "Authorization: Key $FAL_KEY" \
+            "https://queue.fal.run/fal-ai/flux/requests")
+          END=$(date +%s%3N)
+          MS=$(( END - START ))
+          BODY=$(cat /tmp/fal_body.json)
+          echo "http_code=$HTTP" >> $GITHUB_OUTPUT
+          echo "response_ms=$MS"   >> $GITHUB_OUTPUT
+
+          # 200 or 400 (empty queue) = service reachable; 402/429 = quota issue
+          if [ "$HTTP" = "200" ] || [ "$HTTP" = "400" ] || [ "$HTTP" = "404" ]; then
+            echo "status=OK" >> $GITHUB_OUTPUT
+          elif [ "$HTTP" = "429" ] || [ "$HTTP" = "402" ]; then
+            echo "status=WARN" >> $GITHUB_OUTPUT
+            echo "error=FAL AI quota/credit error (HTTP $HTTP)" >> $GITHUB_OUTPUT
+          else
+            echo "status=FAIL" >> $GITHUB_OUTPUT
+            echo "error=FAL AI unreachable (HTTP $HTTP)" >> $GITHUB_OUTPUT
+          fi
+
+      # ── 3. Write results to monitor_log ──────────────────────────────────────
+      - name: Log results to monitor_log
+        run: |
+          NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          log_entry() {
+            local check_name=$1
+            local status=$2
+            local ms=$3
+            local error_msg=$4
+            local error_json
+            if [ -z "$error_msg" ]; then
+              error_json="null"
+            else
+              error_json="\"$(echo "$error_msg" | sed 's/"/\\"/g')\""
+            fi
+            curl -s -o /dev/null \
+              -X POST "$SUPABASE_URL/rest/v1/monitor_log" \
+              -H "apikey: $SUPABASE_KEY" \
+              -H "Authorization: Bearer $SUPABASE_KEY" \
+              -H "Content-Type: application/json" \
+              -H "Prefer: return=minimal" \
+              -d "{\"check_name\":\"$check_name\",\"status\":\"$status\",\"response_time_ms\":$ms,\"error_message\":$error_json,\"created_at\":\"$NOW\"}"
+          }
+
+          log_entry "claude_api_probe" \
+            "${{ steps.claude_probe.outputs.status }}" \
+            "${{ steps.claude_probe.outputs.response_ms }}" \
+            "${{ steps.claude_probe.outputs.error }}"
+
+          log_entry "fal_ai_probe" \
+            "${{ steps.fal_probe.outputs.status }}" \
+            "${{ steps.fal_probe.outputs.response_ms }}" \
+            "${{ steps.fal_probe.outputs.error }}"
+
+      # ── 4. Send WARNING alert for quota issues ────────────────────────────────
+      - name: Send WARNING alert (quota/credit issue)
+        if: steps.claude_probe.outputs.status == 'WARN' || steps.fal_probe.outputs.status == 'WARN'
+        run: |
+          BODY_HTML="<h3>⚠️ AI Credit / Quota Warning — riteangle.dating</h3><ul>"
+
+          if [ "${{ steps.claude_probe.outputs.status }}" = "WARN" ]; then
+            BODY_HTML="$BODY_HTML<li><strong>Claude API:</strong> ${{ steps.claude_probe.outputs.error }}</li>"
+          fi
+          if [ "${{ steps.fal_probe.outputs.status }}" = "WARN" ]; then
+            BODY_HTML="$BODY_HTML<li><strong>FAL AI:</strong> ${{ steps.fal_probe.outputs.error }}</li>"
+          fi
+
+          BODY_HTML="$BODY_HTML</ul><p>Time: $(date -u)</p><p><a href='$APP_URL/admin/monitoring'>View monitoring dashboard</a></p>"
+
+          curl -s -X POST "https://api.resend.com/emails" \
+            -H "Authorization: Bearer $RESEND_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"from\": \"PDC Monitor <monitor@riteangle.dating>\",
+              \"to\": [\"$ALERT_EMAIL_WARNING\"],
+              \"subject\": \"⚠️ WARNING: AI quota issue detected — riteangle.dating\",
+              \"html\": \"$BODY_HTML\"
+            }"
+          echo "WARNING alert sent."
+
+      # ── 5. Send CRITICAL alert for hard failures ──────────────────────────────
+      - name: Send CRITICAL alert (API unreachable)
+        if: steps.claude_probe.outputs.status == 'FAIL' || steps.fal_probe.outputs.status == 'FAIL'
+        run: |
+          BODY_HTML="<h3>🔴 CRITICAL: AI Service Unreachable — riteangle.dating</h3><ul>"
+
+          if [ "${{ steps.claude_probe.outputs.status }}" = "FAIL" ]; then
+            BODY_HTML="$BODY_HTML<li><strong>Claude API:</strong> ${{ steps.claude_probe.outputs.error }}</li>"
+          fi
+          if [ "${{ steps.fal_probe.outputs.status }}" = "FAIL" ]; then
+            BODY_HTML="$BODY_HTML<li><strong>FAL AI:</strong> ${{ steps.fal_probe.outputs.error }}</li>"
+          fi
+
+          BODY_HTML="$BODY_HTML</ul><p>Time: $(date -u)</p><p><a href='$APP_URL/admin/monitoring'>View monitoring dashboard</a></p>"
+
+          curl -s -X POST "https://api.resend.com/emails" \
+            -H "Authorization: Bearer $RESEND_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"from\": \"PDC Monitor <monitor@riteangle.dating>\",
+              \"to\": [\"$ALERT_EMAIL_CRITICAL\"],
+              \"subject\": \"🔴 CRITICAL: AI service down — riteangle.dating\",
+              \"html\": \"$BODY_HTML\"
+            }"
+          echo "CRITICAL alert sent."
