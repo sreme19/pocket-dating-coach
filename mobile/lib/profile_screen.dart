@@ -2007,6 +2007,15 @@ class _HeroState extends State<_Hero> {
     super.dispose();
   }
 
+  void _onDragEnd(DragEndDetails d, int total) {
+    final v = d.primaryVelocity ?? 0;
+    if (v < -200 && _i < total - 1) {
+      _ctrl.nextPage(duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
+    } else if (v > 200 && _i > 0) {
+      _ctrl.previousPage(duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Accept both https:// URLs (Supabase Storage) and data: base64 URIs (local uploads).
@@ -2021,9 +2030,15 @@ class _HeroState extends State<_Hero> {
       aspectRatio: 4 / 5,
       child: Stack(
         children: [
-          PageView.builder(
+          // Wrap in GestureDetector to explicitly win horizontal drag competition
+          // against the parent ListView — fixes slider not swiping on iOS.
+          GestureDetector(
+            onHorizontalDragEnd: (d) => _onDragEnd(d, urls.length),
+            child: PageView.builder(
             controller: _ctrl,
-            physics: const PageScrollPhysics(),
+            // NeverScrollableScrollPhysics: GestureDetector above owns the drag;
+            // PageView only handles page snapping via _ctrl calls.
+            physics: const NeverScrollableScrollPhysics(),
             itemCount: urls.length,
             onPageChanged: (i) => setState(() => _i = i),
             itemBuilder: (c, i) {
@@ -2049,6 +2064,7 @@ class _HeroState extends State<_Hero> {
                 errorWidget: (c, _, _) => const _PhotoPlaceholder(),
               );
             },
+          ),
           ),
           if (urls.length > 1)
             Positioned(

@@ -25,6 +25,7 @@ class _ChatListScreenState extends State<ChatListScreen>
   RealtimeChannel? _onlineChannel;
   RealtimeChannel? _verificationChannel;
   final _onlineUsers = <String>{};
+  final _clearedConvos = <String>{}; // optimistic read-clear before server confirms
   Timer? _periodicRefresh;
 
   // ── Find Match ────────────────────────────────────────────────────────────
@@ -289,12 +290,17 @@ class _ChatListScreenState extends State<ChatListScreen>
   }
 
   void _open(Conversation c) {
+    // Optimistically clear badge immediately on tap so UI feels instant.
+    if (c.unreadCount > 0) setState(() => _clearedConvos.add(c.id));
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => ConversationScreen(
         conversationId: c.id,
         title: c.age != null ? '${c.name}, ${c.age}' : c.name,
       ),
-    )).then((_) => _refresh());
+    )).then((_) {
+      _clearedConvos.remove(c.id); // actual data will reflect read state after refresh
+      _refresh();
+    });
   }
 
   @override
@@ -341,8 +347,8 @@ class _ChatListScreenState extends State<ChatListScreen>
           var active = data.conversations.where((c) => c.hasMessages).toList()
             ..sort((a, b) => (b.lastMessageTime ?? DateTime(1970))
                 .compareTo(a.lastMessageTime ?? DateTime(1970)));
-          final unreadTotal = active.where((c) => c.unreadCount > 0).length;
-          if (_filter == 1) active = active.where((c) => c.unreadCount > 0).toList();
+          final unreadTotal = active.where((c) => c.unreadCount > 0 && !_clearedConvos.contains(c.id)).length;
+          if (_filter == 1) active = active.where((c) => c.unreadCount > 0 && !_clearedConvos.contains(c.id)).toList();
 
           return RefreshIndicator(
             onRefresh: _refresh,
@@ -409,6 +415,7 @@ class _ChatListScreenState extends State<ChatListScreen>
                     onTap: () => _open(c),
                     myId: Supabase.instance.client.auth.currentUser?.id,
                     online: c.otherId != null && _onlineUsers.contains(c.otherId),
+                    cleared: _clearedConvos.contains(c.id),
                   )),
               ],
             ),
@@ -946,7 +953,8 @@ class _ConversationTile extends StatelessWidget {
   final VoidCallback onTap;
   final String? myId;
   final bool online;
-  const _ConversationTile({required this.convo, required this.onTap, this.myId, this.online = false});
+  final bool cleared;
+  const _ConversationTile({required this.convo, required this.onTap, this.myId, this.online = false, this.cleared = false});
 
   @override
   Widget build(BuildContext context) {
@@ -983,12 +991,13 @@ class _ConversationTile extends StatelessWidget {
               final preview = rawMsg.isNotEmpty
                   ? (isMe ? 'You: $displayMsg' : displayMsg)
                   : 'Say hello 👋';
+              final hasUnread = convo.unreadCount > 0 && !cleared;
               return Text(
                 preview,
                 maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: convo.unreadCount > 0 ? const Color(Config.text1) : const Color(Config.text2),
-                  fontWeight: convo.unreadCount > 0 ? FontWeight.w600 : FontWeight.w400,
+                  color: hasUnread ? const Color(Config.text1) : const Color(Config.text2),
+                  fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w400,
                 ),
               );
             }),
@@ -999,7 +1008,7 @@ class _ConversationTile extends StatelessWidget {
         if (convo.lastMessageTime != null)
           Text(_ago(convo.lastMessageTime),
               style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
-        if (convo.unreadCount > 0) ...[
+        if (convo.unreadCount > 0 && !cleared) ...[
           const SizedBox(height: 4),
           CircleAvatar(
             radius: 10,
