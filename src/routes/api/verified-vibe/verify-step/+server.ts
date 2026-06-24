@@ -256,11 +256,21 @@ async function handleLivenessVerification(data: any, userId: string | null = nul
     let stepData: Record<string, unknown>;
 
     if (hasIdPhoto) {
-      // Legacy / explicit path: compare the selfie against a provided ID photo.
-      const result = skipVerification
-        ? { confidence: 99, match: true }
-        : await checkLivenessWithClaude(data.selfieImage, data.idPhotoBase64, mimeType);
-      stepData = { confidence: result.confidence, match: result.match };
+      // Explicit face-match path: compare selfie against the provided ID photo.
+      // Non-fatal: if Claude fails (e.g. images too large, API error) we return
+      // apiError:true instead of 422 so the client can fail-open rather than
+      // hard-blocking the user.
+      if (skipVerification) {
+        stepData = { confidence: 99, match: true };
+      } else {
+        try {
+          const result = await checkLivenessWithClaude(data.selfieImage, data.idPhotoBase64, mimeType);
+          stepData = { confidence: result.confidence, match: result.match };
+        } catch (e) {
+          console.warn('[verify-step] face-match call failed (non-fatal):', e);
+          stepData = { confidence: 0, match: false, apiError: true };
+        }
+      }
     } else {
       // Onboarding path: no ID — run a liveness-only check and store the selfie
       // as the user's anchor face for later government-ID matching.

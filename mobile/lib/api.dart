@@ -1187,6 +1187,9 @@ Future<bool> verifySelfieVsId(String selfiePath, String idBase64, String idMime)
     throw Exception(msg?.isNotEmpty == true ? msg : 'Face verification failed. Please try again.');
   }
   final data = body['data'] is Map ? body['data'] as Map : const {};
+  // If Claude itself errored (images too large, API failure) the server sets
+  // apiError:true — fail open so users aren't hard-blocked by infra issues.
+  if (data['apiError'] == true) return true;
   final match = data['match'] == true;
   final conf = (data['confidence'] as num?)?.toDouble() ?? 0;
   return match || conf >= 50;
