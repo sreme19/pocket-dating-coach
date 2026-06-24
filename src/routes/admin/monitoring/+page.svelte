@@ -1,7 +1,9 @@
 <script lang="ts">
-	import type { PageData } from './$types';
+	import type { PageData, ActionData } from './$types';
+	import { enhance } from '$app/forms';
 
-	let { data }: { data: PageData } = $props();
+	let { data, form }: { data: PageData; form: ActionData } = $props();
+	let running = $state(false);
 
 	let checkFilter = $state('all');
 	let statusFilter = $state('all');
@@ -44,7 +46,52 @@
 </script>
 
 <div class="min-h-screen bg-[#060d1a] p-6 text-slate-100">
-	<h1 class="mb-6 text-xl font-bold text-white">Log Monitoring</h1>
+	<div class="mb-6 flex items-center justify-between">
+		<h1 class="text-xl font-bold text-white">Log Monitoring</h1>
+		<form
+			method="POST"
+			action="?/runHealthCheck"
+			use:enhance={() => {
+				running = true;
+				return async ({ update }) => {
+					await update();
+					running = false;
+				};
+			}}
+		>
+			<button
+				type="submit"
+				disabled={running}
+				class="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-400 transition hover:bg-emerald-500/20 disabled:opacity-50"
+			>
+				{#if running}
+					<span class="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent"></span>
+					Running…
+				{:else}
+					▶ Run Now
+				{/if}
+			</button>
+		</form>
+	</div>
+
+	<!-- Run results -->
+	{#if form?.triggered && form?.results}
+		<div class="mb-6 rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
+			<div class="mb-2 text-xs font-semibold text-slate-400">Manual run results</div>
+			<div class="flex flex-wrap gap-3">
+				{#each form.results as r}
+					<div class="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs {r.status === 'OK' ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-red-500/30 bg-red-500/10'}">
+						<span class="{r.status === 'OK' ? 'text-emerald-400' : 'text-red-400'} font-semibold">{r.status}</span>
+						<span class="text-slate-400">{r.check}</span>
+						<span class="text-slate-500">{r.ms}ms</span>
+						{#if r.error}
+							<span class="text-red-400">— {r.error}</span>
+						{/if}
+					</div>
+				{/each}
+			</div>
+		</div>
+	{/if}
 
 	<!-- Overall stats -->
 	<div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">

@@ -1,4 +1,4 @@
-import type { PageServerLoad } from './$types';
+import type { PageServerLoad, Actions } from './$types';
 import { getSupabase } from '$lib/server/supabase';
 
 export const load: PageServerLoad = async () => {
@@ -75,4 +75,86 @@ export const load: PageServerLoad = async () => {
 	}));
 
 	return { logs: rows, summary };
+};
+
+// ── Manual health check action ─────────────────────────────────────────────
+export const actions: Actions = {
+	runHealthCheck: async ({ fetch }) => {
+		const sb = getSupabase() as any;
+		const now = new Date().toISOString();
+
+		const log = async (checkName: string, status: 'OK' | 'FAIL', ms: number, errorMsg: string | null) => {
+			await sb.from('monitor_log').insert({
+				check_name: checkName,
+				status,
+				response_time_ms: ms,
+				error_message: errorMsg,
+				created_at: now,
+			});
+		};
+
+		const results: { check: string; status: string; ms: number; error: string | null }[] = [];
+
+		// 1. API health ping
+		{
+			const start = Date.now();
+			let status: 'OK' | 'FAIL' = 'FAIL';
+			let error: string | null = null;
+			try {
+				const r = await fetch('/api/health');
+				const ms = Date.now() - start;
+				status = r.ok ? 'OK' : 'FAIL';
+				if (!r.ok) error = `HTTP ${r.status}`;
+				await log('api_health_ping', status, ms, error);
+				results.push({ check: 'api_health_ping', status, ms, error });
+			} catch (e) {
+				const ms = Date.now() - start;
+				error = e instanceof Error ? e.message : String(e);
+				await log('api_health_ping', 'FAIL', ms, error);
+				results.push({ check: 'api_health_ping', status: 'FAIL', ms, error });
+			}
+		}
+
+		// 2. DB read integrity
+		{
+			const start = Date.now();
+			const { error: dbErr } = await sb.from('verified_vibe_users').select('id').limit(1);
+			const ms = Date.now() - start;
+			const status: 'OK' | 'FAIL' = dbErr ? 'FAIL' : 'OK';
+			const error = dbErr ? `${dbErr.code}: ${dbErr.message}` : null;
+			await log('db_read_integrity', status, ms, error);
+			results.push({ check: 'db_read_integrity', status, ms, error });
+		}
+
+		// 3. Synthetic login simulation
+		{
+			const start = Date.now();
+			let status: 'OK' | 'FAIL' = 'FAIL';
+			let error: string | null = null;
+			try {
+				const { SYNTHETIC_USER_EMAIL, SEED_ACCOUNT_PASSWORD } = await import('$env/static/private');
+				const r = await fetch('/api/verified-vibe/seed-login', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ email: SYNTHETIC_USER_EMAIL, password: SEED_ACCOUNT_PASSWORD }),
+				});
+				const ms = Date.now() - start;
+				const body = await r.json().catch(() => ({}));
+				if (r.ok && body.otp) {
+					status = 'OK';
+				} else {
+					error = `HTTP ${r.status} — ${JSON.stringify(body)}`;
+				}
+				await log('synthetic_login_simulation', status, ms, error);
+				results.push({ check: 'synthetic_login_simulation', status, ms, error });
+			} catch (e) {
+				const ms = Date.now() - start;
+				error = e instanceof Error ? e.message : String(e);
+				await log('synthetic_login_simulation', 'FAIL', ms, error);
+				results.push({ check: 'synthetic_login_simulation', status: 'FAIL', ms, error });
+			}
+		}
+
+		return { triggered: true, results };
+	},
 };
