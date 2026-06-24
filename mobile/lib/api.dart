@@ -910,6 +910,25 @@ int _stepScore(Map? record) {
   return 100; // completed but no confidence score → full marks
 }
 
+/// Intent score for spending_or_qa:
+///   50 — drawn_to responses present (step 1 done)
+///  100 — drawn_to + how_you_live responses present (both steps done)
+/// Legacy completed rows without structured responses stay at 100.
+int _qaIntentScore(Map? record) {
+  if (record == null) return 0;
+  final status = record['status']?.toString() ?? '';
+  if (status != 'completed') return 0;
+  final data = record['data'];
+  if (data is! Map) return 100; // legacy row
+  final responses = data['responses'];
+  if (responses is! Map) return 100; // legacy format
+  final hasDrawnTo = responses.containsKey('drawn_to');
+  final hasHowYouLive = responses.keys.any((k) => k != 'drawn_to');
+  if (hasDrawnTo && hasHowYouLive) return 100;
+  if (hasDrawnTo || hasHowYouLive) return 50;
+  return 0;
+}
+
 Future<TrustData> fetchTrust() async {
   final uid = Supabase.instance.client.auth.currentUser!.id;
   final session = Supabase.instance.client.auth.currentSession!;
@@ -941,7 +960,8 @@ Future<TrustData> fetchTrust() async {
   final livenessScore = _stepScore(stepFor('liveness'));
   // Website maps 'photos' → Lifestyle, 'spending_or_qa' → Intent
   final photoScore    = _stepScore(stepFor('photos'));
-  final qaScore       = _stepScore(stepFor('spending_or_qa'));
+  // Proportional: 50 when drawn_to done, 100 when both drawn_to + how_you_live done.
+  final qaScore       = _qaIntentScore(stepFor('spending_or_qa'));
 
   List<ProofItem> proofs = [];
   String? annualIncome;

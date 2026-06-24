@@ -496,18 +496,21 @@ class _VerificationScreenState extends State<VerificationScreen> {
     try {
       switch (_step) {
         case 1:
-          // Do NOT submit to server here — just advance to step 2.
-          // spending_or_qa is only marked complete when BOTH drawn_to
-          // (step 1) and how_you_live (step 2) are submitted together.
-          // Submitting after step 1 alone would show Intent as 100% in
-          // Trust & Boost even though the user hasn't filled How You Live.
-          break;
-        case 2:
-          // Submit BOTH drawn_to and how_you_live in one request so that
-          // spending_or_qa is only completed when both parts are present.
+          // Submit only drawn_to answers → server marks spending_or_qa completed
+          // with just these responses. Trust & Boost shows Intent at 50%.
           await verifyStep('spending_or_qa', {
             'responses': {
               'drawn_to': {for (final s in _step1Sections) s.key: _drawnTo[s.key] ?? <String>[]},
+            },
+            'mimeType': 'application/json',
+          });
+          break;
+        case 2:
+          // Submit only how_you_live answers. Server merges with the drawn_to
+          // responses already saved from step 1 — no data is lost.
+          // Trust & Boost then shows Intent at 100%.
+          await verifyStep('spending_or_qa', {
+            'responses': {
               for (final s in _step2Sections) s.key: _howYouLive[s.key] ?? <String>[],
             },
             'mimeType': 'application/json',
