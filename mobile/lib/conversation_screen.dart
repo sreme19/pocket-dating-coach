@@ -11,7 +11,10 @@ import 'push_service.dart';
 class ConversationScreen extends StatefulWidget {
   final String conversationId;
   final String title;
-  const ConversationScreen({super.key, required this.conversationId, required this.title});
+  /// Called the moment the screen starts to be dismissed (before animation).
+  /// Use this to trigger a chat-list refresh as early as possible.
+  final VoidCallback? onReturn;
+  const ConversationScreen({super.key, required this.conversationId, required this.title, this.onReturn});
 
   @override
   State<ConversationScreen> createState() => _ConversationScreenState();
@@ -307,7 +310,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
   @override
   Widget build(BuildContext context) {
     final hasAvatar = _otherAvatar != null && _otherAvatar!.startsWith('http');
-    return Scaffold(
+    return PopScope(
+      // Intercept ALL back gestures (swipe-back on iOS, system back on Android)
+      // so we can trigger the chat-list refresh before the animation starts.
+      onPopInvokedWithResult: (bool didPop, _) {
+        if (didPop) widget.onReturn?.call();
+      },
+      child: Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(Config.bg1),
         elevation: 0,
@@ -315,6 +324,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: Color(Config.text1)),
           onPressed: () {
+            widget.onReturn?.call(); // notify chat list to refresh NOW (before animation)
             PushService.onSwitchTab?.call(1); // always return to Chat tab
             Navigator.of(context).pop();
           },
@@ -420,6 +430,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
           ),
         ],
       ),
+    ),
     );
   }
 }

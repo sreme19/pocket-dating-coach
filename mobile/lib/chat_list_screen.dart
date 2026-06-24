@@ -105,6 +105,7 @@ class _ChatListScreenState extends State<ChatListScreen>
             builder: (_) => ConversationScreen(
               conversationId: matchId,
               title: age != null ? '$firstName, $age' : firstName,
+              onReturn: () { if (mounted) _refresh(); },
             ),
           )).then((_) => _refresh());
         },
@@ -301,10 +302,13 @@ class _ChatListScreenState extends State<ChatListScreen>
       builder: (_) => ConversationScreen(
         conversationId: c.id,
         title: c.age != null ? '${c.name}, ${c.age}' : c.name,
+        // Refresh the list the moment back is pressed (before animation ends)
+        // so the user sees updated data as soon as the screen transitions back.
+        onReturn: () { if (mounted) _refresh(); },
       ),
     ));
-    // 3. Wait for fresh server data, THEN remove optimistic override so we
-    //    never momentarily flash the badge between remove and data arrival.
+    // Belt-and-suspenders: also refresh after animation completes (handles
+    // cases where onReturn fired before mark-read persisted to server).
     await _refresh();
     if (mounted) setState(() => _clearedConvos.remove(c.id));
   }
