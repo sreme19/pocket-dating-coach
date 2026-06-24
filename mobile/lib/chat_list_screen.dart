@@ -289,18 +289,24 @@ class _ChatListScreenState extends State<ChatListScreen>
     }
   }
 
-  void _open(Conversation c) {
-    // Optimistically clear badge immediately on tap so UI feels instant.
-    if (c.unreadCount > 0) setState(() => _clearedConvos.add(c.id));
-    Navigator.of(context).push(MaterialPageRoute(
+  Future<void> _open(Conversation c) async {
+    // 1. Optimistically clear badge immediately on tap.
+    if (c.unreadCount > 0) {
+      setState(() => _clearedConvos.add(c.id));
+      // 2. Fire mark-read NOW (before opening screen) so the server timestamp
+      //    is definitely persisted before we call _refresh() on return.
+      markConversationRead(c.id).catchError((_) {});
+    }
+    await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => ConversationScreen(
         conversationId: c.id,
         title: c.age != null ? '${c.name}, ${c.age}' : c.name,
       ),
-    )).then((_) {
-      _clearedConvos.remove(c.id); // actual data will reflect read state after refresh
-      _refresh();
-    });
+    ));
+    // 3. Wait for fresh server data, THEN remove optimistic override so we
+    //    never momentarily flash the badge between remove and data arrival.
+    await _refresh();
+    if (mounted) setState(() => _clearedConvos.remove(c.id));
   }
 
   @override
