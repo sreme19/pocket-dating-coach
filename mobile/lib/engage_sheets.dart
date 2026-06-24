@@ -109,6 +109,8 @@ Future<bool> showAdmireSheet(BuildContext context, {required String recipientId,
     backgroundColor: const Color(Config.bg2),
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
     builder: (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
+      textCtrl.removeListener(() {});
+      textCtrl.addListener(() => setSheet(() {}));
       return Padding(
         padding: EdgeInsets.fromLTRB(20, 16, 20, 16 + MediaQuery.of(ctx).viewInsets.bottom),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
