@@ -8,6 +8,7 @@ export interface Conversation {
   matchId: string;
   matchedUser: VerifiedVibeUser;
   lastMessage: string;
+  lastMessageSenderId: string | null;
   lastMessageTime: Date;
   unreadCount: number;
   hasMessages: boolean;
