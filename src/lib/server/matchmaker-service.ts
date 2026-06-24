@@ -655,14 +655,26 @@ export async function getMatchmakerStatus(userId: string): Promise<{
 
   let eligible = false;
   if (assistant) {
-    const { data: poolRow } = await db
-      .from(POOL)
-      .select('user_id')
-      .eq('assistant_type', assistant)
-      .eq('user_id', userId)
-      .eq('availability_status', 'active')
-      .maybeSingle();
-    eligible = !!poolRow;
+    // Both conditions must hold:
+    // 1. Active pool entry (profile distilled and ready for matching).
+    // 2. All three required verification steps completed — guards against stale
+    //    pool entries created during dev/testing before all steps were done.
+    const [{ data: poolRow }, { data: verifySteps }] = await Promise.all([
+      db.from(POOL)
+        .select('user_id')
+        .eq('assistant_type', assistant)
+        .eq('user_id', userId)
+        .eq('availability_status', 'active')
+        .maybeSingle(),
+      db.from('verified_vibe_verification')
+        .select('step')
+        .eq('user_id', userId)
+        .eq('status', 'completed')
+        .in('step', ['liveness', 'photos', 'spending_or_qa']),
+    ]);
+    const completedSteps = new Set((verifySteps ?? []).map((s: any) => s.step));
+    const stepsOk = ['liveness', 'photos', 'spending_or_qa'].every((s) => completedSteps.has(s));
+    eligible = !!poolRow && stepsOk;
   }
 
   return {
