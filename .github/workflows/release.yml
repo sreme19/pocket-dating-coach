@@ -1,0 +1,118 @@
+name: Release
+
+# Triggered by pushing a version tag: git tag v1.0.6 && git push origin v1.0.6
+# Or manually via workflow_dispatch with a version input.
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g. v1.0.6)'
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: write  # needed to create GitHub Release
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history needed for changelog
+
+      # ── Resolve version ────────────────────────────────────────────────────
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      # ── Generate changelog from commits since last tag ─────────────────────
+      - name: Generate changelog
+        id: changelog
+        run: |
+          CURRENT="${{ steps.version.outputs.version }}"
+          PREV=$(git tag --sort=-version:refname | grep -v "^$CURRENT$" | head -1)
+
+          if [ -z "$PREV" ]; then
+            RANGE="HEAD"
+            echo "No previous tag found — using full history"
+          else
+            RANGE="${PREV}..HEAD"
+            echo "Changelog from $PREV to $CURRENT"
+          fi
+
+          # Group commits by type
+          FEATURES=$(git log $RANGE --pretty=format:"- %s (%h)" --no-merges | grep "^- feat" || true)
+          FIXES=$(git log $RANGE --pretty=format:"- %s (%h)" --no-merges | grep "^- fix" || true)
+          CHORES=$(git log $RANGE --pretty=format:"- %s (%h)" --no-merges | grep "^- chore\|^- ci\|^- docs\|^- refactor" || true)
+          OTHER=$(git log $RANGE --pretty=format:"- %s (%h)" --no-merges | grep -v "^- feat\|^- fix\|^- chore\|^- ci\|^- docs\|^- refactor\|^- Merge" || true)
+
+          NOTES=""
+          if [ -n "$FEATURES" ]; then
+            NOTES="${NOTES}## ✨ New Features\n${FEATURES}\n\n"
+          fi
+          if [ -n "$FIXES" ]; then
+            NOTES="${NOTES}## 🐛 Bug Fixes\n${FIXES}\n\n"
+          fi
+          if [ -n "$CHORES" ]; then
+            NOTES="${NOTES}## 🔧 Maintenance\n${CHORES}\n\n"
+          fi
+          if [ -n "$OTHER" ]; then
+            NOTES="${NOTES}## 📝 Other\n${OTHER}\n\n"
+          fi
+
+          if [ -z "$NOTES" ]; then
+            NOTES="No changes since $PREV."
+          fi
+
+          # Write to file (avoids multiline env issues)
+          printf "%b" "$NOTES" > /tmp/release_notes.md
+          echo "Previous tag: ${PREV:-none}"
+
+      # ── Log release to monitor_log ─────────────────────────────────────────
+      - name: Log release to monitor_log
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          curl -s -o /dev/null \
+            -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/monitor_log" \
+            -H "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d "{\"check_name\":\"github_release\",\"status\":\"OK\",\"response_time_ms\":0,\"error_message\":null,\"created_at\":\"$NOW\"}"
+          echo "Logged release $VERSION to monitor_log"
+
+      # ── Create GitHub Release ──────────────────────────────────────────────
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Create tag if triggered via workflow_dispatch (tag doesn't exist yet)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            git tag "$VERSION" || true
+            git push origin "$VERSION" || true
+          fi
+
+          gh release create "$VERSION" \
+            --title "$VERSION — riteangle.dating" \
+            --notes-file /tmp/release_notes.md \
+            --latest
+
+          echo "✅ Release $VERSION created"
+          echo "URL: https://github.com/${{ github.repository }}/releases/tag/$VERSION"
