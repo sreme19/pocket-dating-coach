@@ -2007,14 +2007,6 @@ class _HeroState extends State<_Hero> {
     super.dispose();
   }
 
-  void _onDragEnd(DragEndDetails d, int total) {
-    final v = d.primaryVelocity ?? 0;
-    if (v < -200 && _i < total - 1) {
-      _ctrl.nextPage(duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
-    } else if (v > 200 && _i > 0) {
-      _ctrl.previousPage(duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -2030,21 +2022,17 @@ class _HeroState extends State<_Hero> {
       aspectRatio: 4 / 5,
       child: Stack(
         children: [
-          // Wrap in GestureDetector to explicitly win horizontal drag competition
-          // against the parent ListView — fixes slider not swiping on iOS.
-          GestureDetector(
-            onHorizontalDragEnd: (d) => _onDragEnd(d, urls.length),
-            child: PageView.builder(
+          // PageView with NeverScrollableScrollPhysics — navigation is handled
+          // by tap zones below so there is zero gesture conflict with the parent
+          // ListView (tap-to-advance is the Tinder/Instagram/Hinge pattern).
+          PageView.builder(
             controller: _ctrl,
-            // NeverScrollableScrollPhysics: GestureDetector above owns the drag;
-            // PageView only handles page snapping via _ctrl calls.
             physics: const NeverScrollableScrollPhysics(),
             itemCount: urls.length,
             onPageChanged: (i) => setState(() => _i = i),
             itemBuilder: (c, i) {
               final url = urls[i];
               if (url.startsWith('data:')) {
-                // base64 data URI — decode and render with Image.memory
                 try {
                   final comma = url.indexOf(',');
                   final bytes = base64Decode(url.substring(comma + 1));
@@ -2065,7 +2053,38 @@ class _HeroState extends State<_Hero> {
               );
             },
           ),
-          ),
+          // Tap zones: left half = previous, right half = next.
+          // Transparent and above the PageView so they consume taps without
+          // interfering with vertical ListView scrolling.
+          if (urls.length > 1)
+            Positioned.fill(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: () {
+                        if (_i > 0) _ctrl.previousPage(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeOut,
+                        );
+                      },
+                    ),
+                  ),
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onTap: () {
+                        if (_i < urls.length - 1) _ctrl.nextPage(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeOut,
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
           if (urls.length > 1)
             Positioned(
               bottom: 12, left: 0, right: 0,
