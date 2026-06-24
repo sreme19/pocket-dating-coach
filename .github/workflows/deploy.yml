@@ -34,10 +34,24 @@ jobs:
       - name: Run linter
         run: npm run check
       
-      - name: Run tests
-        run: npm test
-        continue-on-error: true  # Vitest native binding issue on Node 18 + known test-infra failures; not production regressions
-      
+      - name: Run regression tests
+        id: regression
+        run: npm test -- src/__tests__/regression-critical.test.ts
+
+      - name: Log test result to monitor_log
+        if: always()
+        run: |
+          STATUS=$([ "${{ steps.regression.outcome }}" = "success" ] && echo "OK" || echo "FAIL")
+          ERROR_MSG=$([ "$STATUS" = "FAIL" ] && echo "\"CI regression tests failed on ${{ github.ref_name }} — ${{ github.sha }}\"" || echo "null")
+          NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          curl -s -o /dev/null \
+            -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/monitor_log" \
+            -H "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d "{\"check_name\":\"ci_regression_tests\",\"status\":\"$STATUS\",\"response_time_ms\":0,\"error_message\":$ERROR_MSG,\"created_at\":\"$NOW\"}"
+
       - name: Build project
         run: npm run build
       
@@ -48,9 +62,41 @@ jobs:
           flags: unittests
           name: codecov-umbrella
 
+  notify-failure:
+    needs: test
+    runs-on: ubuntu-latest
+    if: failure()
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Get committer email
+        id: committer
+        run: |
+          EMAIL=$(git log -1 --format='%ae')
+          echo "email=$EMAIL" >> $GITHUB_OUTPUT
+
+      - name: Send failure notification via Resend
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          SHA="${{ github.sha }}"
+          AUTHOR="${{ github.actor }}"
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -s -X POST "https://api.resend.com/emails" \
+            -H "Authorization: Bearer ${{ secrets.RESEND_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"from\": \"PDC CI <monitor@riteangle.dating>\",
+              \"to\": [\"${{ steps.committer.outputs.email }}\", \"${{ secrets.ALERT_EMAIL_CRITICAL }}\"],
+              \"subject\": \"❌ Test failure on push to $BRANCH — riteangle.dating\",
+              \"html\": \"<p><strong>Branch:</strong> $BRANCH</p><p><strong>Commit:</strong> $SHA</p><p><strong>Author:</strong> $AUTHOR</p><p><a href='$RUN_URL'>View GitHub Actions run</a></p>\"
+            }"
+
   security:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
       

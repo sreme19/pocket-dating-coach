@@ -20,12 +20,14 @@ jobs:
     timeout-minutes: 3
 
     env:
-      APP_URL:          ${{ secrets.APP_URL }}           # https://riteangle.dating
-      SUPABASE_URL:     ${{ secrets.SUPABASE_URL }}
-      SUPABASE_KEY:     ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      RESEND_API_KEY:   ${{ secrets.RESEND_API_KEY }}
-      ALERT_EMAIL:      ${{ secrets.ALERT_EMAIL_CRITICAL }}  # chris@wardrobeofamonk.com
-      CRON_SECRET:      ${{ secrets.CRON_SECRET }}
+      APP_URL:                ${{ secrets.APP_URL }}           # https://riteangle.dating
+      SUPABASE_URL:           ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY:           ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      RESEND_API_KEY:         ${{ secrets.RESEND_API_KEY }}
+      ALERT_EMAIL:            ${{ secrets.ALERT_EMAIL_CRITICAL }}  # chris@wardrobeofamonk.com
+      CRON_SECRET:            ${{ secrets.CRON_SECRET }}
+      SYNTHETIC_USER_EMAIL:   ${{ secrets.SYNTHETIC_USER_EMAIL }}   # monitor@seed.vv
+      SEED_ACCOUNT_PASSWORD:  ${{ secrets.SEED_ACCOUNT_PASSWORD }}
 
     steps:
       # ── 1. API health ping ────────────────────────────────────────────────────
@@ -68,7 +70,29 @@ jobs:
             echo "error=HTTP $HTTP — $(cat /tmp/db_body.json)" >> $GITHUB_OUTPUT
           fi
 
-      # ── 3. Write both results to monitor_log ─────────────────────────────────
+      # ── 3. Synthetic login simulation ─────────────────────────────────────────
+      - name: Synthetic login simulation
+        id: login_sim
+        run: |
+          START=$(date +%s%3N)
+          HTTP=$(curl -s -o /tmp/login_body.json -w "%{http_code}" \
+            --max-time 10 \
+            -X POST "$APP_URL/api/verified-vibe/seed-login" \
+            -H "Content-Type: application/json" \
+            -d "{\"email\":\"$SYNTHETIC_USER_EMAIL\",\"password\":\"$SEED_ACCOUNT_PASSWORD\"}")
+          END=$(date +%s%3N)
+          MS=$(( END - START ))
+          echo "http_code=$HTTP" >> $GITHUB_OUTPUT
+          echo "response_ms=$MS"   >> $GITHUB_OUTPUT
+          HAS_OTP=$(python3 -c "import json; d=json.load(open('/tmp/login_body.json')); print('yes' if 'otp' in d else 'no')" 2>/dev/null || echo "no")
+          if [ "$HTTP" = "200" ] && [ "$HAS_OTP" = "yes" ]; then
+            echo "status=OK" >> $GITHUB_OUTPUT
+          else
+            echo "status=FAIL" >> $GITHUB_OUTPUT
+            echo "error=HTTP $HTTP — $(cat /tmp/login_body.json)" >> $GITHUB_OUTPUT
+          fi
+
+      # ── 4. Write all results to monitor_log ──────────────────────────────────
       - name: Log results to monitor_log
         run: |
           NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -97,9 +121,14 @@ jobs:
             "${{ steps.db_check.outputs.response_ms }}" \
             "${{ steps.db_check.outputs.error }}"
 
-      # ── 4. Consecutive failure check + CRITICAL alert ─────────────────────────
+          log_entry "synthetic_login_simulation" \
+            "${{ steps.login_sim.outputs.status }}" \
+            "${{ steps.login_sim.outputs.response_ms }}" \
+            "${{ steps.login_sim.outputs.error }}"
+
+      # ── 5. Consecutive failure check + CRITICAL alert ─────────────────────────
       - name: Check consecutive failures & alert
-        if: steps.api_ping.outputs.status == 'FAIL' || steps.db_check.outputs.status == 'FAIL'
+        if: steps.api_ping.outputs.status == 'FAIL' || steps.db_check.outputs.status == 'FAIL' || steps.login_sim.outputs.status == 'FAIL'
         run: |
           # Query last 3 results for each failing check
           send_alert() {
@@ -143,4 +172,8 @@ jobs:
 
           if [ "${{ steps.db_check.outputs.status }}" = "FAIL" ]; then
             send_alert "db_read_integrity" "${{ steps.db_check.outputs.error }}"
+          fi
+
+          if [ "${{ steps.login_sim.outputs.status }}" = "FAIL" ]; then
+            send_alert "synthetic_login_simulation" "${{ steps.login_sim.outputs.error }}"
           fi
