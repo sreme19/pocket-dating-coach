@@ -35,7 +35,7 @@ jobs:
         id: api_ping
         run: |
           START=$(date +%s%3N)
-          HTTP=$(curl -s -o /tmp/ping_body.json -w "%{http_code}" \
+          HTTP=$(curl -sL -o /tmp/ping_body.json -w "%{http_code}" \
             --max-time 10 \
             "$APP_URL/api/health")
           END=$(date +%s%3N)
@@ -75,7 +75,7 @@ jobs:
         id: login_sim
         run: |
           START=$(date +%s%3N)
-          HTTP=$(curl -s -o /tmp/login_body.json -w "%{http_code}" \
+          HTTP=$(curl -sL -o /tmp/login_body.json -w "%{http_code}" \
             --max-time 10 \
             -X POST "$APP_URL/api/verified-vibe/seed-login" \
             -H "Content-Type: application/json" \
