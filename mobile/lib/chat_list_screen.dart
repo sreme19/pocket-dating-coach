@@ -96,8 +96,10 @@ class _ChatListScreenState extends State<ChatListScreen>
         fmRunsLimit: _fmRunsLimit,
         onGoVerify: () {
           Navigator.pop(context);
-          // Navigate to verification screen
-          Navigator.of(context).pushNamed('/verification');
+          // Navigate to verification screen; re-check FM eligibility when done.
+          Navigator.of(context).pushNamed('/verification').then((_) {
+            if (mounted) _loadMatchmakerStatus();
+          });
         },
         onOpenChat: (matchId, firstName, age) {
           Navigator.pop(context);
@@ -128,7 +130,10 @@ class _ChatListScreenState extends State<ChatListScreen>
   // Refresh when app comes back to foreground
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _refresh();
+    if (state == AppLifecycleState.resumed) {
+      _refresh();
+      _loadMatchmakerStatus();
+    }
   }
 
   void _subscribeToMessages() {
