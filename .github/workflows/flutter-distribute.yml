@@ -7,8 +7,8 @@ name: Android Distribution
 # with a download link — no Play Store, no TestFlight needed.
 #
 # Required GitHub Secrets:
-#   FIREBASE_TOKEN          — from: firebase login:ci
-#   FIREBASE_ANDROID_APP_ID — 1:239928106804:android:edf3b327f4c86c1b544f61
+#   FIREBASE_SERVICE_ACCOUNT — Google Cloud service account JSON (Firebase App Distribution Admin)
+#   FIREBASE_ANDROID_APP_ID  — 1:239928106804:android:edf3b327f4c86c1b544f61
 
 on:
   push:
@@ -53,8 +53,8 @@ jobs:
         uses: wzieba/Firebase-Distribution-Github-Action@v1
         with:
           appId: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
-          token: ${{ secrets.FIREBASE_TOKEN }}
-          groups: testers
+          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          groups: tester
           file: mobile/build/app/outputs/flutter-apk/app-debug.apk
           releaseNotes: |
             Branch: ${{ github.ref_name }}
