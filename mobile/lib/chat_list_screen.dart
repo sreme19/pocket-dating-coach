@@ -801,18 +801,32 @@ class _AdmirerCard extends StatelessWidget {
             const Text('You replied', style: TextStyle(color: Color(Config.text2), fontSize: 13)),
           ])
         else
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () => _reply(context),
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0x22EC4899),
-                foregroundColor: const Color(0xFFE11D54),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          Row(children: [
+            Expanded(
+              child: FilledButton(
+                onPressed: () => _reply(context),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0x22EC4899),
+                  foregroundColor: const Color(0xFFE11D54),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Reply', style: TextStyle(fontWeight: FontWeight.w700)),
               ),
-              child: const Text('Reply', style: TextStyle(fontWeight: FontWeight.w700)),
             ),
-          ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: () {},
+                icon: const Text('💚', style: TextStyle(fontSize: 14)),
+                label: const Text('Reply with Bestie', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0x2222C55E),
+                  foregroundColor: const Color(0xFF22C55E),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ]),
       ]),
     );
   }
