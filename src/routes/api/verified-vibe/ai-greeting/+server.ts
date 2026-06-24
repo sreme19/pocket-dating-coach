@@ -48,7 +48,7 @@ async function resolveUser(request: Request): Promise<{ userId: string; firstNam
     return {
       userId:    user.id,
       firstName: profile?.first_name ?? '',
-      gender:    profile?.gender    ?? null,
+      gender:    profile?.gender    ?? '',
       archetype: profile?.archetype ?? '',
       city:      profile?.city      ?? 'your area',
     };
