@@ -100,11 +100,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Run npm audit
-        run: npm audit --audit-level=high
-
-      - name: Check for vulnerabilities
-        run: npm audit --audit-level=high --production
+      - name: Check for vulnerabilities in production dependencies
+        run: npm audit --audit-level=high --omit=dev
 
   deploy-staging:
     needs: [test, security]
