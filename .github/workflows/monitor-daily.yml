@@ -22,8 +22,8 @@ jobs:
       ANTHROPIC_API_KEY:     ${{ secrets.ANTHROPIC_API_KEY }}
       FAL_KEY:               ${{ secrets.FAL_KEY }}
       RESEND_API_KEY:        ${{ secrets.RESEND_API_KEY }}
-      ALERT_EMAIL_CRITICAL:  ${{ secrets.ALERT_EMAIL_CRITICAL }}   # dev@riteangle.dating
-      ALERT_EMAIL_WARNING:   ${{ secrets.ALERT_EMAIL_WARNING }}     # dev+finance@riteangle.dating
+      ALERT_EMAIL_CRITICAL:  ${{ secrets.ALERT_EMAIL_CRITICAL }}   # chris@wardrobeofamonk.com
+      ALERT_EMAIL_WARNING:   ${{ secrets.ALERT_EMAIL_WARNING }}     # ekasaputra0324@gmail.com
 
     steps:
       # ── 1. Claude API minimal probe ───────────────────────────────────────────

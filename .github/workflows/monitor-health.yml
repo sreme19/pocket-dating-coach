@@ -24,7 +24,7 @@ jobs:
       SUPABASE_URL:     ${{ secrets.SUPABASE_URL }}
       SUPABASE_KEY:     ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       RESEND_API_KEY:   ${{ secrets.RESEND_API_KEY }}
-      ALERT_EMAIL:      ${{ secrets.ALERT_EMAIL_CRITICAL }}  # dev@riteangle.dating
+      ALERT_EMAIL:      ${{ secrets.ALERT_EMAIL_CRITICAL }}  # chris@wardrobeofamonk.com
       CRON_SECRET:      ${{ secrets.CRON_SECRET }}
 
     steps:
