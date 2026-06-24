@@ -1037,11 +1037,14 @@
       });
       if (masterRes.ok) {
         const master = await masterRes.json();
-        const currentYear = new Date().getFullYear();
+        const now = new Date();
         const changes: Array<{ ts: string }> = master.laneChanges ?? [];
-        const changesThisYear = changes.filter((c) => new Date(c.ts).getFullYear() === currentYear);
-        if (changesThisYear.length >= 3) {
-          throw new Error('You can only change your lane 3 times per year.');
+        const changesThisMonth = changes.filter((c) => {
+          const d = new Date(c.ts);
+          return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+        });
+        if (changesThisMonth.length >= 3) {
+          throw new Error('You can only change your lane 3 times per month.');
         }
       }
 
