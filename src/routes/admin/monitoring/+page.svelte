@@ -89,9 +89,12 @@
 									{s.lastStatus}
 								</span>
 							</td>
-							<td class="px-4 py-2.5 text-xs text-red-400">
-								{#if s.lastStatus !== 'OK' && s.lastError}
-									{s.lastError}
+							<td class="px-4 py-2.5 text-xs">
+								{#if s.lastError}
+									<span class="text-red-400">{s.lastError}</span>
+									{#if s.lastStatus === 'OK'}
+										<span class="ml-1 text-slate-500">(recovered)</span>
+									{/if}
 								{:else}
 									<span class="text-slate-600">—</span>
 								{/if}

@@ -36,12 +36,16 @@ export const load: PageServerLoad = async () => {
 	>();
 	for (const r of rows) {
 		if (!summaryMap.has(r.check_name)) {
-			summaryMap.set(r.check_name, { lastStatus: r.status, lastError: r.error_message ?? null, ok: 0, fail: 0, warn: 0, avgMs: null });
+			summaryMap.set(r.check_name, { lastStatus: r.status, lastError: null, ok: 0, fail: 0, warn: 0, avgMs: null });
 		}
 		const s = summaryMap.get(r.check_name)!;
 		if (r.status === 'OK') s.ok++;
 		else if (r.status === 'FAIL') s.fail++;
 		else s.warn++;
+		// Track the most recent FAIL/WARN error message (rows are DESC so first non-OK wins)
+		if (s.lastError === null && r.status !== 'OK' && r.error_message) {
+			s.lastError = r.error_message;
+		}
 	}
 	// Compute avg response time per check
 	const msMap = new Map<string, number[]>();
