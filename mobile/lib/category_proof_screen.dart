@@ -74,7 +74,7 @@ const _configs = <String, _CatConfig>{
     id: 'discipline',
     icon: '💪',
     title: 'Discipline Proof',
-    subtitle: 'Show your consistent routines',
+    subtitle: 'Show your consistent habits and routines',
     privacyCopy: 'Private by default. Your proofs strengthen trust, verify authenticity, and help you get better matches.',
     examples: [
       'Gym check-in or workout selfie',
@@ -89,15 +89,15 @@ const _configs = <String, _CatConfig>{
     id: 'social_proof',
     icon: '🤝',
     title: 'Social Proof',
-    subtitle: 'Show your real social connections',
+    subtitle: 'Show your real social life — friends, events, and gatherings you host',
     privacyCopy: 'Nothing here is public. These signals confirm your lifestyle and improve compatibility.',
     examples: [
       'Group photos with friends',
       'Community or club events you attend',
       'Sports team or group activity photos',
-      'Social gathering moments',
+      'Dinners, parties or celebrations you host',
     ],
-    hintLine: 'Natural group moments beat posed shots. Up to 20 photos.',
+    hintLine: 'Belonging to a social circle and hosting both count. Natural moments beat posed shots. Up to 20 photos.',
     maxFiles: 20,
   ),
   'hosting': _CatConfig(
@@ -231,7 +231,7 @@ const _configs = <String, _CatConfig>{
     icon: '🏦',
     title: 'Wealth Proof',
     subtitle: 'Bank statement, investment or financial document',
-    privacyCopy: 'Documents are private. AI only reads balance ranges — your actual amounts are never stored or shared.',
+    privacyCopy: 'Documents are private and never shown to anyone. The AI reads only balance ranges — viewers see the verified result, never your statements or exact figures.',
     examples: [
       'Bank statement (balance page)',
       'Investment account or brokerage statement',
@@ -714,19 +714,23 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
       final verified = res['verified'] == true;
       final pts = res['pts_awarded'] is num ? (res['pts_awarded'] as num).toInt() : 0;
       final agg = (res['aggregated'] ?? res['reason'] ?? '').toString();
+      final nameMismatch = res['nameMatch'] == false;
       final chips = <String>[];
       if (res['insights'] is List) {
         for (final i in (res['insights'] as List)) {
           if (i is Map && i['label'] != null) chips.add('${i['emoji'] ?? '•'} ${i['label']}');
         }
       }
+      final baseText = verified
+          ? '✓ ${_cfg.title} verified · +$pts trust${agg.isNotEmpty ? '\n$agg' : ''}'
+          : 'Couldn\'t verify.${agg.isNotEmpty ? '\n$agg' : ''}';
       setState(() {
         _analysing = false;
         _result = _UploadResult(
           verified: verified,
-          text: verified
-              ? '✓ ${_cfg.title} verified · +$pts trust${agg.isNotEmpty ? '\n$agg' : ''}'
-              : 'Couldn\'t verify.${agg.isNotEmpty ? '\n$agg' : ''}',
+          text: nameMismatch
+              ? '$baseText\n\n⚠️ The name on this document doesn\'t match your verified ID, so it\'s flagged for review. Upload documents in your own name to earn full trust.'
+              : baseText,
           chips: chips,
         );
       });
