@@ -17,6 +17,8 @@
  */
 
 import { getSupabase } from './supabase';
+import { env } from '$env/dynamic/private';
+import { buildAndStoreUserVectors } from './vector-builder';
 
 // ── Trust score → band mapping ────────────────────────────────────────────────
 
@@ -542,6 +544,13 @@ export async function refreshPoolEntry(userId: string): Promise<void> {
     },
     { onConflict: 'user_id' }
   );
+
+  // Phase 3: when the vector matcher is on, keep the user's value vectors fresh on
+  // profile change (the single LLM step). Fire-and-forget so it never blocks the
+  // pool save; gated so it adds no cost while the legacy matcher is the default.
+  if (env.MATCHMAKER_V2 === 'true') {
+    buildAndStoreUserVectors(userId).catch(() => {});
+  }
 }
 
 // ── Public: auto-enroll on verification completion ────────────────────────────

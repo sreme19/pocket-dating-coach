@@ -711,7 +711,7 @@ export async function queueIntelligenceReport(
 
 // ── Send match push notification (fire-and-forget) ────────────────────────────
 
-async function sendMatchNotification(recipientId: string, matchedUserId: string): Promise<void> {
+export async function sendMatchNotification(recipientId: string, matchedUserId: string): Promise<void> {
   try {
     const db = getSupabase() as any;
     const { data: matchedUser } = await db
