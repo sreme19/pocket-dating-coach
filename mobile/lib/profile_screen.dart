@@ -347,8 +347,8 @@ class _ProfileBody extends StatelessWidget {
             income: data.annualIncome,
             netWorth: data.netWorth,
             tiles: [
-              if (data.wealth != null) for (final c in data.wealth!.chips) (c.emoji, c.label),
-              for (final s in data.spending) (s.emoji, s.category),
+              if (data.wealth != null) for (final c in data.wealth!.chips) (c.emoji, c.label, false, null),
+              for (final s in data.spending) (s.emoji, s.category, false, null),
             ],
             footer: data.annualIncome != null || data.netWorth != null
                 ? '✓ AI verified via bank statement / financial document'

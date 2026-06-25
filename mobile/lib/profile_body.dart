@@ -4,6 +4,21 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'api.dart';
 import 'config.dart';
 
+// ── Inferred (cross-section) signal styling ──────────────────────────────────
+// Some insights are lifted from a DIFFERENT upload than the section they appear
+// in (e.g. a passport stamp seen in a Lifestyle photo → Travel). They're marked
+// with a ✦ and a violet tint so viewers can tell them apart from directly-
+// verified signals. `from` is the source proof category.
+const _inferredColor = Color(0xFF8B6FD6);
+const _fromLabels = <String, String>{
+  'lifestyle': 'Lifestyle', 'hosting': 'Social', 'social_proof': 'Social',
+  'discipline': 'Health', 'linkedin': 'Career', 'travel': 'Travel',
+  'spending': 'Money', 'wealth': 'Money', 'assets': 'Garage',
+};
+String _prettyFrom(String? from) => from == null ? '' : (_fromLabels[from] ?? from);
+String _inferredTip(String? from) =>
+    from != null ? 'Inferred from your ${_prettyFrom(from)} upload' : 'Inferred from another upload';
+
 /// Shared rich "Public Read" body for a [MatchDetail] — used inline on Discover
 /// (and anywhere a full profile is shown). Renders everything below the photo,
 /// in the same section order as the web.
@@ -60,12 +75,13 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
             ]),
           ),
       ])),
-    if (d.annualIncome != null || d.netWorth != null || d.careerLines.isNotEmpty)
+    if (d.annualIncome != null || d.netWorth != null || d.careerLines.isNotEmpty || d.wealthInsights.isNotEmpty)
       pSection('💰 MONEY MATTERS', moneyMattersCard(
         income: d.annualIncome,
         netWorth: d.netWorth,
         tiles: [
-          for (final c in d.careerLines) (c.emoji, c.label),
+          for (final c in d.careerLines) (c.emoji, c.label, c.inferred, c.from),
+          for (final c in d.wealthInsights) (c.emoji, c.label, c.inferred, c.from),
         ],
         footer: d.annualIncome != null || d.netWorth != null
             ? '✓ AI verified via bank statement / financial document'
@@ -92,7 +108,11 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
             if ([car.color, car.year].any((s) => s != null && s!.isNotEmpty))
               Text([car.color, car.year].where((s) => s != null && s!.isNotEmpty).join(' · '),
                   style: const TextStyle(fontSize: 12, color: Color(Config.text3))),
-            const Text('✅ Ownership verified', style: TextStyle(fontSize: 12, color: Color(Config.accent))),
+            if (car.inferred)
+              Text('✦ Seen in your ${_prettyFrom(car.from)} photos',
+                  style: const TextStyle(fontSize: 12, color: _inferredColor))
+            else
+              const Text('✅ Ownership verified', style: TextStyle(fontSize: 12, color: Color(Config.accent))),
           ])),
         ]),
       )).toList())),
@@ -288,7 +308,7 @@ String _formatMoneyValue(String val) {
 Widget moneyMattersCard({
   String? income,
   String? netWorth,
-  required List<(String emoji, String label)> tiles,
+  required List<(String emoji, String label, bool inferred, String? from)> tiles,
   String? footer,
   VoidCallback? onUpload,
 }) {
@@ -336,7 +356,7 @@ Widget moneyMattersCard({
       ],
       if (tiles.isNotEmpty)
         Wrap(spacing: 10, runSpacing: 10, children: [
-          for (final t in tiles) _moneyTile(t.$1, t.$2),
+          for (final t in tiles) _moneyTile(t.$1, t.$2, inferred: t.$3, from: t.$4),
         ]),
       if (footer != null) ...[
         const SizedBox(height: 14),
@@ -359,20 +379,29 @@ Widget moneyMattersCard({
   );
 }
 
-Widget _moneyTile(String emoji, String label) {
-  return SizedBox(
+Widget _moneyTile(String emoji, String label, {bool inferred = false, String? from}) {
+  final tile = SizedBox(
     width: 96,
     child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      decoration: BoxDecoration(color: const Color(Config.bg3), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(Config.accent), width: 0.4)),
+      decoration: BoxDecoration(
+        color: inferred ? _inferredColor.withValues(alpha: 0.08) : const Color(Config.bg3),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: inferred ? _inferredColor.withValues(alpha: 0.45) : const Color(Config.accent), width: 0.4),
+      ),
       child: Column(children: [
         Text(emoji, style: const TextStyle(fontSize: 22)),
         const SizedBox(height: 6),
         Text(label, textAlign: TextAlign.center, maxLines: 3, overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: Color(Config.text1), fontSize: 11, height: 1.2, fontWeight: FontWeight.w600)),
+        if (inferred) ...[
+          const SizedBox(height: 3),
+          const Text('✦', style: TextStyle(fontSize: 10, color: _inferredColor)),
+        ],
       ]),
     ),
   );
+  return inferred ? Tooltip(message: _inferredTip(from), triggerMode: TooltipTriggerMode.tap, child: tile) : tile;
 }
 
 Widget pSection(String label, Widget child, {String? hint}) => Padding(
@@ -481,15 +510,25 @@ class _SignalTabsState extends State<SignalTabs> {
           // Chips
           Wrap(spacing: 8, runSpacing: 8, children: [
             for (final c in s.group.chips)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                decoration: BoxDecoration(
-                  color: const Color(Config.bg3),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: const Color(0x0F1B1020)),
+              Tooltip(
+                message: c.inferred ? _inferredTip(c.from) : '',
+                triggerMode: c.inferred ? TooltipTriggerMode.tap : TooltipTriggerMode.manual,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: c.inferred ? _inferredColor.withValues(alpha: 0.10) : const Color(Config.bg3),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: c.inferred ? _inferredColor.withValues(alpha: 0.40) : const Color(0x0F1B1020)),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text('${c.emoji}  ${c.label}',
+                        style: const TextStyle(fontSize: 13, color: Color(Config.text1), fontWeight: FontWeight.w500)),
+                    if (c.inferred) ...[
+                      const SizedBox(width: 4),
+                      const Text('✦', style: TextStyle(fontSize: 11, color: _inferredColor)),
+                    ],
+                  ]),
                 ),
-                child: Text('${c.emoji}  ${c.label}',
-                    style: const TextStyle(fontSize: 13, color: Color(Config.text1), fontWeight: FontWeight.w500)),
               ),
           ]),
           if (s.group.aggregated.isNotEmpty) ...[

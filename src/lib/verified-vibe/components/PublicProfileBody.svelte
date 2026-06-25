@@ -1,7 +1,7 @@
 <script lang="ts">
-  interface Insight { emoji: string; label: string; }
+  interface Insight { emoji: string; label: string; inferred?: boolean; from?: string; }
   interface SignalGroup { key: string; label: string; icon: string; insights: Insight[]; aggregated: string; }
-  interface GarageCar { make: string; model: string; year?: string; color?: string; vehicleType?: string; }
+  interface GarageCar { make: string; model: string; year?: string; color?: string; vehicleType?: string; inferred?: boolean; from?: string; }
   interface Profile {
     firstName: string; gender: string;
     hereFor?: string; about?: string | null;
@@ -18,6 +18,16 @@
   }
 
   let { profile }: { profile: Profile } = $props();
+
+  // Friendly name for the source category an inferred signal was lifted from.
+  const FROM_LABELS: Record<string, string> = {
+    lifestyle: 'Lifestyle', hosting: 'Social', social_proof: 'Social',
+    discipline: 'Health', linkedin: 'Career', travel: 'Travel',
+    spending: 'Money', wealth: 'Money', assets: 'Garage',
+  };
+  const prettyFrom = (from?: string) => from ? (FROM_LABELS[from] ?? from) : '';
+  const inferredTitle = (from?: string) =>
+    from ? `Inferred from your ${prettyFrom(from)} upload` : 'Inferred from another upload';
 
   // Static personality reads — identical to the owner public read
   const personalityReads = [
@@ -161,15 +171,19 @@
             {#if g.aggregated}<p class="career-summary">{g.aggregated}</p>{/if}
             <div class="career-chips">
               {#each g.insights as ins}
-                <span class="career-chip"><span class="career-chip-emoji">{ins.emoji}</span> {ins.label}</span>
+                <span class="career-chip {ins.inferred ? 'inferred' : ''}" title={ins.inferred ? inferredTitle(ins.from) : ''}>
+                  <span class="career-chip-emoji">{ins.emoji}</span> {ins.label}
+                  {#if ins.inferred}<span class="inferred-mark">✦</span>{/if}
+                </span>
               {/each}
             </div>
           {:else}
             <div class="signal-grid">
               {#each g.insights as ins}
-                <div class="signal-tile">
+                <div class="signal-tile {ins.inferred ? 'inferred' : ''}" title={ins.inferred ? inferredTitle(ins.from) : ''}>
                   <span class="signal-tile-emoji">{ins.emoji}</span>
                   <span class="signal-tile-label">{ins.label}</span>
+                  {#if ins.inferred}<span class="inferred-mark">✦</span>{/if}
                 </div>
               {/each}
             </div>
@@ -189,11 +203,15 @@
     <section class="section">
       <div class="section-label"><span>🏎️</span> What My Garage Looks Like</div>
       {#each profile.garageCars as car}
-        <div class="garage-card-simple">
+        <div class="garage-card-simple {car.inferred ? 'inferred' : ''}">
           <div class="garage-make-badge">{car.make}</div>
           <div class="garage-model-name">{car.make} {car.model}</div>
           {#if car.color}<div class="garage-color">{car.color}</div>{/if}
-          <div class="garage-verified">✅ Ownership verified</div>
+          {#if car.inferred}
+            <div class="garage-verified inferred" title={inferredTitle(car.from)}>✦ Seen in your {prettyFrom(car.from)} photos</div>
+          {:else}
+            <div class="garage-verified">✅ Ownership verified</div>
+          {/if}
         </div>
       {/each}
     </section>
@@ -240,9 +258,10 @@
           <div class="money-wealth-block">
             <div class="signal-grid">
               {#each mm.wealthInsights as ins}
-                <div class="signal-tile">
+                <div class="signal-tile {ins.inferred ? 'inferred' : ''}" title={ins.inferred ? inferredTitle(ins.from) : ''}>
                   <span class="signal-tile-emoji">{ins.emoji}</span>
                   <span class="signal-tile-label">{ins.label}</span>
+                  {#if ins.inferred}<span class="inferred-mark">✦</span>{/if}
                 </div>
               {/each}
             </div>
@@ -355,6 +374,14 @@
   .signal-tile-emoji { font-size: 28px; line-height: 1; }
   .signal-tile-label { font-size: 11px; color: #6E5F64; line-height: 1.3; }
   .signal-summary { font-size: 12px; color: #A08B91; line-height: 1.55; font-style: italic; margin: 0; }
+
+  /* Inferred (cross-section) signals — lifted from a different upload, not directly
+     verified for this section. Dashed outline + a ✦ mark distinguish them. */
+  .career-chip.inferred { background: rgba(255,255,255,0.05); border-style: dashed; border-color: rgba(176,143,255,0.55); }
+  .signal-tile.inferred { border-style: dashed; border-color: #C9B6F0; background: #FBF9FF; position: relative; }
+  .inferred-mark { color: #8B6FD6; font-size: 11px; margin-left: 3px; cursor: default; }
+  .signal-tile.inferred .inferred-mark { position: absolute; top: 5px; right: 6px; margin: 0; }
+  .garage-verified.inferred { color: #8B6FD6; }
 
   /* Garage */
   .garage-card-simple {
