@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api.dart';
 import 'config.dart';
 import 'preference_weighting_screen.dart';
+import 'profile_strength_screen.dart';
 import 'push_service.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -37,6 +38,12 @@ class SettingsScreen extends StatelessWidget {
           _row('Email', user?.email ?? '—'),
           _row('User ID', user?.id ?? '—', mono: true),
           _header('MATCHING'),
+          _navRow(
+            context,
+            'Profile strength',
+            'See your standing and how to climb',
+            const ProfileStrengthScreen(),
+          ),
           _navRow(
             context,
             'What you value',

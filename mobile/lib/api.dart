@@ -620,6 +620,75 @@ Future<void> savePreferenceWeights(Map<String, int> importance) async {
   );
 }
 
+// ── Profile Strength (Scoring redesign Phase 2) ───────────────────────────────
+
+class PsAction {
+  final String dimension;
+  final String label;
+  final num deltaPS;
+  const PsAction({required this.dimension, required this.label, required this.deltaPS});
+  factory PsAction.fromJson(Map<String, dynamic> j) => PsAction(
+        dimension: j['dimension'] as String? ?? '',
+        label: j['label'] as String? ?? '',
+        deltaPS: (j['deltaPS'] as num?) ?? 0,
+      );
+}
+
+class ProfileStrength {
+  final bool hasVectors;
+  final int profileStrength;
+  final String band;
+  final String? nextBand;
+  final int? pointsToNextBand;
+  final double progressInBand;
+  final int psNow;
+  final int psVerified;
+  final num deltaVerify;
+  final String verifiedBand;
+  final List<PsAction> actions;
+  const ProfileStrength({
+    required this.hasVectors,
+    this.profileStrength = 0,
+    this.band = '',
+    this.nextBand,
+    this.pointsToNextBand,
+    this.progressInBand = 0,
+    this.psNow = 0,
+    this.psVerified = 0,
+    this.deltaVerify = 0,
+    this.verifiedBand = '',
+    this.actions = const [],
+  });
+  factory ProfileStrength.fromJson(Map<String, dynamic> j) {
+    if (j['hasVectors'] != true) return const ProfileStrength(hasVectors: false);
+    final up = (j['verificationUpside'] as Map?) ?? {};
+    return ProfileStrength(
+      hasVectors: true,
+      profileStrength: (j['profileStrength'] as num?)?.round() ?? 0,
+      band: j['band'] as String? ?? '',
+      nextBand: j['nextBand'] as String?,
+      pointsToNextBand: (j['pointsToNextBand'] as num?)?.round(),
+      progressInBand: ((j['progressInBand'] as num?) ?? 0).toDouble(),
+      psNow: (up['psNow'] as num?)?.round() ?? 0,
+      psVerified: (up['psVerified'] as num?)?.round() ?? 0,
+      deltaVerify: (up['deltaPS'] as num?) ?? 0,
+      verifiedBand: j['verifiedBand'] as String? ?? '',
+      actions: ((j['actions'] as List?) ?? [])
+          .map((a) => PsAction.fromJson(a as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+}
+
+/// Fetch the user's Profile Strength band + momentum + verification-upside actions.
+Future<ProfileStrength> fetchProfileStrength() async {
+  final resp = await _dio.get(
+    '${Config.apiBase}/api/verified-vibe/profile-strength',
+    options: Options(headers: {'Authorization': _bearerToken()}),
+  );
+  return ProfileStrength.fromJson(resp.data as Map<String, dynamic>);
+}
+
 /// Upload a profile photo (base64 data URL) → returns the hosted URL. When
 /// label == 'lead' the backend also sets verified_vibe_users.avatar_url.
 Future<String> uploadPhoto(String dataUrl, String label) async {

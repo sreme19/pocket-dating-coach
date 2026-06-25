@@ -87,6 +87,41 @@ export function profileStrengthBand(ps: number): string {
 	return 'Getting started';
 }
 
+// Band thresholds (ascending). Keep in sync with profileStrengthBand().
+const BAND_THRESHOLDS: Array<{ min: number; band: string }> = [
+	{ min: 70, band: 'Top tier' },
+	{ min: 55, band: 'Strong' },
+	{ min: 40, band: 'Climbing' },
+	{ min: 25, band: 'Building' },
+	{ min: 0, band: 'Getting started' },
+];
+
+/**
+ * Band + momentum for Profile Strength: which band, the next band up, and how
+ * many points to reach it. Powers the "you're climbing / X to next tier" framing
+ * (never a raw worth rank, §8/§17).
+ */
+export function bandProgress(ps: number): {
+	band: string;
+	nextBand: string | null;
+	pointsToNextBand: number | null;
+	progressInBand: number; // 0–1 toward the next band
+} {
+	const idx = BAND_THRESHOLDS.findIndex((b) => ps >= b.min);
+	const band = BAND_THRESHOLDS[idx].band;
+	if (idx === 0) return { band, nextBand: null, pointsToNextBand: null, progressInBand: 1 };
+	const floor = BAND_THRESHOLDS[idx].min;
+	const ceil = BAND_THRESHOLDS[idx - 1].min;
+	const next = BAND_THRESHOLDS[idx - 1].band;
+	const span = ceil - floor || 1;
+	return {
+		band,
+		nextBand: next,
+		pointsToNextBand: Math.max(0, ceil - ps),
+		progressInBand: Math.max(0, Math.min(1, (ps - floor) / span)),
+	};
+}
+
 /**
  * Standing within a specific person's stack (Appendix A §6): the subject's rank
  * among rivals all evaluated toward the SAME person. rank = 1 + #{rivals with
