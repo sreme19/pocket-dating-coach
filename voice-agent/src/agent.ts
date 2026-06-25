@@ -284,7 +284,20 @@ export default defineAgent({
 			await doFinalize(transcript.length ? 'completed' : 'failed');
 		});
 
-		await session.start({ agent, room: ctx.room });
+		// Forward both sides of the call as live transcription text streams on the
+		// `lk.transcription` topic so the mobile client can show captions in real
+		// time (user STT + the bestie's spoken words, synced to her audio). These
+		// are the framework defaults; we set them explicitly because the app's call
+		// screen now depends on them.
+		await session.start({
+			agent,
+			room: ctx.room,
+			outputOptions: {
+				transcriptionEnabled: true,
+				audioEnabled: true,
+				syncTranscription: true
+			}
+		});
 
 		// Disclosure preamble + warm opener. The ConversationItemAdded handler
 		// captures this into the transcript, so don't push it manually (that caused
