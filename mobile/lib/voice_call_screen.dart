@@ -38,13 +38,34 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
       }
       final s = await startVoiceCall(widget.matchId);
       _ownerName = s.ownerName;
-      final room = Room();
+
+      final room = Room(
+        roomOptions: const RoomOptions(
+          adaptiveStream: true,
+          dynacast: true,
+        ),
+      );
       final listener = room.createListener();
-      listener.on<RoomDisconnectedEvent>((_) => _onRemoteEnded());
+      listener
+        ..on<RoomDisconnectedEvent>((_) => _onRemoteEnded())
+        ..on<TrackSubscribedEvent>((e) {
+          // Remote audio tracks (AI Bestie voice) — route to speaker so the
+          // user can hear the agent without holding phone to ear.
+          if (e.track is RemoteAudioTrack) {
+            Hardware.instance.setSpeakerphoneOn(true);
+          }
+        });
       _room = room;
       _listener = listener;
-      await room.connect(s.wsUrl, s.token);
+
+      await room.connect(s.wsUrl, s.token, fastConnectOptions: FastConnectOptions(
+        microphone: const TrackOption(enabled: true),
+      ));
+
+      // Route audio to speaker (earpiece off) before publishing mic
+      await Hardware.instance.setSpeakerphoneOn(true);
       await room.localParticipant?.setMicrophoneEnabled(true);
+
       if (!mounted) return;
       setState(() => _phase = _Phase.live);
       _timer = Timer.periodic(const Duration(seconds: 1), (_) {
