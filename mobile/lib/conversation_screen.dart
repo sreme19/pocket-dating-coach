@@ -7,6 +7,7 @@ import 'api.dart';
 import 'config.dart';
 import 'match_profile_screen.dart';
 import 'push_service.dart';
+import 'voice_call_screen.dart';
 
 class ConversationScreen extends StatefulWidget {
   final String conversationId;
@@ -377,6 +378,16 @@ class _ConversationScreenState extends State<ConversationScreen> {
           ]),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.headset_mic_rounded, color: Color(Config.accent)),
+            tooltip: 'Call with AI Bestie',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => VoiceCallScreen(
+                matchId: widget.conversationId,
+                name: _otherName.isNotEmpty ? _otherName : widget.title,
+              ),
+            )),
+          ),
           PopupMenuButton<String>(
             color: const Color(Config.bg2),
             icon: const Icon(Icons.more_vert, color: Color(Config.text2)),
@@ -425,7 +436,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
                             },
                           ),
           ),
-          // _CallBestieButton is intentionally hidden
           _Composer(
             controller: _composer,
             sending: _sending,
