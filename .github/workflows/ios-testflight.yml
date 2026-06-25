@@ -10,6 +10,8 @@ jobs:
     name: Build & Upload to TestFlight
     runs-on: macos-latest
     timeout-minutes: 60
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -67,3 +69,41 @@ jobs:
             --apiKey "$API_KEY_ID" \
             --apiIssuer "$ISSUER_ID" \
             --verbose
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="v$(grep '^version:' mobile/pubspec.yaml | awk '{print $2}' | cut -d'+' -f1)"
+          BUILD=$(grep '^version:' mobile/pubspec.yaml | awk '{print $2}' | cut -d'+' -f2)
+          TAG="${VERSION}+${BUILD}"
+
+          # Skip if tag already exists
+          if git tag | grep -q "^${TAG}$"; then
+            echo "Tag $TAG already exists — skipping release"
+            exit 0
+          fi
+
+          # Changelog from commits since last tag
+          PREV=$(git tag --sort=-version:refname | head -1)
+          RANGE="${PREV:+${PREV}..HEAD}"
+          FEATURES=$(git log ${RANGE:-HEAD} --pretty=format:"- %s (%h)" --no-merges | grep "^- feat" || true)
+          FIXES=$(git log ${RANGE:-HEAD} --pretty=format:"- %s (%h)" --no-merges | grep "^- fix" || true)
+
+          {
+            echo "## iOS TestFlight ${VERSION} (build ${BUILD})"
+            echo ""
+            echo "Uploaded to TestFlight automatically — available to testers after Apple processing."
+            echo ""
+            [ -n "$FEATURES" ] && echo "### ✨ New Features" && echo "$FEATURES" && echo ""
+            [ -n "$FIXES" ] && echo "### 🐛 Bug Fixes" && echo "$FIXES" && echo ""
+            [ -n "$PREV" ] && echo "**Full changelog**: https://github.com/${{ github.repository }}/compare/${PREV}...${TAG}"
+          } > /tmp/release_notes.md
+
+          git tag "$TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" \
+            --title "${VERSION} (build ${BUILD}) — riteangle.dating" \
+            --notes-file /tmp/release_notes.md \
+            --latest
+          echo "✅ GitHub Release $TAG created"
