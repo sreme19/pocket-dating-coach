@@ -18,6 +18,7 @@ import { runNightlyBatch } from '$lib/server/matchmaker-service';
 import { runTrustNormalization } from '$lib/server/trust-normalize';
 import { runAllMatchScores } from '$lib/server/match-scoring';
 import { runVectorBackfill, computeUserVectors } from '$lib/server/vector-builder';
+import { runShadowScoring, diffScores } from '$lib/server/vector-scoring-shadow';
 import { MATCHMAKER_RUN_SECRET } from '$env/static/private';
 import { logAppError } from '$lib/server/logAppError';
 
@@ -26,9 +27,11 @@ export const POST: RequestHandler = async ({ request }) => {
     const body = await request.json() as {
       secret?: string;
       cityScoped?: boolean;
-      task?: 'trust-normalize' | 'match-scores' | 'build-vectors' | 'inspect-vectors';
+      task?: 'trust-normalize' | 'match-scores' | 'build-vectors' | 'inspect-vectors'
+        | 'score-vectors-shadow' | 'diff-scores';
       userId?: string;
       userIds?: string[];
+      limit?: number;
     };
 
     // Validate secret
@@ -50,6 +53,21 @@ export const POST: RequestHandler = async ({ request }) => {
       if (!body.userId) return json({ error: 'userId required' }, { status: 400 });
       const vectors = await computeUserVectors(body.userId);
       return json({ task: 'inspect-vectors', userId: body.userId, vectors });
+    }
+
+    // Phase 1 (shadow): vector-score every mutual pair + compute Profile Strength
+    // for every user with vectors, writing *_v2 / profile_strength columns ONLY.
+    // Pure arithmetic, no LLM. Live scoring/matching/advisors are untouched.
+    if (body.task === 'score-vectors-shadow') {
+      const result = await runShadowScoring();
+      return json({ task: 'score-vectors-shadow', ...result });
+    }
+
+    // Phase 1 admin diff: live LLM appeal vs vector appeal per pair (+ delta), and
+    // Profile Strength per user. Read-only — the gate for validating the engine.
+    if (body.task === 'diff-scores') {
+      const result = await diffScores(body.limit ?? 100);
+      return json({ task: 'diff-scores', ...result });
     }
 
     // Trust normalization only — runs SYNCHRONOUSLY and returns the before/after
