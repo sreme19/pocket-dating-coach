@@ -137,10 +137,62 @@ Map<String, int> _archetypeBaseScores(String archetypeLabel) {
 // ── Playful shared sections ──────────────────────────────────────────────────
 
 const _flagFor = <String, String>{
-  'india': '🇮🇳', 'usa': '🇺🇸', 'united states': '🇺🇸', 'uk': '🇬🇧', 'united kingdom': '🇬🇧',
-  'thailand': '🇹🇭', 'malaysia': '🇲🇾', 'indonesia': '🇮🇩', 'bali': '🇮🇩', 'singapore': '🇸🇬',
-  'uae': '🇦🇪', 'dubai': '🇦🇪', 'france': '🇫🇷', 'italy': '🇮🇹', 'japan': '🇯🇵', 'spain': '🇪🇸',
-  'germany': '🇩🇪', 'australia': '🇦🇺', 'canada': '🇨🇦', 'switzerland': '🇨🇭', 'maldives': '🇲🇻',
+  // Americas
+  'usa': '🇺🇸', 'united states': '🇺🇸', 'america': '🇺🇸',
+  'california': '🇺🇸', 'new york': '🇺🇸', 'los angeles': '🇺🇸', 'miami': '🇺🇸',
+  'chicago': '🇺🇸', 'las vegas': '🇺🇸', 'hawaii': '🇺🇸', 'texas': '🇺🇸', 'florida': '🇺🇸',
+  'canada': '🇨🇦', 'toronto': '🇨🇦', 'vancouver': '🇨🇦',
+  'mexico': '🇲🇽', 'cancun': '🇲🇽',
+  'brazil': '🇧🇷', 'rio': '🇧🇷',
+  'argentina': '🇦🇷', 'peru': '🇵🇪', 'colombia': '🇨🇴',
+  // Europe
+  'uk': '🇬🇧', 'united kingdom': '🇬🇧', 'england': '🇬🇧', 'london': '🇬🇧', 'scotland': '🇬🇧',
+  'france': '🇫🇷', 'paris': '🇫🇷',
+  'italy': '🇮🇹', 'rome': '🇮🇹', 'milan': '🇮🇹', 'venice': '🇮🇹', 'amalfi': '🇮🇹',
+  'spain': '🇪🇸', 'madrid': '🇪🇸', 'barcelona': '🇪🇸',
+  'germany': '🇩🇪', 'berlin': '🇩🇪', 'munich': '🇩🇪',
+  'switzerland': '🇨🇭', 'zurich': '🇨🇭',
+  'portugal': '🇵🇹', 'lisbon': '🇵🇹',
+  'netherlands': '🇳🇱', 'amsterdam': '🇳🇱',
+  'greece': '🇬🇷', 'athens': '🇬🇷', 'santorini': '🇬🇷', 'mykonos': '🇬🇷',
+  'turkey': '🇹🇷', 'istanbul': '🇹🇷',
+  'austria': '🇦🇹', 'vienna': '🇦🇹',
+  'sweden': '🇸🇪', 'stockholm': '🇸🇪',
+  'norway': '🇳🇴', 'oslo': '🇳🇴',
+  'denmark': '🇩🇰', 'copenhagen': '🇩🇰',
+  'finland': '🇫🇮', 'helsinki': '🇫🇮',
+  'iceland': '🇮🇸', 'reykjavik': '🇮🇸', 'reykjavík': '🇮🇸',
+  'skógafoss': '🇮🇸', 'skogafoss': '🇮🇸', 'geysir': '🇮🇸', 'jokulsarlon': '🇮🇸',
+  'poland': '🇵🇱', 'warsaw': '🇵🇱',
+  'czech republic': '🇨🇿', 'prague': '🇨🇿',
+  'hungary': '🇭🇺', 'budapest': '🇭🇺',
+  'croatia': '🇭🇷', 'dubrovnik': '🇭🇷',
+  // Middle East & Africa
+  'uae': '🇦🇪', 'dubai': '🇦🇪', 'abu dhabi': '🇦🇪',
+  'saudi arabia': '🇸🇦',
+  'egypt': '🇪🇬', 'cairo': '🇪🇬',
+  'morocco': '🇲🇦', 'marrakech': '🇲🇦',
+  'south africa': '🇿🇦', 'cape town': '🇿🇦',
+  'kenya': '🇰🇪', 'nairobi': '🇰🇪',
+  // Asia
+  'japan': '🇯🇵', 'tokyo': '🇯🇵', 'osaka': '🇯🇵', 'kyoto': '🇯🇵',
+  'south korea': '🇰🇷', 'korea': '🇰🇷', 'seoul': '🇰🇷',
+  'china': '🇨🇳', 'beijing': '🇨🇳', 'shanghai': '🇨🇳',
+  'hong kong': '🇭🇰',
+  'taiwan': '🇹🇼', 'taipei': '🇹🇼',
+  'singapore': '🇸🇬',
+  'thailand': '🇹🇭', 'bangkok': '🇹🇭', 'phuket': '🇹🇭', 'chiang mai': '🇹🇭',
+  'vietnam': '🇻🇳', 'hanoi': '🇻🇳', 'ho chi minh': '🇻🇳', 'hoi an': '🇻🇳', 'da nang': '🇻🇳',
+  'cambodia': '🇰🇭', 'siem reap': '🇰🇭',
+  'malaysia': '🇲🇾', 'kuala lumpur': '🇲🇾',
+  'indonesia': '🇮🇩', 'bali': '🇮🇩', 'jakarta': '🇮🇩', 'lombok': '🇮🇩',
+  'india': '🇮🇳', 'mumbai': '🇮🇳', 'delhi': '🇮🇳', 'goa': '🇮🇳', 'rajasthan': '🇮🇳',
+  'maldives': '🇲🇻', 'sri lanka': '🇱🇰',
+  'nepal': '🇳🇵', 'kathmandu': '🇳🇵',
+  'philippines': '🇵🇭', 'manila': '🇵🇭', 'cebu': '🇵🇭',
+  // Oceania
+  'australia': '🇦🇺', 'sydney': '🇦🇺', 'melbourne': '🇦🇺',
+  'new zealand': '🇳🇿', 'auckland': '🇳🇿',
 };
 
 /// Pastel "fridge magnet" palette: (bg, border, text).
@@ -156,8 +208,17 @@ const _magnetColors = <(int, int, int)>[
 ];
 
 String _magnetEmoji(String place) {
-  final key = place.toLowerCase().split(',').first.trim();
-  return _flagFor[key] ?? '🌍';
+  // Strip parentheticals like "(Likely)" or "(Probably)" added by AI confidence notes
+  final cleaned = place.replaceAll(RegExp(r'\s*\([^)]*\)'), '').toLowerCase().trim();
+  // Try each comma-separated part (e.g. "California, USA" → try "california" then "usa")
+  for (final part in cleaned.split(',').map((p) => p.trim())) {
+    if (_flagFor.containsKey(part)) return _flagFor[part]!;
+  }
+  // Fallback: check if any flag key appears as a substring of the cleaned place name
+  for (final entry in _flagFor.entries) {
+    if (cleaned.contains(entry.key)) return entry.value;
+  }
+  return '🌍';
 }
 
 /// Travel magnets rendered like real colorful fridge magnets (varied pastel
