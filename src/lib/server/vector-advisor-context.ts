@@ -19,6 +19,7 @@ import {
 	bandProgress,
 	upsidePreview,
 	upsideByDimension,
+	pathGaps,
 	type Vec,
 } from './vector-scoring';
 
@@ -80,6 +81,60 @@ PROFILE STRENGTH (deterministic vector model — these numbers are EXACT, use th
 - Highest-leverage verification moves, in order:
 ${actionLines}
 Coach from this: the fastest standing gains come from VERIFYING claims (raising confidence), not just adding new ones. Surface the single highest-leverage move first, quantify the gain, and walk ${obj} through it. Persistent-but-positive — always opportunity, never deficiency.`;
+	} catch {
+		return '';
+	}
+}
+
+/**
+ * Path plan (§11c) for the Wingman: per active match, the dimensions SHE weights
+ * where HIS effective value has the most room, plus the lever (verify vs
+ * strengthen). Translated by the advisor into approach advice — the block tells
+ * the AI which areas to coach toward and the lever, but NEVER her actual weights.
+ * Flag-gated; '' when off / no matches with vectors.
+ */
+export async function loadPathPlanContext(supabase: any, manId: string): Promise<string> {
+	if (!advisorVectorsEnabled()) return '';
+	try {
+		const { data: me } = await supabase
+			.from('vv_user_vectors').select('attributes, confidence').eq('user_id', manId).maybeSingle();
+		if (!me?.attributes) return '';
+		const myAttrs = me.attributes as Vec;
+		const myConf = (me.confidence ?? {}) as Vec;
+
+		const { data: matches } = await supabase
+			.from('verified_vibe_matches')
+			.select('user1_id, user2_id')
+			.or(`user1_id.eq.${manId},user2_id.eq.${manId}`)
+			.eq('status', 'mutual');
+		const partnerIds: string[] = (matches ?? []).map((m: any) => (m.user1_id === manId ? m.user2_id : m.user1_id));
+		if (!partnerIds.length) return '';
+
+		const { data: women } = await supabase
+			.from('verified_vibe_users').select('id, first_name, gender').in('id', partnerIds).eq('gender', 'woman');
+		const nameMap = new Map<string, string>((women ?? []).map((u: any) => [u.id, u.first_name ?? 'She']));
+		if (!nameMap.size) return '';
+
+		const { data: vecs } = await supabase
+			.from('vv_user_vectors').select('user_id, weights').in('user_id', [...nameMap.keys()]);
+
+		const lines: string[] = [];
+		for (const v of vecs ?? []) {
+			const gaps = pathGaps((v.weights ?? {}) as Vec, myAttrs, myConf, 2);
+			if (!gaps.length) continue;
+			const name = nameMap.get(v.user_id) ?? 'She';
+			const moves = gaps.map((g) => g.lever === 'verify'
+				? `${g.label} (he's claimed this but not proven it — get him to VERIFY it)`
+				: `${g.label} (genuinely thin — coach him to bring/build more here)`).join('; ');
+			lines.push(`  - With **${name}**: focus on ${moves}`);
+		}
+		if (!lines.length) return '';
+
+		return `
+
+PATH PLAN (deterministic per-match levers — translate into APPROACH advice, NEVER state her weights or these labels as "what she wants"):
+${lines.join('\n')}
+For each: "verify" means the fastest win is proving an existing claim (raises confidence → appeal to her). "thin" means genuinely add/show more. Lead with the single highest-leverage move per match.`;
 	} catch {
 		return '';
 	}

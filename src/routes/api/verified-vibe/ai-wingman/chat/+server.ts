@@ -25,7 +25,7 @@ import { touchLastActive } from '$lib/server/pool-registry';
 import { popPendingChatMessage } from '$lib/server/intelligence-report-processor';
 import { buildCompetitiveSnapshot } from '$lib/server/competitive-snapshot';
 import { loadMatchIntelligenceContext } from '$lib/server/match-intelligence';
-import { loadVectorAdvisorContext } from '$lib/server/vector-advisor-context';
+import { loadVectorAdvisorContext, loadPathPlanContext } from '$lib/server/vector-advisor-context';
 import { complianceGate } from '$lib/server/ai-compliance';
 import { logAppError } from '$lib/server/logAppError';
 
@@ -98,6 +98,8 @@ export const POST: RequestHandler = async ({ request }) => {
 		// string unless the flag is on AND the user has vectors, so this is inert
 		// by default.
 		const profileStrengthContext = await loadVectorAdvisorContext(supabase, userId);
+		// Per-match path-plan levers (§11c) — flag-gated, empty otherwise.
+		const pathPlanContext = await loadPathPlanContext(supabase, userId);
 
 		// ── Build system prompt ────────────────────────────────────────────────
 		const systemPrompt = buildAIWingmanAdvisorSystemPrompt({
@@ -109,6 +111,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			competitiveContext,
 			matchIntelligenceContext,
 			profileStrengthContext,
+			pathPlanContext,
 			pendingReportContext
 		});
 

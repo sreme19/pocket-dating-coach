@@ -8,6 +8,7 @@ import {
 	standingRank,
 	upsidePreview,
 	upsideByDimension,
+	pathGaps,
 	type Vec,
 } from '../vector-scoring';
 import {
@@ -135,5 +136,33 @@ describe('verification upside (§3a locked standing)', () => {
 		const ranked = upsideByDimension(attrs, conf);
 		expect(ranked[0].dim).toBe('financial'); // verifying financial is the top lever
 		expect(ranked[0].deltaPS).toBeGreaterThan(0);
+	});
+});
+
+describe('pathGaps — per-match coaching levers (§11c)', () => {
+	it('surfaces the dimension she weights where his effective value has most room', () => {
+		// She cares about warmth (0.6) and financial (0.4). He: warmth claimed but
+		// unproven (v70,c0.3), financial proven (v80,c1).
+		const herWeights: Vec = { ...fill(0), warmth: 0.6, financial: 0.4 };
+		const hisAttrs: Vec = { ...fill(0), warmth: 70, financial: 80 };
+		const hisConf: Vec = { ...fill(0.3), warmth: 0.3, financial: 1 };
+		const gaps = pathGaps(herWeights, hisAttrs, hisConf);
+		expect(gaps[0].dim).toBe('warmth');     // highest weight × most room
+		expect(gaps[0].lever).toBe('verify');    // decent claim, low confidence → verify
+	});
+
+	it('flags a genuinely-thin dimension as strengthen, not verify', () => {
+		const herWeights: Vec = { ...fill(0), ambition: 1 };
+		const hisAttrs: Vec = { ...fill(0), ambition: 20 }; // low claim
+		const hisConf: Vec = { ...fill(1), ambition: 1 };
+		const gaps = pathGaps(herWeights, hisAttrs, hisConf);
+		expect(gaps[0].dim).toBe('ambition');
+		expect(gaps[0].lever).toBe('strengthen');
+	});
+
+	it('never coaches toward sensitive dimensions (open dims only)', () => {
+		const herWeights: Vec = { ...fill(0), looks: 1, faith: 1 }; // sensitive only
+		const gaps = pathGaps(herWeights, fill(30), fill(0.3));
+		expect(gaps.length).toBe(0); // nothing coachable
 	});
 });
