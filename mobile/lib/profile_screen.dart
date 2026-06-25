@@ -2527,6 +2527,7 @@ class _PhotoStorySectionState extends State<_PhotoStorySection> {
   bool _enhancing = false;
   String? _enhanceError;
   late List<AiPhotoItem> _aiPhotos;
+  bool _autoEnhanceAttempted = false;
 
   static const _slots = ['lead', 'warmth', 'lifestyle'];
 
@@ -2534,6 +2535,7 @@ class _PhotoStorySectionState extends State<_PhotoStorySection> {
   void initState() {
     super.initState();
     _aiPhotos = List.of(widget.data.aiPhotoItems);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAutoEnhance());
   }
 
   @override
@@ -2541,7 +2543,18 @@ class _PhotoStorySectionState extends State<_PhotoStorySection> {
     super.didUpdateWidget(old);
     if (old.data != widget.data) {
       _aiPhotos = List.of(widget.data.aiPhotoItems);
+      _maybeAutoEnhance();
     }
+  }
+
+  /// A man's raw photo must never reach viewers, so once he has real photos but
+  /// no AI portraits yet, generate them automatically (once per screen instance).
+  void _maybeAutoEnhance() {
+    if (_autoEnhanceAttempted || _enhancing) return;
+    if (!widget.data.isMan) return;
+    if (widget.data.uploadedPhotos.isEmpty || _aiPhotos.isNotEmpty) return;
+    _autoEnhanceAttempted = true;
+    _handleEnhance();
   }
 
   /// Resolve slot: AI photo by role → uploaded photo by label/index → null.

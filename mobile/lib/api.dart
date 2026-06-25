@@ -776,6 +776,17 @@ Future<void> saveAiPhotos(List<AiPhotoItem> aiPhotos) async {
     },
     options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
   );
+  // Point the public avatar at the AI lead portrait — a man's raw photo must
+  // never be shown to viewers, and every viewer endpoint serves avatar_url.
+  if (aiPhotos.isNotEmpty) {
+    final lead = aiPhotos.firstWhere((p) => p.role == 'lead', orElse: () => aiPhotos.first);
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null && lead.url.isNotEmpty) {
+      await Supabase.instance.client
+          .from('verified_vibe_users')
+          .update({'avatar_url': lead.url}).eq('id', user.id);
+    }
+  }
 }
 
 /// Change the user's archetype (direct Supabase update — RLS allows self).
