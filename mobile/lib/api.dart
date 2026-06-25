@@ -16,7 +16,12 @@ import 'config.dart';
 class InsightChip {
   final String emoji;
   final String label;
-  InsightChip(this.emoji, this.label);
+  /// True when this insight was inferred from a DIFFERENT upload than the
+  /// section it appears in (cross-section signal). [from] is the source proof
+  /// category (e.g. 'lifestyle') so the UI can mark it as inferred, not verified.
+  final bool inferred;
+  final String? from;
+  InsightChip(this.emoji, this.label, {this.inferred = false, this.from});
 }
 
 /// A group of verified-signal chips for one category, with the AI summary line.
@@ -34,7 +39,11 @@ class GarageCar {
   final String? year;
   final String? color;
   final String? vehicleType;
-  GarageCar({required this.make, required this.model, this.year, this.color, this.vehicleType});
+  /// True when the car was seen in a non-assets upload (cross-section signal)
+  /// rather than read from a verified ownership document. [from] = source category.
+  final bool inferred;
+  final String? from;
+  GarageCar({required this.make, required this.model, this.year, this.color, this.vehicleType, this.inferred = false, this.from});
   String get title => [make, model].where((s) => s.isNotEmpty).join(' ');
 }
 
@@ -96,6 +105,9 @@ class ProfileData {
   final String? garagePortraitUrl;
   // Raw generatedProfile map, kept so edits can merge without dropping fields.
   final Map<String, dynamic> rawGenerated;
+  // "Here For" intent line (owner-declared; here_for_title / here_for_desc columns).
+  final String? hereForTitle;
+  final String? hereForDesc;
 
   bool get isMan => gender == 'man';
 
@@ -128,6 +140,8 @@ class ProfileData {
     required this.personalityPortraitUrl,
     required this.garagePortraitUrl,
     required this.rawGenerated,
+    this.hereForTitle,
+    this.hereForDesc,
   });
 }
 
@@ -157,7 +171,7 @@ Future<ProfileData> fetchProfile() async {
   // 1. Identity + avatar + trust — direct Supabase (RLS lets a user read self).
   final rowFuture = supabase
       .from('verified_vibe_users')
-      .select('first_name, age, city, avatar_url, trust_score, gender, archetype, hard_nos')
+      .select('first_name, age, city, avatar_url, trust_score, gender, archetype, hard_nos, here_for_title, here_for_desc')
       .eq('id', user.id)
       .maybeSingle();
   final stepsFuture = supabase
@@ -364,6 +378,8 @@ Future<ProfileData> fetchProfile() async {
     gender: gender,
     archetype: archetype,
     hardNos: hardNos,
+    hereForTitle: nonEmpty(row?['here_for_title']),
+    hereForDesc: nonEmpty(row?['here_for_desc']),
     vibeWords: vibeWords,
     career: signal('linkedin'),
     lifestyle: signal('lifestyle'),
@@ -555,6 +571,131 @@ String _bearerToken() {
   return 'Bearer ${s.accessToken}';
 }
 
+// ── Preference weighting (explicit step — Scoring redesign Phase 0b) ───────────
+
+class PreferenceDimension {
+  final String id;
+  final String label;
+  final String cls; // 'open' | 'sensitive'
+  final String blurb;
+  const PreferenceDimension({required this.id, required this.label, required this.cls, required this.blurb});
+  factory PreferenceDimension.fromJson(Map<String, dynamic> j) => PreferenceDimension(
+        id: j['id'] as String,
+        label: j['label'] as String? ?? j['id'] as String,
+        cls: j['cls'] as String? ?? 'open',
+        blurb: j['blurb'] as String? ?? '',
+      );
+}
+
+class PreferenceWeights {
+  final List<PreferenceDimension> dimensions;
+  final Map<String, int> importance; // dimId → 0..maxImportance
+  final String? weightsSource;        // 'explicit' | 'extracted' | 'balanced' | null
+  final int maxImportance;
+  const PreferenceWeights({required this.dimensions, required this.importance, this.weightsSource, this.maxImportance = 5});
+  factory PreferenceWeights.fromJson(Map<String, dynamic> j) {
+    final dims = (j['dimensions'] as List? ?? [])
+        .map((d) => PreferenceDimension.fromJson(d as Map<String, dynamic>))
+        .toList();
+    final imp = <String, int>{};
+    (j['importance'] as Map? ?? {}).forEach((k, v) => imp[k as String] = (v as num).round());
+    return PreferenceWeights(
+      dimensions: dims,
+      importance: imp,
+      weightsSource: j['weightsSource'] as String?,
+      maxImportance: (j['maxImportance'] as num?)?.round() ?? 5,
+    );
+  }
+}
+
+/// Fetch the dimension taxonomy + the user's current importance ratings.
+Future<PreferenceWeights> fetchPreferenceWeights() async {
+  final resp = await _dio.get(
+    '${Config.apiBase}/api/verified-vibe/preferences/weights',
+    options: Options(headers: {'Authorization': _bearerToken()}),
+  );
+  return PreferenceWeights.fromJson(resp.data as Map<String, dynamic>);
+}
+
+/// Save importance ratings (0..max per dimension id). Server normalises → weights
+/// (Σ=1) and stores them with weights_source='explicit'.
+Future<void> savePreferenceWeights(Map<String, int> importance) async {
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/preferences/weights',
+    data: {'importance': importance},
+    options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
+  );
+}
+
+// ── Profile Strength (Scoring redesign Phase 2) ───────────────────────────────
+
+class PsAction {
+  final String dimension;
+  final String label;
+  final num deltaPS;
+  const PsAction({required this.dimension, required this.label, required this.deltaPS});
+  factory PsAction.fromJson(Map<String, dynamic> j) => PsAction(
+        dimension: j['dimension'] as String? ?? '',
+        label: j['label'] as String? ?? '',
+        deltaPS: (j['deltaPS'] as num?) ?? 0,
+      );
+}
+
+class ProfileStrength {
+  final bool hasVectors;
+  final int profileStrength;
+  final String band;
+  final String? nextBand;
+  final int? pointsToNextBand;
+  final double progressInBand;
+  final int psNow;
+  final int psVerified;
+  final num deltaVerify;
+  final String verifiedBand;
+  final List<PsAction> actions;
+  const ProfileStrength({
+    required this.hasVectors,
+    this.profileStrength = 0,
+    this.band = '',
+    this.nextBand,
+    this.pointsToNextBand,
+    this.progressInBand = 0,
+    this.psNow = 0,
+    this.psVerified = 0,
+    this.deltaVerify = 0,
+    this.verifiedBand = '',
+    this.actions = const [],
+  });
+  factory ProfileStrength.fromJson(Map<String, dynamic> j) {
+    if (j['hasVectors'] != true) return const ProfileStrength(hasVectors: false);
+    final up = (j['verificationUpside'] as Map?) ?? {};
+    return ProfileStrength(
+      hasVectors: true,
+      profileStrength: (j['profileStrength'] as num?)?.round() ?? 0,
+      band: j['band'] as String? ?? '',
+      nextBand: j['nextBand'] as String?,
+      pointsToNextBand: (j['pointsToNextBand'] as num?)?.round(),
+      progressInBand: ((j['progressInBand'] as num?) ?? 0).toDouble(),
+      psNow: (up['psNow'] as num?)?.round() ?? 0,
+      psVerified: (up['psVerified'] as num?)?.round() ?? 0,
+      deltaVerify: (up['deltaPS'] as num?) ?? 0,
+      verifiedBand: j['verifiedBand'] as String? ?? '',
+      actions: ((j['actions'] as List?) ?? [])
+          .map((a) => PsAction.fromJson(a as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+}
+
+/// Fetch the user's Profile Strength band + momentum + verification-upside actions.
+Future<ProfileStrength> fetchProfileStrength() async {
+  final resp = await _dio.get(
+    '${Config.apiBase}/api/verified-vibe/profile-strength',
+    options: Options(headers: {'Authorization': _bearerToken()}),
+  );
+  return ProfileStrength.fromJson(resp.data as Map<String, dynamic>);
+}
+
 /// Upload a profile photo (base64 data URL) → returns the hosted URL. When
 /// label == 'lead' the backend also sets verified_vibe_users.avatar_url.
 Future<String> uploadPhoto(String dataUrl, String label) async {
@@ -686,6 +827,17 @@ Future<void> saveHardNos(List<String> hardNos) async {
   await supabase.from('verified_vibe_users').update({'hard_nos': hardNos}).eq('id', user.id);
 }
 
+/// Save the owner's "Here For" intent line (here_for_title / here_for_desc).
+Future<void> saveHereFor(String title, String desc) async {
+  final supabase = Supabase.instance.client;
+  final user = supabase.auth.currentUser;
+  if (user == null) throw StateError('Not authenticated');
+  await supabase.from('verified_vibe_users').update({
+    'here_for_title': title.trim(),
+    'here_for_desc': desc.trim(),
+  }).eq('id', user.id);
+}
+
 /// Ask the AI to suggest more insight chips for a proof category. Returns the
 /// generated chips (may be empty if the AI asks to clarify / redirect).
 Future<List<InsightChip>> suggestInsights(
@@ -726,6 +878,16 @@ Future<void> _insightChip(String action, String category, String label, String? 
   await _dio.post(
     '${Config.apiBase}/api/verified-vibe/insight-chip',
     data: {'action': action, 'category': category, 'label': label, if (emoji != null) 'emoji': emoji},
+    options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
+  );
+}
+
+/// Remove a thumbnail image from a proof category (persists to verifiedProofs
+/// and best-effort deletes the underlying Storage object).
+Future<void> removeProofThumbnail(String category, String url) async {
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/proof-thumbnail',
+    data: {'action': 'remove', 'category': category, 'url': url},
     options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
   );
 }
@@ -1325,6 +1487,23 @@ Future<void> sendAttention(String recipientId, String senderGender, String conte
   }
 }
 
+/// Generate an AI-written attention note via the live auto-gen endpoint.
+/// [tone] is one of: flirty | professional | practical | bold. messageType is
+/// derived from the sender's gender (man → craving_attention, woman → secret_admirer).
+Future<String> autoGenAttention(String recipientId, String senderGender, String tone) async {
+  final uid = Supabase.instance.client.auth.currentUser!.id;
+  final messageType = senderGender == 'woman' ? 'secret_admirer' : 'craving_attention';
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/attention/auto-gen',
+    data: {'senderId': uid, 'recipientId': recipientId, 'messageType': messageType, 'tone': tone},
+    options: Options(headers: {'Content-Type': 'application/json'}),
+  );
+  final data = resp.data;
+  final text = (data is Map ? data['text'] : null)?.toString().trim() ?? '';
+  if (text.isEmpty) throw 'No message generated';
+  return text;
+}
+
 // ── Onboarding ──────────────────────────────────────────────────────────────
 
 /// A signed-in user still needs onboarding if their verified_vibe_users row has
@@ -1494,8 +1673,9 @@ class ConversationThread {
   final String otherName;
   final String? otherAvatar;
   final String? otherGender;
+  final bool aiBestieActive;
   final List<ChatMessage> messages;
-  ConversationThread({required this.otherId, required this.otherName, required this.otherAvatar, required this.otherGender, required this.messages});
+  ConversationThread({required this.otherId, required this.otherName, required this.otherAvatar, required this.otherGender, required this.aiBestieActive, required this.messages});
 }
 
 Future<ConversationThread> fetchConversation(String conversationId) async {
@@ -1512,7 +1692,19 @@ Future<ConversationThread> fetchConversation(String conversationId) async {
     otherName: (u['firstName'] ?? 'Chat').toString(),
     otherAvatar: u['avatar'] as String?,
     otherGender: u['gender'] as String?,
+    aiBestieActive: data['aiBestieActive'] != false, // default true; only false when explicitly off
     messages: msgs.whereType<Map>().map(ChatMessage.fromApi).toList(),
+  );
+}
+
+/// Resume AI Bestie for a match (sets ai_bestie_active = true). Turning it OFF
+/// happens automatically when the woman sends her own message — she's stepping
+/// in — so there's no explicit deactivate call.
+Future<void> activateBestie(String conversationId) async {
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/ai-bestie/activate',
+    data: {'conversationId': conversationId},
+    options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
   );
 }
 
@@ -1890,7 +2082,12 @@ List<InsightChip> _parseChips(dynamic list) {
   if (list is List) {
     for (final i in list) {
       if (i is Map && i['label'] != null) {
-        out.add(InsightChip((i['emoji'] ?? '•').toString(), i['label'].toString()));
+        out.add(InsightChip(
+          (i['emoji'] ?? '•').toString(),
+          i['label'].toString(),
+          inferred: i['inferred'] == true,
+          from: i['from']?.toString(),
+        ));
       }
     }
   }
@@ -1947,6 +2144,8 @@ Future<MatchDetail> fetchMatchDetail(String profileId) async {
           year: a['year']?.toString(),
           color: a['color']?.toString(),
           vehicleType: a['vehicleType']?.toString(),
+          inferred: a['inferred'] == true,
+          from: a['from']?.toString(),
         ));
       }
     }

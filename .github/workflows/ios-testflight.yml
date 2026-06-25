@@ -8,7 +8,7 @@ on:
 jobs:
   build-and-upload:
     name: Build & Upload to TestFlight
-    runs-on: macos-latest
+    runs-on: macos-26
     timeout-minutes: 60
     permissions:
       contents: write
@@ -48,6 +48,15 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           echo "$PROFILE_BASE64" | base64 --decode \
             -o ~/Library/MobileDevice/Provisioning\ Profiles/riteangle.mobileprovision
+
+      - name: Resolve Swift Package dependencies
+        run: |
+          rm -rf ~/Library/Caches/org.swift.swiftpm/repositories
+          xcodebuild -resolvePackageDependencies \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -disablePackageRepositoryCache
+        working-directory: mobile
 
       - name: Build & export IPA
         run: |

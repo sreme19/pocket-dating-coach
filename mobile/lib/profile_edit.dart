@@ -11,14 +11,15 @@ import 'config.dart';
 /// Open the photo manager; returns after the user is done (caller refreshes).
 Future<void> openPhotoManager(BuildContext context, ProfileData data, VoidCallback onChanged) async {
   final changed = await Navigator.of(context).push<bool>(
-    MaterialPageRoute(builder: (_) => _PhotoManagerScreen(initial: data.uploadedPhotos)),
+    MaterialPageRoute(builder: (_) => _PhotoManagerScreen(initial: data.uploadedPhotos, gender: data.gender)),
   );
   if (changed == true) onChanged();
 }
 
 class _PhotoManagerScreen extends StatefulWidget {
   final List<PhotoItem> initial;
-  const _PhotoManagerScreen({required this.initial});
+  final String? gender;
+  const _PhotoManagerScreen({required this.initial, required this.gender});
   @override
   State<_PhotoManagerScreen> createState() => _PhotoManagerScreenState();
 }
@@ -30,8 +31,13 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
   bool _dirty = false;
   String? _error;
 
+  // Gender photo model: men get up to 3 (shown AI-enhanced), women up to 6 (real).
+  bool get _isMan => widget.gender == 'man';
+  int get _maxPhotos => _isMan ? 3 : 6;
+  bool get _atCap => _photos.length >= _maxPhotos;
+
   Future<void> _add(ImageSource source) async {
-    if (_busy) return;
+    if (_busy || _atCap) return;
     setState(() { _busy = true; _error = null; });
     try {
       final x = await _picker.pickImage(source: source, maxWidth: 1800, imageQuality: 85);
@@ -83,8 +89,21 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text('First photo is your lead. Long-press a photo to make it lead.',
-              style: TextStyle(color: Color(Config.text2), fontSize: 13)),
+          Text(
+            _isMan
+                ? 'Up to 3 photos. Viewers only ever see an AI-enhanced version — your raw photo is never shown to anyone. First photo is your lead; long-press another to make it lead.'
+                : 'Up to 6 real photos — no AI filters, authenticity is the point. First photo is your lead; long-press another to make it lead.',
+            style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${_photos.length}/$_maxPhotos photos${_atCap ? ' · maximum reached' : ''}',
+            style: TextStyle(
+              color: _atCap ? const Color(Config.accent) : const Color(Config.text3),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: 14),
           GridView.count(
             crossAxisCount: 3,
@@ -94,7 +113,7 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
             physics: const NeverScrollableScrollPhysics(),
             children: [
               for (var i = 0; i < _photos.length; i++) _tile(i),
-              _addTile(),
+              if (!_atCap) _addTile(),
             ],
           ),
           if (_error != null) ...[

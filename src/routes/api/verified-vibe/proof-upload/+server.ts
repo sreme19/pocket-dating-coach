@@ -251,6 +251,74 @@ Return ONLY raw JSON — no markdown, no code fences:
 {"verified":true/false,"insights":[{"label":"3-5 words e.g. 'Multi-continent traveller'","emoji":"single emoji"},...],"locations":["Country or City","..."],"aggregated":"e.g. 'Has explored 12+ countries across Asia, Europe and the Americas'","confidence":0.0-1.0,"reason":"one sentence"}`,
 };
 
+// ── Cross-section extraction ────────────────────────────────────────────────
+// A single upload often shows evidence relevant to OTHER public-read sections
+// (a Lifestyle photo with a passport stamp → Travel; a fine-dining bill → Money;
+// a car in the driveway → Garage). We ask Claude to surface those too, tagged
+// with the target section, and propagate them — clearly marked as inferred — so
+// the public profile gets richer without the user re-uploading per section.
+//
+// Valid target sections (must line up with the public-profile reader + the
+// CROSS_SECTION_BOOST_MAP in trust-recompute.ts):
+//   travel | money | garage | health | social | career | lifestyle | hosting
+const CROSS_SIGNAL_SUFFIX = `
+
+── ALSO: cross-section signals ──
+Beyond the primary insights above, scan the SAME image(s) for evidence that belongs to OTHER dating-profile sections. ONLY include something you can DIRECTLY SEE — never guess, never infer beyond what is visible. Omit a section if you see nothing for it.
+Target sections and the visible evidence that qualifies:
+- "travel": a recognisable country/city/landmark, passport stamp, visa, boarding pass, or hotel — add a "locations" array of place names.
+- "money": a visible luxury spend, premium brand, business/first-class seat, or fine-dining/hotel bill — add a "spendingBreakdown" array entry {"category","emoji","amountLabel","estimatedMonthly"}.
+- "garage": a clearly owned vehicle visible — add an "assets" array entry {"type":"car","make","model","year","color","vehicleType"}.
+- "health": gym, sport, training, or fitness activity visible.
+- "social": a group of friends, event, or community activity visible.
+- "career": an office/work setting, uniform, or professional credential visible.
+- "lifestyle": a distinct premium-lifestyle signal (ONLY if this upload's primary section is not lifestyle).
+Add a top-level "crossSignals" array to the SAME JSON object you return. Each item:
+{"section":"travel|money|garage|health|social|career|lifestyle|hosting","label":"3-5 words","emoji":"single emoji","confidence":0.0-1.0,"locations":["..."],"spendingBreakdown":[...],"assets":[...]}
+Include locations/spendingBreakdown/assets ONLY for the sections noted above; omit them otherwise. Only include items with confidence >= 0.6. Never duplicate the primary section. Use [] if there are none.`;
+
+const VALID_CROSS_SECTIONS = new Set(['travel', 'money', 'garage', 'health', 'social', 'career', 'lifestyle', 'hosting']);
+
+for (const key of Object.keys(PROMPTS)) {
+  PROMPTS[key] = PROMPTS[key] + CROSS_SIGNAL_SUFFIX;
+}
+
+interface CrossSignal {
+  section: string;
+  label: string;
+  emoji: string;
+  confidence?: number;
+  locations?: string[];
+  spendingBreakdown?: Array<{ category: string; emoji: string; amountLabel: string; estimatedMonthly?: number }>;
+  assets?: Array<Record<string, string>>;
+}
+
+/** Sanitise the raw crossSignals from Claude: valid section, real label/emoji, confidence gate. */
+function sanitizeCrossSignals(raw: unknown, primaryCategory: string): CrossSignal[] {
+  if (!Array.isArray(raw)) return [];
+  // The "lifestyle" cross-target overlaps the lifestyle primary category; the
+  // social/career/health targets map onto social_proof/linkedin/discipline.
+  const primaryAliases: Record<string, string> = {
+    social_proof: 'social', linkedin: 'career', discipline: 'health',
+  };
+  const primaryTarget = primaryAliases[primaryCategory] ?? primaryCategory;
+  return (raw as any[])
+    .filter(s => s && typeof s.section === 'string' && VALID_CROSS_SECTIONS.has(s.section)
+      && typeof s.label === 'string' && s.label.trim() && typeof s.emoji === 'string' && s.emoji.trim()
+      && (s.confidence === undefined || s.confidence >= 0.6)
+      && s.section !== primaryTarget)                       // never echo the primary section
+    .slice(0, 6)
+    .map(s => ({
+      section: s.section,
+      label: String(s.label).trim(),
+      emoji: String(s.emoji).trim(),
+      confidence: typeof s.confidence === 'number' ? s.confidence : 0.6,
+      ...(Array.isArray(s.locations) ? { locations: s.locations.filter((l: unknown) => typeof l === 'string' && (l as string).trim()) } : {}),
+      ...(Array.isArray(s.spendingBreakdown) && s.spendingBreakdown.length ? { spendingBreakdown: s.spendingBreakdown } : {}),
+      ...(Array.isArray(s.assets) && s.assets.length ? { assets: s.assets } : {}),
+    }));
+}
+
 // intro + URL-only social categories are auto-verified without Vision
 const AUTO_VERIFY = '__auto_verify__';
 PROMPTS['intro'] = AUTO_VERIFY;
@@ -387,17 +455,40 @@ async function persistInsight(userId: string, category: string, pts: number, dat
 
       const mergedProofs = [...prevProofs.filter((p: any) => p.category !== category), newEntry];
 
-      // Also union-merge locations into countriesTraveled
+      // Also union-merge locations into countriesTraveled — include any travel
+      // locations surfaced as cross-signals from THIS upload, not just the
+      // primary `locations` array.
+      const incomingCross: CrossSignal[] = Array.isArray(d.crossSignals) ? d.crossSignals as CrossSignal[] : [];
+      const crossTravelLocations = incomingCross
+        .filter(s => s.section === 'travel' && Array.isArray(s.locations))
+        .flatMap(s => s.locations as string[]);
       const prevCountries: string[] = Array.isArray(masterData.countriesTraveled)
         ? masterData.countriesTraveled as string[]
         : [];
       const newLocations: string[] = Array.isArray(d.locations) ? d.locations as string[] : [];
-      const mergedCountries = Array.from(new Set([...prevCountries, ...newLocations]));
+      const mergedCountries = Array.from(new Set([...prevCountries, ...newLocations, ...crossTravelLocations]));
+
+      // ── Cross-section signals (inferred from this upload, distinct from the
+      //    primary verified proof). Keyed by target section, deduped by label,
+      //    each tagged with `from` (the source proof category) so the public
+      //    profile can render them as inferred, not directly verified.
+      const prevCross = (typeof masterData.crossSignals === 'object' && masterData.crossSignals)
+        ? masterData.crossSignals as Record<string, any[]>
+        : {};
+      const mergedCross: Record<string, any[]> = { ...prevCross };
+      for (const sig of incomingCross) {
+        const bucket = Array.isArray(mergedCross[sig.section]) ? [...mergedCross[sig.section]] : [];
+        // Drop any prior signal with the same label from the same source, then prepend the fresh one.
+        const deduped = bucket.filter((e: any) => !(e.label === sig.label && e.from === category));
+        deduped.unshift({ ...sig, from: category, verified_at: new Date().toISOString() });
+        mergedCross[sig.section] = deduped.slice(0, 8);
+      }
 
       const updatedMaster = {
         ...masterData,
         verifiedProofs:    mergedProofs,
         countriesTraveled: mergedCountries,
+        crossSignals:      mergedCross,
         lastSynced:        new Date().toISOString(),
       };
 
@@ -536,7 +627,7 @@ export const POST: RequestHandler = async ({ request }) => {
         },
         body: JSON.stringify({
           model: CLAUDE_MODEL,
-          max_tokens: 768,
+          max_tokens: 1024,   // room for primary insights + crossSignals
           messages: [{ role: 'user', content }],
         }),
         signal: AbortSignal.timeout(60_000),
@@ -553,12 +644,14 @@ export const POST: RequestHandler = async ({ request }) => {
       const pdfFiles = files.filter(f => f.type === 'application/pdf');
       const parsed   = await callClaudeWithPdfs(pdfFiles, PROMPTS.linkedin);
       const cvInsights = (parsed?.insights?.length ? parsed.insights : [{ label: 'CV uploaded', emoji: '📄' }]).slice(0, 5);
+      const cvCross    = sanitizeCrossSignals(parsed?.crossSignals, category);
       const nameMatch  = docNameMatches(verifiedId?.idName, parsed?.documentName);
-      if (userId) await persistInsight(userId, category, pts, { insights: cvInsights, aggregated: parsed?.aggregated, pts_awarded: pts, ...(nameMatch === false ? { nameMismatch: true } : {}) });
+      if (userId) await persistInsight(userId, category, pts, { insights: cvInsights, aggregated: parsed?.aggregated, crossSignals: cvCross, pts_awarded: pts, ...(nameMatch === false ? { nameMismatch: true } : {}) });
       return json({
         verified:    parsed?.verified !== false,
         insights:    cvInsights,
         aggregated:  parsed?.aggregated,
+        crossSignals: cvCross,
         pts_awarded: pts,
         photo_count: files.length,
         confidence:  parsed?.confidence ?? 0.85,
@@ -571,13 +664,15 @@ export const POST: RequestHandler = async ({ request }) => {
       const parsed    = await callClaudeWithPdfs(files, PROMPTS.wealth);
       const wInsights = (parsed?.insights?.length ? parsed.insights : [{ label: 'Financial document uploaded', emoji: '💰' }]).slice(0, 5);
       const wSpending = parsed?.spendingBreakdown ?? [];
+      const wCross    = sanitizeCrossSignals(parsed?.crossSignals, category);
       const nameMatch = docNameMatches(verifiedId?.idName, parsed?.documentName);
-      if (userId) await persistInsight(userId, category, pts, { insights: wInsights, aggregated: parsed?.aggregated, spendingBreakdown: wSpending.length ? wSpending : undefined, pts_awarded: pts, ...(nameMatch === false ? { nameMismatch: true } : {}) });
+      if (userId) await persistInsight(userId, category, pts, { insights: wInsights, aggregated: parsed?.aggregated, spendingBreakdown: wSpending.length ? wSpending : undefined, crossSignals: wCross, pts_awarded: pts, ...(nameMatch === false ? { nameMismatch: true } : {}) });
       return json({
         verified:          parsed?.verified !== false,
         insights:          wInsights,
         aggregated:        parsed?.aggregated,
         spendingBreakdown: wSpending,
+        crossSignals:      wCross,
         pts_awarded:       pts,
         photo_count:       files.length,
         confidence:        parsed?.confidence ?? 0.85,
@@ -635,7 +730,7 @@ export const POST: RequestHandler = async ({ request }) => {
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: CLAUDE_MODEL,
-        max_tokens: 768,
+        max_tokens: 1024,   // room for primary insights + crossSignals
         messages: [{ role: 'user', content: [...imageBlocks, { type: 'text', text: visionPrompt }] }]
       }),
       signal: AbortSignal.timeout(60_000),
@@ -666,6 +761,7 @@ export const POST: RequestHandler = async ({ request }) => {
       aggregated?: string;
       assets?: Array<Record<string, string>>;
       spendingBreakdown?: Array<{ category: string; emoji: string; amountLabel: string; estimatedMonthly?: number }>;
+      crossSignals?: unknown;
       confidence?: number;
       reason?: string;
     };
@@ -682,6 +778,7 @@ export const POST: RequestHandler = async ({ request }) => {
     const aggregated        = typeof result.aggregated === 'string' ? result.aggregated.trim() : '';
     const assets            = Array.isArray(result.assets) ? result.assets : [];
     const spendingBreakdown = Array.isArray(result.spendingBreakdown) ? result.spendingBreakdown : [];
+    const crossSignals      = sanitizeCrossSignals(result.crossSignals, category);
     if (insights.length === 0 && verified) insights.push({ label: 'Proof verified', emoji: '✅' });
 
     // Warn-only name check for gated name-bearing documents.
@@ -719,7 +816,7 @@ export const POST: RequestHandler = async ({ request }) => {
         }
       }
 
-      if (userId) await persistInsight(userId, category, pts, { insights, locations, aggregated, assets, spendingBreakdown, confidence: result.confidence, reason: result.reason, pts_awarded: pts, photo_count: files.length, thumbnail_urls: thumbnailUrls, ...(nameMatch === false ? { nameMismatch: true } : {}) });
+      if (userId) await persistInsight(userId, category, pts, { insights, locations, aggregated, assets, spendingBreakdown, crossSignals, confidence: result.confidence, reason: result.reason, pts_awarded: pts, photo_count: files.length, thumbnail_urls: thumbnailUrls, ...(nameMatch === false ? { nameMismatch: true } : {}) });
     }
 
     return json({
@@ -729,6 +826,7 @@ export const POST: RequestHandler = async ({ request }) => {
       aggregated,
       assets,
       spendingBreakdown,
+      crossSignals,
       pts_awarded:    verified ? pts : 0,
       photo_count:    files.length,
       confidence:     result.confidence ?? 0,

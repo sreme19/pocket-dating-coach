@@ -338,6 +338,27 @@ class _ProfileBody extends StatelessWidget {
           ),
         ),
 
+        // ── Here for ─────────────────────────────────────────────────────
+        _Section(
+          emoji: '🧭',
+          title: 'HERE FOR',
+          onEdit: () => _editHereFor(context, data, onChanged),
+          child: ((data.hereForTitle == null || data.hereForTitle!.isEmpty) &&
+                  (data.hereForDesc == null || data.hereForDesc!.isEmpty))
+              ? const Text('What you’re looking for — tap edit to add.',
+                  style: TextStyle(fontSize: 15, color: Color(Config.text3)))
+              : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  if (data.hereForTitle != null && data.hereForTitle!.isNotEmpty)
+                    Text(data.hereForTitle!,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+                  if (data.hereForDesc != null && data.hereForDesc!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(data.hereForDesc!,
+                        style: const TextStyle(fontSize: 15, height: 1.45, color: Color(Config.text2))),
+                  ],
+                ]),
+        ),
+
         // ── Money matters ────────────────────────────────────────────────
         _Section(
           emoji: '💰',
@@ -347,8 +368,8 @@ class _ProfileBody extends StatelessWidget {
             income: data.annualIncome,
             netWorth: data.netWorth,
             tiles: [
-              if (data.wealth != null) for (final c in data.wealth!.chips) (c.emoji, c.label),
-              for (final s in data.spending) (s.emoji, s.category),
+              if (data.wealth != null) for (final c in data.wealth!.chips) (c.emoji, c.label, false, null),
+              for (final s in data.spending) (s.emoji, s.category, false, null),
             ],
             footer: data.annualIncome != null || data.netWorth != null
                 ? '✓ AI verified via bank statement / financial document'
@@ -796,6 +817,93 @@ Widget _moneyRangePills({
         ),
     ]);
 
+Future<void> _editHereFor(BuildContext context, ProfileData d, VoidCallback onChanged) async {
+  final titleCtrl = TextEditingController(text: d.hereForTitle ?? '');
+  final descCtrl = TextEditingController(text: d.hereForDesc ?? '');
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: const Color(Config.bg2),
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (ctx) {
+      var saving = false;
+      String? error;
+      return StatefulBuilder(builder: (ctx, setS) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(20, 18, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('What you’re here for',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+              const SizedBox(height: 4),
+              const Text('A short headline, plus a line on what you’re looking for.',
+                  style: TextStyle(fontSize: 13, color: Color(Config.text2))),
+              const SizedBox(height: 16),
+              TextField(
+                controller: titleCtrl,
+                maxLength: 60,
+                textCapitalization: TextCapitalization.sentences,
+                style: const TextStyle(color: Color(Config.text1)),
+                decoration: InputDecoration(
+                  labelText: 'Headline (e.g. “Something real, no rush”)',
+                  labelStyle: const TextStyle(color: Color(Config.text2)),
+                  filled: true, fillColor: const Color(Config.bg3),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: descCtrl,
+                maxLines: 3,
+                maxLength: 240,
+                textCapitalization: TextCapitalization.sentences,
+                style: const TextStyle(color: Color(Config.text1)),
+                decoration: InputDecoration(
+                  labelText: 'A little more (optional)',
+                  alignLabelWithHint: true,
+                  labelStyle: const TextStyle(color: Color(Config.text2)),
+                  filled: true, fillColor: const Color(Config.bg3),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+              if (error != null) ...[
+                Text(error!, style: const TextStyle(color: Color(0xFFF87171), fontSize: 13)),
+                const SizedBox(height: 8),
+              ],
+              SizedBox(
+                width: double.infinity, height: 50,
+                child: FilledButton(
+                  onPressed: saving ? null : () async {
+                    setS(() { saving = true; error = null; });
+                    try {
+                      await saveHereFor(titleCtrl.text, descCtrl.text);
+                      if (ctx.mounted) Navigator.of(ctx).pop();
+                      onChanged();
+                    } catch (e) {
+                      setS(() { saving = false; error = '$e'; });
+                    }
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(Config.accent),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: saving
+                      ? const SizedBox(width: 18, height: 18,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        );
+      });
+    },
+  );
+}
+
 Future<void> _editAbout(BuildContext context, ProfileData d, VoidCallback onChanged) async {
   final ctrl = TextEditingController(text: d.about);
 
@@ -1219,14 +1327,16 @@ class _EditableChipsState extends State<_EditableChips> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         LayoutBuilder(builder: (context, constraints) {
-          final chipW = (constraints.maxWidth - 8) / 2;
           return Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
               for (final c in _chips)
-                SizedBox(
-                  width: chipW,
+                // Size to content (Hinge/Tinder style); cap at the row width so a
+                // rare long label wraps to a second line instead of overflowing —
+                // either way the full text is shown, never truncated.
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: constraints.maxWidth),
                   child: _ChipWithRemove(text: '${c.emoji} ${c.label}', editing: _edit, onRemove: () => _remove(c)),
                 ),
               GestureDetector(
@@ -1292,7 +1402,9 @@ class _ChipWithRemove extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(12, 7, editing ? 6 : 12, 7),
       decoration: BoxDecoration(color: const Color(Config.bg3), borderRadius: BorderRadius.circular(999)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Flexible(child: Text(text, style: const TextStyle(fontSize: 13, color: Color(Config.text1), fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis, maxLines: 1)),
+        // Wrap the full label (no ellipsis) — chips are content-sized and only
+        // wrap to a 2nd line if a label exceeds the available row width.
+        Flexible(child: Text(text, style: const TextStyle(fontSize: 13, color: Color(Config.text1), fontWeight: FontWeight.w500), softWrap: true)),
         if (editing) ...[
           const SizedBox(width: 6),
           GestureDetector(
@@ -1573,6 +1685,43 @@ class _LanePickerSheetState extends State<_LanePickerSheet> {
 
   Future<void> _pick(BuildContext ctx, Archetype a) async {
     if (_saving) return;
+    // Picking the current lane is a no-op — just close.
+    if (a.id == widget.data.archetype) {
+      Navigator.of(ctx).pop();
+      return;
+    }
+    // Warn before confirming: a lane change cascades through matches, profile
+    // and AI advisors, and re-asks the new lane's intent Q&A.
+    final confirmed = await showDialog<bool>(
+      context: ctx,
+      builder: (dctx) => AlertDialog(
+        backgroundColor: const Color(Config.bg2),
+        title: Text('Switch to ${a.name}?',
+            style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700)),
+        content: const Text(
+          'Your lane shapes everything. Switching will:\n\n'
+          '•  Refresh who you see and your match scores\n'
+          '•  Swap your "what you bring" set and dating-style baselines\n'
+          '•  Update your AI advisor to the new lane\n'
+          '•  Re-ask your intent Q&A for the new lane\n\n'
+          'Your existing matches stay. Change lanes thoughtfully.',
+          style: TextStyle(color: Color(Config.text2), height: 1.45, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dctx).pop(false),
+            child: const Text('Cancel', style: TextStyle(color: Color(Config.text2))),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dctx).pop(true),
+            style: FilledButton.styleFrom(
+                backgroundColor: const Color(Config.accent), foregroundColor: Colors.white),
+            child: const Text('Switch lane'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
     setState(() => _saving = true);
     try {
       await saveArchetype(a.id);
@@ -2423,13 +2572,37 @@ class _PhotoStorySectionState extends State<_PhotoStorySection> {
     }
   }
 
+  /// Women: up to 6 real photos as tiles, plus one "add" tile while under cap.
+  List<Widget> _womenTiles(ProfileData data) {
+    final ups = data.uploadedPhotos;
+    void open() => openPhotoManager(context, data, widget.onChanged);
+    final tiles = <Widget>[
+      for (var i = 0; i < ups.length && i < 6; i++)
+        _PhotoSlot(
+          url: ups[i].url,
+          isAi: false,
+          label: i == 0 ? 'lead' : 'photo',
+          isMan: false,
+          onTap: open,
+        ),
+    ];
+    if (ups.length < 6) {
+      tiles.add(_PhotoSlot(url: null, isAi: false, label: 'photo', isMan: false, onTap: open));
+    }
+    return tiles;
+  }
+
   @override
   Widget build(BuildContext context) {
     final data = widget.data;
+    final isMan = data.isMan;
     final hasAiPhotos = _aiPhotos.isNotEmpty;
     final hasRealPhotos = data.uploadedPhotos.isNotEmpty;
     final filled = _slots.where((s) => _resolve(s) != null).length;
-    final subtitle = hasAiPhotos ? '$filled/3  ✨ AI-enhanced' : '$filled/3';
+    final realCount = data.uploadedPhotos.length.clamp(0, 6);
+    final subtitle = isMan
+        ? (hasAiPhotos ? '$filled/3  ✨ AI-enhanced' : '$filled/3')
+        : '$realCount/6  · real photos';
 
     return _Section(
       icon: Icons.photo_library_outlined,
@@ -2463,25 +2636,34 @@ class _PhotoStorySectionState extends State<_PhotoStorySection> {
               mainAxisSpacing: 8,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              children: [
-                for (final slot in _slots)
-                  _PhotoSlot(
-                    url: _resolve(slot),
-                    isAi: _aiPhotos.any((a) => a.role == slot),
-                    label: slot,
-                    isMan: data.isMan,
-                    onTap: () => openPhotoManager(context, data, widget.onChanged),
-                  ),
-              ],
+              children: isMan
+                  ? [
+                      for (final slot in _slots)
+                        _PhotoSlot(
+                          url: _resolve(slot),
+                          isAi: _aiPhotos.any((a) => a.role == slot),
+                          label: slot,
+                          isMan: true,
+                          onTap: () => openPhotoManager(context, data, widget.onChanged),
+                        ),
+                    ]
+                  : _womenTiles(data),
             ),
           if (_enhanceError != null) ...[
             const SizedBox(height: 6),
             Text(_enhanceError!,
                 style: const TextStyle(color: Color(0xFFF87171), fontSize: 12)),
           ],
+          const SizedBox(height: 10),
+          Text(
+            isMan
+                ? 'Viewers only ever see your AI-enhanced photos — your raw photo is never shown, before or after a match.'
+                : 'Shown exactly as you upload them — real photos, no AI filters.',
+            style: const TextStyle(fontSize: 12, color: Color(Config.text3), height: 1.35),
+          ),
           const SizedBox(height: 12),
-          // Enhance with AI — always shown for men; greyed out until photos exist
-          if (data.isMan)
+          // Enhance with AI — shown for men only; greyed out until photos exist
+          if (isMan)
             SizedBox(
               width: double.infinity, height: 50,
               child: FilledButton(

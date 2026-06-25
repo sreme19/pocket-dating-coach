@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api.dart';
 import 'config.dart';
+import 'preference_weighting_screen.dart';
+import 'profile_strength_screen.dart';
 import 'push_service.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -35,6 +37,19 @@ class SettingsScreen extends StatelessWidget {
           _header('ACCOUNT'),
           _row('Email', user?.email ?? '—'),
           _row('User ID', user?.id ?? '—', mono: true),
+          _header('MATCHING'),
+          _navRow(
+            context,
+            'Profile strength',
+            'See your standing and how to climb',
+            const ProfileStrengthScreen(),
+          ),
+          _navRow(
+            context,
+            'What you value',
+            'Tune how much each quality matters to you in a match',
+            const PreferenceWeightingScreen(),
+          ),
           _header('APP'),
           _row('Version', '1.0.1 (9)'),
           _row('Build', 'Flutter · riteangle'),
@@ -77,6 +92,25 @@ class SettingsScreen extends StatelessWidget {
   Widget _header(String t) => Padding(
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
         child: Text(t, style: const TextStyle(color: Color(Config.text2), fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+      );
+
+  Widget _navRow(BuildContext context, String title, String sub, Widget dest) => InkWell(
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => dest)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(title, style: const TextStyle(color: Color(Config.text1), fontSize: 15, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(sub, style: const TextStyle(color: Color(Config.text3), fontSize: 12, height: 1.35)),
+                ]),
+              ),
+              const Icon(Icons.chevron_right, color: Color(Config.text3)),
+            ],
+          ),
+        ),
       );
 
   Widget _row(String label, String value, {bool mono = false}) => Padding(

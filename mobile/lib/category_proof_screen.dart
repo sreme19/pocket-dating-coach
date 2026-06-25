@@ -74,7 +74,7 @@ const _configs = <String, _CatConfig>{
     id: 'discipline',
     icon: '💪',
     title: 'Discipline Proof',
-    subtitle: 'Show your consistent routines',
+    subtitle: 'Show your consistent habits and routines',
     privacyCopy: 'Private by default. Your proofs strengthen trust, verify authenticity, and help you get better matches.',
     examples: [
       'Gym check-in or workout selfie',
@@ -89,15 +89,15 @@ const _configs = <String, _CatConfig>{
     id: 'social_proof',
     icon: '🤝',
     title: 'Social Proof',
-    subtitle: 'Show your real social connections',
+    subtitle: 'Show your real social life — friends, events, and gatherings you host',
     privacyCopy: 'Nothing here is public. These signals confirm your lifestyle and improve compatibility.',
     examples: [
       'Group photos with friends',
       'Community or club events you attend',
       'Sports team or group activity photos',
-      'Social gathering moments',
+      'Dinners, parties or celebrations you host',
     ],
-    hintLine: 'Natural group moments beat posed shots. Up to 20 photos.',
+    hintLine: 'Belonging to a social circle and hosting both count. Natural moments beat posed shots. Up to 20 photos.',
     maxFiles: 20,
   ),
   'hosting': _CatConfig(
@@ -231,7 +231,7 @@ const _configs = <String, _CatConfig>{
     icon: '🏦',
     title: 'Wealth Proof',
     subtitle: 'Bank statement, investment or financial document',
-    privacyCopy: 'Documents are private. AI only reads balance ranges — your actual amounts are never stored or shared.',
+    privacyCopy: 'Documents are private and never shown to anyone. The AI reads only balance ranges — viewers see the verified result, never your statements or exact figures.',
     examples: [
       'Bank statement (balance page)',
       'Investment account or brokerage statement',
@@ -281,6 +281,15 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
   _UploadResult? _result;
   final List<XFile> _resumeImages = [];
 
+  // ── Verified-proof editing ───────────────────────────────────────────────
+  // Local, mutable copies of the existing proof's insight chips and thumbnails
+  // so the user can remove bubbles and photos. Edits persist via
+  // removeInsightChip() / removeProofThumbnail(); null until a proof is present.
+  List<InsightChip>? _insights;
+  List<String>? _thumbnails;
+  int _photoCount = 0;
+  bool _editProof = false;
+
   // ── Intro-only recording state ──────────────────────────────────────────────
   AudioRecorder? _audioRec;
   bool _isRecordingVoice = false;
@@ -294,6 +303,12 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
     super.initState();
     if (widget.categoryId == 'intro') {
       _audioRec = AudioRecorder();
+    }
+    final existing = widget.existingProof;
+    if (existing != null) {
+      if (existing.insights.isNotEmpty) _insights = List<InsightChip>.of(existing.insights);
+      if (existing.thumbnails.isNotEmpty) _thumbnails = List<String>.of(existing.thumbnails);
+      _photoCount = existing.photoCount;
     }
   }
 
@@ -699,19 +714,23 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
       final verified = res['verified'] == true;
       final pts = res['pts_awarded'] is num ? (res['pts_awarded'] as num).toInt() : 0;
       final agg = (res['aggregated'] ?? res['reason'] ?? '').toString();
+      final nameMismatch = res['nameMatch'] == false;
       final chips = <String>[];
       if (res['insights'] is List) {
         for (final i in (res['insights'] as List)) {
           if (i is Map && i['label'] != null) chips.add('${i['emoji'] ?? '•'} ${i['label']}');
         }
       }
+      final baseText = verified
+          ? '✓ ${_cfg.title} verified · +$pts trust${agg.isNotEmpty ? '\n$agg' : ''}'
+          : 'Couldn\'t verify.${agg.isNotEmpty ? '\n$agg' : ''}';
       setState(() {
         _analysing = false;
         _result = _UploadResult(
           verified: verified,
-          text: verified
-              ? '✓ ${_cfg.title} verified · +$pts trust${agg.isNotEmpty ? '\n$agg' : ''}'
-              : 'Couldn\'t verify.${agg.isNotEmpty ? '\n$agg' : ''}',
+          text: nameMismatch
+              ? '$baseText\n\n⚠️ The name on this document doesn\'t match your verified ID, so it\'s flagged for review. Upload documents in your own name to earn full trust.'
+              : baseText,
           chips: chips,
         );
       });
@@ -720,6 +739,55 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
         _analysing = false;
         _result = _UploadResult(verified: false, text: _friendlyError(e), chips: const []);
       });
+    }
+  }
+
+  bool get _hasEditable =>
+      (_insights?.isNotEmpty ?? false) || (_thumbnails?.isNotEmpty ?? false);
+
+  // ── Remove a verified-signal bubble (optimistic + persist) ────────────────
+  Future<void> _removeInsight(String category, InsightChip chip) async {
+    final list = _insights;
+    if (list == null) return;
+    final idx = list.indexOf(chip);
+    if (idx < 0) return;
+    setState(() {
+      list.removeAt(idx);
+      if (!_hasEditable) _editProof = false;
+    });
+    try {
+      await removeInsightChip(category, chip.label);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => list.insert(idx.clamp(0, list.length), chip));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_friendlyError(e))),
+      );
+    }
+  }
+
+  // ── Remove a thumbnail image (optimistic + persist) ───────────────────────
+  Future<void> _removeThumbnail(String category, String url) async {
+    final list = _thumbnails;
+    if (list == null) return;
+    final idx = list.indexOf(url);
+    if (idx < 0) return;
+    setState(() {
+      list.removeAt(idx);
+      if (_photoCount > 0) _photoCount--;
+      if (!_hasEditable) _editProof = false;
+    });
+    try {
+      await removeProofThumbnail(category, url);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        list.insert(idx.clamp(0, list.length), url);
+        _photoCount++;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_friendlyError(e))),
+      );
     }
   }
 
@@ -744,9 +812,27 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                   color: Color(0xFF22C55E), fontWeight: FontWeight.w700, fontSize: 14),
             ),
           ),
-          if (proof.photoCount > 0)
-            Text('${proof.photoCount} photo${proof.photoCount == 1 ? '' : 's'}',
+          if (_photoCount > 0)
+            Text('$_photoCount photo${_photoCount == 1 ? '' : 's'}',
                 style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
+          // Pencil → toggle remove-mode for the signal bubbles + photos below
+          if (_hasEditable) ...[
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: () => setState(() => _editProof = !_editProof),
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Icon(
+                  _editProof ? Icons.check_rounded : Icons.edit_outlined,
+                  size: 18,
+                  color: _editProof
+                      ? const Color(0xFF22C55E)
+                      : const Color(Config.text2),
+                ),
+              ),
+            ),
+          ],
         ]),
 
         // AI summary
@@ -758,49 +844,89 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
         ],
 
         // Insight chips
-        if (proof.insights.isNotEmpty) ...[
+        if ((_insights ?? proof.insights).isNotEmpty) ...[
           const SizedBox(height: 10),
           Wrap(spacing: 6, runSpacing: 6, children: [
-            for (final chip in proof.insights)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                    color: const Color(Config.bg3), borderRadius: BorderRadius.circular(999)),
-                child: Text('${chip.emoji} ${chip.label}',
-                    style: const TextStyle(color: Color(Config.text1), fontSize: 12)),
+            for (final chip in (_insights ?? proof.insights))
+              GestureDetector(
+                onTap: _editProof ? () => _removeInsight(proof.category, chip) : null,
+                child: Container(
+                  padding: EdgeInsets.only(
+                      left: 10, right: _editProof ? 6 : 10, top: 5, bottom: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(Config.bg3),
+                    borderRadius: BorderRadius.circular(999),
+                    border: _editProof
+                        ? Border.all(color: const Color(0x66F87171))
+                        : null,
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text('${chip.emoji} ${chip.label}',
+                        style: const TextStyle(color: Color(Config.text1), fontSize: 12)),
+                    if (_editProof) ...[
+                      const SizedBox(width: 5),
+                      const Icon(Icons.close_rounded, size: 14, color: Color(0xFFF87171)),
+                    ],
+                  ]),
+                ),
               ),
           ]),
         ],
 
         // Thumbnail photos
-        if (proof.thumbnails.isNotEmpty) ...[
+        if ((_thumbnails ?? proof.thumbnails).isNotEmpty) ...[
           const SizedBox(height: 12),
-          SizedBox(
-            height: 72,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: proof.thumbnails.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 6),
-              itemBuilder: (_, i) => ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.network(
-                  proof.thumbnails[i],
-                  width: 72, height: 72, fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    width: 72, height: 72,
-                    color: const Color(Config.bg3),
-                    child: const Icon(Icons.image_not_supported_outlined,
-                        color: Color(Config.text3), size: 20),
-                  ),
-                ),
+          Builder(builder: (_) {
+            final thumbs = _thumbnails ?? proof.thumbnails;
+            return SizedBox(
+              height: 72,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: thumbs.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 6),
+                itemBuilder: (_, i) {
+                  final url = thumbs[i];
+                  return Stack(children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        url,
+                        width: 72, height: 72, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 72, height: 72,
+                          color: const Color(Config.bg3),
+                          child: const Icon(Icons.image_not_supported_outlined,
+                              color: Color(Config.text3), size: 20),
+                        ),
+                      ),
+                    ),
+                    if (_editProof)
+                      Positioned(
+                        top: 4, right: 4,
+                        child: GestureDetector(
+                          onTap: () => _removeThumbnail(proof.category, url),
+                          child: Container(
+                            width: 22, height: 22,
+                            decoration: const BoxDecoration(
+                                color: Colors.black54, shape: BoxShape.circle),
+                            child: const Icon(Icons.close, size: 14, color: Colors.white),
+                          ),
+                        ),
+                      ),
+                  ]);
+                },
               ),
-            ),
-          ),
+            );
+          }),
         ],
 
         const SizedBox(height: 10),
-        const Text('Upload more below to strengthen your proof →',
-            style: TextStyle(color: Color(Config.text3), fontSize: 11, fontStyle: FontStyle.italic)),
+        Text(
+            _editProof
+                ? 'Tap a signal or photo to remove it · tap ✓ when done'
+                : 'Upload more below to strengthen your proof →',
+            style: const TextStyle(
+                color: Color(Config.text3), fontSize: 11, fontStyle: FontStyle.italic)),
       ]),
     );
   }

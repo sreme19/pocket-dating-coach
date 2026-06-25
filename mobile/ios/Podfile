@@ -48,4 +48,50 @@ post_install do |installer|
       config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ''
     end
   end
+
+  # ── connectivity_plus patch ─────────────────────────────────────────────────
+  # connectivity_plus 7.1.1 references NWPath.isUltraConstrained which is an
+  # iOS 26.0 API. GitHub Actions CI runs Xcode 16.x (iOS 18 SDK) which does
+  # not include this API, causing a Swift compile error even with #available.
+  # We remove the entire block — satellite detection is non-critical.
+  connectivity_file = Dir[File.join(
+    ENV['HOME'], '.pub-cache', 'hosted', 'pub.dev',
+    'connectivity_plus-*', 'ios', 'connectivity_plus', 'Sources',
+    'connectivity_plus', 'PathMonitorConnectivityProvider.swift'
+  )].first
+  if connectivity_file && File.exist?(connectivity_file)
+    content = File.read(connectivity_file)
+    if content.include?('isUltraConstrained')
+      # Remove the entire #available block that uses isUltraConstrained
+      patched = content.gsub(
+        /\s*if #available\([^)]*\),\s*path\.isUltraConstrained \{[^}]*\}/m,
+        ''
+      )
+      File.write(connectivity_file, patched)
+      puts 'Patched connectivity_plus: removed isUltraConstrained block (iOS 26 API not in CI SDK)'
+    end
+  end
+
+  # ── device_info_plus patch ───────────────────────────────────────────────────
+  # device_info_plus 12.4.0 calls [NSProcessInfo isiOSAppOnVision] which is an
+  # iOS 26.1 API. Xcode 16 CI (iOS 18 SDK) doesn't declare this selector at all,
+  # causing a compile error despite the @available(iOS 26.1, *) guard.
+  # We replace the conditional block so isiOSAppOnVision always returns NO,
+  # which is the correct value for any non-Vision-Pro device anyway.
+  device_info_file = Dir[File.join(
+    ENV['HOME'], '.pub-cache', 'hosted', 'pub.dev',
+    'device_info_plus-*', 'ios', 'device_info_plus', 'Sources',
+    'device_info_plus', 'FPPDeviceInfoPlusPlugin.m'
+  )].first
+  if device_info_file && File.exist?(device_info_file)
+    content = File.read(device_info_file)
+    if content.include?('isiOSAppOnVision')
+      patched = content.gsub(
+        /NSNumber \*isiOSAppOnVision = \[NSNumber numberWithBool:NO\];\s*if \(@available\([^)]*\)\) \{\s*isiOSAppOnVision = \[NSNumber numberWithBool:\[info isiOSAppOnVision\]\];\s*\}/m,
+        'NSNumber *isiOSAppOnVision = [NSNumber numberWithBool:NO]; /* iOS 26.1+ only — patched for Xcode 16 CI */'
+      )
+      File.write(device_info_file, patched)
+      puts 'Patched device_info_plus: stubbed isiOSAppOnVision to NO (iOS 26.1 API not in CI SDK)'
+    end
+  end
 end

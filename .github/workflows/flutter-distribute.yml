@@ -46,7 +46,11 @@ jobs:
       # Debug build — no keystore needed, suitable for internal testing.
       # Switch to --release + signing config when ready for production.
       - name: Build APK (debug)
-        run: cd mobile && flutter build apk --debug
+        # --build-number stamps a unique, increasing Android versionCode per run
+        # (github.run_number is monotonic). pubspec's +N is fixed, so without this
+        # every build shares one versionCode and Android refuses to install the
+        # newer build over the one a tester already has.
+        run: cd mobile && flutter build apk --debug --build-number=${{ github.run_number }}
 
       # ── Upload to Firebase App Distribution ────────────────────────────────
       - name: Distribute to testers
@@ -68,7 +72,8 @@ jobs:
           STATUS=$([ "${{ job.status }}" = "success" ] && echo "OK" || echo "FAIL")
           NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           SHA="${{ github.sha }}"
-          MSG="${{ github.event.head_commit.message }}"
+          # NOTE: do not interpolate github.event.head_commit.message into this
+          # shell — multi-line / quoted commit messages break the script (exit 127).
           curl -s -o /dev/null \
             -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/monitor_log" \
             -H "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \

@@ -21,15 +21,23 @@ subprojects {
     // default compileSdkVersion (34) is too low for some plugins. Uses the modern
     // AGP DSL (CommonExtension) since BaseExtension was removed in AGP 9.
     //
-    // This afterEvaluate must be registered BEFORE evaluationDependsOn(":app")
-    // below, otherwise the subproject may already be evaluated and Gradle throws
+    // evaluationDependsOn(":app") below forces plugin subprojects to evaluate
+    // early, so by the time this loop reaches them they may ALREADY be evaluated —
+    // and registering afterEvaluate on an evaluated project throws
     // "Cannot run Project.afterEvaluate when the project is already evaluated".
-    afterEvaluate {
+    // Guard on the evaluation state: configure straight away if already evaluated,
+    // otherwise defer to afterEvaluate.
+    val forceCompileSdk: Project.() -> Unit = {
         extensions.findByType(com.android.build.api.dsl.CommonExtension::class.java)?.let { ext ->
             if ((ext.compileSdk ?: 0) < 36) {
                 ext.compileSdk = 36
             }
         }
+    }
+    if (state.executed) {
+        forceCompileSdk()
+    } else {
+        afterEvaluate { forceCompileSdk() }
     }
     project.evaluationDependsOn(":app")
 }

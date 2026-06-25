@@ -40,6 +40,23 @@ const PROOF_BOOST_MAP: Record<string, { key: keyof CGTrustSubscores; boost: numb
 
 const SHOW_OFF_CATS = new Set(['lifestyle', 'hosting', 'discipline', 'social_proof']);
 
+// Cross-section signals (master_profile.data.crossSignals) are insights inferred
+// from a DIFFERENT upload than the section they enrich. They award REDUCED trust
+// — a fraction of the equivalent direct-proof boost — and ONLY for a CG dimension
+// the user hasn't already proved directly, so one upload can't "spray" points or
+// double-credit a dimension. target section → CG dimension + full-strength boost.
+const CROSS_SIGNAL_FACTOR = 0.25;
+const CROSS_SECTION_BOOST_MAP: Record<string, { key: keyof CGTrustSubscores; boost: number }> = {
+	travel:    { key: 'lifestyleDepth',    boost: 30 },
+	lifestyle: { key: 'lifestyleDepth',    boost: 30 },
+	hosting:   { key: 'lifestyleDepth',    boost: 20 },
+	health:    { key: 'emotionalSafety',   boost: 35 },
+	social:    { key: 'socialLegitimacy',  boost: 30 },
+	career:    { key: 'socialLegitimacy',  boost: 50 },
+	money:     { key: 'generositySignals', boost: 30 },
+	garage:    { key: 'generositySignals', boost: 35 },
+};
+
 // 📎 artifact claim_tag → CG dimension. Mirrors the closest proof category so
 // chat-uploaded evidence finally contributes on the same footing as onboarding
 // proofs. Each artifact is a single item, so no photo multiplier is applied.
@@ -108,6 +125,12 @@ export async function computeSubscores(userId: string): Promise<SubscoreResult> 
 			.select('claim_tag')
 			.eq('user_id', userId);
 
+		const { data: masterRow } = await db
+			.from('user_master_profile')
+			.select('data')
+			.eq('user_id', userId)
+			.maybeSingle();
+
 		// Base dimensions from verification records (faithful to the old recalc).
 		if (Array.isArray(baseRows)) {
 			const idRec    = baseRows.find((r: any) => r.step === 'id');
@@ -124,7 +147,9 @@ export async function computeSubscores(userId: string): Promise<SubscoreResult> 
 			subscores.generositySignals  = qaRec ? 100 : 0;
 		}
 
-		// Proof boosts.
+		// Proof boosts. Track which CG dimensions get DIRECT credit so cross-signals
+		// below never double-count or inflate an already-proven dimension.
+		const directDims = new Set<keyof CGTrustSubscores>();
 		if (Array.isArray(proofRows)) {
 			for (const row of proofRows) {
 				const cat = (row.step as string).replace('proof_', '');
@@ -132,6 +157,7 @@ export async function computeSubscores(userId: string): Promise<SubscoreResult> 
 				if (!b) continue;
 				const mult = SHOW_OFF_CATS.has(cat) ? photoMultiplier(row.data?.photo_count ?? 0) : 1;
 				subscores[b.key] = Math.min(100, subscores[b.key] + Math.round(b.boost * mult));
+				directDims.add(b.key);
 			}
 		}
 
@@ -141,7 +167,22 @@ export async function computeSubscores(userId: string): Promise<SubscoreResult> 
 				const b = ARTIFACT_BOOST_MAP[a.claim_tag as string];
 				if (!b) continue;
 				subscores[b.key] = Math.min(100, subscores[b.key] + b.boost);
+				directDims.add(b.key);
 			}
+		}
+
+		// Cross-section signal boosts (reduced). Only credit a CG dimension that
+		// has NO direct proof yet, and at most once per dimension.
+		const crossSignals = (masterRow?.data?.crossSignals && typeof masterRow.data.crossSignals === 'object')
+			? masterRow.data.crossSignals as Record<string, unknown[]>
+			: {};
+		const creditedCrossDims = new Set<keyof CGTrustSubscores>();
+		for (const [section, sigs] of Object.entries(crossSignals)) {
+			if (!Array.isArray(sigs) || sigs.length === 0) continue;
+			const m = CROSS_SECTION_BOOST_MAP[section];
+			if (!m || directDims.has(m.key) || creditedCrossDims.has(m.key)) continue;
+			subscores[m.key] = Math.min(100, subscores[m.key] + Math.round(m.boost * CROSS_SIGNAL_FACTOR));
+			creditedCrossDims.add(m.key);
 		}
 	} catch (e) {
 		console.warn('computeSubscores failed (non-fatal):', e);
