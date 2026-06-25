@@ -54,3 +54,8 @@ supabase/.temp/
 # App Store Connect signing keys (never commit)
 mobile/.asc-keys/
 *.p8
+
+# iOS distribution signing certs — private keys, never commit
+*.p12
+*.pfx
+mobile/.signing/

@@ -161,6 +161,15 @@ export const GET: RequestHandler = async ({ params }) => {
     const onboarding = (masterData.onboarding as Record<string, unknown>) ?? {};
     const verifiedProofs: Array<Record<string, unknown>> = Array.isArray(masterData.verifiedProofs)
       ? masterData.verifiedProofs as Array<Record<string, unknown>> : [];
+    // Cross-section signals: insights inferred from a DIFFERENT upload than the
+    // section they enrich (e.g. a passport stamp seen in a Lifestyle photo →
+    // Travel). Keyed by target section; each carries `from` (source category) so
+    // we can render it as inferred rather than directly verified.
+    const crossSignals: Record<string, Array<Record<string, unknown>>> =
+      (typeof masterData.crossSignals === 'object' && masterData.crossSignals)
+        ? masterData.crossSignals as Record<string, Array<Record<string, unknown>>> : {};
+    const crossFor = (section: string): Array<Record<string, unknown>> =>
+      Array.isArray(crossSignals[section]) ? crossSignals[section] : [];
 
     const about: string | null = (typeof generatedProfile.about === 'string' ? generatedProfile.about : null) ?? profile.about ?? null;
     const hereFor: string = (typeof generatedProfile.intentStatement === 'string' ? generatedProfile.intentStatement : null)
@@ -188,8 +197,17 @@ export const GET: RequestHandler = async ({ params }) => {
     const proofByCategory = (cat: string) => verifiedProofs.find(p => p.category === cat) ?? null;
     function signalGroup(cat: string, key: string, label: string, icon: string) {
       const p = proofByCategory(cat);
-      if (!p || !Array.isArray(p.insights) || !p.insights.length) return null;
-      return { key, label, icon, insights: p.insights as Array<{ emoji: string; label: string }>, aggregated: typeof p.aggregated === 'string' ? p.aggregated : '' };
+      const direct = (p && Array.isArray(p.insights))
+        ? (p.insights as Array<{ emoji: string; label: string }>).map(i => ({ ...i, inferred: false }))
+        : [];
+      // Append cross-signals targeting this section, deduped against direct insights by label.
+      const directLabels = new Set(direct.map(i => i.label));
+      const inferred = crossFor(key)
+        .filter(s => typeof s.label === 'string' && !directLabels.has(s.label as string))
+        .map(s => ({ emoji: s.emoji as string, label: s.label as string, inferred: true, from: s.from as string }));
+      const insights = [...direct, ...inferred];
+      if (!insights.length) return null;
+      return { key, label, icon, insights, aggregated: (p && typeof p.aggregated === 'string') ? p.aggregated : '' };
     }
     const verifiedSignals = [
       signalGroup('linkedin', 'career', 'Career', '💼'),
@@ -198,14 +216,17 @@ export const GET: RequestHandler = async ({ params }) => {
       signalGroup('social_proof', 'social', 'Social', '🤝'),
     ].filter(Boolean);
 
-    // Travel
-    const travelLocations = Array.from(new Set(
-      verifiedProofs.flatMap(p => Array.isArray(p.locations) ? p.locations as string[] : [])
-    )).filter(Boolean);
+    // Travel — union of every proof's locations PLUS any travel cross-signals.
+    const crossTravelLocations = crossFor('travel')
+      .flatMap(s => Array.isArray(s.locations) ? s.locations as string[] : []);
+    const travelLocations = Array.from(new Set([
+      ...verifiedProofs.flatMap(p => Array.isArray(p.locations) ? p.locations as string[] : []),
+      ...crossTravelLocations,
+    ])).filter(Boolean);
 
     // Garage
     const assetsProof = proofByCategory('assets');
-    const garageCars: Array<{ make: string; model: string; year?: string; color?: string; vehicleType?: string }> =
+    const garageCars: Array<{ make: string; model: string; year?: string; color?: string; vehicleType?: string; inferred?: boolean; from?: string }> =
       Array.isArray(assetsProof?.assets)
         ? (assetsProof!.assets as Array<Record<string, string>>)
             .filter(a => a.type === 'car' && a.make)
@@ -218,6 +239,18 @@ export const GET: RequestHandler = async ({ params }) => {
         const label = carInsight.label.replace(/\s*owner$/i, '').trim();
         const parts = label.split(' ');
         garageCars.push({ make: parts[0] ?? label, model: parts.slice(1).join(' ') });
+      }
+    }
+    // Cross-signal garage cars (a vehicle seen in a non-assets upload), marked inferred.
+    const garageMakes = new Set(garageCars.map(c => `${c.make} ${c.model}`.trim().toLowerCase()));
+    for (const sig of crossFor('garage')) {
+      const cars = Array.isArray(sig.assets) ? sig.assets as Array<Record<string, string>> : [];
+      for (const a of cars) {
+        if (a.type !== 'car' || !a.make) continue;
+        const key = `${a.make} ${a.model ?? ''}`.trim().toLowerCase();
+        if (garageMakes.has(key)) continue;
+        garageMakes.add(key);
+        garageCars.push({ make: a.make, model: a.model ?? '', year: a.year, color: a.color, vehicleType: a.vehicleType, inferred: true, from: sig.from as string });
       }
     }
 
@@ -236,11 +269,22 @@ export const GET: RequestHandler = async ({ params }) => {
     const incomeFromQa = incomeCode ? (INCOME_MAP[incomeCode] ?? incomeCode) : null;
     const annualIncome = savedIncome ?? incomeFromQa;
     const netWorth = savedNetWorth ?? null;
-    const moneyMatters = (wealthProof || annualIncome || netWorth || careerProof) ? {
+    // Cross-signal money insights (luxury spend seen in a non-wealth upload), marked inferred.
+    const crossMoney = crossFor('money');
+    const crossWealthInsights = crossMoney.map(s => ({ emoji: s.emoji as string, label: s.label as string, inferred: true, from: s.from as string }));
+    const crossSpending = crossMoney.flatMap(s => Array.isArray(s.spendingBreakdown) ? s.spendingBreakdown as unknown[] : []);
+    const moneyMatters = (wealthProof || annualIncome || netWorth || careerProof || crossMoney.length) ? {
       annualIncome,
       netWorth,
       careerLines: careerProof ? (careerProof.insights as Array<{ emoji: string; label: string }> ?? []).slice(0, 2) : [],
-      wealthInsights: wealthProof ? (wealthProof.insights as Array<{ emoji: string; label: string }> ?? []) : [],
+      wealthInsights: [
+        ...(wealthProof ? (wealthProof.insights as Array<{ emoji: string; label: string }> ?? []).map(i => ({ ...i, inferred: false })) : []),
+        ...crossWealthInsights,
+      ],
+      spendingBreakdown: [
+        ...(wealthProof && Array.isArray(wealthProof.spendingBreakdown) ? wealthProof.spendingBreakdown as unknown[] : []),
+        ...crossSpending,
+      ],
     } : null;
 
     // AI portraits

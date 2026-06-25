@@ -16,7 +16,12 @@ import 'config.dart';
 class InsightChip {
   final String emoji;
   final String label;
-  InsightChip(this.emoji, this.label);
+  /// True when this insight was inferred from a DIFFERENT upload than the
+  /// section it appears in (cross-section signal). [from] is the source proof
+  /// category (e.g. 'lifestyle') so the UI can mark it as inferred, not verified.
+  final bool inferred;
+  final String? from;
+  InsightChip(this.emoji, this.label, {this.inferred = false, this.from});
 }
 
 /// A group of verified-signal chips for one category, with the AI summary line.
@@ -34,7 +39,11 @@ class GarageCar {
   final String? year;
   final String? color;
   final String? vehicleType;
-  GarageCar({required this.make, required this.model, this.year, this.color, this.vehicleType});
+  /// True when the car was seen in a non-assets upload (cross-section signal)
+  /// rather than read from a verified ownership document. [from] = source category.
+  final bool inferred;
+  final String? from;
+  GarageCar({required this.make, required this.model, this.year, this.color, this.vehicleType, this.inferred = false, this.from});
   String get title => [make, model].where((s) => s.isNotEmpty).join(' ');
 }
 
@@ -1695,6 +1704,18 @@ Future<String?> replyToAdmirer(String messageId, String replyContent) async {
   return (resp.data is Map ? resp.data['matchId'] : null) as String?;
 }
 
+/// Hand an admirer/attention message off to the AI Bestie — creates a match
+/// with Bestie active, seeds the chat with his note, and lets Bestie reply.
+/// Returns the matchId of the (new or existing) conversation.
+Future<String?> replyToAdmirerWithBestie(String messageId) async {
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/attention/reply-with-bestie',
+    data: {'messageId': messageId},
+    options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
+  );
+  return (resp.data is Map ? resp.data['matchId'] : null) as String?;
+}
+
 /// Mark a conversation as read — clears the unread badge on the Messages list.
 Future<void> markConversationRead(String matchId) async {
   final uid = Supabase.instance.client.auth.currentUser?.id;
@@ -1878,7 +1899,12 @@ List<InsightChip> _parseChips(dynamic list) {
   if (list is List) {
     for (final i in list) {
       if (i is Map && i['label'] != null) {
-        out.add(InsightChip((i['emoji'] ?? '•').toString(), i['label'].toString()));
+        out.add(InsightChip(
+          (i['emoji'] ?? '•').toString(),
+          i['label'].toString(),
+          inferred: i['inferred'] == true,
+          from: i['from']?.toString(),
+        ));
       }
     }
   }
@@ -1935,6 +1961,8 @@ Future<MatchDetail> fetchMatchDetail(String profileId) async {
           year: a['year']?.toString(),
           color: a['color']?.toString(),
           vehicleType: a['vehicleType']?.toString(),
+          inferred: a['inferred'] == true,
+          from: a['from']?.toString(),
         ));
       }
     }

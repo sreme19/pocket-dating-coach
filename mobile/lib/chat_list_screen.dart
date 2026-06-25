@@ -760,6 +760,23 @@ class _AdmirerCard extends StatelessWidget {
     }
   }
 
+  Future<void> _replyWithBestie(BuildContext context) async {
+    try {
+      final matchId = await replyToAdmirerWithBestie(admirer.id);
+      if (context.mounted && matchId != null && matchId.isNotEmpty) {
+        await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => ConversationScreen(
+            conversationId: matchId,
+            title: admirer.age != null ? '${admirer.name}, ${admirer.age}' : admirer.name,
+          ),
+        ));
+      }
+      onReplied();
+    } catch (e) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isAdmirer = admirer.messageType == 'secret_admirer';
@@ -820,7 +837,7 @@ class _AdmirerCard extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: FilledButton.icon(
-                onPressed: () {},
+                onPressed: () => _replyWithBestie(context),
                 icon: const Text('💚', style: TextStyle(fontSize: 14)),
                 label: const Text('Reply with Bestie', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                 style: FilledButton.styleFrom(
