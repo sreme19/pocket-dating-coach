@@ -2427,13 +2427,37 @@ class _PhotoStorySectionState extends State<_PhotoStorySection> {
     }
   }
 
+  /// Women: up to 6 real photos as tiles, plus one "add" tile while under cap.
+  List<Widget> _womenTiles(ProfileData data) {
+    final ups = data.uploadedPhotos;
+    void open() => openPhotoManager(context, data, widget.onChanged);
+    final tiles = <Widget>[
+      for (var i = 0; i < ups.length && i < 6; i++)
+        _PhotoSlot(
+          url: ups[i].url,
+          isAi: false,
+          label: i == 0 ? 'lead' : 'photo',
+          isMan: false,
+          onTap: open,
+        ),
+    ];
+    if (ups.length < 6) {
+      tiles.add(_PhotoSlot(url: null, isAi: false, label: 'photo', isMan: false, onTap: open));
+    }
+    return tiles;
+  }
+
   @override
   Widget build(BuildContext context) {
     final data = widget.data;
+    final isMan = data.isMan;
     final hasAiPhotos = _aiPhotos.isNotEmpty;
     final hasRealPhotos = data.uploadedPhotos.isNotEmpty;
     final filled = _slots.where((s) => _resolve(s) != null).length;
-    final subtitle = hasAiPhotos ? '$filled/3  ✨ AI-enhanced' : '$filled/3';
+    final realCount = data.uploadedPhotos.length.clamp(0, 6);
+    final subtitle = isMan
+        ? (hasAiPhotos ? '$filled/3  ✨ AI-enhanced' : '$filled/3')
+        : '$realCount/6  · real photos';
 
     return _Section(
       icon: Icons.photo_library_outlined,
@@ -2467,25 +2491,34 @@ class _PhotoStorySectionState extends State<_PhotoStorySection> {
               mainAxisSpacing: 8,
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              children: [
-                for (final slot in _slots)
-                  _PhotoSlot(
-                    url: _resolve(slot),
-                    isAi: _aiPhotos.any((a) => a.role == slot),
-                    label: slot,
-                    isMan: data.isMan,
-                    onTap: () => openPhotoManager(context, data, widget.onChanged),
-                  ),
-              ],
+              children: isMan
+                  ? [
+                      for (final slot in _slots)
+                        _PhotoSlot(
+                          url: _resolve(slot),
+                          isAi: _aiPhotos.any((a) => a.role == slot),
+                          label: slot,
+                          isMan: true,
+                          onTap: () => openPhotoManager(context, data, widget.onChanged),
+                        ),
+                    ]
+                  : _womenTiles(data),
             ),
           if (_enhanceError != null) ...[
             const SizedBox(height: 6),
             Text(_enhanceError!,
                 style: const TextStyle(color: Color(0xFFF87171), fontSize: 12)),
           ],
+          const SizedBox(height: 10),
+          Text(
+            isMan
+                ? 'Viewers only ever see your AI-enhanced photos — your raw photo is never shown, before or after a match.'
+                : 'Shown exactly as you upload them — real photos, no AI filters.',
+            style: const TextStyle(fontSize: 12, color: Color(Config.text3), height: 1.35),
+          ),
           const SizedBox(height: 12),
-          // Enhance with AI — always shown for men; greyed out until photos exist
-          if (data.isMan)
+          // Enhance with AI — shown for men only; greyed out until photos exist
+          if (isMan)
             SizedBox(
               width: double.infinity, height: 50,
               child: FilledButton(
