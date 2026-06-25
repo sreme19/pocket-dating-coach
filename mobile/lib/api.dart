@@ -105,6 +105,9 @@ class ProfileData {
   final String? garagePortraitUrl;
   // Raw generatedProfile map, kept so edits can merge without dropping fields.
   final Map<String, dynamic> rawGenerated;
+  // "Here For" intent line (owner-declared; here_for_title / here_for_desc columns).
+  final String? hereForTitle;
+  final String? hereForDesc;
 
   bool get isMan => gender == 'man';
 
@@ -137,6 +140,8 @@ class ProfileData {
     required this.personalityPortraitUrl,
     required this.garagePortraitUrl,
     required this.rawGenerated,
+    this.hereForTitle,
+    this.hereForDesc,
   });
 }
 
@@ -166,7 +171,7 @@ Future<ProfileData> fetchProfile() async {
   // 1. Identity + avatar + trust — direct Supabase (RLS lets a user read self).
   final rowFuture = supabase
       .from('verified_vibe_users')
-      .select('first_name, age, city, avatar_url, trust_score, gender, archetype, hard_nos')
+      .select('first_name, age, city, avatar_url, trust_score, gender, archetype, hard_nos, here_for_title, here_for_desc')
       .eq('id', user.id)
       .maybeSingle();
   final stepsFuture = supabase
@@ -373,6 +378,8 @@ Future<ProfileData> fetchProfile() async {
     gender: gender,
     archetype: archetype,
     hardNos: hardNos,
+    hereForTitle: nonEmpty(row?['here_for_title']),
+    hereForDesc: nonEmpty(row?['here_for_desc']),
     vibeWords: vibeWords,
     career: signal('linkedin'),
     lifestyle: signal('lifestyle'),
@@ -818,6 +825,17 @@ Future<void> saveHardNos(List<String> hardNos) async {
   final user = supabase.auth.currentUser;
   if (user == null) throw StateError('Not authenticated');
   await supabase.from('verified_vibe_users').update({'hard_nos': hardNos}).eq('id', user.id);
+}
+
+/// Save the owner's "Here For" intent line (here_for_title / here_for_desc).
+Future<void> saveHereFor(String title, String desc) async {
+  final supabase = Supabase.instance.client;
+  final user = supabase.auth.currentUser;
+  if (user == null) throw StateError('Not authenticated');
+  await supabase.from('verified_vibe_users').update({
+    'here_for_title': title.trim(),
+    'here_for_desc': desc.trim(),
+  }).eq('id', user.id);
 }
 
 /// Ask the AI to suggest more insight chips for a proof category. Returns the

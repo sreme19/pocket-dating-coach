@@ -338,6 +338,27 @@ class _ProfileBody extends StatelessWidget {
           ),
         ),
 
+        // ── Here for ─────────────────────────────────────────────────────
+        _Section(
+          emoji: '🧭',
+          title: 'HERE FOR',
+          onEdit: () => _editHereFor(context, data, onChanged),
+          child: ((data.hereForTitle == null || data.hereForTitle!.isEmpty) &&
+                  (data.hereForDesc == null || data.hereForDesc!.isEmpty))
+              ? const Text('What you’re looking for — tap edit to add.',
+                  style: TextStyle(fontSize: 15, color: Color(Config.text3)))
+              : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  if (data.hereForTitle != null && data.hereForTitle!.isNotEmpty)
+                    Text(data.hereForTitle!,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+                  if (data.hereForDesc != null && data.hereForDesc!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(data.hereForDesc!,
+                        style: const TextStyle(fontSize: 15, height: 1.45, color: Color(Config.text2))),
+                  ],
+                ]),
+        ),
+
         // ── Money matters ────────────────────────────────────────────────
         _Section(
           emoji: '💰',
@@ -795,6 +816,93 @@ Widget _moneyRangePills({
           ),
         ),
     ]);
+
+Future<void> _editHereFor(BuildContext context, ProfileData d, VoidCallback onChanged) async {
+  final titleCtrl = TextEditingController(text: d.hereForTitle ?? '');
+  final descCtrl = TextEditingController(text: d.hereForDesc ?? '');
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: const Color(Config.bg2),
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (ctx) {
+      var saving = false;
+      String? error;
+      return StatefulBuilder(builder: (ctx, setS) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(20, 18, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('What you’re here for',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+              const SizedBox(height: 4),
+              const Text('A short headline, plus a line on what you’re looking for.',
+                  style: TextStyle(fontSize: 13, color: Color(Config.text2))),
+              const SizedBox(height: 16),
+              TextField(
+                controller: titleCtrl,
+                maxLength: 60,
+                textCapitalization: TextCapitalization.sentences,
+                style: const TextStyle(color: Color(Config.text1)),
+                decoration: InputDecoration(
+                  labelText: 'Headline (e.g. “Something real, no rush”)',
+                  labelStyle: const TextStyle(color: Color(Config.text2)),
+                  filled: true, fillColor: const Color(Config.bg3),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: descCtrl,
+                maxLines: 3,
+                maxLength: 240,
+                textCapitalization: TextCapitalization.sentences,
+                style: const TextStyle(color: Color(Config.text1)),
+                decoration: InputDecoration(
+                  labelText: 'A little more (optional)',
+                  alignLabelWithHint: true,
+                  labelStyle: const TextStyle(color: Color(Config.text2)),
+                  filled: true, fillColor: const Color(Config.bg3),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+              if (error != null) ...[
+                Text(error!, style: const TextStyle(color: Color(0xFFF87171), fontSize: 13)),
+                const SizedBox(height: 8),
+              ],
+              SizedBox(
+                width: double.infinity, height: 50,
+                child: FilledButton(
+                  onPressed: saving ? null : () async {
+                    setS(() { saving = true; error = null; });
+                    try {
+                      await saveHereFor(titleCtrl.text, descCtrl.text);
+                      if (ctx.mounted) Navigator.of(ctx).pop();
+                      onChanged();
+                    } catch (e) {
+                      setS(() { saving = false; error = '$e'; });
+                    }
+                  },
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(Config.accent),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: saving
+                      ? const SizedBox(width: 18, height: 18,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ],
+          ),
+        );
+      });
+    },
+  );
+}
 
 Future<void> _editAbout(BuildContext context, ProfileData d, VoidCallback onChanged) async {
   final ctrl = TextEditingController(text: d.about);
