@@ -38,6 +38,21 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   // Insertion order (LinkedHashMap) = display order.
   final Map<String, _Caption> _captions = {};
 
+  // Live agent state from the `lk.agent.state` participant attribute
+  // (initializing / listening / thinking / speaking). Drives the "she's
+  // thinking…" filler so dead air between turns reads as continuity, not a
+  // dropped call.
+  String? _agentStatus;
+  Timer? _thinkingTimer;
+  int _thinkingPhrase = 0;
+
+  List<String> get _thinkingPhrases => [
+        'Thinking…',
+        'Reading your profile to understand you better…',
+        "Looking into ${widget.name}'s profile…",
+        'Gathering my thoughts…',
+      ];
+
   Future<void> _start() async {
     setState(() => _phase = _Phase.connecting);
     try {
@@ -64,7 +79,11 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
           if (e.track is RemoteAudioTrack) {
             Hardware.instance.setSpeakerphoneOn(true);
           }
-        });
+        })
+        // The agent publishes its lifecycle as a participant attribute; we use
+        // it to show a "thinking…" indicator while she composes a reply.
+        ..on<ParticipantAttributesChanged>((e) => _onAgentAttrs(e.participant))
+        ..on<ParticipantConnectedEvent>((e) => _onAgentAttrs(e.participant));
       _room = room;
       _listener = listener;
 
@@ -119,20 +138,39 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
     } else {
       _captions[key] = _Caption(isUser: isUser, text: text);
     }
+    // Once she's actually speaking, drop the "thinking…" filler immediately so
+    // it never overlaps her words (the agent-state attribute can lag the first
+    // transcript chunk by a beat).
+    if (!isUser && _agentStatus != 'speaking') {
+      _agentStatus = 'speaking';
+      _syncThinkingTimer();
+    }
+    // The transcript ListView is reverse:true, so it stays pinned to the newest
+    // line automatically — no manual scrolling needed.
     if (mounted) setState(() {});
-    _scrollToEnd();
   }
 
-  void _scrollToEnd() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) {
-        _scroll.animateTo(
-          _scroll.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
-      }
-    });
+  void _onAgentAttrs(Participant p) {
+    final raw = p.attributes['lk.agent.state'];
+    if (raw == null || raw == _agentStatus) return; // not the agent, or no change
+    _agentStatus = raw;
+    _syncThinkingTimer();
+    if (mounted) setState(() {});
+  }
+
+  // Run a phrase-rotation timer only while she's thinking; stop it otherwise.
+  void _syncThinkingTimer() {
+    final thinking = _agentStatus == 'thinking';
+    if (thinking && _thinkingTimer == null) {
+      _thinkingPhrase = 0;
+      _thinkingTimer = Timer.periodic(const Duration(milliseconds: 2600), (_) {
+        if (!mounted) return;
+        setState(() => _thinkingPhrase = (_thinkingPhrase + 1) % _thinkingPhrases.length);
+      });
+    } else if (!thinking && _thinkingTimer != null) {
+      _thinkingTimer!.cancel();
+      _thinkingTimer = null;
+    }
   }
 
   void _onRemoteEnded() {
@@ -149,6 +187,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _thinkingTimer?.cancel();
     _transcriptSub?.cancel();
     _transcripts?.dispose();
     _scroll.dispose();
@@ -239,6 +278,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
       Text(_clock, style: const TextStyle(color: Color(Config.accent), fontSize: 15, fontWeight: FontWeight.w600)),
       const SizedBox(height: 14),
       Expanded(child: _transcriptView()),
+      _statusPill(),
       const SizedBox(height: 10),
       Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         _circleBtn(_muted ? Icons.mic_off : Icons.mic, _muted ? const Color(0xFFF59E0B) : const Color(Config.text1),
@@ -257,12 +297,16 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
     if (_captions.isEmpty) {
       return Center(
         child: Text(
-          'Listening…',
+          'Say hi to get started…',
           style: const TextStyle(color: Color(Config.text3), fontSize: 14),
         ),
       );
     }
-    final items = _captions.values.toList(growable: false);
+    // Newest last in _captions; reverse so index 0 (rendered at the bottom in a
+    // reverse list) is the latest line. A reverse ListView stays pinned to the
+    // bottom as new lines stream in — the user never has to scroll down — while
+    // still letting them scroll up to read earlier turns.
+    final items = _captions.values.toList(growable: false).reversed.toList(growable: false);
     return ShaderMask(
       // Fade the top edge so older lines dissolve as they scroll up.
       shaderCallback: (rect) => const LinearGradient(
@@ -274,10 +318,65 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
       blendMode: BlendMode.dstIn,
       child: ListView.builder(
         controller: _scroll,
+        reverse: true,
         padding: const EdgeInsets.symmetric(vertical: 6),
         itemCount: items.length,
         itemBuilder: (_, i) => _bubble(items[i]),
       ),
+    );
+  }
+
+  /// "She's thinking…" / "Connecting…" filler shown below the transcript while
+  /// the bestie isn't speaking, so gaps between turns read as continuity rather
+  /// than a dropped call. Collapses to nothing once she's listening/speaking.
+  Widget _statusPill() {
+    final status = _agentStatus;
+    String? label;
+    if (status == null || status == 'initializing') {
+      label = "Connecting you with ${widget.name}'s bestie…";
+    } else if (status == 'thinking') {
+      label = _thinkingPhrases[_thinkingPhrase];
+    }
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      transitionBuilder: (child, anim) => FadeTransition(opacity: anim, child: child),
+      child: label == null
+          ? const SizedBox(width: double.infinity, height: 0)
+          : Padding(
+              key: ValueKey(label),
+              padding: const EdgeInsets.only(top: 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: const Color(Config.bg2),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(
+                        width: 14, height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)),
+                      ),
+                      const SizedBox(width: 10),
+                      Flexible(
+                        child: Text(
+                          label,
+                          style: const TextStyle(
+                            color: Color(Config.text2),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
     );
   }
 
