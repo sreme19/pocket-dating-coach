@@ -11,6 +11,7 @@ import { popPendingChatMessage } from '$lib/server/intelligence-report-processor
 import { loadBestieAdvisorContext } from '$lib/server/bestie-advisor-context';
 import { buildCompetitiveSnapshot } from '$lib/server/competitive-snapshot';
 import { loadMatchIntelligenceContext } from '$lib/server/match-intelligence';
+import { loadVectorAdvisorContext } from '$lib/server/vector-advisor-context';
 import { buildAIBestieAdvisorSystemPrompt } from '$lib/prompts';
 import { complianceGate } from '$lib/server/ai-compliance';
 
@@ -108,6 +109,9 @@ export const POST: RequestHandler = async ({ request }) => {
 		// "how do I improve / move up", replacing the old async report.
 		const matchIntelligenceContext = await loadMatchIntelligenceContext(supabase, userId);
 
+		// ── Vector Profile Strength (Phase 4, flag-gated) — her own self-coaching ──
+		const profileStrengthContext = await loadVectorAdvisorContext(supabase, userId, { subject: 'woman' });
+
 		// ── Build system prompt (shared builder) ──────────────────────────────
 		const systemPrompt = buildAIBestieAdvisorSystemPrompt({
 			userName,
@@ -115,6 +119,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			matchContext,
 			competitiveContext,
 			matchIntelligenceContext,
+			profileStrengthContext,
 			pendingReportContext
 		});
 

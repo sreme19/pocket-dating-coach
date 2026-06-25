@@ -29,8 +29,16 @@ export function advisorVectorsEnabled(): boolean {
  * Returns a formatted PROFILE STRENGTH block (leading newlines included) for the
  * given user, or '' if disabled / no vectors. Pure read + pure arithmetic, no LLM.
  */
-export async function loadVectorAdvisorContext(supabase: any, userId: string): Promise<string> {
+export async function loadVectorAdvisorContext(
+	supabase: any,
+	userId: string,
+	opts: { subject?: 'man' | 'woman' } = {},
+): Promise<string> {
 	if (!advisorVectorsEnabled()) return '';
+	const woman = opts.subject === 'woman';
+	const Subj = woman ? 'She' : 'He';
+	const poss = woman ? 'her' : 'his';
+	const obj = woman ? 'her' : 'him';
 	try {
 		const { data } = await supabase
 			.from('vv_user_vectors')
@@ -47,13 +55,13 @@ export async function loadVectorAdvisorContext(supabase: any, userId: string): P
 		const actions = upsideByDimension(attrs, conf).slice(0, 3);
 
 		const nextLine = prog.nextBand
-			? `He's ${prog.pointsToNextBand} from the “${prog.nextBand}” band.`
-			: `He's in the top band — keep proofs fresh to hold it.`;
+			? `${Subj}'s ${prog.pointsToNextBand} from the “${prog.nextBand}” band.`
+			: `${Subj}'s in the top band — keep proofs fresh to hold it.`;
 		const upsideLine = upside.deltaPS > 0
-			? `If he VERIFIED his current claims, his standing would rise to about “${profileStrengthBand(upside.psVerified)}” — he's earned it on paper, he just hasn't proven it. Frame this as opportunity, never deficiency.`
-			: `His claims are well-proven already.`;
+			? `If ${poss === 'her' ? 'she' : 'he'} VERIFIED ${poss} current claims, ${poss} standing would rise to about “${profileStrengthBand(upside.psVerified)}” — ${poss === 'her' ? 'she' : 'he'}'s earned it on paper, just hasn't proven it. Frame this as opportunity, never deficiency.`
+			: `${Subj}'s claims are well-proven already.`;
 		const actionLines = actions.length
-			? actions.map((a) => `  - Verify ${a.label.toLowerCase()} → biggest single lift to his standing`).join('\n')
+			? actions.map((a) => `  - Verify ${a.label.toLowerCase()} → biggest single lift to ${poss} standing`).join('\n')
 			: '  - (no high-leverage verification gaps right now)';
 
 		return `
@@ -63,7 +71,7 @@ PROFILE STRENGTH (deterministic vector model — these numbers are EXACT, use th
 - ${upsideLine}
 - Highest-leverage verification moves, in order:
 ${actionLines}
-Coach from this: the fastest standing gains come from VERIFYING claims (raising confidence), not just adding new ones. Surface the single highest-leverage move first, quantify the gain, and walk him through it. Persistent-but-positive — always opportunity, never deficiency.`;
+Coach from this: the fastest standing gains come from VERIFYING claims (raising confidence), not just adding new ones. Surface the single highest-leverage move first, quantify the gain, and walk ${obj} through it. Persistent-but-positive — always opportunity, never deficiency.`;
 	} catch {
 		return '';
 	}
