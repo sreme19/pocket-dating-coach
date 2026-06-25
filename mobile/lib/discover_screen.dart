@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api.dart';
 import 'config.dart';
 import 'profile_body.dart';
@@ -121,6 +120,25 @@ class _DiscoverScreenState extends State<DiscoverScreen>
     if (_scroll.hasClients) _scroll.jumpTo(0);
   }
 
+  /// Loop back to the top after the end of the feed. Skipped profiles reappear
+  /// on this fresh pass; anyone matched mid-session is dropped so matches don't
+  /// resurface. No refetch — purely client-side re-pass of the loaded feed.
+  void _startOver() {
+    final feed = _feed;
+    if (feed == null) return;
+    final remaining = feed.where((p) => !_matchedUserIds.contains(p.id)).toList();
+    setState(() {
+      _feed = remaining;
+      _idx = 0;
+      _bestieFlags = [];
+      _bestieFlagsLoading = false;
+      _autoSkipping = false;
+      _detail = remaining.isEmpty ? null : fetchMatchDetail(remaining.first.id);
+    });
+    if (remaining.isNotEmpty) _maybeFetchBestie();
+    if (_scroll.hasClients) _scroll.jumpTo(0);
+  }
+
   DiscoveryProfile? get _current {
     final f = _feed;
     if (f == null || _idx >= f.length) return null;
@@ -164,7 +182,11 @@ class _DiscoverScreenState extends State<DiscoverScreen>
     }
     final cur = _current;
     if (cur == null) {
-      return _centered(null, "You're all caught up — check back soon.", 'Refresh', _load, emoji: '🎉');
+      // Empty feed (nobody to show) vs reaching the end of a non-empty feed.
+      if (_feed!.isEmpty) {
+        return _centered(null, "You're all caught up — check back soon.", 'Refresh', _load, emoji: '🎉');
+      }
+      return _endOfFeed();
     }
 
     return Column(children: [
@@ -417,6 +439,54 @@ class _DiscoverScreenState extends State<DiscoverScreen>
             ),
           ),
         ]),
+      ),
+    );
+  }
+
+  /// Reached the end of a non-empty feed: explicit prompt, then loop on tap.
+  Widget _endOfFeed() {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('🎉', style: TextStyle(fontSize: 40)),
+            const SizedBox(height: 12),
+            const Text(
+              "You've reached the end of the line.",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(Config.text1), fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              "You've seen everyone for now. Take another pass from the top, or refresh to check for new people.",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _startOver,
+                icon: const Icon(Icons.replay, size: 18),
+                label: const Text('Start from the top', style: TextStyle(fontWeight: FontWeight.w700)),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(Config.accent),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: _load,
+              icon: const Icon(Icons.refresh, size: 18, color: Color(Config.text2)),
+              label: const Text('Refresh', style: TextStyle(color: Color(Config.text2))),
+            ),
+          ]),
+        ),
       ),
     );
   }
