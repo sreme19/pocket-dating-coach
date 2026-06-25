@@ -564,6 +564,62 @@ String _bearerToken() {
   return 'Bearer ${s.accessToken}';
 }
 
+// ── Preference weighting (explicit step — Scoring redesign Phase 0b) ───────────
+
+class PreferenceDimension {
+  final String id;
+  final String label;
+  final String cls; // 'open' | 'sensitive'
+  final String blurb;
+  const PreferenceDimension({required this.id, required this.label, required this.cls, required this.blurb});
+  factory PreferenceDimension.fromJson(Map<String, dynamic> j) => PreferenceDimension(
+        id: j['id'] as String,
+        label: j['label'] as String? ?? j['id'] as String,
+        cls: j['cls'] as String? ?? 'open',
+        blurb: j['blurb'] as String? ?? '',
+      );
+}
+
+class PreferenceWeights {
+  final List<PreferenceDimension> dimensions;
+  final Map<String, int> importance; // dimId → 0..maxImportance
+  final String? weightsSource;        // 'explicit' | 'extracted' | 'balanced' | null
+  final int maxImportance;
+  const PreferenceWeights({required this.dimensions, required this.importance, this.weightsSource, this.maxImportance = 5});
+  factory PreferenceWeights.fromJson(Map<String, dynamic> j) {
+    final dims = (j['dimensions'] as List? ?? [])
+        .map((d) => PreferenceDimension.fromJson(d as Map<String, dynamic>))
+        .toList();
+    final imp = <String, int>{};
+    (j['importance'] as Map? ?? {}).forEach((k, v) => imp[k as String] = (v as num).round());
+    return PreferenceWeights(
+      dimensions: dims,
+      importance: imp,
+      weightsSource: j['weightsSource'] as String?,
+      maxImportance: (j['maxImportance'] as num?)?.round() ?? 5,
+    );
+  }
+}
+
+/// Fetch the dimension taxonomy + the user's current importance ratings.
+Future<PreferenceWeights> fetchPreferenceWeights() async {
+  final resp = await _dio.get(
+    '${Config.apiBase}/api/verified-vibe/preferences/weights',
+    options: Options(headers: {'Authorization': _bearerToken()}),
+  );
+  return PreferenceWeights.fromJson(resp.data as Map<String, dynamic>);
+}
+
+/// Save importance ratings (0..max per dimension id). Server normalises → weights
+/// (Σ=1) and stores them with weights_source='explicit'.
+Future<void> savePreferenceWeights(Map<String, int> importance) async {
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/preferences/weights',
+    data: {'importance': importance},
+    options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
+  );
+}
+
 /// Upload a profile photo (base64 data URL) → returns the hosted URL. When
 /// label == 'lead' the backend also sets verified_vibe_users.avatar_url.
 Future<String> uploadPhoto(String dataUrl, String label) async {
