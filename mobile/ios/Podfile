@@ -48,4 +48,25 @@ post_install do |installer|
       config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ''
     end
   end
+
+  # ── connectivity_plus 7.1.1 patch ──────────────────────────────────────────
+  # NWPath.isUltraConstrained requires iOS 17.4+ but connectivity_plus calls it
+  # without an #available guard, causing a Swift compile error on lower targets.
+  # This patches the file in-place until a fixed version is published.
+  connectivity_file = Dir[File.join(
+    ENV['HOME'], '.pub-cache', 'hosted', 'pub.dev',
+    'connectivity_plus-*', 'ios', 'connectivity_plus', 'Sources',
+    'connectivity_plus', 'PathMonitorConnectivityProvider.swift'
+  )].first
+  if connectivity_file && File.exist?(connectivity_file)
+    content = File.read(connectivity_file)
+    if content.include?('path.isUltraConstrained') && !content.include?('#available(iOS 17.4')
+      patched = content.gsub(
+        'if path.isUltraConstrained {',
+        'if #available(iOS 17.4, macOS 14.4, *), path.isUltraConstrained {'
+      )
+      File.write(connectivity_file, patched)
+      puts 'Patched connectivity_plus: wrapped isUltraConstrained in #available guard'
+    end
+  end
 end

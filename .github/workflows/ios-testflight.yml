@@ -49,6 +49,15 @@ jobs:
           echo "$PROFILE_BASE64" | base64 --decode \
             -o ~/Library/MobileDevice/Provisioning\ Profiles/riteangle.mobileprovision
 
+      - name: Resolve Swift Package dependencies
+        run: |
+          rm -rf ~/Library/Caches/org.swift.swiftpm/repositories
+          xcodebuild -resolvePackageDependencies \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -disablePackageRepositoryCache
+        working-directory: mobile
+
       - name: Build & export IPA
         run: |
           flutter build ipa --release \
