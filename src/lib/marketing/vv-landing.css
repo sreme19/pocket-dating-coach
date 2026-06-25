@@ -547,3 +547,56 @@ html:has(.vv-page), body:has(.vv-page){ background:#FFF3F0 !important; overflow-
   .reveal{ opacity:1 !important; transform:none !important; }
   .collage .float-chip,.feature__eyebrow .av{ animation:none !important; }
 }
+
+/* ===================================================================
+   MATCHING (no-swipe / value-based)  ·  COMPARISON  ·  FAQ
+   =================================================================== */
+.match{ padding:96px 0; background:var(--vv-surface); border-top:1px solid var(--vv-line); }
+.match__head{ max-width:780px; margin:0 auto 52px; text-align:center; display:flex; flex-direction:column; align-items:center; }
+.match__head .sub{ margin-top:18px; max-width:640px; }
+.match__grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; }
+.mcard{ background:var(--vv-white); border:1px solid var(--vv-line); border-radius:var(--r-5); padding:30px; transition:transform .3s ease, box-shadow .3s ease; }
+.mcard:hover{ transform:translateY(-4px); box-shadow:var(--sh-md); }
+.mcard__ic{ width:50px;height:50px;border-radius:13px; display:grid; place-items:center; background:rgba(255,59,107,.12); color:var(--vv-pink); margin-bottom:18px; }
+.mcard__ic svg{ width:25px;height:25px; }
+.mcard h4{ font-size:20px; font-weight:800; color:var(--vv-ink); letter-spacing:-.02em; margin:0 0 9px; }
+.mcard p{ font-size:14.5px; color:var(--vv-ink-3); line-height:1.55; margin:0; }
+
+.vs{ padding:0 0 96px; background:var(--vv-surface); }
+.vs__wrap{ max-width:880px; margin:0 auto; }
+.vs__card{ background:var(--vv-white); border:1px solid var(--vv-line); border-radius:var(--r-5); overflow:hidden; box-shadow:var(--sh-md); }
+.vs__hd{ display:grid; grid-template-columns:1fr 1fr; }
+.vs__hd > div{ padding:20px 26px; font-weight:800; font-size:16px; letter-spacing:-.01em; }
+.vs__hd-old{ color:var(--vv-ink-3); background:var(--vv-surface-2); }
+.vs__hd-new{ color:#fff; background:var(--vv-pink); display:flex; align-items:center; gap:9px; }
+.vs__hd-new svg{ width:18px;height:18px; }
+.vs__row{ display:grid; grid-template-columns:1fr 1fr; border-top:1px solid var(--vv-line); }
+.vs__cell{ padding:18px 26px; display:flex; align-items:center; gap:11px; font-size:15px; line-height:1.4; }
+.vs__cell--old{ color:var(--vv-ink-3); }
+.vs__cell--new{ color:var(--vv-ink); font-weight:600; border-left:1px solid var(--vv-line); }
+.vs__x, .vs__c{ flex:none; width:22px;height:22px;border-radius:50%; display:grid; place-items:center; }
+.vs__x{ background:rgba(27,16,32,.07); color:var(--vv-ink-4); }
+.vs__x svg{ width:13px;height:13px; }
+.vs__c{ background:rgba(255,59,107,.14); color:var(--vv-pink); }
+.vs__c svg{ width:13px;height:13px; }
+
+.faq{ padding:96px 0; }
+.faq__head{ max-width:680px; margin:0 auto 44px; text-align:center; display:flex; flex-direction:column; align-items:center; }
+.faq__list{ max-width:760px; margin:0 auto; display:flex; flex-direction:column; gap:14px; }
+.faq__item{ background:var(--vv-white); border:1px solid var(--vv-line); border-radius:var(--r-4); overflow:hidden; transition:border-color .2s ease, box-shadow .2s ease; }
+.faq__item[open]{ border-color:rgba(255,59,107,.4); box-shadow:var(--sh-sm); }
+.faq__q{ list-style:none; cursor:pointer; padding:20px 24px; font-size:17px; font-weight:700; color:var(--vv-ink); display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.faq__q::-webkit-details-marker{ display:none; }
+.faq__q::after{ content:"+"; font-size:26px; font-weight:500; color:var(--vv-pink); line-height:1; flex:none; transition:transform .25s ease; }
+.faq__item[open] .faq__q::after{ transform:rotate(45deg); }
+.faq__a{ padding:0 24px 22px; font-size:15px; line-height:1.6; color:var(--vv-ink-2); margin:0; }
+
+@media (max-width:860px){
+  .match__grid{ grid-template-columns:1fr; }
+  .vs__hd > div, .vs__cell{ padding-left:18px; padding-right:18px; font-size:14px; }
+}
+
+/* Profile Strength meter shows a band label, not a raw number */
+.meter__score--band{ display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
+.meter__score--band b{ font-size:26px; line-height:1; }
+.meter__score--band span{ font-size:11px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--vv-ink-4); }

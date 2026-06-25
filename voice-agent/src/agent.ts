@@ -96,16 +96,22 @@ async function finalize(
 class ClaudeLLMStream extends llm.LLMStream {
 	private readonly modelId: string;
 	private readonly systemPrompt: string;
+	private readonly fallbackText: string;
+	private readonly onError?: (err: unknown) => void;
 
 	constructor(
 		llmInstance: ClaudeLLM,
 		opts: { chatCtx: any; toolCtx?: any; connOptions: any },
 		systemPrompt: string,
-		modelId: string
+		modelId: string,
+		fallbackText: string,
+		onError?: (err: unknown) => void
 	) {
 		super(llmInstance, opts);
 		this.systemPrompt = systemPrompt;
 		this.modelId = modelId;
+		this.fallbackText = fallbackText;
+		this.onError = onError;
 	}
 
 	protected async run(): Promise<void> {
@@ -126,18 +132,53 @@ class ClaudeLLMStream extends llm.LLMStream {
 		if (messages.length === 0) messages.push({ role: 'user', content: '(the caller is quiet)' });
 		const system = sys.join('\n\n') || this.systemPrompt;
 
-		const stream = anthropic.messages.stream({
-			model: this.modelId,
-			max_tokens: 300,
-			system,
-			messages
-		});
-		for await (const ev of stream) {
-			if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') {
-				// Base class pipes this.queue -> output and closes the queue when
-				// run() resolves, so we only enqueue deltas here.
-				this.queue.put({ id: crypto.randomUUID(), delta: { role: 'assistant', content: ev.delta.text } });
+		try {
+			// CRITICAL: pass the framework's abort signal to Anthropic. The session
+			// cancels a generation whenever it's superseded (the caller keeps
+			// talking / barges in). Without this, the underlying SSE stream keeps
+			// running to completion in the background; under a long, pausey turn
+			// these pile up, tangle the TTS/transcription segment state machine
+			// (rotateSegment warnings) and wedge the pipeline into dead air — the
+			// "went silent after a few turns" bug.
+			const stream = anthropic.messages.stream(
+				{
+					model: this.modelId,
+					max_tokens: 300,
+					system,
+					messages
+				},
+				{ signal: this.abortController.signal }
+			);
+			for await (const ev of stream) {
+				if (this.abortController.signal.aborted) break;
+				if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') {
+					// Base class pipes this.queue -> output and closes the queue when
+					// run() resolves, so we only enqueue deltas here.
+					this.queue.put({
+						id: crypto.randomUUID(),
+						delta: { role: 'assistant', content: ev.delta.text }
+					});
+				}
 			}
+		} catch (err) {
+			// A cancelled/superseded generation aborts the stream — that's normal
+			// turn-taking, NOT a brain failure. Don't speak the fallback or wind the
+			// call down for it.
+			if (this.abortController.signal.aborted || (err as any)?.name === 'AbortError') {
+				return;
+			}
+			// The brain (Anthropic) failed mid-call — e.g. out of credit, rate limit,
+			// network. Without this, the caller hears dead air and keeps saying
+			// "hello? can you hear me?" (the original silent-call bug). Instead, speak
+			// a graceful fallback so they hear SOMETHING, then let onError wind the
+			// call down. Enqueuing here works because run() hasn't resolved yet, so the
+			// base class hasn't closed the queue.
+			console.error('[ClaudeLLM] generation failed — speaking fallback then ending', err);
+			this.queue.put({
+				id: crypto.randomUUID(),
+				delta: { role: 'assistant', content: this.fallbackText }
+			});
+			this.onError?.(err);
 		}
 	}
 }
@@ -145,11 +186,20 @@ class ClaudeLLMStream extends llm.LLMStream {
 class ClaudeLLM extends llm.LLM {
 	private readonly modelId: string;
 	private readonly systemPrompt: string;
+	private readonly fallbackText: string;
+	private readonly onError?: (err: unknown) => void;
 
-	constructor(opts: { model: string; system: string }) {
+	constructor(opts: {
+		model: string;
+		system: string;
+		fallbackText: string;
+		onError?: (err: unknown) => void;
+	}) {
 		super();
 		this.modelId = opts.model;
 		this.systemPrompt = opts.system;
+		this.fallbackText = opts.fallbackText;
+		this.onError = opts.onError;
 	}
 
 	label(): string {
@@ -164,7 +214,9 @@ class ClaudeLLM extends llm.LLM {
 			this,
 			{ chatCtx, toolCtx, connOptions: connOptions ?? DEFAULT_API_CONNECT_OPTIONS },
 			this.systemPrompt,
-			this.modelId
+			this.modelId,
+			this.fallbackText,
+			this.onError
 		);
 	}
 }
@@ -201,12 +253,29 @@ export default defineAgent({
 		const transcript: Turn[] = [];
 		const startedAt = Date.now();
 		let finalized = false;
+		// Set when the brain (Anthropic) fails mid-call. A call that died this way is
+		// never a clean 'completed' even though the transcript has the greeting +
+		// fallback line.
+		let llmFatal = false;
 
-		const doFinalize = async (status: 'completed' | 'partial' | 'failed') => {
+		// Derive the call's true outcome from what actually happened, so a one-sided
+		// call (greeting played, caller talked, but the agent never really engaged —
+		// the original silent-call bug) is no longer mislabelled 'completed'. A real
+		// conversation needs at least one agent reply BEYOND the opening greeting.
+		const computeStatus = (): 'completed' | 'partial' | 'failed' => {
+			const agentTurns = transcript.filter((t) => t.role === 'agent').length;
+			const callerTurns = transcript.filter((t) => t.role === 'caller').length;
+			if (llmFatal) return callerTurns > 0 ? 'partial' : 'failed';
+			// agentTurns <= 1 means only the greeting was ever spoken.
+			if (agentTurns <= 1) return callerTurns > 0 ? 'partial' : 'failed';
+			return 'completed';
+		};
+
+		const doFinalize = async (statusOverride?: 'completed' | 'partial' | 'failed') => {
 			if (finalized) return;
 			finalized = true;
 			const durationS = Math.round((Date.now() - startedAt) / 1000);
-			await finalize(callId, transcript, durationS, status);
+			await finalize(callId, transcript, durationS, statusOverride ?? computeStatus());
 		};
 
 		// Everything below can throw (plugin construction, session start). Because
@@ -223,12 +292,49 @@ export default defineAgent({
 				apiKey: process.env.DEEPGRAM_API_KEY
 			}),
 			// Claude as the brain — required as a real `llm` or the pipeline never
-			// generates replies (only the greeting say() would be heard).
-			llm: new ClaudeLLM({ model: CLAUDE_MODEL, system: cfg.systemPrompt }),
+			// generates replies (only the greeting say() would be heard). If the brain
+			// errors mid-call it speaks `fallbackText` then onError winds the call down,
+			// so the caller never hears dead air.
+			llm: new ClaudeLLM({
+				model: CLAUDE_MODEL,
+				system: cfg.systemPrompt,
+				fallbackText: `I'm so sorry, ${cfg.matchName} — I'm having a technical issue on my end and can't keep chatting right now. I'll let ${cfg.ownerName} know you called, and she'll reach out. Take care!`,
+				onError: () => {
+					if (llmFatal) return;
+					llmFatal = true;
+					// Give TTS a few seconds to speak the fallback line, then end the
+					// call gracefully. doFinalize/Close are idempotent.
+					setTimeout(() => {
+						void (async () => {
+							await doFinalize();
+							await ctx.room.disconnect().catch(() => undefined);
+						})();
+					}, 7000);
+				}
+			}),
 			tts: new elevenlabs.TTS({
 				voiceId: cfg.voiceId,
 				apiKey: process.env.ELEVENLABS_API_KEY
-			})
+			}),
+			turnHandling: {
+				// Generate ONE reply per finalized user turn, not on every interim STT
+				// chunk. Preemptive generation fires (and then cancels) a fresh Claude
+				// stream on each partial transcript; with our custom Anthropic-backed
+				// LLM that spawn/cancel churn tangled the segment state machine and
+				// stalled the pipeline into silence on longer turns. Trading a touch of
+				// first-word latency (covered by the on-screen "thinking…" indicator)
+				// for stability.
+				preemptiveGeneration: { enabled: false },
+				// Make the bestie UNINTERRUPTIBLE. We force speakerphone on, so her
+				// own voice echoes speaker -> mic and the VAD read it as the caller
+				// "interrupting", cutting her audio ~1ms in (logs: "playout
+				// interrupted", playbackPositionInS: 0.001) — the caller saw her text
+				// but heard no audio. With interruption disabled she plays every reply
+				// to completion; discardAudioIfUninterruptible (default true) drops the
+				// echoed mic audio so it can't pollute STT. Tradeoff: no barge-in —
+				// acceptable for a screening call, revisit with tuned thresholds later.
+				interruption: { enabled: false }
+			}
 		});
 
 		const agent = new voice.Agent({ instructions: cfg.systemPrompt });
@@ -246,7 +352,7 @@ export default defineAgent({
 		// is what reliably finalises the call so it never sticks in 'live'.
 		session.on(voice.AgentSessionEventTypes.Close, (ev: any) => {
 			console.log('[session] close', ev?.reason ?? '');
-			void doFinalize(transcript.length ? 'completed' : 'failed');
+			void doFinalize();
 		});
 		// Surface pipeline errors (STT/LLM/TTS) so they show up in fly logs.
 		session.on(voice.AgentSessionEventTypes.Error, (ev: any) => {
@@ -255,13 +361,13 @@ export default defineAgent({
 
 		// Fallback: caller leaves / room ends.
 		ctx.room.on('disconnected' as any, () => {
-			void doFinalize(transcript.length ? 'completed' : 'failed');
+			void doFinalize();
 		});
 		ctx.room.on('participantDisconnected' as any, () => {
 			const humans = Array.from(ctx.room.remoteParticipants.values()).filter(
 				(p: any) => !String(p.identity).startsWith('agent')
 			);
-			if (humans.length === 0) void doFinalize(transcript.length ? 'completed' : 'failed');
+			if (humans.length === 0) void doFinalize();
 		});
 
 		// Hard max-duration cap.
@@ -274,14 +380,14 @@ export default defineAgent({
 				} catch {
 					/* ignore */
 				}
-				await doFinalize(transcript.length ? 'completed' : 'partial');
+				await doFinalize();
 				await ctx.room.disconnect().catch(() => undefined);
 			})();
 		}, MAX_CALL_SECONDS * 1000);
 
 		ctx.addShutdownCallback(async () => {
 			clearTimeout(capTimer);
-			await doFinalize(transcript.length ? 'completed' : 'failed');
+			await doFinalize();
 		});
 
 		// Forward both sides of the call as live transcription text streams on the
@@ -298,6 +404,21 @@ export default defineAgent({
 				syncTranscription: true
 			}
 		});
+
+		// Make sure the caller is actually in the room (and our audio path to them
+		// is up) BEFORE we greet. Otherwise the opening line is spoken into an
+		// empty room and the caller hears nothing until they say "hello?" — the
+		// "bestie didn't greet me" bug. waitForParticipant resolves as soon as a
+		// remote (human) participant is present; we cap the wait so a no-show
+		// caller can't hang the entry forever.
+		try {
+			await Promise.race([
+				ctx.waitForParticipant(),
+				new Promise((resolve) => setTimeout(resolve, 8000))
+			]);
+		} catch (e) {
+			console.error('[agent] waitForParticipant failed; greeting anyway', e);
+		}
 
 		// Disclosure preamble + warm opener. The ConversationItemAdded handler
 		// captures this into the transcript, so don't push it manually (that caused

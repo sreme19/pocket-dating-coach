@@ -2,6 +2,15 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "dev-mac",
+      "description": "Vite dev server (macOS) — plain npm on PATH",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5174"],
+      "cwd": "${workspaceRoot}",
+      "port": 5174,
+      "url": "http://localhost:5174"
+    },
+    {
       "name": "SvelteKit Dev Server",
       "description": "Vite dev server with HMR — use for active development and functional testing",
       "runtimeExecutable": "C:\\Program Files\\nodejs\\npm.cmd",
