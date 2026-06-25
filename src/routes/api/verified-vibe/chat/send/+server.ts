@@ -256,14 +256,42 @@ export const POST: RequestHandler = async ({ request }) => {
             .select('gender')
             .eq('id', recipientId)
             .single();
-          // Bestie acts for the woman; only respond to messages from the other person.
           if (recipient?.gender === 'woman') {
+            // The man texted — Bestie replies on the woman's behalf.
             const { generateAndSendBestieReply } = await import('$lib/server/bestie-responder');
             await generateAndSendBestieReply(recipientId, body.conversationId, savedMessage.id, body.content.trim(), savedMessage.created_at);
+          } else if (recipient?.gender === 'man') {
+            // The woman (Bestie's owner) is texting back herself → she's taking
+            // over. Deactivate Bestie so it stops auto-replying, then leave one
+            // final hard-coded sign-off (stored as AI, in her own thread). The
+            // ai_bestie_active=true guard makes this fire exactly once even if
+            // she sends two messages before the first deactivation lands.
+            const { data: deactivated } = await supabase
+              .from('verified_vibe_matches')
+              .update({ ai_bestie_active: false })
+              .eq('id', body.conversationId)
+              .eq('ai_bestie_active', true)
+              .select('id');
+            if (deactivated && deactivated.length > 0) {
+              const { data: owner } = await supabase
+                .from('verified_vibe_users')
+                .select('first_name')
+                .eq('id', user.id)
+                .single();
+              const ownerName = owner?.first_name?.trim() || 'She';
+              await supabase
+                .from('verified_vibe_messages')
+                .insert({
+                  match_id: body.conversationId,
+                  sender_id: user.id,
+                  content: `Okay I'm gonna let you two take it from here! ${ownerName}, he's all yours`,
+                  is_ai: true
+                } as any);
+            }
           }
         } catch (bestieErr) {
           // Never let Bestie failure break the send.
-          console.error('Server-side Bestie response failed (non-fatal):', bestieErr);
+          console.error('Server-side Bestie handling failed (non-fatal):', bestieErr);
         }
       })();
       // On Vercel this defers the work past the response without the runtime
