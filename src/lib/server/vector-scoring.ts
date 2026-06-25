@@ -18,6 +18,7 @@ import {
 	OPEN_DIMENSION_IDS,
 	OPEN_DIMENSIONS,
 	POPULATION_AVG_WEIGHTS,
+	getDimension,
 	type DimensionId,
 } from '$lib/verified-vibe/dimensions';
 
@@ -164,6 +165,37 @@ export function upsideByDimension(attrs: Vec, conf: Vec): Array<{ dim: Dimension
 		}
 	}
 	return out.sort((a, b) => b.deltaPS - a.deltaPS);
+}
+
+export interface PathGap {
+	dim: DimensionId;
+	label: string;
+	/** 'verify' = decent claim, unproven (raise c); 'strengthen' = genuinely thin (raise v). */
+	lever: 'verify' | 'strengthen';
+	priority: number; // targetWeight × room-to-grow effective value
+}
+
+/**
+ * Path plan (§11c): the dimensions the TARGET weights most where the SUBJECT's
+ * effective value e = v·c has the most room, with the lever (verify vs strengthen)
+ * for each. OPEN dims only — we never coach someone to change a sensitive trait
+ * (faith/ethnicity/looks). Returns ranked gaps; the advisor translates these into
+ * approach advice and NEVER exposes the target's actual weights (§13a).
+ */
+export function pathGaps(targetWeights: Vec, subjectAttrs: Vec, subjectConf: Vec, max = 3): PathGap[] {
+	const gaps: PathGap[] = [];
+	for (const d of OPEN_DIMENSION_IDS) {
+		const w = targetWeights[d] ?? 0;
+		if (w <= 0) continue;
+		const v = subjectAttrs[d] ?? 0;
+		const c = subjectConf[d] ?? 0;
+		const e = (v * c) / 100; // effective value, 0–1
+		const priority = w * (1 - e); // she cares × room to grow
+		if (priority <= 0.0001) continue;
+		const lever: PathGap['lever'] = v >= 55 && c < 0.7 ? 'verify' : 'strengthen';
+		gaps.push({ dim: d, label: getDimension(d)?.label ?? d, lever, priority: Number(priority.toFixed(4)) });
+	}
+	return gaps.sort((a, b) => b.priority - a.priority).slice(0, max);
 }
 
 /** Effective value vector e = v·c (per dim), for diagnostics/coaching. */
