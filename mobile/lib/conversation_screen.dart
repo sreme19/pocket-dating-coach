@@ -378,16 +378,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
           ]),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.headset_mic_rounded, color: Color(Config.accent)),
-            tooltip: 'Call with AI Bestie',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => VoiceCallScreen(
-                matchId: widget.conversationId,
-                name: _otherName.isNotEmpty ? _otherName : widget.title,
-              ),
-            )),
-          ),
           PopupMenuButton<String>(
             color: const Color(Config.bg2),
             icon: const Icon(Icons.more_vert, color: Color(Config.text2)),
@@ -436,6 +426,15 @@ class _ConversationScreenState extends State<ConversationScreen> {
                             },
                           ),
           ),
+          _BestieCallBanner(
+            name: _otherName.isNotEmpty ? _otherName : widget.title,
+            onTap: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => VoiceCallScreen(
+                matchId: widget.conversationId,
+                name: _otherName.isNotEmpty ? _otherName : widget.title,
+              ),
+            )),
+          ),
           _Composer(
             controller: _composer,
             sending: _sending,
@@ -452,6 +451,54 @@ class _ConversationScreenState extends State<ConversationScreen> {
   }
 }
 
+
+class _BestieCallBanner extends StatelessWidget {
+  final String name;
+  final VoidCallback onTap;
+  const _BestieCallBanner({required this.name, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 2),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          height: 40,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: const [
+              BoxShadow(color: Color(0x44FF3B6B), blurRadius: 10, offset: Offset(0, 4)),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('✨', style: TextStyle(fontSize: 15)),
+              const SizedBox(width: 7),
+              Text(
+                'Voice chat with $name\'s AI Bestie',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.2,
+                ),
+              ),
+              const SizedBox(width: 7),
+              const Icon(Icons.mic_rounded, color: Colors.white, size: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _Bubble extends StatelessWidget {
   final ChatMessage msg;
