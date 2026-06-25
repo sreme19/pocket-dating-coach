@@ -1219,14 +1219,16 @@ class _EditableChipsState extends State<_EditableChips> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         LayoutBuilder(builder: (context, constraints) {
-          final chipW = (constraints.maxWidth - 8) / 2;
           return Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
               for (final c in _chips)
-                SizedBox(
-                  width: chipW,
+                // Size to content (Hinge/Tinder style); cap at the row width so a
+                // rare long label wraps to a second line instead of overflowing —
+                // either way the full text is shown, never truncated.
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: constraints.maxWidth),
                   child: _ChipWithRemove(text: '${c.emoji} ${c.label}', editing: _edit, onRemove: () => _remove(c)),
                 ),
               GestureDetector(
@@ -1292,7 +1294,9 @@ class _ChipWithRemove extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(12, 7, editing ? 6 : 12, 7),
       decoration: BoxDecoration(color: const Color(Config.bg3), borderRadius: BorderRadius.circular(999)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Flexible(child: Text(text, style: const TextStyle(fontSize: 13, color: Color(Config.text1), fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis, maxLines: 1)),
+        // Wrap the full label (no ellipsis) — chips are content-sized and only
+        // wrap to a 2nd line if a label exceeds the available row width.
+        Flexible(child: Text(text, style: const TextStyle(fontSize: 13, color: Color(Config.text1), fontWeight: FontWeight.w500), softWrap: true)),
         if (editing) ...[
           const SizedBox(width: 6),
           GestureDetector(
