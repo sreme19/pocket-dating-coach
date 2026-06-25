@@ -620,13 +620,23 @@ export const POST: RequestHandler = async ({ request }) => {
       return json({ error: 'No valid images found (JPEG/PNG/WEBP)' }, { status: 400 });
     }
 
+    // Anti-AI-forgery (genuine-photo categories only). Worded conservatively to
+    // avoid rejecting real-but-edited photos, and NOT applied to document /
+    // screenshot categories (statements, CVs, RCs) where legit scans can look
+    // "synthetic". The mobile result already surfaces `reason` to the user.
+    const PHOTO_FORGERY_CATEGORIES = new Set(['lifestyle', 'discipline', 'social_proof', 'hosting', 'travel']);
+    const ANTI_FORGERY = '\n\nAUTHENTICITY CHECK: These must be genuine, real-world photographs. Only if an image is UNMISTAKABLY AI-generated or synthetic (clear generative artifacts — malformed hands/teeth/eyes, impossible geometry, plastic-looking skin, gibberish text or logos) set verified=false with reason="Image appears AI-generated, not a real photo." Do NOT reject photos that are merely edited, filtered, cropped, compressed, or low quality. When in doubt, treat the photo as genuine.';
+    const visionPrompt = PHOTO_FORGERY_CATEGORIES.has(category)
+      ? PROMPTS[category] + ANTI_FORGERY
+      : PROMPTS[category];
+
     const claudeResp = await fetchWithRetry(CLAUDE_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
         model: CLAUDE_MODEL,
         max_tokens: 768,
-        messages: [{ role: 'user', content: [...imageBlocks, { type: 'text', text: PROMPTS[category] }] }]
+        messages: [{ role: 'user', content: [...imageBlocks, { type: 'text', text: visionPrompt }] }]
       }),
       signal: AbortSignal.timeout(60_000),
     });
