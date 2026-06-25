@@ -316,14 +316,25 @@ export default defineAgent({
 				voiceId: cfg.voiceId,
 				apiKey: process.env.ELEVENLABS_API_KEY
 			}),
-			// Generate ONE reply per finalized user turn, not on every interim STT
-			// chunk. Preemptive generation fires (and then cancels) a fresh Claude
-			// stream on each partial transcript; with our custom Anthropic-backed
-			// LLM that spawn/cancel churn tangled the segment state machine and
-			// stalled the pipeline into silence on longer turns. Trading a touch of
-			// first-word latency (covered by the on-screen "thinking…" indicator)
-			// for stability.
-			preemptiveGeneration: false
+			turnHandling: {
+				// Generate ONE reply per finalized user turn, not on every interim STT
+				// chunk. Preemptive generation fires (and then cancels) a fresh Claude
+				// stream on each partial transcript; with our custom Anthropic-backed
+				// LLM that spawn/cancel churn tangled the segment state machine and
+				// stalled the pipeline into silence on longer turns. Trading a touch of
+				// first-word latency (covered by the on-screen "thinking…" indicator)
+				// for stability.
+				preemptiveGeneration: { enabled: false },
+				// Make the bestie UNINTERRUPTIBLE. We force speakerphone on, so her
+				// own voice echoes speaker -> mic and the VAD read it as the caller
+				// "interrupting", cutting her audio ~1ms in (logs: "playout
+				// interrupted", playbackPositionInS: 0.001) — the caller saw her text
+				// but heard no audio. With interruption disabled she plays every reply
+				// to completion; discardAudioIfUninterruptible (default true) drops the
+				// echoed mic audio so it can't pollute STT. Tradeoff: no barge-in —
+				// acceptable for a screening call, revisit with tuned thresholds later.
+				interruption: { enabled: false }
+			}
 		});
 
 		const agent = new voice.Agent({ instructions: cfg.systemPrompt });
