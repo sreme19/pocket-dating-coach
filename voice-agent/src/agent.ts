@@ -133,13 +133,24 @@ class ClaudeLLMStream extends llm.LLMStream {
 		const system = sys.join('\n\n') || this.systemPrompt;
 
 		try {
-			const stream = anthropic.messages.stream({
-				model: this.modelId,
-				max_tokens: 300,
-				system,
-				messages
-			});
+			// CRITICAL: pass the framework's abort signal to Anthropic. The session
+			// cancels a generation whenever it's superseded (the caller keeps
+			// talking / barges in). Without this, the underlying SSE stream keeps
+			// running to completion in the background; under a long, pausey turn
+			// these pile up, tangle the TTS/transcription segment state machine
+			// (rotateSegment warnings) and wedge the pipeline into dead air — the
+			// "went silent after a few turns" bug.
+			const stream = anthropic.messages.stream(
+				{
+					model: this.modelId,
+					max_tokens: 300,
+					system,
+					messages
+				},
+				{ signal: this.abortController.signal }
+			);
 			for await (const ev of stream) {
+				if (this.abortController.signal.aborted) break;
 				if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') {
 					// Base class pipes this.queue -> output and closes the queue when
 					// run() resolves, so we only enqueue deltas here.
@@ -150,6 +161,12 @@ class ClaudeLLMStream extends llm.LLMStream {
 				}
 			}
 		} catch (err) {
+			// A cancelled/superseded generation aborts the stream — that's normal
+			// turn-taking, NOT a brain failure. Don't speak the fallback or wind the
+			// call down for it.
+			if (this.abortController.signal.aborted || (err as any)?.name === 'AbortError') {
+				return;
+			}
 			// The brain (Anthropic) failed mid-call — e.g. out of credit, rate limit,
 			// network. Without this, the caller hears dead air and keeps saying
 			// "hello? can you hear me?" (the original silent-call bug). Instead, speak
@@ -298,7 +315,15 @@ export default defineAgent({
 			tts: new elevenlabs.TTS({
 				voiceId: cfg.voiceId,
 				apiKey: process.env.ELEVENLABS_API_KEY
-			})
+			}),
+			// Generate ONE reply per finalized user turn, not on every interim STT
+			// chunk. Preemptive generation fires (and then cancels) a fresh Claude
+			// stream on each partial transcript; with our custom Anthropic-backed
+			// LLM that spawn/cancel churn tangled the segment state machine and
+			// stalled the pipeline into silence on longer turns. Trading a touch of
+			// first-word latency (covered by the on-screen "thinking…" indicator)
+			// for stability.
+			preemptiveGeneration: false
 		});
 
 		const agent = new voice.Agent({ instructions: cfg.systemPrompt });
