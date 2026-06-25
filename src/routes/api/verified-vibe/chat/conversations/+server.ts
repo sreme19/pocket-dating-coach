@@ -88,15 +88,17 @@ export const GET: RequestHandler = async ({ request }) => {
           ? (match.user1_last_read_at ?? null)
           : (match.user2_last_read_at ?? null);
 
-        if (!myLastReadAt) return Promise.resolve({ matchId: match.id, count: 0 });
-
-        return supabase
+        const query = supabase
           .from('verified_vibe_messages')
           .select('id', { count: 'exact', head: true })
           .eq('match_id', match.id)
-          .neq('sender_id', userId)
-          .gt('created_at', myLastReadAt)
-          .then(r => ({ matchId: match.id, count: r.count ?? 0 }));
+          .neq('sender_id', userId);
+
+        // If never read before, count ALL messages from the other person.
+        // If last_read_at exists, count only messages after that timestamp.
+        if (myLastReadAt) query.gt('created_at', myLastReadAt);
+
+        return query.then(r => ({ matchId: match.id, count: r.count ?? 0 }));
       })
     );
     const unreadMap = new Map(unreadResults.map(r => [r.matchId, r.count]));

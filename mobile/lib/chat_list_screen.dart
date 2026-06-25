@@ -307,13 +307,17 @@ class _ChatListScreenState extends State<ChatListScreen>
       builder: (_) => ConversationScreen(
         conversationId: c.id,
         title: c.age != null ? '${c.name}, ${c.age}' : c.name,
-        // Refresh the list the moment back is pressed (before animation ends)
-        // so the user sees updated data as soon as the screen transitions back.
-        onReturn: () { if (mounted) _refresh(); },
+        // Mark read + refresh the moment back is pressed so badge clears
+        // before the animation even finishes.
+        onReturn: () {
+          markConversationRead(c.id).catchError((_) {});
+          if (mounted) _refresh();
+        },
       ),
     ));
-    // Belt-and-suspenders: also refresh after animation completes (handles
-    // cases where onReturn fired before mark-read persisted to server).
+    // Belt-and-suspenders: await mark-read then refresh after animation
+    // completes to catch any messages that arrived while the screen was open.
+    await markConversationRead(c.id).catchError((_) {});
     await _refresh();
     if (mounted) setState(() => _clearedConvos.remove(c.id));
   }
