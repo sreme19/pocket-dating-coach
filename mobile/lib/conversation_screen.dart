@@ -494,17 +494,20 @@ class _Bubble extends StatelessWidget {
     final textColor = mine ? const Color(0xFFFFFFFF) : const Color(Config.text1);
     final timeColor = mine ? const Color(0x99FFFFFF) : const Color(Config.text3);
 
-    final avatar = showName
-        ? CircleAvatar(
-            radius: 15,
-            backgroundColor: const Color(Config.bg3),
-            backgroundImage: resolvedUrl != null ? CachedNetworkImageProvider(resolvedUrl) : null,
-            child: resolvedUrl != null
-                ? null
-                : Text(initial,
-                    style: const TextStyle(color: Color(Config.text1), fontSize: 11, fontWeight: FontWeight.w600)),
-          )
-        : const SizedBox(width: 30);
+    // Own messages have no avatar (like Bumble/iMessage — you know who you are)
+    final avatar = mine
+        ? const SizedBox(width: 0)
+        : showName
+            ? CircleAvatar(
+                radius: 15,
+                backgroundColor: const Color(Config.bg3),
+                backgroundImage: resolvedUrl != null ? CachedNetworkImageProvider(resolvedUrl) : null,
+                child: resolvedUrl != null
+                    ? null
+                    : Text(initial,
+                        style: const TextStyle(color: Color(Config.text1), fontSize: 11, fontWeight: FontWeight.w600)),
+              )
+            : const SizedBox(width: 30);
 
     // Detect image messages: [IMG]https://...
     final isImage = msg.content.startsWith('[IMG]');
@@ -576,13 +579,9 @@ class _Bubble extends StatelessWidget {
       child: Column(
         crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          if (showName)
+          if (showName && !mine)
             Padding(
-              padding: EdgeInsets.only(
-                left: mine ? 0 : 36,
-                right: mine ? 36 : 0,
-                bottom: 3,
-              ),
+              padding: const EdgeInsets.only(left: 36, bottom: 3),
               child: Text(displayName,
                   style: const TextStyle(
                       color: Color(Config.text3), fontSize: 11, fontWeight: FontWeight.w500)),
