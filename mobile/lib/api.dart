@@ -1400,6 +1400,23 @@ Future<void> sendAttention(String recipientId, String senderGender, String conte
   }
 }
 
+/// Generate an AI-written attention note via the live auto-gen endpoint.
+/// [tone] is one of: flirty | professional | practical | bold. messageType is
+/// derived from the sender's gender (man → craving_attention, woman → secret_admirer).
+Future<String> autoGenAttention(String recipientId, String senderGender, String tone) async {
+  final uid = Supabase.instance.client.auth.currentUser!.id;
+  final messageType = senderGender == 'woman' ? 'secret_admirer' : 'craving_attention';
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/attention/auto-gen',
+    data: {'senderId': uid, 'recipientId': recipientId, 'messageType': messageType, 'tone': tone},
+    options: Options(headers: {'Content-Type': 'application/json'}),
+  );
+  final data = resp.data;
+  final text = (data is Map ? data['text'] : null)?.toString().trim() ?? '';
+  if (text.isEmpty) throw 'No message generated';
+  return text;
+}
+
 // ── Onboarding ──────────────────────────────────────────────────────────────
 
 /// A signed-in user still needs onboarding if their verified_vibe_users row has

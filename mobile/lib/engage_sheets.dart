@@ -103,6 +103,8 @@ Future<bool> showAdmireSheet(BuildContext context, {required String recipientId,
   final textCtrl = TextEditingController();
   var sending = false;
   var sent = false;
+  var generating = false;
+  var tone = 'flirty';
   final title = viewerGender == 'woman' ? '🌹 Secret admirer' : '👀 Notice me';
 
   await showModalBottomSheet(
@@ -120,6 +122,54 @@ Future<bool> showAdmireSheet(BuildContext context, {required String recipientId,
           const SizedBox(height: 4),
           Text('Send $name one note to get on their radar. You only get one — make it count.', style: const TextStyle(color: Color(Config.text2), fontSize: 13)),
           const SizedBox(height: 14),
+          const Text('TONE', style: TextStyle(color: Color(Config.text3), fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            for (final t in const [('flirty', '😏 Flirty'), ('professional', '🎯 Professional'), ('practical', '💬 Practical'), ('bold', '🔥 Bold')])
+              GestureDetector(
+                onTap: generating ? null : () => setSheet(() => tone = t.$1),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: tone == t.$1 ? const Color(0x22FF3B6B) : const Color(Config.bg3),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: tone == t.$1 ? const Color(Config.accent) : const Color(0x181B1020)),
+                  ),
+                  child: Text(t.$2, style: TextStyle(color: tone == t.$1 ? const Color(Config.accent) : const Color(Config.text2), fontSize: 13, fontWeight: FontWeight.w600)),
+                ),
+              ),
+          ]),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: generating
+                  ? null
+                  : () async {
+                      setSheet(() => generating = true);
+                      try {
+                        final text = await autoGenAttention(recipientId, viewerGender, tone);
+                        textCtrl.text = text;
+                        textCtrl.selection = TextSelection.collapsed(offset: text.length);
+                        setSheet(() => generating = false);
+                      } catch (e) {
+                        setSheet(() => generating = false);
+                        if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text("Couldn't generate: $e")));
+                      }
+                    },
+              icon: generating
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)))
+                  : const Text('✨', style: TextStyle(fontSize: 14)),
+              label: Text(generating ? 'Generating…' : (textCtrl.text.trim().isEmpty ? 'Auto-generate' : 'Regenerate'),
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(Config.accent),
+                side: const BorderSide(color: Color(0x55FF3B6B)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           TextField(
             controller: textCtrl,
             maxLength: 500,

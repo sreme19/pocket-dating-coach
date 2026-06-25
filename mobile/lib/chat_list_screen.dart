@@ -401,7 +401,7 @@ class _ChatListScreenState extends State<ChatListScreen>
                           textAlign: TextAlign.center, style: TextStyle(color: Color(Config.text2))),
                     )
                   else
-                    ...data.admirers.map((a) => _AdmirerCard(admirer: a, onReplied: _refresh)),
+                    ...data.admirers.map((a) => _AdmirerCard(admirer: a, onReplied: _refresh, showBestie: isWoman)),
                 ] else if (_filter == 3) ...[
                   const _MatchmakerCard(),
                   if (data.sentAdmirers.isEmpty)
@@ -712,7 +712,9 @@ class _AdvisorRow extends StatelessWidget {
 class _AdmirerCard extends StatelessWidget {
   final Admirer admirer;
   final VoidCallback onReplied;
-  const _AdmirerCard({required this.admirer, required this.onReplied});
+  // Bestie proxies only for women — a man receiving a Secret Admirer replies himself.
+  final bool showBestie;
+  const _AdmirerCard({required this.admirer, required this.onReplied, required this.showBestie});
 
   Future<void> _reply(BuildContext context) async {
     final ctrl = TextEditingController();
@@ -834,19 +836,21 @@ class _AdmirerCard extends StatelessWidget {
                 child: const Text('Reply', style: TextStyle(fontWeight: FontWeight.w700)),
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: () => _replyWithBestie(context),
-                icon: const Text('💚', style: TextStyle(fontSize: 14)),
-                label: const Text('Reply with Bestie', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0x2222C55E),
-                  foregroundColor: const Color(0xFF22C55E),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            if (showBestie) ...[
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () => _replyWithBestie(context),
+                  icon: const Text('💚', style: TextStyle(fontSize: 14)),
+                  label: const Text('Reply with Bestie', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0x2222C55E),
+                    foregroundColor: const Color(0xFF22C55E),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                 ),
               ),
-            ),
+            ],
           ]),
       ]),
     );
