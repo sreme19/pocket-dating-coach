@@ -13,6 +13,7 @@
 
 import { env } from '$env/dynamic/private';
 import {
+	appeal,
 	profileStrength,
 	profileStrengthBand,
 	bandProgress,
@@ -20,6 +21,13 @@ import {
 	upsideByDimension,
 	type Vec,
 } from './vector-scoring';
+
+/**
+ * Appeal-to-her threshold for the consent-unlock recommendation (§11d). The doc
+ * specifies 80 on the old opaque-LLM scale; calibration showed the vector scale
+ * runs ≈half, so we re-anchor to 55 here. Tunable as the pool grows.
+ */
+export const UNLOCK_APPEAL_THRESHOLD = 55;
 
 export function advisorVectorsEnabled(): boolean {
 	return env.ADVISOR_VECTORS === 'true';
@@ -72,6 +80,54 @@ PROFILE STRENGTH (deterministic vector model — these numbers are EXACT, use th
 - Highest-leverage verification moves, in order:
 ${actionLines}
 Coach from this: the fastest standing gains come from VERIFYING claims (raising confidence), not just adding new ones. Surface the single highest-leverage move first, quantify the gain, and walk ${obj} through it. Persistent-but-positive — always opportunity, never deficiency.`;
+	} catch {
+		return '';
+	}
+}
+
+/**
+ * Consent-unlock recommendations for a woman's Bestie (§11d): which of her matched
+ * men have cleared the appeal-to-her bar (A = Σ wₕ·vₘ·cₘ ≥ threshold), so the
+ * Bestie can RECOMMEND taking it offline — she always gives final consent, the
+ * Bestie never opens a channel or shares contact unilaterally. Flag-gated; '' when
+ * off / no qualifying men. Pure arithmetic, no LLM.
+ */
+export async function loadUnlockRecommendations(supabase: any, womanId: string): Promise<string> {
+	if (!advisorVectorsEnabled()) return '';
+	try {
+		const { data: her } = await supabase
+			.from('vv_user_vectors').select('weights').eq('user_id', womanId).maybeSingle();
+		if (!her?.weights) return '';
+		const herWeights = her.weights as Vec;
+
+		const { data: matches } = await supabase
+			.from('verified_vibe_matches')
+			.select('user1_id, user2_id')
+			.or(`user1_id.eq.${womanId},user2_id.eq.${womanId}`)
+			.eq('status', 'mutual');
+		const partnerIds: string[] = (matches ?? []).map((m: any) => (m.user1_id === womanId ? m.user2_id : m.user1_id));
+		if (!partnerIds.length) return '';
+
+		const { data: men } = await supabase
+			.from('verified_vibe_users').select('id, first_name, gender').in('id', partnerIds).eq('gender', 'man');
+		const menMap = new Map<string, string>((men ?? []).map((u: any) => [u.id, u.first_name ?? 'He']));
+		if (!menMap.size) return '';
+
+		const { data: vecs } = await supabase
+			.from('vv_user_vectors').select('user_id, attributes, confidence').in('user_id', [...menMap.keys()]);
+
+		const cleared: Array<{ name: string; appeal: number }> = [];
+		for (const v of vecs ?? []) {
+			const a = appeal(herWeights, (v.attributes ?? {}) as Vec, (v.confidence ?? {}) as Vec);
+			if (a >= UNLOCK_APPEAL_THRESHOLD) cleared.push({ name: menMap.get(v.user_id) ?? 'He', appeal: a });
+		}
+		if (!cleared.length) return '';
+		cleared.sort((a, b) => b.appeal - a.appeal);
+
+		const names = cleared.map((c) => `**${c.name}**`).join(', ');
+		return `
+
+READY-TO-ESCALATE (consent-unlock — §11d): ${names} ${cleared.length === 1 ? 'has' : 'have'} cleared the bar — on the dimensions SHE values, ${cleared.length === 1 ? 'he brings' : 'they bring'} proven, high value to her specifically. You may RECOMMEND she take it offline (a call / her preferred channel) — but it is ALWAYS her decision: recommend, never open a channel or share contact yourself. Frame as "${cleared[0].name} has really shown up on what matters to you — want me to help you take this further?" Never reveal her preference weights or the score; speak in terms of fit and what he's proven.`;
 	} catch {
 		return '';
 	}
