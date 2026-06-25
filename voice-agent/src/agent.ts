@@ -356,6 +356,21 @@ export default defineAgent({
 
 		await session.start({ agent, room: ctx.room });
 
+		// Make sure the caller is actually in the room (and our audio path to them
+		// is up) BEFORE we greet. Otherwise the opening line is spoken into an
+		// empty room and the caller hears nothing until they say "hello?" — the
+		// "bestie didn't greet me" bug. waitForParticipant resolves as soon as a
+		// remote (human) participant is present; we cap the wait so a no-show
+		// caller can't hang the entry forever.
+		try {
+			await Promise.race([
+				ctx.waitForParticipant(),
+				new Promise((resolve) => setTimeout(resolve, 8000))
+			]);
+		} catch (e) {
+			console.error('[agent] waitForParticipant failed; greeting anyway', e);
+		}
+
 		// Disclosure preamble + warm opener. The ConversationItemAdded handler
 		// captures this into the transcript, so don't push it manually (that caused
 		// the greeting to appear twice).
