@@ -49,10 +49,11 @@ post_install do |installer|
     end
   end
 
-  # ── connectivity_plus 7.1.1 patch ──────────────────────────────────────────
-  # NWPath.isUltraConstrained requires iOS 17.4+ but connectivity_plus calls it
-  # without an #available guard, causing a Swift compile error on lower targets.
-  # This patches the file in-place until a fixed version is published.
+  # ── connectivity_plus patch ─────────────────────────────────────────────────
+  # connectivity_plus 7.1.1 references NWPath.isUltraConstrained which is an
+  # iOS 26.0 API. GitHub Actions CI runs Xcode 16.x (iOS 18 SDK) which does
+  # not include this API, causing a Swift compile error even with #available.
+  # We remove the entire block — satellite detection is non-critical.
   connectivity_file = Dir[File.join(
     ENV['HOME'], '.pub-cache', 'hosted', 'pub.dev',
     'connectivity_plus-*', 'ios', 'connectivity_plus', 'Sources',
@@ -60,13 +61,14 @@ post_install do |installer|
   )].first
   if connectivity_file && File.exist?(connectivity_file)
     content = File.read(connectivity_file)
-    if content.include?('path.isUltraConstrained') && !content.include?('#available(iOS 17.4')
+    if content.include?('isUltraConstrained')
+      # Remove the entire #available block that uses isUltraConstrained
       patched = content.gsub(
-        'if path.isUltraConstrained {',
-        'if #available(iOS 17.4, macOS 14.4, *), path.isUltraConstrained {'
+        /\s*if #available\([^)]*\),\s*path\.isUltraConstrained \{[^}]*\}/m,
+        ''
       )
       File.write(connectivity_file, patched)
-      puts 'Patched connectivity_plus: wrapped isUltraConstrained in #available guard'
+      puts 'Patched connectivity_plus: removed isUltraConstrained block (iOS 26 API not in CI SDK)'
     end
   end
 end
