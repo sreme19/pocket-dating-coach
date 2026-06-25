@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'api.dart';
@@ -247,13 +248,14 @@ const _configs = <String, _CatConfig>{
     subtitle: 'Car registration, property deed, company docs',
     privacyCopy: 'Documents stay private. AI extracts make, model and year to build your Garage section on your profile.',
     examples: [
-      'Vehicle registration certificate',
+      'Photo of you with your car or at purchase moment',
+      'Vehicle registration certificate (PDF or photo)',
       'Car insurance document (make/model visible)',
-      'Property title or deed',
+      'Property title or deed (PDF or photo)',
       'Company registration or shareholding document',
     ],
-    hintLine: 'Registration docs are the easiest. Up to 5 files.',
-    maxFiles: 5,
+    hintLine: 'Photos with asset count — documents unlock verification points.',
+    maxFiles: 10,
   ),
 };
 
@@ -274,6 +276,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
   final _picker = ImagePicker();
   final _urlController = TextEditingController();
   final List<XFile> _files = [];
+  final List<PlatformFile> _pdfFiles = [];
   bool _analysing = false;
   _UploadResult? _result;
   final List<XFile> _resumeImages = [];
@@ -384,11 +387,29 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
   // ── Can submit ───────────────────────────────────────────────────────────────
   bool get _canAnalyse {
     if (_analysing) return false;
+    if (_result?.verified == true) return false;
     if (widget.categoryId == 'intro') return _voicePath != null || _videoPath != null;
     if (_files.isNotEmpty) return true;
+    if (_pdfFiles.isNotEmpty) return true;
     if (_resumeImages.isNotEmpty) return true;
     if (_cfg.hasUrlInput && _urlController.text.trim().isNotEmpty) return true;
     return false;
+  }
+
+  Future<void> _pickPdf() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+      allowMultiple: true,
+    );
+    if (result == null || !mounted) return;
+    setState(() {
+      for (final f in result.files) {
+        if (f.path != null && !_pdfFiles.any((p) => p.path == f.path)) {
+          _pdfFiles.add(f);
+        }
+      }
+    });
   }
 
   // ── 2-step ID gate: (1) upload government ID → extract name, (2) selfie → face match ──
@@ -658,10 +679,13 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
         } else if (_resumeImages.isNotEmpty) {
           final paths = _resumeImages.map((f) => f.path).toList();
           res = await uploadProof(widget.categoryId, paths);
-        } else if (url.isNotEmpty && _files.isEmpty) {
+        } else if (url.isNotEmpty && _files.isEmpty && _pdfFiles.isEmpty) {
           res = await uploadProofUrl(widget.categoryId, url);
         } else {
-          final paths = _files.map((f) => f.path).toList();
+          final paths = [
+            ..._files.map((f) => f.path),
+            ..._pdfFiles.map((p) => p.path!).where((p) => p.isNotEmpty),
+          ];
           res = await uploadProof(widget.categoryId, paths);
         }
       }
@@ -1181,6 +1205,77 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
             const SizedBox(height: 16),
           ],
 
+          // PDF picker — shown for assets category
+          if (widget.categoryId == 'assets') ...[
+            const Text('DOCUMENTS (PDF)',
+                style: TextStyle(color: Color(Config.text2), fontSize: 12,
+                    fontWeight: FontWeight.w700, letterSpacing: 0.6)),
+            const SizedBox(height: 8),
+            if (_pdfFiles.isEmpty)
+              GestureDetector(
+                onTap: _analysing ? null : _pickPdf,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  decoration: BoxDecoration(
+                    color: const Color(Config.bg2),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0x33FF3B6B), width: 1.5),
+                  ),
+                  child: const Column(children: [
+                    Icon(Icons.picture_as_pdf_outlined, color: Color(Config.text2), size: 28),
+                    SizedBox(height: 8),
+                    Text('Tap to add PDF documents',
+                        style: TextStyle(color: Color(Config.text2), fontSize: 14,
+                            fontWeight: FontWeight.w500)),
+                    SizedBox(height: 4),
+                    Text('RC, insurance, property deed, company docs',
+                        style: TextStyle(color: Color(Config.text3), fontSize: 12)),
+                  ]),
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(Config.bg2),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0x4DFF3B6B), width: 1.5),
+                ),
+                child: Column(children: [
+                  for (final pdf in _pdfFiles)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(children: [
+                        const Icon(Icons.picture_as_pdf_outlined,
+                            color: Color(Config.accent), size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(child: Text(pdf.name,
+                            style: const TextStyle(color: Color(Config.text1), fontSize: 13),
+                            overflow: TextOverflow.ellipsis)),
+                        if (!_analysing)
+                          GestureDetector(
+                            onTap: () => setState(() => _pdfFiles.remove(pdf)),
+                            child: const Icon(Icons.close,
+                                color: Color(Config.text3), size: 18),
+                          ),
+                      ]),
+                    ),
+                  GestureDetector(
+                    onTap: _analysing ? null : _pickPdf,
+                    child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Icon(Icons.add, color: Color(Config.accent), size: 16),
+                      SizedBox(width: 4),
+                      Text('Add more PDFs',
+                          style: TextStyle(color: Color(Config.accent), fontSize: 13,
+                              fontWeight: FontWeight.w600)),
+                    ]),
+                  ),
+                ]),
+              ),
+            const SizedBox(height: 16),
+          ],
+
           // Result banner
           if (_result != null)
             Container(
@@ -1241,11 +1336,17 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                       SizedBox(width: 10),
                       Text('Analysing…', style: TextStyle(fontWeight: FontWeight.w700)),
                     ])
-                  : Text(
-                      cfg.hasUrlInput && _urlController.text.trim().isNotEmpty && _files.isEmpty
-                          ? 'Connect & Verify'
-                          : 'Analyse & Verify',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                  : _result?.verified == true
+                      ? const Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.check_circle_rounded, size: 18),
+                          SizedBox(width: 8),
+                          Text('Added to your profile', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                        ])
+                      : Text(
+                          cfg.hasUrlInput && _urlController.text.trim().isNotEmpty && _files.isEmpty
+                              ? 'Connect & Verify'
+                              : 'Analyse & Verify',
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
             ),
           ),
         ],
@@ -1480,8 +1581,14 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                       SizedBox(width: 10),
                       Text('Submitting…', style: TextStyle(fontWeight: FontWeight.w700)),
                     ])
-                  : const Text('Submit Intro',
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                  : _result?.verified == true
+                      ? const Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.check_circle_rounded, size: 18),
+                          SizedBox(width: 8),
+                          Text('Added to your profile', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                        ])
+                      : const Text('Submit Intro',
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
             ),
           ),
         ],

@@ -372,6 +372,19 @@ async function persistInsight(userId: string, category: string, pts: number, dat
       const prevProofs: unknown[] = Array.isArray(masterData.verifiedProofs)
         ? masterData.verifiedProofs as unknown[]
         : [];
+
+      // Merge insights from previous proof of same category so chips accumulate.
+      const prevSame = prevProofs.find((p: any) => p.category === category) as any;
+      if (prevSame && Array.isArray(prevSame.insights) && Array.isArray(newEntry.insights)) {
+        const seen = new Set((newEntry.insights as any[]).map((i: any) => i.label));
+        const extra = (prevSame.insights as any[]).filter((i: any) => !seen.has(i.label));
+        newEntry.insights = [...(newEntry.insights as any[]), ...extra];
+        // Merge photo_count
+        if (typeof prevSame.photo_count === 'number' && typeof newEntry.photo_count === 'number') {
+          newEntry.photo_count = prevSame.photo_count + newEntry.photo_count;
+        }
+      }
+
       const mergedProofs = [...prevProofs.filter((p: any) => p.category !== category), newEntry];
 
       // Also union-merge locations into countriesTraveled

@@ -44,6 +44,7 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
   String? _resultText;
   bool _resultGood = false;
   List<String> _resultChips = const [];
+  final Set<String> _verifiedCats = {};
 
   void _applyResult(_Cat cat, Map res) {
     final verified = res['verified'] == true;
@@ -61,6 +62,7 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
       _activeCat = null;
       _resultGood = verified;
       _resultChips = verified ? chips : const [];
+      if (verified) _verifiedCats.add(cat.id);
       _resultText = verified
           ? '✓ ${cat.label} verified · +$pts trust${agg.isNotEmpty ? '\n$agg' : ''}'
               '${nameMismatch ? '\n⚠️ Name on the document didn\'t match your ID — flagged for review.' : ''}'
@@ -206,13 +208,14 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
 
   Widget _row(_Cat c) {
     final loading = _busy && _activeCat == c.id;
+    final verified = _verifiedCats.contains(c.id);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(Config.bg2),
+        color: verified ? const Color(0x0AFF3B6B) : const Color(Config.bg2),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0x181B1020)),
+        border: Border.all(color: verified ? const Color(0x44FF3B6B) : const Color(0x181B1020)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -221,11 +224,22 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(c.label, style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w600, fontSize: 15)),
-              Text('+${c.points} trust', style: const TextStyle(color: Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w600)),
+              Text(verified ? 'Added to your profile' : '+${c.points} trust',
+                  style: TextStyle(color: verified ? const Color(Config.accent) : const Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w600)),
             ]),
           ),
           if (loading)
             const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)))
+          else if (verified)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(color: const Color(0x22FF3B6B), borderRadius: BorderRadius.circular(999)),
+              child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.check_circle_rounded, color: Color(Config.accent), size: 15),
+                SizedBox(width: 4),
+                Text('Verified', style: TextStyle(color: Color(Config.accent), fontSize: 13, fontWeight: FontWeight.w700)),
+              ]),
+            )
           else if (c.url)
             FilledButton(
               onPressed: _busy ? null : () => _uploadUrl(c),
@@ -242,7 +256,7 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
             IconButton(onPressed: _busy ? null : () => _upload(c, ImageSource.gallery), icon: const Icon(Icons.upload_outlined, color: Color(Config.accent))),
           ],
         ]),
-        if (c.hint.isNotEmpty)
+        if (c.hint.isNotEmpty && !verified)
           Padding(
             padding: const EdgeInsets.only(top: 4, left: 36),
             child: Text(c.hint, style: const TextStyle(color: Color(Config.text3), fontSize: 12, height: 1.3)),
