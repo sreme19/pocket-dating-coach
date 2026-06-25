@@ -456,6 +456,8 @@ export interface BestieAdvisorPromptContext {
 	matchIntelligenceContext?: string;
 	/** Vector-model Profile Strength band + verification-upside actions (Phase 4, flag-gated). */
 	profileStrengthContext?: string;
+	/** Consent-unlock recommendations — matched men who cleared the appeal bar (§11d, flag-gated). */
+	unlockContext?: string;
 }
 
 /**
@@ -506,7 +508,7 @@ DRAFT MESSAGES: When ${userName} explicitly asks you to draft a message to send 
 message text here
 [/DRAFT]
 Use this ONLY for finalized messages Neha has confirmed she wants to send — not for examples, suggestions, or openers you're proposing. One [DRAFT] block per match. Place draft blocks after your reply text, each on its own line. Use the exact first name as shown in the match list above.
-${ctx.prefsContext}${ctx.matchContext}${ctx.competitiveContext ?? ''}${ctx.matchIntelligenceContext ?? ''}${ctx.profileStrengthContext ?? ''}${ctx.pendingReportContext}`;
+${ctx.prefsContext}${ctx.matchContext}${ctx.competitiveContext ?? ''}${ctx.matchIntelligenceContext ?? ''}${ctx.profileStrengthContext ?? ''}${ctx.unlockContext ?? ''}${ctx.pendingReportContext}`;
 }
 
 export function buildAIWingmanSystemPrompt(
