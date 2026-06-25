@@ -28,6 +28,7 @@ import {
 	CONFIDENCE_MIN,
 	type DimensionId,
 } from '$lib/verified-vibe/dimensions';
+import { incomeToV, parseIncomeToLPA } from '$lib/verified-vibe/valuation';
 
 export const VECTOR_BUILDER_VERSION = 1;
 
@@ -79,6 +80,7 @@ interface BuilderInput {
 	proofCategories: string[];  // verified proof categories present
 	photoCount: number;
 	strength: Record<string, number>; // per-dim accumulated proof strength (pre-clamp)
+	incomeLPA: number | null;   // parsed annual income (LPA), if the user stated one
 }
 
 function flattenAnswers(obj: unknown, out: string[] = [], depth = 0): string[] {
@@ -113,6 +115,9 @@ async function gatherInput(db: any, userId: string): Promise<BuilderInput | null
 
 	// Onboarding text (who they are + what they want), all archetypes.
 	const onboardingBits = flattenAnswers(md.onboarding ?? {});
+
+	// Stated annual income (Money Matters) → LPA, for the deterministic curve.
+	const incomeLPA = parseIncomeToLPA((gen.moneyMatters as any)?.annualIncome);
 
 	// Verified proof categories.
 	const { data: proofRows } = await db
@@ -159,6 +164,7 @@ async function gatherInput(db: any, userId: string): Promise<BuilderInput | null
 		proofCategories: [...new Set(proofCategories)],
 		photoCount,
 		strength,
+		incomeLPA,
 	};
 }
 
@@ -275,6 +281,15 @@ export async function computeUserVectors(userId: string): Promise<UserVectors | 
 	const confidence = buildConfidence(input.strength);
 	const llm = await buildLLMVectors(input);
 
+	// §6c/§6d: when the user stated an income, the financial attribute is set by the
+	// DETERMINISTIC city-calibrated curve — never the LLM's eyeballed guess. This is
+	// reproducible, auditable, and not gameable. Confidence still comes from proof.
+	let financialFromCurve = false;
+	if (input.incomeLPA != null) {
+		llm.attributes.financial = incomeToV(input.incomeLPA, input.city);
+		financialFromCurve = true;
+	}
+
 	// Preserve an explicit weight vector if the user set one.
 	const { data: existing } = await db
 		.from('vv_user_vectors')
@@ -302,6 +317,8 @@ export async function computeUserVectors(userId: string): Promise<UserVectors | 
 			photoCount: input.photoCount,
 			proofStrength: input.strength,
 			builtFrom: input.profileText ? 'profile+onboarding' : 'sparse',
+			incomeLPA: input.incomeLPA,
+			financialFromCurve,
 		},
 		city: input.city,
 	};
