@@ -31,6 +31,7 @@ export const POST: RequestHandler = async ({ request }) => {
         | 'score-vectors-shadow' | 'diff-scores';
       userId?: string;
       userIds?: string[];
+      includeSeed?: boolean;
       limit?: number;
     };
 
@@ -43,7 +44,7 @@ export const POST: RequestHandler = async ({ request }) => {
     // Nothing on the live path reads these yet — safe to run/re-run. Synchronous
     // so the caller sees per-user status. One LLM call per user.
     if (body.task === 'build-vectors') {
-      const result = await runVectorBackfill({ userIds: body.userIds });
+      const result = await runVectorBackfill({ userIds: body.userIds, includeSeed: body.includeSeed });
       return json({ task: 'build-vectors', ...result });
     }
 
