@@ -1,0 +1,109 @@
+name: iOS TestFlight
+
+on:
+  push:
+    branches: [development]
+  workflow_dispatch:
+
+jobs:
+  build-and-upload:
+    name: Build & Upload to TestFlight
+    runs-on: macos-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+        working-directory: mobile
+
+      - name: Import signing certificate
+        env:
+          P12_BASE64: ${{ secrets.IOS_CERTIFICATE_P12 }}
+          P12_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          security create-keychain -p "" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "" "$KEYCHAIN_PATH"
+          echo "$P12_BASE64" | base64 --decode -o $RUNNER_TEMP/cert.p12
+          security import $RUNNER_TEMP/cert.p12 -P "$P12_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+      - name: Import provisioning profile
+        env:
+          PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$PROFILE_BASE64" | base64 --decode \
+            -o ~/Library/MobileDevice/Provisioning\ Profiles/riteangle.mobileprovision
+
+      - name: Build & export IPA
+        run: |
+          flutter build ipa --release \
+            --export-options-plist=ios/ExportOptions.ci.plist
+        working-directory: mobile
+
+      - name: Upload to TestFlight
+        env:
+          API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$API_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_${API_KEY_ID}.p8
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$(ls mobile/build/ios/ipa/*.ipa)" \
+            --apiKey "$API_KEY_ID" \
+            --apiIssuer "$ISSUER_ID" \
+            --verbose
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="v$(grep '^version:' mobile/pubspec.yaml | awk '{print $2}' | cut -d'+' -f1)"
+          BUILD=$(grep '^version:' mobile/pubspec.yaml | awk '{print $2}' | cut -d'+' -f2)
+          TAG="${VERSION}+${BUILD}"
+
+          # Skip if tag already exists
+          if git tag | grep -q "^${TAG}$"; then
+            echo "Tag $TAG already exists — skipping release"
+            exit 0
+          fi
+
+          # Changelog from commits since last tag
+          PREV=$(git tag --sort=-version:refname | head -1)
+          RANGE="${PREV:+${PREV}..HEAD}"
+          FEATURES=$(git log ${RANGE:-HEAD} --pretty=format:"- %s (%h)" --no-merges | grep "^- feat" || true)
+          FIXES=$(git log ${RANGE:-HEAD} --pretty=format:"- %s (%h)" --no-merges | grep "^- fix" || true)
+
+          {
+            echo "## iOS TestFlight ${VERSION} (build ${BUILD})"
+            echo ""
+            echo "Uploaded to TestFlight automatically — available to testers after Apple processing."
+            echo ""
+            [ -n "$FEATURES" ] && echo "### ✨ New Features" && echo "$FEATURES" && echo ""
+            [ -n "$FIXES" ] && echo "### 🐛 Bug Fixes" && echo "$FIXES" && echo ""
+            [ -n "$PREV" ] && echo "**Full changelog**: https://github.com/${{ github.repository }}/compare/${PREV}...${TAG}"
+          } > /tmp/release_notes.md
+
+          git tag "$TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" \
+            --title "${VERSION} (build ${BUILD}) — riteangle.dating" \
+            --notes-file /tmp/release_notes.md \
+            --latest
+          echo "✅ GitHub Release $TAG created"

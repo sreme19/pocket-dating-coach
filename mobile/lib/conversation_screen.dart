@@ -7,6 +7,7 @@ import 'api.dart';
 import 'config.dart';
 import 'match_profile_screen.dart';
 import 'push_service.dart';
+import 'voice_call_screen.dart';
 
 class ConversationScreen extends StatefulWidget {
   final String conversationId;
@@ -159,7 +160,14 @@ class _ConversationScreenState extends State<ConversationScreen> {
       ),
       callback: (payload) {
         try {
-          _merge([ChatMessage.fromApi(payload.newRecord)], scroll: true);
+          final msg = ChatMessage.fromApi(payload.newRecord);
+          _merge([msg], scroll: true);
+          // If the incoming message is from the other person (e.g. AI Bestie
+          // reply that arrives after we marked read), immediately re-stamp
+          // last_read_at so the badge stays clear while we're in this screen.
+          if (msg.senderId != _myId) {
+            markConversationRead(widget.conversationId).catchError((_) {});
+          }
         } catch (_) {}
       },
     ).subscribe();
@@ -370,6 +378,16 @@ class _ConversationScreenState extends State<ConversationScreen> {
           ]),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.headset_mic_rounded, color: Color(Config.accent)),
+            tooltip: 'Call with AI Bestie',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => VoiceCallScreen(
+                matchId: widget.conversationId,
+                name: _otherName.isNotEmpty ? _otherName : widget.title,
+              ),
+            )),
+          ),
           PopupMenuButton<String>(
             color: const Color(Config.bg2),
             icon: const Icon(Icons.more_vert, color: Color(Config.text2)),
@@ -418,7 +436,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
                             },
                           ),
           ),
-          // _CallBestieButton is intentionally hidden
           _Composer(
             controller: _composer,
             sending: _sending,
@@ -487,17 +504,20 @@ class _Bubble extends StatelessWidget {
     final textColor = mine ? const Color(0xFFFFFFFF) : const Color(Config.text1);
     final timeColor = mine ? const Color(0x99FFFFFF) : const Color(Config.text3);
 
-    final avatar = showName
-        ? CircleAvatar(
-            radius: 15,
-            backgroundColor: const Color(Config.bg3),
-            backgroundImage: resolvedUrl != null ? CachedNetworkImageProvider(resolvedUrl) : null,
-            child: resolvedUrl != null
-                ? null
-                : Text(initial,
-                    style: const TextStyle(color: Color(Config.text1), fontSize: 11, fontWeight: FontWeight.w600)),
-          )
-        : const SizedBox(width: 30);
+    // Own messages have no avatar (like Bumble/iMessage — you know who you are)
+    final avatar = mine
+        ? const SizedBox(width: 0)
+        : showName
+            ? CircleAvatar(
+                radius: 15,
+                backgroundColor: const Color(Config.bg3),
+                backgroundImage: resolvedUrl != null ? CachedNetworkImageProvider(resolvedUrl) : null,
+                child: resolvedUrl != null
+                    ? null
+                    : Text(initial,
+                        style: const TextStyle(color: Color(Config.text1), fontSize: 11, fontWeight: FontWeight.w600)),
+              )
+            : const SizedBox(width: 30);
 
     // Detect image messages: [IMG]https://...
     final isImage = msg.content.startsWith('[IMG]');
@@ -569,13 +589,9 @@ class _Bubble extends StatelessWidget {
       child: Column(
         crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          if (showName)
+          if (showName && !mine)
             Padding(
-              padding: EdgeInsets.only(
-                left: mine ? 0 : 36,
-                right: mine ? 36 : 0,
-                bottom: 3,
-              ),
+              padding: const EdgeInsets.only(left: 36, bottom: 3),
               child: Text(displayName,
                   style: const TextStyle(
                       color: Color(Config.text3), fontSize: 11, fontWeight: FontWeight.w500)),
