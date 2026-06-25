@@ -7,6 +7,7 @@ import 'api.dart';
 import 'config.dart';
 import 'match_profile_screen.dart';
 import 'push_service.dart';
+import 'trust_boost_screen.dart';
 import 'voice_call_screen.dart';
 
 class ConversationScreen extends StatefulWidget {
@@ -834,6 +835,9 @@ class _ComposerState extends State<_Composer> {
               TextPosition(offset: text.length),
             );
           },
+          onUploadProof: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const TrustBoostScreen()),
+          ),
         ),
       );
     } catch (e) {
@@ -932,11 +936,13 @@ class _WingmanBottomSheet extends StatelessWidget {
   final String suggestion;
   final String? coaching;
   final void Function(String text) onUse;
+  final VoidCallback onUploadProof;
 
   const _WingmanBottomSheet({
     required this.suggestion,
     required this.coaching,
     required this.onUse,
+    required this.onUploadProof,
   });
 
   @override
@@ -975,6 +981,25 @@ class _WingmanBottomSheet extends StatelessWidget {
                 Text(coaching!,
                     style: const TextStyle(color: Color(Config.text3), fontSize: 12, height: 1.4)),
               ],
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    onUploadProof();
+                  },
+                  icon: const Text('📎', style: TextStyle(fontSize: 14)),
+                  label: const Text('Add a proof to strengthen your profile',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFA855F7),
+                    side: const BorderSide(color: Color(0x33A855F7)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
               const SizedBox(height: 18),
               Row(children: [
                 Expanded(
