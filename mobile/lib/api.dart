@@ -1695,6 +1695,18 @@ Future<String?> replyToAdmirer(String messageId, String replyContent) async {
   return (resp.data is Map ? resp.data['matchId'] : null) as String?;
 }
 
+/// Hand an admirer/attention message off to the AI Bestie — creates a match
+/// with Bestie active, seeds the chat with his note, and lets Bestie reply.
+/// Returns the matchId of the (new or existing) conversation.
+Future<String?> replyToAdmirerWithBestie(String messageId) async {
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/attention/reply-with-bestie',
+    data: {'messageId': messageId},
+    options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
+  );
+  return (resp.data is Map ? resp.data['matchId'] : null) as String?;
+}
+
 /// Mark a conversation as read — clears the unread badge on the Messages list.
 Future<void> markConversationRead(String matchId) async {
   final uid = Supabase.instance.client.auth.currentUser?.id;
