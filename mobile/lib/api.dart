@@ -739,6 +739,16 @@ Future<void> _insightChip(String action, String category, String label, String? 
   );
 }
 
+/// Remove a thumbnail image from a proof category (persists to verifiedProofs
+/// and best-effort deletes the underlying Storage object).
+Future<void> removeProofThumbnail(String category, String url) async {
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/proof-thumbnail',
+    data: {'action': 'remove', 'category': category, 'url': url},
+    options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
+  );
+}
+
 /// Normalize a free-typed dealbreaker into a concise phrase (Claude haiku).
 /// Falls back to the trimmed input on any error.
 Future<String> cleanupText(String text) async {
