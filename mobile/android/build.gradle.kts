@@ -16,20 +16,30 @@ subprojects {
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 subprojects {
-    project.evaluationDependsOn(":app")
-}
-
-// Force all plugin subprojects to compile against SDK 36.
-// Required by flutter_plugin_android_lifecycle; file_picker and others
-// default to a lower compileSdk which causes a build error.
-subprojects {
-    afterEvaluate {
-        if (extensions.findByName("android") != null) {
-            extensions.configure<com.android.build.gradle.BaseExtension>("android") {
-                compileSdkVersion(36)
+    // Force all Android plugin subprojects (e.g. file_picker) to compile against
+    // SDK 36, which is required by flutter_plugin_android_lifecycle. Flutter's
+    // default compileSdkVersion (34) is too low for some plugins. Uses the modern
+    // AGP DSL (CommonExtension) since BaseExtension was removed in AGP 9.
+    //
+    // evaluationDependsOn(":app") below forces plugin subprojects to evaluate
+    // early, so by the time this loop reaches them they may ALREADY be evaluated —
+    // and registering afterEvaluate on an evaluated project throws
+    // "Cannot run Project.afterEvaluate when the project is already evaluated".
+    // Guard on the evaluation state: configure straight away if already evaluated,
+    // otherwise defer to afterEvaluate.
+    val forceCompileSdk: Project.() -> Unit = {
+        extensions.findByType(com.android.build.api.dsl.CommonExtension::class.java)?.let { ext ->
+            if ((ext.compileSdk ?: 0) < 36) {
+                ext.compileSdk = 36
             }
         }
     }
+    if (state.executed) {
+        forceCompileSdk()
+    } else {
+        afterEvaluate { forceCompileSdk() }
+    }
+    project.evaluationDependsOn(":app")
 }
 
 tasks.register<Delete>("clean") {
