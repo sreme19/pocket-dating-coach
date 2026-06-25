@@ -42,6 +42,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   String? _viewerGender;
   String _myName = '';
   String? _myAvatar;
+  bool _bestieActive = true; // per-match AI Bestie state (woman's side)
 
   @override
   void initState() {
@@ -107,6 +108,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       _otherAvatar = thread.otherAvatar;
       _otherName = thread.otherName;
       _otherGender = thread.otherGender;
+      _bestieActive = thread.aiBestieActive;
       _merge(thread.messages, scroll: true);
       // Re-check presence now that _otherId is known — fixes race condition
       // where onPresenceSync fired before _initialLoad completed (Android).
@@ -144,6 +146,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
     try {
       final thread = await fetchConversation(widget.conversationId);
       _merge(thread.messages);
+      if (mounted && thread.aiBestieActive != _bestieActive) {
+        setState(() => _bestieActive = thread.aiBestieActive);
+      }
     } catch (_) {/* transient */}
   }
 
@@ -192,6 +197,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
     try {
       final sent = await sendMessage(widget.conversationId, text);
       if (sent != null) _merge([sent], scroll: true);
+      // The woman sending her own message = stepping in → backend deactivates
+      // her Bestie. Reflect it optimistically (poll reconciles).
+      if (_viewerGender == 'woman' && _bestieActive && mounted) {
+        setState(() => _bestieActive = false);
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Send failed: $e')));
@@ -206,6 +216,66 @@ class _ConversationScreenState extends State<ConversationScreen> {
         await _pollOnce();
       }
     });
+  }
+
+  Future<void> _resumeBestie() async {
+    setState(() => _bestieActive = true); // optimistic
+    try {
+      await activateBestie(widget.conversationId);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _bestieActive = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not resume Bestie: $e')));
+      }
+    }
+  }
+
+  /// Per-match AI Bestie status, shown to the woman only. When active, an
+  /// info pill (sending a message steps in); when off, a Resume button.
+  Widget _bestieBanner() {
+    if (_bestieActive) {
+      return Container(
+        margin: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0x1422C55E),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0x3322C55E)),
+        ),
+        child: const Row(children: [
+          Text('💚', style: TextStyle(fontSize: 14)),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text('AI Bestie is chatting on your behalf — send a message any time to step in.',
+                style: TextStyle(color: Color(0xFF22C55E), fontSize: 12, fontWeight: FontWeight.w600)),
+          ),
+        ]),
+      );
+    }
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+      padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+      decoration: BoxDecoration(
+        color: const Color(Config.bg2),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0x33EC4899)),
+      ),
+      child: Row(children: [
+        const Expanded(
+          child: Text("You're handling this chat. Hand it back any time.",
+              style: TextStyle(color: Color(Config.text2), fontSize: 12)),
+        ),
+        TextButton.icon(
+          onPressed: _resumeBestie,
+          icon: const Text('💚', style: TextStyle(fontSize: 13)),
+          label: const Text('Resume Bestie', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+          style: TextButton.styleFrom(
+            foregroundColor: const Color(0xFF22C55E),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+          ),
+        ),
+      ]),
+    );
   }
 
   Future<void> _sendImageMessage(String url) async {
@@ -426,6 +496,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
                             },
                           ),
           ),
+          if (!_loading && _viewerGender == 'woman' && _otherGender == 'man')
+            _bestieBanner(),
           _BestieCallBanner(
             name: _otherName.isNotEmpty ? _otherName : widget.title,
             onTap: () => Navigator.of(context).push(MaterialPageRoute(

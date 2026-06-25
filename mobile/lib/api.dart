@@ -1655,8 +1655,9 @@ class ConversationThread {
   final String otherName;
   final String? otherAvatar;
   final String? otherGender;
+  final bool aiBestieActive;
   final List<ChatMessage> messages;
-  ConversationThread({required this.otherId, required this.otherName, required this.otherAvatar, required this.otherGender, required this.messages});
+  ConversationThread({required this.otherId, required this.otherName, required this.otherAvatar, required this.otherGender, required this.aiBestieActive, required this.messages});
 }
 
 Future<ConversationThread> fetchConversation(String conversationId) async {
@@ -1673,7 +1674,19 @@ Future<ConversationThread> fetchConversation(String conversationId) async {
     otherName: (u['firstName'] ?? 'Chat').toString(),
     otherAvatar: u['avatar'] as String?,
     otherGender: u['gender'] as String?,
+    aiBestieActive: data['aiBestieActive'] != false, // default true; only false when explicitly off
     messages: msgs.whereType<Map>().map(ChatMessage.fromApi).toList(),
+  );
+}
+
+/// Resume AI Bestie for a match (sets ai_bestie_active = true). Turning it OFF
+/// happens automatically when the woman sends her own message — she's stepping
+/// in — so there's no explicit deactivate call.
+Future<void> activateBestie(String conversationId) async {
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/ai-bestie/activate',
+    data: {'conversationId': conversationId},
+    options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
   );
 }
 
