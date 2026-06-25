@@ -1577,6 +1577,43 @@ class _LanePickerSheetState extends State<_LanePickerSheet> {
 
   Future<void> _pick(BuildContext ctx, Archetype a) async {
     if (_saving) return;
+    // Picking the current lane is a no-op — just close.
+    if (a.id == widget.data.archetype) {
+      Navigator.of(ctx).pop();
+      return;
+    }
+    // Warn before confirming: a lane change cascades through matches, profile
+    // and AI advisors, and re-asks the new lane's intent Q&A.
+    final confirmed = await showDialog<bool>(
+      context: ctx,
+      builder: (dctx) => AlertDialog(
+        backgroundColor: const Color(Config.bg2),
+        title: Text('Switch to ${a.name}?',
+            style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700)),
+        content: const Text(
+          'Your lane shapes everything. Switching will:\n\n'
+          '•  Refresh who you see and your match scores\n'
+          '•  Swap your "what you bring" set and dating-style baselines\n'
+          '•  Update your AI advisor to the new lane\n'
+          '•  Re-ask your intent Q&A for the new lane\n\n'
+          'Your existing matches stay. Change lanes thoughtfully.',
+          style: TextStyle(color: Color(Config.text2), height: 1.45, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dctx).pop(false),
+            child: const Text('Cancel', style: TextStyle(color: Color(Config.text2))),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dctx).pop(true),
+            style: FilledButton.styleFrom(
+                backgroundColor: const Color(Config.accent), foregroundColor: Colors.white),
+            child: const Text('Switch lane'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
     setState(() => _saving = true);
     try {
       await saveArchetype(a.id);
