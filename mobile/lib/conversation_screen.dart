@@ -159,7 +159,14 @@ class _ConversationScreenState extends State<ConversationScreen> {
       ),
       callback: (payload) {
         try {
-          _merge([ChatMessage.fromApi(payload.newRecord)], scroll: true);
+          final msg = ChatMessage.fromApi(payload.newRecord);
+          _merge([msg], scroll: true);
+          // If the incoming message is from the other person (e.g. AI Bestie
+          // reply that arrives after we marked read), immediately re-stamp
+          // last_read_at so the badge stays clear while we're in this screen.
+          if (msg.senderId != _myId) {
+            markConversationRead(widget.conversationId).catchError((_) {});
+          }
         } catch (_) {}
       },
     ).subscribe();
