@@ -281,6 +281,13 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
   _UploadResult? _result;
   final List<XFile> _resumeImages = [];
 
+  // ── Verified-signal editing ──────────────────────────────────────────────
+  // Local, mutable copy of the existing proof's insight chips so the user can
+  // remove bubbles. Edits persist via removeInsightChip(); null until a proof
+  // with insights is present.
+  List<InsightChip>? _insights;
+  bool _editInsights = false;
+
   // ── Intro-only recording state ──────────────────────────────────────────────
   AudioRecorder? _audioRec;
   bool _isRecordingVoice = false;
@@ -294,6 +301,10 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
     super.initState();
     if (widget.categoryId == 'intro') {
       _audioRec = AudioRecorder();
+    }
+    final existing = widget.existingProof?.insights;
+    if (existing != null && existing.isNotEmpty) {
+      _insights = List<InsightChip>.of(existing);
     }
   }
 
@@ -723,6 +734,27 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
     }
   }
 
+  // ── Remove a verified-signal bubble (optimistic + persist) ────────────────
+  Future<void> _removeInsight(String category, InsightChip chip) async {
+    final list = _insights;
+    if (list == null) return;
+    final idx = list.indexOf(chip);
+    if (idx < 0) return;
+    setState(() {
+      list.removeAt(idx);
+      if (list.isEmpty) _editInsights = false;
+    });
+    try {
+      await removeInsightChip(category, chip.label);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => list.insert(idx.clamp(0, list.length), chip));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_friendlyError(e))),
+      );
+    }
+  }
+
   // ── Existing proof history ────────────────────────────────────────────────
   Widget _buildHistorySection(ProofItem proof) {
     return Container(
@@ -747,6 +779,24 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
           if (proof.photoCount > 0)
             Text('${proof.photoCount} photo${proof.photoCount == 1 ? '' : 's'}',
                 style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
+          // Pencil → toggle remove-mode for the signal bubbles below
+          if ((_insights?.isNotEmpty ?? false)) ...[
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: () => setState(() => _editInsights = !_editInsights),
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Icon(
+                  _editInsights ? Icons.check_rounded : Icons.edit_outlined,
+                  size: 18,
+                  color: _editInsights
+                      ? const Color(0xFF22C55E)
+                      : const Color(Config.text2),
+                ),
+              ),
+            ),
+          ],
         ]),
 
         // AI summary
@@ -758,16 +808,31 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
         ],
 
         // Insight chips
-        if (proof.insights.isNotEmpty) ...[
+        if ((_insights ?? proof.insights).isNotEmpty) ...[
           const SizedBox(height: 10),
           Wrap(spacing: 6, runSpacing: 6, children: [
-            for (final chip in proof.insights)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                    color: const Color(Config.bg3), borderRadius: BorderRadius.circular(999)),
-                child: Text('${chip.emoji} ${chip.label}',
-                    style: const TextStyle(color: Color(Config.text1), fontSize: 12)),
+            for (final chip in (_insights ?? proof.insights))
+              GestureDetector(
+                onTap: _editInsights ? () => _removeInsight(proof.category, chip) : null,
+                child: Container(
+                  padding: EdgeInsets.only(
+                      left: 10, right: _editInsights ? 6 : 10, top: 5, bottom: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(Config.bg3),
+                    borderRadius: BorderRadius.circular(999),
+                    border: _editInsights
+                        ? Border.all(color: const Color(0x66F87171))
+                        : null,
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Text('${chip.emoji} ${chip.label}',
+                        style: const TextStyle(color: Color(Config.text1), fontSize: 12)),
+                    if (_editInsights) ...[
+                      const SizedBox(width: 5),
+                      const Icon(Icons.close_rounded, size: 14, color: Color(0xFFF87171)),
+                    ],
+                  ]),
+                ),
               ),
           ]),
         ],
@@ -799,8 +864,12 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
         ],
 
         const SizedBox(height: 10),
-        const Text('Upload more below to strengthen your proof →',
-            style: TextStyle(color: Color(Config.text3), fontSize: 11, fontStyle: FontStyle.italic)),
+        Text(
+            _editInsights
+                ? 'Tap a signal to remove it · tap ✓ when done'
+                : 'Upload more below to strengthen your proof →',
+            style: const TextStyle(
+                color: Color(Config.text3), fontSize: 11, fontStyle: FontStyle.italic)),
       ]),
     );
   }
