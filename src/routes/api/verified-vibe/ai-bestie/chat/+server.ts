@@ -11,7 +11,7 @@ import { popPendingChatMessage } from '$lib/server/intelligence-report-processor
 import { loadBestieAdvisorContext } from '$lib/server/bestie-advisor-context';
 import { buildCompetitiveSnapshot } from '$lib/server/competitive-snapshot';
 import { loadMatchIntelligenceContext } from '$lib/server/match-intelligence';
-import { loadVectorAdvisorContext, loadUnlockRecommendations } from '$lib/server/vector-advisor-context';
+import { loadVectorAdvisorContext, loadUnlockRecommendations, loadPursuitPlanContext } from '$lib/server/vector-advisor-context';
 import { buildAIBestieAdvisorSystemPrompt } from '$lib/prompts';
 import { complianceGate } from '$lib/server/ai-compliance';
 
@@ -113,6 +113,8 @@ export const POST: RequestHandler = async ({ request }) => {
 		const profileStrengthContext = await loadVectorAdvisorContext(supabase, userId, { subject: 'woman' });
 		// ── Consent-unlock recommendations — matched men who cleared the bar (§11d) ──
 		const unlockContext = await loadUnlockRecommendations(supabase, userId);
+		// ── Targeted-pursuit path plan — how she raises her appeal to a man (§11i) ──
+		const pursuitContext = await loadPursuitPlanContext(supabase, userId);
 
 		// ── Build system prompt (shared builder) ──────────────────────────────
 		const systemPrompt = buildAIBestieAdvisorSystemPrompt({
@@ -123,6 +125,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			matchIntelligenceContext,
 			profileStrengthContext,
 			unlockContext,
+			pursuitContext,
 			pendingReportContext
 		});
 
