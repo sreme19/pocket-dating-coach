@@ -46,7 +46,11 @@ jobs:
       # Debug build — no keystore needed, suitable for internal testing.
       # Switch to --release + signing config when ready for production.
       - name: Build APK (debug)
-        run: cd mobile && flutter build apk --debug
+        # --build-number stamps a unique, increasing Android versionCode per run
+        # (github.run_number is monotonic). pubspec's +N is fixed, so without this
+        # every build shares one versionCode and Android refuses to install the
+        # newer build over the one a tester already has.
+        run: cd mobile && flutter build apk --debug --build-number=${{ github.run_number }}
 
       # ── Upload to Firebase App Distribution ────────────────────────────────
       - name: Distribute to testers
