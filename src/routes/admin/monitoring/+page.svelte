@@ -220,26 +220,49 @@
 							{log.response_time_ms != null ? log.response_time_ms + ' ms' : '—'}
 						</td>
 						<td class="px-4 py-2.5 text-xs">
-							{#if log.check_name === 'app_error' && log.metadata}
+							{#if log.metadata && (log.status !== 'OK' || log.error_message)}
 								<div class="space-y-0.5">
 									{#if log.metadata.feature}
-										<div><span class="text-slate-500">feature:</span> <span class="text-orange-400">{log.metadata.feature}</span></div>
+										<div>
+											<span class="text-slate-500">section:</span>
+											<span class="text-orange-400">{log.metadata.feature}</span>
+										</div>
 									{/if}
 									{#if log.metadata.endpoint}
-										<div><span class="text-slate-500">endpoint:</span> <span class="font-mono text-slate-300">{log.metadata.endpoint}</span></div>
+										<div>
+											<span class="text-slate-500">endpoint:</span>
+											<span class="font-mono text-slate-300">{log.metadata.endpoint}</span>
+										</div>
+									{/if}
+									{#if log.metadata.http_code != null}
+										<div>
+											<span class="text-slate-500">HTTP:</span>
+											<span class="font-mono {Number(log.metadata.http_code) >= 400 ? 'text-red-400' : 'text-slate-300'}">{log.metadata.http_code}</span>
+										</div>
 									{/if}
 									{#if log.metadata.file}
-										<div><span class="text-slate-500">file:</span> <span class="font-mono text-sky-400">{log.metadata.file}</span></div>
+										<div>
+											<span class="text-slate-500">file:</span>
+											<span class="font-mono text-sky-400">{log.metadata.file}</span>
+										</div>
 									{/if}
 									{#if log.error_message}
-										<div><span class="text-slate-500">error:</span> <span class="text-red-400">{log.error_message}</span></div>
+										<div>
+											<span class="text-slate-500">error:</span>
+											<span class="text-red-400">{log.error_message}</span>
+										</div>
 									{/if}
 									{#if log.metadata.user_id}
-										<div><span class="text-slate-500">user:</span> <span class="font-mono text-slate-400">{log.metadata.user_id}</span></div>
+										<div>
+											<span class="text-slate-500">user:</span>
+											<span class="font-mono text-slate-400">{log.metadata.user_id}</span>
+										</div>
 									{/if}
 								</div>
+							{:else if log.error_message}
+								<span class="text-red-400">{log.error_message}</span>
 							{:else}
-								<span class="text-red-400">{log.error_message ?? ''}</span>
+								<span class="text-slate-600">—</span>
 							{/if}
 						</td>
 					</tr>

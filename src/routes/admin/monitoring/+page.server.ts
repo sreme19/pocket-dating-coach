@@ -21,6 +21,7 @@ export const load: PageServerLoad = async () => {
 			feature?: string;
 			file?: string;
 			endpoint?: string;
+			http_code?: number;
 			user_id?: string | null;
 			match_id?: string | null;
 			stack?: string | null;
@@ -83,12 +84,19 @@ export const actions: Actions = {
 		const sb = getSupabase() as any;
 		const now = new Date().toISOString();
 
-		const log = async (checkName: string, status: 'OK' | 'FAIL', ms: number, errorMsg: string | null) => {
+		const log = async (
+			checkName: string,
+			status: 'OK' | 'FAIL',
+			ms: number,
+			errorMsg: string | null,
+			meta?: Record<string, unknown>
+		) => {
 			await sb.from('monitor_log').insert({
 				check_name: checkName,
 				status,
 				response_time_ms: ms,
 				error_message: errorMsg,
+				metadata: meta ?? null,
 				created_at: now,
 			});
 		};
@@ -105,12 +113,12 @@ export const actions: Actions = {
 				const ms = Date.now() - start;
 				status = r.ok ? 'OK' : 'FAIL';
 				if (!r.ok) error = `HTTP ${r.status}`;
-				await log('api_health_ping', status, ms, error);
+				await log('api_health_ping', status, ms, error, { feature: 'api', endpoint: '/api/health', http_code: r.status });
 				results.push({ check: 'api_health_ping', status, ms, error });
 			} catch (e) {
 				const ms = Date.now() - start;
 				error = e instanceof Error ? e.message : String(e);
-				await log('api_health_ping', 'FAIL', ms, error);
+				await log('api_health_ping', 'FAIL', ms, error, { feature: 'api', endpoint: '/api/health' });
 				results.push({ check: 'api_health_ping', status: 'FAIL', ms, error });
 			}
 		}
@@ -122,7 +130,7 @@ export const actions: Actions = {
 			const ms = Date.now() - start;
 			const status: 'OK' | 'FAIL' = dbErr ? 'FAIL' : 'OK';
 			const error = dbErr ? `${dbErr.code}: ${dbErr.message}` : null;
-			await log('db_read_integrity', status, ms, error);
+			await log('db_read_integrity', status, ms, error, { feature: 'database', endpoint: 'supabase › rest/v1/verified_vibe_users' });
 			results.push({ check: 'db_read_integrity', status, ms, error });
 		}
 
@@ -131,6 +139,7 @@ export const actions: Actions = {
 			const start = Date.now();
 			let status: 'OK' | 'FAIL' = 'FAIL';
 			let error: string | null = null;
+			let httpCode: number | undefined;
 			try {
 				const { SYNTHETIC_USER_EMAIL, SEED_ACCOUNT_PASSWORD } = await import('$env/static/private');
 				const r = await fetch('/api/verified-vibe/seed-login', {
@@ -138,6 +147,7 @@ export const actions: Actions = {
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ email: SYNTHETIC_USER_EMAIL, password: SEED_ACCOUNT_PASSWORD }),
 				});
+				httpCode = r.status;
 				const ms = Date.now() - start;
 				const body = await r.json().catch(() => ({}));
 				if (r.ok && body.otp) {
@@ -145,12 +155,12 @@ export const actions: Actions = {
 				} else {
 					error = `HTTP ${r.status} — ${JSON.stringify(body)}`;
 				}
-				await log('synthetic_login_simulation', status, ms, error);
+				await log('synthetic_login_simulation', status, ms, error, { feature: 'auth', endpoint: '/api/verified-vibe/seed-login', http_code: httpCode });
 				results.push({ check: 'synthetic_login_simulation', status, ms, error });
 			} catch (e) {
 				const ms = Date.now() - start;
 				error = e instanceof Error ? e.message : String(e);
-				await log('synthetic_login_simulation', 'FAIL', ms, error);
+				await log('synthetic_login_simulation', 'FAIL', ms, error, { feature: 'auth', endpoint: '/api/verified-vibe/seed-login', http_code: httpCode });
 				results.push({ check: 'synthetic_login_simulation', status: 'FAIL', ms, error });
 			}
 		}
