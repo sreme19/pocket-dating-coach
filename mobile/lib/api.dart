@@ -837,12 +837,21 @@ Future<void> resetQAVerification() async {
   }
 }
 
-/// Persist hard-nos (dealbreakers) to verified_vibe_users.hard_nos.
+/// Persist hard-nos (dealbreakers). Routes through the server endpoint (not a
+/// direct Supabase write) so the matchmaker pool entry is refreshed and the edit
+/// propagates to matching — hard_nos is the single source of truth for
+/// dealbreakers.
 Future<void> saveHardNos(List<String> hardNos) async {
-  final supabase = Supabase.instance.client;
-  final user = supabase.auth.currentUser;
-  if (user == null) throw StateError('Not authenticated');
-  await supabase.from('verified_vibe_users').update({'hard_nos': hardNos}).eq('id', user.id);
+  final session = Supabase.instance.client.auth.currentSession;
+  if (session == null) throw StateError('Not authenticated');
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/hard-nos',
+    data: {'hardNos': hardNos},
+    options: Options(headers: {
+      'Authorization': 'Bearer ${session.accessToken}',
+      'Content-Type': 'application/json',
+    }),
+  );
 }
 
 /// Save the owner's "Here For" intent line (here_for_title / here_for_desc).

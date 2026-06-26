@@ -54,19 +54,25 @@ export async function loadBestieAdvisorContext(
 	// ── Resolve her first name ──────────────────────────────────────────────
 	const { data: userRow } = await (supabase as any)
 		.from('verified_vibe_users')
-		.select('first_name')
+		.select('first_name, hard_nos')
 		.eq('id', userId)
 		.single();
 	const userName: string = userRow?.first_name || 'her';
+	// hard_nos = her canonical, user-declared dealbreakers. Surfaced even when she
+	// has no ai_assistant_profiles row yet, and merged with the AI's overlay below.
+	const hardNos: string[] = Array.isArray(userRow?.hard_nos)
+		? (userRow.hard_nos as unknown[]).map((h) => `${h}`.trim()).filter(Boolean)
+		: [];
 
 	// ── Load preferences ────────────────────────────────────────────────────
 	let prefsContext = '';
 	let preferencesData: unknown = null;
+	const parts: string[] = [];
+	let prefDealbreakers: string[] = [];
 	try {
 		const prefs = await loadPreferences(userId);
 		preferencesData = prefs;
-		const parts: string[] = [];
-		if (prefs.dealbreakers.length) parts.push(`Dealbreakers: ${prefs.dealbreakers.join(', ')}`);
+		prefDealbreakers = prefs.dealbreakers;
 		if (prefs.emotionalSignals.length)
 			parts.push(`Green flags she values: ${prefs.emotionalSignals.join(', ')}`);
 		if (prefs.boundaries.length) parts.push(`Hard boundaries: ${prefs.boundaries.join(', ')}`);
@@ -74,10 +80,14 @@ export async function loadBestieAdvisorContext(
 			parts.push(`Maturity signals she looks for: ${prefs.maturitySignals.join(', ')}`);
 		if (prefs.privateCompatibilityNotes.length)
 			parts.push(`Private notes: ${prefs.privateCompatibilityNotes.join(', ')}`);
-		if (parts.length) prefsContext = `\n\n${userName}'s preferences:\n${parts.join('\n')}`;
 	} catch {
-		// gracefully skip if preferences not set up yet
+		// gracefully skip if preferences not set up yet — hard_nos still surfaces
 	}
+	// Declared hard_nos ∪ ai_assistant_profiles.dealbreakers (the AI overlay) — keep
+	// both. Dealbreakers stay first in the block.
+	const dealbreakers = Array.from(new Set([...hardNos, ...prefDealbreakers]));
+	if (dealbreakers.length) parts.unshift(`Dealbreakers: ${dealbreakers.join(', ')}`);
+	if (parts.length) prefsContext = `\n\n${userName}'s preferences:\n${parts.join('\n')}`;
 
 	// ── Fetch matches with recent messages + proofs ──────────────────────────
 	const { data: matches } = await supabase

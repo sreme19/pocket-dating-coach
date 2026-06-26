@@ -17,14 +17,20 @@ export interface BestieReply {
 	reply: string;
 }
 
-function formatStructuredPreferences(prefs: PreferencesProfile): string {
+function formatStructuredPreferences(prefs: PreferencesProfile | null, hardNos: string[] = []): string {
+	const p = prefs ?? ({
+		emotionalSignals: [], lifestyleSignals: [], maturitySignals: [],
+		boundaries: [], dealbreakers: [], privateCompatibilityNotes: [],
+	} as unknown as PreferencesProfile);
 	const lines: string[] = ['\nHer known preferences:'];
-	if (prefs.emotionalSignals.length > 0) lines.push(`- Emotional signals she values: ${prefs.emotionalSignals.join(', ')}`);
-	if (prefs.lifestyleSignals.length > 0) lines.push(`- Lifestyle signals she values: ${prefs.lifestyleSignals.join(', ')}`);
-	if (prefs.maturitySignals.length > 0) lines.push(`- Maturity signals she values: ${prefs.maturitySignals.join(', ')}`);
-	if (prefs.boundaries.length > 0) lines.push(`- Her firm boundaries: ${prefs.boundaries.join(', ')}`);
-	if (prefs.dealbreakers.length > 0) lines.push(`- Her dealbreakers (absolute no-gos): ${prefs.dealbreakers.join(', ')}`);
-	if (prefs.privateCompatibilityNotes.length > 0) lines.push(`- Private notes: ${prefs.privateCompatibilityNotes.join(', ')}`);
+	if (p.emotionalSignals.length > 0) lines.push(`- Emotional signals she values: ${p.emotionalSignals.join(', ')}`);
+	if (p.lifestyleSignals.length > 0) lines.push(`- Lifestyle signals she values: ${p.lifestyleSignals.join(', ')}`);
+	if (p.maturitySignals.length > 0) lines.push(`- Maturity signals she values: ${p.maturitySignals.join(', ')}`);
+	if (p.boundaries.length > 0) lines.push(`- Her firm boundaries: ${p.boundaries.join(', ')}`);
+	// Declared hard_nos ∪ ai_assistant_profiles.dealbreakers (AI overlay) — keep both.
+	const dealbreakers = Array.from(new Set([...hardNos, ...p.dealbreakers]));
+	if (dealbreakers.length > 0) lines.push(`- Her dealbreakers (absolute no-gos): ${dealbreakers.join(', ')}`);
+	if (p.privateCompatibilityNotes.length > 0) lines.push(`- Private notes: ${p.privateCompatibilityNotes.join(', ')}`);
 	return lines.join('\n');
 }
 
@@ -50,7 +56,7 @@ export async function generateBestieReply(
 	const [user, matchRow, structuredPrefs, recent] = await Promise.all([
 		supabase
 			.from('verified_vibe_users')
-			.select('first_name, preferences, about, looking')
+			.select('first_name, preferences, about, looking, hard_nos')
 			.eq('id', userId)
 			.single()
 			.then((r) => r.data),
@@ -116,9 +122,13 @@ export async function generateBestieReply(
 		preferencesContext = aboutText + lookingText + prefsText;
 	}
 
+	const hardNos: string[] = Array.isArray((user as any)?.hard_nos)
+		? ((user as any).hard_nos as unknown[]).map((h) => `${h}`.trim()).filter(Boolean)
+		: [];
 	let structuredPreferencesContext = '';
-	if (structuredPrefs && (structuredPrefs.emotionalSignals.length > 0 || structuredPrefs.dealbreakers.length > 0 || structuredPrefs.boundaries.length > 0)) {
-		structuredPreferencesContext = formatStructuredPreferences(structuredPrefs);
+	const hasStructured = structuredPrefs && (structuredPrefs.emotionalSignals.length > 0 || structuredPrefs.dealbreakers.length > 0 || structuredPrefs.boundaries.length > 0);
+	if (hardNos.length > 0 || hasStructured) {
+		structuredPreferencesContext = formatStructuredPreferences(structuredPrefs, hardNos);
 	}
 
 	// Recent conversation history (last 12 messages)

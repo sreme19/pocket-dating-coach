@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { deriveDealbreakers } from '../pool-registry';
+import {
+  deriveDealbreakers,
+  deriveAllDealbreakers,
+  resolveHardNos,
+  distillPreferences,
+} from '../pool-registry';
 
 /**
  * Coverage + correctness for the dealbreaker derivation (second mapping layer).
@@ -135,5 +140,96 @@ describe('deriveDealbreakers — correctness', () => {
     expect(out.length).toBeLessThanOrEqual(12);
     // 'Mutual respect' appears twice but 'Disrespect' should be deduped
     expect(out.filter((d) => d === 'Disrespect').length).toBe(1);
+  });
+});
+
+describe('resolveHardNos — onboarding seeds once, then hard_nos is user-owned', () => {
+  it('(a) empty + unseeded → seeds from the onboarding-derived set, flags a write', () => {
+    const { hardNos, needsSeedWrite } = resolveHardNos(
+      'forever_focused_man',
+      { non_negotiables: ['Loyalty', 'Aligned on children'] },
+      {},
+      { hardNos: [], seeded: false },
+    );
+    expect(needsSeedWrite).toBe(true);
+    expect(hardNos).toEqual(
+      deriveAllDealbreakers('forever_focused_man', { non_negotiables: ['Loyalty', 'Aligned on children'] }, {}),
+    );
+    expect(hardNos).toContain('Disloyal / unfaithful');
+  });
+
+  it('(b) existing manual entries + unseeded → preserved (never overwritten), flags a write', () => {
+    const { hardNos, needsSeedWrite } = resolveHardNos(
+      'forever_focused_man',
+      { non_negotiables: ['Loyalty'] }, // would derive, but must NOT replace manual entries
+      {},
+      { hardNos: ['Smoking', 'Non-Muslim'], seeded: false },
+    );
+    expect(needsSeedWrite).toBe(true);
+    expect(hardNos).toEqual(['Smoking', 'Non-Muslim']);
+    expect(hardNos).not.toContain('Disloyal / unfaithful');
+  });
+
+  it('(c) already seeded → returned verbatim, no re-seed even if onboarding would derive', () => {
+    const { hardNos, needsSeedWrite } = resolveHardNos(
+      'forever_focused_man',
+      { non_negotiables: ['Loyalty'] },
+      {},
+      { hardNos: ['Smoking'], seeded: true },
+    );
+    expect(needsSeedWrite).toBe(false);
+    expect(hardNos).toEqual(['Smoking']);
+  });
+
+  it('seeded empty list stays empty (a deliberate clear is honoured, not re-seeded)', () => {
+    const { hardNos, needsSeedWrite } = resolveHardNos(
+      'forever_focused_man',
+      { non_negotiables: ['Loyalty'] },
+      {},
+      { hardNos: [], seeded: true },
+    );
+    expect(needsSeedWrite).toBe(false);
+    expect(hardNos).toEqual([]);
+  });
+
+  it('trims and drops blank entries', () => {
+    const { hardNos } = resolveHardNos('spoiled_casual_woman', {}, {}, {
+      hardNos: ['  Smoking ', '', '   ', 'Non-Muslim'],
+      seeded: true,
+    });
+    expect(hardNos).toEqual(['Smoking', 'Non-Muslim']);
+  });
+});
+
+describe('distillPreferences — hard_nos is the canonical dealbreaker projection', () => {
+  it('uses the seeded hard_nos verbatim (deduped)', () => {
+    const prefs = distillPreferences({}, {}, 'spoiled_casual_woman', [
+      'Smoking', 'Excessive Drinking', 'Non-Muslim', 'Smoking',
+    ]);
+    expect(prefs.dealbreakers).toEqual(['Smoking', 'Excessive Drinking', 'Non-Muslim']);
+  });
+
+  it('respects removals — an item dropped from hard_nos is absent from the projection', () => {
+    // User removed 'Excessive Drinking'; onboarding would still imply a drinker
+    // dealbreaker, but the canonical list wins so the removal sticks.
+    const prefs = distillPreferences(
+      {},
+      { lifestyle: ['Non-drinker'] },
+      'traditional_matrimony_woman',
+      ['Smoking', 'Non-Muslim'],
+    );
+    expect(prefs.dealbreakers).not.toContain('Excessive Drinking');
+    expect(prefs.dealbreakers).not.toContain('Drinker');
+    expect(prefs.dealbreakers).toEqual(['Smoking', 'Non-Muslim']);
+  });
+
+  it('falls back to the onboarding-derived set before seeding (hardNos null)', () => {
+    const prefs = distillPreferences(
+      {},
+      { non_negotiables: ['Loyalty'] },
+      'forever_focused_man',
+      null,
+    );
+    expect(prefs.dealbreakers).toContain('Disloyal / unfaithful');
   });
 });
