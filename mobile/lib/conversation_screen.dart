@@ -499,15 +499,18 @@ class _ConversationScreenState extends State<ConversationScreen> {
           ),
           if (!_loading && _viewerGender == 'woman' && _otherGender == 'man')
             _bestieBanner(),
-          _BestieCallBanner(
-            name: _otherName.isNotEmpty ? _otherName : widget.title,
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => VoiceCallScreen(
-                matchId: widget.conversationId,
-                name: _otherName.isNotEmpty ? _otherName : widget.title,
-              ),
-            )),
-          ),
+          // Voice call: only the male match can call HER AI bestie (web parity —
+          // the bestie speaks in the woman's voice, so the entry is man→woman only).
+          if (!_loading && _viewerGender == 'man' && _otherGender == 'woman')
+            _BestieCallBanner(
+              name: _otherName.isNotEmpty ? _otherName : widget.title,
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => VoiceCallScreen(
+                  matchId: widget.conversationId,
+                  name: _otherName.isNotEmpty ? _otherName : widget.title,
+                ),
+              )),
+            ),
           _Composer(
             controller: _composer,
             sending: _sending,

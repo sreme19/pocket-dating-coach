@@ -141,6 +141,61 @@ For each: "verify" means the fastest win is proving an existing claim (raises co
 }
 
 /**
+ * Targeted-pursuit path plan for a woman's Bestie (§11i — "the important case"):
+ * for each man she's matched with, the dimensions HE weights where HER effective
+ * value has the most room, plus the lever. The symmetric mirror of the male path
+ * plan, pointed the other way — it supports HER own outreach (she's the scarce
+ * side, so this is never gated like his path is). Translated to approach advice;
+ * never exposes his weights. Flag-gated.
+ */
+export async function loadPursuitPlanContext(supabase: any, womanId: string): Promise<string> {
+	if (!advisorVectorsEnabled()) return '';
+	try {
+		const { data: me } = await supabase
+			.from('vv_user_vectors').select('attributes, confidence').eq('user_id', womanId).maybeSingle();
+		if (!me?.attributes) return '';
+		const myAttrs = me.attributes as Vec;
+		const myConf = (me.confidence ?? {}) as Vec;
+
+		const { data: matches } = await supabase
+			.from('verified_vibe_matches')
+			.select('user1_id, user2_id')
+			.or(`user1_id.eq.${womanId},user2_id.eq.${womanId}`)
+			.eq('status', 'mutual');
+		const partnerIds: string[] = (matches ?? []).map((m: any) => (m.user1_id === womanId ? m.user2_id : m.user1_id));
+		if (!partnerIds.length) return '';
+
+		const { data: men } = await supabase
+			.from('verified_vibe_users').select('id, first_name, gender').in('id', partnerIds).eq('gender', 'man');
+		const nameMap = new Map<string, string>((men ?? []).map((u: any) => [u.id, u.first_name ?? 'He']));
+		if (!nameMap.size) return '';
+
+		const { data: vecs } = await supabase
+			.from('vv_user_vectors').select('user_id, weights').in('user_id', [...nameMap.keys()]);
+
+		const lines: string[] = [];
+		for (const v of vecs ?? []) {
+			const gaps = pathGaps((v.weights ?? {}) as Vec, myAttrs, myConf, 2);
+			if (!gaps.length) continue;
+			const name = nameMap.get(v.user_id) ?? 'He';
+			const moves = gaps.map((g) => g.lever === 'verify'
+				? `${g.label} (she's shown this but not proven it — VERIFY it)`
+				: `${g.label} (room to bring/show more)`).join('; ');
+			lines.push(`  - To raise her appeal to **${name}**: ${moves}`);
+		}
+		if (!lines.length) return '';
+
+		return `
+
+TARGETED PURSUIT (§11i — only if SHE wants to pursue a specific man; translate into approach advice, NEVER state his weights): she can open a direct conversation with any match any time (she's never gated). If she's keen on one of these men, here's where she has the most room to land with HIM specifically:
+${lines.join('\n')}
+"verify" = prove an existing claim (fastest lift to her appeal to him); otherwise bring/show more. Only raise this when she signals interest in pursuing someone — don't push.`;
+	} catch {
+		return '';
+	}
+}
+
+/**
  * Consent-unlock recommendations for a woman's Bestie (§11d): which of her matched
  * men have cleared the appeal-to-her bar (A = Σ wₕ·vₘ·cₘ ≥ threshold), so the
  * Bestie can RECOMMEND taking it offline — she always gives final consent, the

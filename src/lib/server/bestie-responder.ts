@@ -76,13 +76,15 @@ export async function generateBestieReply(
 	// depend on otherUserId, so they run in parallel once the match is known.
 	let matchName = 'him';
 	let maleArtifactContext = '';
+	let maleAbout = '';
+	let provenTags: string[] = [];
 	let otherUserId: string | null = null;
 	if (matchRow) {
 		otherUserId = matchRow.user1_id === userId ? matchRow.user2_id : matchRow.user1_id;
 		const [otherUser, artifacts] = await Promise.all([
 			supabase
 				.from('verified_vibe_users')
-				.select('first_name')
+				.select('first_name, about')
 				.eq('id', otherUserId)
 				.single()
 				.then((r) => r.data),
@@ -94,12 +96,13 @@ export async function generateBestieReply(
 				.catch(() => null),
 		]);
 		matchName = otherUser?.first_name || 'him';
+		maleAbout = ((otherUser as any)?.about ?? '').toString().slice(0, 240);
 
 		if (artifacts?.length) {
 			const tagCounts: Record<string, number> = {};
 			for (const a of artifacts) tagCounts[a.claim_tag] = (tagCounts[a.claim_tag] ?? 0) + 1;
-			const parts = Object.entries(tagCounts).map(([tag, count]) => `${tag}${count > 1 ? ` (×${count})` : ''}`);
-			maleArtifactContext = `\n\n${matchName} has uploaded verified proofs: ${parts.join(', ')}. He's taken intentional steps to back up his profile. Acknowledge this positively when relevant.`;
+			provenTags = Object.entries(tagCounts).map(([tag, count]) => `${tag}${count > 1 ? ` (×${count})` : ''}`);
+			maleArtifactContext = `\n\n${matchName} has uploaded verified proofs: ${provenTags.join(', ')}. He's taken intentional steps to back up his profile. Acknowledge this positively when relevant.`;
 		}
 	}
 
@@ -126,6 +129,30 @@ export async function generateBestieReply(
 		transcript = `\n\nCONVERSATION SO FAR (most recent last) — do NOT repeat questions already asked or re-raise topics already settled:\n${lines.join('\n')}\n`;
 	}
 
+	// Is this the FIRST Bestie message in this thread? (No message from her side
+	// exists yet — only his opener.) The first turn gets the gap-aware ally opener.
+	const isOpener = !(recent ?? []).some((m: any) => m.sender_id === userId);
+
+	// Gap-aware opener context: what she values vs. what he's already shown, so the
+	// opener can warmly draw out the ONE thing he hasn't surfaced — never a checklist.
+	// Heuristic from data we already have (her valued signals + his proofs + his bio);
+	// when the ADVISOR_VECTORS path-plan (pathGaps) is live it can supply a sharper gap.
+	let openerContext = '';
+	if (isOpener) {
+		const valued = structuredPrefs
+			? [...structuredPrefs.emotionalSignals, ...structuredPrefs.lifestyleSignals, ...structuredPrefs.maturitySignals]
+			: [];
+		const valuedLine = valued.length ? valued.join(', ') : '(none recorded yet — open warm and ally-toned with one light question)';
+		const provenLine = provenTags.length ? provenTags.join(', ') : 'nothing verified on his profile yet';
+		const bioLine = maleAbout || '(no bio yet)';
+		openerContext =
+			`\n\nOPENER CONTEXT (shapes your first message only — never quote it back verbatim):` +
+			`\n- What ${userName} values: ${valuedLine}` +
+			`\n- What ${matchName} has already shown/proven: ${provenLine}` +
+			`\n- ${matchName}'s bio: ${bioLine}` +
+			`\nThe gap to draw out = the ONE thing ${userName} values that ${matchName} hasn't surfaced or proven yet.`;
+	}
+
 	const client = getClaudeClient();
 	const tClaude = Date.now();
 	const message = await client.messages.create({
@@ -137,9 +164,10 @@ export async function generateBestieReply(
 				content: buildBestieReplyPrompt({
 					userName,
 					matchName,
-					contextBlock: `${preferencesContext}${structuredPreferencesContext}${maleArtifactContext}`,
+					contextBlock: `${preferencesContext}${structuredPreferencesContext}${maleArtifactContext}${openerContext}`,
 					transcript,
-					lastMessage
+					lastMessage,
+					isOpener
 				})
 			}
 		]
@@ -235,5 +263,89 @@ export async function generateAndSendBestieReply(
 		} catch (e) {
 			console.error('[ai-timing] failed to record server timing (non-fatal):', e);
 		}
+	}
+}
+
+/**
+ * Proactively send the AI Bestie's FIRST message on a freshly-formed match — the
+ * woman's Bestie reaches out to the man BEFORE he says anything ("Bestie speaks
+ * first"). Resolves the woman (owner) and man (recipient) from the match, builds
+ * the gap-aware opener (the isOpener path in generateBestieReply, with no incoming
+ * message), and inserts it as an is_ai message in the woman's voice.
+ *
+ * Idempotent and non-fatal by design — safe to call fire-and-forget at ANY match-
+ * creation site. It no-ops when: Bestie is off on the match, neither side is a
+ * woman, or the thread already has a message (so it can never double-open or stomp
+ * a conversation that's already started).
+ *
+ * @param matchId the freshly-created mutual match
+ */
+export async function generateAndSendBestieOpener(matchId: string): Promise<void> {
+	const supabase = getSupabase();
+	try {
+		const { data: matchRow } = await supabase
+			.from('verified_vibe_matches')
+			.select('user1_id, user2_id, ai_bestie_active')
+			.eq('id', matchId)
+			.single();
+		if (!matchRow) return;
+		// Bestie explicitly off on this match → respect it. (null/undefined = default-on.)
+		if ((matchRow as any).ai_bestie_active === false) return;
+
+		// Resolve which side is the woman (Bestie's owner) and which is the man.
+		const ids = [matchRow.user1_id, matchRow.user2_id];
+		const { data: users } = await supabase
+			.from('verified_vibe_users')
+			.select('id, gender')
+			.in('id', ids);
+		const woman = (users ?? []).find((u: any) => u.gender === 'woman');
+		const man = (users ?? []).find((u: any) => u.gender === 'man');
+		if (!woman || !man) return; // Bestie only proxies woman → man
+
+		// Idempotency: never open a thread that already has any message.
+		const { count } = await supabase
+			.from('verified_vibe_messages')
+			.select('id', { count: 'exact', head: true })
+			.eq('match_id', matchId);
+		if ((count ?? 0) > 0) return;
+
+		const timing: { claudeMs?: number } = {};
+		const t0 = Date.now();
+		// Empty lastMessage → generateBestieReply runs the proactive opener path
+		// (isOpener is true since no owner-side message exists yet).
+		const reply = await generateBestieReply(woman.id, matchId, '', timing);
+		if (!reply.reply) return;
+
+		// Re-check right before insert to shrink the double-open race window (e.g. if
+		// two creation sites fire for the same match near-simultaneously).
+		const { count: count2 } = await supabase
+			.from('verified_vibe_messages')
+			.select('id', { count: 'exact', head: true })
+			.eq('match_id', matchId);
+		if ((count2 ?? 0) > 0) return;
+
+		const { data: inserted } = await (supabase as any)
+			.from('verified_vibe_messages')
+			.insert({ match_id: matchId, sender_id: woman.id, content: reply.reply, is_ai: true })
+			.select('id, created_at')
+			.single();
+
+		// Best-effort latency record. No trigger message — this is proactive.
+		if (inserted?.id) {
+			try {
+				await (supabase as any)
+					.from('vv_ai_response_timings')
+					.upsert({
+						reply_message_id: inserted.id,
+						match_id: matchId,
+						response_type: 'bestie',
+						generated_at: inserted.created_at ?? null,
+						generation_ms: Date.now() - t0,
+						claude_ms: timing.claudeMs ?? null
+					}, { onConflict: 'reply_message_id' });
+			} catch { /* non-critical */ }
+		}
+	} catch (err) {
+		console.error('[bestie-opener] failed (non-fatal):', err);
 	}
 }

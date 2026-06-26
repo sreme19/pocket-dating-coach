@@ -200,6 +200,11 @@ Future<ProfileData> fetchProfile() async {
   final draft = master['profileDraft'] as Map?;
   final proofs = (master['proofInsightsLocalStorage'] as List?) ?? const [];
 
+  // A man's raw upload must NEVER be displayed — viewers (and his own hero) only
+  // ever see AI-enhanced portraits. Raw uploads still feed the editable photo
+  // manager + enhance source (uploadedPhotos), just never the display list/hero.
+  final isMan = (row?['gender']?.toString()) == 'man';
+
   // All displayable photo URLs: AI photos first, then uploaded (http/data only).
   final photos = <String>[];
   final uploaded = <PhotoItem>[];
@@ -218,13 +223,15 @@ Future<ProfileData> fetchProfile() async {
     if (p is Map && p['dataUrl'] is String) {
       final u = p['dataUrl'] as String;
       if (u.startsWith('http') || u.startsWith('data:')) {
-        photos.add(u);
         uploaded.add(PhotoItem(u, (p['label'] ?? 'photo').toString()));
+        if (!isMan) photos.add(u); // men: raw uploads are edit-only, never displayed
       }
     }
   }
   String? hero = photos.isNotEmpty ? photos.first : null;
-  hero ??= row?['avatar_url'] as String?;
+  // Never fall a man back to avatar_url — it may still hold his raw upload until
+  // his AI photos are generated + saved. Show the placeholder until AI exists.
+  if (hero == null && !isMan) hero = row?['avatar_url'] as String?;
 
   final name = (row?['first_name'] ?? draft?['firstName'] ?? 'You').toString();
   final age = row?['age'] != null ? _asInt(row!['age']) : (draft?['age'] != null ? _asInt(draft!['age']) : null);
@@ -776,6 +783,17 @@ Future<void> saveAiPhotos(List<AiPhotoItem> aiPhotos) async {
     },
     options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
   );
+  // Point the public avatar at the AI lead portrait — a man's raw photo must
+  // never be shown to viewers, and every viewer endpoint serves avatar_url.
+  if (aiPhotos.isNotEmpty) {
+    final lead = aiPhotos.firstWhere((p) => p.role == 'lead', orElse: () => aiPhotos.first);
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null && lead.url.isNotEmpty) {
+      await Supabase.instance.client
+          .from('verified_vibe_users')
+          .update({'avatar_url': lead.url}).eq('id', user.id);
+    }
+  }
 }
 
 /// Change the user's archetype (direct Supabase update — RLS allows self).
@@ -1736,8 +1754,21 @@ Future<VoiceCallSession> startVoiceCall(String matchId) async {
       ownerName: (b['ownerName'] ?? 'her').toString(),
     );
   } on DioException catch (e) {
-    final msg = e.response?.data is Map ? (e.response!.data['error']?.toString()) : null;
-    throw msg ?? 'Could not start the call.';
+    final data = e.response?.data is Map ? e.response!.data as Map : const {};
+    // Prefer the server's human-readable `message`; fall back to mapping the
+    // `error` code, then a generic line. Never surface the raw code (e.g.
+    // "not_enabled") to the user.
+    final message = data['message']?.toString();
+    if (message != null && message.trim().isNotEmpty) throw message;
+    final code = data['error']?.toString();
+    switch (code) {
+      case 'not_enabled':
+        throw 'Her AI bestie isn\'t taking calls yet.';
+      case 'call_in_progress':
+        throw 'A call is already in progress.';
+      default:
+        throw 'Could not start the call.';
+    }
   }
 }
 
