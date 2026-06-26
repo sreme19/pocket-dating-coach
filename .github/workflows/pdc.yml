@@ -27,7 +27,7 @@ jobs:
   web-test:
     name: Web — Test & Build
     if: |
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development')) ||
       github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     strategy:
@@ -87,7 +87,7 @@ jobs:
   web-security:
     name: Web — Security Audit
     if: |
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development')) ||
       github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -219,7 +219,7 @@ jobs:
   flutter-test:
     name: Flutter — Tests
     if: |
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development')) ||
       github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
