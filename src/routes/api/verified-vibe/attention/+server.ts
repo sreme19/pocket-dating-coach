@@ -17,6 +17,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getSupabase } from '$lib/server/supabase';
+import { engageBestieForAttention } from '$lib/server/attention-bestie';
 import { buildNotificationPayload, sendNotification } from '$lib/server/notifications';
 import type { NotificationType } from '$lib/server/notifications';
 
@@ -56,6 +57,21 @@ export const POST: RequestHandler = async ({ request }) => {
       }
       console.error('[Attention] insert error:', error);
       return json({ error: 'Failed to save message' }, { status: 500 });
+    }
+
+    // Man → woman (Craving Attention): her AI Bestie auto-engages the instant the
+    // note is sent — Bestie engaging IS what forms the match, so he lands in an
+    // active thread with a Bestie reply rather than a dead "waiting for reply" card.
+    // We await the synchronous match creation so the match definitely exists by the
+    // time we respond; Bestie's reply itself is generated in the background. A
+    // Secret Admirer (woman → man) stays manual — the man always speaks first.
+    if (messageType === 'craving_attention') {
+      try {
+        await engageBestieForAttention(data.id);
+      } catch (e) {
+        // Non-fatal: the note is already saved; she can still hand off manually.
+        console.error('[Attention] Bestie auto-engage failed (non-fatal):', e);
+      }
     }
 
     // Fire-and-forget push notification to recipient
