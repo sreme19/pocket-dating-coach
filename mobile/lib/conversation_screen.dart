@@ -231,6 +231,119 @@ class _ConversationScreenState extends State<ConversationScreen> {
     }
   }
 
+  /// True when the viewer is a man and the woman's AI Bestie is currently the
+  /// proxy speaker in this thread — i.e. he is NOT yet talking to her directly.
+  /// Drives the header identity and the intro card so the man always knows up
+  /// front he's talking to her Bestie, not her.
+  bool get _bestieIsProxy =>
+      _viewerGender == 'man' && _otherGender == 'woman' && _bestieActive;
+
+  /// How many of the man's own replies have landed, capped at the 5 the path
+  /// plan asks for before the woman steps in. Drives the intro card progress.
+  int get _gapsCleared {
+    final mine = _messages.where((m) => m.senderId == _myId).length;
+    return mine > 5 ? 5 : mine;
+  }
+
+  /// First-class transparency + path-plan card shown to the MALE match while
+  /// the woman's AI Bestie is the proxy speaker. Ports the web `bestie-intro-card`
+  /// so the man (a) knows up front he's talking to her Bestie — not her — and
+  /// (b) sees concrete progress toward her stepping in. Fills the top void that
+  /// sparse threads otherwise leave blank.
+  Widget _bestieIntroCard() {
+    final name = _otherName.isNotEmpty ? _otherName : widget.title;
+    final cleared = _gapsCleared;
+    const total = 5;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 2),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(Config.bg2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0x33FF3B6B)),
+        boxShadow: const [
+          BoxShadow(color: Color(0x14FF3B6B), blurRadius: 14, offset: Offset(0, 6)),
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            width: 34, height: 34,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)]),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.auto_awesome, size: 17, color: Colors.white),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('AI Bestie',
+                  style: TextStyle(color: Color(Config.text1), fontSize: 14, fontWeight: FontWeight.w700)),
+              Text('${name.toUpperCase()}\'S AI BESTIE',
+                  style: const TextStyle(
+                      color: Color(Config.text3), fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.6)),
+            ]),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        RichText(
+          text: TextSpan(
+            style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4),
+            children: [
+              TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
+              const TextSpan(text: ' asked her AI Bestie to get to know you first. Anything you share here, '),
+              TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
+              const TextSpan(text: ' sees — directly, or summarised. Bring your best.'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Row(children: [
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: const TextStyle(color: Color(Config.text2), fontSize: 12, fontWeight: FontWeight.w600),
+                children: [
+                  TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
+                  const TextSpan(text: ' joins in'),
+                ],
+              ),
+            ),
+          ),
+          Text('$cleared/$total cleared',
+              style: const TextStyle(color: Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w700)),
+        ]),
+        const SizedBox(height: 7),
+        Row(children: [
+          const Text('★', style: TextStyle(color: Color(Config.accent), fontSize: 13)),
+          const SizedBox(width: 6),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: Container(
+                height: 7,
+                color: const Color(0x14FF3B6B),
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: cleared / total,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)]),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 9),
+        const Text('She can also drop in herself, any time.',
+            style: TextStyle(color: Color(Config.text3), fontSize: 11.5, fontStyle: FontStyle.italic)),
+      ]),
+    );
+  }
+
   /// Per-match AI Bestie status, shown to the woman only. When active, an
   /// info pill (sending a message steps in); when off, a Resume button.
   Widget _bestieBanner() {
@@ -422,15 +535,25 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     style: const TextStyle(color: Color(Config.text1), fontSize: 13)),
               ),
               Positioned(
-                right: 0, bottom: 0,
-                child: Container(
-                  width: 11, height: 11,
-                  decoration: BoxDecoration(
-                    color: _partnerOnline ? const Color(0xFF22C55E) : const Color(0xFFAAAAAA),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: const Color(Config.bg1), width: 2),
-                  ),
-                ),
+                right: -1, bottom: -1,
+                child: _bestieIsProxy
+                    ? Container(
+                        width: 15, height: 15,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)]),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(Config.bg1), width: 2),
+                        ),
+                        child: const Icon(Icons.auto_awesome, size: 8, color: Colors.white),
+                      )
+                    : Container(
+                        width: 11, height: 11,
+                        decoration: BoxDecoration(
+                          color: _partnerOnline ? const Color(0xFF22C55E) : const Color(0xFFAAAAAA),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(Config.bg1), width: 2),
+                        ),
+                      ),
               ),
             ]),
             const SizedBox(width: 10),
@@ -439,11 +562,19 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 Text(widget.title,
                     maxLines: 1, overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w600, fontSize: 15)),
-                Text(_partnerOnline ? 'Online' : 'Away',
-                    style: TextStyle(
-                      color: _partnerOnline ? const Color(0xFF22C55E) : const Color(0xFFAAAAAA),
-                      fontSize: 11, fontWeight: FontWeight.w500,
-                    )),
+                _bestieIsProxy
+                    ? const Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.auto_awesome, size: 11, color: Color(Config.accent)),
+                        SizedBox(width: 3),
+                        Text('AI Bestie',
+                            style: TextStyle(
+                                color: Color(Config.accent), fontSize: 11, fontWeight: FontWeight.w700)),
+                      ])
+                    : Text(_partnerOnline ? 'Online' : 'Away',
+                        style: TextStyle(
+                          color: _partnerOnline ? const Color(0xFF22C55E) : const Color(0xFFAAAAAA),
+                          fontSize: 11, fontWeight: FontWeight.w500,
+                        )),
               ]),
             ),
           ]),
@@ -467,6 +598,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       ),
       body: Column(
         children: [
+          if (_bestieIsProxy && !_loading) _bestieIntroCard(),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator(color: Color(Config.accent)))
