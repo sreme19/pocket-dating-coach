@@ -27,7 +27,7 @@ jobs:
   web-test:
     name: Web — Test & Build
     if: |
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development')) ||
       github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     strategy:
@@ -87,7 +87,7 @@ jobs:
   web-security:
     name: Web — Security Audit
     if: |
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development')) ||
       github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
@@ -219,7 +219,7 @@ jobs:
   flutter-test:
     name: Flutter — Tests
     if: |
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development')) ||
       github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -417,10 +417,13 @@ jobs:
         run: cd mobile && flutter pub get
 
       - name: Build APK (debug)
-        # Build number = run_number * 10 + run_attempt
-        # Ensures unique versionCode even if the same workflow run is re-triggered.
+        # Build number = pubspec build + run_number
+        # e.g. pubspec is 1.0.5+20 → CI run 1 = 21, run 2 = 22, run 3 = 23 ...
+        # When developer bumps pubspec to +25, CI continues from 26, 27, 28 ...
         run: |
-          BUILD_NUM=$(( ${{ github.run_number }} * 10 + ${{ github.run_attempt }} ))
+          PUBSPEC_BUILD=$(grep '^version:' mobile/pubspec.yaml | awk '{print $2}' | cut -d'+' -f2)
+          BUILD_NUM=$(( PUBSPEC_BUILD + ${{ github.run_number }} ))
+          echo "Using build number: $BUILD_NUM (pubspec base: $PUBSPEC_BUILD + run: ${{ github.run_number }})"
           cd mobile && flutter build apk --debug --build-number=$BUILD_NUM
 
       - name: Distribute to testers
@@ -507,10 +510,14 @@ jobs:
 
       - name: Compute build number
         id: build_num
-        # Build number = run_number * 10 + run_attempt
-        # Guarantees a unique, ever-increasing CFBundleVersion even on re-runs,
-        # so Apple never rejects the upload as a duplicate build.
-        run: echo "value=$(( ${{ github.run_number }} * 10 + ${{ github.run_attempt }} ))" >> $GITHUB_OUTPUT
+        # Build number = pubspec build + run_number
+        # e.g. pubspec is 1.0.5+20 → CI run 1 = 21, run 2 = 22, run 3 = 23 ...
+        # When developer bumps pubspec to +25, CI continues from 26, 27, 28 ...
+        run: |
+          PUBSPEC_BUILD=$(grep '^version:' mobile/pubspec.yaml | awk '{print $2}' | cut -d'+' -f2)
+          BUILD_NUM=$(( PUBSPEC_BUILD + ${{ github.run_number }} ))
+          echo "Using build number: $BUILD_NUM (pubspec base: $PUBSPEC_BUILD + run: ${{ github.run_number }})"
+          echo "value=$BUILD_NUM" >> $GITHUB_OUTPUT
 
       - name: Build & export IPA
         run: |
