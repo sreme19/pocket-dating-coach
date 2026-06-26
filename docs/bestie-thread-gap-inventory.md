@@ -28,5 +28,11 @@ The screen tells the man two contradictory things at once. The header says **"Me
 - **Polish/distinction:** 6, 7, 9, 10
 
 ## Fix sequencing
-**Pass 1 (this work):** Gaps 1, 2, 3, 4, 5 — give the Bestie a first-class identity in the man's thread: persistent header treatment + active state, and port the web intro card (with N/5 progress) to Flutter so the void becomes disclosure + path-plan.
-**Pass 2 (later):** 6, 7 (distinct Bestie avatar + AI bubble glyph), 8 (explicit hand-off system line), 9, 10 (composer/CTA polish).
+**Pass 1 — SHIPPED** (build 1.0.5+22, commit 98290ec): Gaps 1, 2, 3, 4, 5 — gave the Bestie a first-class identity in the man's thread: header active state (sparkle badge + "AI Bestie" subtitle) and the ported web intro card with N/5 progress.
+
+**Pass 2 — SHIPPED** (build 1.0.5+23): Gaps 6–10 —
+- 6: AI-message avatar keeps her photo but carries a sparkle badge (distinct from her direct messages).
+- 7: AI sender label gets a sparkle + pink/bold treatment vs gray for human messages.
+- 8: explicit, never-silent hand-off banner for the man ("You're now talking to {name} directly") once she steps in (spec §C9).
+- 9: fixed the man's-advisor mislabel (composer + suggestion sheet said "AI Bestie" → now "AI Wingman") and made the composer button a discoverable labeled "✨ Wingman" pill.
+- 10: voice-call CTA now only shows while her Bestie is the active proxy.

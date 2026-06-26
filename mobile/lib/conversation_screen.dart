@@ -344,6 +344,30 @@ class _ConversationScreenState extends State<ConversationScreen> {
     );
   }
 
+  /// Explicit hand-off notice for the MALE match once the woman steps in and
+  /// her Bestie is no longer the proxy (spec §C9 — the hand-off is never
+  /// silent). Persists while the thread is direct, so re-opening still shows it.
+  Widget _directHandoffBanner() {
+    final name = _otherName.isNotEmpty ? _otherName : widget.title;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 6, 16, 2),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: const Color(0x1422C55E),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0x3322C55E)),
+      ),
+      child: Row(children: [
+        const Text('💚', style: TextStyle(fontSize: 14)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text("You're now talking to $name directly.",
+              style: const TextStyle(color: Color(0xFF22C55E), fontSize: 12, fontWeight: FontWeight.w600)),
+        ),
+      ]),
+    );
+  }
+
   /// Per-match AI Bestie status, shown to the woman only. When active, an
   /// info pill (sending a message steps in); when off, a Resume button.
   Widget _bestieBanner() {
@@ -632,8 +656,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
           if (!_loading && _viewerGender == 'woman' && _otherGender == 'man')
             _bestieBanner(),
           // Voice call: only the male match can call HER AI bestie (web parity —
-          // the bestie speaks in the woman's voice, so the entry is man→woman only).
-          if (!_loading && _viewerGender == 'man' && _otherGender == 'woman')
+          // the bestie speaks in the woman's voice). Only offer it while her
+          // Bestie is the proxy; once she's stepped in, calling her Bestie is moot.
+          if (!_loading && _viewerGender == 'man' && _otherGender == 'woman' && _bestieActive)
             _BestieCallBanner(
               name: _otherName.isNotEmpty ? _otherName : widget.title,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
@@ -643,6 +668,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 ),
               )),
             ),
+          // Explicit, never-silent hand-off notice (spec §C9): once she steps in
+          // and her Bestie is no longer the proxy, tell the man directly.
+          if (!_loading && _viewerGender == 'man' && _otherGender == 'woman' && !_bestieActive)
+            _directHandoffBanner(),
           _Composer(
             controller: _composer,
             sending: _sending,
@@ -760,18 +789,40 @@ class _Bubble extends StatelessWidget {
     final timeColor = mine ? const Color(0x99FFFFFF) : const Color(Config.text3);
 
     // Own messages have no avatar (like Bumble/iMessage — you know who you are)
+    final baseAvatar = CircleAvatar(
+      radius: 15,
+      backgroundColor: const Color(Config.bg3),
+      backgroundImage: resolvedUrl != null ? CachedNetworkImageProvider(resolvedUrl) : null,
+      child: resolvedUrl != null
+          ? null
+          : Text(initial,
+              style: const TextStyle(color: Color(Config.text1), fontSize: 11, fontWeight: FontWeight.w600)),
+    );
     final avatar = mine
         ? const SizedBox(width: 0)
         : showName
-            ? CircleAvatar(
-                radius: 15,
-                backgroundColor: const Color(Config.bg3),
-                backgroundImage: resolvedUrl != null ? CachedNetworkImageProvider(resolvedUrl) : null,
-                child: resolvedUrl != null
-                    ? null
-                    : Text(initial,
-                        style: const TextStyle(color: Color(Config.text1), fontSize: 11, fontWeight: FontWeight.w600)),
-              )
+            // AI Bestie messages keep her photo (she's represented) but carry a
+            // sparkle badge so they're never mistaken for her speaking directly.
+            ? (ai
+                ? SizedBox(
+                    width: 30, height: 30,
+                    child: Stack(clipBehavior: Clip.none, children: [
+                      baseAvatar,
+                      Positioned(
+                        right: -2, bottom: -2,
+                        child: Container(
+                          width: 14, height: 14,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)]),
+                            shape: BoxShape.circle,
+                            border: Border.all(color: const Color(Config.bg1), width: 1.5),
+                          ),
+                          child: const Icon(Icons.auto_awesome, size: 7, color: Colors.white),
+                        ),
+                      ),
+                    ]),
+                  )
+                : baseAvatar)
             : const SizedBox(width: 30);
 
     // Detect image messages: [IMG]https://...
@@ -847,9 +898,17 @@ class _Bubble extends StatelessWidget {
           if (showName && !mine)
             Padding(
               padding: const EdgeInsets.only(left: 36, bottom: 3),
-              child: Text(displayName,
-                  style: const TextStyle(
-                      color: Color(Config.text3), fontSize: 11, fontWeight: FontWeight.w500)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                if (ai) ...[
+                  const Icon(Icons.auto_awesome, size: 11, color: Color(Config.accent)),
+                  const SizedBox(width: 3),
+                ],
+                Text(displayName,
+                    style: TextStyle(
+                        color: ai ? const Color(Config.accent) : const Color(Config.text3),
+                        fontSize: 11,
+                        fontWeight: ai ? FontWeight.w700 : FontWeight.w500)),
+              ]),
             ),
           Row(
             mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start,
@@ -1008,24 +1067,37 @@ class _ComposerState extends State<_Composer> {
             //           padding: EdgeInsets.zero,
             //         ),
             // ),
-            // ✨ AI Wingman button (men chatting with women only)
+            // ✨ AI Wingman button (men chatting with women only). Labeled pill
+            // so the man knows it's his private coach — purple distinguishes it
+            // from her pink Bestie.
             if (_showWingman) ...[
               const SizedBox(width: 2),
-              SizedBox(
-                width: 40,
-                height: 40,
-                child: _wingmanLoading
-                    ? const Padding(
-                        padding: EdgeInsets.all(10),
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFA855F7)),
-                      )
-                    : IconButton(
-                        onPressed: _showWingmanSheet,
-                        icon: const Icon(Icons.auto_awesome, color: Color(0xFFA855F7)),
-                        padding: EdgeInsets.zero,
-                        tooltip: 'AI Bestie',
+              _wingmanLoading
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: SizedBox(
+                          width: 18, height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFA855F7))),
+                    )
+                  : InkWell(
+                      onTap: _showWingmanSheet,
+                      borderRadius: BorderRadius.circular(999),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                        decoration: BoxDecoration(
+                          color: const Color(0x14A855F7),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: const Color(0x33A855F7)),
+                        ),
+                        child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.auto_awesome, color: Color(0xFFA855F7), size: 16),
+                          SizedBox(width: 4),
+                          Text('Wingman',
+                              style: TextStyle(
+                                  color: Color(0xFFA855F7), fontSize: 12, fontWeight: FontWeight.w700)),
+                        ]),
                       ),
-              ),
+                    ),
             ],
             const SizedBox(width: 4),
             Expanded(
@@ -1096,7 +1168,7 @@ class _WingmanBottomSheet extends StatelessWidget {
               Row(children: [
                 const Icon(Icons.auto_awesome, color: Color(0xFFA855F7), size: 20),
                 const SizedBox(width: 8),
-                const Text('AI Bestie suggestion',
+                const Text('AI Wingman suggestion',
                     style: TextStyle(color: Color(Config.text1), fontSize: 16, fontWeight: FontWeight.w700)),
               ]),
               const SizedBox(height: 14),
