@@ -1754,8 +1754,21 @@ Future<VoiceCallSession> startVoiceCall(String matchId) async {
       ownerName: (b['ownerName'] ?? 'her').toString(),
     );
   } on DioException catch (e) {
-    final msg = e.response?.data is Map ? (e.response!.data['error']?.toString()) : null;
-    throw msg ?? 'Could not start the call.';
+    final data = e.response?.data is Map ? e.response!.data as Map : const {};
+    // Prefer the server's human-readable `message`; fall back to mapping the
+    // `error` code, then a generic line. Never surface the raw code (e.g.
+    // "not_enabled") to the user.
+    final message = data['message']?.toString();
+    if (message != null && message.trim().isNotEmpty) throw message;
+    final code = data['error']?.toString();
+    switch (code) {
+      case 'not_enabled':
+        throw 'Her AI bestie isn\'t taking calls yet.';
+      case 'call_in_progress':
+        throw 'A call is already in progress.';
+      default:
+        throw 'Could not start the call.';
+    }
   }
 }
 
