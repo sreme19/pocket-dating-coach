@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
+import { waitUntil } from '@vercel/functions';
 import { getSupabase } from '$lib/server/supabase';
 import type { LikeRequest, LikeResponse } from '$lib/verified-vibe/types';
 import { logAppError } from '$lib/server/logAppError';
@@ -167,13 +168,15 @@ export const POST: RequestHandler = async ({ request }) => {
       const existingMatch = existingMatch1 || existingMatch2;
 
       if (!existingMatch) {
-        // Create new match record
+        // Create new match record. Bestie is default-on for every new match
+        // (per spec) so it can proactively open the conversation.
         const { data: newMatch, error: createMatchError } = await supabase
           .from('verified_vibe_matches')
           .insert({
             user1_id: userId,
             user2_id: profileId,
-            status: 'mutual'
+            status: 'mutual',
+            ai_bestie_active: true
           })
           .select('id')
           .single();
@@ -185,6 +188,19 @@ export const POST: RequestHandler = async ({ request }) => {
             { status: 500 }
           );
         }
+
+        // Bestie speaks first: proactively open the thread on the woman's behalf.
+        // Fire-and-forget so the like response returns immediately; the helper is
+        // idempotent + non-fatal and no-ops if neither side is a woman.
+        const newMatchId = newMatch.id;
+        waitUntil((async () => {
+          try {
+            const { generateAndSendBestieOpener } = await import('$lib/server/bestie-responder');
+            await generateAndSendBestieOpener(newMatchId);
+          } catch (e) {
+            console.error('Bestie opener failed (non-fatal):', e);
+          }
+        })());
 
         const response: LikeResponse = {
           matched: true,

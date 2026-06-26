@@ -354,24 +354,40 @@ export async function runNightlyBatch(cityScoped = false): Promise<void> {
 
     // Fire matches for pairs scoring >= 70
     const highScoring = pairs.filter((p) => p.score >= 70);
+    const newMatchIds: string[] = [];
     for (const pair of highScoring) {
       // Insert match
-      const { error: matchErr } = await db
+      const { data: created, error: matchErr } = await db
         .from('verified_vibe_matches')
         .insert({
           user1_id: pair.maleUserId,
           user2_id: pair.femaleUserId,
           status:   'mutual',
           ai_bestie_active: true,
-        });
+        })
+        .select('id')
+        .single();
 
       if (!matchErr) {
         runLog.matches_fired++;
+        if (created?.id) newMatchIds.push(created.id);
         // Push notifications via existing notification infrastructure
         await Promise.allSettled([
           sendMatchNotification(pair.maleUserId, pair.femaleUserId),
           sendMatchNotification(pair.femaleUserId, pair.maleUserId),
         ]);
+      }
+    }
+
+    // Bestie speaks first: proactively open each freshly-formed match on the
+    // woman's behalf (bounded concurrency, idempotent + non-fatal per call).
+    if (newMatchIds.length) {
+      const { generateAndSendBestieOpener } = await import('./bestie-responder');
+      const CONCURRENCY = 4;
+      for (let i = 0; i < newMatchIds.length; i += CONCURRENCY) {
+        await Promise.allSettled(
+          newMatchIds.slice(i, i + CONCURRENCY).map((id) => generateAndSendBestieOpener(id)),
+        );
       }
     }
 
@@ -609,6 +625,14 @@ export async function runMatchmakerForUser(userId: string): Promise<FindMatchRes
       sendMatchNotification(maleId, femaleId),
       sendMatchNotification(femaleId, maleId),
     ]);
+    // Bestie speaks first: proactively open this freshly-formed match on the
+    // woman's behalf (idempotent + non-fatal).
+    try {
+      const { generateAndSendBestieOpener } = await import('./bestie-responder');
+      await generateAndSendBestieOpener(created.id);
+    } catch (e) {
+      console.error('[matchmaker] Bestie opener failed (non-fatal):', e);
+    }
   }
 
   // Fetch the matched person's display info for the success popup.

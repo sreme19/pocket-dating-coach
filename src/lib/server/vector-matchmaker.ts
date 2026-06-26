@@ -139,16 +139,18 @@ export async function runVectorMatchmaker(opts: { dryRun?: boolean; caps?: Match
 
 	let fired = 0, alreadyMatched = 0;
 	const sample: VectorMatchResult['sample'] = [];
+	const newMatchIds: string[] = [];
 	for (const a of assignments) {
 		const isNew = !existingSet.has([a.manId, a.womanId].sort().join(':'));
 		if (!isNew) alreadyMatched++;
 		if (sample.length < 25) sample.push({ manId: a.manId, womanId: a.womanId, value: a.value, phase: a.phase, isNew });
 		if (isNew && !dryRun) {
-			const { error } = await db.from('verified_vibe_matches').insert({
+			const { data: created, error } = await db.from('verified_vibe_matches').insert({
 				user1_id: a.manId, user2_id: a.womanId, status: 'mutual', ai_bestie_active: true,
-			});
+			}).select('id').single();
 			if (!error) {
 				fired++;
+				if (created?.id) newMatchIds.push(created.id);
 				await Promise.allSettled([
 					sendMatchNotification(a.manId, a.womanId),
 					sendMatchNotification(a.womanId, a.manId),
@@ -156,6 +158,19 @@ export async function runVectorMatchmaker(opts: { dryRun?: boolean; caps?: Match
 			}
 		} else if (isNew && dryRun) {
 			fired++; // would-fire count in dry-run
+		}
+	}
+
+	// Bestie speaks first: proactively open each freshly-formed match on the
+	// woman's behalf. Bounded concurrency to respect model rate limits; each call
+	// is idempotent + non-fatal. This is an admin batch action, so we await.
+	if (newMatchIds.length) {
+		const { generateAndSendBestieOpener } = await import('./bestie-responder');
+		const CONCURRENCY = 4;
+		for (let i = 0; i < newMatchIds.length; i += CONCURRENCY) {
+			await Promise.allSettled(
+				newMatchIds.slice(i, i + CONCURRENCY).map((id) => generateAndSendBestieOpener(id)),
+			);
 		}
 	}
 
