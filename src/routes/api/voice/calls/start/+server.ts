@@ -56,9 +56,19 @@ export const POST: RequestHandler = async ({ request }) => {
 			.eq('user_id', ownerId)
 			.maybeSingle();
 
-		if (!profile?.calls_opt_in) {
+		// Bestie voice calls are ON by default for every woman — a male match can
+		// always call her AI bestie without her having to opt in. Only block a
+		// non-woman owner (men have no bestie voice) or a woman who has explicitly
+		// opted out (calls_opt_in === false).
+		if (ownerUser.gender !== 'woman') {
 			return json(
-				{ error: 'not_enabled', message: `${ownerUser.first_name}'s bestie isn't taking calls yet.` },
+				{ error: 'not_enabled', message: `${ownerUser.first_name} isn't taking AI calls.` },
+				{ status: 403 }
+			);
+		}
+		if (profile?.calls_opt_in === false) {
+			return json(
+				{ error: 'not_enabled', message: `${ownerUser.first_name}'s bestie isn't taking calls right now.` },
 				{ status: 403 }
 			);
 		}

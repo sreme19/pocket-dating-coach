@@ -3,8 +3,9 @@
 //
 // The female owner can opt to clone her real voice. We create an Instant Voice
 // Clone from a short consented sample and store the returned voice_id on
-// vv_voice_profiles. At call time we resolve which voice to speak in:
-//   - her cloned voice  (if voice_status='cloned' AND calls_opt_in)
+// vv_voice_profiles. Bestie calls are ON by default for every woman (opt-out).
+// At call time we resolve which voice to speak in:
+//   - her cloned voice  (if voice_status='cloned' AND she hasn't opted out)
 //   - else the stable default premium bestie voice (ELEVENLABS_DEFAULT_VOICE_ID)
 //
 // The actual TTS streaming happens in the agent worker (voice-agent/); this
@@ -100,7 +101,7 @@ export function resolveVoice(profile: {
 } | null): ResolvedVoice {
 	if (
 		profile &&
-		profile.calls_opt_in &&
+		profile.calls_opt_in !== false &&
 		profile.voice_status === 'cloned' &&
 		profile.elevenlabs_voice_id
 	) {

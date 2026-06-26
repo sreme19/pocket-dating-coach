@@ -24,7 +24,8 @@ export const GET: RequestHandler = async ({ request }) => {
 	return json({
 		gender: (userRow as any)?.gender ?? null,
 		voiceStatus: data?.voice_status ?? 'none',
-		callsOptIn: data?.calls_opt_in ?? false,
+		// Bestie voice calls default ON for women (opt-out), OFF for men.
+		callsOptIn: data?.calls_opt_in ?? ((userRow as any)?.gender === 'woman'),
 		hasClone: data?.voice_status === 'cloned' && !!data?.elevenlabs_voice_id,
 		failureReason: data?.failure_reason ?? null
 	});
