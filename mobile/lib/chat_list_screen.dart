@@ -928,6 +928,11 @@ class _SentAdmirerCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasReplied = admirer.replied;
+    // Backend marks a Craving Attention auto-handled by her Bestie with this exact
+    // marker (see attention-bestie.ts BESTIE_HANDLED_MARKER). When that's the
+    // "reply", the real conversation lives in his matches — so point him there
+    // instead of rendering the internal marker as if she'd said it.
+    final handledByBestie = admirer.replyContent == '💚 Replied with AI Bestie';
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 6, 16, 6),
       padding: const EdgeInsets.all(14),
@@ -964,7 +969,11 @@ class _SentAdmirerCard extends StatelessWidget {
               Text(admirer.age != null ? '${admirer.name}, ${admirer.age}' : admirer.name,
                   style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700)),
               Text(
-                hasReplied ? '✅ They replied!' : '⏳ Waiting for reply…',
+                handledByBestie
+                    ? '💚 ${admirer.name}\'s AI Bestie is chatting with you'
+                    : hasReplied
+                        ? '✅ They replied!'
+                        : '⏳ Waiting for reply…',
                 style: TextStyle(
                   color: hasReplied ? const Color(0xFF16A34A) : const Color(Config.text2),
                   fontSize: 12,
@@ -993,7 +1002,10 @@ class _SentAdmirerCard extends StatelessWidget {
               color: const Color(0x1122C55E),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Text('${admirer.name}: ${admirer.replyContent}',
+            child: Text(
+                handledByBestie
+                    ? '${admirer.name}\'s AI Bestie picked this up and started chatting — open the conversation from your matches in the Chat tab.'
+                    : '${admirer.name}: ${admirer.replyContent}',
                 style: const TextStyle(color: Color(Config.text1), fontSize: 13, height: 1.3)),
           ),
         ],
