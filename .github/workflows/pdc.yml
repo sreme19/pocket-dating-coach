@@ -417,11 +417,13 @@ jobs:
         run: cd mobile && flutter pub get
 
       - name: Build APK (debug)
-        # Build number = 100 (offset) + run_number * 10 + run_attempt
-        # Offset 100 ensures CI builds always exceed the last manual pubspec build (20).
-        # Increment offset if run_number * 10 ever approaches the next threshold.
+        # Build number = pubspec build + run_number
+        # e.g. pubspec is 1.0.5+20 → CI run 1 = 21, run 2 = 22, run 3 = 23 ...
+        # When developer bumps pubspec to +25, CI continues from 26, 27, 28 ...
         run: |
-          BUILD_NUM=$(( 100 + ${{ github.run_number }} * 10 + ${{ github.run_attempt }} ))
+          PUBSPEC_BUILD=$(grep '^version:' mobile/pubspec.yaml | awk '{print $2}' | cut -d'+' -f2)
+          BUILD_NUM=$(( PUBSPEC_BUILD + ${{ github.run_number }} ))
+          echo "Using build number: $BUILD_NUM (pubspec base: $PUBSPEC_BUILD + run: ${{ github.run_number }})"
           cd mobile && flutter build apk --debug --build-number=$BUILD_NUM
 
       - name: Distribute to testers
@@ -508,10 +510,14 @@ jobs:
 
       - name: Compute build number
         id: build_num
-        # Build number = 100 (offset) + run_number * 10 + run_attempt
-        # Offset 100 ensures CI builds always exceed the last manual pubspec build (20).
-        # Increment offset if run_number * 10 ever approaches the next threshold.
-        run: echo "value=$(( 100 + ${{ github.run_number }} * 10 + ${{ github.run_attempt }} ))" >> $GITHUB_OUTPUT
+        # Build number = pubspec build + run_number
+        # e.g. pubspec is 1.0.5+20 → CI run 1 = 21, run 2 = 22, run 3 = 23 ...
+        # When developer bumps pubspec to +25, CI continues from 26, 27, 28 ...
+        run: |
+          PUBSPEC_BUILD=$(grep '^version:' mobile/pubspec.yaml | awk '{print $2}' | cut -d'+' -f2)
+          BUILD_NUM=$(( PUBSPEC_BUILD + ${{ github.run_number }} ))
+          echo "Using build number: $BUILD_NUM (pubspec base: $PUBSPEC_BUILD + run: ${{ github.run_number }})"
+          echo "value=$BUILD_NUM" >> $GITHUB_OUTPUT
 
       - name: Build & export IPA
         run: |
