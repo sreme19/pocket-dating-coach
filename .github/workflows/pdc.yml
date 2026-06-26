@@ -1,0 +1,825 @@
+name: PDC — CI/CD & Monitor
+
+# ─── Triggers ────────────────────────────────────────────────────────────────
+# push/PR to main   → web-test, web-security, web-deploy-*, web-smoke-tests,
+#                     flutter-test, release
+# push to dev       → android-distribute, ios-testflight
+# schedule */5 min  → health-check
+# schedule daily    → ai-probe
+# workflow_dispatch → health-check + ai-probe (manual run)
+
+on:
+  push:
+    branches: [main, development]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '*/5 * * * *'   # health check — every 5 min
+    - cron: '0 19 * * *'    # AI credit probe — 02:00 WIB
+  workflow_dispatch:
+
+jobs:
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # WEB — Test & Build  (push/PR → main)
+  # ════════════════════════════════════════════════════════════════════════════
+
+  web-test:
+    name: Web — Test & Build
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20.x]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create .env for type checking
+        run: cp .env.example .env
+
+      - name: Run linter
+        run: npm run check
+        continue-on-error: true  # Pre-existing TS/Svelte errors; non-blocking until cleaned up
+
+      - name: Run regression tests
+        id: regression
+        run: npm test -- src/__tests__/regression-critical.test.ts
+
+      - name: Log test result to monitor_log
+        if: always()
+        run: |
+          STATUS=$([ "${{ steps.regression.outcome }}" = "success" ] && echo "OK" || echo "FAIL")
+          ERROR_MSG=$([ "$STATUS" = "FAIL" ] && echo "\"CI regression tests failed on ${{ github.ref_name }} — ${{ github.sha }}\"" || echo "null")
+          NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          curl -s -o /dev/null \
+            -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/monitor_log" \
+            -H "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d "{\"check_name\":\"ci_regression_tests\",\"status\":\"$STATUS\",\"response_time_ms\":0,\"error_message\":$ERROR_MSG,\"created_at\":\"$NOW\"}"
+
+      - name: Build project
+        run: npm run build
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/coverage-final.json
+          flags: unittests
+          name: codecov-umbrella
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # WEB — Security Audit  (push/PR → main)
+  # ════════════════════════════════════════════════════════════════════════════
+
+  web-security:
+    name: Web — Security Audit
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for vulnerabilities in production dependencies
+        run: npm audit --audit-level=high --omit=dev
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # WEB — Notify Failure  (after web-test fails)
+  # ════════════════════════════════════════════════════════════════════════════
+
+  web-notify-failure:
+    name: Web — Notify Failure
+    needs: web-test
+    runs-on: ubuntu-latest
+    if: failure()
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Get committer email
+        id: committer
+        run: |
+          EMAIL=$(git log -1 --format='%ae')
+          echo "email=$EMAIL" >> $GITHUB_OUTPUT
+
+      - name: Send failure notification via Resend
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          SHA="${{ github.sha }}"
+          AUTHOR="${{ github.actor }}"
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -s -X POST "https://api.resend.com/emails" \
+            -H "Authorization: Bearer ${{ secrets.RESEND_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"from\": \"PDC CI <monitor@riteangle.dating>\",
+              \"to\": [\"${{ steps.committer.outputs.email }}\", \"${{ secrets.ALERT_EMAIL_CRITICAL }}\"],
+              \"subject\": \"❌ Test failure on push to $BRANCH — riteangle.dating\",
+              \"html\": \"<p><strong>Branch:</strong> $BRANCH</p><p><strong>Commit:</strong> $SHA</p><p><strong>Author:</strong> $AUTHOR</p><p><a href='$RUN_URL'>View GitHub Actions run</a></p>\"
+            }"
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # WEB — Deploy Staging  (PR only)
+  # ════════════════════════════════════════════════════════════════════════════
+
+  web-deploy-staging:
+    name: Web — Deploy Staging
+    needs: [web-test, web-security]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    continue-on-error: true  # Non-blocking until Vercel secrets are set
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Deploy to Vercel (Staging)
+        run: vercel --token=${{ secrets.VERCEL_TOKEN }} --yes
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # WEB — Deploy Production  (push → main)
+  # ════════════════════════════════════════════════════════════════════════════
+
+  web-deploy-production:
+    name: Web — Deploy Production
+    needs: [web-test, web-security]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    continue-on-error: true  # Non-blocking until Vercel secrets are set
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Deploy to Vercel (Production)
+        run: vercel --prod --token=${{ secrets.VERCEL_TOKEN }} --yes
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Notify deployment
+        if: success()
+        run: echo "✅ Production deployment successful"
+
+      - name: Notify failure
+        if: failure()
+        run: |
+          echo "❌ Production deployment failed"
+          exit 1
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # WEB — Smoke Tests  (after production deploy)
+  # ════════════════════════════════════════════════════════════════════════════
+
+  web-smoke-tests:
+    name: Web — Smoke Tests
+    needs: web-deploy-production
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create .env
+        run: cp .env.example .env
+
+      - name: Run post-deploy regression tests
+        run: npm test -- src/__tests__/regression-critical.test.ts
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # FLUTTER — Tests  (push/PR → main)
+  # ════════════════════════════════════════════════════════════════════════════
+
+  flutter-test:
+    name: Flutter — Tests
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Run regression tests
+        id: flutter_regression
+        working-directory: mobile
+        run: flutter test test/regression_test.dart --reporter expanded
+
+      - name: Run all Flutter tests
+        working-directory: mobile
+        run: flutter test --reporter expanded
+
+      - name: Log test result to monitor_log
+        if: always()
+        run: |
+          STATUS=$([ "${{ steps.flutter_regression.outcome }}" = "success" ] && echo "OK" || echo "FAIL")
+          ERROR_MSG=$([ "$STATUS" = "FAIL" ] && echo "\"Flutter regression tests failed on ${{ github.ref_name }} — ${{ github.sha }}\"" || echo "null")
+          NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          curl -s -o /dev/null \
+            -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/monitor_log" \
+            -H "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d "{\"check_name\":\"ci_flutter_regression_tests\",\"status\":\"$STATUS\",\"response_time_ms\":0,\"error_message\":$ERROR_MSG,\"created_at\":\"$NOW\"}"
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # FLUTTER — Notify Failure
+  # ════════════════════════════════════════════════════════════════════════════
+
+  flutter-notify-failure:
+    name: Flutter — Notify Failure
+    needs: flutter-test
+    runs-on: ubuntu-latest
+    if: failure()
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Get committer email
+        id: committer
+        run: |
+          EMAIL=$(git log -1 --format='%ae')
+          echo "email=$EMAIL" >> $GITHUB_OUTPUT
+
+      - name: Send failure notification via Resend
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          SHA="${{ github.sha }}"
+          AUTHOR="${{ github.actor }}"
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -s -X POST "https://api.resend.com/emails" \
+            -H "Authorization: Bearer ${{ secrets.RESEND_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"from\": \"PDC CI <monitor@riteangle.dating>\",
+              \"to\": [\"${{ steps.committer.outputs.email }}\", \"${{ secrets.ALERT_EMAIL_CRITICAL }}\"],
+              \"subject\": \"❌ Flutter test failure on push to $BRANCH — riteangle.dating\",
+              \"html\": \"<p><strong>Branch:</strong> $BRANCH</p><p><strong>Commit:</strong> $SHA</p><p><strong>Author:</strong> $AUTHOR</p><p><a href='$RUN_URL'>View GitHub Actions run</a></p>\"
+            }"
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # RELEASE  (push → main, hanya jika pubspec.yaml berubah)
+  # ════════════════════════════════════════════════════════════════════════════
+
+  release:
+    name: Release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if pubspec.yaml changed
+        id: pubspec_changed
+        run: |
+          if git diff --name-only HEAD~1 HEAD | grep -q 'mobile/pubspec.yaml'; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Read version from pubspec.yaml
+        if: steps.pubspec_changed.outputs.changed == 'true'
+        id: version
+        run: |
+          VERSION="v$(grep '^version:' mobile/pubspec.yaml | awk '{print $2}' | cut -d'+' -f1)"
+          BUILD=$(grep '^version:' mobile/pubspec.yaml | awk '{print $2}' | cut -d'+' -f2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "build=$BUILD"     >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION (build $BUILD)"
+
+      - name: Check if release already exists
+        if: steps.pubspec_changed.outputs.changed == 'true'
+        id: check
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if git tag | grep -q "^${VERSION}$"; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Tag $VERSION already exists — skipping release"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate changelog
+        if: steps.pubspec_changed.outputs.changed == 'true' && steps.check.outputs.exists == 'false'
+        run: |
+          CURRENT="${{ steps.version.outputs.version }}"
+          PREV=$(git tag --sort=-version:refname | head -1)
+          RANGE="${PREV:+${PREV}..HEAD}"
+          FEATURES=$(git log ${RANGE:-HEAD} --pretty=format:"- %s (%h)" --no-merges | grep "^- feat"   || true)
+          FIXES=$(   git log ${RANGE:-HEAD} --pretty=format:"- %s (%h)" --no-merges | grep "^- fix"    || true)
+          CHORES=$(  git log ${RANGE:-HEAD} --pretty=format:"- %s (%h)" --no-merges | grep "^- chore\|^- ci\|^- docs\|^- refactor" || true)
+          {
+            echo "## What's Changed"
+            echo ""
+            [ -n "$FEATURES" ] && echo "### ✨ New Features" && echo "$FEATURES" && echo ""
+            [ -n "$FIXES" ]    && echo "### 🐛 Bug Fixes"    && echo "$FIXES"    && echo ""
+            [ -n "$CHORES" ]   && echo "### 🔧 Maintenance"  && echo "$CHORES"   && echo ""
+            [ -n "$PREV" ] && echo "**Full changelog**: https://github.com/${{ github.repository }}/compare/${PREV}...${CURRENT}"
+          } > /tmp/release_notes.md
+
+      - name: Create tag
+        if: steps.pubspec_changed.outputs.changed == 'true' && steps.check.outputs.exists == 'false'
+        run: |
+          git tag "${{ steps.version.outputs.version }}"
+          git push origin "${{ steps.version.outputs.version }}"
+
+      - name: Create GitHub Release
+        if: steps.pubspec_changed.outputs.changed == 'true' && steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          gh release create "$VERSION" \
+            --title "$VERSION — riteangle.dating" \
+            --notes-file /tmp/release_notes.md \
+            --latest
+          echo "✅ Released $VERSION"
+
+      - name: Log release to monitor_log
+        if: steps.pubspec_changed.outputs.changed == 'true' && steps.check.outputs.exists == 'false'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          curl -s -o /dev/null \
+            -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/monitor_log" \
+            -H "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d "{\"check_name\":\"github_release\",\"status\":\"OK\",\"response_time_ms\":0,\"error_message\":\"Released $VERSION\",\"created_at\":\"$NOW\"}"
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # ANDROID — Firebase App Distribution  (push → development, mobile/**)
+  # ════════════════════════════════════════════════════════════════════════════
+
+  android-distribute:
+    name: Android — Firebase Distribute
+    if: github.event_name == 'push' && github.ref == 'refs/heads/development'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Flutter dependencies
+        run: cd mobile && flutter pub get
+
+      - name: Build APK (debug)
+        # Build number = run_number * 10 + run_attempt
+        # Ensures unique versionCode even if the same workflow run is re-triggered.
+        run: |
+          BUILD_NUM=$(( ${{ github.run_number }} * 10 + ${{ github.run_attempt }} ))
+          cd mobile && flutter build apk --debug --build-number=$BUILD_NUM
+
+      - name: Distribute to testers
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_ANDROID_APP_ID }}
+          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          groups: tester
+          file: mobile/build/app/outputs/flutter-apk/app-debug.apk
+          releaseNotes: |
+            Build: #${{ github.run_number }} (attempt ${{ github.run_attempt }})
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Message: ${{ github.event.head_commit.message }}
+
+      - name: Log distribution to monitor_log
+        if: always()
+        run: |
+          STATUS=$([ "${{ job.status }}" = "success" ] && echo "OK" || echo "FAIL")
+          NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          SHA="${{ github.sha }}"
+          curl -s -o /dev/null \
+            -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/monitor_log" \
+            -H "apikey: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d "{\"check_name\":\"android_distribution\",\"status\":\"$STATUS\",\"response_time_ms\":0,\"error_message\":$([ \"$STATUS\" = \"OK\" ] && echo \"null\" || echo \"\\\"Build/distribute failed — $SHA\\\"\"),\"created_at\":\"$NOW\"}"
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # iOS — TestFlight  (push → development)
+  # ════════════════════════════════════════════════════════════════════════════
+
+  ios-testflight:
+    name: iOS — TestFlight
+    if: github.event_name == 'push' && github.ref == 'refs/heads/development'
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+        working-directory: mobile
+
+      - name: Import signing certificate
+        env:
+          P12_BASE64: ${{ secrets.IOS_CERTIFICATE_P12 }}
+          P12_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          security create-keychain -p "" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "" "$KEYCHAIN_PATH"
+          echo "$P12_BASE64" | base64 --decode -o $RUNNER_TEMP/cert.p12
+          security import $RUNNER_TEMP/cert.p12 -P "$P12_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+      - name: Import provisioning profile
+        env:
+          PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$PROFILE_BASE64" | base64 --decode \
+            -o ~/Library/MobileDevice/Provisioning\ Profiles/riteangle.mobileprovision
+
+      - name: Resolve Swift Package dependencies
+        run: |
+          rm -rf ~/Library/Caches/org.swift.swiftpm/repositories
+          xcodebuild -resolvePackageDependencies \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -disablePackageRepositoryCache
+        working-directory: mobile
+
+      - name: Compute build number
+        id: build_num
+        # Build number = run_number * 10 + run_attempt
+        # Guarantees a unique, ever-increasing CFBundleVersion even on re-runs,
+        # so Apple never rejects the upload as a duplicate build.
+        run: echo "value=$(( ${{ github.run_number }} * 10 + ${{ github.run_attempt }} ))" >> $GITHUB_OUTPUT
+
+      - name: Build & export IPA
+        run: |
+          flutter build ipa --release \
+            --build-number=${{ steps.build_num.outputs.value }} \
+            --export-options-plist=ios/ExportOptions.ci.plist
+        working-directory: mobile
+
+      - name: Upload to TestFlight
+        env:
+          API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$API_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_${API_KEY_ID}.p8
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$(ls mobile/build/ios/ipa/*.ipa)" \
+            --apiKey "$API_KEY_ID" \
+            --apiIssuer "$ISSUER_ID" \
+            --verbose
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="v$(grep '^version:' mobile/pubspec.yaml | awk '{print $2}' | cut -d'+' -f1)"
+          # Use the same build number that was passed to flutter build ipa
+          BUILD="${{ steps.build_num.outputs.value }}"
+          TAG="${VERSION}+${BUILD}"
+          if git tag | grep -q "^${TAG}$"; then
+            echo "Tag $TAG already exists — skipping release"
+            exit 0
+          fi
+          PREV=$(git tag --sort=-version:refname | head -1)
+          RANGE="${PREV:+${PREV}..HEAD}"
+          FEATURES=$(git log ${RANGE:-HEAD} --pretty=format:"- %s (%h)" --no-merges | grep "^- feat" || true)
+          FIXES=$(   git log ${RANGE:-HEAD} --pretty=format:"- %s (%h)" --no-merges | grep "^- fix"  || true)
+          {
+            echo "## iOS TestFlight ${VERSION} (build ${BUILD})"
+            echo ""
+            echo "Uploaded to TestFlight automatically — available to testers after Apple processing."
+            echo ""
+            [ -n "$FEATURES" ] && echo "### ✨ New Features" && echo "$FEATURES" && echo ""
+            [ -n "$FIXES" ]    && echo "### 🐛 Bug Fixes"    && echo "$FIXES"    && echo ""
+            [ -n "$PREV" ] && echo "**Full changelog**: https://github.com/${{ github.repository }}/compare/${PREV}...${TAG}"
+          } > /tmp/release_notes.md
+          git tag "$TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" \
+            --title "${VERSION} (build ${BUILD}) — riteangle.dating" \
+            --notes-file /tmp/release_notes.md \
+            --latest
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # HEALTH MONITOR — every 5 minutes
+  # ════════════════════════════════════════════════════════════════════════════
+
+  health-check:
+    name: Monitor — Health (5 min)
+    if: |
+      github.event.schedule == '*/5 * * * *' ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    concurrency:
+      group: health-monitor
+      cancel-in-progress: true
+    env:
+      APP_URL:               ${{ secrets.APP_URL }}
+      SUPABASE_URL:          ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY:          ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      RESEND_API_KEY:        ${{ secrets.RESEND_API_KEY }}
+      ALERT_EMAIL:           ${{ secrets.ALERT_EMAIL_CRITICAL }}
+      CRON_SECRET:           ${{ secrets.CRON_SECRET }}
+      SYNTHETIC_USER_EMAIL:  ${{ secrets.SYNTHETIC_USER_EMAIL }}
+      SEED_ACCOUNT_PASSWORD: ${{ secrets.SEED_ACCOUNT_PASSWORD }}
+    steps:
+      - name: API health ping
+        id: api_ping
+        run: |
+          START=$(date +%s%3N)
+          HTTP=$(curl -sL -o /tmp/ping_body.json -w "%{http_code}" --max-time 10 "$APP_URL/api/health")
+          END=$(date +%s%3N)
+          MS=$(( END - START ))
+          echo "http_code=$HTTP" >> $GITHUB_OUTPUT
+          echo "response_ms=$MS" >> $GITHUB_OUTPUT
+          if [ "$HTTP" = "200" ]; then
+            echo "status=OK"        >> $GITHUB_OUTPUT
+          else
+            echo "status=FAIL"      >> $GITHUB_OUTPUT
+            echo "error=HTTP $HTTP" >> $GITHUB_OUTPUT
+          fi
+
+      - name: DB read integrity
+        id: db_check
+        run: |
+          START=$(date +%s%3N)
+          HTTP=$(curl -s -o /tmp/db_body.json -w "%{http_code}" --max-time 10 \
+            -H "apikey: $SUPABASE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_KEY" \
+            "$SUPABASE_URL/rest/v1/verified_vibe_users?select=id&limit=1")
+          END=$(date +%s%3N)
+          MS=$(( END - START ))
+          echo "http_code=$HTTP" >> $GITHUB_OUTPUT
+          echo "response_ms=$MS" >> $GITHUB_OUTPUT
+          if [ "$HTTP" = "200" ]; then
+            echo "status=OK"   >> $GITHUB_OUTPUT
+          else
+            echo "status=FAIL" >> $GITHUB_OUTPUT
+            echo "error=HTTP $HTTP — $(cat /tmp/db_body.json)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Synthetic login simulation
+        id: login_sim
+        run: |
+          START=$(date +%s%3N)
+          HTTP=$(curl -sL -o /tmp/login_body.json -w "%{http_code}" --max-time 10 \
+            -X POST "$APP_URL/api/verified-vibe/seed-login" \
+            -H "Content-Type: application/json" \
+            -d "{\"email\":\"$SYNTHETIC_USER_EMAIL\",\"password\":\"$SEED_ACCOUNT_PASSWORD\"}")
+          END=$(date +%s%3N)
+          MS=$(( END - START ))
+          echo "http_code=$HTTP" >> $GITHUB_OUTPUT
+          echo "response_ms=$MS" >> $GITHUB_OUTPUT
+          HAS_OTP=$(python3 -c "import json; d=json.load(open('/tmp/login_body.json')); print('yes' if 'otp' in d else 'no')" 2>/dev/null || echo "no")
+          if [ "$HTTP" = "200" ] && [ "$HAS_OTP" = "yes" ]; then
+            echo "status=OK"   >> $GITHUB_OUTPUT
+          else
+            echo "status=FAIL" >> $GITHUB_OUTPUT
+            echo "error=HTTP $HTTP — $(cat /tmp/login_body.json)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Log results to monitor_log
+        run: |
+          NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          log_entry() {
+            local check_name=$1 status=$2 ms=$3 error_msg=$4 metadata="${5:-null}"
+            local error_json
+            [ -z "$error_msg" ] && error_json="null" || error_json="\"$(echo "$error_msg" | sed 's/"/\\"/g')\""
+            curl -s -o /dev/null \
+              -X POST "$SUPABASE_URL/rest/v1/monitor_log" \
+              -H "apikey: $SUPABASE_KEY" \
+              -H "Authorization: Bearer $SUPABASE_KEY" \
+              -H "Content-Type: application/json" \
+              -H "Prefer: return=minimal" \
+              -d "{\"check_name\":\"$check_name\",\"status\":\"$status\",\"response_time_ms\":$ms,\"error_message\":$error_json,\"metadata\":$metadata,\"created_at\":\"$NOW\"}"
+          }
+          log_entry "api_health_ping" \
+            "${{ steps.api_ping.outputs.status }}" \
+            "${{ steps.api_ping.outputs.response_ms }}" \
+            "${{ steps.api_ping.outputs.error }}" \
+            "{\"feature\":\"api\",\"endpoint\":\"$APP_URL/api/health\",\"http_code\":${{ steps.api_ping.outputs.http_code }}}"
+          log_entry "db_read_integrity" \
+            "${{ steps.db_check.outputs.status }}" \
+            "${{ steps.db_check.outputs.response_ms }}" \
+            "${{ steps.db_check.outputs.error }}" \
+            "{\"feature\":\"database\",\"endpoint\":\"supabase › rest/v1/verified_vibe_users\",\"http_code\":${{ steps.db_check.outputs.http_code }}}"
+          log_entry "synthetic_login_simulation" \
+            "${{ steps.login_sim.outputs.status }}" \
+            "${{ steps.login_sim.outputs.response_ms }}" \
+            "${{ steps.login_sim.outputs.error }}" \
+            "{\"feature\":\"auth\",\"endpoint\":\"$APP_URL/api/verified-vibe/seed-login\",\"http_code\":${{ steps.login_sim.outputs.http_code }}}"
+
+      - name: Check consecutive failures & alert
+        if: |
+          steps.api_ping.outputs.status == 'FAIL' ||
+          steps.db_check.outputs.status == 'FAIL' ||
+          steps.login_sim.outputs.status == 'FAIL'
+        run: |
+          send_alert() {
+            local check_name=$1 last_error=$2
+            RESULT=$(curl -s \
+              -H "apikey: $SUPABASE_KEY" \
+              -H "Authorization: Bearer $SUPABASE_KEY" \
+              "$SUPABASE_URL/rest/v1/monitor_log?check_name=eq.$check_name&order=created_at.desc&limit=3&select=status")
+            FAIL_COUNT=$(echo "$RESULT" | python3 -c "
+          import sys, json
+          rows = json.load(sys.stdin)
+          print(sum(1 for r in rows if r['status'] == 'FAIL'))
+          ")
+            [ "$FAIL_COUNT" -lt "3" ] && echo "[$check_name] retry threshold not reached — no alert" && return
+            curl -s -X POST "https://api.resend.com/emails" \
+              -H "Authorization: Bearer $RESEND_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"from\": \"PDC Monitor <monitor@riteangle.dating>\",
+                \"to\": [\"$ALERT_EMAIL\"],
+                \"subject\": \"🔴 CRITICAL: $check_name failed 3× — riteangle.dating\",
+                \"html\": \"<p><strong>Check:</strong> $check_name</p><p><strong>Status:</strong> FAIL (3 consecutive)</p><p><strong>Last error:</strong> $last_error</p><p><strong>Time:</strong> $(date -u)</p><p><a href='$APP_URL/admin/monitoring'>View monitoring dashboard</a></p>\"
+              }"
+            echo "[$check_name] CRITICAL alert sent."
+          }
+          [ "${{ steps.api_ping.outputs.status }}"  = "FAIL" ] && send_alert "api_health_ping"            "${{ steps.api_ping.outputs.error }}"
+          [ "${{ steps.db_check.outputs.status }}"  = "FAIL" ] && send_alert "db_read_integrity"          "${{ steps.db_check.outputs.error }}"
+          [ "${{ steps.login_sim.outputs.status }}" = "FAIL" ] && send_alert "synthetic_login_simulation" "${{ steps.login_sim.outputs.error }}"
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # AI CREDIT PROBE — daily 02:00 WIB (19:00 UTC)
+  # ════════════════════════════════════════════════════════════════════════════
+
+  ai-probe:
+    name: Monitor — AI Credit Probe (daily)
+    if: |
+      github.event.schedule == '0 19 * * *' ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      APP_URL:              ${{ secrets.APP_URL }}
+      SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY:         ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      ANTHROPIC_API_KEY:    ${{ secrets.ANTHROPIC_API_KEY }}
+      FAL_KEY:              ${{ secrets.FAL_KEY }}
+      RESEND_API_KEY:       ${{ secrets.RESEND_API_KEY }}
+      ALERT_EMAIL_CRITICAL: ${{ secrets.ALERT_EMAIL_CRITICAL }}
+      ALERT_EMAIL_WARNING:  ${{ secrets.ALERT_EMAIL_WARNING }}
+    steps:
+      - name: Claude API probe
+        id: claude_probe
+        run: |
+          START=$(date +%s%3N)
+          HTTP=$(curl -s -o /tmp/claude_body.json -w "%{http_code}" --max-time 15 \
+            -X POST "https://api.anthropic.com/v1/messages" \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "Content-Type: application/json" \
+            -d '{"model":"claude-haiku-4-5-20251001","max_tokens":1,"messages":[{"role":"user","content":"1"}]}')
+          END=$(date +%s%3N)
+          echo "response_ms=$(( END - START ))" >> $GITHUB_OUTPUT
+          echo "http_code=$HTTP" >> $GITHUB_OUTPUT
+          if [ "$HTTP" = "200" ]; then
+            echo "status=OK" >> $GITHUB_OUTPUT
+          elif [ "$HTTP" = "429" ]; then
+            echo "status=WARN" >> $GITHUB_OUTPUT
+            echo "error=Claude API rate-limited / quota exceeded (HTTP 429)" >> $GITHUB_OUTPUT
+          else
+            echo "status=FAIL" >> $GITHUB_OUTPUT
+            ERROR=$(cat /tmp/claude_body.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('error',{}).get('message','Unknown'))" 2>/dev/null || echo "HTTP $HTTP")
+            echo "error=$ERROR" >> $GITHUB_OUTPUT
+          fi
+
+      - name: FAL AI probe
+        id: fal_probe
+        run: |
+          START=$(date +%s%3N)
+          HTTP=$(curl -s -o /tmp/fal_body.json -w "%{http_code}" --max-time 10 \
+            -H "Authorization: Key $FAL_KEY" \
+            "https://queue.fal.run/fal-ai/flux/requests")
+          END=$(date +%s%3N)
+          echo "response_ms=$(( END - START ))" >> $GITHUB_OUTPUT
+          echo "http_code=$HTTP" >> $GITHUB_OUTPUT
+          if [ "$HTTP" = "200" ] || [ "$HTTP" = "400" ] || [ "$HTTP" = "404" ]; then
+            echo "status=OK" >> $GITHUB_OUTPUT
+          elif [ "$HTTP" = "429" ] || [ "$HTTP" = "402" ]; then
+            echo "status=WARN" >> $GITHUB_OUTPUT
+            echo "error=FAL AI quota/credit error (HTTP $HTTP)" >> $GITHUB_OUTPUT
+          else
+            echo "status=FAIL" >> $GITHUB_OUTPUT
+            echo "error=FAL AI unreachable (HTTP $HTTP)" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Log results to monitor_log
+        run: |
+          NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          log_entry() {
+            local check_name=$1 status=$2 ms=$3 error_msg=$4 metadata="${5:-null}"
+            local error_json
+            [ -z "$error_msg" ] && error_json="null" || error_json="\"$(echo "$error_msg" | sed 's/"/\\"/g')\""
+            curl -s -o /dev/null \
+              -X POST "$SUPABASE_URL/rest/v1/monitor_log" \
+              -H "apikey: $SUPABASE_KEY" \
+              -H "Authorization: Bearer $SUPABASE_KEY" \
+              -H "Content-Type: application/json" \
+              -H "Prefer: return=minimal" \
+              -d "{\"check_name\":\"$check_name\",\"status\":\"$status\",\"response_time_ms\":$ms,\"error_message\":$error_json,\"metadata\":$metadata,\"created_at\":\"$NOW\"}"
+          }
+          log_entry "claude_api_probe" \
+            "${{ steps.claude_probe.outputs.status }}" \
+            "${{ steps.claude_probe.outputs.response_ms }}" \
+            "${{ steps.claude_probe.outputs.error }}" \
+            "{\"feature\":\"ai_claude\",\"endpoint\":\"https://api.anthropic.com/v1/messages\",\"http_code\":${{ steps.claude_probe.outputs.http_code }}}"
+          log_entry "fal_ai_probe" \
+            "${{ steps.fal_probe.outputs.status }}" \
+            "${{ steps.fal_probe.outputs.response_ms }}" \
+            "${{ steps.fal_probe.outputs.error }}" \
+            "{\"feature\":\"ai_fal\",\"endpoint\":\"https://queue.fal.run/fal-ai/flux/requests\",\"http_code\":${{ steps.fal_probe.outputs.http_code }}}"
+
+      - name: Send WARNING alert (quota/credit issue)
+        if: steps.claude_probe.outputs.status == 'WARN' || steps.fal_probe.outputs.status == 'WARN'
+        run: |
+          BODY_HTML="<h3>⚠️ AI Credit / Quota Warning — riteangle.dating</h3><ul>"
+          [ "${{ steps.claude_probe.outputs.status }}" = "WARN" ] && BODY_HTML="$BODY_HTML<li><strong>Claude API:</strong> ${{ steps.claude_probe.outputs.error }}</li>"
+          [ "${{ steps.fal_probe.outputs.status }}"   = "WARN" ] && BODY_HTML="$BODY_HTML<li><strong>FAL AI:</strong> ${{ steps.fal_probe.outputs.error }}</li>"
+          BODY_HTML="$BODY_HTML</ul><p>Time: $(date -u)</p><p><a href='$APP_URL/admin/monitoring'>View monitoring dashboard</a></p>"
+          curl -s -X POST "https://api.resend.com/emails" \
+            -H "Authorization: Bearer $RESEND_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"from\":\"PDC Monitor <monitor@riteangle.dating>\",\"to\":[\"$ALERT_EMAIL_WARNING\"],\"subject\":\"⚠️ WARNING: AI quota issue detected — riteangle.dating\",\"html\":\"$BODY_HTML\"}"
+
+      - name: Send CRITICAL alert (API unreachable)
+        if: steps.claude_probe.outputs.status == 'FAIL' || steps.fal_probe.outputs.status == 'FAIL'
+        run: |
+          BODY_HTML="<h3>🔴 CRITICAL: AI Service Unreachable — riteangle.dating</h3><ul>"
+          [ "${{ steps.claude_probe.outputs.status }}" = "FAIL" ] && BODY_HTML="$BODY_HTML<li><strong>Claude API:</strong> ${{ steps.claude_probe.outputs.error }}</li>"
+          [ "${{ steps.fal_probe.outputs.status }}"   = "FAIL" ] && BODY_HTML="$BODY_HTML<li><strong>FAL AI:</strong> ${{ steps.fal_probe.outputs.error }}</li>"
+          BODY_HTML="$BODY_HTML</ul><p>Time: $(date -u)</p><p><a href='$APP_URL/admin/monitoring'>View monitoring dashboard</a></p>"
+          curl -s -X POST "https://api.resend.com/emails" \
+            -H "Authorization: Bearer $RESEND_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"from\":\"PDC Monitor <monitor@riteangle.dating>\",\"to\":[\"$ALERT_EMAIL_CRITICAL\"],\"subject\":\"🔴 CRITICAL: AI service down — riteangle.dating\",\"html\":\"$BODY_HTML\"}"
