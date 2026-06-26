@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 # 1.0.1+N — distinct from the live Capacitor build (1.0 / build 1) on the same
 # App Store Connect app (com.pocketdatingcoach.app). Bump +N if a build collides.
-version: 1.0.5+20
+version: 1.0.5+21
 
 environment:
   sdk: ^3.12.1
