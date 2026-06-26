@@ -310,6 +310,48 @@ export function deriveDealbreakers(archetype: string, a: Record<string, unknown>
   return Array.from(new Set(out)).slice(0, 12);
 }
 
+/**
+ * The FULL onboarding-derived dealbreaker set: the archetype standards→trait
+ * mapping plus the legacy literal answer keys. This is what the matchmaker used
+ * before hard_nos existed, and it's exactly what we seed hard_nos with on first
+ * collection so nothing is lost. Exported for unit testing.
+ */
+export function deriveAllDealbreakers(
+  archetype: string,
+  a: Record<string, unknown>,
+  draft: Record<string, unknown> = {},
+): string[] {
+  return Array.from(new Set([
+    // Derived from the archetype's standards / values / non-negotiables picks.
+    ...deriveDealbreakers(archetype, a),
+    // Legacy literal answers (old SpendingQA flow) kept as a fallback.
+    ...toSignalArray(a.deal_breakers, a.red_flags, a.dealbreakers, a.here_for_hard_nos, draft.dealbreakers),
+  ])).slice(0, 12);
+}
+
+/**
+ * Resolve the effective hard_nos list for a user and whether a one-time seed
+ * write is needed. Pure (no DB) so it's unit-testable.
+ *
+ * First collection: the onboarding-derived dealbreakers seed hard_nos the FIRST
+ * time only, and only when the user has no manual entries yet — so an existing
+ * user who already typed hard nos keeps theirs (we just mark them seeded). After
+ * seeding, hard_nos is user-owned and returned verbatim (edits/removals stick).
+ */
+export function resolveHardNos(
+  archetype: string,
+  a: Record<string, unknown>,
+  draft: Record<string, unknown>,
+  current: { hardNos: unknown; seeded: boolean },
+): { hardNos: string[]; needsSeedWrite: boolean } {
+  const raw = Array.isArray(current.hardNos)
+    ? (current.hardNos as unknown[]).map((h) => `${h}`.trim()).filter(Boolean)
+    : [];
+  if (current.seeded) return { hardNos: raw, needsSeedWrite: false };
+  const seeded = raw.length ? raw : deriveAllDealbreakers(archetype, a, draft);
+  return { hardNos: seeded, needsSeedWrite: true };
+}
+
 // ── Intent derivation (lookingFor / relationshipIntent) ───────────────────────
 // Two tiers: (1) the archetype's explicit onboarding intent answer; (2) ONLY
 // when no such answer exists (casual / spoiled / romantic lanes, where the
@@ -462,22 +504,23 @@ function lifestyleSignalsSourceKeys(base: string): string[] {
 
 // ── Distill the unified preferences model ("what I want") ──────────────────────
 
-function distillPreferences(
+export function distillPreferences(
   masterData: Record<string, unknown>,
   a: Record<string, unknown>,
   archetype: string,
+  hardNos: string[] | null = null,
 ): Record<string, unknown> {
   const draft = (masterData.profileDraft ?? {}) as Record<string, unknown>;
   const base = archetypeBase(archetype);
 
   return {
     lookingFor: deriveIntent(archetype, a, draft.lookingFor),
-    dealbreakers: Array.from(new Set([
-      // Derived from the archetype's standards / values / non-negotiables picks.
-      ...deriveDealbreakers(archetype, a),
-      // Legacy literal answers (old SpendingQA flow) kept as a fallback.
-      ...toSignalArray(a.deal_breakers, a.red_flags, a.dealbreakers, a.here_for_hard_nos, draft.dealbreakers),
-    ])).slice(0, 12),
+    // hard_nos is the canonical, user-owned dealbreaker list once seeded — use it
+    // verbatim so bio edits/removals are live truth. Before seeding (hardNos null)
+    // fall back to the onboarding-derived set for back-compat.
+    dealbreakers: hardNos != null
+      ? Array.from(new Set(hardNos.map((s) => s.trim()).filter(Boolean))).slice(0, 12)
+      : deriveAllDealbreakers(archetype, a, draft),
     emotionalSignals: toSignalArray(
       a.emotional_signals, a.vv_emotional_signals, a.lifestyle_values, a.partner_qualities,
       a.partner_energy, a.relationship_energy, a.relationship_vibe, a.appreciation,
@@ -507,7 +550,7 @@ export async function refreshPoolEntry(userId: string): Promise<void> {
 
   const { data: user, error: userErr } = await db
     .from('verified_vibe_users')
-    .select('archetype, trust_score, city, gender')
+    .select('archetype, trust_score, city, gender, hard_nos, hard_nos_seeded')
     .eq('id', userId)
     .single();
 
@@ -524,10 +567,24 @@ export async function refreshPoolEntry(userId: string): Promise<void> {
 
   const masterData = (masterRow?.data ?? {}) as Record<string, unknown>;
   const a = buildAnswerMap(masterData); // master_profile.onboarding only — no verification read
+  const draft = (masterData.profileDraft ?? {}) as Record<string, unknown>;
+
+  // hard_nos = single source of truth for dealbreakers. Seed it once from the
+  // onboarding-derived set (first collection), then it's user-owned. The seeded
+  // list is what feeds the matchmaker projection below.
+  const { hardNos, needsSeedWrite } = resolveHardNos(
+    user.archetype, a, draft,
+    { hardNos: user.hard_nos, seeded: !!user.hard_nos_seeded },
+  );
+  if (needsSeedWrite) {
+    await db.from('verified_vibe_users')
+      .update({ hard_nos: hardNos, hard_nos_seeded: true })
+      .eq('id', userId);
+  }
 
   const trustBand    = getTrustScoreBand(user.trust_score ?? 0);
   const matchProfile = distillMatchProfile(masterData, a, user.archetype);
-  const preferences  = distillPreferences(masterData, a, user.archetype);
+  const preferences  = distillPreferences(masterData, a, user.archetype, hardNos);
   const city         = (masterData.identity as any)?.city ?? user.city ?? null;
 
   await db.from('vv_pool_profiles').upsert(
