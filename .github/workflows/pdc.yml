@@ -417,10 +417,11 @@ jobs:
         run: cd mobile && flutter pub get
 
       - name: Build APK (debug)
-        # Build number = run_number * 10 + run_attempt
-        # Ensures unique versionCode even if the same workflow run is re-triggered.
+        # Build number = 100 (offset) + run_number * 10 + run_attempt
+        # Offset 100 ensures CI builds always exceed the last manual pubspec build (20).
+        # Increment offset if run_number * 10 ever approaches the next threshold.
         run: |
-          BUILD_NUM=$(( ${{ github.run_number }} * 10 + ${{ github.run_attempt }} ))
+          BUILD_NUM=$(( 100 + ${{ github.run_number }} * 10 + ${{ github.run_attempt }} ))
           cd mobile && flutter build apk --debug --build-number=$BUILD_NUM
 
       - name: Distribute to testers
@@ -507,10 +508,10 @@ jobs:
 
       - name: Compute build number
         id: build_num
-        # Build number = run_number * 10 + run_attempt
-        # Guarantees a unique, ever-increasing CFBundleVersion even on re-runs,
-        # so Apple never rejects the upload as a duplicate build.
-        run: echo "value=$(( ${{ github.run_number }} * 10 + ${{ github.run_attempt }} ))" >> $GITHUB_OUTPUT
+        # Build number = 100 (offset) + run_number * 10 + run_attempt
+        # Offset 100 ensures CI builds always exceed the last manual pubspec build (20).
+        # Increment offset if run_number * 10 ever approaches the next threshold.
+        run: echo "value=$(( 100 + ${{ github.run_number }} * 10 + ${{ github.run_attempt }} ))" >> $GITHUB_OUTPUT
 
       - name: Build & export IPA
         run: |
