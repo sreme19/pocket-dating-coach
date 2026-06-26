@@ -713,7 +713,12 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
 
       final verified = res['verified'] == true;
       final pts = res['pts_awarded'] is num ? (res['pts_awarded'] as num).toInt() : 0;
-      final agg = (res['aggregated'] ?? res['reason'] ?? '').toString();
+      // Prefer the aggregated one-liner, but fall back to `reason` when it's
+      // blank. `??` only fires on null, and the backend always sends
+      // `aggregated` as a (often empty) string — so on a rejection the reason
+      // would otherwise be swallowed, leaving a bare "Couldn't verify."
+      final aggRaw = (res['aggregated'] ?? '').toString().trim();
+      final agg = aggRaw.isNotEmpty ? aggRaw : (res['reason'] ?? '').toString().trim();
       final nameMismatch = res['nameMatch'] == false;
       final chips = <String>[];
       if (res['insights'] is List) {
