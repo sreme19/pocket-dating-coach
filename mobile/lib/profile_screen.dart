@@ -156,7 +156,7 @@ class _ProfileBody extends StatelessWidget {
       padding: EdgeInsets.zero,
       children: [
         Stack(children: [
-          _Hero(photos: data.photos, fallback: data.heroPhotoUrl),
+          _Hero(photos: data.photos, fallback: data.heroPhotoUrl, aiEnhanced: data.isMan),
           // Bottom gradient overlay
           Positioned.fill(
             child: DecoratedBox(
@@ -2141,7 +2141,11 @@ class _GarageCard extends StatelessWidget {
 class _Hero extends StatefulWidget {
   final List<String> photos;
   final String? fallback;
-  const _Hero({required this.photos, required this.fallback});
+  // When the displayed photos are AI-enhanced (men), the spec requires the hero
+  // to be clearly labeled as generated from verified photos, so a viewer is
+  // never misled into thinking it's a literal, untouched snapshot.
+  final bool aiEnhanced;
+  const _Hero({required this.photos, required this.fallback, this.aiEnhanced = false});
   @override
   State<_Hero> createState() => _HeroState();
 }
@@ -2250,6 +2254,25 @@ class _HeroState extends State<_Hero> {
                       ),
                     ),
                 ],
+              ),
+            ),
+          // AI-enhanced label — only over a real photo (never the placeholder),
+          // so viewers know the men's hero is generated from verified photos.
+          if (widget.aiEnhanced)
+            Positioned(
+              top: 12, left: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xCC1B1020),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text('✨', style: TextStyle(fontSize: 11)),
+                  SizedBox(width: 5),
+                  Text('Generated from verified photos',
+                      style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                ]),
               ),
             ),
         ],

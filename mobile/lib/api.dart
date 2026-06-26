@@ -200,6 +200,11 @@ Future<ProfileData> fetchProfile() async {
   final draft = master['profileDraft'] as Map?;
   final proofs = (master['proofInsightsLocalStorage'] as List?) ?? const [];
 
+  // A man's raw upload must NEVER be displayed — viewers (and his own hero) only
+  // ever see AI-enhanced portraits. Raw uploads still feed the editable photo
+  // manager + enhance source (uploadedPhotos), just never the display list/hero.
+  final isMan = (row?['gender']?.toString()) == 'man';
+
   // All displayable photo URLs: AI photos first, then uploaded (http/data only).
   final photos = <String>[];
   final uploaded = <PhotoItem>[];
@@ -218,13 +223,15 @@ Future<ProfileData> fetchProfile() async {
     if (p is Map && p['dataUrl'] is String) {
       final u = p['dataUrl'] as String;
       if (u.startsWith('http') || u.startsWith('data:')) {
-        photos.add(u);
         uploaded.add(PhotoItem(u, (p['label'] ?? 'photo').toString()));
+        if (!isMan) photos.add(u); // men: raw uploads are edit-only, never displayed
       }
     }
   }
   String? hero = photos.isNotEmpty ? photos.first : null;
-  hero ??= row?['avatar_url'] as String?;
+  // Never fall a man back to avatar_url — it may still hold his raw upload until
+  // his AI photos are generated + saved. Show the placeholder until AI exists.
+  if (hero == null && !isMan) hero = row?['avatar_url'] as String?;
 
   final name = (row?['first_name'] ?? draft?['firstName'] ?? 'You').toString();
   final age = row?['age'] != null ? _asInt(row!['age']) : (draft?['age'] != null ? _asInt(draft!['age']) : null);
