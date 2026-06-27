@@ -593,6 +593,7 @@ jobs:
       SUPABASE_KEY:          ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       RESEND_API_KEY:        ${{ secrets.RESEND_API_KEY }}
       ALERT_EMAIL:           ${{ secrets.ALERT_EMAIL_CRITICAL }}
+      SLACK_WEBHOOK_URL:     ${{ secrets.SLACK_WEBHOOK_URL }}
       CRON_SECRET:           ${{ secrets.CRON_SECRET }}
       SYNTHETIC_USER_EMAIL:  ${{ secrets.SYNTHETIC_USER_EMAIL }}
       SEED_ACCOUNT_PASSWORD: ${{ secrets.SEED_ACCOUNT_PASSWORD }}
@@ -840,6 +841,42 @@ jobs:
               -H "Authorization: Bearer $RESEND_API_KEY" \
               -H "Content-Type: application/json" \
               --data-binary @-
+
+            # Slack notification
+            if [ -n "$SLACK_WEBHOOK_URL" ]; then
+              NOW_WIB=$(TZ="Asia/Jakarta" date "+%H:%M WIB")
+              python3 -c "
+import json, os
+check  = os.environ['CHECK_NAME']
+err    = os.environ['LAST_ERROR']
+http   = os.environ['HTTP_CODE']
+ms     = os.environ['RESPONSE_MS']
+ep     = os.environ['ENDPOINT']
+now    = os.environ['NOW_WIB']
+url    = os.environ['APP_URL']
+payload = json.dumps({
+  'attachments': [{
+    'color': '#dc2626',
+    'blocks': [
+      {'type':'section','text':{'type':'mrkdwn','text':f'🔴 *CRITICAL: {check} failed 3×* — riteangle.dating'}},
+      {'type':'section','fields':[
+        {'type':'mrkdwn','text':f'*Endpoint*\n\`{ep}\`'},
+        {'type':'mrkdwn','text':f'*HTTP Code*\n*{http}*'},
+        {'type':'mrkdwn','text':f'*Latency*\n{ms}ms'},
+        {'type':'mrkdwn','text':f'*Error*\n{err[:120]}'},
+      ]},
+      {'type':'actions','elements':[{'type':'button','style':'danger','text':{'type':'plain_text','text':'View Dashboard'},'url':f'{url}/admin/monitoring'}]},
+      {'type':'context','elements':[{'type':'mrkdwn','text':f'GitHub Actions health-check · {now}'}]},
+    ],
+  }]
+})
+print(payload)
+" | CHECK_NAME="$check_name" LAST_ERROR="$last_error" HTTP_CODE="$http_code" \
+    RESPONSE_MS="$response_ms" ENDPOINT="$endpoint" NOW_WIB="$NOW_WIB" \
+    curl -s -X POST "$SLACK_WEBHOOK_URL" \
+      -H "Content-Type: application/json" \
+      --data-binary @-
+            fi
 
             echo "[$check_name] CRITICAL alert sent."
           }

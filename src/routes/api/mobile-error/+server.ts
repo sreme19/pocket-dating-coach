@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { sendSlackAlert } from '$lib/server/slack';
 
 /**
  * POST /api/mobile-error
@@ -161,6 +162,24 @@ export const POST: RequestHandler = async ({ request }) => {
 		}
 
 		console.log(`[mobile-error] Alert sent: ${errType} on ${screen} (user: ${body.userId ?? 'anon'})`);
+
+		// Slack notification (fire-and-forget)
+		const appUrl = process.env.APP_URL ?? 'https://riteangle.dating';
+		await sendSlackAlert({
+			color:    'warning',
+			emoji:    '📱',
+			title:    `App Bug: ${errType}`,
+			subtitle: `Screen: \`${screen}\` · Action: \`${body.action ?? '—'}\``,
+			fields: [
+				{ label: 'Error',   value: body.errorMessage?.slice(0, 200) ?? '—' },
+				{ label: 'User',    value: body.userId ? `\`${body.userId.slice(0, 8)}…\`` : '_not logged in_', short: true },
+				{ label: 'Version', value: body.appVersion ?? '—', short: true },
+				...(body.stack ? [{ label: 'Stack (first 3 lines)', value: `\`\`\`${body.stack.split('\n').slice(0, 3).join('\n')}\`\`\`` }] : []),
+			],
+			footer:       'Flutter AppLogger',
+			dashboardUrl: `${appUrl}/admin/monitoring`,
+		});
+
 		return json({ ok: true });
 	} catch (err) {
 		console.error('[mobile-error] Failed:', err);

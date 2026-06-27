@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { runHealthCheck } from '$lib/server/health';
+import { sendSlackAlert } from '$lib/server/slack';
 
 /**
  * Health alert cron — runs every 10 minutes via Vercel Cron.
@@ -109,6 +110,29 @@ const handle: RequestHandler = async ({ request }) => {
 	const subject = report.status === 'down'
 		? `🔴 ALERT: Service down — Pocket Dating Coach`
 		: `⚠️ WARNING: Service degraded — Pocket Dating Coach`;
+
+	const isCritical = report.status === 'down';
+	const appUrl = process.env.APP_URL ?? 'https://riteangle.dating';
+
+	// Slack alert
+	const failedServices = Object.entries(report.services)
+		.filter(([, s]) => s.status !== 'ok')
+		.map(([name, s]) => `• *${name}*: ${s.status.toUpperCase()}${s.error ? ` — ${s.error}` : ''}`)
+		.join('\n');
+
+	await sendSlackAlert({
+		color:    isCritical ? 'critical' : 'warning',
+		emoji:    isCritical ? '🔴' : '⚠️',
+		title:    isCritical ? 'Service DOWN — riteangle.dating' : 'Service DEGRADED — riteangle.dating',
+		subtitle: failedServices,
+		fields: Object.entries(report.services).map(([name, s]) => ({
+			label: name,
+			value: `${s.status === 'ok' ? '✅' : s.status === 'degraded' ? '⚠️' : '🔴'} ${s.status.toUpperCase()}${s.latencyMs != null ? ` · ${s.latencyMs}ms` : ''}`,
+			short: true,
+		})),
+		footer:       'Vercel Cron health-alert',
+		dashboardUrl: `${appUrl}/admin/monitoring`,
+	});
 
 	try {
 		await sendAlert(subject, buildAlertHtml(report));
