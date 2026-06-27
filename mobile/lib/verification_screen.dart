@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:camera/camera.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
@@ -164,8 +165,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
       // ── Step 3: name / age / city ─────────────────────────────────────────
       final userRow = parallel[0] as Map?;
       if (userRow != null) {
-        if ((userRow['first_name'] ?? '').toString().isNotEmpty && _nameCtrl.text.isEmpty)
-          _nameCtrl.text = userRow['first_name'].toString();
+        final existingName = (userRow['first_name'] ?? '').toString();
+        if (existingName.isNotEmpty && existingName != 'New member' && _nameCtrl.text.isEmpty)
+          _nameCtrl.text = existingName;
         if (userRow['age'] != null && _ageCtrl.text.isEmpty)
           _ageCtrl.text = userRow['age'].toString();
         if ((userRow['city'] ?? '').toString().isNotEmpty && _cityCtrl.text.isEmpty)
@@ -859,11 +861,11 @@ class _VerificationScreenState extends State<VerificationScreen> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(child: _textField(_nameCtrl, 'First name', TextInputType.name, TextCapitalization.words)),
+            Expanded(child: _textField(_nameCtrl, 'First name', TextInputType.name, TextCapitalization.words, maxLength: 30)),
             const SizedBox(width: 10),
             SizedBox(
-              width: 90,
-              child: _textField(_ageCtrl, 'Age', TextInputType.number, TextCapitalization.none),
+              width: 96,
+              child: _ageDropdown(),
             ),
           ],
         ),
@@ -1221,18 +1223,61 @@ class _VerificationScreenState extends State<VerificationScreen> {
   }
 
   Widget _textField(
-    TextEditingController c, String hint, TextInputType kb, TextCapitalization cap,
-  ) {
+    TextEditingController c, String hint, TextInputType kb, TextCapitalization cap, {
+    int? maxLength,
+  }) {
     return TextField(
       controller: c,
       keyboardType: kb,
       textCapitalization: cap,
       autocorrect: false,
+      maxLength: maxLength,
+      buildCounter: maxLength == null
+          ? null
+          : (_, {required currentLength, required isFocused, maxLength}) => null,
+      inputFormatters: maxLength == null
+          ? null
+          : [LengthLimitingTextInputFormatter(maxLength)],
       onChanged: (_) => setState(() {}),
       style: const TextStyle(color: Color(Config.text1)),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: Color(Config.text3)),
+        filled: true,
+        fillColor: const Color(Config.bg2),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(Config.accentBright), width: 1.5),
+        ),
+      ),
+    );
+  }
+
+  // Age is a constrained dropdown (18–99) so members can't enter an out-of-range
+  // or non-numeric age. Backs the same _ageCtrl used by validation/submit.
+  Widget _ageDropdown() {
+    final current = int.tryParse(_ageCtrl.text.trim());
+    final value = (current != null && current >= 18 && current <= 99) ? current : null;
+    return DropdownButtonFormField<int>(
+      value: value,
+      isExpanded: true,
+      hint: const Text('Age', style: TextStyle(color: Color(Config.text3))),
+      style: const TextStyle(color: Color(Config.text1), fontSize: 16),
+      dropdownColor: const Color(Config.bg2),
+      icon: const Icon(Icons.arrow_drop_down, color: Color(Config.text3)),
+      items: [
+        for (int a = 18; a <= 99; a++)
+          DropdownMenuItem(value: a, child: Text('$a')),
+      ],
+      onChanged: (v) => setState(() {
+        _ageCtrl.text = v?.toString() ?? '';
+      }),
+      decoration: InputDecoration(
         filled: true,
         fillColor: const Color(Config.bg2),
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
