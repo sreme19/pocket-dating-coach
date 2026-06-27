@@ -39,6 +39,7 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
 
   Future<void> _add(ImageSource source) async {
     if (_busy || _atCap) return;
+    AppLogger.instance.action('profile_edit', 'upload_photo');
     setState(() { _busy = true; _error = null; });
     try {
       final x = await _picker.pickImage(source: source, maxWidth: 1800, imageQuality: 85);
@@ -55,13 +56,19 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
     }
   }
 
-  void _remove(int i) => setState(() { _photos.removeAt(i); _dirty = true; });
+  void _remove(int i) {
+    AppLogger.instance.action('profile_edit', 'remove_photo');
+    setState(() { _photos.removeAt(i); _dirty = true; });
+  }
 
-  void _makeLead(int i) => setState(() {
-        final p = _photos.removeAt(i);
-        _photos.insert(0, PhotoItem(p.url, 'lead'));
-        _dirty = true;
-      });
+  void _makeLead(int i) {
+    AppLogger.instance.action('profile_edit', 'make_lead_photo');
+    setState(() {
+      final p = _photos.removeAt(i);
+      _photos.insert(0, PhotoItem(p.url, 'lead'));
+      _dirty = true;
+    });
+  }
 
   Future<void> _save() async {
     setState(() { _busy = true; _error = null; });
@@ -257,13 +264,14 @@ Future<void> editArchetype(BuildContext context, ProfileData data, VoidCallback 
     ),
   );
   if (picked == null || picked == data.archetype) return;
+  AppLogger.instance.action('profile_edit', 'save_archetype');
   try {
     await saveArchetype(picked);
     onChanged();
   } catch (e) {
-    AppLogger.instance.error(e, screen: ‘profile_edit’, action: ‘save_archetype’);
+    AppLogger.instance.error(e, screen: 'profile_edit', action: 'save_archetype');
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Couldn’t update: $e")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Couldn't update: $e")));
     }
   }
 }
@@ -332,7 +340,7 @@ class _HardNosEditorState extends State<_HardNosEditor> {
 
   Future<void> _add() async {
     final raw = _ctrl.text.trim();
-    if (raw.isEmpty || _adding) return;
+    if (raw.isEmpty || _adding || _items.length >= 10) return;
     setState(() => _adding = true);
     final cleaned = await cleanupText(raw);
     setState(() {
@@ -343,6 +351,7 @@ class _HardNosEditorState extends State<_HardNosEditor> {
   }
 
   Future<void> _save() async {
+    AppLogger.instance.action('profile_edit', 'save_hard_nos');
     setState(() { _saving = true; _error = null; });
     try {
       await saveHardNos(_items);
@@ -384,6 +393,8 @@ class _HardNosEditorState extends State<_HardNosEditor> {
                 controller: _ctrl,
                 style: const TextStyle(color: Color(Config.text1)),
                 textCapitalization: TextCapitalization.sentences,
+                maxLength: 80,
+                buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                 onSubmitted: (_) => _add(),
                 decoration: InputDecoration(
                   hintText: 'e.g. dishonesty',

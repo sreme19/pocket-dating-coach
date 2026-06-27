@@ -11,6 +11,13 @@ export const POST: RequestHandler = async ({ request }) => {
 			profile: MaleProfile;
 		};
 
+		// Cap edited value length (1000 chars). newValue is interpolated into a
+		// Claude validation prompt, so unbounded input is a token-flooding /
+		// prompt-injection vector.
+		if (typeof newValue === 'string' && newValue.length > 1000) {
+			return json({ error: 'Value exceeds maximum length of 1000 characters' }, { status: 400 });
+		}
+
 		// Quick validation rules
 		const minLengths: Record<string, number> = {
 			headline: 3,

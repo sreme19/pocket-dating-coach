@@ -60,7 +60,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		if (feedbackType === 'negative') {
 			const chip = (body.reasonChip ?? '').trim();
 			reasonChip = VALID_REASON_CHIPS.includes(chip) ? chip : null;
-			feedbackText = (body.feedbackText ?? '').trim().slice(0, 2000) || null;
+			feedbackText = (body.feedbackText ?? '').trim().slice(0, 500) || null;
 		}
 
 		// Cast: generated DB types predate the assistant_type/reason_chip/feedback_text

@@ -39,6 +39,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
   @override
   void initState() {
     super.initState();
+    AppLogger.instance.screen('trust_boost');
     _future = fetchTrust();
     _future.then((d) => _cachedData = d).catchError((_) {});
   }
@@ -249,6 +250,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
   // ── Safety Check — 3 categories matching website layout ───────────────────
 
   Future<void> _goToStep(int step, {Set<int> skipSteps = const {}}) async {
+    AppLogger.instance.action('trust_boost', 'start_boost');
     final archetype = _cachedData?.archetype;
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => VerificationScreen(
@@ -396,10 +398,13 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
     final p = d.proofFor(c.id);
     final verified = p != null;
     return GestureDetector(
-      onTap: () => Navigator.of(context)
-          .push(MaterialPageRoute(
-              builder: (_) => CategoryProofScreen(categoryId: c.id, existingProof: p)))
-          .then((_) => _refresh()),
+      onTap: () {
+        AppLogger.instance.action('trust_boost', 'start_boost');
+        Navigator.of(context)
+            .push(MaterialPageRoute(
+                builder: (_) => CategoryProofScreen(categoryId: c.id, existingProof: p)))
+            .then((_) => _refresh());
+      },
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
@@ -441,10 +446,13 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
     final p = d.proofFor(c.id);
     final verified = p != null;
     return GestureDetector(
-      onTap: () => Navigator.of(context)
-          .push(MaterialPageRoute(
-              builder: (_) => CategoryProofScreen(categoryId: c.id, existingProof: p)))
-          .then((_) => _refresh()),
+      onTap: () {
+        AppLogger.instance.action('trust_boost', 'start_boost');
+        Navigator.of(context)
+            .push(MaterialPageRoute(
+                builder: (_) => CategoryProofScreen(categoryId: c.id, existingProof: p)))
+            .then((_) => _refresh());
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(

@@ -2,15 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api.dart';
 import 'app_logger.dart';
+import 'blocked_users_screen.dart';
 import 'config.dart';
 import 'preference_weighting_screen.dart';
 import 'profile_strength_screen.dart';
 import 'push_service.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    AppLogger.instance.screen('settings');
+  }
+
   Future<void> _signOut(BuildContext context, {bool localOnly = false}) async {
+    AppLogger.instance.action('settings', 'sign_out');
     await PushService.signOutCleanup();
     try {
       await Supabase.instance.client.auth.signOut(
@@ -51,6 +64,13 @@ class SettingsScreen extends StatelessWidget {
             'What you value',
             'Tune how much each quality matters to you in a match',
             const PreferenceWeightingScreen(),
+          ),
+          _header('SAFETY'),
+          _navRow(
+            context,
+            'Blocked users',
+            'Review and unblock people you’ve blocked',
+            const BlockedUsersScreen(),
           ),
           _header('APP'),
           _row('Version', '1.0.1 (9)'),
@@ -163,6 +183,7 @@ class _DeleteAccountSheetState extends State<DeleteAccountSheet> {
 
   Future<void> _delete() async {
     if (!_canDelete || _busy) return;
+    AppLogger.instance.action('settings', 'delete_account');
     setState(() { _busy = true; _error = null; });
     try {
       await deleteAccount(reason: _reason, feedback: _feedback.text.trim());

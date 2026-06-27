@@ -484,6 +484,14 @@ async function handleSpendingOrQAVerification(data: any, userId: string | null =
     const hasResponses = responses && typeof responses === 'object' && Object.keys(responses).length > 0;
 
     if (hasResponses) {
+      // Guard against an oversized Q&A payload. Legit onboarding answers are a few
+      // hundred bytes; reject anything that's clearly an attempt to flood storage
+      // or downstream prompts. ~20 KB serialized is generous headroom.
+      let serializedSize = 0;
+      try { serializedSize = JSON.stringify(responses).length; } catch { serializedSize = Number.MAX_SAFE_INTEGER; }
+      if (Object.keys(responses).length > 100 || serializedSize > 20000) {
+        return json({ error: 'Q&A responses payload is too large' }, { status: 400 });
+      }
       return await handleQAVerification(responses, gender, userId);
     }
 

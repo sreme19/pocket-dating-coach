@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'api.dart';
+import 'app_logger.dart';
 import 'config.dart';
 import 'profile_body.dart';
 
@@ -19,6 +20,7 @@ class _MatchProfileScreenState extends State<MatchProfileScreen> {
   @override
   void initState() {
     super.initState();
+    AppLogger.instance.screen('match_profile');
     _future = fetchMatchDetail(widget.userId);
   }
 

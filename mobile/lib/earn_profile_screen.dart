@@ -1,13 +1,25 @@
 import 'package:flutter/material.dart';
+import 'app_logger.dart';
 import 'config.dart';
 import 'onboarding_flow.dart' show LiveMembersCarousel;
 
 /// "Earn your profile." overview screen — shown after OTP verification,
 /// before the step-by-step verification flow. Mirrors verify/+page.svelte.
-class EarnProfileScreen extends StatelessWidget {
+class EarnProfileScreen extends StatefulWidget {
   final VoidCallback onStart;
   final VoidCallback? onSkip;
   const EarnProfileScreen({super.key, required this.onStart, this.onSkip});
+
+  @override
+  State<EarnProfileScreen> createState() => _EarnProfileScreenState();
+}
+
+class _EarnProfileScreenState extends State<EarnProfileScreen> {
+  @override
+  void initState() {
+    super.initState();
+    AppLogger.instance.screen('earn_profile');
+  }
 
   static const _steps = [
     ('01', 'Identity Selfie',  'prove you\'re real',       '~30 sec'),
@@ -112,7 +124,10 @@ class EarnProfileScreen extends StatelessWidget {
                     width: double.infinity,
                     height: 56,
                     child: FilledButton(
-                      onPressed: onStart,
+                      onPressed: () {
+                        AppLogger.instance.action('earn_profile', 'claim_reward');
+                        widget.onStart();
+                      },
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(Config.accentBright),
                         foregroundColor: Colors.white,

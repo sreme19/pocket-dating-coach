@@ -42,6 +42,7 @@ class _ChatListScreenState extends State<ChatListScreen>
   @override
   void initState() {
     super.initState();
+    AppLogger.instance.screen('chat_list');
     WidgetsBinding.instance.addObserver(this);
     _future = _load();
     _subscribeToMessages();
@@ -304,6 +305,7 @@ class _ChatListScreenState extends State<ChatListScreen>
   }
 
   Future<void> _open(Conversation c) async {
+    AppLogger.instance.action('chat_list', 'open_conversation');
     // 1. Optimistically clear badge immediately on tap.
     if (c.unreadCount > 0) {
       setState(() => _clearedConvos.add(c.id));

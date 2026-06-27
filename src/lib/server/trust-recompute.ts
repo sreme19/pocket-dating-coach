@@ -40,6 +40,13 @@ const PROOF_BOOST_MAP: Record<string, { key: keyof CGTrustSubscores; boost: numb
 
 const SHOW_OFF_CATS = new Set(['lifestyle', 'hosting', 'discipline', 'social_proof']);
 
+// Garage ownership tier → fraction of the assets boost earned (mirrors
+// OWNERSHIP_TRUST_FACTOR in proof-upload). Missing tier (legacy assets proofs
+// uploaded before tiering) defaults to full so existing scores don't regress.
+const OWNERSHIP_TRUST_FACTOR: Record<string, number> = {
+	self: 1.0, linked: 0.5, unconfirmed: 0.5, unrelated: 0,
+};
+
 // Cross-section signals (master_profile.data.crossSignals) are insights inferred
 // from a DIFFERENT upload than the section they enrich. They award REDUCED trust
 // — a fraction of the equivalent direct-proof boost — and ONLY for a CG dimension
@@ -156,7 +163,11 @@ export async function computeSubscores(userId: string): Promise<SubscoreResult> 
 				const b = PROOF_BOOST_MAP[cat];
 				if (!b) continue;
 				const mult = SHOW_OFF_CATS.has(cat) ? photoMultiplier(row.data?.photo_count ?? 0) : 1;
-				subscores[b.key] = Math.min(100, subscores[b.key] + Math.round(b.boost * mult));
+				// Assets (Garage) earn trust scaled by how strongly ownership is verified:
+				// self=full, linked/unconfirmed=half, unrelated=none.
+				const ownerMult = cat === 'assets' ? (OWNERSHIP_TRUST_FACTOR[row.data?.ownershipTier as string] ?? 1) : 1;
+				if (ownerMult === 0) continue;
+				subscores[b.key] = Math.min(100, subscores[b.key] + Math.round(b.boost * mult * ownerMult));
 				directDims.add(b.key);
 			}
 		}

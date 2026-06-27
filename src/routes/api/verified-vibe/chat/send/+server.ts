@@ -168,10 +168,10 @@ export const POST: RequestHandler = async ({ request }) => {
       );
     }
 
-    // Validate content length (max 5000 characters)
-    if (body.content.length > 5000) {
+    // Validate content length (max 2000 characters)
+    if (body.content.length > 2000) {
       return json(
-        { error: 'Message content exceeds maximum length of 5000 characters' },
+        { error: 'Message content exceeds maximum length of 2000 characters' },
         { status: 400 }
       );
     }

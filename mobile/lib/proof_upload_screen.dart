@@ -47,6 +47,12 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
   List<String> _resultChips = const [];
   final Set<String> _verifiedCats = {};
 
+  @override
+  void initState() {
+    super.initState();
+    AppLogger.instance.screen('proof_upload');
+  }
+
   void _applyResult(_Cat cat, Map res) {
     final verified = res['verified'] == true;
     final pts = res['pts_awarded'] is num ? (res['pts_awarded'] as num).toInt() : 0;
@@ -78,6 +84,7 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
   /// returns the server result map on success.
   Future<void> _upload(_Cat cat, ImageSource source) async {
     if (_busy) return;
+    AppLogger.instance.action('proof_upload', 'upload_proof');
     final res = await Navigator.of(context).push<Map>(
       MaterialPageRoute(builder: (_) => _ProofStagingScreen(cat: cat, initialSource: source)),
     );
@@ -87,6 +94,7 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
 
   Future<void> _uploadUrl(_Cat cat) async {
     if (_busy) return;
+    AppLogger.instance.action('proof_upload', 'submit_proof');
     final ctrl = TextEditingController();
     final url = await showDialog<String>(
       context: context,

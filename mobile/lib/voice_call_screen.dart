@@ -29,6 +29,12 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   String _ownerName = '';
   String? _error;
 
+  @override
+  void initState() {
+    super.initState();
+    AppLogger.instance.screen('voice_call');
+  }
+
   // Live transcript. The agent worker forwards both sides of the call as text
   // streams on the `lk.transcription` topic (user STT + the bestie's spoken
   // words, synced to her audio). We surface them as captions on screen.
@@ -55,6 +61,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
       ];
 
   Future<void> _start() async {
+    AppLogger.instance.action('voice_call', 'start_call');
     setState(() => _phase = _Phase.connecting);
     try {
       final mic = await Permission.microphone.request();
@@ -116,6 +123,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   Future<void> _toggleMute() async {
     final lp = _room?.localParticipant;
     if (lp == null) return;
+    AppLogger.instance.action('voice_call', 'mute_toggle');
     _muted = !_muted;
     await lp.setMicrophoneEnabled(!_muted);
     if (mounted) setState(() {});
@@ -181,6 +189,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   }
 
   Future<void> _hangUp() async {
+    AppLogger.instance.action('voice_call', 'end_call');
     _timer?.cancel();
     await _room?.disconnect();
     _onRemoteEnded();

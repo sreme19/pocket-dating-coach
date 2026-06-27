@@ -29,6 +29,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    AppLogger.instance.screen('profile');
     _future = fetchProfile();
   }
 
@@ -228,7 +229,10 @@ class _ProfileBody extends StatelessWidget {
           Positioned(
             bottom: 20, right: 14,
             child: GestureDetector(
-              onTap: () => _editIdentity(context, data, onChanged),
+              onTap: () {
+                AppLogger.instance.action('profile', 'open_edit');
+                _editIdentity(context, data, onChanged);
+              },
               child: Container(
                 width: 34, height: 34,
                 decoration: BoxDecoration(
@@ -248,7 +252,10 @@ class _ProfileBody extends StatelessWidget {
               child: IconButton(
                 tooltip: 'Manage photos',
                 icon: const Icon(Icons.add_a_photo_outlined, size: 20, color: Color(0xFFFFFFFF)),
-                onPressed: () => openPhotoManager(context, data, onChanged),
+                onPressed: () {
+                  AppLogger.instance.action('profile', 'open_photo_manager');
+                  openPhotoManager(context, data, onChanged);
+                },
               ),
             ),
           ),
@@ -545,6 +552,8 @@ Future<void> _editIdentity(BuildContext context, ProfileData d, VoidCallback onC
               TextField(
                 controller: nameCtrl,
                 textCapitalization: TextCapitalization.words,
+                maxLength: 40,
+                buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                 style: const TextStyle(color: Color(Config.text1)),
                 decoration: InputDecoration(
                   labelText: 'First name',
@@ -558,6 +567,8 @@ Future<void> _editIdentity(BuildContext context, ProfileData d, VoidCallback onC
               TextField(
                 controller: ageCtrl,
                 keyboardType: TextInputType.number,
+                maxLength: 3,
+                buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                 style: const TextStyle(color: Color(Config.text1)),
                 decoration: InputDecoration(
                   labelText: 'Age',
@@ -573,6 +584,8 @@ Future<void> _editIdentity(BuildContext context, ProfileData d, VoidCallback onC
                   Expanded(
                     child: TextField(
                       controller: cityCtrl,
+                      maxLength: 60,
+                      buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                       style: const TextStyle(color: Color(Config.text1)),
                       decoration: InputDecoration(
                         labelText: 'City',
@@ -612,6 +625,7 @@ Future<void> _editIdentity(BuildContext context, ProfileData d, VoidCallback onC
                   onPressed: saving ? null : () async {
                     final name = nameCtrl.text.trim();
                     if (name.isEmpty) { setS(() => error = 'Name can\'t be empty'); return; }
+                    AppLogger.instance.action('profile_edit', 'save_identity');
                     setS(() { saving = true; error = null; });
                     try {
                       await saveIdentity(
@@ -934,6 +948,7 @@ Future<void> _editAbout(BuildContext context, ProfileData d, VoidCallback onChan
               TextField(
                 controller: ctrl,
                 maxLines: 5,
+                maxLength: 500,
                 textCapitalization: TextCapitalization.sentences,
                 style: const TextStyle(color: Color(Config.text1)),
                 decoration: InputDecoration(
@@ -1561,7 +1576,7 @@ class _WhatImAboutSectionState extends State<_WhatImAboutSection> {
               const SizedBox(height: 14),
               // Content
               if (_tab == 0) _MyLaneContent(arch: arch, archId: widget.data.archetype)
-              else _HardNosContent(hardNos: widget.data.hardNos),
+              else _HardNosContent(hardNos: widget.data.hardNos, onChanged: widget.onChanged),
             ],
           ),
         ),
@@ -1657,18 +1672,84 @@ class _MyLaneContent extends StatelessWidget {
   }
 }
 
-class _HardNosContent extends StatelessWidget {
+class _HardNosContent extends StatefulWidget {
   final List<String> hardNos;
-  const _HardNosContent({required this.hardNos});
+  final VoidCallback onChanged;
+  const _HardNosContent({required this.hardNos, required this.onChanged});
+  @override
+  State<_HardNosContent> createState() => _HardNosContentState();
+}
+
+class _HardNosContentState extends State<_HardNosContent> {
+  late List<String> _items = List.of(widget.hardNos);
+
+  @override
+  void didUpdateWidget(_HardNosContent old) {
+    super.didUpdateWidget(old);
+    // Sync if the parent re-fetched a different list (e.g. after an edit elsewhere).
+    if (old.hardNos.join(' ') != widget.hardNos.join(' ')) {
+      _items = List.of(widget.hardNos);
+    }
+  }
+
+  Future<void> _remove(String item) async {
+    final prev = List.of(_items);
+    setState(() => _items = _items.where((h) => h != item).toList());
+    try {
+      await saveHardNos(_items); // persists + refreshes the matchmaker pool
+      widget.onChanged();
+    } catch (e) {
+      AppLogger.instance.error(e, screen: 'profile', action: 'remove_hard_no');
+      if (mounted) setState(() => _items = prev); // revert on failure
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (hardNos.isEmpty) {
+    if (_items.isEmpty) {
       return const Text('Tap edit to add your dealbreakers.',
           style: TextStyle(color: Color(Config.text3)));
     }
     return Wrap(
       spacing: 8, runSpacing: 8,
-      children: [for (final h in hardNos) _Pill('✕ $h')],
+      children: [
+        for (final h in _items) _HardNoPill(label: h, onRemove: () => _remove(h)),
+      ],
+    );
+  }
+}
+
+/// A removable dealbreaker pill: an accent-tinted chip with a tappable ×.
+class _HardNoPill extends StatelessWidget {
+  final String label;
+  final VoidCallback onRemove;
+  const _HardNoPill({required this.label, required this.onRemove});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: const Color(0x22FF3B6B),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0x4DFF3B6B)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 14, color: Color(Config.text1), fontWeight: FontWeight.w500)),
+          const SizedBox(width: 6),
+          GestureDetector(
+            onTap: onRemove,
+            behavior: HitTestBehavior.opaque,
+            child: const Padding(
+              padding: EdgeInsets.all(2),
+              child: Icon(Icons.close, size: 16, color: Color(Config.text2)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

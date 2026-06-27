@@ -5,9 +5,9 @@
  * entry so the edit propagates to matching immediately. hard_nos is the single
  * source of truth for dealbreakers (see pool-registry.ts / refreshPoolEntry).
  *
- * A non-empty save makes the list user-owned: refreshPoolEntry only re-seeds
- * from onboarding when hard_nos is empty. (Saving an empty list therefore lets
- * the onboarding-derived set seed back in on the next refresh.)
+ * Any save (writing an array, even []) makes the list user-owned: refreshPoolEntry
+ * only seeds from onboarding when hard_nos is NULL. So a deliberate "clear all"
+ * (empty array) sticks and is not re-seeded.
  *
  * Auth: Bearer token (the caller may only edit their own hard_nos).
  *
@@ -63,7 +63,7 @@ export const POST: RequestHandler = async ({ request }) => {
   }
 
   // Propagate to the matchmaker pool. Awaited so the edit is reflected before we
-  // return; refreshPoolEntry won't re-seed because hard_nos now has entries.
+  // return; refreshPoolEntry won't re-seed because hard_nos is now a (non-null) array.
   await refreshPoolEntry(userId).catch(() => {});
 
   return json({ saved: true, hardNos });

@@ -49,6 +49,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   @override
   void initState() {
     super.initState();
+    AppLogger.instance.screen('conversation');
     _initialLoad();
     fetchCurrentUserGender().then((g) { if (mounted) setState(() => _viewerGender = g); });
     _subscribeRealtime();
@@ -102,6 +103,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   }
 
   Future<void> _initialLoad() async {
+    AppLogger.instance.action('conversation', 'load_messages');
     try {
       // Refresh session if expired before loading
       try { await Supabase.instance.client.auth.refreshSession(); } catch (_) {
@@ -204,6 +206,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   Future<void> _send() async {
     final text = _composer.text.trim();
     if (text.isEmpty || _sending) return;
+    AppLogger.instance.action('conversation', 'send_message');
     setState(() => _sending = true);
     _composer.clear();
     try {
@@ -441,19 +444,51 @@ class _ConversationScreenState extends State<ConversationScreen> {
     }
   }
 
-  Future<void> _confirmBlock() async {
+  /// Soft unmatch — ends this match/conversation but leaves the person in the
+  /// pool (they can resurface in Discover and re-match). The gentle exit.
+  Future<void> _confirmUnmatch() async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(Config.bg2),
-        title: const Text('Unmatch & block?', style: TextStyle(color: Color(Config.text1))),
-        content: Text("You won't see $_otherName again and the conversation will be removed.",
+        title: const Text('Unmatch?', style: TextStyle(color: Color(Config.text1))),
+        content: Text(
+            "This ends your match with $_otherName and removes the conversation. "
+            "They may still appear in Discover and could match with you again.",
             style: const TextStyle(color: Color(Config.text2))),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false),
               child: const Text('Cancel', style: TextStyle(color: Color(Config.text2)))),
           TextButton(onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Unmatch', style: TextStyle(color: Color(0xFFF87171), fontWeight: FontWeight.w700))),
+        ],
+      ),
+    );
+    if (ok != true || _otherId == null) return;
+    try {
+      await unmatchUser(_otherId!, widget.conversationId);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      AppLogger.instance.error(e, screen: 'conversation', action: 'unmatch_user');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+    }
+  }
+
+  /// Hard exit — unmatch AND block, so the two never see each other again.
+  Future<void> _confirmBlock() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(Config.bg2),
+        title: const Text('Unmatch & block?', style: TextStyle(color: Color(Config.text1))),
+        content: Text("You won't see $_otherName again and the conversation will be removed. "
+            "You can undo this later from Settings › Blocked users.",
+            style: const TextStyle(color: Color(Config.text2))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel', style: TextStyle(color: Color(Config.text2)))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Block', style: TextStyle(color: Color(0xFFF87171), fontWeight: FontWeight.w700))),
         ],
       ),
     );
@@ -624,12 +659,15 @@ class _ConversationScreenState extends State<ConversationScreen> {
             color: const Color(Config.bg2),
             icon: const Icon(Icons.more_vert, color: Color(Config.text2)),
             onSelected: (v) {
+              if (v == 'unmatch') _confirmUnmatch();
               if (v == 'block') _confirmBlock();
               if (v == 'report') _reportUser();
             },
             itemBuilder: (ctx) => [
               const PopupMenuItem(value: 'report',
                   child: Text('Report', style: TextStyle(color: Color(Config.text1)))),
+              const PopupMenuItem(value: 'unmatch',
+                  child: Text('Unmatch', style: TextStyle(color: Color(Config.text1)))),
               const PopupMenuItem(value: 'block',
                   child: Text('Unmatch & block', style: TextStyle(color: Color(0xFFF87171)))),
             ],
@@ -677,12 +715,15 @@ class _ConversationScreenState extends State<ConversationScreen> {
           if (!_loading && _viewerGender == 'man' && _otherGender == 'woman' && _bestieActive)
             _BestieCallBanner(
               name: _otherName.isNotEmpty ? _otherName : widget.title,
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => VoiceCallScreen(
-                  matchId: widget.conversationId,
-                  name: _otherName.isNotEmpty ? _otherName : widget.title,
-                ),
-              )),
+              onTap: () {
+                AppLogger.instance.action('conversation', 'open_voice_call');
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => VoiceCallScreen(
+                    matchId: widget.conversationId,
+                    name: _otherName.isNotEmpty ? _otherName : widget.title,
+                  ),
+                ));
+              },
             ),
           // Explicit, never-silent hand-off notice (spec §C9): once she steps in
           // and her Bestie is no longer the proxy, tell the man directly.
@@ -1124,6 +1165,8 @@ class _ComposerState extends State<_Composer> {
                 style: const TextStyle(color: Color(Config.text1)),
                 minLines: 1,
                 maxLines: 4,
+                maxLength: 2000,
+                buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => widget.onSend(),
                 decoration: InputDecoration(

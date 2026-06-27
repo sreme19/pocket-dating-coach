@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'app_logger.dart';
 import 'archetypes.dart';
 import 'archetype_detail_sheet.dart';
 import 'config.dart';
@@ -31,6 +32,7 @@ class _PreAuthLaneScreenState extends State<PreAuthLaneScreen> {
   @override
   void initState() {
     super.initState();
+    AppLogger.instance.screen('pre_auth_lane');
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted && _secondsLeft > 0) setState(() => _secondsLeft--);
     });
@@ -223,10 +225,16 @@ class _PreAuthLaneScreenState extends State<PreAuthLaneScreen> {
     return Column(
       children: [
         InkWell(
-          onTap: () => showArchetypeDetailSheet(
-            context, a,
-            onLockIn: () => widget.onPick(a.id),
-          ),
+          onTap: () {
+            AppLogger.instance.action('pre_auth_lane', 'select_lane');
+            showArchetypeDetailSheet(
+              context, a,
+              onLockIn: () {
+                AppLogger.instance.action('pre_auth_lane', 'continue');
+                widget.onPick(a.id);
+              },
+            );
+          },
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(children: [
