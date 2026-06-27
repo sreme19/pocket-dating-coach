@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api.dart';
 import 'app_logger.dart';
+import 'blocked_users_screen.dart';
 import 'config.dart';
 import 'preference_weighting_screen.dart';
 import 'profile_strength_screen.dart';
@@ -51,6 +52,13 @@ class SettingsScreen extends StatelessWidget {
             'What you value',
             'Tune how much each quality matters to you in a match',
             const PreferenceWeightingScreen(),
+          ),
+          _header('SAFETY'),
+          _navRow(
+            context,
+            'Blocked users',
+            'Review and unblock people you’ve blocked',
+            const BlockedUsersScreen(),
           ),
           _header('APP'),
           _row('Version', '1.0.1 (9)'),

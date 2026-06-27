@@ -1790,6 +1790,53 @@ Future<void> blockUser(String blockedUserId, {String? matchId}) async {
   );
 }
 
+/// Soft unmatch: removes the match/conversation but leaves the person in the
+/// pool, so they can still surface in Discover and re-match later. (Block is the
+/// hard version that also hides them permanently.)
+Future<void> unmatchUser(String matchedUserId, String matchId) async {
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/unmatch',
+    data: {'matchedUserId': matchedUserId, 'matchId': matchId},
+    options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
+  );
+}
+
+/// A user the caller has blocked (for the Blocked-users management list).
+class BlockedUser {
+  final String id;
+  final String name;
+  final int? age;
+  final String? avatar;
+  const BlockedUser({required this.id, required this.name, this.age, this.avatar});
+}
+
+/// Users the caller has blocked, most-recent first.
+Future<List<BlockedUser>> fetchBlockedUsers() async {
+  final resp = await _dio.get(
+    '${Config.apiBase}/api/verified-vibe/blocked-users',
+    options: Options(headers: {'Authorization': _bearer()}),
+  );
+  final body = resp.data is Map ? resp.data as Map : const {};
+  final data = body['data'] is Map ? body['data'] as Map : const {};
+  final list = (data['blocked'] as List?) ?? const [];
+  return list.whereType<Map>().map((u) => BlockedUser(
+        id: (u['id'] ?? '').toString(),
+        name: (u['firstName'] ?? '—').toString(),
+        age: u['age'] is num ? (u['age'] as num).toInt() : null,
+        avatar: u['avatar'] as String?,
+      )).where((u) => u.id.isNotEmpty).toList();
+}
+
+/// Reverse a block (removes the bidirectional block rows). Does not recreate the
+/// old match — they re-match through Discover if they reconnect.
+Future<void> unblockUser(String blockedUserId) async {
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/unblock-user',
+    data: {'blockedUserId': blockedUserId},
+    options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
+  );
+}
+
 /// Report a user for objectionable content/behavior (separate from block).
 /// [reason] is one of: inappropriate_content, harassment, fake_profile, scam, other.
 /// The moderation team reviews every report within 24 hours.
