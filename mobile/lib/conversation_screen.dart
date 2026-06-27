@@ -1124,6 +1124,8 @@ class _ComposerState extends State<_Composer> {
                 style: const TextStyle(color: Color(Config.text1)),
                 minLines: 1,
                 maxLines: 4,
+                maxLength: 2000,
+                buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => widget.onSend(),
                 decoration: InputDecoration(

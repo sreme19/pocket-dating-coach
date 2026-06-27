@@ -545,6 +545,8 @@ Future<void> _editIdentity(BuildContext context, ProfileData d, VoidCallback onC
               TextField(
                 controller: nameCtrl,
                 textCapitalization: TextCapitalization.words,
+                maxLength: 40,
+                buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                 style: const TextStyle(color: Color(Config.text1)),
                 decoration: InputDecoration(
                   labelText: 'First name',
@@ -558,6 +560,8 @@ Future<void> _editIdentity(BuildContext context, ProfileData d, VoidCallback onC
               TextField(
                 controller: ageCtrl,
                 keyboardType: TextInputType.number,
+                maxLength: 3,
+                buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                 style: const TextStyle(color: Color(Config.text1)),
                 decoration: InputDecoration(
                   labelText: 'Age',
@@ -573,6 +577,8 @@ Future<void> _editIdentity(BuildContext context, ProfileData d, VoidCallback onC
                   Expanded(
                     child: TextField(
                       controller: cityCtrl,
+                      maxLength: 60,
+                      buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                       style: const TextStyle(color: Color(Config.text1)),
                       decoration: InputDecoration(
                         labelText: 'City',
@@ -934,6 +940,7 @@ Future<void> _editAbout(BuildContext context, ProfileData d, VoidCallback onChan
               TextField(
                 controller: ctrl,
                 maxLines: 5,
+                maxLength: 500,
                 textCapitalization: TextCapitalization.sentences,
                 style: const TextStyle(color: Color(Config.text1)),
                 decoration: InputDecoration(

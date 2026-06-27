@@ -261,7 +261,7 @@ Future<void> editArchetype(BuildContext context, ProfileData data, VoidCallback 
     await saveArchetype(picked);
     onChanged();
   } catch (e) {
-    AppLogger.instance.error(e, screen: ‘profile_edit’, action: ‘save_archetype’);
+    AppLogger.instance.error(e, screen: 'profile_edit', action: 'save_archetype');
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Couldn’t update: $e")));
     }
@@ -332,7 +332,7 @@ class _HardNosEditorState extends State<_HardNosEditor> {
 
   Future<void> _add() async {
     final raw = _ctrl.text.trim();
-    if (raw.isEmpty || _adding) return;
+    if (raw.isEmpty || _adding || _items.length >= 10) return;
     setState(() => _adding = true);
     final cleaned = await cleanupText(raw);
     setState(() {
@@ -384,6 +384,8 @@ class _HardNosEditorState extends State<_HardNosEditor> {
                 controller: _ctrl,
                 style: const TextStyle(color: Color(Config.text1)),
                 textCapitalization: TextCapitalization.sentences,
+                maxLength: 80,
+                buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                 onSubmitted: (_) => _add(),
                 decoration: InputDecoration(
                   hintText: 'e.g. dishonesty',

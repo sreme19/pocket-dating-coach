@@ -179,6 +179,17 @@ export const POST: RequestHandler = async ({ request }: { request: Request }) =>
   try { body = await request.json(); }
   catch { return json({ error: 'Invalid JSON body' }, { status: 400 }); }
 
+  // Overload guard: the master profile is a small JSON blob (onboarding answers,
+  // generated profile text, photo URL lists). Legit payloads are a few KB; reject
+  // anything that's clearly an attempt to flood the stored blob. 200 KB is generous.
+  try {
+    if (JSON.stringify(body).length > 200_000) {
+      return json({ error: 'Profile payload is too large' }, { status: 400 });
+    }
+  } catch {
+    return json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+
   const db = getSupabase() as any;
 
   // Fetch existing row to merge into (not overwrite)
