@@ -333,14 +333,12 @@ export function deriveAllDealbreakers(
  * Resolve the effective hard_nos list for a user and whether a seed write is
  * needed. Pure (no DB) so it's unit-testable.
  *
- * The hard_nos column itself is the source of truth: a NON-EMPTY list is
- * user-owned and returned verbatim (edits/removals stick). Only when it's empty
- * do we seed from the onboarding-derived dealbreakers and flag a write, so the
- * derived set is materialised into the column.
- *
- * Trade-off (vs the retired hard_nos_seeded flag): we can no longer distinguish
- * "never seeded" from "deliberately cleared", so a user who clears every hard no
- * gets re-seeded from onboarding on the next refresh.
+ * The hard_nos column is the source of truth, with a NULL-sentinel that tells
+ * "never seeded" apart from "deliberately cleared":
+ *   - null/undefined → never seeded → seed from the onboarding-derived set and
+ *     flag a write so it's materialised into the column.
+ *   - an array (including []) → user-owned → returned verbatim, so edits,
+ *     removals, and a deliberate "clear all" (empty list) all stick.
  */
 export function resolveHardNos(
   archetype: string,
@@ -348,10 +346,12 @@ export function resolveHardNos(
   draft: Record<string, unknown>,
   current: { hardNos: unknown },
 ): { hardNos: string[]; needsSeedWrite: boolean } {
-  const raw = Array.isArray(current.hardNos)
-    ? (current.hardNos as unknown[]).map((h) => `${h}`.trim()).filter(Boolean)
-    : [];
-  if (raw.length) return { hardNos: raw, needsSeedWrite: false };
+  // An array (even empty) means the user has been seeded / has edited — respect it.
+  if (Array.isArray(current.hardNos)) {
+    const raw = (current.hardNos as unknown[]).map((h) => `${h}`.trim()).filter(Boolean);
+    return { hardNos: raw, needsSeedWrite: false };
+  }
+  // null/undefined → never seeded → first collection from onboarding.
   const seeded = deriveAllDealbreakers(archetype, a, draft);
   return { hardNos: seeded, needsSeedWrite: seeded.length > 0 };
 }

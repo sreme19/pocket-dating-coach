@@ -143,13 +143,13 @@ describe('deriveDealbreakers — correctness', () => {
   });
 });
 
-describe('resolveHardNos — empty hard_nos seeds from onboarding, non-empty is user-owned', () => {
-  it('(a) empty → seeds from the onboarding-derived set, flags a write', () => {
+describe('resolveHardNos — NULL seeds from onboarding, any array is user-owned', () => {
+  it('(a) null (never seeded) → seeds from the onboarding-derived set, flags a write', () => {
     const { hardNos, needsSeedWrite } = resolveHardNos(
       'forever_focused_man',
       { non_negotiables: ['Loyalty', 'Aligned on children'] },
       {},
-      { hardNos: [] },
+      { hardNos: null },
     );
     expect(needsSeedWrite).toBe(true);
     expect(hardNos).toEqual(
@@ -158,27 +158,38 @@ describe('resolveHardNos — empty hard_nos seeds from onboarding, non-empty is 
     expect(hardNos).toContain('Disloyal / unfaithful');
   });
 
-  it('(b) existing manual entries → returned verbatim, no re-seed even if onboarding would derive', () => {
+  it('(b) null with no derivable dealbreakers → empty, no write flagged', () => {
+    const { hardNos, needsSeedWrite } = resolveHardNos(
+      'just_friends_woman', // collects no standards → derives nothing
+      { non_negotiables: ['Loyalty'] },
+      {},
+      { hardNos: null },
+    );
+    expect(needsSeedWrite).toBe(false);
+    expect(hardNos).toEqual([]);
+  });
+
+  it('(c) empty array (deliberate clear) → returned verbatim, NOT re-seeded', () => {
     const { hardNos, needsSeedWrite } = resolveHardNos(
       'forever_focused_man',
-      { non_negotiables: ['Loyalty'] }, // would derive, but must NOT replace manual entries
+      { non_negotiables: ['Loyalty'] }, // onboarding would derive, but a clear must stick
+      {},
+      { hardNos: [] },
+    );
+    expect(needsSeedWrite).toBe(false);
+    expect(hardNos).toEqual([]);
+  });
+
+  it('(d) existing manual entries → returned verbatim, no re-seed', () => {
+    const { hardNos, needsSeedWrite } = resolveHardNos(
+      'forever_focused_man',
+      { non_negotiables: ['Loyalty'] },
       {},
       { hardNos: ['Smoking', 'Non-Muslim'] },
     );
     expect(needsSeedWrite).toBe(false);
     expect(hardNos).toEqual(['Smoking', 'Non-Muslim']);
     expect(hardNos).not.toContain('Disloyal / unfaithful');
-  });
-
-  it('(c) empty with no derivable dealbreakers → empty, no write flagged', () => {
-    const { hardNos, needsSeedWrite } = resolveHardNos(
-      'just_friends_woman', // collects no standards → derives nothing
-      { non_negotiables: ['Loyalty'] },
-      {},
-      { hardNos: [] },
-    );
-    expect(needsSeedWrite).toBe(false);
-    expect(hardNos).toEqual([]);
   });
 
   it('trims and drops blank entries', () => {

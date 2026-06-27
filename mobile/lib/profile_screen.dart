@@ -1561,7 +1561,7 @@ class _WhatImAboutSectionState extends State<_WhatImAboutSection> {
               const SizedBox(height: 14),
               // Content
               if (_tab == 0) _MyLaneContent(arch: arch, archId: widget.data.archetype)
-              else _HardNosContent(hardNos: widget.data.hardNos),
+              else _HardNosContent(hardNos: widget.data.hardNos, onChanged: widget.onChanged),
             ],
           ),
         ),
@@ -1657,18 +1657,84 @@ class _MyLaneContent extends StatelessWidget {
   }
 }
 
-class _HardNosContent extends StatelessWidget {
+class _HardNosContent extends StatefulWidget {
   final List<String> hardNos;
-  const _HardNosContent({required this.hardNos});
+  final VoidCallback onChanged;
+  const _HardNosContent({required this.hardNos, required this.onChanged});
+  @override
+  State<_HardNosContent> createState() => _HardNosContentState();
+}
+
+class _HardNosContentState extends State<_HardNosContent> {
+  late List<String> _items = List.of(widget.hardNos);
+
+  @override
+  void didUpdateWidget(_HardNosContent old) {
+    super.didUpdateWidget(old);
+    // Sync if the parent re-fetched a different list (e.g. after an edit elsewhere).
+    if (old.hardNos.join(' ') != widget.hardNos.join(' ')) {
+      _items = List.of(widget.hardNos);
+    }
+  }
+
+  Future<void> _remove(String item) async {
+    final prev = List.of(_items);
+    setState(() => _items = _items.where((h) => h != item).toList());
+    try {
+      await saveHardNos(_items); // persists + refreshes the matchmaker pool
+      widget.onChanged();
+    } catch (e) {
+      AppLogger.instance.error(e, screen: 'profile', action: 'remove_hard_no');
+      if (mounted) setState(() => _items = prev); // revert on failure
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (hardNos.isEmpty) {
+    if (_items.isEmpty) {
       return const Text('Tap edit to add your dealbreakers.',
           style: TextStyle(color: Color(Config.text3)));
     }
     return Wrap(
       spacing: 8, runSpacing: 8,
-      children: [for (final h in hardNos) _Pill('✕ $h')],
+      children: [
+        for (final h in _items) _HardNoPill(label: h, onRemove: () => _remove(h)),
+      ],
+    );
+  }
+}
+
+/// A removable dealbreaker pill: an accent-tinted chip with a tappable ×.
+class _HardNoPill extends StatelessWidget {
+  final String label;
+  final VoidCallback onRemove;
+  const _HardNoPill({required this.label, required this.onRemove});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: const Color(0x22FF3B6B),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0x4DFF3B6B)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 14, color: Color(Config.text1), fontWeight: FontWeight.w500)),
+          const SizedBox(width: 6),
+          GestureDetector(
+            onTap: onRemove,
+            behavior: HitTestBehavior.opaque,
+            child: const Padding(
+              padding: EdgeInsets.all(2),
+              child: Icon(Icons.close, size: 16, color: Color(Config.text2)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
