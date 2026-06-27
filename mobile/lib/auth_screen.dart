@@ -3,6 +3,7 @@ import 'package:flutter/gestures.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:dio/dio.dart';
 import 'config.dart';
+import 'app_logger.dart';
 import 'onboarding_flow.dart' show GateStep, pendingSignupGender, pendingSignupArchetype;
 import 'pre_auth_lane_screen.dart';
 
@@ -76,6 +77,8 @@ class _AuthScreenState extends State<AuthScreen> {
               : 'You\'ve requested too many codes. Please wait a moment and try again.',
         );
       } else {
+        AppLogger.instance.error(e, screen: 'auth', action: 'send_otp',
+            meta: {'email': _email.text.trim()});
         _showAlert(title: 'Something went wrong', body: 'Could not send the code. Please check your connection and try again.');
       }
     }
@@ -100,6 +103,7 @@ class _AuthScreenState extends State<AuthScreen> {
       await _sb.auth.verifyOTP(email: email, token: token, type: OtpType.email);
       // AuthGate reacts to the auth state change.
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'auth', action: 'verify_otp');
       setState(() => _loading = false);
       if (!mounted) return;
       _showAlert(title: 'Invalid code', body: 'That code is incorrect or has expired. Check your email and try again.');
@@ -122,6 +126,7 @@ class _AuthScreenState extends State<AuthScreen> {
       await _sb.auth.setSession(accessToken, refreshToken);
       // AuthGate reacts to the auth state change.
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'auth', action: 'demo_sign_in');
       setState(() => _loading = false);
       if (!mounted) return;
       _showAlert(title: 'Something went wrong', body: 'Demo login failed. Please try again.');
