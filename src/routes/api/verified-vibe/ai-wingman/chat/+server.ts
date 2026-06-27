@@ -49,6 +49,13 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		const intent = body.intent ?? 'chat';
 		const rawMessage = (body.message ?? '').trim();
+		// Cap advisor question length: a single coaching question never needs more
+		// than ~1k chars. Rejecting longer input limits token flooding / prompt
+		// injection through the advisor surface (the message is interpolated into
+		// the system prompt downstream).
+		if (rawMessage.length > 1000) {
+			return json({ error: 'Message exceeds maximum length of 1000 characters' }, { status: 400 });
+		}
 		const history = body.history ?? [];
 
 		let userMessage = rawMessage;

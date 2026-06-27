@@ -908,7 +908,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         Row(
           children: [
             Expanded(
-              child: _textField(_cityCtrl, 'e.g. Mumbai', TextInputType.text, TextCapitalization.words),
+              child: _textField(_cityCtrl, 'e.g. Mumbai', TextInputType.text, TextCapitalization.words, maxLength: 60),
             ),
             const SizedBox(width: 8),
             OutlinedButton.icon(

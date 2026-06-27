@@ -134,6 +134,24 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		throwValidationError(`Invalid field types: ${invalidFieldsStr}`);
 	}
 
+	// Cap array size (≤20 items) and per-item length (≤120 chars). These arrays are
+	// joined verbatim into AI Bestie/Wingman system prompts, so unbounded items are a
+	// token-flooding / prompt-injection vector. Reject rather than silently truncate.
+	const MAX_ITEMS = 20;
+	const MAX_ITEM_LEN = 120;
+	for (const key of validFields) {
+		const arr = (body.updates as Record<string, unknown>)[key];
+		if (!Array.isArray(arr)) continue;
+		if (arr.length > MAX_ITEMS) {
+			throwValidationError(`${key} exceeds the maximum of ${MAX_ITEMS} items`);
+		}
+		for (const item of arr) {
+			if (typeof item === 'string' && item.length > MAX_ITEM_LEN) {
+				throwValidationError(`Each ${key} entry must be ${MAX_ITEM_LEN} characters or fewer`);
+			}
+		}
+	}
+
 	const reason = body.reason || 'Profile updated';
 
 	// Validate reason length
