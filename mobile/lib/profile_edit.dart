@@ -263,7 +263,7 @@ Future<void> editArchetype(BuildContext context, ProfileData data, VoidCallback 
   } catch (e) {
     AppLogger.instance.error(e, screen: ‘profile_edit’, action: ‘save_archetype’);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(‘Couldn’t update: $e’)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Couldn’t update: $e")));
     }
   }
 }
