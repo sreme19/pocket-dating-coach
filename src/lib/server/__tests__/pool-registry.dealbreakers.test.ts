@@ -143,13 +143,13 @@ describe('deriveDealbreakers — correctness', () => {
   });
 });
 
-describe('resolveHardNos — onboarding seeds once, then hard_nos is user-owned', () => {
-  it('(a) empty + unseeded → seeds from the onboarding-derived set, flags a write', () => {
+describe('resolveHardNos — empty hard_nos seeds from onboarding, non-empty is user-owned', () => {
+  it('(a) empty → seeds from the onboarding-derived set, flags a write', () => {
     const { hardNos, needsSeedWrite } = resolveHardNos(
       'forever_focused_man',
       { non_negotiables: ['Loyalty', 'Aligned on children'] },
       {},
-      { hardNos: [], seeded: false },
+      { hardNos: [] },
     );
     expect(needsSeedWrite).toBe(true);
     expect(hardNos).toEqual(
@@ -158,35 +158,24 @@ describe('resolveHardNos — onboarding seeds once, then hard_nos is user-owned'
     expect(hardNos).toContain('Disloyal / unfaithful');
   });
 
-  it('(b) existing manual entries + unseeded → preserved (never overwritten), flags a write', () => {
+  it('(b) existing manual entries → returned verbatim, no re-seed even if onboarding would derive', () => {
     const { hardNos, needsSeedWrite } = resolveHardNos(
       'forever_focused_man',
       { non_negotiables: ['Loyalty'] }, // would derive, but must NOT replace manual entries
       {},
-      { hardNos: ['Smoking', 'Non-Muslim'], seeded: false },
+      { hardNos: ['Smoking', 'Non-Muslim'] },
     );
-    expect(needsSeedWrite).toBe(true);
+    expect(needsSeedWrite).toBe(false);
     expect(hardNos).toEqual(['Smoking', 'Non-Muslim']);
     expect(hardNos).not.toContain('Disloyal / unfaithful');
   });
 
-  it('(c) already seeded → returned verbatim, no re-seed even if onboarding would derive', () => {
+  it('(c) empty with no derivable dealbreakers → empty, no write flagged', () => {
     const { hardNos, needsSeedWrite } = resolveHardNos(
-      'forever_focused_man',
+      'just_friends_woman', // collects no standards → derives nothing
       { non_negotiables: ['Loyalty'] },
       {},
-      { hardNos: ['Smoking'], seeded: true },
-    );
-    expect(needsSeedWrite).toBe(false);
-    expect(hardNos).toEqual(['Smoking']);
-  });
-
-  it('seeded empty list stays empty (a deliberate clear is honoured, not re-seeded)', () => {
-    const { hardNos, needsSeedWrite } = resolveHardNos(
-      'forever_focused_man',
-      { non_negotiables: ['Loyalty'] },
-      {},
-      { hardNos: [], seeded: true },
+      { hardNos: [] },
     );
     expect(needsSeedWrite).toBe(false);
     expect(hardNos).toEqual([]);
@@ -195,7 +184,6 @@ describe('resolveHardNos — onboarding seeds once, then hard_nos is user-owned'
   it('trims and drops blank entries', () => {
     const { hardNos } = resolveHardNos('spoiled_casual_woman', {}, {}, {
       hardNos: ['  Smoking ', '', '   ', 'Non-Muslim'],
-      seeded: true,
     });
     expect(hardNos).toEqual(['Smoking', 'Non-Muslim']);
   });

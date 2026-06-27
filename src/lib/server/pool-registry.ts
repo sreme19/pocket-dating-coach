@@ -330,26 +330,30 @@ export function deriveAllDealbreakers(
 }
 
 /**
- * Resolve the effective hard_nos list for a user and whether a one-time seed
- * write is needed. Pure (no DB) so it's unit-testable.
+ * Resolve the effective hard_nos list for a user and whether a seed write is
+ * needed. Pure (no DB) so it's unit-testable.
  *
- * First collection: the onboarding-derived dealbreakers seed hard_nos the FIRST
- * time only, and only when the user has no manual entries yet — so an existing
- * user who already typed hard nos keeps theirs (we just mark them seeded). After
- * seeding, hard_nos is user-owned and returned verbatim (edits/removals stick).
+ * The hard_nos column itself is the source of truth: a NON-EMPTY list is
+ * user-owned and returned verbatim (edits/removals stick). Only when it's empty
+ * do we seed from the onboarding-derived dealbreakers and flag a write, so the
+ * derived set is materialised into the column.
+ *
+ * Trade-off (vs the retired hard_nos_seeded flag): we can no longer distinguish
+ * "never seeded" from "deliberately cleared", so a user who clears every hard no
+ * gets re-seeded from onboarding on the next refresh.
  */
 export function resolveHardNos(
   archetype: string,
   a: Record<string, unknown>,
   draft: Record<string, unknown>,
-  current: { hardNos: unknown; seeded: boolean },
+  current: { hardNos: unknown },
 ): { hardNos: string[]; needsSeedWrite: boolean } {
   const raw = Array.isArray(current.hardNos)
     ? (current.hardNos as unknown[]).map((h) => `${h}`.trim()).filter(Boolean)
     : [];
-  if (current.seeded) return { hardNos: raw, needsSeedWrite: false };
-  const seeded = raw.length ? raw : deriveAllDealbreakers(archetype, a, draft);
-  return { hardNos: seeded, needsSeedWrite: true };
+  if (raw.length) return { hardNos: raw, needsSeedWrite: false };
+  const seeded = deriveAllDealbreakers(archetype, a, draft);
+  return { hardNos: seeded, needsSeedWrite: seeded.length > 0 };
 }
 
 // ── Intent derivation (lookingFor / relationshipIntent) ───────────────────────
@@ -550,7 +554,7 @@ export async function refreshPoolEntry(userId: string): Promise<void> {
 
   const { data: user, error: userErr } = await db
     .from('verified_vibe_users')
-    .select('archetype, trust_score, city, gender, hard_nos, hard_nos_seeded')
+    .select('archetype, trust_score, city, gender, hard_nos')
     .eq('id', userId)
     .single();
 
@@ -569,16 +573,16 @@ export async function refreshPoolEntry(userId: string): Promise<void> {
   const a = buildAnswerMap(masterData); // master_profile.onboarding only — no verification read
   const draft = (masterData.profileDraft ?? {}) as Record<string, unknown>;
 
-  // hard_nos = single source of truth for dealbreakers. Seed it once from the
-  // onboarding-derived set (first collection), then it's user-owned. The seeded
-  // list is what feeds the matchmaker projection below.
+  // hard_nos = single source of truth for dealbreakers. When it's empty we seed
+  // it from the onboarding-derived set; once it has entries it's user-owned. The
+  // resolved list is what feeds the matchmaker projection below.
   const { hardNos, needsSeedWrite } = resolveHardNos(
     user.archetype, a, draft,
-    { hardNos: user.hard_nos, seeded: !!user.hard_nos_seeded },
+    { hardNos: user.hard_nos },
   );
   if (needsSeedWrite) {
     await db.from('verified_vibe_users')
-      .update({ hard_nos: hardNos, hard_nos_seeded: true })
+      .update({ hard_nos: hardNos })
       .eq('id', userId);
   }
 

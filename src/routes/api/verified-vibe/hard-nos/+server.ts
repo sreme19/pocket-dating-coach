@@ -5,9 +5,9 @@
  * entry so the edit propagates to matching immediately. hard_nos is the single
  * source of truth for dealbreakers (see pool-registry.ts / refreshPoolEntry).
  *
- * An explicit save marks the list user-owned (hard_nos_seeded = true) so the
- * one-time onboarding seed never re-populates it later — including the case of a
- * user deliberately clearing all their hard nos.
+ * A non-empty save makes the list user-owned: refreshPoolEntry only re-seeds
+ * from onboarding when hard_nos is empty. (Saving an empty list therefore lets
+ * the onboarding-derived set seed back in on the next refresh.)
  *
  * Auth: Bearer token (the caller may only edit their own hard_nos).
  *
@@ -55,7 +55,7 @@ export const POST: RequestHandler = async ({ request }) => {
   const db = getSupabase() as any;
   const { error } = await db
     .from('verified_vibe_users')
-    .update({ hard_nos: hardNos, hard_nos_seeded: true })
+    .update({ hard_nos: hardNos })
     .eq('id', userId);
 
   if (error) {
@@ -63,7 +63,7 @@ export const POST: RequestHandler = async ({ request }) => {
   }
 
   // Propagate to the matchmaker pool. Awaited so the edit is reflected before we
-  // return; refreshPoolEntry won't re-seed because hard_nos_seeded is now true.
+  // return; refreshPoolEntry won't re-seed because hard_nos now has entries.
   await refreshPoolEntry(userId).catch(() => {});
 
   return json({ saved: true, hardNos });
