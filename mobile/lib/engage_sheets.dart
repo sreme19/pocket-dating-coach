@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'api.dart';
+import 'app_logger.dart';
 import 'config.dart';
 
 const _womanViewerTags = [
@@ -80,6 +81,7 @@ Future<bool> showTipSheet(BuildContext context, {required String targetUserId, r
                         if (ctx.mounted) Navigator.pop(ctx);
                         if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Tip sent 💬')));
                       } catch (e) {
+                        AppLogger.instance.error(e, screen: 'engagement_sheets', action: 'submit_tip');
                         setSheet(() => sending = false);
                         if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Failed: $e')));
                       }
@@ -153,6 +155,7 @@ Future<bool> showAdmireSheet(BuildContext context, {required String recipientId,
                         textCtrl.selection = TextSelection.collapsed(offset: text.length);
                         setSheet(() => generating = false);
                       } catch (e) {
+                        AppLogger.instance.error(e, screen: 'engagement_sheets', action: 'generate_attention');
                         setSheet(() => generating = false);
                         if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text("Couldn't generate: $e")));
                       }
@@ -195,6 +198,7 @@ Future<bool> showAdmireSheet(BuildContext context, {required String recipientId,
                         if (ctx.mounted) Navigator.pop(ctx);
                         if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sent to $name ✓')));
                       } catch (e) {
+                        AppLogger.instance.error(e, screen: 'engagement_sheets', action: 'send_attention');
                         setSheet(() => sending = false);
                         if (e == 'already') {
                           sent = true; // already sent = treat as sent state

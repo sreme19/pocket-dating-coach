@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:geolocator/geolocator.dart';
 import 'api.dart';
+import 'app_logger.dart';
 import 'archetype_detail_sheet.dart';
 import 'archetypes.dart';
 import 'config.dart';
@@ -525,6 +526,7 @@ Future<void> _editIdentity(BuildContext context, ProfileData d, VoidCallback onC
             final city = (addr['city'] ?? addr['town'] ?? addr['village'] ?? addr['county'] ?? '').toString();
             if (city.isNotEmpty && ctx.mounted) setS(() => cityCtrl.text = city);
           } catch (_) {
+            AppLogger.instance.error('geocode_location failed', screen: 'profile', action: 'geocode_location');
           } finally {
             if (ctx.mounted) setS(() => detecting = false);
           }
@@ -620,6 +622,7 @@ Future<void> _editIdentity(BuildContext context, ProfileData d, VoidCallback onC
                       if (ctx.mounted) Navigator.of(ctx).pop();
                       onChanged();
                     } catch (e) {
+                      AppLogger.instance.error(e, screen: 'profile', action: 'save_identity');
                       setS(() { saving = false; error = '$e'; });
                     }
                   },
@@ -732,6 +735,7 @@ Future<void> _editMoneyMatters(BuildContext context, ProfileData d, VoidCallback
                     if (ctx.mounted) Navigator.of(ctx).pop();
                     onChanged();
                   } catch (e) {
+                    AppLogger.instance.error(e, screen: 'profile', action: 'save_money_matters');
                     setS(() { saving = false; saveError = 'Failed to save. Please try again.'; });
                   }
                 },
@@ -883,6 +887,7 @@ Future<void> _editHereFor(BuildContext context, ProfileData d, VoidCallback onCh
                       if (ctx.mounted) Navigator.of(ctx).pop();
                       onChanged();
                     } catch (e) {
+                      AppLogger.instance.error(e, screen: 'profile', action: 'save_here_for');
                       setS(() { saving = false; error = '$e'; });
                     }
                   },
@@ -950,6 +955,7 @@ Future<void> _editAbout(BuildContext context, ProfileData d, VoidCallback onChan
                       final text = await generateAboutText(d);
                       if (ctx.mounted) setS(() { ctrl.text = text; generating = false; });
                     } catch (e) {
+                      AppLogger.instance.error(e, screen: 'profile', action: 'generate_about');
                       if (ctx.mounted) setS(() { error = '$e'; generating = false; });
                     }
                   },
@@ -984,6 +990,7 @@ Future<void> _editAbout(BuildContext context, ProfileData d, VoidCallback onChan
                       if (ctx.mounted) Navigator.of(ctx).pop();
                       onChanged();
                     } catch (e) {
+                      AppLogger.instance.error(e, screen: 'profile', action: 'save_about');
                       setS(() { saving = false; error = '$e'; });
                     }
                   },
@@ -1080,6 +1087,7 @@ Future<void> _editBrings(BuildContext context, ProfileData d, List<BringsItem> c
                   if (ctx.mounted) Navigator.of(ctx).pop();
                   onChanged();
                 } catch (_) {
+                  AppLogger.instance.error('save_brings failed', screen: 'profile', action: 'save_brings');
                   setS(() => saving = false);
                 }
               },
@@ -1172,6 +1180,7 @@ Future<void> _editSheet(
                             if (ctx.mounted) Navigator.of(ctx).pop();
                             onChanged();
                           } catch (e) {
+                            AppLogger.instance.error(e, screen: 'profile', action: 'save_proof');
                             setSheet(() { saving = false; error = '$e'; });
                           }
                         },
@@ -1294,6 +1303,7 @@ class _EditableChipsState extends State<_EditableChips> {
     try {
       await removeInsightChip(widget.category, c.label);
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'profile', action: 'remove_insight_chip');
       setState(() { _chips.add(c); _error = '$e'; });
     }
   }
@@ -1308,6 +1318,7 @@ class _EditableChipsState extends State<_EditableChips> {
         setState(() => _error = 'No new suggestions right now.');
       }
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'profile', action: 'suggest_insights');
       setState(() { _busy = false; _error = '$e'; });
     }
   }
@@ -1317,6 +1328,7 @@ class _EditableChipsState extends State<_EditableChips> {
     try {
       await addInsightChip(widget.category, c.label, c.emoji);
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'profile', action: 'add_insight_chip');
       setState(() { _chips.remove(c); _error = '$e'; });
     }
   }
@@ -1469,6 +1481,7 @@ Future<void> _editCountries(BuildContext context, ProfileData d, VoidCallback on
                   if (ctx.mounted) Navigator.of(ctx).pop();
                   onChanged();
                 } catch (_) {
+                  AppLogger.instance.error('save_countries failed', screen: 'profile', action: 'save_countries');
                   setS(() => saving = false);
                 }
               },
@@ -1736,6 +1749,7 @@ class _LanePickerSheetState extends State<_LanePickerSheet> {
       }
       widget.onChanged();
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'profile', action: 'generate_avatar');
       if (mounted) {
         setState(() => _saving = false);
         ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
@@ -1918,6 +1932,7 @@ class _PortraitTileState extends State<_PortraitTile> {
       await generatePortrait(referenceImageUrl: ref, lifestyle: widget.lifestyle);
       widget.onChanged();
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'profile', action: 'generate_portrait');
       setState(() { _busy = false; _error = 'Couldn\'t generate: $e'; });
     }
   }
@@ -2192,6 +2207,7 @@ class _HeroState extends State<_Hero> {
                   return Image.memory(bytes, fit: BoxFit.cover,
                       errorBuilder: (c, _, _) => const _PhotoPlaceholder());
                 } catch (_) {
+                  AppLogger.instance.error('decode_photo failed', screen: 'profile', action: 'decode_photo');
                   return const _PhotoPlaceholder();
                 }
               }
@@ -2604,6 +2620,7 @@ class _PhotoStorySectionState extends State<_PhotoStorySection> {
       await saveAiPhotos(items);
       setState(() { _aiPhotos = items; _enhancing = false; });
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'profile', action: 'enhance_photos');
       setState(() { _enhancing = false; _enhanceError = 'Couldn\'t enhance: $e'; });
     }
   }

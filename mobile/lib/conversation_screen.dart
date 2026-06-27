@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api.dart';
+import 'app_logger.dart';
 import 'config.dart';
 import 'match_profile_screen.dart';
 import 'push_service.dart';
@@ -103,7 +104,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
   Future<void> _initialLoad() async {
     try {
       // Refresh session if expired before loading
-      try { await Supabase.instance.client.auth.refreshSession(); } catch (_) {}
+      try { await Supabase.instance.client.auth.refreshSession(); } catch (_) {
+        AppLogger.instance.error('refresh_session failed', screen: 'conversation', action: 'refresh_session');
+      }
       final thread = await fetchConversation(widget.conversationId);
       _otherId = thread.otherId;
       _otherAvatar = thread.otherAvatar;
@@ -131,10 +134,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
           _myName = (me['first_name'] ?? '').toString();
           _myAvatar = me['avatar_url'] as String?;
         }
-      } catch (_) {}
+      } catch (_) {
+        AppLogger.instance.error('load_user_profile failed', screen: 'conversation', action: 'load_user_profile');
+      }
       if (mounted) setState(() => _loading = false);
       markConversationRead(widget.conversationId).catchError((_) {});
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'conversation', action: 'initial_load');
       final msg = e.toString();
       final friendly = msg.contains('401') || msg.contains('Unauthorized')
           ? 'Session expired — please close and reopen the app.'
@@ -150,7 +156,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
       if (mounted && thread.aiBestieActive != _bestieActive) {
         setState(() => _bestieActive = thread.aiBestieActive);
       }
-    } catch (_) {/* transient */}
+    } catch (_) {
+      AppLogger.instance.error('load_thread_state failed', screen: 'conversation', action: 'load_thread_state');
+      /* transient */
+    }
   }
 
   void _subscribeRealtime() {
@@ -174,7 +183,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
           if (msg.senderId != _myId) {
             markConversationRead(widget.conversationId).catchError((_) {});
           }
-        } catch (_) {}
+        } catch (_) {
+          AppLogger.instance.error('mark_read failed', screen: 'conversation', action: 'mark_read');
+        }
       },
     ).subscribe();
     _channel = ch;
@@ -204,6 +215,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
         setState(() => _bestieActive = false);
       }
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'conversation', action: 'send_message');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Send failed: $e')));
       }
@@ -224,6 +236,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
     try {
       await activateBestie(widget.conversationId);
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'conversation', action: 'activate_bestie');
       if (mounted) {
         setState(() => _bestieActive = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not resume Bestie: $e')));
@@ -421,6 +434,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       final sent = await sendMessage(widget.conversationId, '[IMG]$url');
       if (sent != null) _merge([sent], scroll: true);
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'conversation', action: 'send_image_message');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Image send failed: $e')));
       }
@@ -448,6 +462,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       await blockUser(_otherId!, matchId: widget.conversationId);
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'conversation', action: 'block_user');
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
     }
   }
@@ -519,6 +534,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
         if (mounted) Navigator.of(context).pop();
       }
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'conversation', action: 'report_user');
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not report: $e')));
     }
   }
@@ -992,6 +1008,7 @@ class _ComposerState extends State<_Composer> {
       final url = await uploadChatImage(bytes, safeExt);
       await widget.onImagePicked(url);
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'conversation', action: 'upload_chat_image');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
       }
@@ -1035,6 +1052,7 @@ class _ComposerState extends State<_Composer> {
         ),
       );
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'conversation', action: 'wingman_note');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Wingman error: $e')));
       }

@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'api.dart';
+import 'app_logger.dart';
 import 'config.dart';
 
 class _Cat {
@@ -120,6 +121,7 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
       final res = await uploadProofUrl(cat.id, url);
       _applyResult(cat, res);
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'proof_upload', action: 'upload_url');
       setState(() { _busy = false; _activeCat = null; });
       _showError(_friendlyError(e));
     }
@@ -323,6 +325,7 @@ class _ProofStagingScreenState extends State<_ProofStagingScreen> {
       }
       if (mounted) Navigator.pop(context, res);
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'proof_upload', action: 'upload_proof');
       if (!mounted) return;
       setState(() => _busy = false);
       showDialog(
@@ -387,6 +390,7 @@ class _ProofStagingScreenState extends State<_ProofStagingScreen> {
       final res = await uploadProof(widget.cat.id, paths);
       if (mounted) Navigator.pop(context, res);
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'proof_upload', action: 'retry_upload');
       if (mounted) {
         setState(() => _busy = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_friendlyError(e))));

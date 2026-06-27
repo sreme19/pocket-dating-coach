@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'api.dart';
+import 'app_logger.dart';
 import 'config.dart';
 import 'preference_weighting_screen.dart';
 
@@ -34,6 +35,7 @@ class _ProfileStrengthScreenState extends State<ProfileStrengthScreen> {
       if (!mounted) return;
       setState(() { _ps = ps; _loading = false; });
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'profile_strength', action: 'load');
       if (mounted) setState(() { _error = 'Could not load: $e'; _loading = false; });
     }
   }

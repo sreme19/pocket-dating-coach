@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'api.dart';
+import 'app_logger.dart';
 import 'archetypes.dart';
 import 'config.dart';
 import 'earn_profile_screen.dart';
@@ -74,6 +75,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
       // back from VerificationScreen when the background save finishes late).
       if (mounted) setState(() { _saving = false; _savedArchetypeId = archetypeId; if (_step < 2) _step = 2; });
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'onboarding', action: 'pick_archetype');
       if (mounted) setState(() { _saving = false; _error = 'Could not save: $e'; });
     }
   }

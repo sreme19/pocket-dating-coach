@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
+import 'app_logger.dart';
 import 'config.dart';
 import 'markdown.dart';
 
@@ -60,7 +61,9 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
         }
       });
       _scrollToBottom();
-    } catch (_) {}
+    } catch (_) {
+      AppLogger.instance.error('load_history failed', screen: 'advisor', action: 'load_history');
+    }
   }
 
   Future<void> _saveHistory() async {
@@ -126,6 +129,7 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
       });
       _saveHistory();
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'advisor', action: 'run_advisor');
       final err = e.toString();
       final msg = (err.contains('404'))
           ? 'Sorry, $_name is temporarily unavailable. Please try again later.'
@@ -145,6 +149,7 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
       await sendMessage(d.matchId, d.content);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sent to ${d.matchName} 💬')));
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'advisor', action: 'send_draft');
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
     }
   }
@@ -157,7 +162,10 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
       } else {
         await submitMessageFeedback(wingman: _wm, messageContent: t.content, positive: positive);
       }
-    } catch (_) {/* non-fatal */}
+    } catch (_) {
+      AppLogger.instance.error('submit_feedback failed', screen: 'advisor', action: 'submit_feedback');
+      /* non-fatal */
+    }
   }
 
   void _showIntelligence() {

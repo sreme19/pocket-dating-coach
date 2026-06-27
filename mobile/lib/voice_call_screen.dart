@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'api.dart';
+import 'app_logger.dart';
 import 'config.dart';
 
 /// Live voice call with a match's AI bestie. Joins the LiveKit room minted by
@@ -107,6 +108,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
         if (mounted) setState(() => _elapsed++);
       });
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'voice_call', action: 'start_call');
       setState(() { _phase = _Phase.error; _error = '$e'; });
     }
   }

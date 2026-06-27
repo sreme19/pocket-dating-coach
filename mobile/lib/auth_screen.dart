@@ -121,9 +121,8 @@ class _AuthScreenState extends State<AuthScreen> {
         }),
         data: {'email': _demoEmail, 'code': _demoCode},
       );
-      final accessToken  = response.data['access_token']  as String;
       final refreshToken = response.data['refresh_token'] as String;
-      await _sb.auth.setSession(accessToken, refreshToken);
+      await _sb.auth.setSession(refreshToken);
       // AuthGate reacts to the auth state change.
     } catch (e) {
       AppLogger.instance.error(e, screen: 'auth', action: 'demo_sign_in');

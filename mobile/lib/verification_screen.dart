@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:dio/dio.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api.dart';
+import 'app_logger.dart';
 import 'config.dart';
 import 'onboarding_questions.dart';
 import 'onboarding_qa_step.dart';
@@ -220,7 +221,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
       }
 
       if (mounted) setState(() {});
-    } catch (_) {}
+    } catch (_) {
+      AppLogger.instance.error('init_camera failed', screen: 'verification', action: 'init_camera');
+    }
   }
 
   // Step 0 — identity check
@@ -354,6 +357,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         }
       }
     } catch (_) {
+      AppLogger.instance.error('capture_id failed', screen: 'verification', action: 'capture_id');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Could not detect location. Please type your city manually.')),
@@ -531,7 +535,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
               age: int.tryParse(_ageCtrl.text.trim()),
               city: _cityCtrl.text.trim(),
             );
-          } catch (_) {}
+          } catch (_) {
+            AppLogger.instance.error('parse_age failed', screen: 'verification', action: 'parse_age');
+          }
           // Sync Q&A onboarding responses to user_master_profile so web
           // profile and AI context can read them.
           syncVerificationToMasterProfile().catchError((_) {});
@@ -542,6 +548,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
       if (next > 3) { if (mounted) { setState(() { _busy = false; }); widget.onDone(); } return; }
       if (mounted) setState(() { _busy = false; _step = next; _error = null; });
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'verification', action: 'save_responses');
       if (mounted) setState(() { _busy = false; _error = _friendlyError(e); });
     }
   }
@@ -1305,6 +1312,7 @@ class _LivenessCaptureScreenState extends State<_LivenessCaptureScreen> {
       setState(() { _ctrl = ctrl; _phase = _LivenessPhase.ready; });
       _scheduleAutoCapture();
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'verification', action: 'upload_selfie');
       if (mounted) {
         setState(() {
           _phase = _LivenessPhase.idle;
@@ -1348,6 +1356,7 @@ class _LivenessCaptureScreenState extends State<_LivenessCaptureScreen> {
       setState(() { _phase = _LivenessPhase.verifying; });
       await _runVerification(b64);
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'verification', action: 'upload_id');
       if (mounted) setState(() { _phase = _LivenessPhase.failed; _errMsg = 'Capture failed. Please try again.'; });
     }
   }
@@ -1365,6 +1374,7 @@ class _LivenessCaptureScreenState extends State<_LivenessCaptureScreen> {
         if (mounted) Navigator.pop(context, _LivenessResult(msg));
       }
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'verification', action: 'upload_income');
       if (!mounted) return;
       setState(() {
         _phase  = _LivenessPhase.failed;

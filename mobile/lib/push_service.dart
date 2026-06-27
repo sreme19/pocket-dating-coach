@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'firebase_options.dart';
 import 'api.dart';
+import 'app_logger.dart';
 import 'config.dart';
 import 'conversation_screen.dart';
 
@@ -19,6 +20,7 @@ Future<void> initFirebasePush() async {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
     FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
   } catch (e) {
+    AppLogger.instance.error(e, screen: 'push_service', action: 'init_firebase');
     if (kDebugMode) debugPrint('Firebase init failed: $e');
   }
 }
@@ -61,6 +63,7 @@ class PushService {
         WidgetsBinding.instance.addPostFrameCallback((_) => _handleDeepLink(initial.data));
       }
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'push_service', action: 'register_for_user');
       if (kDebugMode) debugPrint('Push register failed: $e');
     }
   }
@@ -137,6 +140,7 @@ class PushService {
     try {
       await FirebaseMessaging.instance.deleteToken();
     } catch (_) {
+      AppLogger.instance.error('sign_out_cleanup failed', screen: 'push_service', action: 'sign_out_cleanup');
       // best-effort
     }
     reset();
