@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:dio/dio.dart';
 import 'config.dart';
 import 'onboarding_flow.dart' show GateStep, pendingSignupGender, pendingSignupArchetype;
 import 'pre_auth_lane_screen.dart';
@@ -8,6 +9,9 @@ import 'pre_auth_lane_screen.dart';
 /// Email one-time-code sign-in, mirroring the web flow:
 /// signInWithOtp(email) → verifyOtp(email, code). On success the auth state
 /// stream in AuthGate swaps to the app. Auth talks directly to Supabase.
+///
+/// Special case: the demo account (review@riteangle.com / 123456) bypasses
+/// OTP email delivery for App Store reviewers who cannot receive OTP emails.
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
 
@@ -16,6 +20,10 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
+  // Demo account for App Store review — bypasses email OTP delivery.
+  static const _demoEmail = 'review@riteangle.com';
+  static const _demoCode  = '123456';
+
   final _email = TextEditingController();
   final _code = TextEditingController();
   bool _codeSent = false;
@@ -43,6 +51,13 @@ class _AuthScreenState extends State<AuthScreen> {
       setState(() => _error = 'Enter a valid email address.');
       return;
     }
+
+    // Demo account: skip email delivery, just show the OTP field.
+    if (email == _demoEmail) {
+      setState(() { _codeSent = true; _loading = false; });
+      return;
+    }
+
     setState(() { _loading = true; _error = null; });
     try {
       await _sb.auth.signInWithOtp(email: email);
@@ -74,6 +89,13 @@ class _AuthScreenState extends State<AuthScreen> {
       return;
     }
     setState(() { _loading = true; _error = null; });
+
+    // Demo account: bypass Supabase OTP and create session via edge function.
+    if (email == _demoEmail && token == _demoCode) {
+      await _demoSignIn();
+      return;
+    }
+
     try {
       await _sb.auth.verifyOTP(email: email, token: token, type: OtpType.email);
       // AuthGate reacts to the auth state change.
@@ -81,6 +103,28 @@ class _AuthScreenState extends State<AuthScreen> {
       setState(() => _loading = false);
       if (!mounted) return;
       _showAlert(title: 'Invalid code', body: 'That code is incorrect or has expired. Check your email and try again.');
+    }
+  }
+
+  Future<void> _demoSignIn() async {
+    try {
+      final dio = Dio();
+      final response = await dio.post(
+        '${Config.supabaseUrl}/functions/v1/demo-login',
+        options: Options(headers: {
+          'Authorization': 'Bearer ${Config.supabaseAnonKey}',
+          'Content-Type': 'application/json',
+        }),
+        data: {'email': _demoEmail, 'code': _demoCode},
+      );
+      final accessToken  = response.data['access_token']  as String;
+      final refreshToken = response.data['refresh_token'] as String;
+      await _sb.auth.setSession(accessToken, refreshToken);
+      // AuthGate reacts to the auth state change.
+    } catch (e) {
+      setState(() => _loading = false);
+      if (!mounted) return;
+      _showAlert(title: 'Something went wrong', body: 'Demo login failed. Please try again.');
     }
   }
 
