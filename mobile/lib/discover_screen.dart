@@ -36,6 +36,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
   @override
   void initState() {
     super.initState();
+    AppLogger.instance.screen('discover');
     _load();
   }
 
@@ -46,6 +47,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
   }
 
   Future<void> _load() async {
+    AppLogger.instance.action('discover', 'load_feed');
     // Don't clear the existing feed — keep it visible while reloading.
     setState(() { _error = null; });
     try {
@@ -105,6 +107,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
   }
 
   void _next() {
+    AppLogger.instance.action('discover', 'skip');
     final feed = _feed;
     if (feed == null) return;
     if (_idx + 1 >= feed.length) {
@@ -376,6 +379,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: g == null || alreadyTipped ? null : () async {
+                  AppLogger.instance.action('discover', 'like');
                   final sent = await showTipSheet(context, targetUserId: cur.id, viewerGender: g);
                   if (sent && mounted) setState(() => _tippedIds.add(cur.id));
                 },
@@ -395,6 +399,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: g == null || alreadySent ? null : () async {
+                  AppLogger.instance.action('discover', 'like');
                   final sent = await showAdmireSheet(context, recipientId: cur.id, viewerGender: g, name: cur.firstName);
                   if (sent && mounted) setState(() => _sentAttentionIds.add(cur.id));
                 },

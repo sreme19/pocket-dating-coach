@@ -35,6 +35,7 @@ class _PreferenceWeightingScreenState extends State<PreferenceWeightingScreen> {
   @override
   void initState() {
     super.initState();
+    AppLogger.instance.screen('preference_weighting');
     _load();
   }
 
@@ -57,6 +58,7 @@ class _PreferenceWeightingScreenState extends State<PreferenceWeightingScreen> {
 
   Future<void> _save() async {
     if (_saving) return;
+    AppLogger.instance.action('preference_weighting', 'save_weights');
     setState(() { _saving = true; _error = null; });
     try {
       await savePreferenceWeights(_importance);

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'app_logger.dart';
 import 'config.dart';
 import 'discover_screen.dart';
 import 'chat_list_screen.dart';
@@ -20,6 +21,7 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
+    AppLogger.instance.screen('home');
     // Let push deep-links switch the active tab (e.g. Wingman → Chat).
     PushService.onSwitchTab = (i) {
       if (mounted && i >= 0 && i < 3) setState(() => _index = i);
@@ -45,7 +47,10 @@ class _HomeShellState extends State<HomeShell> {
         backgroundColor: const Color(Config.bg2),
         indicatorColor: const Color(0x26FF3B6B),
         selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
+        onDestinationSelected: (i) {
+          AppLogger.instance.action('home', 'switch_tab', meta: {'tab': i});
+          setState(() => _index = i);
+        },
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.explore_outlined, color: Color(Config.text3)),

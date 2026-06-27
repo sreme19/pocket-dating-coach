@@ -25,6 +25,7 @@ class _ProfileStrengthScreenState extends State<ProfileStrengthScreen> {
   @override
   void initState() {
     super.initState();
+    AppLogger.instance.screen('profile_strength');
     _load();
   }
 
@@ -166,9 +167,12 @@ class _ProfileStrengthScreenState extends State<ProfileStrengthScreen> {
         const SizedBox(height: 20),
         // Cross-link to the weighting step.
         TextButton(
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const PreferenceWeightingScreen()),
-          ),
+          onPressed: () {
+            AppLogger.instance.action('profile_strength', 'tap_tip');
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const PreferenceWeightingScreen()),
+            );
+          },
           child: const Text('Adjust what you value →', style: TextStyle(color: Color(Config.accentBright))),
         ),
       ],

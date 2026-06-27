@@ -29,6 +29,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    AppLogger.instance.screen('profile');
     _future = fetchProfile();
   }
 
@@ -228,7 +229,10 @@ class _ProfileBody extends StatelessWidget {
           Positioned(
             bottom: 20, right: 14,
             child: GestureDetector(
-              onTap: () => _editIdentity(context, data, onChanged),
+              onTap: () {
+                AppLogger.instance.action('profile', 'open_edit');
+                _editIdentity(context, data, onChanged);
+              },
               child: Container(
                 width: 34, height: 34,
                 decoration: BoxDecoration(
@@ -248,7 +252,10 @@ class _ProfileBody extends StatelessWidget {
               child: IconButton(
                 tooltip: 'Manage photos',
                 icon: const Icon(Icons.add_a_photo_outlined, size: 20, color: Color(0xFFFFFFFF)),
-                onPressed: () => openPhotoManager(context, data, onChanged),
+                onPressed: () {
+                  AppLogger.instance.action('profile', 'open_photo_manager');
+                  openPhotoManager(context, data, onChanged);
+                },
               ),
             ),
           ),
@@ -618,6 +625,7 @@ Future<void> _editIdentity(BuildContext context, ProfileData d, VoidCallback onC
                   onPressed: saving ? null : () async {
                     final name = nameCtrl.text.trim();
                     if (name.isEmpty) { setS(() => error = 'Name can\'t be empty'); return; }
+                    AppLogger.instance.action('profile_edit', 'save_identity');
                     setS(() { saving = true; error = null; });
                     try {
                       await saveIdentity(

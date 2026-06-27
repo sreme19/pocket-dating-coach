@@ -20,6 +20,7 @@ String _pretty(String slug) => slug
 /// Anonymous tip: tag chips + optional note → POST /tips.
 /// Returns true if the tip was sent successfully.
 Future<bool> showTipSheet(BuildContext context, {required String targetUserId, required String viewerGender}) async {
+  AppLogger.instance.screen('engage');
   final tags = viewerGender == 'woman' ? _womanViewerTags : _manViewerTags;
   final selected = <String>{};
   final textCtrl = TextEditingController();
@@ -74,6 +75,7 @@ Future<bool> showTipSheet(BuildContext context, {required String targetUserId, r
               onPressed: sending || (selected.isEmpty && textCtrl.text.trim().isEmpty)
                   ? null
                   : () async {
+                      AppLogger.instance.action('engage', 'send_engage');
                       setSheet(() => sending = true);
                       try {
                         await submitTip(targetUserId, viewerGender, selected.toList(), textCtrl.text.trim());
@@ -102,6 +104,7 @@ Future<bool> showTipSheet(BuildContext context, {required String targetUserId, r
 /// Admire / craving-attention note → POST /attention (one-time per pair).
 /// Returns true if the note was sent (or was already sent previously).
 Future<bool> showAdmireSheet(BuildContext context, {required String recipientId, required String viewerGender, required String name}) async {
+  AppLogger.instance.screen('engage');
   final textCtrl = TextEditingController();
   var sending = false;
   var sent = false;
@@ -191,6 +194,7 @@ Future<bool> showAdmireSheet(BuildContext context, {required String recipientId,
               onPressed: sending || textCtrl.text.trim().isEmpty
                   ? null
                   : () async {
+                      AppLogger.instance.action('engage', 'send_engage');
                       setSheet(() => sending = true);
                       try {
                         await sendAttention(recipientId, viewerGender, textCtrl.text.trim());

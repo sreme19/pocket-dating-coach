@@ -8,10 +8,22 @@ import 'preference_weighting_screen.dart';
 import 'profile_strength_screen.dart';
 import 'push_service.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    AppLogger.instance.screen('settings');
+  }
+
   Future<void> _signOut(BuildContext context, {bool localOnly = false}) async {
+    AppLogger.instance.action('settings', 'sign_out');
     await PushService.signOutCleanup();
     try {
       await Supabase.instance.client.auth.signOut(
@@ -171,6 +183,7 @@ class _DeleteAccountSheetState extends State<DeleteAccountSheet> {
 
   Future<void> _delete() async {
     if (!_canDelete || _busy) return;
+    AppLogger.instance.action('settings', 'delete_account');
     setState(() { _busy = true; _error = null; });
     try {
       await deleteAccount(reason: _reason, feedback: _feedback.text.trim());

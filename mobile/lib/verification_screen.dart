@@ -139,6 +139,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
   @override
   void initState() {
     super.initState();
+    AppLogger.instance.screen('verification');
     _step = widget.initialStep;
     _photos = List<String?>.filled(_isWoman ? 6 : 3, null);
     _preloadUserData();
@@ -390,6 +391,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
   }
 
   Future<void> _pickPhoto(int slot) async {
+    AppLogger.instance.action('verification', 'upload_verification_photo');
     // If tapping an empty slot, offer multi-select so the user can pick
     // several photos at once and fill consecutive empty slots.
     if (_photos[slot] == null) {
@@ -498,6 +500,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
       return;
     }
 
+    AppLogger.instance.action('verification', 'submit_verification');
     setState(() { _busy = true; _error = null; });
     try {
       switch (_step) {

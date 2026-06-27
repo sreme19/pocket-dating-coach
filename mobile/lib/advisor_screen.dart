@@ -46,6 +46,8 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
   @override
   void initState() {
     super.initState();
+    AppLogger.instance.screen('advisor');
+    AppLogger.instance.action('advisor', 'load_advisor');
     _loadHistory().then((_) => _loadGreeting());
   }
 
@@ -112,6 +114,7 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
   Future<void> _send({String? text}) async {
     final t = (text ?? _composer.text).trim();
     if (t.isEmpty || _thinking) return;
+    AppLogger.instance.action('advisor', 'send_advisor_message');
     _composer.clear();
     setState(() => _turns.add(_Turn('user', t)));
     await _run(message: t, intent: 'chat');

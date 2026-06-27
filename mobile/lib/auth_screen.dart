@@ -25,6 +25,12 @@ class _AuthScreenState extends State<AuthScreen> {
   static const _demoEmail = 'review@riteangle.com';
   static const _demoCode  = '123456';
 
+  @override
+  void initState() {
+    super.initState();
+    AppLogger.instance.screen('auth');
+  }
+
   final _email = TextEditingController();
   final _code = TextEditingController();
   bool _codeSent = false;
@@ -47,6 +53,7 @@ class _AuthScreenState extends State<AuthScreen> {
   SupabaseClient get _sb => Supabase.instance.client;
 
   Future<void> _sendCode() async {
+    AppLogger.instance.action('auth', 'send_otp');
     final email = _email.text.trim();
     if (email.isEmpty || !email.contains('@')) {
       setState(() => _error = 'Enter a valid email address.');
@@ -85,6 +92,7 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<void> _verify() async {
+    AppLogger.instance.action('auth', 'verify_otp');
     final email = _email.text.trim();
     final token = _code.text.trim();
     if (token.length < 6) {
@@ -111,6 +119,7 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<void> _demoSignIn() async {
+    AppLogger.instance.action('auth', 'demo_sign_in');
     try {
       final dio = Dio();
       final response = await dio.post(

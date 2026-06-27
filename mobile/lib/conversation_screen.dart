@@ -49,6 +49,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   @override
   void initState() {
     super.initState();
+    AppLogger.instance.screen('conversation');
     _initialLoad();
     fetchCurrentUserGender().then((g) { if (mounted) setState(() => _viewerGender = g); });
     _subscribeRealtime();
@@ -102,6 +103,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   }
 
   Future<void> _initialLoad() async {
+    AppLogger.instance.action('conversation', 'load_messages');
     try {
       // Refresh session if expired before loading
       try { await Supabase.instance.client.auth.refreshSession(); } catch (_) {
@@ -204,6 +206,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   Future<void> _send() async {
     final text = _composer.text.trim();
     if (text.isEmpty || _sending) return;
+    AppLogger.instance.action('conversation', 'send_message');
     setState(() => _sending = true);
     _composer.clear();
     try {
@@ -712,12 +715,15 @@ class _ConversationScreenState extends State<ConversationScreen> {
           if (!_loading && _viewerGender == 'man' && _otherGender == 'woman' && _bestieActive)
             _BestieCallBanner(
               name: _otherName.isNotEmpty ? _otherName : widget.title,
-              onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => VoiceCallScreen(
-                  matchId: widget.conversationId,
-                  name: _otherName.isNotEmpty ? _otherName : widget.title,
-                ),
-              )),
+              onTap: () {
+                AppLogger.instance.action('conversation', 'open_voice_call');
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => VoiceCallScreen(
+                    matchId: widget.conversationId,
+                    name: _otherName.isNotEmpty ? _otherName : widget.title,
+                  ),
+                ));
+              },
             ),
           // Explicit, never-silent hand-off notice (spec §C9): once she steps in
           // and her Bestie is no longer the proxy, tell the man directly.

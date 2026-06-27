@@ -302,6 +302,8 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
   @override
   void initState() {
     super.initState();
+    AppLogger.instance.screen('category_proof');
+    AppLogger.instance.action('category_proof', 'select_category');
     if (widget.categoryId == 'intro') {
       _audioRec = AudioRecorder();
     }
@@ -744,6 +746,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
 
   Future<void> _analyse({String? relationship}) async {
     if (!_canAnalyse) return;
+    AppLogger.instance.action('category_proof', 'submit_proof');
     setState(() { _analysing = true; _result = null; });
     try {
       final Map res;

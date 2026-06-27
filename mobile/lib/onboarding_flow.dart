@@ -40,6 +40,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   @override
   void initState() {
     super.initState();
+    AppLogger.instance.screen('onboarding');
     final pendingGender = pendingSignupGender;
     if (pendingGender != null) {
       _gender = pendingGender;
@@ -67,6 +68,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   }
 
   Future<void> _pickArchetype(String archetypeId) async {
+    AppLogger.instance.action('onboarding', 'pick_archetype');
     if (_saving) return;
     setState(() { _saving = true; _error = null; });
     try {
@@ -91,8 +93,14 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
       );
     } else if (_step == 2) {
       child = EarnProfileScreen(
-        onStart: () => setState(() => _step = 3),
-        onSkip: widget.onComplete,
+        onStart: () {
+          AppLogger.instance.action('onboarding', 'next_step', meta: {'step': _step});
+          setState(() => _step = 3);
+        },
+        onSkip: () {
+          AppLogger.instance.action('onboarding', 'submit_onboarding');
+          widget.onComplete();
+        },
       );
     } else if (_step == 1) {
       child = PreAuthLaneScreen(
@@ -106,7 +114,10 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
         over18: _over18,
         onGender: (g) => setState(() => _gender = g),
         onOver18: (v) => setState(() => _over18 = v),
-        onContinue: _over18 ? () => setState(() => _step = 1) : null,
+        onContinue: _over18 ? () {
+          AppLogger.instance.action('onboarding', 'next_step', meta: {'step': _step});
+          setState(() => _step = 1);
+        } : null,
       );
     }
     return _Transition(stepKey: _step, child: child);
