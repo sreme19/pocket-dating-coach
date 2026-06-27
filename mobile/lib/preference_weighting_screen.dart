@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'api.dart';
+import 'app_logger.dart';
 import 'config.dart';
 
 /// Explicit preference-weighting step (Scoring & Matching redesign §6a, Phase 0b).
@@ -49,6 +50,7 @@ class _PreferenceWeightingScreenState extends State<PreferenceWeightingScreen> {
         _loading = false;
       });
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'prefer_weighting', action: 'load_preferences');
       if (mounted) setState(() { _error = 'Could not load: $e'; _loading = false; });
     }
   }
@@ -66,6 +68,7 @@ class _PreferenceWeightingScreenState extends State<PreferenceWeightingScreen> {
       widget.onSaved?.call();
       if (widget.onSaved == null && Navigator.canPop(context)) Navigator.of(context).pop(true);
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'prefer_weighting', action: 'save_preferences');
       if (mounted) setState(() { _saving = false; _error = 'Could not save: $e'; });
     }
   }

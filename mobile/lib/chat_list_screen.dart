@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api.dart';
+import 'app_logger.dart';
 import 'archetypes.dart';
 import 'config.dart';
 import 'conversation_screen.dart';
@@ -63,7 +64,9 @@ class _ChatListScreenState extends State<ChatListScreen>
         _fmRunsUsed = s.runsUsed;
         _fmRunsLimit = s.runsLimit;
       });
-    } catch (_) {}
+    } catch (_) {
+      AppLogger.instance.error('load_matchmaker_status failed', screen: 'chat_list', action: 'load_matchmaker_status');
+    }
   }
 
   Future<void> _runFindMatches() async {
@@ -263,9 +266,13 @@ class _ChatListScreenState extends State<ChatListScreen>
         admirers = results[0] as List<Admirer>;
         sentAdmirers = results[1] as List<SentAdmirer>;
         tipSummary = results[2] as TipSummary;
-      } catch (_) {/* non-fatal */}
+      } catch (_) {
+        AppLogger.instance.error('load_secondary_data failed', screen: 'chat_list', action: 'load_secondary_data');
+        /* non-fatal */
+      }
       return _ChatData(gender: gender, conversations: convos, admirers: admirers, sentAdmirers: sentAdmirers, tipSummary: tipSummary);
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'chat_list', action: 'load');
       final msg = e.toString();
       if (msg.contains('SocketException') || msg.contains('Failed host lookup') ||
           msg.contains('connection timeout') || msg.contains('receive timeout') ||
@@ -291,6 +298,7 @@ class _ChatListScreenState extends State<ChatListScreen>
       final data = await _load();
       if (mounted) setState(() { _future = Future.value(data); });
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'chat_list', action: 'refresh');
       if (mounted) setState(() { _future = Future.error(e); });
     }
   }
@@ -758,6 +766,7 @@ class _AdmirerCard extends StatelessWidget {
       }
       onReplied();
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'chat_list', action: 'reply');
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
     }
   }
@@ -775,6 +784,7 @@ class _AdmirerCard extends StatelessWidget {
       }
       onReplied();
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'chat_list', action: 'report_user');
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
     }
   }

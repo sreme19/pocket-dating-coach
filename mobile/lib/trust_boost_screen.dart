@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'api.dart';
+import 'app_logger.dart';
 import 'archetypes.dart';
 import 'category_proof_screen.dart';
 import 'config.dart';
@@ -786,6 +787,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
                       if (ctx.mounted) Navigator.of(ctx).pop();
                       _refresh();
                     } catch (e) {
+                      AppLogger.instance.error(e, screen: 'trust_boost', action: 'save_social_proof');
                       setS(() { saving = false; errorMsg = e.toString(); });
                     }
                   },
@@ -885,6 +887,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
                     if (ctx.mounted) Navigator.of(ctx).pop();
                     _refresh();
                   } catch (_) {
+                    AppLogger.instance.error('save_countries failed', screen: 'trust_boost', action: 'save_countries');
                     setS(() => saving = false);
                   }
                 },

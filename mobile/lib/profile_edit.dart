@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'api.dart';
+import 'app_logger.dart';
 import 'archetypes.dart';
 import 'config.dart';
 
@@ -49,6 +50,7 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
       final url = await uploadPhoto(dataUrl, label);
       setState(() { _photos.add(PhotoItem(url, label)); _dirty = true; _busy = false; });
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'profile_edit', action: 'upload_photo');
       setState(() { _busy = false; _error = 'Upload failed: $e'; });
     }
   }
@@ -67,6 +69,7 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
       await savePhotos(_photos);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'profile_edit', action: 'save_photos');
       setState(() { _busy = false; _error = 'Save failed: $e'; });
     }
   }
@@ -258,8 +261,9 @@ Future<void> editArchetype(BuildContext context, ProfileData data, VoidCallback 
     await saveArchetype(picked);
     onChanged();
   } catch (e) {
+    AppLogger.instance.error(e, screen: ‘profile_edit’, action: ‘save_archetype’);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Couldn’t update: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Couldn’t update: $e")));
     }
   }
 }
@@ -345,6 +349,7 @@ class _HardNosEditorState extends State<_HardNosEditor> {
       if (mounted) Navigator.of(context).pop();
       widget.onChanged();
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'profile_edit', action: 'save_hard_nos');
       setState(() { _saving = false; _error = 'Save failed: $e'; });
     }
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'api.dart';
+import 'app_logger.dart';
 import 'config.dart';
 import 'profile_body.dart';
 import 'engage_sheets.dart';
@@ -80,6 +81,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
         _detail = list.isEmpty ? null : fetchMatchDetail(list.first.id);
       });
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'discover', action: 'load_feed');
       if (!mounted) return;
       final msg = e.toString();
       final friendly = msg.contains('401') || msg.contains('Unauthorized')

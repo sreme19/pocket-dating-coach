@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api.dart';
+import 'app_logger.dart';
 import 'config.dart';
 import 'preference_weighting_screen.dart';
 import 'profile_strength_screen.dart';
@@ -16,6 +17,7 @@ class SettingsScreen extends StatelessWidget {
         scope: localOnly ? SignOutScope.local : SignOutScope.global,
       );
     } catch (_) {
+      AppLogger.instance.error('sign_out failed', screen: 'settings', action: 'sign_out');
       // If server-side user was already deleted, force local session clear.
       await Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
     }
@@ -169,6 +171,7 @@ class _DeleteAccountSheetState extends State<DeleteAccountSheet> {
       await Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
       if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'settings', action: 'delete_account');
       setState(() { _busy = false; _error = 'Could not delete: $e'; });
     }
   }

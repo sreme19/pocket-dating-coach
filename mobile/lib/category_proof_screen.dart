@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'api.dart';
+import 'app_logger.dart';
 import 'config.dart';
 
 String _friendlyError(Object e) {
@@ -514,6 +515,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                 final name = result['idName']?.toString();
                 setS(() { busy = false; detectedName = name; step = 2; });
               } catch (e) {
+                AppLogger.instance.error(e, screen: 'category_proof', action: 'process_id_front');
                 setS(() { busy = false; error = e.toString().replaceFirst('Exception: ', ''); });
               }
             },
@@ -629,6 +631,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                   setS(() { busy = false; error = 'Face does not match the ID. Please retake your selfie in good lighting.'; });
                 }
               } catch (e) {
+                AppLogger.instance.error(e, screen: 'category_proof', action: 'process_selfie');
                 setS(() { busy = false; error = e.toString().replaceFirst('Exception: ', ''); });
               }
             },
@@ -740,6 +743,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
         );
       });
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'category_proof', action: 'analyze_proof');
       setState(() {
         _analysing = false;
         _result = _UploadResult(verified: false, text: _friendlyError(e), chips: const []);
@@ -763,6 +767,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
     try {
       await removeInsightChip(category, chip.label);
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'category_proof', action: 'remove_chip');
       if (!mounted) return;
       setState(() => list.insert(idx.clamp(0, list.length), chip));
       ScaffoldMessenger.of(context).showSnackBar(
@@ -785,6 +790,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
     try {
       await removeProofThumbnail(category, url);
     } catch (e) {
+      AppLogger.instance.error(e, screen: 'category_proof', action: 'remove_thumbnail');
       if (!mounted) return;
       setState(() {
         list.insert(idx.clamp(0, list.length), url);

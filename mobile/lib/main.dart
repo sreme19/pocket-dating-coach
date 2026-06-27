@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config.dart';
 import 'api.dart';
+import 'app_logger.dart';
 import 'auth_screen.dart';
 import 'home_shell.dart';
 import 'onboarding_flow.dart';
@@ -9,6 +11,27 @@ import 'push_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Catch Flutter framework errors (widget build failures, rendering errors, etc.)
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details); // keep default console output
+    AppLogger.instance.error(
+      details.exception,
+      stack: details.stack,
+      screen: 'FlutterError',
+      meta: {
+        if (details.library != null) 'library': details.library,
+        if (details.context != null) 'context': details.context.toString(),
+      },
+    );
+  };
+
+  // Catch unhandled async errors (outside Flutter's zone)
+  PlatformDispatcher.instance.onError = (error, stack) {
+    AppLogger.instance.error(error, stack: stack, screen: 'PlatformDispatcher');
+    return true; // mark as handled
+  };
+
   await Supabase.initialize(
     url: Config.supabaseUrl,
     anonKey: Config.supabaseAnonKey,
@@ -80,8 +103,11 @@ class _AuthGateState extends State<AuthGate> {
   Widget build(BuildContext context) {
     return StreamBuilder<AuthState>(
       stream: supabase.auth.onAuthStateChange,
-      builder: (context, _) {
+      builder: (context, snapshot) {
+        // Keep AppLogger in sync with the current user
         final session = supabase.auth.currentSession;
+        AppLogger.instance.setUser(session?.user.id);
+
         if (session == null) return const AuthScreen();
         return FutureBuilder<bool>(
           key: ValueKey('onb_${session.user.id}_$_recheck'),
