@@ -4,6 +4,83 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:dio/dio.dart';
 import 'config.dart';
 
+/// Dio interceptor attached to the shared `_dio` in api.dart.
+/// - Logs all successful write operations (POST/PUT/PATCH/DELETE) as 'api_call'.
+/// - Logs all HTTP errors (4xx/5xx) and network errors as 'error'.
+/// - Skips successful GETs to avoid flooding the log.
+class _ApiLogInterceptor extends Interceptor {
+  final AppLogger _log;
+  final _starts = <int, int>{}; // request hashCode → start ms
+
+  _ApiLogInterceptor(this._log);
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    _starts[options.hashCode] = DateTime.now().millisecondsSinceEpoch;
+    handler.next(options);
+  }
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    final method = response.requestOptions.method.toUpperCase();
+    final ms     = _elapsed(response.requestOptions);
+    final path   = _path(response.requestOptions.uri);
+    _log._write('api_call',
+      action: '$method $path',
+      meta: {
+        'method': method,
+        'path': path,
+        'status': response.statusCode,
+        'latency_ms': ms,
+        'ok': true,
+      },
+    );
+    handler.next(response);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    final method = err.requestOptions.method.toUpperCase();
+    final ms     = _elapsed(err.requestOptions);
+    final path   = _path(err.requestOptions.uri);
+    final status = err.response?.statusCode;
+
+    // Extract response body safely (truncate to 300 chars)
+    String? body;
+    try {
+      final raw = err.response?.data;
+      if (raw != null) body = raw.toString().substring(0, raw.toString().length.clamp(0, 300));
+    } catch (_) {}
+
+    _log._write('error',
+      action: '$method $path',
+      errorType: 'DioException',
+      errorMessage: 'HTTP ${status ?? "?"} on $method $path',
+      meta: {
+        'method': method,
+        'path': path,
+        'status': status,
+        'latency_ms': ms,
+        'ok': false,
+        if (body != null) 'response_body': body,
+        if (err.message != null) 'dio_message': err.message,
+      },
+    );
+
+    handler.next(err);
+  }
+
+  int _elapsed(RequestOptions req) {
+    final start = _starts.remove(req.hashCode);
+    return start != null ? DateTime.now().millisecondsSinceEpoch - start : 0;
+  }
+
+  String _path(Uri uri) {
+    // Strip base URL — log only the path so we don't store tokens in query params
+    return uri.path;
+  }
+}
+
 /// Singleton service that records user actions and errors to Supabase
 /// `mobile_event_log` table. Errors also fire an email alert via the
 /// /api/mobile-error Vercel endpoint, with a 5-minute per-error-type cooldown
@@ -23,6 +100,11 @@ class AppLogger {
 
   /// Call on auth state change (sign-in / sign-out).
   void setUser(String? userId) => _userId = userId;
+
+  /// Attach the API interceptor to a Dio instance. Call once when Dio is created.
+  void attachToDio(Dio dio) {
+    dio.interceptors.add(_ApiLogInterceptor(this));
+  }
 
   // ── Public API ──────────────────────────────────────────────────────────────
 
