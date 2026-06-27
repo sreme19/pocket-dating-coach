@@ -224,8 +224,11 @@ export const GET: RequestHandler = async ({ params }) => {
       ...crossTravelLocations,
     ])).filter(Boolean);
 
-    // Garage
-    const assetsProof = proofByCategory('assets');
+    // Garage — only surface owned cars whose ownership was verified (any tier
+    // except 'unrelated', which never earns trust and shouldn't be shown).
+    const assetsProof = (proofByCategory('assets') as any)?.ownershipTier === 'unrelated'
+      ? null
+      : proofByCategory('assets');
     const garageCars: Array<{ make: string; model: string; year?: string; color?: string; vehicleType?: string; inferred?: boolean; from?: string }> =
       Array.isArray(assetsProof?.assets)
         ? (assetsProof!.assets as Array<Record<string, string>>)

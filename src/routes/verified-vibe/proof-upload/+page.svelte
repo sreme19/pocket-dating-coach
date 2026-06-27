@@ -4,7 +4,7 @@
   import { getSupabaseClient } from '$lib/client/supabase';
 
   type Category = 'lifestyle' | 'hosting' | 'discipline' | 'social_proof' | 'linkedin' | 'instagram' | 'twitter' | 'habit_tracker' | 'intro' | 'spending' | 'assets' | 'wealth';
-  type Step = 'upload' | 'analyzing' | 'id-gate' | 'success' | 'failed';
+  type Step = 'upload' | 'analyzing' | 'id-gate' | 'relationship-gate' | 'success' | 'failed';
 
   interface CategoryConfig {
     icon: string;
@@ -274,8 +274,15 @@
   let files           = $state<File[]>([]);
   let previews        = $state<string[]>([]);
   let step            = $state<Step>('upload');
-  let result          = $state<{ insights: Array<{ label: string; emoji: string }>; pts_awarded: number; reason: string; locations?: string[]; aggregated?: string; nameMatch?: boolean | null } | null>(null);
+  let result          = $state<{ insights: Array<{ label: string; emoji: string }>; pts_awarded: number; reason: string; locations?: string[]; aggregated?: string; nameMatch?: boolean | null; ownershipTier?: string; ownershipReason?: string } | null>(null);
   let failReason      = $state('');
+  // ── Asset ownership relationship picker (Garage) ──────────────────────────
+  // When the name on an ownership doc doesn't match the verified ID, the server
+  // asks the owner to declare the relationship (company / family / financed),
+  // then we retry the same upload at the reduced "linked" trust tier.
+  let declaredRelationship = $state('');
+  let ownershipOwnerName   = $state('');
+  let ownershipMsg         = $state('');
   // ── Government-ID gate (name-bearing documents only) ──────────────────────
   let idGateLoading   = $state(false);
   let idGateError     = $state('');
@@ -472,6 +479,7 @@
       const fd = new FormData();
       fd.append('category', category);
       if (profileUrl.trim()) fd.append('profile_url', profileUrl.trim());
+      if (declaredRelationship) fd.append('relationship', declaredRelationship);
       files.forEach(f => fd.append('files', f));
 
       const resp = await fetch('/api/verified-vibe/proof-upload', {
@@ -487,6 +495,15 @@
       // retry the same upload once the ID is verified.
       if (data.requiresIdVerification) { idGateError = ''; step = 'id-gate'; return; }
 
+      // Ownership doc name didn't match the verified ID — ask the owner to declare
+      // the relationship (company / family / financed), then retry at reduced trust.
+      if (data.requiresRelationship) {
+        ownershipOwnerName = (data.ownerName ?? '').toString();
+        ownershipMsg = (data.reason ?? '').toString();
+        step = 'relationship-gate';
+        return;
+      }
+
       if (!resp.ok || data.error) { failReason = data.error ?? 'Analysis failed'; step = 'failed'; return; }
       if (!data.verified) { failReason = data.reason ?? 'We couldn\'t verify this as genuine proof. Try uploading clearer evidence.'; step = 'failed'; return; }
 
@@ -498,7 +515,11 @@
       // Use server-returned storage URLs if available; fall back to client-side base64 thumbnails.
       // Storage URLs survive cross-device restore; base64 thumbnails are localStorage-only.
       let thumbnails: string[] = [];
-      if (Array.isArray(data.thumbnail_urls) && data.thumbnail_urls.length > 0) {
+      if (category === 'assets') {
+        // Assets (ownership docs) are use-and-discard — never keep a copy, even
+        // locally. Only the extracted car details + verified badge are retained.
+        thumbnails = [];
+      } else if (Array.isArray(data.thumbnail_urls) && data.thumbnail_urls.length > 0) {
         thumbnails = data.thumbnail_urls;
       } else {
         for (const f of files.slice(0, 20)) {
@@ -554,7 +575,7 @@
         }).catch(() => { /* non-critical */ });
       }
 
-      result = { insights: insightsArr, pts_awarded: data.pts_awarded, reason: data.reason ?? '', locations: locationsArr, aggregated: data.aggregated ?? '', nameMatch: data.nameMatch };
+      result = { insights: insightsArr, pts_awarded: data.pts_awarded, reason: data.reason ?? '', locations: locationsArr, aggregated: data.aggregated ?? '', nameMatch: data.nameMatch, ownershipTier: data.ownershipTier, ownershipReason: data.ownershipReason };
       step   = 'success';
     } catch (e) {
       console.error('proof upload failed:', e);
@@ -610,6 +631,12 @@
     if (file) verifyIdFile(file);
   }
 
+  /** Owner declared the relationship for an asset not in their own name — retry at reduced trust. */
+  function pickRelationship(rel: string) {
+    declaredRelationship = rel;
+    analyze();
+  }
+
   function retry() {
     files      = [];
     previews   = [];
@@ -618,6 +645,9 @@
     failReason = '';
     result     = null;
     idGateError = '';
+    declaredRelationship = '';
+    ownershipOwnerName   = '';
+    ownershipMsg         = '';
   }
 
   function goBack() {
@@ -629,6 +659,9 @@
     previews = [];
     result   = null;
     step     = 'upload';
+    declaredRelationship = '';
+    ownershipOwnerName   = '';
+    ownershipMsg         = '';
   }
 
 </script>
@@ -1059,12 +1092,45 @@
       </button>
     </div>
 
+  {:else if step === 'relationship-gate'}
+    <div class="state-card">
+      <div class="success-emoji">🚗</div>
+      <div class="state-title">Whose name is on this document?</div>
+      <div class="state-sub">
+        The registered name{ownershipOwnerName ? ` (“${ownershipOwnerName}”)` : ''} doesn't match your
+        verified government ID. That's fine — tell us how this asset is connected to you.
+        Assets not in your own name are verified at reduced trust and flagged for review.
+      </div>
+    </div>
+
+    <div class="relationship-options">
+      <button class="relationship-btn" onclick={() => pickRelationship('company')}>
+        <span class="relationship-emoji">🏢</span>
+        <span class="relationship-text"><b>My company owns it</b><br/>Registered to a business I run or represent</span>
+      </button>
+      <button class="relationship-btn" onclick={() => pickRelationship('family')}>
+        <span class="relationship-emoji">👪</span>
+        <span class="relationship-text"><b>A family member</b><br/>Registered to a parent, spouse, or household member</span>
+      </button>
+      <button class="relationship-btn" onclick={() => pickRelationship('financed')}>
+        <span class="relationship-emoji">🏦</span>
+        <span class="relationship-text"><b>Financed or leased</b><br/>Held by a bank or leasing company</span>
+      </button>
+      <button class="relationship-btn" onclick={() => pickRelationship('other')}>
+        <span class="relationship-emoji">↩︎</span>
+        <span class="relationship-text"><b>Something else</b><br/>Another legitimate connection</span>
+      </button>
+      <button class="relationship-cancel" onclick={retry}>This isn't my asset — cancel</button>
+    </div>
+
   {:else if step === 'success' && result}
     <div class="state-card state-card--success">
       <div class="success-emoji">{result.insights[0]?.emoji ?? '✅'}</div>
       <div class="success-badge">Verified ✓</div>
       <div class="success-pts">+{result.pts_awarded} pts added to your profile</div>
-      {#if result.nameMatch === false}
+      {#if result.ownershipTier && result.ownershipTier !== 'self'}
+        <div class="name-mismatch-note">⚠️ {result.ownershipReason ?? 'Ownership is linked, not personal — verified at reduced trust and flagged for review.'}</div>
+      {:else if result.nameMatch === false}
         <div class="name-mismatch-note">⚠️ The name on this document didn't match your verified ID — it's been flagged for review.</div>
       {/if}
     </div>
@@ -2030,6 +2096,46 @@
     border: 1px solid rgba(251, 191, 36, 0.28);
     border-radius: 12px;
     text-align: center;
+  }
+
+  /* ── Relationship picker (asset not in owner's name) ── */
+  .relationship-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .relationship-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 14px;
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    border-radius: 14px;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    color: var(--text-1);
+    transition: border-color 150ms, background 150ms;
+  }
+  .relationship-btn:hover { border-color: var(--accent); background: var(--bg-3); }
+
+  .relationship-emoji { font-size: 22px; flex-shrink: 0; }
+  .relationship-text { font-size: 13px; line-height: 1.45; color: var(--text-2); }
+  .relationship-text b { color: var(--text-1); font-weight: 700; }
+
+  .relationship-cancel {
+    margin-top: 4px;
+    padding: 10px;
+    background: none;
+    border: none;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-3);
+    cursor: pointer;
+    font-family: inherit;
   }
 
   /* ── States ── */

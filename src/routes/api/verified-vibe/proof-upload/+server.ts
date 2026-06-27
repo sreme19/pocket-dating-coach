@@ -231,12 +231,18 @@ For DL: extract the vehicle classes (COV field) and use a label like "Licensed L
 For property: city, type (apartment/villa/commercial).
 For company: company name, type (Pvt Ltd / LLP / LLC).
 
-Also extract documentName: the full name of the owner / licensee / authorised signatory printed on the document, or null if not visible.
+OWNERSHIP DETAILS (read carefully — these gate how much trust the asset earns):
+- documentName: the full name of the registered owner / licensee / authorised signatory printed on the document, or null if not visible.
+- lienHolder: any bank, NBFC, or financier named as hypothecation / lienholder / financier on the document (e.g. "HDFC Bank"), or null. NOTE: a car financed or leased in the owner's name still lists the PERSON as registered owner — in that case set documentName to the person and lienHolder to the bank; this is still personal ownership.
+- registeredToCompany: true ONLY if the registered owner is a company/organisation rather than a person, else false.
+
+OWNER-WITH-CAR PHOTO (optional supporting signal — never required):
+If one of the uploaded images is a PHOTO of a person posing with / sitting in / collecting a vehicle (i.e. a photo, not a document), set photoWithCar=true and photoCarMatchesDoc to true if that vehicle's make/model/colour is consistent with the documented car, false if it clearly differs, or null if you can't tell. If there is no such photo, set photoWithCar=false and photoCarMatchesDoc=null.
 
 Write one punchy "aggregated" sentence (8–12 words) suitable for a dating profile.
 
 YOU MUST return ONLY raw JSON — no explanation, no preamble, no markdown, no code fences. Start your response with { and end with }:
-{"verified":true,"documentName":"full name on document or null","insights":[{"label":"3-5 words e.g. 'BMW X5 owner'","emoji":"🚗"}],"aggregated":"e.g. 'Licensed driver with multi-vehicle authorisation across India'","assets":[{"type":"car","make":"","model":"","year":"","color":"","vehicleType":""}],"confidence":0.0-1.0,"reason":"one sentence"}
+{"verified":true,"documentName":"full name on document or null","lienHolder":"bank/financier name or null","registeredToCompany":false,"photoWithCar":false,"photoCarMatchesDoc":null,"insights":[{"label":"3-5 words e.g. 'BMW X5 owner'","emoji":"🚗"}],"aggregated":"e.g. 'Licensed driver with multi-vehicle authorisation across India'","assets":[{"type":"car","make":"","model":"","year":"","color":"","vehicleType":""}],"confidence":0.0-1.0,"reason":"one sentence"}
 Only populate fields you can actually read. For a DL with no RC, omit make/model and set type to "car" with vehicleType matching the COV class.`,
 
   travel: `You are reviewing 1–20 travel proof images for a dating-app "Travel Magnets" section.
@@ -388,6 +394,52 @@ function docNameMatches(idName?: string, documentName?: string): boolean | null 
   return docTokens.some(t => idTokens.has(t));
 }
 
+// ── Asset ownership classification (Garage) ───────────────────────────────────
+// An asset doc only earns FULL trust when the registered-owner name on it matches
+// the user's verified government-ID name. Real-world owners often legitimately
+// hold a car under a company, a family member, or a financier — those earn
+// reduced trust and are flagged. A genuinely different name with no declared
+// relationship is sent back through the relationship picker so the user can retry.
+type OwnershipTier = 'self' | 'linked' | 'unconfirmed' | 'unrelated';
+
+/** Fraction of the assets trust boost each ownership tier earns (mirrored in trust-recompute). */
+const OWNERSHIP_TRUST_FACTOR: Record<OwnershipTier, number> = {
+  self: 1.0, linked: 0.5, unconfirmed: 0.5, unrelated: 0,
+};
+
+const VALID_RELATIONSHIPS = new Set(['company', 'family', 'financed', 'other']);
+
+function classifyOwnership(opts: {
+  idName?: string;
+  ownerName?: string;
+  declaredRelationship?: string;
+  registeredToCompany?: boolean;
+}): { tier: OwnershipTier; requiresRelationship: boolean; reason: string } {
+  const declared = (opts.declaredRelationship ?? '').trim().toLowerCase();
+  const relationship = VALID_RELATIONSHIPS.has(declared) ? declared : '';
+  const match = docNameMatches(opts.idName, opts.ownerName);
+
+  // Name on the document matches the verified ID — full ownership (financed/leased
+  // in the owner's own name lands here too, since the person is still the owner).
+  if (match === true) {
+    return { tier: 'self', requiresRelationship: false, reason: 'Ownership name matches your verified ID.' };
+  }
+  // Name clearly differs.
+  if (match === false) {
+    if (relationship) {
+      const label = relationship === 'financed' ? 'a financed/leased vehicle' : `a ${relationship}-owned vehicle`;
+      return { tier: 'linked', requiresRelationship: false, reason: `Recorded as ${label} — verified at reduced trust and flagged for review.` };
+    }
+    return { tier: 'unrelated', requiresRelationship: true, reason: 'The name on this document does not match your verified government ID.' };
+  }
+  // match === null → couldn't read a name to compare. The relationship picker
+  // can't help (there's no different name to explain), so don't gate on it.
+  if (opts.registeredToCompany || relationship) {
+    return { tier: 'linked', requiresRelationship: false, reason: 'Ownership is linked, not personal — verified at reduced trust and flagged for review.' };
+  }
+  return { tier: 'unconfirmed', requiresRelationship: false, reason: 'Could not read the owner name to confirm ownership — verified at reduced trust.' };
+}
+
 async function persistInsight(userId: string, category: string, pts: number, data: object) {
   try {
     const supabase = getSupabase();
@@ -418,6 +470,11 @@ async function persistInsight(userId: string, category: string, pts: number, dat
       }
       if (Array.isArray(d.assets) && (d.assets as unknown[]).length > 0) {
         newEntry.assets = d.assets;
+      }
+      // Garage ownership tier — carried onto the public-profile reader so it can
+      // gate display, and onto the proof row trust-recompute reads to scale points.
+      if (typeof d.ownershipTier === 'string') {
+        newEntry.ownershipTier = d.ownershipTier;
       }
       if (Array.isArray(d.thumbnail_urls) && (d.thumbnail_urls as unknown[]).length > 0) {
         newEntry.thumbnail_urls = d.thumbnail_urls;
@@ -534,6 +591,98 @@ async function persistInsight(userId: string, category: string, pts: number, dat
   } catch (e) { console.warn(`proof-upload DB persist failed (${category}):`, e); }
 }
 
+/**
+ * Finalize an `assets` (Garage) upload: classify ownership against the verified
+ * gov-ID, persist at the right trust tier, or bounce back to the relationship
+ * picker. Shared by the image path and the PDF (RC/title) path. Assets are
+ * use-and-discard — the source document is never stored or shown.
+ */
+async function finalizeAssets(parsed: any, ctx: {
+  userId: string | null;
+  pts: number;
+  verifiedId: { idName?: string } | null;
+  relationship: string;
+  fileCount: number;
+}) {
+  if (!parsed) {
+    return json({ error: 'Analysis unavailable — try again' }, { status: 503 });
+  }
+
+  const verified = parsed.verified !== false;
+  const insights = (Array.isArray(parsed.insights) ? parsed.insights : [])
+    .filter((i: any) => i?.label && i?.emoji).slice(0, 5);
+  if (verified && insights.length === 0) insights.push({ label: 'Ownership verified', emoji: '🚗' });
+  const assets       = Array.isArray(parsed.assets) ? parsed.assets : [];
+  const crossSignals = sanitizeCrossSignals(parsed.crossSignals, 'assets');
+  const ownerName    = typeof parsed.documentName === 'string' && parsed.documentName.trim() ? parsed.documentName.trim() : undefined;
+
+  // Owner-with-car photo: optional supporting signal only. Corroborated when the
+  // photographed vehicle matches the documented car. Never stored, never shown.
+  const photoWithCar      = parsed.photoWithCar === true;
+  const photoCorroborated = photoWithCar && parsed.photoCarMatchesDoc === true;
+  const photoCarMismatch  = photoWithCar && parsed.photoCarMatchesDoc === false;
+
+  if (!verified) {
+    return json({
+      verified: false, insights: [], pts_awarded: 0, photo_count: ctx.fileCount,
+      confidence: parsed.confidence ?? 0,
+      reason: parsed.reason ?? 'We couldn\'t verify this as a genuine ownership document.',
+    });
+  }
+
+  const { tier, requiresRelationship, reason } = classifyOwnership({
+    idName: ctx.verifiedId?.idName,
+    ownerName,
+    declaredRelationship: ctx.relationship,
+    registeredToCompany: parsed.registeredToCompany === true,
+  });
+
+  // UNRELATED + no relationship declared yet → don't persist or award. Ask the
+  // owner to declare the relationship via the picker so they can retry. (Logged
+  // for now — no admin review UI.)
+  if (requiresRelationship) {
+    console.warn(`[assets ownership] UNRELATED user=${ctx.userId} idName="${ctx.verifiedId?.idName ?? ''}" ownerName="${ownerName ?? ''}"`);
+    return json({
+      verified: false,
+      ownershipTier: tier,
+      requiresRelationship: true,
+      ownerName: ownerName ?? null,
+      reason,
+      pts_awarded: 0,
+      photo_count: ctx.fileCount,
+    });
+  }
+
+  // Classification log (no admin UI yet — flagged tiers are logged + stored).
+  console.log(`[assets ownership] user=${ctx.userId} tier=${tier} relationship="${ctx.relationship}" lien="${parsed.lienHolder ?? ''}" company=${parsed.registeredToCompany === true} photoCorroborated=${photoCorroborated} photoCarMismatch=${photoCarMismatch}`);
+
+  if (ctx.userId) {
+    await persistInsight(ctx.userId, 'assets', ctx.pts, {
+      insights, aggregated: parsed.aggregated, assets, crossSignals,
+      confidence: parsed.confidence, reason: parsed.reason,
+      pts_awarded: ctx.pts, photo_count: ctx.fileCount,
+      ownershipTier: tier,
+      ownerName: ownerName ?? null,
+      lienHolder: parsed.lienHolder ?? null,
+      registeredToCompany: parsed.registeredToCompany === true,
+      ownershipRelationship: ctx.relationship || null,
+      photoCorroborated,
+      ...(photoCarMismatch ? { photoCarMismatch: true } : {}),
+      ...(tier !== 'self' ? { ownershipFlagged: true } : {}),
+    });
+  }
+
+  return json({
+    verified: true,
+    insights, aggregated: parsed.aggregated ?? '', assets, crossSignals,
+    pts_awarded: ctx.pts, photo_count: ctx.fileCount,
+    confidence: parsed.confidence ?? 0.85, reason: parsed.reason ?? '',
+    ownershipTier: tier, ownershipReason: reason,
+    photoCorroborated,
+    thumbnail_urls: [],   // assets are use-and-discard — never stored or shown
+  });
+}
+
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -542,6 +691,9 @@ export const POST: RequestHandler = async ({ request }) => {
     const category   = (formData.get('category') as string | null)?.trim() ?? '';
     const profileUrl = (formData.get('profile_url') as string | null)?.trim() ?? '';
     const files      = formData.getAll('files') as File[];
+    // Declared ownership relationship for assets when the doc name isn't the user's
+    // (company / family / financed / other) — set by the relationship picker.
+    const relationship = (formData.get('relationship') as string | null)?.trim() ?? '';
 
     if (!PROMPTS[category]) {
       return json({ error: `Unknown category: ${category}` }, { status: 400 });
@@ -681,6 +833,15 @@ export const POST: RequestHandler = async ({ request }) => {
       });
     }
 
+    // Assets (RC / title / ownership papers) uploaded as PDF. Previously these
+    // fell through to the image-only Vision path and failed ("No valid images").
+    // Send the PDF(s) to Claude, then run ownership classification.
+    if (hasPdf && category === 'assets') {
+      const pdfFiles = files.filter(f => f.type === 'application/pdf');
+      const parsed   = await callClaudeWithPdfs(pdfFiles, PROMPTS.assets);
+      return await finalizeAssets(parsed, { userId, pts, verifiedId, relationship, fileCount: files.length });
+    }
+
     // ── 4. Dev bypass ─────────────────────────────────────────────────────────
     if (import.meta.env.VITE_SKIP_VERIFICATION === 'true') {
       const MOCK: Record<string, Array<{ label: string; emoji: string }>> = {
@@ -770,6 +931,12 @@ export const POST: RequestHandler = async ({ request }) => {
       console.error('Non-JSON from Claude:', cleaned);
       // Last resort: return a graceful failure rather than a hard error
       return json({ error: 'Analysis returned unexpected format', hint: 'Try a clearer photo of the document' }, { status: 422 });
+    }
+
+    // Assets get tier-based ownership classification and use-and-discard handling
+    // (no public storage), so they bypass the generic verify/persist path below.
+    if (category === 'assets') {
+      return await finalizeAssets(result, { userId, pts, verifiedId, relationship, fileCount: files.length });
     }
 
     const verified          = result.verified === true;

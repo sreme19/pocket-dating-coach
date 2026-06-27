@@ -1238,9 +1238,15 @@ MediaType _mimeOf(String path) {
 
 /// Upload a proof artifact (multipart) for a category → returns the API result
 /// ({verified, insights, pts_awarded, aggregated, ...}).
-Future<Map> uploadProof(String category, List<String> filePaths) async {
+Future<Map> uploadProof(String category, List<String> filePaths,
+    {String? relationship}) async {
   final form = FormData();
   form.fields.add(MapEntry('category', category));
+  // Declared ownership relationship for assets not in the user's own name
+  // (company / family / financed / other) — set by the relationship picker.
+  if (relationship != null && relationship.isNotEmpty) {
+    form.fields.add(MapEntry('relationship', relationship));
+  }
   for (final path in filePaths) {
     form.files.add(MapEntry('files',
         await MultipartFile.fromFile(path, contentType: _mimeOf(path))));

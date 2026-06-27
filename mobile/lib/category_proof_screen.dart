@@ -429,6 +429,69 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
   }
 
   // ── 2-step ID gate: (1) upload government ID → extract name, (2) selfie → face match ──
+  /// Relationship picker for an asset whose registered name isn\'t the user\'s.
+  /// On selection, closes and retries the upload at the reduced "linked" tier.
+  Future<void> _showRelationshipSheet({required String ownerName, required String reason}) async {
+    Widget option(String emoji, String title, String desc, String value) => InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () {
+        Navigator.of(context).pop();
+        _analyse(relationship: value);
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(Config.bg2),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0x181B1020)),
+        ),
+        child: Row(children: [
+          Text(emoji, style: const TextStyle(fontSize: 22)),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+            const SizedBox(height: 2),
+            Text(desc, style: const TextStyle(fontSize: 12, color: Color(Config.text2), height: 1.4)),
+          ])),
+        ]),
+      ),
+    );
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(Config.bg1),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.fromLTRB(16, 20, 16, 20 + MediaQuery.of(ctx).viewInsets.bottom),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('🚗  Whose name is on this document?',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: Color(Config.text1))),
+          const SizedBox(height: 8),
+          Text(
+            'The registered name${ownerName.isNotEmpty ? ' ("$ownerName")' : ''} doesn\'t match your verified ID. '
+            'Tell us how this asset is connected to you — assets not in your own name are verified at reduced trust and flagged for review.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 13, color: Color(Config.text2), height: 1.5),
+          ),
+          const SizedBox(height: 16),
+          option('🏢', 'My company owns it', 'Registered to a business I run or represent', 'company'),
+          option('👪', 'A family member', 'Registered to a parent, spouse, or household member', 'family'),
+          option('🏦', 'Financed or leased', 'Held by a bank or leasing company', 'financed'),
+          option('↩️', 'Something else', 'Another legitimate connection', 'other'),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('This isn\'t my asset — cancel',
+              style: TextStyle(fontSize: 12.5, color: Color(Config.text3), fontWeight: FontWeight.w600)),
+          ),
+        ]),
+      ),
+    );
+  }
+
   Future<void> _showIdGateSheet() async {
     // Shared state
     int step = 1; // 1 = upload ID, 2 = take selfie
@@ -679,7 +742,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
     if (mounted) _analyse();
   }
 
-  Future<void> _analyse() async {
+  Future<void> _analyse({String? relationship}) async {
     if (!_canAnalyse) return;
     setState(() { _analysing = true; _result = null; });
     try {
@@ -696,7 +759,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
           res = await uploadProofWithUrl(widget.categoryId, url, _resumeImages.first.path);
         } else if (_resumeImages.isNotEmpty) {
           final paths = _resumeImages.map((f) => f.path).toList();
-          res = await uploadProof(widget.categoryId, paths);
+          res = await uploadProof(widget.categoryId, paths, relationship: relationship);
         } else if (url.isNotEmpty && _files.isEmpty && _pdfFiles.isEmpty) {
           res = await uploadProofUrl(widget.categoryId, url);
         } else {
@@ -704,13 +767,27 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
             ..._files.map((f) => f.path),
             ..._pdfFiles.map((p) => p.path!).where((p) => p.isNotEmpty),
           ];
-          res = await uploadProof(widget.categoryId, paths);
+          res = await uploadProof(widget.categoryId, paths, relationship: relationship);
         }
       }
       // Gated categories (spending/wealth/assets) require ID verification first
       if (res['requiresIdVerification'] == true) {
         setState(() { _analysing = false; });
         if (mounted) await _showIdGateSheet();
+        return;
+      }
+
+      // Asset ownership doc name didn't match the verified ID — ask the owner to
+      // declare the relationship (company / family / financed), then retry at the
+      // reduced "linked" trust tier.
+      if (res['requiresRelationship'] == true) {
+        setState(() { _analysing = false; });
+        if (mounted) {
+          await _showRelationshipSheet(
+            ownerName: (res['ownerName'] ?? '').toString(),
+            reason: (res['reason'] ?? '').toString(),
+          );
+        }
         return;
       }
 
@@ -723,6 +800,10 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
       final aggRaw = (res['aggregated'] ?? '').toString().trim();
       final agg = aggRaw.isNotEmpty ? aggRaw : (res['reason'] ?? '').toString().trim();
       final nameMismatch = res['nameMatch'] == false;
+      // Garage ownership tier: anything other than 'self' earned reduced trust.
+      final ownershipTier = res['ownershipTier']?.toString();
+      final ownershipReduced = ownershipTier != null && ownershipTier != 'self';
+      final ownershipReason = (res['ownershipReason'] ?? '').toString().trim();
       final chips = <String>[];
       if (res['insights'] is List) {
         for (final i in (res['insights'] as List)) {
@@ -732,13 +813,16 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
       final baseText = verified
           ? '✓ ${_cfg.title} verified · +$pts trust${agg.isNotEmpty ? '\n$agg' : ''}'
           : 'Couldn\'t verify.${agg.isNotEmpty ? '\n$agg' : ''}';
+      final ownershipNote = ownershipReduced
+          ? '\n\n⚠️ ${ownershipReason.isNotEmpty ? ownershipReason : 'Ownership is linked, not personal — verified at reduced trust and flagged for review.'}'
+          : (nameMismatch
+              ? '\n\n⚠️ The name on this document doesn\'t match your verified ID, so it\'s flagged for review. Upload documents in your own name to earn full trust.'
+              : '');
       setState(() {
         _analysing = false;
         _result = _UploadResult(
           verified: verified,
-          text: nameMismatch
-              ? '$baseText\n\n⚠️ The name on this document doesn\'t match your verified ID, so it\'s flagged for review. Upload documents in your own name to earn full trust.'
-              : baseText,
+          text: '$baseText$ownershipNote',
           chips: chips,
         );
       });
