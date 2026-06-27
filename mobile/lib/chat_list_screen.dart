@@ -103,10 +103,13 @@ class _ChatListScreenState extends State<ChatListScreen>
           Navigator.pop(context);
           // Navigate to verification screen; re-check FM eligibility when done.
           Navigator.of(context).push(MaterialPageRoute(
-            builder: (_) => const VerificationScreen(),
-          )).then((_) {
-            if (mounted) _loadMatchmakerStatus();
-          });
+            builder: (_) => VerificationScreen(
+              onDone: () {
+                Navigator.of(context).pop();
+                if (mounted) _loadMatchmakerStatus();
+              },
+            ),
+          ));
         },
         onOpenChat: (matchId, firstName, age) {
           Navigator.pop(context);
