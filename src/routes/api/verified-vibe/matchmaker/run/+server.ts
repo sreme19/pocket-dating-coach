@@ -20,6 +20,8 @@ import { runAllMatchScores } from '$lib/server/match-scoring';
 import { runVectorBackfill, computeUserVectors } from '$lib/server/vector-builder';
 import { runShadowScoring, diffScores } from '$lib/server/vector-scoring-shadow';
 import { runVectorMatchmaker } from '$lib/server/vector-matchmaker';
+import { refreshPoolEntry } from '$lib/server/pool-registry';
+import { getSupabase } from '$lib/server/supabase';
 import { MATCHMAKER_RUN_SECRET } from '$env/static/private';
 import { env } from '$env/dynamic/private';
 import { logAppError } from '$lib/server/logAppError';
@@ -33,7 +35,8 @@ export const POST: RequestHandler = async ({ request }) => {
       secret?: string;
       cityScoped?: boolean;
       task?: 'trust-normalize' | 'match-scores' | 'build-vectors' | 'inspect-vectors'
-        | 'score-vectors-shadow' | 'diff-scores' | 'match-v2-dryrun' | 'match-v2';
+        | 'score-vectors-shadow' | 'diff-scores' | 'match-v2-dryrun' | 'match-v2'
+        | 'backfill-profile-fields';
       userId?: string;
       userIds?: string[];
       includeSeed?: boolean;
@@ -100,6 +103,34 @@ export const POST: RequestHandler = async ({ request }) => {
     if (body.task === 'match-scores') {
       const result = await runAllMatchScores();
       return json({ task: 'match-scores', ...result });
+    }
+
+    // Backfill the user-facing "Here For" + "Hard nos" columns from onboarding by
+    // re-running refreshPoolEntry for every enrolled user. Idempotent: it only
+    // seeds columns the owner left blank, never overwrites edits. Synchronous,
+    // no LLM (pure derivation). Optional `userId` scopes it to one user.
+    if (body.task === 'backfill-profile-fields') {
+      const db = getSupabase() as any;
+      let q = db.from('verified_vibe_users').select('id').in('gender', ['man', 'woman']);
+      if (body.userId) q = q.eq('id', body.userId);
+      const { data: users } = await q;
+      let hereForCount = 0, hardNosCount = 0;
+      for (const u of users ?? []) {
+        await refreshPoolEntry(u.id);
+        const { data: after } = await db
+          .from('verified_vibe_users')
+          .select('here_for_title, here_for_desc, hard_nos')
+          .eq('id', u.id)
+          .single();
+        if (`${after?.here_for_title ?? ''}`.trim() || `${after?.here_for_desc ?? ''}`.trim()) hereForCount++;
+        if (Array.isArray(after?.hard_nos) && after.hard_nos.length > 0) hardNosCount++;
+      }
+      return json({
+        task: 'backfill-profile-fields',
+        total: users?.length ?? 0,
+        withHereFor: hereForCount,
+        withHardNos: hardNosCount,
+      });
     }
 
     const cityScoped = body.cityScoped ?? false;

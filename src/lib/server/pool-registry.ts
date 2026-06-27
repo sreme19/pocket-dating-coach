@@ -362,10 +362,20 @@ export function resolveHardNos(
 // archetype itself IS the intent) a fixed archetype phrase. The fallback can
 // never override a real answer — it only fills a void.
 
+// Lane defaults for the "Here For" intent line. The design contract is that when
+// the owner hasn't stated an explicit intent, the default comes from the lane —
+// so every archetype has a fallback phrase here, not just the casual lanes. These
+// only fill a void; a real onboarding intent answer always wins (see deriveIntent).
 const ARCHETYPE_INTENT_FALLBACK: Record<string, string> = {
-  casual_generous:   'Casual, no-strings — experiences and generosity over labels',
-  spoiled_casual:    'Casual, no-strings — wants to be treated well, no labels',
-  hopeless_romantic: 'Serious, emotionally deep relationship',
+  casual_generous:      'Casual, no-strings — experiences and generosity over labels',
+  spoiled_casual:       'Casual, no-strings — wants to be treated well, no labels',
+  hopeless_romantic:    'Serious, emotionally deep relationship',
+  forever_focused:      'Serious, long-term — ready to build something real',
+  rebound_healing:      'Taking it slow — healing, open to what grows',
+  second_chapter:       'A fresh, intentional second chapter',
+  untouched_heart:      'A genuine first connection, no rush',
+  just_friends:         'Friendship-first, no pressure',
+  traditional_matrimony:'Marriage-minded and family-aligned',
 };
 
 /** Onboarding answer keys that state relationship goal/timeline, per archetype. */
@@ -554,7 +564,7 @@ export async function refreshPoolEntry(userId: string): Promise<void> {
 
   const { data: user, error: userErr } = await db
     .from('verified_vibe_users')
-    .select('archetype, trust_score, city, gender, hard_nos')
+    .select('archetype, trust_score, city, gender, hard_nos, here_for_title, here_for_desc')
     .eq('id', userId)
     .single();
 
@@ -584,6 +594,27 @@ export async function refreshPoolEntry(userId: string): Promise<void> {
     await db.from('verified_vibe_users')
       .update({ hard_nos: hardNos })
       .eq('id', userId);
+  }
+
+  // Seed the user-facing "Here For" columns from onboarding when the owner hasn't
+  // written their own (mirrors the hard_nos seed above). Title = the derived
+  // relationship intent (archetype intent answer, or a lane fallback); description
+  // = their "what you're looking for" picks. A non-empty column is owner-owned and
+  // never overwritten — so a user who clears it deliberately gets re-seeded, same
+  // trade-off as hard_nos.
+  const hereForEmpty =
+    !`${user.here_for_title ?? ''}`.trim() && !`${user.here_for_desc ?? ''}`.trim();
+  if (hereForEmpty) {
+    const intent = deriveIntent(user.archetype, a);
+    const desc   = toSignalArray(a.what_you_seek).join(' · ');
+    if (intent || desc) {
+      await db.from('verified_vibe_users')
+        .update({
+          here_for_title: intent || null,
+          here_for_desc:  desc   || null,
+        })
+        .eq('id', userId);
+    }
   }
 
   const trustBand    = getTrustScoreBand(user.trust_score ?? 0);
