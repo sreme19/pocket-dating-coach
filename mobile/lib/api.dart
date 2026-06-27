@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:http_parser/http_parser.dart' show MediaType;
 // hide MultipartFile + MediaType: both dio and supabase export them; we use dio's.
 import 'package:supabase_flutter/supabase_flutter.dart' hide MultipartFile;
+import 'app_logger.dart';
 import 'config.dart';
 
 /// The user's profile, assembled from the same two sources the web app uses:
@@ -145,18 +146,22 @@ class ProfileData {
   });
 }
 
-final _dio = Dio(BaseOptions(
-  connectTimeout: const Duration(seconds: 15),
-  receiveTimeout: const Duration(seconds: 20),
-  // SvelteKit CSRF protection blocks multipart/form-data POSTs without a matching
-  // Origin header (it only exempts application/json). Native apps never send Origin,
-  // so we must set it explicitly to match the server's own host.
-  headers: {
-    'Origin': 'https://pocket-dating-coach.vercel.app',
-    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) '
-        'AppleWebKit/605.1.15 (like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-  },
-));
+final _dio = () {
+  final d = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 15),
+    receiveTimeout: const Duration(seconds: 20),
+    // SvelteKit CSRF protection blocks multipart/form-data POSTs without a matching
+    // Origin header (it only exempts application/json). Native apps never send Origin,
+    // so we must set it explicitly to match the server's own host.
+    headers: {
+      'Origin': 'https://pocket-dating-coach.vercel.app',
+      'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) '
+          'AppleWebKit/605.1.15 (like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+    },
+  ));
+  AppLogger.instance.attachToDio(d);
+  return d;
+}();
 
 int _asInt(dynamic v) => v is num ? v.toInt() : (int.tryParse('$v') ?? 0);
 
