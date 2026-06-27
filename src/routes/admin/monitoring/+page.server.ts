@@ -84,7 +84,8 @@ async function sendManualCheckAlert(
 	});
 }
 
-export const load: PageServerLoad = async () => {
+export const load: PageServerLoad = async ({ depends }) => {
+	depends('app:monitoring');
 	const sb = getSupabase() as any;
 
 	// Last 500 server health log entries

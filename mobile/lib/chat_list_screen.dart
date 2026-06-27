@@ -8,6 +8,7 @@ import 'archetypes.dart';
 import 'config.dart';
 import 'conversation_screen.dart';
 import 'advisor_screen.dart';
+import 'verification_screen.dart';
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
@@ -101,7 +102,9 @@ class _ChatListScreenState extends State<ChatListScreen>
         onGoVerify: () {
           Navigator.pop(context);
           // Navigate to verification screen; re-check FM eligibility when done.
-          Navigator.of(context).pushNamed('/verification').then((_) {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => const VerificationScreen(),
+          )).then((_) {
             if (mounted) _loadMatchmakerStatus();
           });
         },
