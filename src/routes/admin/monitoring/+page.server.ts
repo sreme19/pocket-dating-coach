@@ -87,7 +87,7 @@ async function sendManualCheckAlert(
 export const load: PageServerLoad = async () => {
 	const sb = getSupabase() as any;
 
-	// Last 500 log entries (include metadata for app_error detail)
+	// Last 500 server health log entries
 	const { data: logs } = await sb
 		.from('monitor_log')
 		.select('id, check_name, status, response_time_ms, error_message, metadata, created_at')
@@ -110,6 +110,27 @@ export const load: PageServerLoad = async () => {
 			stack?: string | null;
 			[key: string]: unknown;
 		} | null;
+		created_at: string;
+	}[];
+
+	// Last 300 mobile error events
+	const { data: mobileErrors } = await sb
+		.from('mobile_event_log')
+		.select('id, user_id, event_type, screen, action, error_message, error_type, metadata, app_version, created_at')
+		.eq('event_type', 'error')
+		.order('created_at', { ascending: false })
+		.limit(300);
+
+	const mobileRows = (mobileErrors ?? []) as {
+		id: string;
+		user_id: string | null;
+		event_type: string;
+		screen: string | null;
+		action: string | null;
+		error_message: string | null;
+		error_type: string | null;
+		metadata: { stack?: string; [key: string]: unknown } | null;
+		app_version: string | null;
 		created_at: string;
 	}[];
 
@@ -158,7 +179,7 @@ export const load: PageServerLoad = async () => {
 		avgMs: s.avgMs,
 	}));
 
-	return { logs: rows, summary };
+	return { logs: rows, summary, mobileErrors: mobileRows };
 };
 
 // ── Manual health check action ─────────────────────────────────────────────
