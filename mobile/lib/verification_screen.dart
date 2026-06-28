@@ -287,7 +287,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         final a = int.tryParse(_ageCtrl.text.trim());
         return _photoCount > 0
             && _nameCtrl.text.trim().isNotEmpty
-            && a != null && a >= 18 && a <= 120
+            && a != null && a >= 18 && a <= 99
             && _cityCtrl.text.trim().isNotEmpty;
       default: return false;
     }

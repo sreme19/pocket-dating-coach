@@ -6,6 +6,7 @@
    * uses the real Supabase session token, not the legacy mock settings store.
    */
   import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import { getSupabaseClient } from '$lib/client/supabase';
 
   type Dim = { id: string; label: string; cls: 'open' | 'sensitive'; blurb: string };
@@ -18,6 +19,9 @@
   let importance = $state<Record<string, number>>({});
   let max = $state(5);
   let source = $state<string | null>(null);
+  // Onboarding mode (?onboarding=1): final new-user step — advances into the app
+  // after save and offers a skip so it's never a trap (parity with Flutter).
+  let onboarding = $state(false);
 
   const LABELS = ['Skip', 'Low', 'Some', 'Matters', 'A lot', 'Must-have'];
 
@@ -27,6 +31,7 @@
   }
 
   onMount(async () => {
+    onboarding = new URLSearchParams(window.location.search).get('onboarding') === '1';
     try {
       const t = await token();
       if (!t) { error = 'Please sign in.'; loading = false; return; }
@@ -59,6 +64,7 @@
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       saved = true; source = 'explicit';
+      if (onboarding) { goto('/verified-vibe/discover'); return; }
     } catch (e) {
       error = `Could not save: ${e instanceof Error ? e.message : e}`;
     } finally {
@@ -112,8 +118,11 @@
     {#if saved}<p class="ok">Saved — your matches will weight what matters to you.</p>{/if}
 
     <button class="save" onclick={save} disabled={saving}>
-      {saving ? 'Saving…' : 'Save what matters'}
+      {saving ? 'Saving…' : onboarding ? 'Save & continue' : 'Save what matters'}
     </button>
+    {#if onboarding}
+      <button class="skip" type="button" onclick={() => goto('/verified-vibe/discover')}>Skip for now</button>
+    {/if}
   {/if}
 </div>
 
@@ -139,4 +148,6 @@
   .save { width: 100%; height: 52px; margin-top: 20px; border: none; border-radius: 999px;
           background: var(--accent); color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; }
   .save:disabled { opacity: 0.6; cursor: default; }
+  .skip { display: block; width: 100%; margin-top: 12px; background: none; border: none;
+          color: var(--text-2); font-size: 14px; cursor: pointer; }
 </style>

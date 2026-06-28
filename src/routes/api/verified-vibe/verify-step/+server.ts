@@ -13,6 +13,7 @@ import {
 } from '$lib/verified-vibe/server/verification';
 import { enrollInPoolIfVerified } from '$lib/server/pool-registry';
 import { recomputeAndNormalize } from '$lib/server/trust-normalize';
+import { scheduleVectorRebuild } from '$lib/server/vector-rebuild';
 
 /**
  * POST /api/verified-vibe/verify-step
@@ -114,6 +115,8 @@ async function persistVerificationStep(
       );
     // Recompute + normalize trust score after every verification step
     recomputeAndNormalize(userId).catch((e) => console.warn('trust recompute failed (non-fatal):', e));
+    // Live vector propagation (§11g): proofs change confidence → rebuild vectors.
+    scheduleVectorRebuild(userId);
   } catch (e) {
     console.error('persistVerificationStep error (non-fatal):', e);
   }

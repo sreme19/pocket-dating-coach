@@ -22,6 +22,7 @@ import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/publi
 import { createClient } from '@supabase/supabase-js';
 import { getSupabase } from '$lib/server/supabase';
 import { recomputeAndNormalize } from '$lib/server/trust-normalize';
+import { scheduleVectorRebuild } from '$lib/server/vector-rebuild';
 // pdf-parse kept as dep for potential future text pre-processing;
 // primary PDF analysis now goes through Anthropic's native PDF document type
 
@@ -588,6 +589,9 @@ async function persistInsight(userId: string, category: string, pts: number, dat
 
     // 3. Recompute raw trust + normalize after proof update (single source of truth)
     await recomputeAndNormalize(userId);
+    // 4. Live vector propagation (§11g): a verified proof raises dimension confidence,
+    //    so rebuild this user's vectors → Profile Strength / appeal update promptly.
+    scheduleVectorRebuild(userId);
   } catch (e) { console.warn(`proof-upload DB persist failed (${category}):`, e); }
 }
 

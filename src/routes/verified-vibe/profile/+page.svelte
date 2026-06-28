@@ -1915,6 +1915,20 @@
     { category: 'Lifestyle', score: trustScoreBreakdown.photoScore, max: 100, items: ['Photo Consistency', 'Self-Presentation'] },
     { category: 'Intent', score: trustScoreBreakdown.qaScore, max: 100, items: ['Q&A Complete', 'Authentic Responses'] }
   ]);
+
+  // Profile Strength band (§8) — promoted onto the profile from Settings so the
+  // "climb" loop is visible where users live. Mirrors the Flutter card; reads the
+  // same ungated endpoint. Stays hidden until vectors exist (graceful pre-backfill).
+  let psCard = $state<any>(null);
+  onMount(async () => {
+    try {
+      const { data: { session } } = await getSupabaseClient().auth.getSession();
+      const t = session?.access_token;
+      if (!t) return;
+      const res = await fetch('/api/verified-vibe/profile-strength', { headers: { Authorization: `Bearer ${t}` } });
+      if (res.ok) psCard = await res.json();
+    } catch { /* silent — card simply stays hidden */ }
+  });
   let showEditQAModal = $state(false);
 
   const about = $derived(generated?.about ?? draft?.about ?? $user?.about ?? '');
@@ -2354,6 +2368,22 @@
         <div class="hero-stat-hint">proofs</div>
       </div>
     </div>
+
+    <!-- Profile Strength band (§8) — promoted from Settings; hidden pre-backfill -->
+    {#if psCard?.hasVectors}
+      <a class="ps-card" href="/verified-vibe/settings/profile-strength">
+        <div class="ps-card-head">
+          <span class="ps-card-eyebrow">Profile Strength</span>
+          <span class="ps-card-chevron">›</span>
+        </div>
+        <div class="ps-card-band">{psCard.band}</div>
+        <div class="ps-card-bar"><div class="ps-card-fill" style="width:{psCard.nextBand ? Math.max(4, psCard.progressInBand * 100) : 100}%"></div></div>
+        <p class="ps-card-hint">
+          {#if !psCard.nextBand}Top tier — keep your proofs fresh.
+          {:else}{psCard.pointsToNextBand} to go to “{psCard.nextBand}.”{#if psCard.verificationUpside?.deltaPS > 0}<span class="ps-card-locked"> 🔓 +{Math.round(psCard.verificationUpside.deltaPS)} locked — verify to claim it.</span>{/if}{/if}
+        </p>
+      </a>
+    {/if}
 
     <!-- Tab Content -->
     {#if activeTab === 'public'}
@@ -4547,6 +4577,25 @@
     background: var(--border-1);
     margin: 4px 0;
   }
+
+  /* Profile Strength band card (promoted from Settings, §8) */
+  .ps-card {
+    display: block;
+    text-decoration: none;
+    margin: 14px 16px 0;
+    padding: 16px;
+    border-radius: 16px;
+    border: 1px solid var(--accent-tint);
+    background: linear-gradient(135deg, var(--accent-tint), var(--bg-2));
+  }
+  .ps-card-head { display: flex; align-items: center; justify-content: space-between; }
+  .ps-card-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-2); }
+  .ps-card-chevron { color: var(--text-2); font-size: 18px; line-height: 1; }
+  .ps-card-band { font-size: 22px; font-weight: 800; letter-spacing: -0.3px; color: var(--accent-bright); margin: 6px 0 12px; }
+  .ps-card-bar { height: 7px; border-radius: 99px; background: color-mix(in srgb, var(--accent) 20%, transparent); overflow: hidden; }
+  .ps-card-fill { height: 100%; background: var(--accent); border-radius: 99px; }
+  .ps-card-hint { color: var(--text-2); font-size: 12.5px; line-height: 1.4; margin: 8px 0 0; }
+  .ps-card-locked { color: var(--accent-bright); font-weight: 600; }
 
   @media (min-width: 768px) {
     .hero-wrap {

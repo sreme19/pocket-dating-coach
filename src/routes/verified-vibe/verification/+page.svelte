@@ -693,7 +693,7 @@
       verificationStep.set(currentStep);
     } else {
       setPhase('app');
-      goto('/verified-vibe/discover');
+      goto('/verified-vibe/settings/preferences?onboarding=1');
     }
   }
 
@@ -775,7 +775,7 @@
       } else {
         // All steps complete
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -841,7 +841,7 @@
       } else {
         // All steps complete
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1040,7 +1040,7 @@
       verificationStep.set(currentStep);
     } else {
       setPhase('app');
-      goto('/verified-vibe/discover');
+      goto('/verified-vibe/settings/preferences?onboarding=1');
     }
 
     // Fire-and-forget background sync — send the merged set so the server row
@@ -1087,7 +1087,7 @@
         verificationStep.set(currentStep);
       } else {
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1116,7 +1116,7 @@
         verificationStep.set(currentStep);
       } else {
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1141,7 +1141,7 @@
         verificationStep.set(currentStep);
       } else {
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1166,7 +1166,7 @@
         verificationStep.set(currentStep);
       } else {
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1191,7 +1191,7 @@
         verificationStep.set(currentStep);
       } else {
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1216,7 +1216,7 @@
         verificationStep.set(currentStep);
       } else {
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1241,7 +1241,7 @@
         verificationStep.set(currentStep);
       } else {
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1266,7 +1266,7 @@
         verificationStep.set(currentStep);
       } else {
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1291,7 +1291,7 @@
         verificationStep.set(currentStep);
       } else {
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1316,7 +1316,7 @@
         verificationStep.set(currentStep);
       } else {
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1341,7 +1341,7 @@
         verificationStep.set(currentStep);
       } else {
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1366,7 +1366,7 @@
         verificationStep.set(currentStep);
       } else {
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1391,7 +1391,7 @@
         verificationStep.set(currentStep);
       } else {
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1416,7 +1416,7 @@
         verificationStep.set(currentStep);
       } else {
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1441,7 +1441,7 @@
         verificationStep.set(currentStep);
       } else {
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1466,7 +1466,7 @@
         verificationStep.set(currentStep);
       } else {
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1491,7 +1491,7 @@
         verificationStep.set(currentStep);
       } else {
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1516,7 +1516,7 @@
         verificationStep.set(currentStep);
       } else {
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1541,7 +1541,7 @@
         verificationStep.set(currentStep);
       } else {
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1566,7 +1566,7 @@
         verificationStep.set(currentStep);
       } else {
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1695,7 +1695,7 @@
       } else {
         // All steps complete
         setPhase('app');
-        goto('/verified-vibe/discover');
+        goto('/verified-vibe/settings/preferences?onboarding=1');
       }
     } catch (err) {
       error = err instanceof Error ? err.message : 'An error occurred';
@@ -1734,7 +1734,7 @@
     } else {
       // All steps processed (some skipped)
       setPhase('app');
-      goto('/verified-vibe/discover');
+      goto('/verified-vibe/settings/preferences?onboarding=1');
     }
   }
 

@@ -34,8 +34,19 @@ android {
         versionName = flutter.versionName
     }
 
-    if (keyPropertiesFile.exists()) {
-        signingConfigs {
+    signingConfigs {
+        // Stable, repo-committed debug keystore so every build (CI included) is
+        // signed with the SAME certificate. Without this, CI runners generate a
+        // throwaway debug key each run, so Firebase tester APKs fail to update
+        // in place (signature mismatch) and testers keep running stale code.
+        getByName("debug") {
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+        }
+
+        if (keyPropertiesFile.exists()) {
             create("release") {
                 keyAlias = keyProperties["keyAlias"] as String
                 keyPassword = keyProperties["keyPassword"] as String
@@ -43,7 +54,9 @@ android {
                 storePassword = keyProperties["storePassword"] as String
             }
         }
+    }
 
+    if (keyPropertiesFile.exists()) {
         buildTypes {
             release {
                 signingConfig = signingConfigs.getByName("release")
