@@ -13,3 +13,7 @@ key.properties
 **/*.keystore
 **/*.jks
 upload-keystore.jks
+# Exception: the DEBUG keystore is intentionally committed so every build (CI
+# included) shares one signature — debug keys use fixed public credentials
+# (android/androiddebugkey) and are not secret. Release keys stay ignored above.
+!app/debug.keystore
