@@ -6,6 +6,7 @@ import 'archetypes.dart';
 import 'config.dart';
 import 'earn_profile_screen.dart';
 import 'pre_auth_lane_screen.dart';
+import 'preference_weighting_screen.dart';
 import 'verification_screen.dart';
 
 /// Gender chosen on the pre-auth gate. OnboardingFlow reads this to skip its
@@ -28,7 +29,7 @@ class OnboardingFlow extends StatefulWidget {
 }
 
 class _OnboardingFlowState extends State<OnboardingFlow> {
-  int _step = 0; // 0 gate, 1 lane, 2 verification
+  int _step = 0; // 0 gate, 1 lane, 2 earn, 3 verification, 4 preference weighting
   String _gender = 'man';
   bool _over18 = false;
   bool _saving = false;
@@ -85,9 +86,16 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   @override
   Widget build(BuildContext context) {
     final Widget child;
-    if (_step == 3) {
+    if (_step == 4) {
+      // Lightweight preference-weighting step (§6a) so the two-sided appeal
+      // model has real weights to personalise with — skippable, not a trap.
+      child = PreferenceWeightingScreen(
+        onSaved: widget.onComplete,
+        onSkip: widget.onComplete,
+      );
+    } else if (_step == 3) {
       child = VerificationScreen(
-        onDone: widget.onComplete,
+        onDone: () => setState(() => _step = 4),
         onBack: () => setState(() => _step = 2),
         archetypeId: _savedArchetypeId,
       );

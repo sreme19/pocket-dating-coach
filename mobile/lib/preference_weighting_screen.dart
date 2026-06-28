@@ -15,7 +15,10 @@ import 'config.dart';
 class PreferenceWeightingScreen extends StatefulWidget {
   /// Called after a successful save (e.g. advance onboarding or pop).
   final VoidCallback? onSaved;
-  const PreferenceWeightingScreen({super.key, this.onSaved});
+  /// When provided (onboarding context), shows a "Skip for now" action so the
+  /// step is never a trap. Defaults to null (Settings context — no skip).
+  final VoidCallback? onSkip;
+  const PreferenceWeightingScreen({super.key, this.onSaved, this.onSkip});
 
   @override
   State<PreferenceWeightingScreen> createState() => _PreferenceWeightingScreenState();
@@ -86,6 +89,17 @@ class _PreferenceWeightingScreenState extends State<PreferenceWeightingScreen> {
         elevation: 0,
         title: const Text('What you value',
             style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700)),
+        automaticallyImplyLeading: widget.onSkip == null,
+        actions: [
+          if (widget.onSkip != null)
+            TextButton(
+              onPressed: () {
+                AppLogger.instance.action('preference_weighting', 'skip_onboarding');
+                widget.onSkip!.call();
+              },
+              child: const Text('Skip for now', style: TextStyle(color: Color(Config.text2))),
+            ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: Color(Config.accent)))
