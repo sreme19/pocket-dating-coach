@@ -20,6 +20,8 @@ const _showOff = <_Cat>[
   _Cat('social_proof', '🤝', 'Social Proof',     'Friends & communities',        4, time: '2 min'),
 ];
 
+// Temporarily hidden from the Trust & Boost UI (kept for easy restore).
+// ignore: unused_element
 const _socials = <_Cat>[
   _Cat('linkedin',  '', 'LinkedIn',  '', 5),
   _Cat('instagram', '', 'Instagram', '', 3),
@@ -105,15 +107,6 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
                 _label("➕  SHOW-OFF", hint: "prove, don't claim"),
                 const SizedBox(height: 10),
                 for (final c in _showOff) _proofCard(d, c),
-                const SizedBox(height: 16),
-                _label('🔗  SOCIALS', hint: 'connect to verify'),
-                const SizedBox(height: 10),
-                Row(children: [
-                  for (final c in _socials) Expanded(child: Padding(
-                    padding: EdgeInsets.only(right: c == _socials.last ? 0 : 10),
-                    child: _socialTile(d, c),
-                  )),
-                ]),
                 const SizedBox(height: 20),
                 _moneyMatters(d),
                 const SizedBox(height: 20),
@@ -442,6 +435,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
     );
   }
 
+  // ignore: unused_element
   Widget _socialTile(TrustData d, _Cat c) {
     final p = d.proofFor(c.id);
     final verified = p != null;
@@ -473,6 +467,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
   }
 
   /// Monochrome brand icon — white background with black icon, matching web style.
+  // ignore: unused_element
   Widget _brandIcon(String platform) {
     const double s = 36;
     const iconColor = Color(0xFF111111);
