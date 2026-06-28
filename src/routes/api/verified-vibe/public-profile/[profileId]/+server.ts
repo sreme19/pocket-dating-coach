@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
 import { ARCHETYPES } from '$lib/verified-vibe/constants';
+import { sanitizeAboutForDetail } from '$lib/server/profile-moderation';
 
 function snakeToTitle(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -171,7 +172,9 @@ export const GET: RequestHandler = async ({ params }) => {
     const crossFor = (section: string): Array<Record<string, unknown>> =>
       Array.isArray(crossSignals[section]) ? crossSignals[section] : [];
 
-    const about: string | null = (typeof generatedProfile.about === 'string' ? generatedProfile.about : null) ?? profile.about ?? null;
+    const about: string | null = sanitizeAboutForDetail(
+      (typeof generatedProfile.about === 'string' ? generatedProfile.about : null) ?? profile.about ?? null
+    );
     const hereFor: string = (typeof generatedProfile.intentStatement === 'string' ? generatedProfile.intentStatement : null)
       ?? profile.looking ?? archetypeDef?.tag ?? 'A real connection';
     const vibeWords: string[] = Array.isArray(generatedProfile.personalityDescriptors)
