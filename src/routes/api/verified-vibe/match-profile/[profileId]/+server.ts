@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
 import { ARCHETYPES } from '$lib/verified-vibe/constants';
+import { sanitizeAboutForDetail } from '$lib/server/profile-moderation';
 
 /**
  * Compute four personality trait scores (0–100) from the AI personality data.
@@ -215,11 +216,12 @@ export const GET: RequestHandler = async ({ params, request }) => {
       ?? archetypeDef?.tag
       ?? 'A real connection';
 
-    // About — prefer generatedProfile.about over DB about
-    const about: string | null =
+    // About — prefer generatedProfile.about over DB about, sanitized for abuse
+    const about: string | null = sanitizeAboutForDetail(
       (typeof generatedProfile.about === 'string' ? generatedProfile.about : null)
       ?? profile.about
-      ?? null;
+      ?? null
+    );
 
     // Communication style
     const communicationStyle =
