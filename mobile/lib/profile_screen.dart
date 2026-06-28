@@ -1,6 +1,7 @@
 import 'dart:convert' show base64Decode;
 import 'dart:math' show pi, cos, sin, min;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:geolocator/geolocator.dart';
@@ -639,6 +640,11 @@ Future<void> _editIdentity(BuildContext context, ProfileData d, VoidCallback onC
                 controller: nameCtrl,
                 textCapitalization: TextCapitalization.words,
                 maxLength: 40,
+                // Letters, spaces, hyphens and apostrophes only — matches onboarding.
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r"[\p{L} \-']", unicode: true)),
+                  LengthLimitingTextInputFormatter(40),
+                ],
                 buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                 style: const TextStyle(color: Color(Config.text1)),
                 decoration: InputDecoration(
@@ -680,6 +686,11 @@ Future<void> _editIdentity(BuildContext context, ProfileData d, VoidCallback onC
                     child: TextField(
                       controller: cityCtrl,
                       maxLength: 60,
+                      // Letters, spaces, hyphens and apostrophes only — matches onboarding.
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r"[\p{L} \-']", unicode: true)),
+                        LengthLimitingTextInputFormatter(60),
+                      ],
                       buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
                       style: const TextStyle(color: Color(Config.text1)),
                       decoration: InputDecoration(

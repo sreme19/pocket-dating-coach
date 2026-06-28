@@ -1238,9 +1238,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
       buildCounter: maxLength == null
           ? null
           : (_, {required currentLength, required isFocused, maxLength}) => null,
-      inputFormatters: maxLength == null
-          ? null
-          : [LengthLimitingTextInputFormatter(maxLength)],
+      inputFormatters: [
+        // Letters, spaces, hyphens and apostrophes only — blocks digits, symbols
+        // and emoji. Shared by the name and city fields (age is a dropdown).
+        FilteringTextInputFormatter.allow(RegExp(r"[\p{L} \-']", unicode: true)),
+        if (maxLength != null) LengthLimitingTextInputFormatter(maxLength),
+      ],
       onChanged: (_) => setState(() {}),
       style: const TextStyle(color: Color(Config.text1)),
       decoration: InputDecoration(
