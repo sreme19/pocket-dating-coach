@@ -924,19 +924,39 @@ Future<void> removeProofThumbnail(String category, String url) async {
   );
 }
 
+/// Result of cleaning a free-typed dealbreaker. Either a usable [cleaned] phrase,
+/// or a [rejectedReason] when the input isn't a valid dealbreaker (gibberish, a
+/// slur, a question, etc.) — in that case nothing should be added to the list.
+class CleanupResult {
+  final String? cleaned;
+  final String? rejectedReason;
+  const CleanupResult.ok(this.cleaned) : rejectedReason = null;
+  const CleanupResult.rejected(this.rejectedReason) : cleaned = null;
+  bool get isRejected => rejectedReason != null;
+}
+
 /// Normalize a free-typed dealbreaker into a concise phrase (Claude haiku).
-/// Falls back to the trimmed input on any error.
-Future<String> cleanupText(String text) async {
+/// Falls back to accepting the trimmed input on any transport error.
+Future<CleanupResult> cleanupText(String text) async {
   try {
     final resp = await _dio.post(
       '${Config.apiBase}/api/verified-vibe/cleanup-text',
       data: {'text': text},
       options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
     );
-    final c = (resp.data is Map) ? resp.data['cleaned'] : null;
-    return (c is String && c.trim().isNotEmpty) ? c.trim() : text.trim();
+    final data = resp.data;
+    if (data is Map && data['rejected'] == true) {
+      final r = data['reason'];
+      return CleanupResult.rejected(
+        (r is String && r.trim().isNotEmpty)
+            ? r.trim()
+            : "That doesn't look like a dealbreaker — try naming a trait you'd want to avoid.",
+      );
+    }
+    final c = (data is Map) ? data['cleaned'] : null;
+    return CleanupResult.ok((c is String && c.trim().isNotEmpty) ? c.trim() : text.trim());
   } catch (_) {
-    return text.trim();
+    return CleanupResult.ok(text.trim());
   }
 }
 

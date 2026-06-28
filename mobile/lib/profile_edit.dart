@@ -341,12 +341,20 @@ class _HardNosEditorState extends State<_HardNosEditor> {
   Future<void> _add() async {
     final raw = _ctrl.text.trim();
     if (raw.isEmpty || _adding || _items.length >= 10) return;
-    setState(() => _adding = true);
-    final cleaned = await cleanupText(raw);
+    setState(() { _adding = true; _error = null; });
+    final result = await cleanupText(raw);
+    if (!mounted) return;
     setState(() {
+      _adding = false;
+      if (result.isRejected) {
+        // Not a usable dealbreaker — show the reason, keep the text for editing,
+        // and don't add anything to the list.
+        _error = result.rejectedReason;
+        return;
+      }
+      final cleaned = result.cleaned!;
       if (!_items.contains(cleaned)) _items.add(cleaned);
       _ctrl.clear();
-      _adding = false;
     });
   }
 
