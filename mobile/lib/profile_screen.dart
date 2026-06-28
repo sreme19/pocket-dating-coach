@@ -563,20 +563,29 @@ Future<void> _editIdentity(BuildContext context, ProfileData d, VoidCallback onC
                 ),
               ),
               const SizedBox(height: 12),
-              // Age
-              TextField(
-                controller: ageCtrl,
-                keyboardType: TextInputType.number,
-                maxLength: 3,
-                buildCounter: (_, {required currentLength, required isFocused, maxLength}) => null,
-                style: const TextStyle(color: Color(Config.text1)),
-                decoration: InputDecoration(
-                  labelText: 'Age',
-                  labelStyle: const TextStyle(color: Color(Config.text2)),
-                  filled: true, fillColor: const Color(Config.bg3),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                ),
-              ),
+              // Age — dropdown 18–99 (matches onboarding; blocks invalid/under-18)
+              Builder(builder: (_) {
+                final cur = int.tryParse(ageCtrl.text.trim());
+                final val = (cur != null && cur >= 18 && cur <= 99) ? cur : null;
+                return DropdownButtonFormField<int>(
+                  value: val,
+                  isExpanded: true,
+                  hint: const Text('Age', style: TextStyle(color: Color(Config.text2))),
+                  style: const TextStyle(color: Color(Config.text1), fontSize: 16),
+                  dropdownColor: const Color(Config.bg3),
+                  items: [
+                    for (int a = 18; a <= 99; a++)
+                      DropdownMenuItem(value: a, child: Text('$a')),
+                  ],
+                  onChanged: (v) => setS(() => ageCtrl.text = v?.toString() ?? ''),
+                  decoration: InputDecoration(
+                    labelText: 'Age',
+                    labelStyle: const TextStyle(color: Color(Config.text2)),
+                    filled: true, fillColor: const Color(Config.bg3),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  ),
+                );
+              }),
               const SizedBox(height: 12),
               // City + detect button
               Row(
