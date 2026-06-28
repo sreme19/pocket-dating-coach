@@ -17,6 +17,7 @@ import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/publi
 import { createClient } from '@supabase/supabase-js';
 import { getSupabase } from '$lib/server/supabase';
 import { refreshPoolEntry } from '$lib/server/pool-registry';
+import { scheduleVectorRebuild } from '$lib/server/vector-rebuild';
 
 // ── Auth helper ───────────────────────────────────────────────────────────────
 
@@ -249,6 +250,8 @@ export const POST: RequestHandler = async ({ request }: { request: Request }) =>
 
   // Fire-and-forget: refresh pool entry so Matchmaker has fresh data
   refreshPoolEntry(userId).catch(() => {});
+  // Live vector propagation (§11g): edited profile text changes attribute levels.
+  scheduleVectorRebuild(userId);
 
   return json({ synced: true, countriesTraveled: mergedCountries });
 };

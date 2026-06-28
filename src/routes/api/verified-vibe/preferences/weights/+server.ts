@@ -17,6 +17,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { createClient } from '@supabase/supabase-js';
 import { getSupabase } from '$lib/server/supabase';
+import { scheduleVectorRebuild } from '$lib/server/vector-rebuild';
 import { ALL_DIMENSIONS, ALL_DIMENSION_IDS } from '$lib/verified-vibe/dimensions';
 
 const DEFAULT_IMPORTANCE = 2; // neutral (0–5 scale) — balanced cold-start (§13b)
@@ -106,6 +107,12 @@ export const POST: RequestHandler = async ({ request }) => {
 			weights_source: 'explicit',
 			provenance,
 		}, { onConflict: 'user_id' });
+
+		// Rebuild the full vectors now (attributes + confidence), preserving these
+		// just-saved explicit weights — so a user finishing the onboarding weighting
+		// step gets a COMPLETE vectors row and their Profile Strength card appears
+		// immediately (§11g). Without this, the row has weights but no attributes.
+		scheduleVectorRebuild(userId);
 
 		return json({ ok: true, weights, weightsSource: 'explicit' });
 	} catch (e) {
