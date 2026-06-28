@@ -274,7 +274,7 @@
   let files           = $state<File[]>([]);
   let previews        = $state<string[]>([]);
   let step            = $state<Step>('upload');
-  let result          = $state<{ insights: Array<{ label: string; emoji: string }>; pts_awarded: number; reason: string; locations?: string[]; aggregated?: string; nameMatch?: boolean | null; ownershipTier?: string; ownershipReason?: string } | null>(null);
+  let result          = $state<{ insights: Array<{ label: string; emoji: string }>; pts_awarded: number; reason: string; locations?: string[]; aggregated?: string; nameMatch?: boolean | null; ownershipTier?: string; ownershipReason?: string; ownerName?: string | null } | null>(null);
   let failReason      = $state('');
   // ── Asset ownership relationship picker (Garage) ──────────────────────────
   // When the name on an ownership doc doesn't match the verified ID, the server
@@ -504,6 +504,14 @@
         return;
       }
 
+      // No readable owner name (e.g. a car photo, not an ownership document) —
+      // require an explicit name-bearing document before ownership can verify.
+      if (data.requiresOwnershipDoc) {
+        failReason = data.reason ?? 'Add an ownership document — registration, insurance, title, or deed — that clearly shows your name.';
+        step = 'failed';
+        return;
+      }
+
       if (!resp.ok || data.error) { failReason = data.error ?? 'Analysis failed'; step = 'failed'; return; }
       if (!data.verified) { failReason = data.reason ?? 'We couldn\'t verify this as genuine proof. Try uploading clearer evidence.'; step = 'failed'; return; }
 
@@ -575,7 +583,7 @@
         }).catch(() => { /* non-critical */ });
       }
 
-      result = { insights: insightsArr, pts_awarded: data.pts_awarded, reason: data.reason ?? '', locations: locationsArr, aggregated: data.aggregated ?? '', nameMatch: data.nameMatch, ownershipTier: data.ownershipTier, ownershipReason: data.ownershipReason };
+      result = { insights: insightsArr, pts_awarded: data.pts_awarded, reason: data.reason ?? '', locations: locationsArr, aggregated: data.aggregated ?? '', nameMatch: data.nameMatch, ownershipTier: data.ownershipTier, ownershipReason: data.ownershipReason, ownerName: data.ownerName };
       step   = 'success';
     } catch (e) {
       console.error('proof upload failed:', e);
@@ -1130,6 +1138,8 @@
       <div class="success-pts">+{result.pts_awarded} pts added to your profile</div>
       {#if result.ownershipTier && result.ownershipTier !== 'self'}
         <div class="name-mismatch-note">⚠️ {result.ownershipReason ?? 'Ownership is linked, not personal — verified at reduced trust and flagged for review.'}</div>
+      {:else if result.ownershipTier === 'self'}
+        <div class="name-match-note">✅ Ownership confirmed — the name on the document{result.ownerName ? ` (${result.ownerName})` : ''} matches your verified ID.</div>
       {:else if result.nameMatch === false}
         <div class="name-mismatch-note">⚠️ The name on this document didn't match your verified ID — it's been flagged for review.</div>
       {/if}
@@ -2094,6 +2104,18 @@
     color: #fbbf24;
     background: rgba(251, 191, 36, 0.1);
     border: 1px solid rgba(251, 191, 36, 0.28);
+    border-radius: 12px;
+    text-align: center;
+  }
+
+  .name-match-note {
+    margin-top: 10px;
+    padding: 10px 12px;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: #34d399;
+    background: rgba(52, 211, 153, 0.1);
+    border: 1px solid rgba(52, 211, 153, 0.28);
     border-radius: 12px;
     text-align: center;
   }

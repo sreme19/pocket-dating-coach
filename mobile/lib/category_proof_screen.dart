@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'api.dart';
 import 'app_logger.dart';
 import 'config.dart';
+import 'selfie_camera.dart';
 
 String _friendlyError(Object e) {
   final s = e.toString();
@@ -247,15 +248,15 @@ const _configs = <String, _CatConfig>{
     icon: '🚗',
     title: 'Assets Proof',
     subtitle: 'Car registration, property deed, company docs',
-    privacyCopy: 'Documents stay private. AI extracts make, model and year to build your Garage section on your profile.',
+    privacyCopy: 'Documents stay private and are discarded after reading. To verify ownership you must upload a document that shows YOUR NAME — it is matched against your government ID. A photo of the car alone can\'t prove ownership.',
     examples: [
-      'Photo of you with your car or at purchase moment',
-      'Vehicle registration certificate (PDF or photo)',
-      'Car insurance document (make/model visible)',
-      'Property title or deed (PDF or photo)',
+      'Vehicle registration certificate — your name must be visible (PDF or photo)',
+      'Car insurance document — name + make/model visible',
+      'Property title or deed showing your name (PDF or photo)',
       'Company registration or shareholding document',
+      'Optional: a photo of you with the car (supporting only — not required)',
     ],
-    hintLine: 'Photos with asset count — documents unlock verification points.',
+    hintLine: 'A name-bearing ownership document is required to earn verification points. The car photo is optional.',
     maxFiles: 10,
   ),
 };
@@ -629,13 +630,12 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
             Row(children: [
               Expanded(child: OutlinedButton.icon(
                 onPressed: () async {
-                  final img = await ImagePicker().pickImage(
-                  source: ImageSource.camera,
-                  preferredCameraDevice: CameraDevice.front,
-                  imageQuality: 70,
-                  maxWidth: 1024,
-                );
-                  if (img != null) setS(() { selfiePicked = img; error = null; });
+                  // Use the custom front-camera screen — image_picker can't force
+                  // the front lens on Android (preferredCameraDevice is ignored).
+                  final path = await Navigator.of(ctx).push<String>(
+                    MaterialPageRoute(builder: (_) => const SelfieCameraScreen()),
+                  );
+                  if (path != null) setS(() { selfiePicked = XFile(path); error = null; });
                 },
                 icon: const Icon(Icons.camera_front_rounded),
                 label: const Text('Take selfie'),
@@ -794,6 +794,23 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
         return;
       }
 
+      // No readable owner name (e.g. a car photo, not an ownership document) —
+      // require an explicit name-bearing document before ownership can verify.
+      if (res['requiresOwnershipDoc'] == true) {
+        final msg = (res['reason'] ?? '').toString().trim();
+        setState(() {
+          _analysing = false;
+          _result = _UploadResult(
+            verified: false,
+            text: msg.isNotEmpty
+                ? msg
+                : 'Add an ownership document — registration, insurance, title, or deed — that clearly shows your name.',
+            chips: const [],
+          );
+        });
+        return;
+      }
+
       final verified = res['verified'] == true;
       final pts = res['pts_awarded'] is num ? (res['pts_awarded'] as num).toInt() : 0;
       // Prefer the aggregated one-liner, but fall back to `reason` when it's
@@ -807,6 +824,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
       final ownershipTier = res['ownershipTier']?.toString();
       final ownershipReduced = ownershipTier != null && ownershipTier != 'self';
       final ownershipReason = (res['ownershipReason'] ?? '').toString().trim();
+      final ownerName = (res['ownerName'] ?? '').toString().trim();
       final chips = <String>[];
       if (res['insights'] is List) {
         for (final i in (res['insights'] as List)) {
@@ -818,9 +836,11 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
           : 'Couldn\'t verify.${agg.isNotEmpty ? '\n$agg' : ''}';
       final ownershipNote = ownershipReduced
           ? '\n\n⚠️ ${ownershipReason.isNotEmpty ? ownershipReason : 'Ownership is linked, not personal — verified at reduced trust and flagged for review.'}'
-          : (nameMismatch
-              ? '\n\n⚠️ The name on this document doesn\'t match your verified ID, so it\'s flagged for review. Upload documents in your own name to earn full trust.'
-              : '');
+          : ownershipTier == 'self'
+              ? '\n\n✅ Ownership confirmed — the name on the document${ownerName.isNotEmpty ? ' ($ownerName)' : ''} matches your verified ID.'
+              : (nameMismatch
+                  ? '\n\n⚠️ The name on this document doesn\'t match your verified ID, so it\'s flagged for review. Upload documents in your own name to earn full trust.'
+                  : '');
       setState(() {
         _analysing = false;
         _result = _UploadResult(

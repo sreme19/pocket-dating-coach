@@ -653,6 +653,20 @@ async function finalizeAssets(parsed: any, ctx: {
     });
   }
 
+  // UNCONFIRMED → we couldn't read an owner name on the upload (e.g. the user
+  // submitted a car photo, not an ownership document). Don't award half-trust
+  // silently — require an explicit name-bearing ownership document.
+  if (tier === 'unconfirmed') {
+    console.warn(`[assets ownership] NO_OWNER_NAME user=${ctx.userId} — requiring ownership document`);
+    return json({
+      verified: false,
+      requiresOwnershipDoc: true,
+      reason: 'We couldn\'t find your name on this upload. Add an ownership document — vehicle registration, insurance, title, or deed — that clearly shows your name. A photo of the car alone can\'t verify ownership.',
+      pts_awarded: 0,
+      photo_count: ctx.fileCount,
+    });
+  }
+
   // Classification log (no admin UI yet — flagged tiers are logged + stored).
   console.log(`[assets ownership] user=${ctx.userId} tier=${tier} relationship="${ctx.relationship}" lien="${parsed.lienHolder ?? ''}" company=${parsed.registeredToCompany === true} photoCorroborated=${photoCorroborated} photoCarMismatch=${photoCarMismatch}`);
 
@@ -677,7 +691,7 @@ async function finalizeAssets(parsed: any, ctx: {
     insights, aggregated: parsed.aggregated ?? '', assets, crossSignals,
     pts_awarded: ctx.pts, photo_count: ctx.fileCount,
     confidence: parsed.confidence ?? 0.85, reason: parsed.reason ?? '',
-    ownershipTier: tier, ownershipReason: reason,
+    ownershipTier: tier, ownershipReason: reason, ownerName: ownerName ?? null,
     photoCorroborated,
     thumbnail_urls: [],   // assets are use-and-discard — never stored or shown
   });
