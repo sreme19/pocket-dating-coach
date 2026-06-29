@@ -15,9 +15,15 @@
     moneyMatters?: { annualIncome: string | null; careerLines: Insight[]; wealthInsights: Insight[] } | null;
     personalityPortraitUrl?: string | null;
     garagePortraitUrl?: string | null;
+    photos?: Array<{ url: string; ai: boolean; role: string }>;
   }
 
   let { profile }: { profile: Profile } = $props();
+
+  // The hero (photos[0]) is rendered by the page header; the rest are woven
+  // through the sections below so photos and personality unfold together as the
+  // viewer scrolls — never dumped into a grid (MVP "Layout in the Public Read").
+  const revealPhotos = $derived((profile.photos ?? []).slice(1));
 
   // Friendly name for the source category an inferred signal was lifted from.
   const FROM_LABELS: Record<string, string> = {
@@ -44,6 +50,17 @@
   const signals = $derived(profile.verifiedSignals ?? []);
 </script>
 
+{#snippet photoReveal(idx: number)}
+  {#if revealPhotos[idx]}
+    <div class="photo-reveal">
+      <img src={revealPhotos[idx].url} alt="Profile photo" loading="lazy" />
+      {#if revealPhotos[idx].ai}
+        <span class="photo-reveal-badge">✨ Generated from verified photos</span>
+      {/if}
+    </div>
+  {/if}
+{/snippet}
+
 <div class="ppb">
   <!-- Here For -->
   {#if profile.hereFor}
@@ -64,6 +81,8 @@
       </div>
     </section>
   {/if}
+
+  {@render photoReveal(0)}
 
   <!-- Personality Reads (radar) -->
   <section class="section">
@@ -128,6 +147,8 @@
     </section>
   {/if}
 
+  {@render photoReveal(1)}
+
   <!-- Archetype chips -->
   {#if profile.archetypeChips && profile.archetypeChips.length > 0}
     <section class="section">
@@ -152,6 +173,8 @@
       <p class="about-text">{profile.about}</p>
     </section>
   {/if}
+
+  {@render photoReveal(2)}
 
   <!-- Verified Signals -->
   {#if signals.length > 0}
@@ -217,6 +240,8 @@
     </section>
   {/if}
 
+  {@render photoReveal(3)}
+
   <!-- Travel Magnets -->
   {#if profile.travelLocations && profile.travelLocations.length > 0}
     <section class="section">
@@ -228,6 +253,8 @@
       </div>
     </section>
   {/if}
+
+  {@render photoReveal(4)}
 
   <!-- Money Matters -->
   {#if profile.moneyMatters}
@@ -421,4 +448,15 @@
   /* AI Portraits */
   .portrait-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .portrait-img { width: 100%; aspect-ratio: 3/4; object-fit: cover; border-radius: 14px; }
+
+  /* Photos woven through the read (revealed on scroll, not a grid) */
+  .photo-reveal { position: relative; border-radius: 18px; overflow: hidden; line-height: 0; }
+  .photo-reveal img { width: 100%; aspect-ratio: 4/5; object-fit: cover; display: block; }
+  .photo-reveal-badge {
+    position: absolute; left: 10px; bottom: 10px;
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 5px 10px; border-radius: 999px;
+    background: rgba(27,16,32,0.62); backdrop-filter: blur(4px);
+    color: #fff; font-size: 11px; font-weight: 600; line-height: 1;
+  }
 </style>
