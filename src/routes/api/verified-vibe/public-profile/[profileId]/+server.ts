@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
 import { ARCHETYPES } from '$lib/verified-vibe/constants';
-import { sanitizeAboutForDetail, isAbusiveName } from '$lib/server/profile-moderation';
+import { sanitizeAboutForDetail, isAbusiveName, isAbusiveCity, cleanChipList } from '$lib/server/profile-moderation';
 
 function snakeToTitle(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -177,8 +177,8 @@ export const GET: RequestHandler = async ({ params }) => {
     );
     const hereFor: string = (typeof generatedProfile.intentStatement === 'string' ? generatedProfile.intentStatement : null)
       ?? profile.looking ?? archetypeDef?.tag ?? 'A real connection';
-    const vibeWords: string[] = Array.isArray(generatedProfile.personalityDescriptors)
-      ? (generatedProfile.personalityDescriptors as string[]).map(w => w.charAt(0).toUpperCase() + w.slice(1)) : [];
+    const vibeWords: string[] = cleanChipList(generatedProfile.personalityDescriptors)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1));
 
     const whatBrings = ARCHETYPE_BRINGS[archetype] ?? DEFAULT_BRINGS;
 
@@ -188,11 +188,11 @@ export const GET: RequestHandler = async ({ params }) => {
     const archetypePrefs = (onboarding[archetypeKey.replace('_profile', '_preferences')] as Record<string, unknown>) ?? {};
     const archetypeChips: Array<{ label: string; chips: string[] }> = [];
     const energyRaw = archetypeProfile.relationship_energy ?? archetypeProfile.energy;
-    if (Array.isArray(energyRaw) && energyRaw.length) archetypeChips.push({ label: 'Energy in a relationship', chips: energyRaw.map(snakeToTitle) });
+    if (Array.isArray(energyRaw) && energyRaw.length) archetypeChips.push({ label: 'Energy in a relationship', chips: cleanChipList(energyRaw.map(snakeToTitle)) });
     const expRaw = archetypeProfile.shared_experiences ?? archetypeProfile.experiences;
-    if (Array.isArray(expRaw) && expRaw.length) archetypeChips.push({ label: 'Experiences to share', chips: expRaw.map(snakeToTitle) });
+    if (Array.isArray(expRaw) && expRaw.length) archetypeChips.push({ label: 'Experiences to share', chips: cleanChipList(expRaw.map(snakeToTitle)) });
     const chemRaw = archetypeProfile.chemistry_preferences ?? archetypeProfile.chemistry;
-    if (Array.isArray(chemRaw) && chemRaw.length) archetypeChips.push({ label: 'Chemistry', chips: chemRaw.map(snakeToTitle) });
+    if (Array.isArray(chemRaw) && chemRaw.length) archetypeChips.push({ label: 'Chemistry', chips: cleanChipList(chemRaw.map(snakeToTitle)) });
     const lifestyleRaw = archetypePrefs.lifestyle_profile;
     if (lifestyleRaw) archetypeChips.push({ label: 'My lifestyle', chips: [snakeToTitle(String(lifestyleRaw))] });
 
@@ -303,7 +303,7 @@ export const GET: RequestHandler = async ({ params }) => {
 
     return json({
       data: {
-        id: profile.id, firstName, age: profile.age, city: profile.city,
+        id: profile.id, firstName, age: profile.age, city: isAbusiveCity(profile.city) ? null : profile.city,
         avatar: profile.avatar_url, gender: profile.gender, trustScore,
         archetype, archetypeName: archetypeDef?.name ?? archetype, archetypeEmoji: archetypeDef?.emoji ?? '✨',
         hereFor, about, vibeWords, whatBrings, archetypeChips,

@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
 import { ARCHETYPES } from '$lib/verified-vibe/constants';
-import { sanitizeAboutForDetail, isAbusiveName } from '$lib/server/profile-moderation';
+import { sanitizeAboutForDetail, isAbusiveName, isAbusiveCity, cleanChipList } from '$lib/server/profile-moderation';
 
 /**
  * Compute four personality trait scores (0–100) from the AI personality data.
@@ -203,7 +203,7 @@ export const GET: RequestHandler = async ({ params, request }) => {
 
     // Vibe words: prefer generatedProfile.personalityDescriptors over AI fallback
     const vibeWords: string[] = Array.isArray(generatedProfile.personalityDescriptors)
-      ? (generatedProfile.personalityDescriptors as string[]).map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      ? cleanChipList(generatedProfile.personalityDescriptors).map(w => w.charAt(0).toUpperCase() + w.slice(1))
       : deriveVibeWords(personality);
 
     // "What He Brings" — from archetype definition
@@ -232,7 +232,7 @@ export const GET: RequestHandler = async ({ params, request }) => {
         id: profile.id,
         firstName,
         age: profile.age,
-        city: profile.city,
+        city: isAbusiveCity(profile.city) ? null : profile.city,
         avatar: profile.avatar_url,
         about,
         looking: profile.looking,
