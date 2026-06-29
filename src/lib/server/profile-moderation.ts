@@ -108,3 +108,49 @@ export function sanitizeAboutForDetail(raw: unknown): string | null {
   if (a.verdict === 'reject') return null;
   return a.cleaned || null;
 }
+
+// ── Identity field abuse (name / age) ──────────────────────────────────────────
+// first_name + age are written client-side straight to verified_vibe_users
+// (mobile saveIdentity → direct Supabase update), so there is NO server write
+// endpoint to cap them — the read-gate is the only reliable defense. A garbage
+// name like "@(+#-$+#1331" or an absurd age like 204637343 marks a bad-faith /
+// test account; we hide the whole profile rather than try to salvage it.
+
+/** True when a display name is clearly not a name (symbol/digit soup, overlong). */
+export function isAbusiveName(raw: unknown): boolean {
+  if (typeof raw !== 'string') return false; // null/missing → fallback handles it
+  const name = raw.trim();
+  if (!name) return false;
+  if (name.length > 40) return true;
+  const compact = name.replace(/\s/g, '');
+  if (!compact) return true;
+  const letters = (compact.match(/\p{L}/gu) || []).length;
+  // Real names are overwhelmingly letters (allow a few hyphens/apostrophes/dots);
+  // require ≥2 letters and a strong majority letters.
+  if (letters < 2) return true;
+  if (letters / compact.length < 0.6) return true;
+  return false;
+}
+
+/** True when an age is present but outside any plausible human range. */
+export function isAbusiveAge(raw: unknown): boolean {
+  if (raw == null) return false; // missing age is not abuse (feed defaults it)
+  const age = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isFinite(age)) return false;
+  return age < 18 || age > 120;
+}
+
+/**
+ * Single decision for whether a profile should be hidden from Discover entirely,
+ * across every abuse vector we gate. Extend here as new fields get abused.
+ */
+export function profileHideReason(p: {
+  firstName?: unknown;
+  age?: unknown;
+  about?: unknown;
+}): string | null {
+  if (isAbusiveName(p.firstName)) return 'abusive name';
+  if (isAbusiveAge(p.age)) return 'invalid age';
+  if (analyzeAbout(p.about).verdict === 'reject') return 'abusive about';
+  return null;
+}

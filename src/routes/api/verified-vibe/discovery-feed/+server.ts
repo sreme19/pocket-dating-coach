@@ -3,7 +3,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import type { DiscoveryProfile } from '$lib/verified-vibe/types';
 import { getSupabase } from '$lib/server/supabase';
 import { MATCH_MATRIX } from '$lib/verified-vibe/constants';
-import { analyzeAbout } from '$lib/server/profile-moderation';
+import { analyzeAbout, profileHideReason } from '$lib/server/profile-moderation';
 
 interface DiscoveryFeedRequest {
   limit?: number;
@@ -305,13 +305,20 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
     const discoveryProfiles: DiscoveryProfile[] = candidates
       .map((p: any) => {
         // Effective about = master-profile generated text, falling back to the DB column.
-        // Egregious abuse (overlong/repeated-spam) → drop the card entirely; mild → clean it.
         const effectiveAbout = aboutByUser.get(p.id) ?? p.about ?? null;
-        const aboutVerdict = analyzeAbout(effectiveAbout);
-        if (aboutVerdict.verdict === 'reject') {
-          console.warn(`[discovery-feed] hiding profile ${p.id}: ${aboutVerdict.reason}`);
+        // Drop bad-faith / abused profiles (garbage name, absurd age, repeated-spam
+        // about) from the feed entirely. Identity fields are written client-side
+        // straight to Supabase, so this read-gate is the only chokepoint.
+        const hideReason = profileHideReason({
+          firstName: p.first_name,
+          age: p.age,
+          about: effectiveAbout,
+        });
+        if (hideReason) {
+          console.warn(`[discovery-feed] hiding profile ${p.id}: ${hideReason}`);
           return null;
         }
+        const aboutVerdict = analyzeAbout(effectiveAbout);
         const trustScore = trustScoreMap.get(p.id) || 0;
         const verifiedSteps = Array.from(verificationMap.get(p.id) || new Set()).map(s => {
           const stepNames: Record<string, string> = {
