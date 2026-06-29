@@ -3,6 +3,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
 import { ARCHETYPES } from '$lib/verified-vibe/constants';
 import { sanitizeAboutForDetail, isAbusiveName, isAbusiveCity, cleanChipList } from '$lib/server/profile-moderation';
+import { buildPublicPhotos, pickHeroUrl } from '$lib/server/profile-photos';
 
 function snakeToTitle(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -297,6 +298,12 @@ export const GET: RequestHandler = async ({ params }) => {
     const personalityPortraitUrl = typeof masterData.personalityPortraitUrl === 'string' ? masterData.personalityPortraitUrl : null;
     const garagePortraitUrl = typeof masterData.garagePortraitUrl === 'string' ? masterData.garagePortraitUrl : null;
 
+    // Profile photo set — gender-aware (men: AI-only; women: real), hero-first,
+    // capped, AI-flagged. Hero never falls back to a man's raw avatar_url.
+    const photos = buildPublicPhotos(masterData, profile.gender);
+    const heroUrl = pickHeroUrl(photos, profile.gender, profile.avatar_url);
+    const heroIsAi = photos[0]?.ai ?? false;
+
     // Personality trait scores
     const personalityData = (personalityRes?.data?.data as Record<string, unknown>) ?? null;
     const traitScores = deriveTraitScores(personalityData, archetype);
@@ -304,7 +311,7 @@ export const GET: RequestHandler = async ({ params }) => {
     return json({
       data: {
         id: profile.id, firstName, age: profile.age, city: isAbusiveCity(profile.city) ? null : profile.city,
-        avatar: profile.avatar_url, gender: profile.gender, trustScore,
+        avatar: heroUrl, photos, heroIsAi, gender: profile.gender, trustScore,
         archetype, archetypeName: archetypeDef?.name ?? archetype, archetypeEmoji: archetypeDef?.emoji ?? '✨',
         hereFor, about, vibeWords, whatBrings, archetypeChips,
         verifiedSignals, travelLocations, garageCars, moneyMatters,

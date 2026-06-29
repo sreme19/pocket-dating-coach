@@ -3,6 +3,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
 import { ARCHETYPES } from '$lib/verified-vibe/constants';
 import { sanitizeAboutForDetail, isAbusiveName, isAbusiveCity, cleanChipList } from '$lib/server/profile-moderation';
+import { buildPublicPhotos, pickHeroUrl } from '$lib/server/profile-photos';
 
 /**
  * Compute four personality trait scores (0–100) from the AI personality data.
@@ -159,6 +160,12 @@ export const GET: RequestHandler = async ({ params, request }) => {
     const personalityPortraitUrl = typeof masterData.personalityPortraitUrl === 'string' ? masterData.personalityPortraitUrl : null;
     const garagePortraitUrl = typeof masterData.garagePortraitUrl === 'string' ? masterData.garagePortraitUrl : null;
 
+    // Profile photo set — gender-aware (men: AI-only; women: real), hero-first,
+    // capped, AI-flagged. Hero never falls back to a man's raw avatar_url.
+    const photos = buildPublicPhotos(masterData, profile.gender);
+    const heroUrl = pickHeroUrl(photos, profile.gender, profile.avatar_url);
+    const heroIsAi = photos[0]?.ai ?? false;
+
     // Extract verified proofs for public display
     const verifiedProofs: Array<Record<string, unknown>> = Array.isArray(masterData.verifiedProofs) ? masterData.verifiedProofs as Array<Record<string, unknown>> : [];
     const wealthProof = verifiedProofs.find(p => p.category === 'wealth') ?? null;
@@ -233,7 +240,9 @@ export const GET: RequestHandler = async ({ params, request }) => {
         firstName,
         age: profile.age,
         city: isAbusiveCity(profile.city) ? null : profile.city,
-        avatar: profile.avatar_url,
+        avatar: heroUrl,
+        photos,
+        heroIsAi,
         about,
         looking: profile.looking,
         trustScore,

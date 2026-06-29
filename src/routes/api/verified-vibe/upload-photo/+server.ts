@@ -42,6 +42,23 @@ export const POST: RequestHandler = async ({ request }) => {
 		const label = sanitizeLabel(body.label ?? 'photo');
 		const supabase = getSupabase();
 
+		// Brand-premise guard: a man's raw, un-enhanced photo is never surfaced on
+		// the platform, so it must never land in the public `profiles` bucket nor
+		// in avatar_url. Men only ever persist hosted AI imageUrls here; their raw
+		// reference is sent transiently to /api/photo-enhance/generate as base64.
+		const isRawUpload = !(body.imageUrl && /^https?:\/\//.test(body.imageUrl))
+			&& !!body.dataUrl && body.dataUrl.startsWith('data:');
+		if (isRawUpload) {
+			const { data: u } = await supabase
+				.from('verified_vibe_users')
+				.select('gender')
+				.eq('id', user.id)
+				.maybeSingle();
+			if ((u as { gender?: string } | null)?.gender === 'man') {
+				return json({ error: "A man's raw photo is never stored — generate an AI portrait instead." }, { status: 422 });
+			}
+		}
+
 		let url: string;
 
 		if (body.imageUrl && /^https?:\/\//.test(body.imageUrl)) {
