@@ -312,6 +312,7 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
         const hideReason = profileHideReason({
           firstName: p.first_name,
           age: p.age,
+          city: p.city,
           about: effectiveAbout,
         });
         if (hideReason) {

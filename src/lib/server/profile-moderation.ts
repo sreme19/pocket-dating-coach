@@ -140,6 +140,49 @@ export function isAbusiveAge(raw: unknown): boolean {
   return age < 18 || age > 120;
 }
 
+/** Count of unicode letters in a string (handles non-Latin scripts). */
+function letterCount(s: string): number {
+  return (s.match(/\p{L}/gu) || []).length;
+}
+
+/** True when a city is symbol/digit soup or absurdly long. More lenient than
+ * names — cities legitimately carry commas/periods ("Kolkata, India"). */
+export function isAbusiveCity(raw: unknown): boolean {
+  if (typeof raw !== 'string') return false;
+  const city = raw.trim();
+  if (!city) return false; // empty/missing is not abuse
+  if (city.length > 60) return true;
+  const compact = city.replace(/\s/g, '');
+  if (!compact) return true;
+  if (letterCount(compact) / compact.length < 0.5) return true;
+  return false;
+}
+
+/**
+ * Clean a list of display chips (vibe words, archetype chips, lifestyle tags):
+ * trim, cap each item's length, drop empties / symbol-soup / duplicates, and cap
+ * the total count. Defends the detail view against section-overload via arrays.
+ */
+export function cleanChipList(arr: unknown, maxItems = 12, maxLen = 50): string[] {
+  if (!Array.isArray(arr)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of arr) {
+    if (typeof item !== 'string') continue;
+    let s = item.trim();
+    if (!s) continue;
+    if (s.length > maxLen) s = s.slice(0, maxLen);
+    const compact = s.replace(/\s/g, '');
+    if (compact && letterCount(compact) / compact.length < 0.5) continue; // junk chip
+    const key = s.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(s);
+    if (out.length >= maxItems) break;
+  }
+  return out;
+}
+
 /**
  * Single decision for whether a profile should be hidden from Discover entirely,
  * across every abuse vector we gate. Extend here as new fields get abused.
@@ -147,10 +190,12 @@ export function isAbusiveAge(raw: unknown): boolean {
 export function profileHideReason(p: {
   firstName?: unknown;
   age?: unknown;
+  city?: unknown;
   about?: unknown;
 }): string | null {
   if (isAbusiveName(p.firstName)) return 'abusive name';
   if (isAbusiveAge(p.age)) return 'invalid age';
+  if (isAbusiveCity(p.city)) return 'abusive city';
   if (analyzeAbout(p.about).verdict === 'reject') return 'abusive about';
   return null;
 }
