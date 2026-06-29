@@ -8,11 +8,15 @@
  * Body: { profileId: string }
  * Response: { flags: Array<{ level: 'orange' | 'red', title: string, detail: string }> }
  */
+import { createHash } from 'node:crypto';
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
 import { askClaude } from '$lib/claude';
 import { ARCHETYPES } from '$lib/verified-vibe/constants';
+
+type BestieFlag = { level: 'orange' | 'red'; title: string; detail: string };
+type BestieFlagsCache = { hash: string; flags: BestieFlag[]; generatedAt: string };
 
 export const POST: RequestHandler = async ({ request }) => {
 	try {
@@ -102,6 +106,19 @@ export const POST: RequestHandler = async ({ request }) => {
 			travelLocationCount: travelLocations.length,
 		};
 
+		// Cache: flags depend only on the man's data (not the viewer), so generate once per
+		// profile-data change and reuse across all female viewers. Key on a hash of the exact
+		// inputs that feed Claude — when he uploads a new proof or his trust score shifts, the
+		// hash changes and we regenerate.
+		const inputHash = createHash('sha256')
+			.update(JSON.stringify(verifiedSummary))
+			.digest('hex');
+
+		const cached = masterData.bestieFlags as BestieFlagsCache | undefined;
+		if (cached && cached.hash === inputHash && Array.isArray(cached.flags)) {
+			return json({ flags: cached.flags });
+		}
+
 		const systemPrompt = `You are "Bestie", a sharp, caring AI advisor for women on Verified Vibe — a dating app that verifies men's lifestyles.
 
 Your job: given a man's profile summary, identify 2–4 specific orange or red flags — potential inconsistencies or gaps between what the profile implies and what was actually verified.
@@ -141,12 +158,25 @@ Max 4 flags. If genuinely nothing is suspicious, return {"flags":[]}.`;
 
 		// Strip possible markdown fences (Claude 4.x wraps JSON in ```json blocks)
 		const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-		let flags: Array<{ level: 'orange' | 'red'; title: string; detail: string }> = [];
+		let flags: BestieFlag[] = [];
+		let parsedOk = false;
 		try {
-			const parsed = JSON.parse(cleaned) as { flags: typeof flags };
+			const parsed = JSON.parse(cleaned) as { flags: BestieFlag[] };
 			flags = parsed.flags ?? [];
+			parsedOk = true;
 		} catch {
 			flags = [];
+		}
+
+		// Persist back into the existing master-profile JSONB blob (no migration needed).
+		// Only cache successful parses so a transient malformed response isn't frozen in.
+		if (parsedOk && masterRow) {
+			const nextData = { ...masterData, bestieFlags: { hash: inputHash, flags, generatedAt: new Date().toISOString() } };
+			const { error: updateErr } = await (sb as any)
+				.from('user_master_profile')
+				.update({ data: nextData })
+				.eq('user_id', profileId);
+			if (updateErr) console.error('bestie-profile-flags cache write failed:', updateErr);
 		}
 
 		return json({ flags });

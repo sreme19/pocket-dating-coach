@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'api.dart';
@@ -25,6 +26,16 @@ class _DiscoverScreenState extends State<DiscoverScreen>
   final _scroll = ScrollController();
   List<BestieFlag> _bestieFlags = [];
   bool _bestieFlagsLoading = false;
+  // Cold-start review animation — when Bestie generates a fresh take (cache miss),
+  // we cycle through what she's checking so the wait reads as live analysis, not a dead spinner.
+  Timer? _bestieReviewTimer;
+  int _bestieReviewStep = 0;
+  static const List<String> _bestieReviewSteps = [
+    'Pulling up his verified proofs…',
+    'Cross-checking his claims against what\'s verified…',
+    'Flagging anything that doesn\'t add up…',
+    'Putting your take together…',
+  ];
   final Set<String> _sentAttentionIds = {}; // profiles already noticed/admired
   final Set<String> _tippedIds = {}; // profiles tipped this session
   final Set<String> _matchedUserIds = {}; // already mutual matches — hide Tip/Notice me
@@ -42,6 +53,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
 
   @override
   void dispose() {
+    _bestieReviewTimer?.cancel();
     _scroll.dispose();
     super.dispose();
   }
@@ -100,10 +112,30 @@ class _DiscoverScreenState extends State<DiscoverScreen>
   void _maybeFetchBestie() {
     final cur = _current;
     if (_viewerGender != 'woman' || cur == null || cur.gender != 'man') return;
-    setState(() { _bestieFlags = []; _bestieFlagsLoading = true; });
+    setState(() { _bestieFlags = []; _bestieFlagsLoading = true; _bestieReviewStep = 0; });
+    _startBestieReview();
     fetchBestieFlags(cur.id).then((flags) {
       if (mounted) setState(() { _bestieFlags = flags; _bestieFlagsLoading = false; });
+      _stopBestieReview();
     });
+  }
+
+  /// Cycle the review steps every ~1.4s while a fresh take is being generated.
+  /// Cached takes return near-instantly, so this only meaningfully shows on a
+  /// cold start — which is exactly the "Bestie is working for you" moment.
+  void _startBestieReview() {
+    _bestieReviewTimer?.cancel();
+    _bestieReviewTimer = Timer.periodic(const Duration(milliseconds: 1400), (_) {
+      if (!mounted || !_bestieFlagsLoading) { _stopBestieReview(); return; }
+      setState(() {
+        _bestieReviewStep = (_bestieReviewStep + 1) % _bestieReviewSteps.length;
+      });
+    });
+  }
+
+  void _stopBestieReview() {
+    _bestieReviewTimer?.cancel();
+    _bestieReviewTimer = null;
   }
 
   void _next() {
@@ -334,13 +366,23 @@ class _DiscoverScreenState extends State<DiscoverScreen>
         ]),
         const SizedBox(height: 12),
         if (_bestieFlagsLoading)
-          const Row(children: [
-            SizedBox(
+          Row(children: [
+            const SizedBox(
               width: 13, height: 13,
               child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFBBF24)),
             ),
-            SizedBox(width: 8),
-            Text('Bestie is reading his profile…', style: TextStyle(color: Color(Config.text2), fontSize: 12)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 350),
+                transitionBuilder: (child, anim) => FadeTransition(opacity: anim, child: child),
+                child: Text(
+                  _bestieReviewSteps[_bestieReviewStep],
+                  key: ValueKey(_bestieReviewStep),
+                  style: const TextStyle(color: Color(Config.text2), fontSize: 12),
+                ),
+              ),
+            ),
           ])
         else if (_bestieFlags.isEmpty)
           const Text(
