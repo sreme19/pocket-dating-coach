@@ -26,7 +26,7 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
   // Non-hero photos, woven through the sections so they reveal on scroll rather
   // than sitting in a grid (MVP "Layout in the Public Read").
   final reveal = d.photos.length > 1 ? d.photos.sublist(1) : const <({String url, bool ai})>[];
-  Widget? revealAt(int i) => i < reveal.length ? _photoReveal(reveal[i].url, reveal[i].ai) : null;
+  Widget? revealAt(int i) => i < reveal.length ? photoReveal(reveal[i].url, reveal[i].ai) : null;
   return [
     Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
@@ -132,7 +132,7 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
 
 /// A profile photo woven between sections. Full-bleed rounded card; AI-enhanced
 /// portraits (men) carry a "generated from verified photos" badge.
-Widget _photoReveal(String url, bool ai) {
+Widget photoReveal(String url, bool ai) {
   return Padding(
     padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
     child: ClipRRect(
