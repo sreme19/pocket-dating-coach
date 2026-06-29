@@ -738,26 +738,37 @@ Future<void> savePhotos(List<PhotoItem> photos) async {
 }
 
 /// Generate AI-enhanced profile photos via the photo-enhance pipeline.
-/// Slow — allow up to 120s. Returns list of AiPhotoItem for each generated slot.
-Future<List<AiPhotoItem>> enhancePhotos(String referenceUrl, {String archetype = 'casual_man'}) async {
-  // Server requires a base64 data URL — download the image first
-  final imgResp = await _dio.get<List<int>>(
-    referenceUrl,
-    options: Options(responseType: ResponseType.bytes),
-  );
-  final bytes = imgResp.data ?? <int>[];
-  final ext = referenceUrl.split('?').first.split('.').last.toLowerCase();
-  final mime = switch (ext) {
-    'png'  => 'image/png',
-    'webp' => 'image/webp',
-    'gif'  => 'image/gif',
-    _      => 'image/jpeg',
-  };
-  final dataUrl = 'data:$mime;base64,${base64Encode(bytes)}';
+/// Pass ALL of the man's uploaded photos — the server uses them as multi-reference,
+/// which materially improves identity lock (Gemini edit-framing engine). Slow (~up to 120s).
+Future<List<AiPhotoItem>> enhancePhotos(List<String> referenceUrls, {String archetype = 'casual_man'}) async {
+  // Server requires base64 data URLs — download + encode each reference (men have ≤3).
+  final dataUrls = <String>[];
+  for (final url in referenceUrls.take(5)) {
+    if (url.startsWith('data:')) { dataUrls.add(url); continue; }
+    try {
+      final imgResp = await _dio.get<List<int>>(url, options: Options(responseType: ResponseType.bytes));
+      final bytes = imgResp.data ?? <int>[];
+      if (bytes.isEmpty) continue;
+      final ext = url.split('?').first.split('.').last.toLowerCase();
+      final mime = switch (ext) {
+        'png'  => 'image/png',
+        'webp' => 'image/webp',
+        'gif'  => 'image/gif',
+        _      => 'image/jpeg',
+      };
+      dataUrls.add('data:$mime;base64,${base64Encode(bytes)}');
+    } catch (_) {/* skip a reference that fails to download */}
+  }
+  if (dataUrls.isEmpty) throw 'Could not load reference photos';
 
   final resp = await _dio.post(
     '${Config.apiBase}/api/photo-enhance/generate',
-    data: {'referenceDataUrl': dataUrl, 'archetype': archetype.isNotEmpty ? archetype : 'casual_man', 'count': 3},
+    data: {
+      'referenceDataUrls': dataUrls,
+      'referenceDataUrl': dataUrls.first, // back-compat / fal fallback ref
+      'archetype': archetype.isNotEmpty ? archetype : 'casual_man',
+      'count': 3,
+    },
     options: Options(
       headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'},
       receiveTimeout: const Duration(seconds: 120),

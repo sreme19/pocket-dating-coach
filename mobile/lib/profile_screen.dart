@@ -2820,7 +2820,7 @@ class _PhotoStorySectionState extends State<_PhotoStorySection> {
     if (uploaded.isEmpty) return;
     setState(() { _enhancing = true; _enhanceError = null; });
     try {
-      final items = await enhancePhotos(uploaded.first.url, archetype: widget.data.archetype);
+      final items = await enhancePhotos([for (final p in uploaded) p.url], archetype: widget.data.archetype);
       await saveAiPhotos(items);
       setState(() { _aiPhotos = items; _enhancing = false; });
     } catch (e) {
