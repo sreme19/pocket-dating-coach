@@ -9,7 +9,7 @@ import 'app_logger.dart';
 import 'archetype_detail_sheet.dart';
 import 'archetypes.dart';
 import 'config.dart';
-import 'profile_body.dart' show travelMagnets, moneyMattersCard;
+import 'profile_body.dart' show travelMagnets, moneyMattersCard, photoReveal;
 import 'profile_edit.dart';
 import 'category_proof_screen.dart';
 import 'proof_upload_screen.dart';
@@ -235,12 +235,19 @@ class _ProfileBody extends StatelessWidget {
     }
     final bringsTitle = data.isMan ? 'WHAT HE BRINGS' : 'WHAT SHE BRINGS';
 
+    // Match the Public Read: a single hero up top, the remaining photos woven
+    // between the sections (not dumped in a gallery). Men's photos are all AI,
+    // women's all real, so the AI badge tracks gender.
+    final heroPhotos = data.photos.isNotEmpty ? data.photos.take(1).toList() : data.photos;
+    final reveal = data.photos.length > 1 ? data.photos.sublist(1) : const <String>[];
+    Widget? revealAt(int i) => i < reveal.length ? photoReveal(reveal[i], data.isMan) : null;
+
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: EdgeInsets.zero,
       children: [
         Stack(children: [
-          _Hero(photos: data.photos, fallback: data.heroPhotoUrl, aiEnhanced: data.isMan),
+          _Hero(photos: heroPhotos, fallback: data.heroPhotoUrl, aiEnhanced: data.isMan),
           // Bottom gradient overlay
           Positioned.fill(
             child: DecoratedBox(
@@ -421,6 +428,8 @@ class _ProfileBody extends StatelessWidget {
           );
         }),
 
+        if (revealAt(0) != null) revealAt(0)!,
+
         // ── About ────────────────────────────────────────────────────────
         _Section(
           icon: Icons.auto_awesome,
@@ -485,6 +494,8 @@ class _ProfileBody extends StatelessWidget {
             ),
           ),
 
+        if (revealAt(1) != null) revealAt(1)!,
+
         // ── Verified signals ─────────────────────────────────────────────
         if (data.career != null || data.lifestyle != null ||
             data.health != null || data.social != null)
@@ -494,6 +505,8 @@ class _ProfileBody extends StatelessWidget {
             subtitle: 'AI-read from uploads',
             child: _VerifiedSignals(data: data),
           ),
+
+        if (revealAt(2) != null) revealAt(2)!,
 
         // ── Garage ───────────────────────────────────────────────────────
         _Section(
@@ -540,11 +553,15 @@ class _ProfileBody extends StatelessWidget {
               : travelMagnets(data.countries),
         ),
 
+        if (revealAt(3) != null) revealAt(3)!,
+
         // ── What I'm about (My lane + Hard nos tabs) ─────────────────────
         _WhatImAboutSection(data: data, onChanged: onChanged),
 
         // ── Personality Reads radar ───────────────────────────────────────
         _PersonalityReadsSection(data: data),
+
+        if (revealAt(4) != null) revealAt(4)!,
 
         // ── Photo Story ──────────────────────────────────────────────────────
         _PhotoStorySection(data: data, onChanged: onChanged),
