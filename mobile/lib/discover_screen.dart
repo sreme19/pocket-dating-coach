@@ -208,7 +208,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
               physics: const AlwaysScrollableScrollPhysics(),
               padding: EdgeInsets.zero,
               children: [
-                _photo(avatar, trust),
+                _photo(avatar, trust, d?.heroIsAi ?? false),
                 if (loading)
                   const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator(color: Color(Config.accent))))
                 else if (d == null && snap.hasError) ...[
@@ -260,16 +260,30 @@ class _DiscoverScreenState extends State<DiscoverScreen>
     );
   }
 
-  Widget _photo(String? avatar, int trust) {
+  Widget _photo(String? avatar, int trust, bool heroIsAi) {
+    final hasPhoto = avatar != null && avatar.startsWith('http');
     return AspectRatio(
       aspectRatio: 4 / 5,
       child: Stack(fit: StackFit.expand, children: [
-        if (avatar != null && avatar.startsWith('http'))
+        if (hasPhoto)
           CachedNetworkImage(imageUrl: avatar, fit: BoxFit.cover,
               placeholder: (c, _) => const ColoredBox(color: Color(Config.bg3)),
               errorWidget: (c, _, _) => const _NoPhoto())
         else
           const _NoPhoto(),
+        if (heroIsAi && hasPhoto)
+          Positioned(
+            left: 16, top: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0x9E1B1020),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: const Text('✨ Generated from verified photos',
+                  style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+            ),
+          ),
         const DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(begin: Alignment.center, end: Alignment.bottomCenter,

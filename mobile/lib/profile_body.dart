@@ -23,6 +23,10 @@ String _inferredTip(String? from) =>
 /// (and anywhere a full profile is shown). Renders everything below the photo,
 /// in the same section order as the web.
 List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
+  // Non-hero photos, woven through the sections so they reveal on scroll rather
+  // than sitting in a grid (MVP "Layout in the Public Read").
+  final reveal = d.photos.length > 1 ? d.photos.sublist(1) : const <({String url, bool ai})>[];
+  Widget? revealAt(int i) => i < reveal.length ? _photoReveal(reveal[i].url, reveal[i].ai) : null;
   return [
     Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
@@ -43,6 +47,7 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
         ]),
       ]),
     ),
+    if (revealAt(0) != null) revealAt(0)!,
     if (d.hereFor != null && d.hereFor!.isNotEmpty)
       pSection('🧭 HERE FOR', Text(d.hereFor!, style: const TextStyle(color: Color(Config.text1), fontSize: 16, height: 1.4))),
     // Personality Reads (radar) — use server scores when available, else archetype defaults.
@@ -62,6 +67,7 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
           const SizedBox(height: 8),
         ],
       ])),
+    if (revealAt(1) != null) revealAt(1)!,
     if (d.whatBrings.isNotEmpty)
       pSection('WHAT ${d.name.toUpperCase()} BRINGS', Column(children: [
         for (final b in d.whatBrings)
@@ -87,10 +93,12 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
             ? '✓ AI verified via bank statement / financial document'
             : null,
       )),
+    if (revealAt(2) != null) revealAt(2)!,
     if (d.personalityPortraitUrl != null)
       pSection('✨ AI PORTRAIT', _portrait(d.personalityPortraitUrl!), hint: 'generated from photos'),
     if (d.garagePortraitUrl != null)
       pSection('✨ AI LIFESTYLE PORTRAIT', _portrait(d.garagePortraitUrl!), hint: 'generated from photos'),
+    if (revealAt(3) != null) revealAt(3)!,
     if (d.verifiedSignals.isNotEmpty)
       pSection('🛡 VERIFIED SIGNALS', SignalTabs(signals: d.verifiedSignals)),
     if (d.garage.isNotEmpty)
@@ -116,9 +124,43 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
           ])),
         ]),
       )).toList())),
+    if (revealAt(4) != null) revealAt(4)!,
     if (d.travel.isNotEmpty)
       pSection('✈️ TRAVEL MAGNETS', travelMagnets(d.travel), hint: 'detected from uploads'),
   ];
+}
+
+/// A profile photo woven between sections. Full-bleed rounded card; AI-enhanced
+/// portraits (men) carry a "generated from verified photos" badge.
+Widget _photoReveal(String url, bool ai) {
+  return Padding(
+    padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(18),
+      child: Stack(children: [
+        CachedNetworkImage(
+          imageUrl: url,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          placeholder: (c, _) => Container(height: 320, color: const Color(Config.bg3)),
+          errorWidget: (c, _, _) => const SizedBox.shrink(),
+        ),
+        if (ai)
+          Positioned(
+            left: 10, bottom: 10,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0x9E1B1020),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: const Text('✨ Generated from verified photos',
+                  style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+            ),
+          ),
+      ]),
+    ),
+  );
 }
 
 /// AI portrait image (rounded, with a caption strip).
