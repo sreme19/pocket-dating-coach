@@ -2148,6 +2148,10 @@ class MatchDetail {
   final String? garagePortraitUrl;
   // Personality radar: decisiveness / warmth / openness / pace (0-100 each)
   final Map<String, int>? traitScores;
+  // Gender-aware photo set (hero-first). `ai` marks AI-enhanced portraits (men).
+  final List<({String url, bool ai})> photos;
+  // Whether the hero (avatar) is an AI-enhanced portrait — drives the hero badge.
+  final bool heroIsAi;
 
   MatchDetail({
     required this.name,
@@ -2172,6 +2176,8 @@ class MatchDetail {
     required this.personalityPortraitUrl,
     required this.garagePortraitUrl,
     this.traitScores,
+    this.photos = const [],
+    this.heroIsAi = false,
   });
 }
 
@@ -2255,6 +2261,16 @@ Future<MatchDetail> fetchMatchDetail(String profileId) async {
     return (s != null && s.isNotEmpty) ? s : null;
   }
 
+  // Photo set — gender-aware, hero-first, AI-flagged (built server-side).
+  final photos = <({String url, bool ai})>[];
+  if (d['photos'] is List) {
+    for (final p in (d['photos'] as List)) {
+      if (p is Map && p['url'] is String && (p['url'] as String).startsWith('http')) {
+        photos.add((url: p['url'] as String, ai: p['ai'] == true));
+      }
+    }
+  }
+
   return MatchDetail(
     name: (d['firstName'] ?? '—').toString(),
     age: d['age'] is num ? (d['age'] as num).toInt() : null,
@@ -2281,6 +2297,8 @@ Future<MatchDetail> fetchMatchDetail(String profileId) async {
       for (final e in (d['traitScores'] as Map).entries)
         e.key.toString(): (e.value is num ? (e.value as num).toInt() : 0),
     } : null,
+    photos: photos,
+    heroIsAi: d['heroIsAi'] == true,
   );
 }
 

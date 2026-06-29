@@ -74,6 +74,19 @@ class _MatchProfileScreenState extends State<MatchProfileScreen> {
                         ),
                       ),
                     ),
+                    if (d.heroIsAi && hasPhoto)
+                      Positioned(
+                        left: 16, top: 16,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: const Color(0x9E1B1020),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: const Text('✨ Generated from verified photos',
+                              style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+                        ),
+                      ),
                     if (d.trustScore > 0)
                       Positioned(
                         right: 16, bottom: 16,
