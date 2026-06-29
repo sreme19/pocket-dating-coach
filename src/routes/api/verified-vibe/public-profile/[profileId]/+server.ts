@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
 import { ARCHETYPES } from '$lib/verified-vibe/constants';
-import { sanitizeAboutForDetail } from '$lib/server/profile-moderation';
+import { sanitizeAboutForDetail, isAbusiveName } from '$lib/server/profile-moderation';
 
 function snakeToTitle(s: string): string {
   return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -151,8 +151,8 @@ export const GET: RequestHandler = async ({ params }) => {
     const coreCount = completedSteps.filter((s: any) => coreSteps.includes(s.step)).length;
     const trustScore = Math.min(100, coreCount * 20 + proofCount * 4) || (profile.trust_score ?? 0);
 
-    // Title-case name
-    const rawName: string = profile.first_name ?? 'User';
+    // Title-case name (fall back when the stored name is symbol/digit garbage)
+    const rawName: string = isAbusiveName(profile.first_name) ? 'Member' : (profile.first_name ?? 'User');
     const firstName = rawName === rawName.toUpperCase()
       ? rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase()
       : rawName;

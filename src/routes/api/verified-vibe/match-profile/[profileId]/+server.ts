@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
 import { ARCHETYPES } from '$lib/verified-vibe/constants';
-import { sanitizeAboutForDetail } from '$lib/server/profile-moderation';
+import { sanitizeAboutForDetail, isAbusiveName } from '$lib/server/profile-moderation';
 
 /**
  * Compute four personality trait scores (0–100) from the AI personality data.
@@ -147,8 +147,8 @@ export const GET: RequestHandler = async ({ params, request }) => {
     const archetype: string = profile.archetype ?? 'casual_man';
     const archetypeDef = ARCHETYPES[archetype];
 
-    // Title-case the first name (handle ALL_CAPS entries)
-    const rawName: string = profile.first_name ?? 'User';
+    // Title-case the first name (handle ALL_CAPS entries; fall back on garbage)
+    const rawName: string = isAbusiveName(profile.first_name) ? 'Member' : (profile.first_name ?? 'User');
     const firstName = rawName === rawName.toUpperCase()
       ? rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase()
       : rawName;
