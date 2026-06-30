@@ -18,6 +18,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getSupabase } from '$lib/server/supabase';
 import { refreshPoolEntry } from '$lib/server/pool-registry';
 import { scheduleVectorRebuild } from '$lib/server/vector-rebuild';
+import { analyzeAbout } from '$lib/server/profile-moderation';
 
 // ── Auth helper ───────────────────────────────────────────────────────────────
 
@@ -224,7 +225,16 @@ export const POST: RequestHandler = async ({ request }: { request: Request }) =>
 
   if (body.identity              !== undefined) updated.identity              = body.identity;
   if (body.profileDraft          !== undefined) updated.profileDraft          = body.profileDraft;
-  if (body.generatedProfile      !== undefined) updated.generatedProfile      = body.generatedProfile;
+  if (body.generatedProfile      !== undefined) {
+    // Durable anti-overload defense: never persist an abusive `about` blob.
+    // analyzeAbout caps length + collapses character runs; egregious flood text
+    // is clamped to a safe truncation rather than stored verbatim.
+    const gp = body.generatedProfile;
+    if (gp && typeof gp === 'object' && typeof (gp as any).about === 'string') {
+      (gp as any).about = analyzeAbout((gp as any).about).cleaned;
+    }
+    updated.generatedProfile = gp;
+  }
   if (body.moneyMatters          !== undefined) updated.moneyMatters          = body.moneyMatters;
   if (body.personalityPortraitUrl !== undefined) updated.personalityPortraitUrl = body.personalityPortraitUrl;
   if (body.garagePortraitUrl      !== undefined) updated.garagePortraitUrl      = body.garagePortraitUrl;

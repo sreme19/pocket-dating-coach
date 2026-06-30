@@ -32,14 +32,19 @@ export interface RejectedPhoto {
 }
 
 export interface GenerateProfilePhotosInput {
-  /** Base64 data URL of the best reference photo */
+  /** Base64 data URL of the best reference photo (fal fallback uses this single ref) */
   referenceDataUrl: string;
+  /** All available reference photos of the SAME man — multi-reference improves Gemini's
+   *  identity lock. Falls back to [referenceDataUrl] when omitted. */
+  referenceDataUrls?: string[];
   /** User's archetype — drives scene selection */
   archetype: string;
   /** How many photos to generate (1–3) */
   count?: number;
   /** Photos the user rejected — their scenes are added to the negative prompt */
   rejectedPhotos?: RejectedPhoto[];
+  /** How many candidates to generate per scene before picking the best (1–4, default 2). */
+  candidatesPerScene?: number;
 }
 
 export interface GenerateProfilePhotosResult {

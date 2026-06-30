@@ -229,6 +229,9 @@
     <div class="hero-wrap">
       {#if profile.avatar}
         <img class="hero-photo" src={profile.avatar} alt="{profile.firstName}'s photo" />
+        {#if profile.heroIsAi}
+          <span class="hero-ai-badge">✨ Generated from verified photos</span>
+        {/if}
       {:else}
         <div class="hero-placeholder">
           <span class="placeholder-icon">📸</span>
@@ -386,6 +389,24 @@
     height: 100%;
     object-fit: cover;
     display: block;
+  }
+
+  .hero-ai-badge {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    background: rgba(27,16,32,0.62);
+    backdrop-filter: blur(4px);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
   }
 
   .hero-placeholder {

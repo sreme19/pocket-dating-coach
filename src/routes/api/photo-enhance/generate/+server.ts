@@ -1,7 +1,31 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
-import { generateProfilePhotos } from '$lib/photo-enhance';
+import { generateProfilePhotos, type PhotoEnhanceResult } from '$lib/photo-enhance';
+import { getSupabase } from '$lib/server/supabase';
+
+// Gemini returns base64 data URLs; host them durably in Supabase Storage and swap
+// in the public URL (fal results are already CDN URLs and pass through untouched).
+async function hostDataUrls(photos: PhotoEnhanceResult[]): Promise<PhotoEnhanceResult[]> {
+  const supabase = getSupabase() as any;
+  return Promise.all(photos.map(async (p) => {
+    const m = /^data:([^;]+);base64,(.*)$/s.exec(p.url);
+    if (!m) return p; // already a hosted URL (fal)
+    try {
+      const ext = (m[1].split('/')[1] || 'png').replace('jpeg', 'jpg');
+      const buf = Buffer.from(m[2], 'base64');
+      const path = `ai-photos/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('profiles')
+        .upload(path, buf, { contentType: m[1], upsert: true });
+      if (upErr) throw upErr;
+      const { data } = supabase.storage.from('profiles').getPublicUrl(path);
+      return { ...p, url: data.publicUrl };
+    } catch (e) {
+      console.error('[photo-enhance] failed to host generated image:', e);
+      return p; // leave the data URL as a last resort
+    }
+  }));
+}
 
 // Allow up to 90s — parallel fal.ai generations take ~25-35s
 export const config = {
@@ -52,31 +76,40 @@ function generateMockPhotos(count: number) {
 }
 
 export const POST: RequestHandler = async ({ request }) => {
-  const { referenceDataUrl, archetype, count, rejectedPhotos } = await request.json();
+  const { referenceDataUrl, referenceDataUrls, archetype, count, rejectedPhotos } = await request.json();
 
-  if (!referenceDataUrl) {
-    throw error(400, 'referenceDataUrl is required');
+  // Accept either a single reference or a multi-reference array (multi-ref preferred for Gemini).
+  const refs: string[] = Array.isArray(referenceDataUrls) && referenceDataUrls.length
+    ? referenceDataUrls
+    : (referenceDataUrl ? [referenceDataUrl] : []);
+  const primaryRef = referenceDataUrl ?? refs[0];
+
+  if (!primaryRef) {
+    throw error(400, 'referenceDataUrl or referenceDataUrls is required');
+  }
+  if (!refs.every((r) => typeof r === 'string' && r.startsWith('data:image/'))) {
+    throw error(400, 'references must be base64 image data URLs');
   }
 
-  if (!referenceDataUrl.startsWith('data:image/')) {
-    throw error(400, 'referenceDataUrl must be a base64 image data URL');
-  }
-
-  // If FAL_KEY is not available, use mock implementation for development
-  if (!env.FAL_KEY) {
-    console.warn('FAL_KEY not configured, using mock photo enhancement');
+  // No provider configured → mock (dev only)
+  if (!env.GEMINI_API_KEY && !env.FAL_KEY) {
+    console.warn('No GEMINI_API_KEY or FAL_KEY configured, using mock photo enhancement');
     return json(generateMockPhotos(count ?? 3));
   }
 
   const result = await generateProfilePhotos(
     {
-      referenceDataUrl,
+      referenceDataUrl: primaryRef,
+      referenceDataUrls: refs,
       archetype: archetype ?? 'casual_man',
       count: Math.min(count ?? 3, 3),
       rejectedPhotos: rejectedPhotos ?? [],
     },
-    env.FAL_KEY
+    { geminiKey: env.GEMINI_API_KEY, falKey: env.FAL_KEY }
   );
+
+  // Host any Gemini base64 results durably (Supabase Storage), keep fal URLs as-is.
+  result.photos = await hostDataUrls(result.photos);
 
   return json(result);
 };

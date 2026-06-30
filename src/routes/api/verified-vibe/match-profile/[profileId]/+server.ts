@@ -2,6 +2,8 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
 import { ARCHETYPES } from '$lib/verified-vibe/constants';
+import { sanitizeAboutForDetail, isAbusiveName, isAbusiveCity, cleanChipList } from '$lib/server/profile-moderation';
+import { buildPublicPhotos, pickHeroUrl } from '$lib/server/profile-photos';
 
 /**
  * Compute four personality trait scores (0–100) from the AI personality data.
@@ -146,8 +148,8 @@ export const GET: RequestHandler = async ({ params, request }) => {
     const archetype: string = profile.archetype ?? 'casual_man';
     const archetypeDef = ARCHETYPES[archetype];
 
-    // Title-case the first name (handle ALL_CAPS entries)
-    const rawName: string = profile.first_name ?? 'User';
+    // Title-case the first name (handle ALL_CAPS entries; fall back on garbage)
+    const rawName: string = isAbusiveName(profile.first_name) ? 'Member' : (profile.first_name ?? 'User');
     const firstName = rawName === rawName.toUpperCase()
       ? rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase()
       : rawName;
@@ -157,6 +159,12 @@ export const GET: RequestHandler = async ({ params, request }) => {
     const generatedProfile = (masterData.generatedProfile as Record<string, unknown>) ?? {};
     const personalityPortraitUrl = typeof masterData.personalityPortraitUrl === 'string' ? masterData.personalityPortraitUrl : null;
     const garagePortraitUrl = typeof masterData.garagePortraitUrl === 'string' ? masterData.garagePortraitUrl : null;
+
+    // Profile photo set — gender-aware (men: AI-only; women: real), hero-first,
+    // capped, AI-flagged. Hero never falls back to a man's raw avatar_url.
+    const photos = buildPublicPhotos(masterData, profile.gender);
+    const heroUrl = pickHeroUrl(photos, profile.gender, profile.avatar_url);
+    const heroIsAi = photos[0]?.ai ?? false;
 
     // Extract verified proofs for public display
     const verifiedProofs: Array<Record<string, unknown>> = Array.isArray(masterData.verifiedProofs) ? masterData.verifiedProofs as Array<Record<string, unknown>> : [];
@@ -202,7 +210,7 @@ export const GET: RequestHandler = async ({ params, request }) => {
 
     // Vibe words: prefer generatedProfile.personalityDescriptors over AI fallback
     const vibeWords: string[] = Array.isArray(generatedProfile.personalityDescriptors)
-      ? (generatedProfile.personalityDescriptors as string[]).map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      ? cleanChipList(generatedProfile.personalityDescriptors).map(w => w.charAt(0).toUpperCase() + w.slice(1))
       : deriveVibeWords(personality);
 
     // "What He Brings" — from archetype definition
@@ -215,11 +223,12 @@ export const GET: RequestHandler = async ({ params, request }) => {
       ?? archetypeDef?.tag
       ?? 'A real connection';
 
-    // About — prefer generatedProfile.about over DB about
-    const about: string | null =
+    // About — prefer generatedProfile.about over DB about, sanitized for abuse
+    const about: string | null = sanitizeAboutForDetail(
       (typeof generatedProfile.about === 'string' ? generatedProfile.about : null)
       ?? profile.about
-      ?? null;
+      ?? null
+    );
 
     // Communication style
     const communicationStyle =
@@ -230,8 +239,10 @@ export const GET: RequestHandler = async ({ params, request }) => {
         id: profile.id,
         firstName,
         age: profile.age,
-        city: profile.city,
-        avatar: profile.avatar_url,
+        city: isAbusiveCity(profile.city) ? null : profile.city,
+        avatar: heroUrl,
+        photos,
+        heroIsAi,
         about,
         looking: profile.looking,
         trustScore,

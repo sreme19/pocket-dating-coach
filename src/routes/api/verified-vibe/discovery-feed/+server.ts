@@ -3,6 +3,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import type { DiscoveryProfile } from '$lib/verified-vibe/types';
 import { getSupabase } from '$lib/server/supabase';
 import { MATCH_MATRIX } from '$lib/verified-vibe/constants';
+import { analyzeAbout, profileHideReason } from '$lib/server/profile-moderation';
 
 interface DiscoveryFeedRequest {
   limit?: number;
@@ -278,12 +279,47 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
       ...matchedProfileIds
     ]);
 
+    // Candidate set: passes exclude/block filters + liveness gate.
+    const candidates = (profiles || [])
+      .filter((p: any) => !allExcludeIds.has(p.id) && !blockedIds.includes(p.id))
+      .filter((p: any) => verificationMap.get(p.id)?.has('liveness') === true);
+
+    // The displayed `about` actually comes from user_master_profile.generatedProfile.about
+    // (the detail view reads that, not verified_vibe_users.about). Batch-fetch it for the
+    // candidate set so we can hide profiles whose about is abusive section-overload.
+    const candidateIds = candidates.map((p: any) => p.id);
+    const aboutByUser = new Map<string, string>();
+    if (candidateIds.length > 0) {
+      const { data: masterRows } = await (supabase as any)
+        .from('user_master_profile')
+        .select('user_id, data')
+        .in('user_id', candidateIds);
+      for (const row of masterRows || []) {
+        const genAbout = (row?.data as any)?.generatedProfile?.about;
+        if (typeof genAbout === 'string' && genAbout.trim()) aboutByUser.set(row.user_id, genAbout);
+      }
+    }
+
     // Convert database profiles to DiscoveryProfile format
     // P0-4: Only show profiles that have completed liveness verification (minimum trust gate)
-    const discoveryProfiles: DiscoveryProfile[] = (profiles || [])
-      .filter((p: any) => !allExcludeIds.has(p.id) && !blockedIds.includes(p.id))
-      .filter((p: any) => verificationMap.get(p.id)?.has('liveness') === true)
+    const discoveryProfiles: DiscoveryProfile[] = candidates
       .map((p: any) => {
+        // Effective about = master-profile generated text, falling back to the DB column.
+        const effectiveAbout = aboutByUser.get(p.id) ?? p.about ?? null;
+        // Drop bad-faith / abused profiles (garbage name, absurd age, repeated-spam
+        // about) from the feed entirely. Identity fields are written client-side
+        // straight to Supabase, so this read-gate is the only chokepoint.
+        const hideReason = profileHideReason({
+          firstName: p.first_name,
+          age: p.age,
+          city: p.city,
+          about: effectiveAbout,
+        });
+        if (hideReason) {
+          console.warn(`[discovery-feed] hiding profile ${p.id}: ${hideReason}`);
+          return null;
+        }
+        const aboutVerdict = analyzeAbout(effectiveAbout);
         const trustScore = trustScoreMap.get(p.id) || 0;
         const verifiedSteps = Array.from(verificationMap.get(p.id) || new Set()).map(s => {
           const stepNames: Record<string, string> = {
@@ -303,7 +339,7 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
           age: p.age || 25,
           city: p.city || 'Unknown',
           avatar: p.avatar_url || null,
-          about: p.about || null,
+          about: aboutVerdict.cleaned || null,
           looking: 'Looking for connection',
           trustScore,
           createdAt: new Date(p.created_at),
@@ -311,7 +347,8 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
           distance: Math.floor(Math.random() * 20) + 1 + ' mi',
           verified: verifiedSteps.length > 0 ? verifiedSteps : []
         };
-      });
+      })
+      .filter((p: DiscoveryProfile | null): p is DiscoveryProfile => p !== null);
 
     // Sort: verified first, then archetype-compatible, then by trust score descending
     const compatibleSet = new Set(compatibleArchetypes);

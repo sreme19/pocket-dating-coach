@@ -9,6 +9,8 @@
 
 import { fal } from '@fal-ai/client';
 import { getScenesForArchetype } from './scenes';
+import { generateSceneWithGemini, type GeminiPromptOpts } from './gemini';
+import { analyzeReferences, scoreCandidate } from './vision';
 import type {
   PhotoEnhanceInput,
   PhotoEnhanceResult,
@@ -20,6 +22,7 @@ import type {
 
 export type { PhotoEnhanceInput, PhotoEnhanceResult, RejectedPhoto, GenerateProfilePhotosInput, GenerateProfilePhotosResult, PhotoRole };
 export { getScenesForArchetype } from './scenes';
+export { generateSceneWithGemini, buildGeminiPrompt } from './gemini';
 
 const FAL_MODEL = 'fal-ai/flux-pulid';
 
@@ -103,39 +106,82 @@ export async function generateEnhancedPhoto(
 
 /**
  * Generate a full set of profile photos for a user.
- * Runs all generations in parallel for speed (~25s total vs 25s × N).
- * Includes retry logic for failed photos.
  *
- * @param input.referenceDataUrl — best reference photo of the user
- * @param input.archetype        — user's dating archetype (drives scene selection)
- * @param input.count            — number of photos to generate (default 5)
- * @param apiKey                 — fal.ai API key
+ * Primary engine: **Gemini 2.5 Flash Image** with multi-reference + edit-framing
+ * (the bake-off winner — realistic, identity-preserving, ~$0.04/img, no training).
+ * **Fallback per scene: fal.ai FLUX-PuLID** if Gemini errors / is unconfigured.
+ *
+ * Phase-2 guardrails (Gemini only): one upfront vision read auto-SELECTS the usable
+ * reference photos, reads the man's appearance, and derives styling-by-feature
+ * (hat for bald, blazer for heavier) + an older/grey guard. Each scene then generates
+ * N candidates and the best (identity + flattering, no artifacts) is picked.
+ *
+ * Gemini results are base64 data URLs (the caller hosts them durably); fal results
+ * are fal-CDN URLs. Scenes (and candidates within a scene) run in parallel.
+ *
+ * @param keys.geminiKey — GEMINI_API_KEY (primary). @param keys.falKey — FAL_KEY (fallback).
  */
 export async function generateProfilePhotos(
   input: GenerateProfilePhotosInput,
-  apiKey: string
+  keys: { geminiKey?: string; falKey?: string }
 ): Promise<GenerateProfilePhotosResult> {
   const scenes = getScenesForArchetype(input.archetype, input.count ?? 3);
+  const allRefs = input.referenceDataUrls?.length ? input.referenceDataUrls : [input.referenceDataUrl];
+  const N = Math.max(1, Math.min(input.candidatesPerScene ?? 2, 4)); // candidates per scene
 
-  // Build a negative-prompt suffix from rejected photos so Claude avoids
+  // Build a negative-prompt suffix (fal only) from rejected photos so we avoid
   // repeating looks, settings, or styles the user already dismissed.
   const rejected: RejectedPhoto[] = input.rejectedPhotos ?? [];
   const negativePromptExtra = rejected.length > 0
     ? `avoid repeating these rejected styles: ${rejected.map(r => r.scene).join(', ')}`
     : '';
 
+  // Phase-2 upfront vision read (Gemini): reference selection + appearance + styling.
+  let refs = allRefs;
+  let promptOpts: GeminiPromptOpts = {};
+  if (keys.geminiKey) {
+    try {
+      const a = await analyzeReferences(allRefs, keys.geminiKey);
+      if (a.usableRefs.length) refs = a.usableRefs;
+      promptOpts = a.opts;
+    } catch (err) {
+      console.warn('[photo-enhance] analyzeReferences failed, using all refs:', err instanceof Error ? err.message : err);
+    }
+  }
+
   const results = await Promise.allSettled(
     scenes.map(async (scene): Promise<PhotoEnhanceResult> => {
-      const url = await generateEnhancedPhoto(
-        {
-          referenceDataUrl: input.referenceDataUrl,
-          scenePrompt: scene.prompt,
-          negativePromptExtra: negativePromptExtra || undefined,
-        },
-        apiKey,
-        1 // Retry once on failure
-      );
-      return { url, scene: scene.label, role: scene.role };
+      // 1) Gemini edit-framing (primary) — generate N candidates, pick the best
+      if (keys.geminiKey) {
+        try {
+          const settled = await Promise.allSettled(
+            Array.from({ length: N }, () => generateSceneWithGemini(refs, scene.prompt, keys.geminiKey!, promptOpts, 1))
+          );
+          const candidates = settled.filter((s) => s.status === 'fulfilled').map((s) => (s as PromiseFulfilledResult<string>).value);
+          if (candidates.length === 1) {
+            return { url: candidates[0], scene: scene.label, role: scene.role };
+          }
+          if (candidates.length > 1) {
+            const scores = await Promise.all(candidates.map((c) => scoreCandidate(refs, c, keys.geminiKey!).catch(() => null)));
+            let best = candidates[0], bestScore = -Infinity;
+            candidates.forEach((c, i) => { const s = scores[i]?.score ?? 0; if (s > bestScore) { bestScore = s; best = c; } });
+            return { url: best, scene: scene.label, role: scene.role };
+          }
+        } catch (err) {
+          console.warn(`[photo-enhance] Gemini failed for ${scene.role}, falling back to fal:`,
+            err instanceof Error ? err.message : err);
+        }
+      }
+      // 2) fal.ai FLUX-PuLID (fallback)
+      if (keys.falKey) {
+        const url = await generateEnhancedPhoto(
+          { referenceDataUrl: input.referenceDataUrl, scenePrompt: scene.prompt, negativePromptExtra: negativePromptExtra || undefined },
+          keys.falKey,
+          1
+        );
+        return { url, scene: scene.label, role: scene.role };
+      }
+      throw new Error('no photo provider configured (need GEMINI_API_KEY or FAL_KEY)');
     })
   );
 
