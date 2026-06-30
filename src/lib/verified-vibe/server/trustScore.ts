@@ -124,6 +124,10 @@ function calculateStepScore(record: VerificationRecord | undefined): number {
     return 0; // Not completed
   }
 
+  if (record.status === 'under_review') {
+    return 0; // Score withheld pending manual review (e.g. low-confidence selfie)
+  }
+
   // For completed records, use confidence score if available
   if (record.data?.confidenceScore !== undefined) {
     return Math.round(record.data.confidenceScore);

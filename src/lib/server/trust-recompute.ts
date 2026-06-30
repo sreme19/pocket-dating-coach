@@ -140,13 +140,18 @@ export async function computeSubscores(userId: string): Promise<SubscoreResult> 
 
 		// Base dimensions from verification records (faithful to the old recalc).
 		if (Array.isArray(baseRows)) {
-			const idRec    = baseRows.find((r: any) => r.step === 'id');
-			const livRec   = baseRows.find((r: any) => r.step === 'liveness');
-			const photoRec = baseRows.find((r: any) => r.step === 'photos');
-			const qaRec    = baseRows.find((r: any) => r.step === 'spending_or_qa');
-			const idScore  = idRec    ? (idRec.data?.confidenceScore    ?? 100) : 0;
-			const livScore = livRec   ? (livRec.data?.confidenceScore   ?? 100) : 0;
-			const phScore  = photoRec ? (photoRec.data?.confidenceScore ?? 100) : 0;
+			// Only COMPLETED steps count — a low-confidence liveness selfie is stored
+			// as 'under_review' and must not credit the identity score.
+			const idRec    = baseRows.find((r: any) => r.step === 'id' && r.status === 'completed');
+			const livRec   = baseRows.find((r: any) => r.step === 'liveness' && r.status === 'completed');
+			const photoRec = baseRows.find((r: any) => r.step === 'photos' && r.status === 'completed');
+			const qaRec    = baseRows.find((r: any) => r.step === 'spending_or_qa' && r.status === 'completed');
+			// Read `confidence` — the field the verify-step handlers actually write.
+			// (The old `confidenceScore` was never written, so every step silently
+			// defaulted to 100 regardless of the real score.)
+			const idScore  = idRec    ? (idRec.data?.confidence    ?? 100) : 0;
+			const livScore = livRec   ? (livRec.data?.confidence   ?? 100) : 0;
+			const phScore  = photoRec ? (photoRec.data?.confidence ?? 100) : 0;
 			idDone  = !!idRec;
 			livDone = !!livRec;
 			subscores.identity          = Math.round((idScore + livScore) / 2);

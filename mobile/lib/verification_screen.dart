@@ -1418,7 +1418,12 @@ class _LivenessCaptureScreenState extends State<_LivenessCaptureScreen> {
       if (!mounted) return;
       final conf = res['confidence'] ?? (res['data'] is Map ? (res['data'] as Map)['confidence'] : null);
       final pct  = conf is num ? conf.toDouble() : 0.0;
-      if (pct > 0 && pct < 50) {
+      // The server owns the pass/fail threshold and stamps `underReview` into the
+      // response whenever it withholds the trust score. Key off that flag so the
+      // "under review" screen shows exactly when no score was granted.
+      final underReview = res['underReview'] == true ||
+          (res['data'] is Map && (res['data'] as Map)['underReview'] == true);
+      if (underReview) {
         setState(() { _phase = _LivenessPhase.underReview; _matchPct = pct.round(); });
       } else {
         final msg = pct > 0 ? 'Live selfie · ${pct.round()}%' : 'Selfie verified ✓';

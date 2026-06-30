@@ -103,14 +103,15 @@ async function persistVerificationStep(
   userId: string,
   step: string,
   trustPoints: number,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
+  status: string = 'completed'
 ): Promise<void> {
   try {
     const supabase = getSupabase();
     await (supabase as any)
       .from('verified_vibe_verification')
       .upsert(
-        { user_id: userId, step, status: 'completed', data: data ?? null, completed_at: new Date().toISOString() },
+        { user_id: userId, step, status, data: data ?? null, completed_at: new Date().toISOString() },
         { onConflict: 'user_id,step' }
       );
     // Recompute + normalize trust score after every verification step
@@ -121,6 +122,12 @@ async function persistVerificationStep(
     console.error('persistVerificationStep error (non-fatal):', e);
   }
 }
+
+// Minimum liveness confidence to award identity trust. Below this the selfie is
+// stored for manual review and earns 0 points. The server is the source of truth:
+// it stamps `underReview` into the step data so the client shows matching messaging
+// (see handleLivenessVerification) instead of re-deriving a threshold of its own.
+const LIVENESS_MIN_CONFIDENCE = 75;
 
 // ── Anchor selfie (onboarding liveness face) ─────────────────────────────────
 // The onboarding selfie is stored as the user's "anchor face" and later matched
@@ -293,17 +300,27 @@ async function handleLivenessVerification(data: any, userId: string | null = nul
       };
     }
 
-    // Always treat as completed — low-confidence results go to manual review
-    // rather than hard-blocking the user. The client surfaces "under review"
-    // messaging when confidence < 50.
-    const trustPoints = getTrustPoints('liveness');
+    // Gate the trust score on confidence: a low-confidence selfie is stored for
+    // manual review (status 'under_review') and earns 0 points, so the under-review
+    // messaging the client shows is backed by an actual withheld score. We fail
+    // OPEN only on our own API error (face-match path sets apiError:true) so an
+    // outage never hard-blocks a user — a genuine low score does not pass.
+    const confidence = typeof stepData.confidence === 'number' ? stepData.confidence : 0;
+    const passed = stepData.apiError === true || confidence >= LIVENESS_MIN_CONFIDENCE;
+
+    const trustPoints = passed ? getTrustPoints('liveness') : 0;
+    const status = passed ? 'completed' : 'under_review';
+    // Stamp the decision into the data the client receives (verifyStep returns
+    // body.data, not the top-level status) so it shows the under-review screen
+    // exactly when the score was actually withheld.
+    stepData.underReview = !passed;
 
     if (userId) {
-      await persistVerificationStep(userId, 'liveness', trustPoints, stepData);
-      enrollInPoolIfVerified(userId).catch(() => {});
+      await persistVerificationStep(userId, 'liveness', trustPoints, stepData, status);
+      if (passed) enrollInPoolIfVerified(userId).catch(() => {});
     }
 
-    return json({ status: 'completed', step: 'liveness', data: stepData, trustPoints }, { status: 201 });
+    return json({ status, step: 'liveness', data: stepData, trustPoints }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Liveness check failed';
     return json({ error: message }, { status: 422 });
