@@ -1,12 +1,12 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
-import { generateProfilePhotos } from '$lib/photo-enhance';
+import { generateProfilePhotos, type PhotoEnhanceResult } from '$lib/photo-enhance';
 import { getSupabase } from '$lib/server/supabase';
 
 // Gemini returns base64 data URLs; host them durably in Supabase Storage and swap
 // in the public URL (fal results are already CDN URLs and pass through untouched).
-async function hostDataUrls(photos: { url: string; scene: string; role: string }[]) {
+async function hostDataUrls(photos: PhotoEnhanceResult[]): Promise<PhotoEnhanceResult[]> {
   const supabase = getSupabase() as any;
   return Promise.all(photos.map(async (p) => {
     const m = /^data:([^;]+);base64,(.*)$/s.exec(p.url);

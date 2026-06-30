@@ -9,7 +9,8 @@
 
 import { fal } from '@fal-ai/client';
 import { getScenesForArchetype } from './scenes';
-import { generateSceneWithGemini } from './gemini';
+import { generateSceneWithGemini, type GeminiPromptOpts } from './gemini';
+import { analyzeReferences, scoreCandidate } from './vision';
 import type {
   PhotoEnhanceInput,
   PhotoEnhanceResult,
@@ -110,8 +111,13 @@ export async function generateEnhancedPhoto(
  * (the bake-off winner — realistic, identity-preserving, ~$0.04/img, no training).
  * **Fallback per scene: fal.ai FLUX-PuLID** if Gemini errors / is unconfigured.
  *
- * Gemini results come back as base64 data URLs (the caller hosts them durably);
- * fal results are fal-CDN URLs. All generations run in parallel.
+ * Phase-2 guardrails (Gemini only): one upfront vision read auto-SELECTS the usable
+ * reference photos, reads the man's appearance, and derives styling-by-feature
+ * (hat for bald, blazer for heavier) + an older/grey guard. Each scene then generates
+ * N candidates and the best (identity + flattering, no artifacts) is picked.
+ *
+ * Gemini results are base64 data URLs (the caller hosts them durably); fal results
+ * are fal-CDN URLs. Scenes (and candidates within a scene) run in parallel.
  *
  * @param keys.geminiKey — GEMINI_API_KEY (primary). @param keys.falKey — FAL_KEY (fallback).
  */
@@ -120,7 +126,8 @@ export async function generateProfilePhotos(
   keys: { geminiKey?: string; falKey?: string }
 ): Promise<GenerateProfilePhotosResult> {
   const scenes = getScenesForArchetype(input.archetype, input.count ?? 3);
-  const refs = input.referenceDataUrls?.length ? input.referenceDataUrls : [input.referenceDataUrl];
+  const allRefs = input.referenceDataUrls?.length ? input.referenceDataUrls : [input.referenceDataUrl];
+  const N = Math.max(1, Math.min(input.candidatesPerScene ?? 2, 4)); // candidates per scene
 
   // Build a negative-prompt suffix (fal only) from rejected photos so we avoid
   // repeating looks, settings, or styles the user already dismissed.
@@ -129,13 +136,37 @@ export async function generateProfilePhotos(
     ? `avoid repeating these rejected styles: ${rejected.map(r => r.scene).join(', ')}`
     : '';
 
+  // Phase-2 upfront vision read (Gemini): reference selection + appearance + styling.
+  let refs = allRefs;
+  let promptOpts: GeminiPromptOpts = {};
+  if (keys.geminiKey) {
+    try {
+      const a = await analyzeReferences(allRefs, keys.geminiKey);
+      if (a.usableRefs.length) refs = a.usableRefs;
+      promptOpts = a.opts;
+    } catch (err) {
+      console.warn('[photo-enhance] analyzeReferences failed, using all refs:', err instanceof Error ? err.message : err);
+    }
+  }
+
   const results = await Promise.allSettled(
     scenes.map(async (scene): Promise<PhotoEnhanceResult> => {
-      // 1) Gemini edit-framing (primary)
+      // 1) Gemini edit-framing (primary) — generate N candidates, pick the best
       if (keys.geminiKey) {
         try {
-          const url = await generateSceneWithGemini(refs, scene.prompt, keys.geminiKey, {}, 1);
-          return { url, scene: scene.label, role: scene.role };
+          const settled = await Promise.allSettled(
+            Array.from({ length: N }, () => generateSceneWithGemini(refs, scene.prompt, keys.geminiKey!, promptOpts, 1))
+          );
+          const candidates = settled.filter((s) => s.status === 'fulfilled').map((s) => (s as PromiseFulfilledResult<string>).value);
+          if (candidates.length === 1) {
+            return { url: candidates[0], scene: scene.label, role: scene.role };
+          }
+          if (candidates.length > 1) {
+            const scores = await Promise.all(candidates.map((c) => scoreCandidate(refs, c, keys.geminiKey!).catch(() => null)));
+            let best = candidates[0], bestScore = -Infinity;
+            candidates.forEach((c, i) => { const s = scores[i]?.score ?? 0; if (s > bestScore) { bestScore = s; best = c; } });
+            return { url: best, scene: scene.label, role: scene.role };
+          }
         } catch (err) {
           console.warn(`[photo-enhance] Gemini failed for ${scene.role}, falling back to fal:`,
             err instanceof Error ? err.message : err);
