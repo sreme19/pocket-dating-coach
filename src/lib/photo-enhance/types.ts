@@ -43,6 +43,8 @@ export interface GenerateProfilePhotosInput {
   count?: number;
   /** Photos the user rejected — their scenes are added to the negative prompt */
   rejectedPhotos?: RejectedPhoto[];
+  /** How many candidates to generate per scene before picking the best (1–4, default 2). */
+  candidatesPerScene?: number;
 }
 
 export interface GenerateProfilePhotosResult {
