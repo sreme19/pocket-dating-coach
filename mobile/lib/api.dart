@@ -165,6 +165,9 @@ final _dio = () {
 
 int _asInt(dynamic v) => v is num ? v.toInt() : (int.tryParse('$v') ?? 0);
 
+/// The signed-in user's id, or null if not authenticated.
+String? currentUserId() => Supabase.instance.client.auth.currentUser?.id;
+
 Future<ProfileData> fetchProfile() async {
   final supabase = Supabase.instance.client;
   final user = supabase.auth.currentUser;
@@ -740,13 +743,13 @@ Future<void> savePhotos(List<PhotoItem> photos) async {
 /// Generate AI-enhanced profile photos via the photo-enhance pipeline.
 /// Pass ALL of the man's uploaded photos — the server uses them as multi-reference,
 /// which materially improves identity lock (Gemini edit-framing engine). Slow (~up to 120s).
-Future<List<AiPhotoItem>> enhancePhotos(List<String> referenceUrls, {String archetype = 'casual_man'}) async {
+Future<List<AiPhotoItem>> enhancePhotos(List<String> referenceUrls, {String archetype = 'casual_man', CancelToken? cancelToken}) async {
   // Server requires base64 data URLs — download + encode each reference (men have ≤3).
   final dataUrls = <String>[];
   for (final url in referenceUrls.take(5)) {
     if (url.startsWith('data:')) { dataUrls.add(url); continue; }
     try {
-      final imgResp = await _dio.get<List<int>>(url, options: Options(responseType: ResponseType.bytes));
+      final imgResp = await _dio.get<List<int>>(url, cancelToken: cancelToken, options: Options(responseType: ResponseType.bytes));
       final bytes = imgResp.data ?? <int>[];
       if (bytes.isEmpty) continue;
       final ext = url.split('?').first.split('.').last.toLowerCase();
@@ -769,6 +772,7 @@ Future<List<AiPhotoItem>> enhancePhotos(List<String> referenceUrls, {String arch
       'archetype': archetype.isNotEmpty ? archetype : 'casual_man',
       'count': 3,
     },
+    cancelToken: cancelToken,
     options: Options(
       headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'},
       receiveTimeout: const Duration(seconds: 120),

@@ -10,6 +10,7 @@ import 'app_logger.dart';
 import 'archetype_detail_sheet.dart';
 import 'archetypes.dart';
 import 'config.dart';
+import 'photo_enhance_manager.dart';
 import 'profile_body.dart' show travelMagnets, moneyMattersCard, photoReveal;
 import 'profile_edit.dart';
 import 'category_proof_screen.dart';
@@ -108,12 +109,35 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   late Future<ProfileData> _future;
+  EnhanceStatus _lastEnhanceStatus = EnhanceStatus.idle;
 
   @override
   void initState() {
     super.initState();
     AppLogger.instance.screen('profile');
     _future = fetchProfile();
+    // Background AI photo generation lives outside this screen so it survives
+    // scroll/tab/navigation. Bind it to the current user and refetch the profile
+    // when a run succeeds so the freshly-saved AI photos actually render.
+    final mgr = PhotoEnhanceManager.instance;
+    mgr.bindUser(currentUserId());
+    _lastEnhanceStatus = mgr.status;
+    mgr.addListener(_onEnhanceChange);
+  }
+
+  @override
+  void dispose() {
+    PhotoEnhanceManager.instance.removeListener(_onEnhanceChange);
+    super.dispose();
+  }
+
+  void _onEnhanceChange() {
+    final s = PhotoEnhanceManager.instance.status;
+    // Refetch only on the transition INTO success, so the new AI photos load.
+    if (s == EnhanceStatus.success && _lastEnhanceStatus != EnhanceStatus.success && mounted) {
+      _refresh();
+    }
+    _lastEnhanceStatus = s;
   }
 
   Future<void> _refresh() async {
@@ -2767,42 +2791,32 @@ class _PhotoStorySection extends StatefulWidget {
 }
 
 class _PhotoStorySectionState extends State<_PhotoStorySection> {
-  bool _enhancing = false;
-  String? _enhanceError;
-  late List<AiPhotoItem> _aiPhotos;
-  bool _autoEnhanceAttempted = false;
+  PhotoEnhanceManager get _mgr => PhotoEnhanceManager.instance;
 
   static const _slots = ['lead', 'warmth', 'lifestyle'];
 
   @override
   void initState() {
     super.initState();
-    _aiPhotos = List.of(widget.data.aiPhotoItems);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAutoEnhance());
+    // The section only reflects the manager's state — generation itself runs in
+    // the background service, so scrolling this widget out of view (which
+    // disposes it) can never start, stop, or restart a run.
+    _mgr.addListener(_onMgrChange);
   }
 
   @override
-  void didUpdateWidget(_PhotoStorySection old) {
-    super.didUpdateWidget(old);
-    if (old.data != widget.data) {
-      _aiPhotos = List.of(widget.data.aiPhotoItems);
-      _maybeAutoEnhance();
-    }
+  void dispose() {
+    _mgr.removeListener(_onMgrChange);
+    super.dispose();
   }
 
-  /// A man's raw photo must never reach viewers, so once he has real photos but
-  /// no AI portraits yet, generate them automatically (once per screen instance).
-  void _maybeAutoEnhance() {
-    if (_autoEnhanceAttempted || _enhancing) return;
-    if (!widget.data.isMan) return;
-    if (widget.data.uploadedPhotos.isEmpty || _aiPhotos.isNotEmpty) return;
-    _autoEnhanceAttempted = true;
-    _handleEnhance();
+  void _onMgrChange() {
+    if (mounted) setState(() {});
   }
 
   /// Resolve slot: AI photo by role → uploaded photo by label/index → null.
   String? _resolve(String slot) {
-    for (final ai in _aiPhotos) {
+    for (final ai in widget.data.aiPhotoItems) {
       if (ai.role == slot) return ai.url;
     }
     final uploaded = widget.data.uploadedPhotos;
@@ -2815,18 +2829,15 @@ class _PhotoStorySectionState extends State<_PhotoStorySection> {
     return null;
   }
 
-  Future<void> _handleEnhance() async {
+  /// Regenerate button — always (re)starts, cancelling any in-flight run.
+  void _regenerate() {
     final uploaded = widget.data.uploadedPhotos;
     if (uploaded.isEmpty) return;
-    setState(() { _enhancing = true; _enhanceError = null; });
-    try {
-      final items = await enhancePhotos([for (final p in uploaded) p.url], archetype: widget.data.archetype);
-      await saveAiPhotos(items);
-      setState(() { _aiPhotos = items; _enhancing = false; });
-    } catch (e) {
-      AppLogger.instance.error(e, screen: 'profile', action: 'enhance_photos');
-      setState(() { _enhancing = false; _enhanceError = 'Couldn\'t enhance: $e'; });
-    }
+    AppLogger.instance.action('profile', 'enhance_photos');
+    _mgr.regenerate(
+      referenceUrls: [for (final p in uploaded) p.url],
+      archetype: widget.data.archetype,
+    );
   }
 
   /// Women: up to 6 real photos as tiles, plus one "add" tile while under cap.
@@ -2853,8 +2864,12 @@ class _PhotoStorySectionState extends State<_PhotoStorySection> {
   Widget build(BuildContext context) {
     final data = widget.data;
     final isMan = data.isMan;
-    final hasAiPhotos = _aiPhotos.isNotEmpty;
+    final aiItems = data.aiPhotoItems;
+    final hasAiPhotos = aiItems.isNotEmpty;
     final hasRealPhotos = data.uploadedPhotos.isNotEmpty;
+    // Spinner/error are driven by the background service, not local state.
+    final enhancing = isMan && _mgr.isRunning;
+    final enhanceError = (isMan && _mgr.status == EnhanceStatus.failed) ? _mgr.error : null;
     final filled = _slots.where((s) => _resolve(s) != null).length;
     final realCount = data.uploadedPhotos.length.clamp(0, 6);
     final subtitle = isMan
@@ -2869,7 +2884,7 @@ class _PhotoStorySectionState extends State<_PhotoStorySection> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (_enhancing)
+          if (enhancing)
             Container(
               height: 72,
               decoration: BoxDecoration(
@@ -2898,7 +2913,7 @@ class _PhotoStorySectionState extends State<_PhotoStorySection> {
                       for (final slot in _slots)
                         _PhotoSlot(
                           url: _resolve(slot),
-                          isAi: _aiPhotos.any((a) => a.role == slot),
+                          isAi: aiItems.any((a) => a.role == slot),
                           label: slot,
                           isMan: true,
                           onTap: () => openPhotoManager(context, data, widget.onChanged),
@@ -2906,9 +2921,9 @@ class _PhotoStorySectionState extends State<_PhotoStorySection> {
                     ]
                   : _womenTiles(data),
             ),
-          if (_enhanceError != null) ...[
+          if (enhanceError != null) ...[
             const SizedBox(height: 6),
-            Text(_enhanceError!,
+            Text(enhanceError,
                 style: const TextStyle(color: Color(0xFFF87171), fontSize: 12)),
           ],
           const SizedBox(height: 10),
@@ -2924,24 +2939,25 @@ class _PhotoStorySectionState extends State<_PhotoStorySection> {
             SizedBox(
               width: double.infinity, height: 50,
               child: FilledButton(
-                onPressed: (_enhancing || !hasRealPhotos) ? null : _handleEnhance,
+                // Stays enabled while a run is in flight so the user can cancel +
+                // restart with their latest photos. Progress is shown by the box above.
+                onPressed: !hasRealPhotos ? null : _regenerate,
                 style: FilledButton.styleFrom(
                   backgroundColor: const Color(Config.accent),
                   foregroundColor: Colors.white,
                   disabledBackgroundColor: const Color(0x44FF3B6B),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
-                child: _enhancing
-                    ? const SizedBox(width: 20, height: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : Row(mainAxisSize: MainAxisSize.min, children: [
-                        const Text('✨', style: TextStyle(fontSize: 16)),
-                        const SizedBox(width: 8),
-                        Text(
-                          hasAiPhotos ? 'Regenerate AI Photos' : 'Enhance with AI',
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                        ),
-                      ]),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Text('✨', style: TextStyle(fontSize: 16)),
+                  const SizedBox(width: 8),
+                  Text(
+                    enhancing
+                        ? 'Restart generation'
+                        : (hasAiPhotos ? 'Regenerate AI Photos' : 'Enhance with AI'),
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                  ),
+                ]),
               ),
             )
           else
