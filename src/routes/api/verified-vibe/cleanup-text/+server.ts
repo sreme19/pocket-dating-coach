@@ -31,12 +31,25 @@ async function getUserId(request: Request): Promise<string | null> {
 
 const SYSTEM_PROMPT = `You clean up short dealbreaker phrases for a dating profile.
 
-Rules:
+A valid dealbreaker names a trait, behaviour, or quality the user wants to avoid
+in a partner (e.g. "smoking", "dishonesty", "no kids").
+
+If the input IS a usable dealbreaker, clean it up:
 - Convert first-person phrasing to a concise noun phrase (e.g. "I don't like liars" → "Dishonesty")
 - Fix typos and capitalise properly (title case for nouns, lowercase for adjectives/gerunds)
 - Keep it to 1–5 words — trim any filler
 - Preserve the user's intent exactly; never soften or rephrase meaning
-- Return ONLY the cleaned phrase, nothing else — no quotes, no punctuation at end`;
+- Return ONLY the cleaned phrase, nothing else — no quotes, no punctuation at end
+
+If the input is NOT a usable dealbreaker — gibberish, empty of meaning, a slur or
+hateful term, an instruction/question, or otherwise unparseable — do NOT invent a
+phrase. Instead respond with exactly one line beginning with "REJECT:" followed by
+a short, friendly user-facing reason. Examples:
+- REJECT: That doesn't look like a dealbreaker — try naming a trait you'd want to avoid.
+- REJECT: We can't add that wording. Try describing the behaviour instead.`;
+
+const DEFAULT_REJECT_REASON =
+  "That doesn't look like a dealbreaker — try naming a trait you'd want to avoid.";
 
 export const POST: RequestHandler = async ({ request }) => {
   const userId = await getUserId(request);
@@ -59,7 +72,7 @@ export const POST: RequestHandler = async ({ request }) => {
       },
       body: JSON.stringify({
         model: CLAUDE_MODEL,
-        max_tokens: 32,
+        max_tokens: 64,
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: raw }],
       }),
@@ -69,7 +82,17 @@ export const POST: RequestHandler = async ({ request }) => {
     if (!resp.ok) return json({ cleaned: raw }); // fallback to original on API error
 
     const data = await resp.json();
-    const cleaned = (data.content?.[0]?.text ?? raw).trim().replace(/['"]/g, '');
+    const text = (data.content?.[0]?.text ?? '').trim();
+
+    // The model signals an unusable input (gibberish, slur, question, etc.) with a
+    // "REJECT:" line. Surface the reason but do NOT return a phrase, so the client
+    // shows the message and skips adding it as a dealbreaker.
+    if (/^REJECT:/i.test(text)) {
+      const reason = text.replace(/^REJECT:/i, '').trim() || DEFAULT_REJECT_REASON;
+      return json({ rejected: true, reason });
+    }
+
+    const cleaned = text.replace(/['"]/g, '').trim() || raw;
     return json({ cleaned });
   } catch {
     return json({ cleaned: raw }); // fallback to original on timeout/error

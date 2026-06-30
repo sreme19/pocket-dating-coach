@@ -1090,18 +1090,20 @@
   let newHardNo       = $state('');
   let savingHardNos   = $state(false);
   let cleaningHardNo  = $state(false);
+  let hardNoError     = $state('');
 
   function startEditHardNos() {
     editHardNos = [...hardNos];
     newHardNo = '';
+    hardNoError = '';
     editingHardNos = true;
   }
 
   async function addHardNo() {
     const raw = newHardNo.trim();
     if (!raw || editHardNos.includes(raw)) { newHardNo = ''; return; }
-    newHardNo = '';
 
+    hardNoError = '';
     cleaningHardNo = true;
     try {
       const { getSupabaseClient: _sb } = await import('$lib/client/supabase');
@@ -1112,11 +1114,20 @@
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ text: raw }),
       });
-      const { cleaned } = res.ok ? await res.json() : { cleaned: raw };
-      const v = (cleaned ?? raw).trim();
+      const data = res.ok ? await res.json() : { cleaned: raw };
+      // Not a usable dealbreaker — show the reason and keep the text for editing.
+      if (data?.rejected) {
+        hardNoError = (typeof data.reason === 'string' && data.reason.trim())
+          ? data.reason.trim()
+          : "That doesn't look like a dealbreaker — try naming a trait you'd want to avoid.";
+        return;
+      }
+      const v = (data.cleaned ?? raw).trim();
       if (v && !editHardNos.includes(v)) editHardNos = [...editHardNos, v];
+      newHardNo = '';
     } catch {
       if (!editHardNos.includes(raw)) editHardNos = [...editHardNos, raw];
+      newHardNo = '';
     } finally {
       cleaningHardNo = false;
     }
@@ -3281,6 +3292,9 @@
                   {cleaningHardNo ? '✦' : '+ Add'}
                 </button>
               </div>
+              {#if hardNoError}
+                <div class="hard-no-error">{hardNoError}</div>
+              {/if}
               <div class="inline-edit-actions">
                 <button class="inline-save-btn" onclick={saveHardNos} disabled={savingHardNos}>{savingHardNos ? 'Saving…' : 'Save'}</button>
                 <button class="inline-cancel-btn" onclick={() => editingHardNos = false}>Cancel</button>
@@ -5238,6 +5252,13 @@
     cursor: pointer;
     font-family: inherit;
     white-space: nowrap;
+  }
+
+  .hard-no-error {
+    margin-top: 6px;
+    color: #f87171;
+    font-size: 12px;
+    line-height: 1.4;
   }
 
   /* Photo grid */

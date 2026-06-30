@@ -1238,9 +1238,12 @@ class _VerificationScreenState extends State<VerificationScreen> {
       buildCounter: maxLength == null
           ? null
           : (_, {required currentLength, required isFocused, maxLength}) => null,
-      inputFormatters: maxLength == null
-          ? null
-          : [LengthLimitingTextInputFormatter(maxLength)],
+      inputFormatters: [
+        // Letters, spaces, hyphens and apostrophes only — blocks digits, symbols
+        // and emoji. Shared by the name and city fields (age is a dropdown).
+        FilteringTextInputFormatter.allow(RegExp(r"[\p{L} \-']", unicode: true)),
+        if (maxLength != null) LengthLimitingTextInputFormatter(maxLength),
+      ],
       onChanged: (_) => setState(() {}),
       style: const TextStyle(color: Color(Config.text1)),
       decoration: InputDecoration(
@@ -1415,7 +1418,12 @@ class _LivenessCaptureScreenState extends State<_LivenessCaptureScreen> {
       if (!mounted) return;
       final conf = res['confidence'] ?? (res['data'] is Map ? (res['data'] as Map)['confidence'] : null);
       final pct  = conf is num ? conf.toDouble() : 0.0;
-      if (pct > 0 && pct < 50) {
+      // The server owns the pass/fail threshold and stamps `underReview` into the
+      // response whenever it withholds the trust score. Key off that flag so the
+      // "under review" screen shows exactly when no score was granted.
+      final underReview = res['underReview'] == true ||
+          (res['data'] is Map && (res['data'] as Map)['underReview'] == true);
+      if (underReview) {
         setState(() { _phase = _LivenessPhase.underReview; _matchPct = pct.round(); });
       } else {
         final msg = pct > 0 ? 'Live selfie · ${pct.round()}%' : 'Selfie verified ✓';

@@ -194,12 +194,13 @@
         return;
       }
 
-      // Always completed — check confidence to decide which success screen to show
+      // The server owns the pass/fail threshold and stamps `underReview` into the
+      // response whenever it withholds the trust score (status 'under_review').
       const confidence = json.data?.confidence ?? 0;
       matchPct = Math.round(confidence);
 
-      if (confidence < 50) {
-        // Low confidence → show "under review" screen; user can still continue
+      if (json.data?.underReview === true || json.status === 'under_review') {
+        // Score withheld → show "under review" screen; user can still continue
         phase = 'under_review';
       } else {
         // High confidence → hand off to parent immediately

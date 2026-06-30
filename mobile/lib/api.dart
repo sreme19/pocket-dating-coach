@@ -165,6 +165,9 @@ final _dio = () {
 
 int _asInt(dynamic v) => v is num ? v.toInt() : (int.tryParse('$v') ?? 0);
 
+/// The signed-in user's id, or null if not authenticated.
+String? currentUserId() => Supabase.instance.client.auth.currentUser?.id;
+
 Future<ProfileData> fetchProfile() async {
   final supabase = Supabase.instance.client;
   final user = supabase.auth.currentUser;
@@ -740,13 +743,13 @@ Future<void> savePhotos(List<PhotoItem> photos) async {
 /// Generate AI-enhanced profile photos via the photo-enhance pipeline.
 /// Pass ALL of the man's uploaded photos — the server uses them as multi-reference,
 /// which materially improves identity lock (Gemini edit-framing engine). Slow (~up to 120s).
-Future<List<AiPhotoItem>> enhancePhotos(List<String> referenceUrls, {String archetype = 'casual_man'}) async {
+Future<List<AiPhotoItem>> enhancePhotos(List<String> referenceUrls, {String archetype = 'casual_man', CancelToken? cancelToken}) async {
   // Server requires base64 data URLs — download + encode each reference (men have ≤3).
   final dataUrls = <String>[];
   for (final url in referenceUrls.take(5)) {
     if (url.startsWith('data:')) { dataUrls.add(url); continue; }
     try {
-      final imgResp = await _dio.get<List<int>>(url, options: Options(responseType: ResponseType.bytes));
+      final imgResp = await _dio.get<List<int>>(url, cancelToken: cancelToken, options: Options(responseType: ResponseType.bytes));
       final bytes = imgResp.data ?? <int>[];
       if (bytes.isEmpty) continue;
       final ext = url.split('?').first.split('.').last.toLowerCase();
@@ -769,6 +772,7 @@ Future<List<AiPhotoItem>> enhancePhotos(List<String> referenceUrls, {String arch
       'archetype': archetype.isNotEmpty ? archetype : 'casual_man',
       'count': 3,
     },
+    cancelToken: cancelToken,
     options: Options(
       headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'},
       receiveTimeout: const Duration(seconds: 120),
@@ -935,19 +939,39 @@ Future<void> removeProofThumbnail(String category, String url) async {
   );
 }
 
+/// Result of cleaning a free-typed dealbreaker. Either a usable [cleaned] phrase,
+/// or a [rejectedReason] when the input isn't a valid dealbreaker (gibberish, a
+/// slur, a question, etc.) — in that case nothing should be added to the list.
+class CleanupResult {
+  final String? cleaned;
+  final String? rejectedReason;
+  const CleanupResult.ok(this.cleaned) : rejectedReason = null;
+  const CleanupResult.rejected(this.rejectedReason) : cleaned = null;
+  bool get isRejected => rejectedReason != null;
+}
+
 /// Normalize a free-typed dealbreaker into a concise phrase (Claude haiku).
-/// Falls back to the trimmed input on any error.
-Future<String> cleanupText(String text) async {
+/// Falls back to accepting the trimmed input on any transport error.
+Future<CleanupResult> cleanupText(String text) async {
   try {
     final resp = await _dio.post(
       '${Config.apiBase}/api/verified-vibe/cleanup-text',
       data: {'text': text},
       options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
     );
-    final c = (resp.data is Map) ? resp.data['cleaned'] : null;
-    return (c is String && c.trim().isNotEmpty) ? c.trim() : text.trim();
+    final data = resp.data;
+    if (data is Map && data['rejected'] == true) {
+      final r = data['reason'];
+      return CleanupResult.rejected(
+        (r is String && r.trim().isNotEmpty)
+            ? r.trim()
+            : "That doesn't look like a dealbreaker — try naming a trait you'd want to avoid.",
+      );
+    }
+    final c = (data is Map) ? data['cleaned'] : null;
+    return CleanupResult.ok((c is String && c.trim().isNotEmpty) ? c.trim() : text.trim());
   } catch (_) {
-    return text.trim();
+    return CleanupResult.ok(text.trim());
   }
 }
 
