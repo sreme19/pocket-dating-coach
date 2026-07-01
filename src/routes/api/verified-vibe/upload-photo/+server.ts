@@ -42,22 +42,17 @@ export const POST: RequestHandler = async ({ request }) => {
 		const label = sanitizeLabel(body.label ?? 'photo');
 		const supabase = getSupabase();
 
-		// Brand-premise guard: a man's raw, un-enhanced photo is never surfaced on
-		// the platform, so it must never land in the public `profiles` bucket nor
-		// in avatar_url. Men only ever persist hosted AI imageUrls here; their raw
-		// reference is sent transiently to /api/photo-enhance/generate as base64.
-		const isRawUpload = !(body.imageUrl && /^https?:\/\//.test(body.imageUrl))
-			&& !!body.dataUrl && body.dataUrl.startsWith('data:');
-		if (isRawUpload) {
-			const { data: u } = await supabase
-				.from('verified_vibe_users')
-				.select('gender')
-				.eq('id', user.id)
-				.maybeSingle();
-			if ((u as { gender?: string } | null)?.gender === 'man') {
-				return json({ error: "A man's raw photo is never stored — generate an AI portrait instead." }, { status: 422 });
-			}
-		}
+		// The profile-photo feature stores a man's raw upload as the AI enhancer's
+		// reference (same as onboarding does) — but it is EDIT-ONLY and never
+		// presented: it is excluded from every public/display photo set, and (see
+		// the avatar mirror below) it must never become his avatar_url. His avatar
+		// is only ever the AI lead portrait, set by saveAiPhotos.
+		const { data: u } = await supabase
+			.from('verified_vibe_users')
+			.select('gender')
+			.eq('id', user.id)
+			.maybeSingle();
+		const isMan = (u as { gender?: string } | null)?.gender === 'man';
 
 		let url: string;
 
@@ -88,8 +83,9 @@ export const POST: RequestHandler = async ({ request }) => {
 			return json({ error: 'Provide dataUrl or imageUrl' }, { status: 400 });
 		}
 
-		// If this is the lead photo, mirror it to avatar_url.
-		if (label === 'lead') {
+		// If this is the lead photo, mirror it to avatar_url — but NEVER for a man
+		// (his raw photo must not be presented anywhere; his avatar is the AI lead).
+		if (label === 'lead' && !isMan) {
 			await supabase
 				.from('verified_vibe_users')
 				.update({ avatar_url: url })

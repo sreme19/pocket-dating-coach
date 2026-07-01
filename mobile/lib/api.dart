@@ -727,12 +727,16 @@ Future<String> uploadPhoto(String dataUrl, String label) async {
 /// Persist the full uploaded-photos list to master-profile (replaces photos[]),
 /// and sync the lead (first) photo to verified_vibe_users.avatar_url so it shows
 /// everywhere discovery/chat read the identity row.
-Future<void> savePhotos(List<PhotoItem> photos) async {
+Future<void> savePhotos(List<PhotoItem> photos, {bool isMan = false}) async {
   await _dio.post(
     '${Config.apiBase}/api/verified-vibe/master-profile',
     data: {'photos': [for (final p in photos) {'dataUrl': p.url, 'label': p.label}]},
     options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
   );
+  // A man's raw photo must never be presented, so never mirror it to avatar_url —
+  // his avatar is only ever set to the AI lead by saveAiPhotos. Women's avatar
+  // tracks their real lead photo as before.
+  if (isMan) return;
   final supabase = Supabase.instance.client;
   final user = supabase.auth.currentUser;
   if (user != null && photos.isNotEmpty) {
