@@ -12,6 +12,7 @@ import 'app_logger.dart';
 import 'config.dart';
 import 'onboarding_questions.dart';
 import 'onboarding_qa_step.dart';
+import 'photo_enhance_manager.dart';
 
 String _friendlyError(Object e) {
   if (e is DioException) {
@@ -534,6 +535,26 @@ class _VerificationScreenState extends State<VerificationScreen> {
             'city': _cityCtrl.text.trim(),
             'openToTravel': _openToTravel,
           });
+          // Door A: a man's raw photo is never shown, so kick off background AI
+          // generation right after onboarding saves his photos. The manager runs
+          // it in the background (survives leaving this screen); the profile then
+          // shows the AI portraits once ready. Reference = the just-saved raw
+          // images as base64 data URLs (the enhancer accepts data: refs directly).
+          if (!_isWoman && imgs.isNotEmpty) {
+            PhotoEnhanceManager.instance.bindUser(currentUserId());
+            PhotoEnhanceManager.instance.onPhotosSaved(
+              // Freshly-picked slots are raw base64; a pre-filled slot may already
+              // be a hosted/data URL — pass those through untouched (the enhancer
+              // accepts http + data: refs directly).
+              referenceUrls: [
+                for (final img in imgs)
+                  (img.startsWith('http') || img.startsWith('data:'))
+                      ? img
+                      : 'data:image/jpeg;base64,$img',
+              ],
+              archetype: _arch,
+            );
+          }
           try {
             await saveIdentity(
               firstName: _nameCtrl.text.trim(),
