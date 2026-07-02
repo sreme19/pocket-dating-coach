@@ -6,15 +6,13 @@ import 'api.dart';
 import 'app_logger.dart';
 import 'archetypes.dart';
 import 'config.dart';
-import 'photo_enhance_manager.dart';
 
 // ── Photo manager ────────────────────────────────────────────────────────────
 
 /// Open the photo manager; returns after the user is done (caller refreshes).
 Future<void> openPhotoManager(BuildContext context, ProfileData data, VoidCallback onChanged) async {
   final changed = await Navigator.of(context).push<bool>(
-    MaterialPageRoute(builder: (_) => _PhotoManagerScreen(
-      initial: data.uploadedPhotos, gender: data.gender, archetype: data.archetype)),
+    MaterialPageRoute(builder: (_) => _PhotoManagerScreen(initial: data.uploadedPhotos, gender: data.gender)),
   );
   if (changed == true) onChanged();
 }
@@ -22,8 +20,7 @@ Future<void> openPhotoManager(BuildContext context, ProfileData data, VoidCallba
 class _PhotoManagerScreen extends StatefulWidget {
   final List<PhotoItem> initial;
   final String? gender;
-  final String archetype;
-  const _PhotoManagerScreen({required this.initial, required this.gender, required this.archetype});
+  const _PhotoManagerScreen({required this.initial, required this.gender});
   @override
   State<_PhotoManagerScreen> createState() => _PhotoManagerScreenState();
 }
@@ -76,16 +73,10 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
   Future<void> _save() async {
     setState(() { _busy = true; _error = null; });
     try {
-      await savePhotos(_photos);
-      // A man's raw photo never reaches viewers — kick off background AI
-      // generation from the saved set. The manager decides whether this actually
-      // runs (first run only; a finished run waits for the Regenerate button).
-      if (_isMan && _photos.isNotEmpty) {
-        PhotoEnhanceManager.instance.onPhotosSaved(
-          referenceUrls: [for (final p in _photos) p.url],
-          archetype: widget.archetype,
-        );
-      }
+      // Men's raw photos are stored edit-only (never presented) — persist them,
+      // but do NOT auto-run AI generation here. Editing photos requires the user
+      // to tap "Enhance with AI / Regenerate" manually; only onboarding auto-runs.
+      await savePhotos(_photos, isMan: _isMan);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       AppLogger.instance.error(e, screen: 'profile_edit', action: 'save_photos');
