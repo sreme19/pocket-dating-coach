@@ -64,12 +64,12 @@ const _configs = <String, _CatConfig>{
     subtitle: 'Show your real world: travel, dining, experiences',
     privacyCopy: 'Your uploads stay private. They help confirm your profile is authentic and improve match quality.',
     examples: [
-      'Hotel or flight booking screenshots',
-      'Restaurant or bar photos with context',
-      'Event or concert tickets',
-      'Travel photos with locations and moments visible',
+      'Travel or dining photos with YOUR FACE visible',
+      'Event or concert photos showing you were there',
+      'Hotel or flight booking screenshots (no face needed)',
+      'Restaurant or bar photos with you in the frame',
     ],
-    hintLine: 'Mix photos and booking screenshots for the strongest signal. Up to 20 photos.',
+    hintLine: 'Photos must show your face to be verified. Booking screenshots without a face are accepted as supporting evidence only.',
     maxFiles: 20,
   ),
   'discipline': _CatConfig(
