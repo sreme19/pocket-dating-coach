@@ -506,7 +506,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
     String? idBase64;
     String? idMime;
 
-    await showModalBottomSheet(
+    final faceMatched = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -721,8 +721,10 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
       }),
     );
 
-    // If both steps passed, retry the proof upload automatically
-    if (mounted) _analyse();
+    // Only retry if face match was explicitly completed (pop(true)).
+    // If the user dismissed the sheet without completing face match, faceMatched
+    // is null — do NOT proceed, otherwise proof gets verified without ID check.
+    if (mounted && faceMatched == true) _analyse();
   }
 
   Future<void> _analyse({String? relationship}) async {
