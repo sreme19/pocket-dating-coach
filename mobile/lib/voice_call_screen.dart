@@ -439,11 +439,18 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   }
 
   Widget _center(Widget icon, String msg, {bool showClose = false}) {
-    final content = Column(mainAxisSize: MainAxisSize.min, children: [
-      icon,
-      const SizedBox(height: 16),
-      Text(msg, textAlign: TextAlign.center, style: const TextStyle(color: Color(Config.text2), fontSize: 15, height: 1.5)),
-    ]);
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(width: 40, height: 40, child: icon),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: 260,
+          child: Text(msg, textAlign: TextAlign.center, style: const TextStyle(color: Color(Config.text2), fontSize: 15, height: 1.5)),
+        ),
+      ],
+    );
     if (!showClose) return Center(child: content);
     return Column(children: [
       const Spacer(),
