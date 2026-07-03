@@ -439,26 +439,36 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
   }
 
   Widget _center(Widget icon, String msg, {bool showClose = false}) {
-    return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      const Spacer(),
-      icon,
-      const SizedBox(height: 16),
-      Text(msg, textAlign: TextAlign.center, style: const TextStyle(color: Color(Config.text2), fontSize: 15, height: 1.5)),
-      const Spacer(),
-      if (showClose)
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(width: 40, height: 40, child: icon),
+        const SizedBox(height: 16),
         SizedBox(
-          height: 50,
-          width: double.infinity,
-          child: FilledButton(
-            onPressed: () => Navigator.of(context).pop(),
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(Config.bg3),
-              foregroundColor: const Color(Config.text1),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: const Text('Done'),
-          ),
+          width: 260,
+          child: Text(msg, textAlign: TextAlign.center, style: const TextStyle(color: Color(Config.text2), fontSize: 15, height: 1.5)),
         ),
+      ],
+    );
+    if (!showClose) return Center(child: content);
+    return Column(children: [
+      const Spacer(),
+      content,
+      const Spacer(),
+      SizedBox(
+        height: 50,
+        width: double.infinity,
+        child: FilledButton(
+          onPressed: () => Navigator.of(context).pop(),
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(Config.bg3),
+            foregroundColor: const Color(Config.text1),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          child: const Text('Done'),
+        ),
+      ),
     ]);
   }
 }

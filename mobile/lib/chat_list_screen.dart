@@ -281,6 +281,9 @@ class _ChatListScreenState extends State<ChatListScreen>
     } catch (e) {
       AppLogger.instance.error(e, screen: 'chat_list', action: 'load');
       final msg = e.toString();
+      if (msg.contains('429') || msg.contains('Rate limit') || msg.contains('Too Many')) {
+        throw Exception('Too many requests — please wait a moment and try again.');
+      }
       if (msg.contains('SocketException') || msg.contains('Failed host lookup') ||
           msg.contains('connection timeout') || msg.contains('receive timeout') ||
           msg.contains('connect timeout') || msg.contains('Network is unreachable') ||
@@ -463,16 +466,24 @@ class _ChatListScreenState extends State<ChatListScreen>
   Widget _error(String e) {
     final friendly = e.contains('No internet') ? e
         : e.contains('Session expired') ? e
+        : e.contains('Too many requests') ? e
+        : e.contains('Server took too long') ? e
         : e.contains('401') || e.contains('Unauthorized')
             ? 'Session expired. Please sign out and sign back in.'
-        : e.contains('timeout') || e.contains('SocketException') || e.contains('DioException')
+        : e.contains('429') || e.contains('Rate limit') || e.contains('DioException')
+            ? 'Too many requests — please wait a moment and try again.'
+        : e.contains('timeout') || e.contains('SocketException')
             ? 'No internet connection. Please check your network and retry.'
         : 'Something went wrong. Please try again.';
+    final isNetwork = friendly.contains('No internet');
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.cloud_off, color: Color(Config.text3), size: 48),
+          Icon(
+            isNetwork ? Icons.cloud_off : Icons.hourglass_top_rounded,
+            color: const Color(Config.text3), size: 48,
+          ),
           const SizedBox(height: 12),
           Text(friendly, textAlign: TextAlign.center, style: const TextStyle(color: Color(Config.text2))),
           const SizedBox(height: 16),
