@@ -377,17 +377,23 @@ export async function checkSelfieLivenessWithClaude(
               content: [
                 {
                   type: 'text',
-                  text: `You are performing a liveness check on a dating-app selfie. There is NO ID to compare against — judge ONLY whether this is a genuine, freshly-taken photo of a real, live human face.
+                  text: `You are performing a liveness check on a dating-app selfie. There is NO ID to compare against.
 
-PASS (live=true) when the image shows a real person's face captured by a camera — natural lighting, depth, skin texture, and a plausible candid or selfie framing.
+CRITICAL REQUIREMENT: A human face MUST be clearly and directly visible in the image. If no face is present or visible, return live=false and confidence=0 immediately — no exceptions.
 
-FAIL (live=false) ONLY when there is clear evidence the image is NOT a live capture:
-- A photo of another screen or printed photo (visible bezels, moiré, glare, paper edges)
-- A stock / catalogue / professional headshot clearly not a casual selfie
-- An obviously AI-generated or heavily synthetic face
-- No human face present at all
+PASS (live=true) ONLY when ALL of the following are true:
+1. A human face is clearly visible and looking toward the camera
+2. The image appears to be a genuine, freshly-taken photo (not a screen capture of another photo)
+3. The face is not AI-generated or synthetic
 
-Be lenient on photo quality, angle, expression, accessories, and background — those do not make a selfie "not live".`
+FAIL (live=false) when ANY of the following apply:
+- No human face is visible (e.g. photo of a wall, ceiling, object, or body without face)
+- Face is obscured, hidden, or not facing the camera
+- Photo of another screen or printed photo (visible bezels, moiré, glare, paper edges)
+- AI-generated or heavily synthetic face
+- Stock photo or professional headshot clearly not a selfie
+
+Be lenient on photo quality, lighting, angle, expression, and background — those alone do not fail a selfie.`
                 },
                 {
                   type: 'image',
@@ -395,8 +401,8 @@ Be lenient on photo quality, angle, expression, accessories, and background — 
                 },
                 {
                   type: 'text',
-                  text: `Rate your confidence (0-100) that this is a genuine live selfie of a real person.
-A score of 50+ should pass. Only fail if you are confident it is a spoof, stock photo, or synthetic image.
+                  text: `Rate your confidence (0-100) that this is a genuine live selfie showing the user's face.
+If no face is visible, set confidence=0 and live=false.
 
 Return ONLY a JSON object:
 {
@@ -437,8 +443,8 @@ Do not include any other text.`
       }
 
       const confidence = parsedResponse.confidence ?? 0;
-      // Pass threshold 50 — we never hard-block; low scores go to manual review.
-      const live = parsedResponse.live === true || confidence >= 50;
+      // Both live=true AND confidence>=50 required — OR would let live=false pass via confidence alone.
+      const live = parsedResponse.live === true && confidence >= 50;
 
       return {
         live,
