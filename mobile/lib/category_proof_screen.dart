@@ -627,45 +627,26 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
           ),
           const SizedBox(height: 16),
           if (selfiePicked == null)
-            Row(children: [
-              Expanded(child: OutlinedButton.icon(
-                onPressed: () async {
-                  // Use the custom front-camera screen — image_picker can't force
-                  // the front lens on Android (preferredCameraDevice is ignored).
-                  final path = await Navigator.of(ctx).push<String>(
-                    MaterialPageRoute(builder: (_) => const SelfieCameraScreen()),
-                  );
-                  if (path != null) setS(() { selfiePicked = XFile(path); error = null; });
-                },
-                icon: const Icon(Icons.camera_front_rounded),
-                label: const Text('Take selfie'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  foregroundColor: const Color(Config.accent),
-                  side: const BorderSide(color: Color(Config.accent)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              )),
-              const SizedBox(width: 10),
-              Expanded(child: OutlinedButton.icon(
-                onPressed: () async {
-                  final img = await ImagePicker().pickImage(
-                    source: ImageSource.gallery,
-                    imageQuality: 70,
-                    maxWidth: 1024,
-                  );
-                  if (img != null) setS(() { selfiePicked = img; error = null; });
-                },
-                icon: const Icon(Icons.photo_library_rounded),
-                label: const Text('From gallery'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  foregroundColor: const Color(Config.text2),
-                  side: const BorderSide(color: Color(Config.text3)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              )),
-            ])
+            SizedBox(width: double.infinity, child: OutlinedButton.icon(
+              onPressed: () async {
+                // Use the custom front-camera screen — image_picker can't force
+                // the front lens on Android (preferredCameraDevice is ignored).
+                // Gallery is intentionally not offered: a live selfie is required
+                // so users cannot bypass face-match with someone else's photo.
+                final path = await Navigator.of(ctx).push<String>(
+                  MaterialPageRoute(builder: (_) => const SelfieCameraScreen()),
+                );
+                if (path != null) setS(() { selfiePicked = XFile(path); error = null; });
+              },
+              icon: const Icon(Icons.camera_front_rounded),
+              label: const Text('Take selfie'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                foregroundColor: const Color(Config.accent),
+                side: const BorderSide(color: Color(Config.accent)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ))
           else
             Row(children: [
               ClipRRect(
