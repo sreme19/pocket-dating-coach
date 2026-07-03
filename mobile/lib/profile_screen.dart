@@ -820,13 +820,6 @@ Future<void> _editMoneyMatters(BuildContext context, ProfileData d, VoidCallback
         borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setS) {
-        void onCurrencyChange(String sym) {
-          setS(() {
-            currency = sym;
-            if (selIncome != null && !selIncome!.contains(sym)) selIncome = null;
-            if (selNW     != null && !selNW!.contains(sym))     selNW     = null;
-          });
-        }
         return SingleChildScrollView(
           padding: EdgeInsets.only(
             left: 20, right: 20, top: 24,
@@ -838,32 +831,6 @@ Future<void> _editMoneyMatters(BuildContext context, ProfileData d, VoidCallback
             const SizedBox(height: 4),
             const Text('Self-declared — shown on your public profile.',
                 style: TextStyle(color: Color(Config.text3), fontSize: 12)),
-            const SizedBox(height: 20),
-            const Text('Currency',
-                style: TextStyle(color: Color(Config.text2), fontSize: 13, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            Wrap(spacing: 8, runSpacing: 8, children: [
-              for (final (sym, code) in _moneyCurrencies)
-                GestureDetector(
-                  onTap: () => onCurrencyChange(sym),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: currency == sym ? const Color(Config.accent) : const Color(0x14FFFFFF),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: currency == sym ? const Color(Config.accent) : const Color(0x22FFFFFF),
-                      ),
-                    ),
-                    child: Text('$sym $code',
-                        style: TextStyle(
-                          color: currency == sym ? const Color(0xFFFFFFFF) : const Color(Config.text2),
-                          fontSize: 12, fontWeight: FontWeight.w600,
-                        )),
-                  ),
-                ),
-            ]),
             const SizedBox(height: 20),
             const Text('💼  Annual Income',
                 style: TextStyle(color: Color(Config.text2), fontSize: 13, fontWeight: FontWeight.w600)),
@@ -922,11 +889,6 @@ Future<void> _editMoneyMatters(BuildContext context, ProfileData d, VoidCallback
   );
 }
 
-const _moneyCurrencies = <(String, String)>[
-  (r'$', 'USD'), ('£', 'GBP'), ('€', 'EUR'),
-  (r'A$', 'AUD'), (r'C$', 'CAD'), (r'S$', 'SGD'),
-  ('¥', 'JPY'), ('₹', 'INR'),
-];
 
 List<String> _incomeRangesFor(String c) => c == '₹' ? [
   'Under ₹25L', '₹25L – ₹50L', '₹50L – ₹1Cr',
@@ -944,15 +906,7 @@ List<String> _netWorthRangesFor(String c) => c == '₹' ? [
   '${c}1M – ${c}5M', '${c}5M – ${c}10M', '${c}10M+',
 ];
 
-String _detectMoneyCurrency(String? income, String? netWorth) {
-  final val = income ?? netWorth ?? '';
-  // Check longer symbols first so 'A$' / 'C$' / 'S$' are not matched by plain '$'.
-  const ordered = [r'A$', r'C$', r'S$', '£', '€', '¥', '₹', r'$'];
-  for (final sym in ordered) {
-    if (val.contains(sym)) return sym;
-  }
-  return r'$';
-}
+String _detectMoneyCurrency(String? income, String? netWorth) => '₹';
 
 Widget _moneyRangePills({
   required List<String> ranges,
