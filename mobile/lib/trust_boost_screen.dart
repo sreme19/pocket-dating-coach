@@ -670,12 +670,6 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
 
   // ── Currency + range constants ─────────────────────────────────────────────
 
-  static final _currencies = <(String, String)>[
-    (r'$',  'USD'), ('£', 'GBP'), ('€', 'EUR'),
-    (r'A$', 'AUD'), (r'C$', 'CAD'), (r'S$', 'SGD'),
-    ('¥',  'JPY'), ('₹', 'INR'),
-  ];
-
   static List<String> _incomeRanges(String c) => c == '₹' ? [
     'Under ₹25L', '₹25L – ₹50L', '₹50L – ₹1Cr',
     '₹1Cr – ₹3Cr', '₹3Cr – ₹10Cr', '₹10Cr+',
@@ -692,14 +686,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
     '${c}1M – ${c}5M', '${c}5M – ${c}10M', '${c}10M+',
   ];
 
-  /// Detect currency symbol from a saved value like "£30K – £60K" → "£".
-  static String _detectCurrency(String? income, String? netWorth) {
-    final val = income ?? netWorth ?? '';
-    for (final (sym, _) in _currencies) {
-      if (val.contains(sym)) return sym;
-    }
-    return '\$';
-  }
+  static String _detectCurrency(String? income, String? netWorth) => '₹';
 
   Future<void> _editMoneyMatters(TrustData d) async {
     String currency   = _detectCurrency(d.annualIncome, d.netWorth);
@@ -716,15 +703,6 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) {
-          // Reset selections if currency changed and old value doesn't match
-          void onCurrencyChange(String sym) {
-            setS(() {
-              currency = sym;
-              if (selIncome != null && !selIncome!.contains(sym)) selIncome = null;
-              if (selNW     != null && !selNW!.contains(sym))     selNW     = null;
-            });
-          }
-
           return SingleChildScrollView(
             padding: EdgeInsets.only(
               left: 20, right: 20, top: 24,
@@ -738,33 +716,6 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
                   style: TextStyle(color: Color(Config.text3), fontSize: 12)),
               const SizedBox(height: 20),
 
-              // Currency selector
-              const Text('Currency',
-                  style: TextStyle(color: Color(Config.text2), fontSize: 13, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              Wrap(spacing: 8, runSpacing: 8, children: [
-                for (final (sym, code) in _currencies)
-                  GestureDetector(
-                    onTap: () => onCurrencyChange(sym),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: currency == sym ? const Color(Config.accent) : const Color(0x14FFFFFF),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: currency == sym ? const Color(Config.accent) : const Color(0x22FFFFFF),
-                        ),
-                      ),
-                      child: Text('$sym $code',
-                          style: TextStyle(
-                            color: currency == sym ? const Color(0xFFFFFFFF) : const Color(Config.text2),
-                            fontSize: 12, fontWeight: FontWeight.w600,
-                          )),
-                    ),
-                  ),
-              ]),
-              const SizedBox(height: 20),
 
               // Income pills
               const Text('💼  Annual Income',
