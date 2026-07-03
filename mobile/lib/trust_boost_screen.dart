@@ -29,7 +29,8 @@ const _socials = <_Cat>[
 ];
 
 class TrustBoostScreen extends StatefulWidget {
-  const TrustBoostScreen({super.key});
+  final bool scrollToShowOff;
+  const TrustBoostScreen({super.key, this.scrollToShowOff = false});
   @override
   State<TrustBoostScreen> createState() => _TrustBoostScreenState();
 }
@@ -37,13 +38,22 @@ class TrustBoostScreen extends StatefulWidget {
 class _TrustBoostScreenState extends State<TrustBoostScreen> {
   late Future<TrustData> _future;
   TrustData? _cachedData;
+  final _showOffKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
     AppLogger.instance.screen('trust_boost');
     _future = fetchTrust();
-    _future.then((d) => _cachedData = d).catchError((_) {});
+    _future.then((d) {
+      _cachedData = d;
+      if (widget.scrollToShowOff) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final ctx = _showOffKey.currentContext;
+          if (ctx != null) Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 400), curve: Curves.easeOut);
+        });
+      }
+    }).catchError((_) {});
   }
 
   Future<void> _refresh() async {
@@ -104,6 +114,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
                 const SizedBox(height: 10),
                 _safetyCheck(d),
                 const SizedBox(height: 20),
+                SizedBox(key: _showOffKey, height: 0),
                 _label("➕  SHOW-OFF", hint: "prove, don't claim"),
                 const SizedBox(height: 10),
                 for (final c in _showOff) _proofCard(d, c),
@@ -301,17 +312,8 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
           score: identityScore,
           lowText:  'Verify your identity — required to appear in search',
           midText:  'Complete face match to maximise identity score',
-          lowPts:   '+50 pts →',
+          lowPts:   '+10 pts →',
           onTap:    _goToIdentity,
-        ),
-        const SizedBox(height: 16),
-        _safetyItem(
-          label: 'Lifestyle',
-          score: lifestyleScore,
-          lowText:  'Upload photos to verify your lifestyle and stand out',
-          midText:  'Add more photos to complete your lifestyle score',
-          lowPts:   '+8 pts →',
-          onTap:    _goToLifestyle,
         ),
         const SizedBox(height: 16),
         _safetyItem(
@@ -319,8 +321,17 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
           score: intentScore,
           lowText:  'Answer Q&A questions — reveals your real intentions',
           midText:  'Add more answers to complete your intent signal',
-          lowPts:   '+12 pts →',
+          lowPts:   '+10 pts →',
           onTap:    _goToIntent,
+        ),
+        const SizedBox(height: 16),
+        _safetyItem(
+          label: 'Lifestyle',
+          score: lifestyleScore,
+          lowText:  'Upload photos to verify your lifestyle and stand out',
+          midText:  'Add more photos to complete your lifestyle score',
+          lowPts:   '+15 pts →',
+          onTap:    _goToLifestyle,
         ),
       ]),
     );

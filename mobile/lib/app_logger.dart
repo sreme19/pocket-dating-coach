@@ -5,7 +5,7 @@ import 'package:dio/dio.dart';
 import 'config.dart';
 
 /// Dio interceptor attached to the shared `_dio` in api.dart.
-/// - Logs all successful write operations (POST/PUT/PATCH/DELETE) as 'api_call'.
+/// - Logs all successful write operations (POST/PUT/PATCH/DELETE) as 'action'.
 /// - Logs all HTTP errors (4xx/5xx) and network errors as 'error'.
 /// - Skips successful GETs to avoid flooding the log.
 class _ApiLogInterceptor extends Interceptor {
@@ -25,7 +25,7 @@ class _ApiLogInterceptor extends Interceptor {
     final method = response.requestOptions.method.toUpperCase();
     final ms     = _elapsed(response.requestOptions);
     final path   = _path(response.requestOptions.uri);
-    _log._write('api_call',
+    _log._write('action',
       action: '$method $path',
       meta: {
         'method': method,

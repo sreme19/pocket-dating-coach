@@ -3,6 +3,8 @@ import 'api.dart';
 import 'app_logger.dart';
 import 'config.dart';
 import 'preference_weighting_screen.dart';
+import 'category_proof_screen.dart';
+import 'trust_boost_screen.dart';
 
 /// Profile Strength surface (Scoring & Matching redesign §8, Phase 2). Shows the
 /// user's pool standing as a BAND + momentum + verification-upside actions —
@@ -59,13 +61,23 @@ class _ProfileStrengthScreenState extends State<ProfileStrengthScreen> {
     );
   }
 
+  String get _friendlyError {
+    final e = _error ?? '';
+    if (e.contains('429')) return 'Too many requests — please wait a moment and try again.';
+    if (e.contains('401') || e.contains('Unauthorized')) return 'Session expired. Please sign out and back in.';
+    if (e.contains('timeout') || e.contains('SocketException') || e.contains('DioException')) return 'No internet connection. Please check your network.';
+    return 'Could not load profile strength. Please try again.';
+  }
+
   Widget _errorView() => Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Color(Config.text2))),
+            const Text('😕', style: TextStyle(fontSize: 36)),
             const SizedBox(height: 12),
-            TextButton(onPressed: _load, child: const Text('Retry')),
+            Text(_friendlyError, textAlign: TextAlign.center, style: const TextStyle(color: Color(Config.text2), fontSize: 14, height: 1.5)),
+            const SizedBox(height: 16),
+            FilledButton(onPressed: _load, child: const Text('Retry')),
           ]),
         ),
       );
@@ -179,8 +191,33 @@ class _ProfileStrengthScreenState extends State<ProfileStrengthScreen> {
     );
   }
 
+  String? _dimensionToCategoryId(String dimension) {
+    switch (dimension) {
+      case 'financial':       return 'spending';
+      case 'lifestyle':       return 'lifestyle';
+      case 'presentation':    return 'lifestyle';
+      case 'ambition':        return 'discipline';
+      case 'social_legitimacy': return 'social_proof';
+      default:                return null; // warmth, intellect, humor, family → Trust & Boost
+    }
+  }
+
   Widget _actionRow(PsAction a) {
-    return Container(
+    return GestureDetector(
+      onTap: () {
+        AppLogger.instance.action('profile_strength', 'tap_action', meta: {'dimension': a.dimension});
+        final categoryId = _dimensionToCategoryId(a.dimension);
+        if (categoryId != null) {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => CategoryProofScreen(categoryId: categoryId)),
+          );
+        } else {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const TrustBoostScreen()),
+          );
+        }
+      },
+      child: Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -204,6 +241,7 @@ class _ProfileStrengthScreenState extends State<ProfileStrengthScreen> {
           child: Text('+${a.deltaPS}', style: const TextStyle(color: Color(Config.accentBright), fontSize: 13, fontWeight: FontWeight.w700)),
         ),
       ]),
+    ),
     );
   }
 }
