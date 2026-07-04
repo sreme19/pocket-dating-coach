@@ -3,7 +3,7 @@ name: PDC — CI/CD & Monitor
 # ─── Triggers ────────────────────────────────────────────────────────────────
 # push/PR to main   → web-test, web-security, web-deploy-*, web-smoke-tests,
 #                     flutter-test, release
-# push to dev       → android-distribute (dev build, Firebase App Tester)
+# push to dev       → android-distribute + ios-distribute (dev build, Firebase App Tester)
 # push to main      → ios-testflight (prod build, TestFlight)
 # schedule */5 min  → health-check
 # schedule daily    → ai-probe
@@ -455,11 +455,94 @@ jobs:
             -d "{\"check_name\":\"android_distribution\",\"status\":\"$STATUS\",\"response_time_ms\":0,\"error_message\":$([ \"$STATUS\" = \"OK\" ] && echo \"null\" || echo \"\\\"Build/distribute failed — $SHA\\\"\"),\"created_at\":\"$NOW\"}"
 
   # ════════════════════════════════════════════════════════════════════════════
-  # iOS — TestFlight  (push → development)
+  # iOS — Firebase App Distribution / dev  (push → development)
+  # ════════════════════════════════════════════════════════════════════════════
+
+  ios-distribute:
+    name: iOS — Firebase Distribute (dev)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/development'
+    runs-on: macos-26
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+        working-directory: mobile
+
+      - name: Import signing certificate
+        env:
+          P12_BASE64: ${{ secrets.IOS_CERTIFICATE_P12 }}
+          P12_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          security create-keychain -p "" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "" "$KEYCHAIN_PATH"
+          echo "$P12_BASE64" | base64 --decode -o $RUNNER_TEMP/cert.p12
+          security import $RUNNER_TEMP/cert.p12 -P "$P12_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+      - name: Import provisioning profile
+        env:
+          PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$PROFILE_BASE64" | base64 --decode \
+            -o ~/Library/MobileDevice/Provisioning\ Profiles/riteangle.mobileprovision
+
+      - name: Resolve Swift Package dependencies
+        run: |
+          rm -rf ~/Library/Caches/org.swift.swiftpm/repositories
+          xcodebuild -resolvePackageDependencies \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -disablePackageRepositoryCache
+        working-directory: mobile
+
+      - name: Compute build number
+        id: build_num
+        run: |
+          PUBSPEC_BUILD=$(grep '^version:' mobile/pubspec.yaml | awk '{print $2}' | cut -d'+' -f2)
+          BUILD_NUM=$(( PUBSPEC_BUILD + ${{ github.run_number }} ))
+          echo "value=$BUILD_NUM" >> $GITHUB_OUTPUT
+
+      - name: Build & export IPA (dev)
+        run: |
+          flutter build ipa --release \
+            --dart-define=ENV=dev \
+            --build-number=${{ steps.build_num.outputs.value }} \
+            --export-options-plist=ios/ExportOptions.ci.plist
+        working-directory: mobile
+
+      - name: Distribute to testers (Firebase)
+        uses: wzieba/Firebase-Distribution-Github-Action@v1
+        with:
+          appId: ${{ secrets.FIREBASE_IOS_APP_ID }}
+          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          groups: tester
+          file: mobile/build/ios/ipa/*.ipa
+          releaseNotes: |
+            [DEV] Build: #${{ github.run_number }}
+            Branch: ${{ github.ref_name }}
+            Commit: ${{ github.sha }}
+            Message: ${{ github.event.head_commit.message }}
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # iOS — TestFlight / prod  (push → main)
   # ════════════════════════════════════════════════════════════════════════════
 
   ios-testflight:
-    name: iOS — TestFlight
+    name: iOS — TestFlight (prod)
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: macos-26
     timeout-minutes: 60
