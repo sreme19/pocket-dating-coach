@@ -13,7 +13,7 @@ class Config {
 
   static const String supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN0aWtva3RpYXhxdGNzb2hjeHpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MTk5MzUsImV4cCI6MjA5MzI5NTkzNX0.L-yF5jGPqP59RzqKfr8hnhByuTy4sx_xbjvAKcNtIKQ';
 
-  static const String apiBase = 'https://riteangle.dating';
+  static const String apiBase = 'https://www.riteangle.dating';
 
   // riteangle palette (light theme — cream page, white cards, hot-pink accent).
   static const int bg1 = 0xFFFFF3F0; // page background (cream)
