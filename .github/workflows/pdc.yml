@@ -3,7 +3,8 @@ name: PDC — CI/CD & Monitor
 # ─── Triggers ────────────────────────────────────────────────────────────────
 # push/PR to main   → web-test, web-security, web-deploy-*, web-smoke-tests,
 #                     flutter-test, release
-# push to dev       → android-distribute, ios-testflight
+# push to dev       → android-distribute (dev build, Firebase App Tester)
+# push to main      → ios-testflight (prod build, TestFlight)
 # schedule */5 min  → health-check
 # schedule daily    → ai-probe
 # workflow_dispatch → health-check + ai-probe (manual run)
@@ -424,7 +425,7 @@ jobs:
           PUBSPEC_BUILD=$(grep '^version:' mobile/pubspec.yaml | awk '{print $2}' | cut -d'+' -f2)
           BUILD_NUM=$(( PUBSPEC_BUILD + ${{ github.run_number }} ))
           echo "Using build number: $BUILD_NUM (pubspec base: $PUBSPEC_BUILD + run: ${{ github.run_number }})"
-          cd mobile && flutter build apk --debug --build-number=$BUILD_NUM
+          cd mobile && flutter build apk --debug --build-number=$BUILD_NUM --dart-define=ENV=dev
 
       - name: Distribute to testers
         uses: wzieba/Firebase-Distribution-Github-Action@v1
@@ -459,7 +460,7 @@ jobs:
 
   ios-testflight:
     name: iOS — TestFlight
-    if: github.event_name == 'push' && github.ref == 'refs/heads/development'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: macos-26
     timeout-minutes: 60
     permissions:

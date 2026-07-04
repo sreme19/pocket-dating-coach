@@ -19,7 +19,7 @@ class Config {
 
   static const String apiBase = _isDev
       ? 'https://dev.riteangle.dating'
-      : 'https://pocket-dating-coach.vercel.app';
+      : 'https://riteangle.dating';
 
   // riteangle palette (light theme — cream page, white cards, hot-pink accent).
   static const int bg1 = 0xFFFFF3F0; // page background (cream)
