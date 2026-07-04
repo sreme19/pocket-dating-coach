@@ -524,18 +524,20 @@ jobs:
             --export-options-plist=ios/ExportOptions.ci.plist
         working-directory: mobile
 
-      - name: Distribute to testers (Firebase)
-        uses: wzieba/Firebase-Distribution-Github-Action@v1
-        with:
-          appId: ${{ secrets.FIREBASE_IOS_APP_ID }}
-          serviceCredentialsFileContent: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          groups: tester
-          file: mobile/build/ios/ipa/*.ipa
-          releaseNotes: |
-            [DEV] Build: #${{ github.run_number }}
-            Branch: ${{ github.ref_name }}
-            Commit: ${{ github.sha }}
-            Message: ${{ github.event.head_commit.message }}
+      - name: Upload to TestFlight (dev)
+        env:
+          API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$API_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_${API_KEY_ID}.p8
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$(ls mobile/build/ios/ipa/*.ipa)" \
+            --apiKey "$API_KEY_ID" \
+            --apiIssuer "$ISSUER_ID" \
+            --verbose
 
   # ════════════════════════════════════════════════════════════════════════════
   # iOS — TestFlight / prod  (push → main)
