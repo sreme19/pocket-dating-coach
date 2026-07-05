@@ -708,6 +708,25 @@ class _ConversationScreenState extends State<ConversationScreen> {
       body: Column(
         children: [
           if (_bestieIsProxy && !_loading) _bestieIntroCard(),
+          // Status banners at the TOP so they don't crowd the composer
+          if (!_loading && _viewerGender == 'woman' && _otherGender == 'man')
+            _bestieBanner(),
+          if (!_loading && _viewerGender == 'man' && _otherGender == 'woman' && _bestieActive && !_manBannerDismissed)
+            _BestieCallBanner(
+              name: _otherName.isNotEmpty ? _otherName : widget.title,
+              onTap: () {
+                AppLogger.instance.action('conversation', 'open_voice_call');
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => VoiceCallScreen(
+                    matchId: widget.conversationId,
+                    name: _otherName.isNotEmpty ? _otherName : widget.title,
+                  ),
+                ));
+              },
+              onDismiss: () => setState(() => _manBannerDismissed = true),
+            ),
+          if (!_loading && _viewerGender == 'man' && _otherGender == 'woman' && !_bestieActive)
+            _directHandoffBanner(),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator(color: Color(Config.accent)))
@@ -738,29 +757,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
                             },
                           ),
           ),
-          if (!_loading && _viewerGender == 'woman' && _otherGender == 'man')
-            _bestieBanner(),
-          // Voice call: only the male match can call HER AI bestie (web parity —
-          // the bestie speaks in the woman's voice). Only offer it while her
-          // Bestie is the proxy; once she's stepped in, calling her Bestie is moot.
-          if (!_loading && _viewerGender == 'man' && _otherGender == 'woman' && _bestieActive && !_manBannerDismissed)
-            _BestieCallBanner(
-              name: _otherName.isNotEmpty ? _otherName : widget.title,
-              onTap: () {
-                AppLogger.instance.action('conversation', 'open_voice_call');
-                Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => VoiceCallScreen(
-                    matchId: widget.conversationId,
-                    name: _otherName.isNotEmpty ? _otherName : widget.title,
-                  ),
-                ));
-              },
-              onDismiss: () => setState(() => _manBannerDismissed = true),
-            ),
-          // Explicit, never-silent hand-off notice (spec §C9): once she steps in
-          // and her Bestie is no longer the proxy, tell the man directly.
-          if (!_loading && _viewerGender == 'man' && _otherGender == 'woman' && !_bestieActive)
-            _directHandoffBanner(),
           _Composer(
             controller: _composer,
             sending: _sending,
