@@ -300,13 +300,13 @@ async function handleLivenessVerification(data: any, userId: string | null = nul
       };
     }
 
-    // Gate the trust score on confidence: a low-confidence selfie is stored for
-    // manual review (status 'under_review') and earns 0 points, so the under-review
-    // messaging the client shows is backed by an actual withheld score. We fail
-    // OPEN only on our own API error (face-match path sets apiError:true) so an
-    // outage never hard-blocks a user — a genuine low score does not pass.
+    // Gate the trust score on BOTH live=true AND confidence>=threshold.
+    // Checking confidence alone is insufficient: Claude may return live=false
+    // with a mid-range confidence (e.g. no face visible → live:false, confidence:0).
+    // We fail-open ONLY on our own API error so an outage never hard-blocks users.
     const confidence = typeof stepData.confidence === 'number' ? stepData.confidence : 0;
-    const passed = stepData.apiError === true || confidence >= LIVENESS_MIN_CONFIDENCE;
+    const isLive = stepData.live === true || stepData.match === true; // match mirrors live on onboarding path
+    const passed = stepData.apiError === true || (isLive && confidence >= LIVENESS_MIN_CONFIDENCE);
 
     const trustPoints = passed ? getTrustPoints('liveness') : 0;
     const status = passed ? 'completed' : 'under_review';

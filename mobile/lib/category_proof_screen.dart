@@ -64,12 +64,12 @@ const _configs = <String, _CatConfig>{
     subtitle: 'Show your real world: travel, dining, experiences',
     privacyCopy: 'Your uploads stay private. They help confirm your profile is authentic and improve match quality.',
     examples: [
-      'Hotel or flight booking screenshots',
-      'Restaurant or bar photos with context',
-      'Event or concert tickets',
-      'Travel photos with locations and moments visible',
+      'Travel or dining photos with YOUR FACE visible',
+      'Event or concert photos showing you were there',
+      'Hotel or flight booking screenshots (no face needed)',
+      'Restaurant or bar photos with you in the frame',
     ],
-    hintLine: 'Mix photos and booking screenshots for the strongest signal. Up to 20 photos.',
+    hintLine: 'Photos must show your face to be verified. Booking screenshots without a face are accepted as supporting evidence only.',
     maxFiles: 20,
   ),
   'discipline': _CatConfig(
@@ -506,7 +506,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
     String? idBase64;
     String? idMime;
 
-    await showModalBottomSheet(
+    final faceMatched = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -627,45 +627,26 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
           ),
           const SizedBox(height: 16),
           if (selfiePicked == null)
-            Row(children: [
-              Expanded(child: OutlinedButton.icon(
-                onPressed: () async {
-                  // Use the custom front-camera screen — image_picker can't force
-                  // the front lens on Android (preferredCameraDevice is ignored).
-                  final path = await Navigator.of(ctx).push<String>(
-                    MaterialPageRoute(builder: (_) => const SelfieCameraScreen()),
-                  );
-                  if (path != null) setS(() { selfiePicked = XFile(path); error = null; });
-                },
-                icon: const Icon(Icons.camera_front_rounded),
-                label: const Text('Take selfie'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  foregroundColor: const Color(Config.accent),
-                  side: const BorderSide(color: Color(Config.accent)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              )),
-              const SizedBox(width: 10),
-              Expanded(child: OutlinedButton.icon(
-                onPressed: () async {
-                  final img = await ImagePicker().pickImage(
-                    source: ImageSource.gallery,
-                    imageQuality: 70,
-                    maxWidth: 1024,
-                  );
-                  if (img != null) setS(() { selfiePicked = img; error = null; });
-                },
-                icon: const Icon(Icons.photo_library_rounded),
-                label: const Text('From gallery'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  foregroundColor: const Color(Config.text2),
-                  side: const BorderSide(color: Color(Config.text3)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-              )),
-            ])
+            SizedBox(width: double.infinity, child: OutlinedButton.icon(
+              onPressed: () async {
+                // Use the custom front-camera screen — image_picker can't force
+                // the front lens on Android (preferredCameraDevice is ignored).
+                // Gallery is intentionally not offered: a live selfie is required
+                // so users cannot bypass face-match with someone else's photo.
+                final path = await Navigator.of(ctx).push<String>(
+                  MaterialPageRoute(builder: (_) => const SelfieCameraScreen()),
+                );
+                if (path != null) setS(() { selfiePicked = XFile(path); error = null; });
+              },
+              icon: const Icon(Icons.camera_front_rounded),
+              label: const Text('Take selfie'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                foregroundColor: const Color(Config.accent),
+                side: const BorderSide(color: Color(Config.accent)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ))
           else
             Row(children: [
               ClipRRect(
@@ -740,8 +721,10 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
       }),
     );
 
-    // If both steps passed, retry the proof upload automatically
-    if (mounted) _analyse();
+    // Only retry if face match was explicitly completed (pop(true)).
+    // If the user dismissed the sheet without completing face match, faceMatched
+    // is null — do NOT proceed, otherwise proof gets verified without ID check.
+    if (mounted && faceMatched == true) _analyse();
   }
 
   Future<void> _analyse({String? relationship}) async {

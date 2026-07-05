@@ -24,27 +24,14 @@ import 'trust_boost_screen.dart';
 /// "climb" loop is visible where users live. Taps through to the full
 /// [ProfileStrengthScreen]. Self-fetches and stays hidden until the user's
 /// vectors exist, so it adds nothing before the backfill lands.
-class _ProfileStrengthCard extends StatefulWidget {
-  const _ProfileStrengthCard();
-  @override
-  State<_ProfileStrengthCard> createState() => _ProfileStrengthCardState();
-}
-
-class _ProfileStrengthCardState extends State<_ProfileStrengthCard> {
-  ProfileStrength? _ps;
-
-  @override
-  void initState() {
-    super.initState();
-    fetchProfileStrength().then((ps) {
-      if (mounted) setState(() => _ps = ps);
-    }).catchError((_) {/* silent — card simply stays hidden */});
-  }
+class _ProfileStrengthCard extends StatelessWidget {
+  final ProfileStrength? ps;
+  const _ProfileStrengthCard({this.ps});
 
   @override
   Widget build(BuildContext context) {
-    final ps = _ps;
-    if (ps == null || !ps.hasVectors) return const SizedBox.shrink();
+    final p = ps;
+    if (p == null || !p.hasVectors) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
       child: GestureDetector(
@@ -73,13 +60,13 @@ class _ProfileStrengthCardState extends State<_ProfileStrengthCard> {
               Icon(Icons.chevron_right, size: 18, color: Color(Config.text2)),
             ]),
             const SizedBox(height: 6),
-            Text(ps.band,
+            Text(p.band,
                 style: const TextStyle(color: Color(Config.accentBright), fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
             const SizedBox(height: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(99),
               child: LinearProgressIndicator(
-                value: ps.nextBand == null ? 1 : ps.progressInBand.clamp(0.04, 1),
+                value: p.nextBand == null ? 1 : p.progressInBand.clamp(0.04, 1),
                 minHeight: 7,
                 backgroundColor: const Color(0x33FF3B6B),
                 color: const Color(Config.accent),
@@ -87,10 +74,10 @@ class _ProfileStrengthCardState extends State<_ProfileStrengthCard> {
             ),
             const SizedBox(height: 8),
             Text(
-              ps.nextBand == null
+              p.nextBand == null
                   ? 'Top tier — keep your proofs fresh.'
-                  : '${ps.pointsToNextBand} to go to “${ps.nextBand}.”'
-                    '${ps.deltaVerify > 0 ? '   🔓 +${ps.deltaVerify.round()} locked — verify to claim it.' : ''}',
+                  : '${p.pointsToNextBand} to go to “${p.nextBand}.”'
+                    '${p.deltaVerify > 0 ? '   🔓 +${p.deltaVerify.round()} locked — verify to claim it.' : ''}',
               style: const TextStyle(color: Color(Config.text2), fontSize: 12.5, height: 1.4),
             ),
           ]),
@@ -109,6 +96,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   late Future<ProfileData> _future;
+  ProfileStrength? _profileStrength;
   EnhanceStatus _lastEnhanceStatus = EnhanceStatus.idle;
 
   @override
@@ -116,6 +104,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     AppLogger.instance.screen('profile');
     _future = fetchProfile();
+    _fetchStrength();
     // Background AI photo generation lives outside this screen so it survives
     // scroll/tab/navigation. Bind it to the current user and refetch the profile
     // when a run succeeds so the freshly-saved AI photos actually render.
@@ -123,6 +112,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     mgr.bindUser(currentUserId());
     _lastEnhanceStatus = mgr.status;
     mgr.addListener(_onEnhanceChange);
+  }
+
+  void _fetchStrength() {
+    fetchProfileStrength().then((ps) {
+      if (mounted) setState(() => _profileStrength = ps);
+    }).catchError((_) {});
   }
 
   @override
@@ -141,6 +136,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _refresh() async {
+    _fetchStrength();
     setState(() {
       _future = fetchProfile();
     });
@@ -186,7 +182,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           // "switch screens to fix" like the WebView.
           return RefreshIndicator(
             onRefresh: _refresh,
-            child: _ProfileBody(data: snap.data!, onChanged: _refresh),
+            child: _ProfileBody(data: snap.data!, onChanged: _refresh, profileStrength: _profileStrength),
           );
         },
       ),
@@ -239,7 +235,8 @@ class _ErrorState extends StatelessWidget {
 class _ProfileBody extends StatelessWidget {
   final ProfileData data;
   final VoidCallback onChanged;
-  const _ProfileBody({required this.data, required this.onChanged});
+  final ProfileStrength? profileStrength;
+  const _ProfileBody({required this.data, required this.onChanged, this.profileStrength});
 
   @override
   Widget build(BuildContext context) {
@@ -374,6 +371,30 @@ class _ProfileBody extends StatelessWidget {
             ),
           ),
         ]),
+        // AI enhance progress banner — men only, below hero to avoid overlap
+        if (data.isMan)
+          ListenableBuilder(
+            listenable: PhotoEnhanceManager.instance,
+            builder: (context, _) {
+              if (!PhotoEnhanceManager.instance.isRunning) return const SizedBox.shrink();
+              return Container(
+                color: const Color(0xFF1B1020),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+                child: Row(children: [
+                  const SizedBox(
+                    width: 14, height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text('✨ Generating AI photos…',
+                        style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                  ),
+                  const Text('~30s', style: TextStyle(color: Color(0xAAFFFFFF), fontSize: 12)),
+                ]),
+              );
+            },
+          ),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
           child: IntrinsicHeight(
@@ -418,8 +439,7 @@ class _ProfileBody extends StatelessWidget {
         ),
 
         // ── Profile Strength band (own profile) — promoted from Settings ──
-        // Hidden until the user's vectors exist (graceful pre-backfill).
-        const _ProfileStrengthCard(),
+        _ProfileStrengthCard(ps: profileStrength),
 
         // ── The vibe in three words ──────────────────────────────────────
         Builder(builder: (context) {
@@ -820,13 +840,6 @@ Future<void> _editMoneyMatters(BuildContext context, ProfileData d, VoidCallback
         borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setS) {
-        void onCurrencyChange(String sym) {
-          setS(() {
-            currency = sym;
-            if (selIncome != null && !selIncome!.contains(sym)) selIncome = null;
-            if (selNW     != null && !selNW!.contains(sym))     selNW     = null;
-          });
-        }
         return SingleChildScrollView(
           padding: EdgeInsets.only(
             left: 20, right: 20, top: 24,
@@ -838,32 +851,6 @@ Future<void> _editMoneyMatters(BuildContext context, ProfileData d, VoidCallback
             const SizedBox(height: 4),
             const Text('Self-declared — shown on your public profile.',
                 style: TextStyle(color: Color(Config.text3), fontSize: 12)),
-            const SizedBox(height: 20),
-            const Text('Currency',
-                style: TextStyle(color: Color(Config.text2), fontSize: 13, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            Wrap(spacing: 8, runSpacing: 8, children: [
-              for (final (sym, code) in _moneyCurrencies)
-                GestureDetector(
-                  onTap: () => onCurrencyChange(sym),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: currency == sym ? const Color(Config.accent) : const Color(0x14FFFFFF),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: currency == sym ? const Color(Config.accent) : const Color(0x22FFFFFF),
-                      ),
-                    ),
-                    child: Text('$sym $code',
-                        style: TextStyle(
-                          color: currency == sym ? const Color(0xFFFFFFFF) : const Color(Config.text2),
-                          fontSize: 12, fontWeight: FontWeight.w600,
-                        )),
-                  ),
-                ),
-            ]),
             const SizedBox(height: 20),
             const Text('💼  Annual Income',
                 style: TextStyle(color: Color(Config.text2), fontSize: 13, fontWeight: FontWeight.w600)),
@@ -922,11 +909,6 @@ Future<void> _editMoneyMatters(BuildContext context, ProfileData d, VoidCallback
   );
 }
 
-const _moneyCurrencies = <(String, String)>[
-  (r'$', 'USD'), ('£', 'GBP'), ('€', 'EUR'),
-  (r'A$', 'AUD'), (r'C$', 'CAD'), (r'S$', 'SGD'),
-  ('¥', 'JPY'), ('₹', 'INR'),
-];
 
 List<String> _incomeRangesFor(String c) => c == '₹' ? [
   'Under ₹25L', '₹25L – ₹50L', '₹50L – ₹1Cr',
@@ -944,15 +926,7 @@ List<String> _netWorthRangesFor(String c) => c == '₹' ? [
   '${c}1M – ${c}5M', '${c}5M – ${c}10M', '${c}10M+',
 ];
 
-String _detectMoneyCurrency(String? income, String? netWorth) {
-  final val = income ?? netWorth ?? '';
-  // Check longer symbols first so 'A$' / 'C$' / 'S$' are not matched by plain '$'.
-  const ordered = [r'A$', r'C$', r'S$', '£', '€', '¥', '₹', r'$'];
-  for (final sym in ordered) {
-    if (val.contains(sym)) return sym;
-  }
-  return r'$';
-}
+String _detectMoneyCurrency(String? income, String? netWorth) => '₹';
 
 Widget _moneyRangePills({
   required List<String> ranges,
@@ -1593,7 +1567,7 @@ class _ChipWithRemove extends StatelessWidget {
 
 Future<void> _editCountries(BuildContext context, ProfileData d, VoidCallback onChanged) async {
   final countries = List<String>.from(d.countries);
-  bool saving = false;
+  String? deletingCountry;
 
   await showModalBottomSheet<void>(
     context: context,
@@ -1625,39 +1599,32 @@ Future<void> _editCountries(BuildContext context, ProfileData d, VoidCallback on
                     Text('✈️  $c', style: const TextStyle(color: Color(Config.text1), fontSize: 13)),
                     const SizedBox(width: 6),
                     GestureDetector(
-                      onTap: () => setS(() => countries.remove(c)),
-                      child: const Icon(Icons.close, size: 14, color: Color(Config.text3)),
+                      onTap: deletingCountry != null ? null : () async {
+                        setS(() { deletingCountry = c; countries.remove(c); });
+                        try {
+                          await saveCountries(List<String>.from(countries));
+                          onChanged();
+                        } catch (_) {
+                          AppLogger.instance.error('save_countries failed', screen: 'profile', action: 'save_countries');
+                          setS(() => countries.insert(0, c));
+                        } finally {
+                          if (ctx.mounted) setS(() => deletingCountry = null);
+                        }
+                      },
+                      child: deletingCountry == c
+                          ? const SizedBox(width: 14, height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)))
+                          : const Icon(Icons.close, size: 14, color: Color(Config.text3)),
                     ),
                   ]),
                 ),
             ]),
+          ] else ...[
+            const SizedBox(height: 8),
+            const Text('No countries yet — upload travel photos in Trust & Boost.',
+                style: TextStyle(color: Color(Config.text3), fontSize: 13)),
           ],
           const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: saving ? null : () async {
-                setS(() => saving = true);
-                try {
-                  await saveCountries(countries);
-                  if (ctx.mounted) Navigator.of(ctx).pop();
-                  onChanged();
-                } catch (_) {
-                  AppLogger.instance.error('save_countries failed', screen: 'profile', action: 'save_countries');
-                  setS(() => saving = false);
-                }
-              },
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(Config.accent),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: saving
-                  ? const SizedBox(width: 18, height: 18,
-                      child: CircularProgressIndicator(color: Color(0xFFFFFFFF), strokeWidth: 2))
-                  : const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
-            ),
-          ),
         ]),
       ),
     ),
@@ -2525,22 +2492,27 @@ class _HeroState extends State<_Hero> {
   }
 }
 
-// ── Archetype base scores (mirrors profile_body.dart) ─────────────────────────
+// ── Archetype base scores — receives raw ID (e.g. casual_generous_man) ──────
 Map<String, int> _archetypeBaseScores(String archetype) {
-  final a = archetype.toLowerCase();
-  if (a.contains('forever') || a.contains('matrimony') || a.contains('marriage'))
-    return {'decisiveness': 70, 'warmth': 80, 'openness': 60, 'pace': 55};
-  if (a.contains('casual') && a.contains('generous'))
-    return {'decisiveness': 80, 'warmth': 65, 'openness': 70, 'pace': 72};
-  if (a.contains('romantic') || a.contains('hopeless'))
-    return {'decisiveness': 62, 'warmth': 88, 'openness': 75, 'pace': 58};
-  if (a.contains('second chapter'))
-    return {'decisiveness': 78, 'warmth': 75, 'openness': 65, 'pace': 50};
-  if (a.contains('safety'))
-    return {'decisiveness': 60, 'warmth': 75, 'openness': 55, 'pace': 45};
-  if (a.contains('spoilt'))
-    return {'decisiveness': 65, 'warmth': 65, 'openness': 65, 'pace': 60};
-  return {'decisiveness': 75, 'warmth': 60, 'openness': 70, 'pace': 70};
+  const scores = <String, Map<String, int>>{
+    'casual_generous_man':         {'decisiveness': 80, 'warmth': 65, 'openness': 70, 'pace': 75},
+    'hopeless_romantic_man':       {'decisiveness': 62, 'warmth': 90, 'openness': 74, 'pace': 55},
+    'rebound_healing_man':         {'decisiveness': 55, 'warmth': 70, 'openness': 65, 'pace': 50},
+    'untouched_heart_man':         {'decisiveness': 60, 'warmth': 75, 'openness': 80, 'pace': 60},
+    'forever_focused_man':         {'decisiveness': 75, 'warmth': 80, 'openness': 60, 'pace': 55},
+    'traditional_matrimony_man':   {'decisiveness': 80, 'warmth': 75, 'openness': 50, 'pace': 50},
+    'second_chapter_man':          {'decisiveness': 78, 'warmth': 75, 'openness': 65, 'pace': 50},
+    'just_friends_man':            {'decisiveness': 55, 'warmth': 70, 'openness': 80, 'pace': 65},
+    'spoiled_casual_woman':        {'decisiveness': 70, 'warmth': 60, 'openness': 70, 'pace': 65},
+    'hopeless_romantic_woman':     {'decisiveness': 60, 'warmth': 90, 'openness': 70, 'pace': 55},
+    'rebound_healing_woman':       {'decisiveness': 55, 'warmth': 70, 'openness': 65, 'pace': 50},
+    'untouched_heart_woman':       {'decisiveness': 60, 'warmth': 75, 'openness': 82, 'pace': 60},
+    'forever_focused_woman':       {'decisiveness': 75, 'warmth': 82, 'openness': 58, 'pace': 52},
+    'traditional_matrimony_woman': {'decisiveness': 78, 'warmth': 78, 'openness': 48, 'pace': 48},
+    'second_chapter_woman':        {'decisiveness': 78, 'warmth': 75, 'openness': 65, 'pace': 50},
+    'just_friends_woman':          {'decisiveness': 55, 'warmth': 72, 'openness': 80, 'pace': 65},
+  };
+  return scores[archetype] ?? {'decisiveness': 65, 'warmth': 70, 'openness': 65, 'pace': 60};
 }
 
 // ── Personality Reads ─────────────────────────────────────────────────────────
