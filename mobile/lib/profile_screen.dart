@@ -1552,7 +1552,7 @@ class _ChipWithRemove extends StatelessWidget {
 
 Future<void> _editCountries(BuildContext context, ProfileData d, VoidCallback onChanged) async {
   final countries = List<String>.from(d.countries);
-  bool saving = false;
+  String? deletingCountry;
 
   await showModalBottomSheet<void>(
     context: context,
@@ -1584,39 +1584,32 @@ Future<void> _editCountries(BuildContext context, ProfileData d, VoidCallback on
                     Text('✈️  $c', style: const TextStyle(color: Color(Config.text1), fontSize: 13)),
                     const SizedBox(width: 6),
                     GestureDetector(
-                      onTap: () => setS(() => countries.remove(c)),
-                      child: const Icon(Icons.close, size: 14, color: Color(Config.text3)),
+                      onTap: deletingCountry != null ? null : () async {
+                        setS(() { deletingCountry = c; countries.remove(c); });
+                        try {
+                          await saveCountries(List<String>.from(countries));
+                          onChanged();
+                        } catch (_) {
+                          AppLogger.instance.error('save_countries failed', screen: 'profile', action: 'save_countries');
+                          setS(() => countries.insert(0, c));
+                        } finally {
+                          if (ctx.mounted) setS(() => deletingCountry = null);
+                        }
+                      },
+                      child: deletingCountry == c
+                          ? const SizedBox(width: 14, height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)))
+                          : const Icon(Icons.close, size: 14, color: Color(Config.text3)),
                     ),
                   ]),
                 ),
             ]),
+          ] else ...[
+            const SizedBox(height: 8),
+            const Text('No countries yet — upload travel photos in Trust & Boost.',
+                style: TextStyle(color: Color(Config.text3), fontSize: 13)),
           ],
           const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: saving ? null : () async {
-                setS(() => saving = true);
-                try {
-                  await saveCountries(countries);
-                  if (ctx.mounted) Navigator.of(ctx).pop();
-                  onChanged();
-                } catch (_) {
-                  AppLogger.instance.error('save_countries failed', screen: 'profile', action: 'save_countries');
-                  setS(() => saving = false);
-                }
-              },
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(Config.accent),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: saving
-                  ? const SizedBox(width: 18, height: 18,
-                      child: CircularProgressIndicator(color: Color(0xFFFFFFFF), strokeWidth: 2))
-                  : const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
-            ),
-          ),
         ]),
       ),
     ),
