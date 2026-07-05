@@ -768,20 +768,31 @@ Future<List<AiPhotoItem>> enhancePhotos(List<String> referenceUrls, {String arch
   }
   if (dataUrls.isEmpty) throw 'Could not load reference photos';
 
-  final resp = await _dio.post(
-    '${Config.apiBase}/api/photo-enhance/generate',
-    data: {
-      'referenceDataUrls': dataUrls,
-      'referenceDataUrl': dataUrls.first, // back-compat / fal fallback ref
-      'archetype': archetype.isNotEmpty ? archetype : 'casual_man',
-      'count': 3,
-    },
-    cancelToken: cancelToken,
-    options: Options(
-      headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'},
-      receiveTimeout: const Duration(seconds: 120),
-    ),
-  );
+  final Response<dynamic> resp;
+  try {
+    resp = await _dio.post(
+      '${Config.apiBase}/api/photo-enhance/generate',
+      data: {
+        'referenceDataUrls': dataUrls,
+        'referenceDataUrl': dataUrls.first, // back-compat / fal fallback ref
+        'archetype': archetype.isNotEmpty ? archetype : 'casual_man',
+        'count': 3,
+      },
+      cancelToken: cancelToken,
+      options: Options(
+        headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'},
+        receiveTimeout: const Duration(seconds: 120),
+      ),
+    );
+  } on DioException catch (e) {
+    // Face pre-flight rejection — surface the server's message ("No face can be
+    // identified in your photos.") instead of the raw DioException dump.
+    final data = e.response?.data;
+    if (data is Map && data['error'] == 'no_face') {
+      throw (data['message'] ?? 'No face can be identified in your photos.').toString();
+    }
+    rethrow;
+  }
   final raw = (resp.data is Map)
       ? ((resp.data as Map)['photos'] as List?) ?? <dynamic>[]
       : <dynamic>[];

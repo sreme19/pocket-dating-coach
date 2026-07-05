@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
 import { generateProfilePhotos, type PhotoEnhanceResult } from '$lib/photo-enhance';
 import { getSupabase } from '$lib/server/supabase';
+import { detectFaceInPhotosWithClaude } from '$lib/verified-vibe/server/verification';
 
 // Gemini returns base64 data URLs; host them durably in Supabase Storage and swap
 // in the public URL (fal results are already CDN URLs and pass through untouched).
@@ -95,6 +96,26 @@ export const POST: RequestHandler = async ({ request }) => {
   if (!env.GEMINI_API_KEY && !env.FAL_KEY) {
     console.warn('No GEMINI_API_KEY or FAL_KEY configured, using mock photo enhancement');
     return json(generateMockPhotos(count ?? 3));
+  }
+
+  // Face pre-flight: the image models hallucinate a random person when no
+  // reference has a face, so refuse to generate unless at least ONE reference
+  // photo contains an identifiable human face. Fail-open on Claude API errors
+  // (a broken face check must not block generation entirely).
+  try {
+    const images = refs
+      .map((r) => /^data:([^;]+);base64,(.+)$/.exec(r))
+      .filter((m): m is RegExpExecArray => m !== null)
+      .map((m) => ({ mime: m[1], data: m[2] }));
+    const { faceFound } = await detectFaceInPhotosWithClaude(images);
+    if (!faceFound) {
+      return json(
+        { error: 'no_face', message: 'No face can be identified in your photos.' },
+        { status: 422 }
+      );
+    }
+  } catch (e) {
+    console.warn('[photo-enhance] face pre-flight failed (fail-open):', e);
   }
 
   const result = await generateProfilePhotos(
