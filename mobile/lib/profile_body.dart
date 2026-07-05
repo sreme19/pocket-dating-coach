@@ -280,6 +280,9 @@ const _magnetColors = <(int, int, int)>[
   (0x3314B8A6, 0x6614B8A6, 0xFF0F766E), // teal
 ];
 
+/// Returns true if [place] has a recognised country flag (not a domestic city).
+bool isKnownTravelPlace(String place) => _magnetEmoji(place) != '🌍';
+
 String _magnetEmoji(String place) {
   // Strip parentheticals like "(Likely)" or "(Probably)" added by AI confidence notes
   final cleaned = place.replaceAll(RegExp(r'\s*\([^)]*\)'), '').toLowerCase().trim();
