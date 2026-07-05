@@ -24,32 +24,14 @@ import 'trust_boost_screen.dart';
 /// "climb" loop is visible where users live. Taps through to the full
 /// [ProfileStrengthScreen]. Self-fetches and stays hidden until the user's
 /// vectors exist, so it adds nothing before the backfill lands.
-class _ProfileStrengthCard extends StatefulWidget {
-  const _ProfileStrengthCard();
-  @override
-  State<_ProfileStrengthCard> createState() => _ProfileStrengthCardState();
-}
-
-class _ProfileStrengthCardState extends State<_ProfileStrengthCard>
-    with AutomaticKeepAliveClientMixin {
-  ProfileStrength? _ps;
-
-  @override
-  bool get wantKeepAlive => true;
-
-  @override
-  void initState() {
-    super.initState();
-    fetchProfileStrength().then((ps) {
-      if (mounted) setState(() => _ps = ps);
-    }).catchError((_) {/* silent — card simply stays hidden */});
-  }
+class _ProfileStrengthCard extends StatelessWidget {
+  final ProfileStrength? ps;
+  const _ProfileStrengthCard({this.ps});
 
   @override
   Widget build(BuildContext context) {
-    super.build(context);
-    final ps = _ps;
-    if (ps == null || !ps.hasVectors) return const SizedBox.shrink();
+    final p = ps;
+    if (p == null || !p.hasVectors) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
       child: GestureDetector(
@@ -78,13 +60,13 @@ class _ProfileStrengthCardState extends State<_ProfileStrengthCard>
               Icon(Icons.chevron_right, size: 18, color: Color(Config.text2)),
             ]),
             const SizedBox(height: 6),
-            Text(ps.band,
+            Text(p.band,
                 style: const TextStyle(color: Color(Config.accentBright), fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
             const SizedBox(height: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(99),
               child: LinearProgressIndicator(
-                value: ps.nextBand == null ? 1 : ps.progressInBand.clamp(0.04, 1),
+                value: p.nextBand == null ? 1 : p.progressInBand.clamp(0.04, 1),
                 minHeight: 7,
                 backgroundColor: const Color(0x33FF3B6B),
                 color: const Color(Config.accent),
@@ -92,10 +74,10 @@ class _ProfileStrengthCardState extends State<_ProfileStrengthCard>
             ),
             const SizedBox(height: 8),
             Text(
-              ps.nextBand == null
+              p.nextBand == null
                   ? 'Top tier — keep your proofs fresh.'
-                  : '${ps.pointsToNextBand} to go to “${ps.nextBand}.”'
-                    '${ps.deltaVerify > 0 ? '   🔓 +${ps.deltaVerify.round()} locked — verify to claim it.' : ''}',
+                  : '${p.pointsToNextBand} to go to “${p.nextBand}.”'
+                    '${p.deltaVerify > 0 ? '   🔓 +${p.deltaVerify.round()} locked — verify to claim it.' : ''}',
               style: const TextStyle(color: Color(Config.text2), fontSize: 12.5, height: 1.4),
             ),
           ]),
@@ -114,6 +96,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   late Future<ProfileData> _future;
+  ProfileStrength? _profileStrength;
   EnhanceStatus _lastEnhanceStatus = EnhanceStatus.idle;
 
   @override
@@ -121,6 +104,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     AppLogger.instance.screen('profile');
     _future = fetchProfile();
+    _fetchStrength();
     // Background AI photo generation lives outside this screen so it survives
     // scroll/tab/navigation. Bind it to the current user and refetch the profile
     // when a run succeeds so the freshly-saved AI photos actually render.
@@ -128,6 +112,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     mgr.bindUser(currentUserId());
     _lastEnhanceStatus = mgr.status;
     mgr.addListener(_onEnhanceChange);
+  }
+
+  void _fetchStrength() {
+    fetchProfileStrength().then((ps) {
+      if (mounted) setState(() => _profileStrength = ps);
+    }).catchError((_) {});
   }
 
   @override
@@ -146,6 +136,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _refresh() async {
+    _fetchStrength();
     setState(() {
       _future = fetchProfile();
     });
@@ -191,7 +182,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           // "switch screens to fix" like the WebView.
           return RefreshIndicator(
             onRefresh: _refresh,
-            child: _ProfileBody(data: snap.data!, onChanged: _refresh),
+            child: _ProfileBody(data: snap.data!, onChanged: _refresh, profileStrength: _profileStrength),
           );
         },
       ),
@@ -244,7 +235,8 @@ class _ErrorState extends StatelessWidget {
 class _ProfileBody extends StatelessWidget {
   final ProfileData data;
   final VoidCallback onChanged;
-  const _ProfileBody({required this.data, required this.onChanged});
+  final ProfileStrength? profileStrength;
+  const _ProfileBody({required this.data, required this.onChanged, this.profileStrength});
 
   @override
   Widget build(BuildContext context) {
@@ -423,8 +415,7 @@ class _ProfileBody extends StatelessWidget {
         ),
 
         // ── Profile Strength band (own profile) — promoted from Settings ──
-        // Hidden until the user's vectors exist (graceful pre-backfill).
-        const _ProfileStrengthCard(),
+        _ProfileStrengthCard(ps: profileStrength),
 
         // ── The vibe in three words ──────────────────────────────────────
         Builder(builder: (context) {
