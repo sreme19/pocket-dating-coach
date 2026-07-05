@@ -43,13 +43,13 @@
       title: 'Lifestyle Proof',
       subtitle: 'Show your real world: travel, dining, experiences',
       examples: [
-        'Hotel or flight booking screenshots',
-        'Restaurant or bar photos with context',
-        'Event or concert tickets',
-        'Travel photos with locations and moments visible',
+        'Travel or dining photos with your face visible',
+        'Event or concert photos showing you were there',
+        'Restaurant or bar photos with you in the frame',
+        'Experience moments — hotels, flights, adventures — with you in them',
       ],
       maxFiles: 20,
-      hintLine: 'Mix photos and booking screenshots for the strongest signal. Up to 20 photos.',
+      hintLine: 'Each photo is matched against your verified selfie — only photos that clearly show your face count. Screenshots without you are skipped.',
       accept: 'image/*',
     },
     hosting: {
@@ -72,12 +72,12 @@
       subtitle: 'Show your consistent routines',
       examples: [
         'Gym check-in or workout selfie',
-        'Fitness app streak screenshot',
-        'Reading app or book log',
-        'Sleep tracker weekly summary',
+        'Sport or training photos with you in frame',
+        'Morning run, swim, or cycling selfie',
+        'You at practice, class, or study sessions',
       ],
       maxFiles: 20,
-      hintLine: 'Streak screens from apps are the most convincing. Up to 20 photos.',
+      hintLine: 'Each photo is matched against your verified selfie — only photos that clearly show your face count. App screenshots are skipped.',
       accept: 'image/*',
     },
     social_proof: {
@@ -85,13 +85,13 @@
       title: 'Social Proof',
       subtitle: 'Show your real social connections',
       examples: [
-        'Group photos with friends',
+        'Group photos with friends — with you clearly visible',
         'Community or club events you attend',
-        'Sports team or group activity photos',
+        'Sports team or group activity photos including you',
         'Social gathering moments',
       ],
       maxFiles: 20,
-      hintLine: 'Natural group moments beat posed shots. Up to 20 photos.',
+      hintLine: 'Each photo is matched against your verified selfie — only group shots where your face is visible count. Natural moments beat posed shots.',
       accept: 'image/*',
     },
     linkedin: {
@@ -286,6 +286,7 @@
   // ── Government-ID gate (name-bearing documents only) ──────────────────────
   let idGateLoading   = $state(false);
   let idGateError     = $state('');
+  let idGateNeedsSelfie = $state(false);
   let dragOver        = $state(false);
   let existingInsight = $state<StoredInsight | null>(null);
 
@@ -492,8 +493,15 @@
 
       // Name-bearing documents (bank statements, ownership papers, CVs, etc.) need a
       // verified government ID first. The server signals this; show the ID gate, then
-      // retry the same upload once the ID is verified.
-      if (data.requiresIdVerification) { idGateError = ''; step = 'id-gate'; return; }
+      // retry the same upload once the ID is verified. `requiresSelfie` means the
+      // gate needs the verified reference selfie (face-gated photo categories) —
+      // an ID photo alone can't clear it, so point to the identity flow instead.
+      if (data.requiresIdVerification) {
+        idGateError = '';
+        idGateNeedsSelfie = data.requiresSelfie === true;
+        step = 'id-gate';
+        return;
+      }
 
       // Ownership doc name didn't match the verified ID — ask the owner to declare
       // the relationship (company / family / financed), then retry at reduced trust.
@@ -653,6 +661,7 @@
     failReason = '';
     result     = null;
     idGateError = '';
+    idGateNeedsSelfie = false;
     declaredRelationship = '';
     ownershipOwnerName   = '';
     ownershipMsg         = '';
@@ -1066,39 +1075,58 @@
     </div>
 
   {:else if step === 'id-gate'}
-    <div class="state-card">
-      <div class="success-emoji">🪪</div>
-      <div class="state-title">Verify your identity</div>
-      <div class="state-sub">
-        Documents that carry your name — bank statements, ownership papers, payslips, CVs —
-        need a quick one-time government-ID check first. Upload the front of your Aadhaar,
-        PAN, or passport. It stays private and is only used to confirm the document is really yours.
+    {#if idGateNeedsSelfie}
+      <div class="state-card">
+        <div class="success-emoji">🤳</div>
+        <div class="state-title">Verify it's really you first</div>
+        <div class="state-sub">
+          These photos are matched against your verified selfie, and you haven't taken
+          one yet. Complete the quick identity check — it takes under a minute — then
+          come back and upload your proof photos.
+        </div>
       </div>
-    </div>
 
-    {#if idGateError}
-      <div class="id-gate-error">⚠️ {idGateError}</div>
+      <div class="id-gate-actions">
+        <a class="id-gate-upload" href="/verified-vibe/verification">Complete identity check</a>
+        <button class="id-gate-cancel" onclick={() => { step = 'upload'; idGateError = ''; }}>
+          Not now
+        </button>
+      </div>
+    {:else}
+      <div class="state-card">
+        <div class="success-emoji">🪪</div>
+        <div class="state-title">Verify your identity</div>
+        <div class="state-sub">
+          Documents that carry your name — bank statements, ownership papers, payslips, CVs —
+          need a quick one-time government-ID check first. Upload the front of your Aadhaar,
+          PAN, or passport. It stays private and is only used to confirm the document is really yours.
+        </div>
+      </div>
+
+      {#if idGateError}
+        <div class="id-gate-error">⚠️ {idGateError}</div>
+      {/if}
+
+      <div class="id-gate-actions">
+        <label class="id-gate-upload" class:id-gate-upload--busy={idGateLoading}>
+          {#if idGateLoading}
+            <span class="spinner spinner--sm"></span> Verifying your ID…
+          {:else}
+            Upload government ID
+          {/if}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,application/pdf"
+            onchange={handleIdGateFile}
+            disabled={idGateLoading}
+            hidden
+          />
+        </label>
+        <button class="id-gate-cancel" onclick={() => { step = 'upload'; idGateError = ''; }} disabled={idGateLoading}>
+          Not now
+        </button>
+      </div>
     {/if}
-
-    <div class="id-gate-actions">
-      <label class="id-gate-upload" class:id-gate-upload--busy={idGateLoading}>
-        {#if idGateLoading}
-          <span class="spinner spinner--sm"></span> Verifying your ID…
-        {:else}
-          Upload government ID
-        {/if}
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp,application/pdf"
-          onchange={handleIdGateFile}
-          disabled={idGateLoading}
-          hidden
-        />
-      </label>
-      <button class="id-gate-cancel" onclick={() => { step = 'upload'; idGateError = ''; }} disabled={idGateLoading}>
-        Not now
-      </button>
-    </div>
 
   {:else if step === 'relationship-gate'}
     <div class="state-card">
@@ -2064,6 +2092,7 @@
     cursor: pointer;
     box-sizing: border-box;
     transition: opacity 0.2s;
+    text-decoration: none;
   }
 
   .id-gate-upload--busy { opacity: 0.7; cursor: progress; }

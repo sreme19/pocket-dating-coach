@@ -23,6 +23,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getSupabase } from '$lib/server/supabase';
 import { recomputeAndNormalize } from '$lib/server/trust-normalize';
 import { scheduleVectorRebuild } from '$lib/server/vector-rebuild';
+import { loadAnchorSelfie } from '$lib/verified-vibe/server/anchor-selfie';
 // pdf-parse kept as dep for potential future text pre-processing;
 // primary PDF analysis now goes through Anthropic's native PDF document type
 
@@ -329,6 +330,26 @@ function sanitizeCrossSignals(raw: unknown, primaryCategory: string): CrossSigna
 // intro + URL-only social categories are auto-verified without Vision
 const AUTO_VERIFY = '__auto_verify__';
 PROMPTS['intro'] = AUTO_VERIFY;
+
+// ── Face gate (owner-in-photo verification) ──────────────────────────────────
+// These categories prove things about the account owner personally, so insights
+// may only be extracted from photos that actually contain the owner. The
+// verified anchor selfie (stored during identity verification) is prepended as
+// image 1; Claude flags each proof photo as matched/unmatched BEFORE the
+// category analysis and analyses ONLY the matched ones.
+const FACE_GATED_CATEGORIES = new Set(['lifestyle', 'discipline', 'social_proof']);
+
+const FACE_GATE_PREFIX = `IMAGE 1 is the account owner's verified reference selfie from identity verification. It is NOT a proof photo — never extract insights from it and never treat it as evidence.
+
+FACE CHECK — run this BEFORE the category analysis below. Number the proof photos from 1 (image 2 = proof photo 1, image 3 = proof photo 2, ...). For EACH proof photo, decide whether the person in the reference selfie clearly appears in it — the same person, allowing for lighting, angle, expression, glasses, facial hair, or grooming changes. A screenshot, document, scenery shot, or photo of other people with the owner absent FAILS the check. When genuinely uncertain whether a visible face is the owner, fail that photo.
+
+Add this field to the JSON object you return (every proof photo number must appear in exactly one of the two arrays):
+"faceCheck":{"matchedPhotos":[proof photo numbers where the owner clearly appears],"unmatchedPhotos":[proof photo numbers where the owner does NOT clearly appear]}
+
+Then run the category analysis below on the MATCHED photos ONLY — treat unmatched photos as if they were never uploaded: no insights, no locations, no cross-section signals from them.
+If NO proof photo contains the owner, set verified=false and reason="Couldn't identify your face in these photos."
+
+`;
 
 const CATEGORY_PTS: Record<string, number> = {
   lifestyle:    8,
@@ -738,6 +759,21 @@ export const POST: RequestHandler = async ({ request }) => {
       }
     }
 
+    // ── Face gate for personal-photo categories ───────────────────────────────
+    // Lifestyle / discipline / social_proof photos only count when the account
+    // owner is actually IN them. That requires the anchor selfie captured during
+    // identity verification (onboarding liveness, or the ID-gate face-match).
+    // No anchor selfie yet → send the client through the identity flow first.
+    // `requiresSelfie` tells clients an ID photo alone won't clear this gate.
+    const faceGated = FACE_GATED_CATEGORIES.has(category);
+    let anchorSelfie: string | null = null;
+    if (faceGated && !skipVerification) {
+      anchorSelfie = userId ? await loadAnchorSelfie(userId) : null;
+      if (!anchorSelfie) {
+        return json({ requiresIdVerification: true, requiresSelfie: true, category }, { status: 200 });
+      }
+    }
+
     // ── 1. Voice/video intro → auto-verify ───────────────────────────────────
     if (PROMPTS[category] === AUTO_VERIFY) {
       const hasAudio = files.some(f => f.type.startsWith('audio/'));
@@ -881,17 +917,27 @@ export const POST: RequestHandler = async ({ request }) => {
       return json({ error: 'At least one file or a profile URL is required' }, { status: 400 });
     }
 
+    // Track the image files in the exact order Claude sees them so faceCheck
+    // photo numbers (1-based) can be mapped back to files for thumbnails.
+    const imageFiles: File[] = [];
     const imageBlocks: object[] = [];
     for (const file of files.slice(0, 8)) {          // cap at 8 per Vision call
       if (!file.type.startsWith('image/')) continue;
       const buf  = await file.arrayBuffer();
       const b64  = Buffer.from(buf).toString('base64');
       const mime = file.type as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
+      imageFiles.push(file);
       imageBlocks.push({ type: 'image', source: { type: 'base64', media_type: mime, data: b64 } });
     }
 
     if (imageBlocks.length === 0) {
       return json({ error: 'No valid images found (JPEG/PNG/WEBP)' }, { status: 400 });
+    }
+
+    // Face gate: prepend the verified reference selfie as image 1 so Claude can
+    // flag which proof photos actually contain the account owner.
+    if (faceGated && anchorSelfie) {
+      imageBlocks.unshift({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: anchorSelfie } });
     }
 
     // Anti-AI-forgery (genuine-photo categories only). Worded conservatively to
@@ -900,9 +946,11 @@ export const POST: RequestHandler = async ({ request }) => {
     // "synthetic". The mobile result already surfaces `reason` to the user.
     const PHOTO_FORGERY_CATEGORIES = new Set(['lifestyle', 'discipline', 'social_proof', 'hosting', 'travel']);
     const ANTI_FORGERY = '\n\nAUTHENTICITY CHECK: These must be genuine, real-world photographs. Only if an image is UNMISTAKABLY AI-generated or synthetic (clear generative artifacts — malformed hands/teeth/eyes, impossible geometry, plastic-looking skin, gibberish text or logos) set verified=false with reason="Image appears AI-generated, not a real photo." Do NOT reject photos that are merely edited, filtered, cropped, compressed, or low quality. When in doubt, treat the photo as genuine.';
-    const visionPrompt = PHOTO_FORGERY_CATEGORIES.has(category)
-      ? PROMPTS[category] + ANTI_FORGERY
-      : PROMPTS[category];
+    const visionPrompt =
+      (faceGated && anchorSelfie ? FACE_GATE_PREFIX : '') +
+      (PHOTO_FORGERY_CATEGORIES.has(category)
+        ? PROMPTS[category] + ANTI_FORGERY
+        : PROMPTS[category]);
 
     const claudeResp = await fetchWithRetry(CLAUDE_API_URL, {
       method: 'POST',
@@ -941,6 +989,7 @@ export const POST: RequestHandler = async ({ request }) => {
       assets?: Array<Record<string, string>>;
       spendingBreakdown?: Array<{ category: string; emoji: string; amountLabel: string; estimatedMonthly?: number }>;
       crossSignals?: unknown;
+      faceCheck?: { matchedPhotos?: unknown; unmatchedPhotos?: unknown };
       confidence?: number;
       reason?: string;
     };
@@ -957,6 +1006,35 @@ export const POST: RequestHandler = async ({ request }) => {
       return await finalizeAssets(result, { userId, pts, verifiedId, relationship, fileCount: files.length });
     }
 
+    // ── Face gate enforcement ─────────────────────────────────────────────────
+    // Insights may only come from photos containing the account owner. Claude
+    // returns matched/unmatched proof-photo numbers (1-based, in imageFiles
+    // order); unmatched photos are discarded — no insights, no thumbnails, no
+    // points from them. Zero matched photos — or a missing faceCheck — fails
+    // closed: trust is never awarded for photos we couldn't tie to the
+    // verified face.
+    let faceCheck: { matchedPhotos: number[]; unmatchedPhotos: number[] } | null = null;
+    if (faceGated && anchorSelfie) {
+      const toPhotoNums = (a: unknown) => Array.isArray(a)
+        ? a.filter((n): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 1 && n <= imageFiles.length)
+        : [];
+      const matched   = toPhotoNums(result.faceCheck?.matchedPhotos);
+      const unmatched = toPhotoNums(result.faceCheck?.unmatchedPhotos).filter(n => !matched.includes(n));
+      faceCheck = { matchedPhotos: matched, unmatchedPhotos: unmatched };
+      if (matched.length === 0) {
+        return json({
+          verified: false,
+          faceCheck,
+          insights: [], locations: [], aggregated: '', assets: [], spendingBreakdown: [], crossSignals: [],
+          pts_awarded: 0,
+          photo_count: files.length,
+          confidence: result.confidence ?? 0,
+          reason: 'Couldn\'t identify your face in these photos. Only photos that clearly show you count as proof — try again with photos where your face is visible.',
+          thumbnail_urls: [],
+        });
+      }
+    }
+
     const verified          = result.verified === true;
     const insights          = (result.insights ?? []).filter(i => i.label && i.emoji).slice(0, 5);
     const locations         = (result.locations ?? []).filter((l): l is string => typeof l === 'string' && l.trim().length > 0);
@@ -968,6 +1046,9 @@ export const POST: RequestHandler = async ({ request }) => {
 
     // Warn-only name check for gated name-bearing documents.
     const nameMatch = docNameMatches(verifiedId?.idName, result.documentName);
+
+    // Face-gated categories only count photos the owner appears in.
+    const countedPhotos = faceCheck ? faceCheck.matchedPhotos.length : files.length;
 
     let thumbnailUrls: string[] = [];
 
@@ -982,9 +1063,10 @@ export const POST: RequestHandler = async ({ request }) => {
             'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif',
           };
           const ts = Date.now();
-          for (let i = 0; i < files.slice(0, 8).length; i++) {
-            const file = files[i];
-            if (!file.type.startsWith('image/')) continue;
+          for (let i = 0; i < imageFiles.length; i++) {
+            const file = imageFiles[i];
+            // Face-gated: only photos confirmed to contain the owner are kept.
+            if (faceCheck && !faceCheck.matchedPhotos.includes(i + 1)) continue;
             const ext  = mimeToExt[file.type] ?? 'jpg';
             const path = `proof-uploads/${userId}/${category}/${ts}_${i}.${ext}`;
             const buf  = Buffer.from(await file.arrayBuffer());
@@ -1001,7 +1083,7 @@ export const POST: RequestHandler = async ({ request }) => {
         }
       }
 
-      if (userId) await persistInsight(userId, category, pts, { insights, locations, aggregated, assets, spendingBreakdown, crossSignals, confidence: result.confidence, reason: result.reason, pts_awarded: pts, photo_count: files.length, thumbnail_urls: thumbnailUrls, ...(nameMatch === false ? { nameMismatch: true } : {}) });
+      if (userId) await persistInsight(userId, category, pts, { insights, locations, aggregated, assets, spendingBreakdown, crossSignals, confidence: result.confidence, reason: result.reason, pts_awarded: pts, photo_count: countedPhotos, thumbnail_urls: thumbnailUrls, ...(nameMatch === false ? { nameMismatch: true } : {}) });
     }
 
     return json({
@@ -1013,11 +1095,12 @@ export const POST: RequestHandler = async ({ request }) => {
       spendingBreakdown,
       crossSignals,
       pts_awarded:    verified ? pts : 0,
-      photo_count:    files.length,
+      photo_count:    countedPhotos,
       confidence:     result.confidence ?? 0,
       reason:         result.reason ?? '',
       thumbnail_urls: thumbnailUrls,
       nameMatch,
+      ...(faceCheck ? { faceCheck } : {}),
     });
 
   } catch (error) {
