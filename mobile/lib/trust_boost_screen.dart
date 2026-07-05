@@ -810,8 +810,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
 
 
   Future<void> _editCountries(TrustData d) async {
-    // Only show countries with a recognised flag; unrecognised domestic cities are hidden.
-    final countries = d.countries.where(isKnownTravelPlace).toList();
+    final countries = List<String>.from(d.countries);
     if (countries.isEmpty) return;
     String? deletingCountry;
     var changed = false;
