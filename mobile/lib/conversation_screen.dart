@@ -69,7 +69,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
   }
 
   void _subscribePresence() {
-    final ch = Supabase.instance.client.channel('presence:${widget.conversationId}');
+    // Use the same global channel as ChatListScreen so users tracked anywhere
+    // in the app (chat list OR another conversation) show as Online here.
+    final ch = Supabase.instance.client.channel('presence:online-users');
     ch.onPresenceSync((_) {
       if (!mounted) return;
       final state = ch.presenceState();
