@@ -25,12 +25,26 @@ function deriveTraitScores(personality: Record<string, unknown> | null, archetyp
   }
 
   const base: Record<string, { dec: number; warm: number; open: number; pace: number }> = {
-    casual_man:          { dec: 75, warm: 60, open: 70, pace: 70 },
-    marriage_minded_man: { dec: 70, warm: 80, open: 60, pace: 55 },
-    spoilt_woman:        { dec: 65, warm: 65, open: 65, pace: 60 },
-    safety_first_woman:  { dec: 60, warm: 75, open: 55, pace: 45 },
+    // Male archetypes
+    casual_generous_man:      { dec: 80, warm: 65, open: 70, pace: 75 },
+    hopeless_romantic_man:    { dec: 62, warm: 90, open: 75, pace: 55 },
+    rebound_healing_man:      { dec: 55, warm: 70, open: 65, pace: 50 },
+    untouched_heart_man:      { dec: 60, warm: 75, open: 80, pace: 60 },
+    forever_focused_man:      { dec: 75, warm: 80, open: 60, pace: 55 },
+    traditional_matrimony_man:{ dec: 80, warm: 75, open: 50, pace: 50 },
+    second_chapter_man:       { dec: 78, warm: 75, open: 65, pace: 50 },
+    just_friends_man:         { dec: 55, warm: 70, open: 80, pace: 65 },
+    // Female archetypes
+    spoiled_casual_woman:         { dec: 70, warm: 60, open: 70, pace: 65 },
+    hopeless_romantic_woman:      { dec: 60, warm: 90, open: 70, pace: 55 },
+    rebound_healing_woman:        { dec: 55, warm: 70, open: 65, pace: 50 },
+    untouched_heart_woman:        { dec: 60, warm: 75, open: 82, pace: 60 },
+    forever_focused_woman:        { dec: 75, warm: 82, open: 58, pace: 52 },
+    traditional_matrimony_woman:  { dec: 78, warm: 78, open: 48, pace: 48 },
+    second_chapter_woman:         { dec: 78, warm: 75, open: 65, pace: 50 },
+    just_friends_woman:           { dec: 55, warm: 72, open: 80, pace: 65 },
   };
-  const b = base[archetype] ?? { dec: 60, warm: 60, open: 60, pace: 60 };
+  const b = base[archetype] ?? { dec: 65, warm: 70, open: 65, pace: 60 };
 
   const dec  = Math.min(100, Math.max(10, b.dec  + score(['direct','decisive','clear','assertive','confident','takes charge','straightforward']) - 50));
   const warm = Math.min(100, Math.max(10, b.warm + score(['warm','caring','generous','emotional','empathetic','loving','affectionate']) - 50));

@@ -178,22 +178,27 @@ Widget _portrait(String url) {
 }
 
 /// Archetype-based trait score fallback when server doesn't return traitScores yet.
+/// Must stay in sync with deriveTraitScores base map in public-profile/+server.ts.
 Map<String, int> _archetypeBaseScores(String archetypeLabel) {
-  final a = archetypeLabel.toLowerCase();
-  if (a.contains('forever') || a.contains('matrimony') || a.contains('marriage'))
-    return {'decisiveness': 70, 'warmth': 80, 'openness': 60, 'pace': 55};
-  if (a.contains('casual') && a.contains('generous'))
-    return {'decisiveness': 80, 'warmth': 65, 'openness': 70, 'pace': 72};
-  if (a.contains('romantic') || a.contains('hopeless'))
-    return {'decisiveness': 62, 'warmth': 88, 'openness': 75, 'pace': 58};
-  if (a.contains('second chapter'))
-    return {'decisiveness': 78, 'warmth': 75, 'openness': 65, 'pace': 50};
-  if (a.contains('safety'))
-    return {'decisiveness': 60, 'warmth': 75, 'openness': 55, 'pace': 45};
-  if (a.contains('spoilt'))
-    return {'decisiveness': 65, 'warmth': 65, 'openness': 65, 'pace': 60};
-  // casual_man / default
-  return {'decisiveness': 75, 'warmth': 60, 'openness': 70, 'pace': 70};
+  const scores = <String, Map<String, int>>{
+    'casual_generous_man':       {'decisiveness': 80, 'warmth': 65, 'openness': 70, 'pace': 75},
+    'hopeless_romantic_man':     {'decisiveness': 62, 'warmth': 90, 'openness': 75, 'pace': 55},
+    'rebound_healing_man':       {'decisiveness': 55, 'warmth': 70, 'openness': 65, 'pace': 50},
+    'untouched_heart_man':       {'decisiveness': 60, 'warmth': 75, 'openness': 80, 'pace': 60},
+    'forever_focused_man':       {'decisiveness': 75, 'warmth': 80, 'openness': 60, 'pace': 55},
+    'traditional_matrimony_man': {'decisiveness': 80, 'warmth': 75, 'openness': 50, 'pace': 50},
+    'second_chapter_man':        {'decisiveness': 78, 'warmth': 75, 'openness': 65, 'pace': 50},
+    'just_friends_man':          {'decisiveness': 55, 'warmth': 70, 'openness': 80, 'pace': 65},
+    'spoiled_casual_woman':          {'decisiveness': 70, 'warmth': 60, 'openness': 70, 'pace': 65},
+    'hopeless_romantic_woman':       {'decisiveness': 60, 'warmth': 90, 'openness': 70, 'pace': 55},
+    'rebound_healing_woman':         {'decisiveness': 55, 'warmth': 70, 'openness': 65, 'pace': 50},
+    'untouched_heart_woman':         {'decisiveness': 60, 'warmth': 75, 'openness': 82, 'pace': 60},
+    'forever_focused_woman':         {'decisiveness': 75, 'warmth': 82, 'openness': 58, 'pace': 52},
+    'traditional_matrimony_woman':   {'decisiveness': 78, 'warmth': 78, 'openness': 48, 'pace': 48},
+    'second_chapter_woman':          {'decisiveness': 78, 'warmth': 75, 'openness': 65, 'pace': 50},
+    'just_friends_woman':            {'decisiveness': 55, 'warmth': 72, 'openness': 80, 'pace': 65},
+  };
+  return scores[archetypeLabel] ?? {'decisiveness': 65, 'warmth': 70, 'openness': 65, 'pace': 60};
 }
 
 // ── Playful shared sections ──────────────────────────────────────────────────
