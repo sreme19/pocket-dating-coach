@@ -28,6 +28,8 @@ class _ChatListScreenState extends State<ChatListScreen>
   RealtimeChannel? _verificationChannel;
   final _onlineUsers = <String>{};
   final _clearedConvos = <String>{}; // optimistic read-clear before server confirms
+  List<Conversation>? _cachedConversations; // updated in-place on realtime events
+  String get _myId => Supabase.instance.client.auth.currentUser?.id ?? '';
   Timer? _periodicRefresh;
 
   // ── Find Match ────────────────────────────────────────────────────────────
@@ -157,7 +159,7 @@ class _ChatListScreenState extends State<ChatListScreen>
           event: PostgresChangeEvent.insert,
           schema: 'public',
           table: 'verified_vibe_messages',
-          callback: (_) => _refresh(),
+          callback: _applyMessageInsert,
         )
         .subscribe();
 
@@ -261,6 +263,54 @@ class _ChatListScreenState extends State<ChatListScreen>
     _onlineChannel = ch;
   }
 
+  // Instantly update the conversation list from a Realtime INSERT payload — no
+  // network round-trip. Falls back to full _refresh() if the match isn't cached
+  // (e.g. a brand-new match that arrived before the initial load finished).
+  void _applyMessageInsert(PostgresChangePayload payload) {
+    if (!mounted) return;
+    final r = payload.newRecord;
+    final matchId = r['match_id']?.toString();
+    final cached = _cachedConversations;
+    if (matchId == null || cached == null) {
+      _refresh();
+      return;
+    }
+    final idx = cached.indexWhere((c) => c.id == matchId);
+    if (idx < 0) {
+      // Unknown match → full refresh so a new conversation card appears
+      _refresh();
+      return;
+    }
+    final old = cached[idx];
+    final senderId = r['sender_id']?.toString() ?? '';
+    final content = r['content']?.toString() ?? '';
+    final createdAt = r['created_at'] != null
+        ? DateTime.tryParse(r['created_at'].toString())
+        : null;
+    final isFromOther = senderId.isNotEmpty && senderId != _myId;
+    final newUnread = (isFromOther && !_clearedConvos.contains(old.id))
+        ? old.unreadCount + 1
+        : old.unreadCount;
+    final updated = Conversation(
+      id: old.id,
+      otherId: old.otherId,
+      name: old.name,
+      age: old.age,
+      avatar: old.avatar,
+      lastMessage: content.isEmpty ? old.lastMessage : content,
+      lastMessageSenderId: senderId.isEmpty ? old.lastMessageSenderId : senderId,
+      lastMessageTime: createdAt ?? old.lastMessageTime,
+      unreadCount: newUnread,
+      hasMessages: true,
+      archetype: old.archetype,
+      gender: old.gender,
+      trustScore: old.trustScore,
+    );
+    final newList = List<Conversation>.from(cached);
+    newList[idx] = updated;
+    setState(() => _cachedConversations = newList);
+  }
+
   Future<_ChatData> _load() async {
     try {
       final gender = await fetchCurrentUserGender();
@@ -277,6 +327,7 @@ class _ChatListScreenState extends State<ChatListScreen>
         AppLogger.instance.error('load_secondary_data failed', screen: 'chat_list', action: 'load_secondary_data');
         /* non-fatal */
       }
+      _cachedConversations = convos;
       return _ChatData(gender: gender, conversations: convos, admirers: admirers, sentAdmirers: sentAdmirers, tipSummary: tipSummary);
     } catch (e) {
       AppLogger.instance.error(e, screen: 'chat_list', action: 'load');
@@ -381,8 +432,9 @@ class _ChatListScreenState extends State<ChatListScreen>
           final data = snap.data!;
           final isMan = data.gender == 'man';
           final isWoman = data.gender == 'woman';
-          final newMatches = data.conversations.where((c) => !c.hasMessages).toList();
-          var active = data.conversations.where((c) => c.hasMessages).toList()
+          final conversations = _cachedConversations ?? data.conversations;
+          final newMatches = conversations.where((c) => !c.hasMessages).toList();
+          var active = conversations.where((c) => c.hasMessages).toList()
             ..sort((a, b) => (b.lastMessageTime ?? DateTime(1970))
                 .compareTo(a.lastMessageTime ?? DateTime(1970)));
           final unreadTotal = active.where((c) => c.unreadCount > 0 && !_clearedConvos.contains(c.id)).length;
@@ -404,7 +456,7 @@ class _ChatListScreenState extends State<ChatListScreen>
                 if (newMatches.isNotEmpty && _filter != 2 && _filter != 3) _NewMatches(matches: newMatches, onTap: _open, onlineUsers: _onlineUsers),
                 _FilterTabs(
                   filter: _filter,
-                  allCount: data.conversations.where((c) => c.hasMessages).length,
+                  allCount: conversations.where((c) => c.hasMessages).length,
                   unreadCount: unreadTotal,
                   admirerCount: data.admirers.length,
                   sentCount: data.sentAdmirers.length,
@@ -440,7 +492,7 @@ class _ChatListScreenState extends State<ChatListScreen>
                     child: Text(
                       _filter == 1
                           ? 'No unread messages.'
-                          : (data.conversations.isEmpty
+                          : (conversations.isEmpty
                               ? 'No conversations yet — your matches will show up here.'
                               : 'No active chats yet — say hello to a new match above.'),
                       textAlign: TextAlign.center,
