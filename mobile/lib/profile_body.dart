@@ -297,10 +297,13 @@ String _magnetEmoji(String place) {
 /// Travel magnets rendered like real colorful fridge magnets (varied pastel
 /// colors + slight rotations).
 Widget travelMagnets(List<String> places) {
+  // Only show places with a recognised country flag — unrecognised city names
+  // (e.g. domestic cities that return 🌍) are hidden from the public profile.
+  final recognised = places.where((p) => _magnetEmoji(p) != '🌍').toList();
   return Wrap(
     spacing: 10, runSpacing: 12,
     children: [
-      for (var i = 0; i < places.length; i++)
+      for (var i = 0; i < recognised.length; i++)
         Transform.rotate(
           angle: ((i * 37) % 7 - 3) * 0.018, // deterministic ~ -3°..+3°
           child: Container(
@@ -312,9 +315,9 @@ Widget travelMagnets(List<String> places) {
               boxShadow: const [BoxShadow(color: Color(0x55000000), blurRadius: 6, offset: Offset(0, 3))],
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Text(_magnetEmoji(places[i]), style: const TextStyle(fontSize: 18)),
+              Text(_magnetEmoji(recognised[i]), style: const TextStyle(fontSize: 18)),
               const SizedBox(width: 7),
-              Text(places[i].toUpperCase(),
+              Text(recognised[i].toUpperCase(),
                   style: TextStyle(color: Color(_magnetColors[i % _magnetColors.length].$3),
                       fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.3)),
             ]),
