@@ -52,7 +52,14 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
       pSection('🧭 HERE FOR', Text(d.hereFor!, style: const TextStyle(color: Color(Config.text1), fontSize: 16, height: 1.4))),
     // Personality Reads (radar) — use server scores when available, else archetype defaults.
     pSection('🧠 PERSONALITY READS',
-      PersonalityRadar(traits: d.traitScores ?? _archetypeBaseScores(d.archetypeLabel)),
+      PersonalityRadar(traits: () {
+        // Prod server may return {60,60,60,60} for unrecognised archetypes.
+        // Treat any all-identical response as a missing signal and fall back
+        // to the archetype-derived baseline instead.
+        final ts = d.traitScores;
+        if (ts != null && ts.isNotEmpty && ts.values.toSet().length > 1) return ts;
+        return _archetypeBaseScores(d.archetypeLabel);
+      }()),
       hint: 'inferred from Q&A + lifestyle'),
     if (d.about != null && d.about!.isNotEmpty)
       pSection('ABOUT', Text(d.about!, style: const TextStyle(color: Color(Config.text1), fontSize: 16, height: 1.5))),
@@ -177,28 +184,27 @@ Widget _portrait(String url) {
   );
 }
 
-/// Archetype-based trait score fallback when server doesn't return traitScores yet.
-/// Must stay in sync with deriveTraitScores base map in public-profile/+server.ts.
+/// Archetype-based trait score fallback — accepts pretty-printed label
+/// (e.g. "Hopeless-Romantic") as returned by MatchDetail.archetypeLabel.
 Map<String, int> _archetypeBaseScores(String archetypeLabel) {
-  const scores = <String, Map<String, int>>{
-    'casual_generous_man':       {'decisiveness': 80, 'warmth': 65, 'openness': 70, 'pace': 75},
-    'hopeless_romantic_man':     {'decisiveness': 62, 'warmth': 90, 'openness': 75, 'pace': 55},
-    'rebound_healing_man':       {'decisiveness': 55, 'warmth': 70, 'openness': 65, 'pace': 50},
-    'untouched_heart_man':       {'decisiveness': 60, 'warmth': 75, 'openness': 80, 'pace': 60},
-    'forever_focused_man':       {'decisiveness': 75, 'warmth': 80, 'openness': 60, 'pace': 55},
-    'traditional_matrimony_man': {'decisiveness': 80, 'warmth': 75, 'openness': 50, 'pace': 50},
-    'second_chapter_man':        {'decisiveness': 78, 'warmth': 75, 'openness': 65, 'pace': 50},
-    'just_friends_man':          {'decisiveness': 55, 'warmth': 70, 'openness': 80, 'pace': 65},
-    'spoiled_casual_woman':          {'decisiveness': 70, 'warmth': 60, 'openness': 70, 'pace': 65},
-    'hopeless_romantic_woman':       {'decisiveness': 60, 'warmth': 90, 'openness': 70, 'pace': 55},
-    'rebound_healing_woman':         {'decisiveness': 55, 'warmth': 70, 'openness': 65, 'pace': 50},
-    'untouched_heart_woman':         {'decisiveness': 60, 'warmth': 75, 'openness': 82, 'pace': 60},
-    'forever_focused_woman':         {'decisiveness': 75, 'warmth': 82, 'openness': 58, 'pace': 52},
-    'traditional_matrimony_woman':   {'decisiveness': 78, 'warmth': 78, 'openness': 48, 'pace': 48},
-    'second_chapter_woman':          {'decisiveness': 78, 'warmth': 75, 'openness': 65, 'pace': 50},
-    'just_friends_woman':            {'decisiveness': 55, 'warmth': 72, 'openness': 80, 'pace': 65},
-  };
-  return scores[archetypeLabel] ?? {'decisiveness': 65, 'warmth': 70, 'openness': 65, 'pace': 60};
+  final a = archetypeLabel.toLowerCase();
+  if (a.contains('forever') || a.contains('matrimony'))
+    return {'decisiveness': 75, 'warmth': 80, 'openness': 58, 'pace': 52};
+  if (a.contains('casual') && a.contains('generous'))
+    return {'decisiveness': 80, 'warmth': 65, 'openness': 70, 'pace': 75};
+  if (a.contains('hopeless') || a.contains('romantic'))
+    return {'decisiveness': 62, 'warmth': 90, 'openness': 74, 'pace': 55};
+  if (a.contains('rebound') || a.contains('healing'))
+    return {'decisiveness': 55, 'warmth': 70, 'openness': 65, 'pace': 50};
+  if (a.contains('untouched') || a.contains('heart'))
+    return {'decisiveness': 60, 'warmth': 75, 'openness': 82, 'pace': 60};
+  if (a.contains('second') || a.contains('chapter'))
+    return {'decisiveness': 78, 'warmth': 75, 'openness': 65, 'pace': 50};
+  if (a.contains('friends'))
+    return {'decisiveness': 55, 'warmth': 70, 'openness': 80, 'pace': 65};
+  if (a.contains('spoiled') || a.contains('casual'))
+    return {'decisiveness': 70, 'warmth': 60, 'openness': 70, 'pace': 65};
+  return {'decisiveness': 65, 'warmth': 70, 'openness': 65, 'pace': 60};
 }
 
 // ── Playful shared sections ──────────────────────────────────────────────────
