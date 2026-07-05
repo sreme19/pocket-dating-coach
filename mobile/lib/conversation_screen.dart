@@ -45,6 +45,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
   String _myName = '';
   String? _myAvatar;
   bool _bestieActive = true; // per-match AI Bestie state (woman's side)
+  bool _bestieBannerDismissed = false; // woman's banner dismiss flag
+  bool _manBannerDismissed = false;    // man's banner dismiss flag
 
   @override
   void initState() {
@@ -158,7 +160,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
       final thread = await fetchConversation(widget.conversationId);
       _merge(thread.messages);
       if (mounted && thread.aiBestieActive != _bestieActive) {
-        setState(() => _bestieActive = thread.aiBestieActive);
+        setState(() {
+          _bestieActive = thread.aiBestieActive;
+          _bestieBannerDismissed = false; // re-show banner on status change
+          _manBannerDismissed = false;
+        });
       }
     } catch (_) {
       AppLogger.instance.error('load_thread_state failed', screen: 'conversation', action: 'load_thread_state');
@@ -366,10 +372,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
   /// her Bestie is no longer the proxy (spec §C9 — the hand-off is never
   /// silent). Persists while the thread is direct, so re-opening still shows it.
   Widget _directHandoffBanner() {
+    if (_manBannerDismissed) return const SizedBox.shrink();
     final name = _otherName.isNotEmpty ? _otherName : widget.title;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 6, 16, 2),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
       decoration: BoxDecoration(
         color: const Color(0x1422C55E),
         borderRadius: BorderRadius.circular(10),
@@ -382,6 +389,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
           child: Text("You're now talking to $name directly.",
               style: const TextStyle(color: Color(0xFF22C55E), fontSize: 12, fontWeight: FontWeight.w600)),
         ),
+        IconButton(
+          icon: const Icon(Icons.close, size: 16, color: Color(0xFF22C55E)),
+          onPressed: () => setState(() => _manBannerDismissed = true),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          tooltip: 'Dismiss',
+        ),
       ]),
     );
   }
@@ -389,21 +403,29 @@ class _ConversationScreenState extends State<ConversationScreen> {
   /// Per-match AI Bestie status, shown to the woman only. When active, an
   /// info pill (sending a message steps in); when off, a Resume button.
   Widget _bestieBanner() {
+    if (_bestieBannerDismissed) return const SizedBox.shrink();
     if (_bestieActive) {
       return Container(
         margin: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
         decoration: BoxDecoration(
           color: const Color(0x1422C55E),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: const Color(0x3322C55E)),
         ),
-        child: const Row(children: [
-          Text('💚', style: TextStyle(fontSize: 14)),
-          SizedBox(width: 8),
-          Expanded(
+        child: Row(children: [
+          const Text('💚', style: TextStyle(fontSize: 14)),
+          const SizedBox(width: 8),
+          const Expanded(
             child: Text('AI Bestie is chatting on your behalf — send a message any time to step in.',
                 style: TextStyle(color: Color(0xFF22C55E), fontSize: 12, fontWeight: FontWeight.w600)),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 16, color: Color(0xFF22C55E)),
+            onPressed: () => setState(() => _bestieBannerDismissed = true),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            tooltip: 'Dismiss',
           ),
         ]),
       );
@@ -429,6 +451,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
             foregroundColor: const Color(0xFF22C55E),
             padding: const EdgeInsets.symmetric(horizontal: 8),
           ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.close, size: 16, color: Color(0xFFAAAAAA)),
+          onPressed: () => setState(() => _bestieBannerDismissed = true),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          tooltip: 'Dismiss',
         ),
       ]),
     );
@@ -714,7 +743,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
           // Voice call: only the male match can call HER AI bestie (web parity —
           // the bestie speaks in the woman's voice). Only offer it while her
           // Bestie is the proxy; once she's stepped in, calling her Bestie is moot.
-          if (!_loading && _viewerGender == 'man' && _otherGender == 'woman' && _bestieActive)
+          if (!_loading && _viewerGender == 'man' && _otherGender == 'woman' && _bestieActive && !_manBannerDismissed)
             _BestieCallBanner(
               name: _otherName.isNotEmpty ? _otherName : widget.title,
               onTap: () {
@@ -726,6 +755,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                   ),
                 ));
               },
+              onDismiss: () => setState(() => _manBannerDismissed = true),
             ),
           // Explicit, never-silent hand-off notice (spec §C9): once she steps in
           // and her Bestie is no longer the proxy, tell the man directly.
@@ -751,47 +781,60 @@ class _ConversationScreenState extends State<ConversationScreen> {
 class _BestieCallBanner extends StatelessWidget {
   final String name;
   final VoidCallback onTap;
-  const _BestieCallBanner({required this.name, required this.onTap});
+  final VoidCallback onDismiss;
+  const _BestieCallBanner({required this.name, required this.onTap, required this.onDismiss});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 2),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          height: 40,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)],
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-            ),
-            borderRadius: BorderRadius.circular(999),
-            boxShadow: const [
-              BoxShadow(color: Color(0x44FF3B6B), blurRadius: 10, offset: Offset(0, 4)),
-            ],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('✨', style: TextStyle(fontSize: 15)),
-              const SizedBox(width: 7),
-              Text(
-                'Voice chat with $name\'s AI Bestie',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.2,
+      child: Row(children: [
+        Expanded(
+          child: GestureDetector(
+            onTap: onTap,
+            child: Container(
+              height: 40,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
                 ),
+                borderRadius: BorderRadius.circular(999),
+                boxShadow: const [
+                  BoxShadow(color: Color(0x44FF3B6B), blurRadius: 10, offset: Offset(0, 4)),
+                ],
               ),
-              const SizedBox(width: 7),
-              const Icon(Icons.mic_rounded, color: Colors.white, size: 16),
-            ],
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('✨', style: TextStyle(fontSize: 15)),
+                  const SizedBox(width: 7),
+                  Text(
+                    'Voice chat with $name\'s AI Bestie',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  const SizedBox(width: 7),
+                  const Icon(Icons.mic_rounded, color: Colors.white, size: 16),
+                ],
+              ),
+            ),
           ),
         ),
-      ),
+        const SizedBox(width: 6),
+        IconButton(
+          icon: const Icon(Icons.close, size: 16, color: Color(0xFFAAAAAA)),
+          onPressed: onDismiss,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          tooltip: 'Dismiss',
+        ),
+      ]),
     );
   }
 }
