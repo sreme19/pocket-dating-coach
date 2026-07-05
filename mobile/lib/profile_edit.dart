@@ -42,14 +42,28 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
     AppLogger.instance.action('profile_edit', 'upload_photo');
     setState(() { _busy = true; _error = null; });
     try {
-      final x = await _picker.pickImage(source: source, maxWidth: 1800, imageQuality: 85);
-      if (x == null) { setState(() => _busy = false); return; }
-      final bytes = await x.readAsBytes();
-      final ext = x.path.toLowerCase().endsWith('.png') ? 'png' : 'jpeg';
-      final dataUrl = 'data:image/$ext;base64,${base64Encode(bytes)}';
-      final label = _photos.isEmpty ? 'lead' : 'photo-${_photos.length}';
-      final url = await uploadPhoto(dataUrl, label);
-      setState(() { _photos.add(PhotoItem(url, label)); _dirty = true; _busy = false; });
+      // Gallery: multi-select up to the remaining slots (mirrors onboarding's
+      // pickMultiImage). Camera can only produce one shot at a time.
+      final List<XFile> picked;
+      if (source == ImageSource.gallery) {
+        final remaining = _maxPhotos - _photos.length;
+        final multi = await _picker.pickMultiImage(maxWidth: 1800, imageQuality: 85);
+        picked = multi.take(remaining).toList();
+      } else {
+        final x = await _picker.pickImage(source: source, maxWidth: 1800, imageQuality: 85);
+        picked = [?x];
+      }
+      if (picked.isEmpty) { setState(() => _busy = false); return; }
+      for (final x in picked) {
+        final bytes = await x.readAsBytes();
+        final ext = x.path.toLowerCase().endsWith('.png') ? 'png' : 'jpeg';
+        final dataUrl = 'data:image/$ext;base64,${base64Encode(bytes)}';
+        final label = _photos.isEmpty ? 'lead' : 'photo-${_photos.length}';
+        final url = await uploadPhoto(dataUrl, label);
+        if (!mounted) return;
+        setState(() { _photos.add(PhotoItem(url, label)); _dirty = true; });
+      }
+      setState(() => _busy = false);
     } catch (e) {
       AppLogger.instance.error(e, screen: 'profile_edit', action: 'upload_photo');
       setState(() { _busy = false; _error = 'Upload failed: $e'; });

@@ -66,10 +66,10 @@ const _configs = <String, _CatConfig>{
     examples: [
       'Travel or dining photos with YOUR FACE visible',
       'Event or concert photos showing you were there',
-      'Hotel or flight booking screenshots (no face needed)',
       'Restaurant or bar photos with you in the frame',
+      'Experience moments — hotels, flights, adventures — with you in them',
     ],
-    hintLine: 'Photos must show your face to be verified. Booking screenshots without a face are accepted as supporting evidence only.',
+    hintLine: 'Each photo is matched against your verified selfie — only photos that clearly show your face count. Screenshots without you are skipped.',
     maxFiles: 20,
   ),
   'discipline': _CatConfig(
@@ -80,11 +80,11 @@ const _configs = <String, _CatConfig>{
     privacyCopy: 'Private by default. Your proofs strengthen trust, verify authenticity, and help you get better matches.',
     examples: [
       'Gym check-in or workout selfie',
-      'Fitness app streak screenshot',
-      'Reading app or book log',
-      'Sleep tracker weekly summary',
+      'Sport or training photos with you in frame',
+      'Morning run, swim, or cycling selfie',
+      'You at practice, class, or study sessions',
     ],
-    hintLine: 'Streak screens from apps are the most convincing. Up to 20 photos.',
+    hintLine: 'Each photo is matched against your verified selfie — only photos that clearly show your face count. App screenshots are skipped.',
     maxFiles: 20,
   ),
   'social_proof': _CatConfig(
@@ -94,12 +94,12 @@ const _configs = <String, _CatConfig>{
     subtitle: 'Show your real social life — friends, events, and gatherings you host',
     privacyCopy: 'Nothing here is public. These signals confirm your lifestyle and improve compatibility.',
     examples: [
-      'Group photos with friends',
+      'Group photos with friends — with you clearly visible',
       'Community or club events you attend',
-      'Sports team or group activity photos',
+      'Sports team or group activity photos including you',
       'Dinners, parties or celebrations you host',
     ],
-    hintLine: 'Belonging to a social circle and hosting both count. Natural moments beat posed shots. Up to 20 photos.',
+    hintLine: 'Each photo is matched against your verified selfie — only group shots where your face is visible count. Natural moments beat posed shots.',
     maxFiles: 20,
   ),
   'hosting': _CatConfig(
@@ -579,6 +579,24 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                 idBase64 = result['idBase64'] as String?;
                 idMime = result['idMime'] as String?;
                 final name = result['idName']?.toString();
+                // The server matches the ID photo against the stored
+                // verification selfie (the single reference face). A match
+                // means identity is already proven — no second selfie needed.
+                final faceMatch = result['faceMatch'] as bool?;
+                if (faceMatch == true) {
+                  if (ctx.mounted) Navigator.of(ctx).pop(true);
+                  return;
+                }
+                if (faceMatch == false) {
+                  setS(() {
+                    busy = false;
+                    idPicked = null;
+                    error = 'The face on this ID doesn\'t match your verified selfie. Retake the ID photo in good lighting, without glare.';
+                  });
+                  return;
+                }
+                // No reference selfie on file yet — capture one now (step 2).
+                // It becomes the single stored reference for all face checks.
                 setS(() { busy = false; detectedName = name; step = 2; });
               } catch (e) {
                 AppLogger.instance.error(e, screen: 'category_proof', action: 'process_id_front');
@@ -817,6 +835,17 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
       final baseText = verified
           ? '✓ ${_cfg.title} verified · +$pts trust${agg.isNotEmpty ? '\n$agg' : ''}'
           : 'Couldn\'t verify.${agg.isNotEmpty ? '\n$agg' : ''}';
+      // Face-gated categories: photos where the user's face wasn't found are
+      // skipped by the server — tell the user which ones didn't count.
+      String faceNote = '';
+      final faceCheck = res['faceCheck'];
+      if (verified && faceCheck is Map && faceCheck['unmatchedPhotos'] is List) {
+        final skipped = (faceCheck['unmatchedPhotos'] as List).whereType<num>().map((n) => n.toInt()).toList();
+        if (skipped.isNotEmpty) {
+          faceNote = '\n\n⚠️ Photo${skipped.length > 1 ? 's' : ''} ${skipped.join(', ')} '
+              'didn\'t clearly show your face and ${skipped.length > 1 ? 'were' : 'was'} not counted.';
+        }
+      }
       final ownershipNote = ownershipReduced
           ? '\n\n⚠️ ${ownershipReason.isNotEmpty ? ownershipReason : 'Ownership is linked, not personal — verified at reduced trust and flagged for review.'}'
           : ownershipTier == 'self'
@@ -828,7 +857,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
         _analysing = false;
         _result = _UploadResult(
           verified: verified,
-          text: '$baseText$ownershipNote',
+          text: '$baseText$faceNote$ownershipNote',
           chips: chips,
         );
       });

@@ -232,6 +232,10 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
   // Step 0 — identity check
   bool _livenessDone = false;
+  // A low-confidence selfie is accepted but held for manual review: it earns no
+  // points yet, so we keep it distinct from _livenessDone. In this state the user
+  // may retake (each retake replaces the previous selfie server-side) or continue.
+  bool _livenessUnderReview = false;
   String _livenessResult = '';
 
   // Step 1 (drawn-to) & Step 2 (how-you-live): sectionKey → selected labels.
@@ -386,7 +390,10 @@ class _VerificationScreenState extends State<VerificationScreen> {
     setState(() { _busy = false; });
     if (result == null) return;
     setState(() {
-      _livenessDone = true;
+      // Only a verified selfie marks the step done. An under-review selfie is
+      // saved (and replaces any prior one) but stays retakeable.
+      _livenessUnderReview = result.underReview;
+      _livenessDone = !result.underReview;
       _livenessResult = result.message;
     });
   }
@@ -748,6 +755,23 @@ class _VerificationScreenState extends State<VerificationScreen> {
         _timeTag('~60 sec'),
         const SizedBox(height: 24),
         _cameraCard(),
+        if (_livenessUnderReview) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _busy ? null : _takeSelfie,
+              icon: const Icon(Icons.camera_alt_rounded, size: 18),
+              label: const Text('Retake selfie'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(Config.accentBright),
+                side: const BorderSide(color: Color(Config.accentBright)),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 10),
         Center(
           child: TextButton(
@@ -755,6 +779,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
               onConfirm: () {
                 setState(() {
                   _livenessDone = true;
+                  _livenessUnderReview = false;
                   _livenessResult = 'Skipped';
                 });
                 _advance();
@@ -779,14 +804,36 @@ class _VerificationScreenState extends State<VerificationScreen> {
   }
 
   Widget _cameraCard() {
+    const amber = Color(0xFFFBBF24);
+    final borderColor = _livenessDone
+        ? const Color(Config.accentBright)
+        : _livenessUnderReview
+            ? amber
+            : const Color(Config.text3);
+    final iconColor = _livenessUnderReview ? amber : const Color(Config.accentBright);
+    final title = _livenessDone
+        ? 'Selfie captured ✓'
+        : _livenessUnderReview
+            ? 'Under review'
+            : '📷 Quick selfie';
+    final titleColor = _livenessDone
+        ? const Color(Config.accentBright)
+        : _livenessUnderReview
+            ? amber
+            : const Color(Config.text1);
+    final subtitle = _livenessDone
+        ? (_livenessResult.isNotEmpty ? _livenessResult : 'Selfie verified')
+        : _livenessUnderReview
+            ? 'Score too low to verify yet — retake for a better shot, or continue and we\'ll review it within 24h.'
+            : '⏱ 60 sec · confirms you\'re a real person — no ID needed.';
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: const Color(Config.bg2),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: _livenessDone ? const Color(Config.accentBright) : const Color(Config.text3),
-          width: _livenessDone ? 2 : 1,
+          color: borderColor,
+          width: _livenessDone || _livenessUnderReview ? 2 : 1,
         ),
       ),
       child: Column(
@@ -798,23 +845,25 @@ class _VerificationScreenState extends State<VerificationScreen> {
               borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(
-              _livenessDone ? Icons.check_circle_outline_rounded : Icons.camera_front_rounded,
-              size: 36, color: const Color(Config.accentBright),
+              _livenessDone
+                  ? Icons.check_circle_outline_rounded
+                  : _livenessUnderReview
+                      ? Icons.hourglass_top_rounded
+                      : Icons.camera_front_rounded,
+              size: 36, color: iconColor,
             ),
           ),
           const SizedBox(height: 12),
           Text(
-            _livenessDone ? 'Selfie captured ✓' : '📷 Quick selfie',
+            title,
             style: TextStyle(
               fontSize: 16, fontWeight: FontWeight.w700,
-              color: _livenessDone ? const Color(Config.accentBright) : const Color(Config.text1),
+              color: titleColor,
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            _livenessDone
-                ? (_livenessResult.isNotEmpty ? _livenessResult : 'Selfie verified')
-                : '⏱ 60 sec · confirms you\'re a real person — no ID needed.',
+            subtitle,
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 13, color: Color(Config.text2), height: 1.4),
           ),
@@ -1144,12 +1193,14 @@ class _VerificationScreenState extends State<VerificationScreen> {
     final VoidCallback? action;
 
     if (_step == 0) {
-      if (!_livenessDone) {
-        label  = 'Take a quick selfie';
-        action = _busy ? null : _takeSelfie;
-      } else {
+      if (_livenessDone || _livenessUnderReview) {
+        // Verified OR accepted-for-review: the user may proceed. Under-review
+        // users also get a dedicated "Retake selfie" button above the footer.
         label  = 'Continue →';
         action = _busy ? null : _advance;
+      } else {
+        label  = 'Take a quick selfie';
+        action = _busy ? null : _takeSelfie;
       }
     } else if (_stepComplete) {
       label  = _step == 3 ? 'Finish & enter →' : 'Continue →';
@@ -1325,7 +1376,10 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
 class _LivenessResult {
   final String message;
-  const _LivenessResult(this.message);
+  /// True when the selfie scored below threshold and was accepted for manual
+  /// review rather than verified — the caller should allow a retake.
+  final bool underReview;
+  const _LivenessResult(this.message, {this.underReview = false});
 }
 
 // ── Liveness capture screen ───────────────────────────────────────────────────
@@ -1719,7 +1773,7 @@ class _LivenessCaptureScreenState extends State<_LivenessCaptureScreen> {
           child: SizedBox(
             width: double.infinity, height: 54,
             child: FilledButton(
-              onPressed: () => Navigator.pop(context, const _LivenessResult('Under review — will be checked within 24h')),
+              onPressed: () => Navigator.pop(context, const _LivenessResult('Under review — will be checked within 24h', underReview: true)),
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(Config.accentBright),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),

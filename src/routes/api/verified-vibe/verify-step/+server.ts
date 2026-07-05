@@ -14,6 +14,7 @@ import {
 import { enrollInPoolIfVerified } from '$lib/server/pool-registry';
 import { recomputeAndNormalize } from '$lib/server/trust-normalize';
 import { scheduleVectorRebuild } from '$lib/server/vector-rebuild';
+import { storeAnchorSelfie, loadAnchorSelfie } from '$lib/verified-vibe/server/anchor-selfie';
 
 /**
  * POST /api/verified-vibe/verify-step
@@ -129,36 +130,8 @@ async function persistVerificationStep(
 // (see handleLivenessVerification) instead of re-deriving a threshold of its own.
 const LIVENESS_MIN_CONFIDENCE = 75;
 
-// ── Anchor selfie (onboarding liveness face) ─────────────────────────────────
-// The onboarding selfie is stored as the user's "anchor face" and later matched
-// against a government ID when they upload a name-bearing document.
-const ANCHOR_BUCKET = 'profiles';
-const anchorSelfiePath = (userId: string) => `identity/${userId}/anchor_selfie.jpg`;
-
-/** Upload the onboarding selfie to Storage as the anchor face. Returns the path or null. */
-async function storeAnchorSelfie(userId: string, base64: string): Promise<string | null> {
-  try {
-    const supabase = getSupabase();
-    const path = anchorSelfiePath(userId);
-    const buffer = Buffer.from(base64, 'base64');
-    const { error } = await supabase.storage
-      .from(ANCHOR_BUCKET)
-      .upload(path, buffer, { contentType: 'image/jpeg', upsert: true });
-    if (error) { console.warn('anchor selfie upload failed (non-fatal):', error); return null; }
-    return path;
-  } catch (e) { console.warn('anchor selfie upload error (non-fatal):', e); return null; }
-}
-
-/** Download the stored anchor selfie as base64, or null if none exists. */
-async function loadAnchorSelfie(userId: string): Promise<string | null> {
-  try {
-    const supabase = getSupabase();
-    const { data, error } = await supabase.storage.from(ANCHOR_BUCKET).download(anchorSelfiePath(userId));
-    if (error || !data) return null;
-    const buf = Buffer.from(await data.arrayBuffer());
-    return buf.toString('base64');
-  } catch { return null; }
-}
+// Anchor selfie (verified reference face) helpers live in
+// $lib/verified-vibe/server/anchor-selfie so proof-upload can reuse them.
 
 export const POST: RequestHandler = async ({ request }) => {
   try {
@@ -307,6 +280,20 @@ async function handleLivenessVerification(data: any, userId: string | null = nul
     const confidence = typeof stepData.confidence === 'number' ? stepData.confidence : 0;
     const isLive = stepData.live === true || stepData.match === true; // match mirrors live on onboarding path
     const passed = stepData.apiError === true || (isLive && confidence >= LIVENESS_MIN_CONFIDENCE);
+
+    // The ID-gate face-match also yields a verified face. If the user has no
+    // anchor selfie yet (they never did the onboarding liveness step), store
+    // this one so every later face check — ID matching and the face-gated proof
+    // categories — reads from a single stored reference. An existing anchor is
+    // NEVER overwritten: one selfie is the source of truth. Never store on the
+    // apiError fail-open either: that face wasn't actually verified.
+    if (hasIdPhoto && userId && !skipVerification && passed && stepData.apiError !== true) {
+      const existingAnchor = await loadAnchorSelfie(userId);
+      if (!existingAnchor) {
+        const storedPath = await storeAnchorSelfie(userId, data.selfieImage);
+        if (storedPath) stepData.anchorSelfiePath = storedPath;
+      }
+    }
 
     const trustPoints = passed ? getTrustPoints('liveness') : 0;
     const status = passed ? 'completed' : 'under_review';

@@ -574,6 +574,84 @@ Do not include any other text.`
 }
 
 /**
+ * Check whether ANY of the given photos contains an identifiable human face.
+ *
+ * Pre-flight for the AI photo-enhance pipeline: FLUX PuLID hallucinates a random
+ * person when the reference set has no face, so generation must be refused when
+ * no face is found in any reference (found-in-one is enough to proceed).
+ *
+ * @param images - Reference photos as { data: base64 (no data: prefix), mime }
+ * @returns { faceFound } — true if at least one photo has an identifiable face
+ * @throws Error if the Claude call itself fails (caller decides fail-open/closed)
+ */
+export async function detectFaceInPhotosWithClaude(
+  images: Array<{ data: string; mime: string }>
+): Promise<{ faceFound: boolean }> {
+  if (!CLAUDE_API_KEY) {
+    console.error('ANTHROPIC_API_KEY environment variable not set');
+    throw new Error('API configuration error. Please contact support.');
+  }
+  if (images.length === 0) return { faceFound: false };
+
+  const messageContent: any[] = [
+    {
+      type: 'text',
+      text: `You will see ${images.length} photo(s). Determine whether AT LEAST ONE of them contains a clearly identifiable, real human face (a photo of an actual person — not a drawing, statue, pet, object, or landscape, and not a face too small/blurred/obscured to identify).`
+    }
+  ];
+  for (const img of images) {
+    messageContent.push({
+      type: 'image',
+      source: { type: 'base64', media_type: img.mime, data: img.data }
+    });
+  }
+  messageContent.push({
+    type: 'text',
+    text: `Return ONLY a JSON object:
+{
+  "faceFound": <boolean>,
+  "reasoning": "<brief explanation>"
+}
+
+Do not include any other text.`
+  });
+
+  const response = await fetch(CLAUDE_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': CLAUDE_API_KEY,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 256,
+      messages: [{ role: 'user', content: messageContent }]
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    console.error('Claude API error:', error);
+    throw new Error(`Claude API error: ${error.error?.message || 'Unknown error'}`);
+  }
+
+  const data = await response.json();
+  const content = data.content[0]?.text;
+  if (!content) throw new Error('No response from Claude API');
+
+  let parsed;
+  try {
+    parsed = JSON.parse(content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim());
+  } catch {
+    console.error('Failed to parse Claude response:', content);
+    throw new Error('Invalid response format from Claude API');
+  }
+
+  return { faceFound: parsed.faceFound === true };
+}
+
+/**
  * Analyze spending pattern from bank statement or screenshot using Claude Vision
  *
  * @param spendingImageBase64 - Base64-encoded image of bank statement or spending screenshot
