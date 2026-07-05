@@ -370,49 +370,31 @@ class _ProfileBody extends StatelessWidget {
               ),
             ),
           ),
-          // AI enhance progress banner — men only, shown at top of hero
-          if (data.isMan)
-            Positioned(
-              top: 0, left: 0, right: 0,
-              child: ListenableBuilder(
-                listenable: PhotoEnhanceManager.instance,
-                builder: (context, _) {
-                  final mgr = PhotoEnhanceManager.instance;
-                  if (!mgr.isRunning) return const SizedBox.shrink();
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    decoration: const BoxDecoration(
-                      color: Color(0xCC1B1020),
-                    ),
-                    child: Row(children: [
-                      const SizedBox(
-                        width: 14, height: 14,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Color(Config.accent),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      const Expanded(
-                        child: Text(
-                          '✨ Generating AI photos…',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      const Text(
-                        '~30s',
-                        style: TextStyle(color: Color(0xAAFFFFFF), fontSize: 12),
-                      ),
-                    ]),
-                  );
-                },
-              ),
-            ),
         ]),
+        // AI enhance progress banner — men only, below hero to avoid overlap
+        if (data.isMan)
+          ListenableBuilder(
+            listenable: PhotoEnhanceManager.instance,
+            builder: (context, _) {
+              if (!PhotoEnhanceManager.instance.isRunning) return const SizedBox.shrink();
+              return Container(
+                color: const Color(0xFF1B1020),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
+                child: Row(children: [
+                  const SizedBox(
+                    width: 14, height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text('✨ Generating AI photos…',
+                        style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                  ),
+                  const Text('~30s', style: TextStyle(color: Color(0xAAFFFFFF), fontSize: 12)),
+                ]),
+              );
+            },
+          ),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
           child: IntrinsicHeight(
