@@ -1568,6 +1568,7 @@ class _ChipWithRemove extends StatelessWidget {
 Future<void> _editCountries(BuildContext context, ProfileData d, VoidCallback onChanged) async {
   final countries = List<String>.from(d.countries);
   String? deletingCountry;
+  var changed = false;
 
   await showModalBottomSheet<void>(
     context: context,
@@ -1603,7 +1604,9 @@ Future<void> _editCountries(BuildContext context, ProfileData d, VoidCallback on
                         setS(() { deletingCountry = c; countries.remove(c); });
                         try {
                           await saveCountries(List<String>.from(countries));
-                          onChanged();
+                          changed = true;
+                          // onChanged() dipanggil setelah sheet tutup supaya
+                          // parent setState tidak menutup bottom sheet ini
                         } catch (_) {
                           AppLogger.instance.error('save_countries failed', screen: 'profile', action: 'save_countries');
                           setS(() => countries.insert(0, c));
@@ -1629,6 +1632,9 @@ Future<void> _editCountries(BuildContext context, ProfileData d, VoidCallback on
       ),
     ),
   );
+
+  // Refresh profile setelah sheet ditutup, bukan di tengah-tengah
+  if (changed) onChanged();
 }
 
 // ── What I'm About (My lane + Hard nos tabs) ─────────────────────────────────
