@@ -30,8 +30,12 @@ class _ProfileStrengthCard extends StatefulWidget {
   State<_ProfileStrengthCard> createState() => _ProfileStrengthCardState();
 }
 
-class _ProfileStrengthCardState extends State<_ProfileStrengthCard> {
+class _ProfileStrengthCardState extends State<_ProfileStrengthCard>
+    with AutomaticKeepAliveClientMixin {
   ProfileStrength? _ps;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -43,6 +47,7 @@ class _ProfileStrengthCardState extends State<_ProfileStrengthCard> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final ps = _ps;
     if (ps == null || !ps.hasVectors) return const SizedBox.shrink();
     return Padding(
