@@ -146,10 +146,13 @@ export const GET: RequestHandler = async ({ request }: { request: Request }) => 
     }
   }
 
-  // Collect countries from verifiedProofs locations as well as stored list
+  // Collect countries from verifiedProofs locations as well as stored list.
+  // Filter out countries the user explicitly deleted so they don't resurface.
+  const deletedCountries: string[] = Array.isArray(masterData.deletedCountries)
+    ? masterData.deletedCountries as string[] : [];
   const dbCountries: string[] = verifiedProofs.flatMap((p: any) =>
     Array.isArray(p.locations) ? p.locations : []
-  );
+  ).filter((c: string) => !deletedCountries.includes(c));
   const storedCountries: string[] = Array.isArray(masterData.countriesTraveled)
     ? masterData.countriesTraveled as string[]
     : [];
@@ -215,11 +218,22 @@ export const POST: RequestHandler = async ({ request }: { request: Request }) =>
     ? newCountries
     : Array.from(new Set([...prevCountries, ...newCountries]));
 
+  // Track explicitly deleted countries so the GET auto-merge from verifiedProofs.locations
+  // doesn't bring them back after the user manually removes them.
+  let deletedCountries: string[] = Array.isArray(prev.deletedCountries) ? prev.deletedCountries as string[] : [];
+  if (body.countriesReplace === true) {
+    const nowDeleted = prevCountries.filter(c => !newCountries.includes(c));
+    deletedCountries = Array.from(new Set([...deletedCountries, ...nowDeleted]));
+    // If user explicitly re-adds a previously deleted country, un-block it
+    deletedCountries = deletedCountries.filter(c => !newCountries.includes(c));
+  }
+
   // Keep verifiedProofs from DB — proof-upload owns that field
   const updated: Record<string, unknown> = {
     ...prev,
     onboarding:        mergedOnboarding,
     countriesTraveled: mergedCountries,
+    deletedCountries,
     lastSynced:        new Date().toISOString(),
   };
 
