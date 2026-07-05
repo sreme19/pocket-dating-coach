@@ -227,8 +227,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
     }
     // Poll in background to catch an AI auto-reply (does not block the send button).
     Future(() async {
-      for (var i = 0; i < 6; i++) {
-        await Future.delayed(const Duration(milliseconds: 1200));
+      for (var i = 0; i < 12; i++) {
+        await Future.delayed(const Duration(milliseconds: 1250));
         await _pollOnce();
       }
     });
