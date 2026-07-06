@@ -8,6 +8,8 @@ interface ConversationResponse {
     matchedUser: VerifiedVibeUser;
     messages: Message[];
     aiBestieActive: boolean;
+    /** Bestie-driven in-chat proof request state (null when none). */
+    proofRequest: Record<string, unknown> | null;
   };
 }
 
@@ -164,7 +166,8 @@ export const GET: RequestHandler = async ({ params, request }) => {
           updatedAt: new Date(matchedUser.updated_at)
         },
         messages,
-        aiBestieActive: match.ai_bestie_active ?? true
+        aiBestieActive: match.ai_bestie_active ?? true,
+        proofRequest: (match as any).proof_request ?? null
       }
     };
 

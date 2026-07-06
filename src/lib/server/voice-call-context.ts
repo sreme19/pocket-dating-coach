@@ -12,6 +12,7 @@
 import { getSupabase } from './supabase';
 import { loadPreferences } from './profile-service';
 import type { PreferencesProfile } from './profile-service';
+import { loadProofSignals } from './proof-signals';
 import { buildBestieVoiceSystemPrompt } from '$lib/prompts';
 
 export interface VoiceCallContext {
@@ -79,27 +80,20 @@ export async function loadVoiceCallContext(
 	let matchArtifactContext = '';
 	if (matchRow) {
 		const otherUserId = matchRow.user1_id === ownerId ? matchRow.user2_id : matchRow.user1_id;
-		const [otherUser, artifacts] = await Promise.all([
+		const [otherUser, proofSignals] = await Promise.all([
 			supabase
 				.from('verified_vibe_users')
 				.select('first_name')
 				.eq('id', otherUserId)
 				.single()
 				.then((r) => r.data),
-			(supabase as any)
-				.from('user_artifacts')
-				.select('claim_tag, trust_points')
-				.eq('user_id', otherUserId)
-				.then((r: any) => r.data)
-				.catch(() => null)
+			// Merged pipeline + legacy proof view — see proof-signals.ts.
+			loadProofSignals(supabase, otherUserId)
 		]);
 		matchName = (otherUser as any)?.first_name || 'him';
 
-		if (artifacts?.length) {
-			const tagCounts: Record<string, number> = {};
-			for (const a of artifacts) tagCounts[a.claim_tag] = (tagCounts[a.claim_tag] ?? 0) + 1;
-			const parts = Object.entries(tagCounts).map(([tag, c]) => `${tag}${c > 1 ? ` (x${c})` : ''}`);
-			matchArtifactContext = `\n\n${matchName} has uploaded verified lifestyle proofs: ${parts.join(', ')}. He's taken real steps to back up his profile — acknowledge it warmly if it comes up naturally.`;
+		if (proofSignals.lines.length) {
+			matchArtifactContext = `\n\n${matchName} has verified proofs on his profile: ${proofSignals.lines.join('; ')}. He's taken real steps to back up his profile — acknowledge it warmly if it comes up naturally.`;
 		}
 	}
 

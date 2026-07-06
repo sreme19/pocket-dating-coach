@@ -17,6 +17,7 @@
 // ============================================================
 
 import { loadPreferences } from './profile-service';
+import { loadProofSignals } from './proof-signals';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface BestieAdvisorContext {
@@ -142,23 +143,13 @@ export async function loadBestieAdvisorContext(
 							.join('\n')
 					: 'No messages yet';
 
-			// Load match's trust artifacts — proactively signal verified lifestyle claims
+			// Load match's verified proofs (pipeline + legacy artifacts, merged) —
+			// proactively signal verified lifestyle claims.
 			let artifactLine = '';
 			try {
-				const { data: artifacts } = await (supabase as any)
-					.from('user_artifacts')
-					.select('claim_tag, trust_points')
-					.eq('user_id', otherUserId);
-
-				if (artifacts?.length) {
-					const tagCounts: Record<string, number> = {};
-					for (const a of artifacts) {
-						tagCounts[a.claim_tag] = (tagCounts[a.claim_tag] ?? 0) + 1;
-					}
-					const parts = Object.entries(tagCounts).map(
-						([tag, count]) => `${tag}${count > 1 ? ` (×${count})` : ''}`
-					);
-					artifactLine = `\nVerified lifestyle proofs uploaded: ${parts.join(', ')}`;
+				const proofSignals = await loadProofSignals(supabase as any, otherUserId);
+				if (proofSignals.lines.length) {
+					artifactLine = `\nVerified proofs on his profile: ${proofSignals.lines.join('; ')}`;
 				}
 			} catch {
 				/* skip */

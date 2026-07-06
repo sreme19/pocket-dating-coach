@@ -462,6 +462,50 @@ function classifyOwnership(opts: {
   return { tier: 'unconfirmed', requiresRelationship: false, reason: 'Could not read the owner name to confirm ownership — verified at reduced trust.' };
 }
 
+// ── In-chat proof request fulfilment (Bestie-driven 📎, spec §3 Step 3) ───────
+// When the upload came from a chat thread (matchId present) and the woman's
+// Bestie has an OPEN request for this exact category, record the outcome:
+//   verified → 'fulfilled'  (Bestie acknowledges next turn, then closes it)
+//   failed   → 'failed_attempt', attempts+1 (NOT a refusal — Bestie may
+//              encourage a retry). Gate bounces (ID/selfie) never reach here.
+// Conversational state only — trust/match scoring is untouched beyond the
+// normal proof persistence. Returns the new state for the client, or null.
+async function updateMatchProofRequest(
+  userId: string | null,
+  matchId: string,
+  category: string,
+  verifiedOk: boolean,
+): Promise<Record<string, unknown> | null> {
+  if (!userId || !matchId) return null;
+  try {
+    const db = getSupabase() as any;
+    const { data: match } = await db
+      .from('verified_vibe_matches')
+      .select('user1_id, user2_id, proof_request')
+      .eq('id', matchId)
+      .maybeSingle();
+    if (!match) return null;
+    if (match.user1_id !== userId && match.user2_id !== userId) return null;
+
+    const state = match.proof_request as {
+      category?: string; status?: string; attempts?: number;
+      history?: unknown[];
+    } | null;
+    const active = state?.status === 'pending' || state?.status === 'failed_attempt';
+    if (!active || state?.category !== category) return null;
+
+    const next = verifiedOk
+      ? { ...state, status: 'fulfilled', resolved_at: null }
+      : { ...state, status: 'failed_attempt', attempts: (state?.attempts ?? 0) + 1 };
+
+    await db.from('verified_vibe_matches').update({ proof_request: next }).eq('id', matchId);
+    return next;
+  } catch (e) {
+    console.warn('[proof-upload] proof_request update failed (non-fatal):', e);
+    return null;
+  }
+}
+
 async function persistInsight(userId: string, category: string, pts: number, data: object) {
   try {
     const supabase = getSupabase();
@@ -733,6 +777,8 @@ export const POST: RequestHandler = async ({ request }) => {
     // Declared ownership relationship for assets when the doc name isn't the user's
     // (company / family / financed / other) — set by the relationship picker.
     const relationship = (formData.get('relationship') as string | null)?.trim() ?? '';
+    // Chat-thread uploads: fulfil/fail the Bestie's open proof request on this match.
+    const matchId = (formData.get('matchId') as string | null)?.trim() ?? '';
 
     if (!PROMPTS[category]) {
       return json({ error: `Unknown category: ${category}` }, { status: 400 });
@@ -873,7 +919,11 @@ export const POST: RequestHandler = async ({ request }) => {
       const wCross    = sanitizeCrossSignals(parsed?.crossSignals, category);
       const nameMatch = docNameMatches(verifiedId?.idName, parsed?.documentName);
       if (userId) await persistInsight(userId, category, pts, { insights: wInsights, aggregated: parsed?.aggregated, spendingBreakdown: wSpending.length ? wSpending : undefined, crossSignals: wCross, pts_awarded: pts, ...(nameMatch === false ? { nameMismatch: true } : {}) });
+      const proofRequest = matchId
+        ? await updateMatchProofRequest(userId, matchId, category, parsed?.verified !== false)
+        : null;
       return json({
+        ...(proofRequest ? { proofRequest } : {}),
         verified:          parsed?.verified !== false,
         insights:          wInsights,
         aggregated:        parsed?.aggregated,
@@ -1022,7 +1072,11 @@ export const POST: RequestHandler = async ({ request }) => {
       const unmatched = toPhotoNums(result.faceCheck?.unmatchedPhotos).filter(n => !matched.includes(n));
       faceCheck = { matchedPhotos: matched, unmatchedPhotos: unmatched };
       if (matched.length === 0) {
+        const proofRequest = matchId
+          ? await updateMatchProofRequest(userId, matchId, category, false)
+          : null;
         return json({
+          ...(proofRequest ? { proofRequest } : {}),
           verified: false,
           faceCheck,
           insights: [], locations: [], aggregated: '', assets: [], spendingBreakdown: [], crossSignals: [],
@@ -1086,7 +1140,13 @@ export const POST: RequestHandler = async ({ request }) => {
       if (userId) await persistInsight(userId, category, pts, { insights, locations, aggregated, assets, spendingBreakdown, crossSignals, confidence: result.confidence, reason: result.reason, pts_awarded: pts, photo_count: countedPhotos, thumbnail_urls: thumbnailUrls, ...(nameMatch === false ? { nameMismatch: true } : {}) });
     }
 
+    // Chat-thread upload → record the outcome on the Bestie's open proof request.
+    const proofRequest = matchId
+      ? await updateMatchProofRequest(userId, matchId, category, verified)
+      : null;
+
     return json({
+      ...(proofRequest ? { proofRequest } : {}),
       verified,
       insights,
       locations,
