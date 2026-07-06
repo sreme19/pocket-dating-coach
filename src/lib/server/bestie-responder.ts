@@ -10,11 +10,134 @@ import { getSupabase } from '$lib/server/supabase';
 import { loadPreferences } from '$lib/server/profile-service';
 import type { PreferencesProfile } from '$lib/server/profile-service';
 import { buildBestieReplyPrompt, stripBannedDashes } from '$lib/prompts';
+import {
+	PROOF_REQUEST_CATEGORIES,
+	PROOF_CATEGORY_LABELS,
+	loadProofSignals,
+	isProofRequestActive,
+	refusedCategories,
+	askedCategories,
+	type ProofRequestCategory,
+	type ProofRequestState,
+} from '$lib/server/proof-signals';
 
 export interface BestieReply {
 	signal: string;
 	read: string;
 	reply: string;
+	/**
+	 * When set, the Bestie's turn changed the in-chat proof-request state
+	 * (invited / registered a refusal / closed a fulfilled one). Callers that
+	 * SEND the reply must persist this to verified_vibe_matches.proof_request.
+	 */
+	proofStateUpdate?: ProofRequestState;
+}
+
+// ── In-chat proof request context + state machine (spec §3 Step 3) ────────────
+
+/**
+ * Build the PROOF REQUESTS prompt block from the match's current state.
+ * Returns '' when there is nothing to say (no state, nothing invitable) so the
+ * prompt keeps its legacy 3-field output shape.
+ */
+function buildProofRequestBlock(opts: {
+	state: ProofRequestState | null;
+	matchName: string;
+	verifiedCategories: string[];
+	isOpener: boolean;
+}): { block: string; invitable: ProofRequestCategory[] } {
+	const { state, matchName, verifiedCategories, isOpener } = opts;
+	const lines: string[] = [];
+
+	const refused = refusedCategories(state);
+	const asked = askedCategories(state);
+
+	// Invites are OFF while a request is open/fulfilled, and on the very first
+	// message (the opener stays a warm hello, never an ask for evidence).
+	let invitable: ProofRequestCategory[] = [];
+	const requestOpen = isProofRequestActive(state) || state?.status === 'fulfilled';
+	if (!requestOpen && !isOpener) {
+		invitable = PROOF_REQUEST_CATEGORIES.filter(
+			(c) => !verifiedCategories.includes(c) && !asked.includes(c)
+		);
+	}
+
+	if (state?.status === 'pending') {
+		lines.push(
+			`- OPEN REQUEST: you already invited ${matchName} to verify "${state.category}". Do NOT re-ask or remind. If his latest message declines it, that is a refusal.`
+		);
+	} else if (state?.status === 'failed_attempt') {
+		lines.push(
+			`- FAILED ATTEMPT on "${state.category}" (${state.attempts} so far): his upload did not pass verification. Not a refusal — you may encourage ONE warm retry if it fits, then let it go.`
+		);
+	} else if (state?.status === 'fulfilled') {
+		lines.push(
+			`- FULFILLED: ${matchName}'s "${state.category}" proof JUST VERIFIED. Acknowledge it warmly and specifically in this reply.`
+		);
+	}
+	if (refused.length > 0) {
+		lines.push(
+			`- DECLINED BEFORE: ${refused.join(', ')} — he chose not to share these. NEVER ask again, never hint at it, and it does not count against him in any way.`
+		);
+	}
+	if (invitable.length > 0) {
+		lines.push(
+			`- AVAILABLE to invite (at most ONE, only when it naturally fits the gap you're drawing out): ${invitable
+				.map((c) => `${c} = ${PROOF_CATEGORY_LABELS[c]}`)
+				.join('; ')}`
+		);
+	}
+
+	return { block: lines.length ? `\n${lines.join('\n')}` : '', invitable };
+}
+
+/**
+ * Compute the post-reply proof-request state. Returns undefined when nothing
+ * changed. Pure — persistence is the caller's job.
+ */
+function nextProofState(
+	prev: ProofRequestState | null,
+	parsed: { proofRequest?: string | null; proofRefusal?: boolean },
+	invitable: ProofRequestCategory[]
+): ProofRequestState | undefined {
+	const now = new Date().toISOString();
+
+	// A fulfilled request was acknowledged this turn → close it out.
+	if (prev?.status === 'fulfilled') {
+		return {
+			...prev,
+			status: 'closed',
+			resolved_at: now,
+			history: [...(prev.history ?? []), { category: prev.category, outcome: 'fulfilled', at: now }],
+		};
+	}
+
+	// He declined the open request → refused, permanently. Context only — this
+	// must never feed trust or match scoring.
+	if (parsed.proofRefusal === true && prev && isProofRequestActive(prev)) {
+		return {
+			...prev,
+			status: 'refused',
+			resolved_at: now,
+			history: [...(prev.history ?? []), { category: prev.category, outcome: 'refused', at: now }],
+		};
+	}
+
+	// Bestie invited a new proof → open a pending request (one at a time; only
+	// categories we explicitly offered are honoured).
+	const requested = (parsed.proofRequest ?? '').toString().trim() as ProofRequestCategory;
+	if (requested && invitable.includes(requested) && !(prev && isProofRequestActive(prev))) {
+		return {
+			category: requested,
+			status: 'pending',
+			asked_at: now,
+			attempts: 0,
+			resolved_at: null,
+			history: prev?.history ?? [],
+		};
+	}
+
+	return undefined;
 }
 
 function formatStructuredPreferences(prefs: PreferencesProfile | null, hardNos: string[] = []): string {
@@ -60,12 +183,24 @@ export async function generateBestieReply(
 			.eq('id', userId)
 			.single()
 			.then((r) => r.data),
-		supabase
+		// Cast: generated DB types predate the proof_request column
+		// (20260706090000_add_proof_request_to_matches.sql). Falls back to the
+		// legacy column set if that migration hasn't been applied yet, so a
+		// deploy-before-migrate window can never null out the match context.
+		(supabase as any)
 			.from('verified_vibe_matches')
-			.select('user1_id, user2_id')
+			.select('user1_id, user2_id, proof_request')
 			.eq('id', matchId)
 			.single()
-			.then((r) => r.data),
+			.then(async (r: any) => {
+				if (r.data) return r.data as { user1_id: string; user2_id: string; proof_request?: unknown };
+				const legacy = await supabase
+					.from('verified_vibe_matches')
+					.select('user1_id, user2_id')
+					.eq('id', matchId)
+					.single();
+				return legacy.data as { user1_id: string; user2_id: string; proof_request?: unknown } | null;
+			}),
 		loadPreferences(userId).catch(() => null),
 		supabase
 			.from('verified_vibe_messages')
@@ -85,30 +220,28 @@ export async function generateBestieReply(
 	let maleAbout = '';
 	let provenTags: string[] = [];
 	let otherUserId: string | null = null;
+	let verifiedCategories: string[] = [];
 	if (matchRow) {
-		otherUserId = matchRow.user1_id === userId ? matchRow.user2_id : matchRow.user1_id;
-		const [otherUser, artifacts] = await Promise.all([
+		const partnerId = matchRow.user1_id === userId ? matchRow.user2_id : matchRow.user1_id;
+		otherUserId = partnerId;
+		const [otherUser, proofSignals] = await Promise.all([
 			supabase
 				.from('verified_vibe_users')
 				.select('first_name, about')
-				.eq('id', otherUserId)
+				.eq('id', partnerId)
 				.single()
 				.then((r) => r.data),
-			(supabase as any)
-				.from('user_artifacts')
-				.select('claim_tag, trust_points')
-				.eq('user_id', otherUserId)
-				.then((r: any) => r.data)
-				.catch(() => null),
+			// Merged view of BOTH proof sources (pipeline verifiedProofs + legacy
+			// user_artifacts) — see proof-signals.ts.
+			loadProofSignals(supabase, partnerId),
 		]);
 		matchName = otherUser?.first_name || 'him';
 		maleAbout = ((otherUser as any)?.about ?? '').toString().slice(0, 240);
+		verifiedCategories = proofSignals.categories;
 
-		if (artifacts?.length) {
-			const tagCounts: Record<string, number> = {};
-			for (const a of artifacts) tagCounts[a.claim_tag] = (tagCounts[a.claim_tag] ?? 0) + 1;
-			provenTags = Object.entries(tagCounts).map(([tag, count]) => `${tag}${count > 1 ? ` (×${count})` : ''}`);
-			maleArtifactContext = `\n\n${matchName} has uploaded verified proofs: ${provenTags.join(', ')}. He's taken intentional steps to back up his profile. Acknowledge this positively when relevant.`;
+		if (proofSignals.lines.length > 0) {
+			provenTags = proofSignals.lines;
+			maleArtifactContext = `\n\n${matchName} has VERIFIED proofs on his profile (real, checked evidence — acknowledge positively when relevant, never re-ask for these):\n${proofSignals.lines.map((l) => `- ${l}`).join('\n')}`;
 		}
 	}
 
@@ -163,6 +296,16 @@ export async function generateBestieReply(
 			`\nThe gap to draw out = the ONE thing ${userName} values that ${matchName} hasn't surfaced or proven yet.`;
 	}
 
+	// In-chat proof request state for this match (Bestie-driven; category always
+	// comes from HER question, never a picker).
+	const proofState = ((matchRow as any)?.proof_request ?? null) as ProofRequestState | null;
+	const { block: proofRequestContext, invitable } = buildProofRequestBlock({
+		state: proofState,
+		matchName,
+		verifiedCategories,
+		isOpener,
+	});
+
 	const client = getClaudeClient();
 	const tClaude = Date.now();
 	const message = await client.messages.create({
@@ -177,7 +320,8 @@ export async function generateBestieReply(
 					contextBlock: `${preferencesContext}${structuredPreferencesContext}${maleArtifactContext}${openerContext}`,
 					transcript,
 					lastMessage,
-					isOpener
+					isOpener,
+					proofRequestContext
 				})
 			}
 		]
@@ -190,11 +334,19 @@ export async function generateBestieReply(
 	const raw = content.text.trim().replace(/^```json\s*/i, '').replace(/```$/, '');
 	// Accept the legacy "suggestedQuestion" key in case a stale prompt or cached
 	// model output still produces it.
-	const parsed = JSON.parse(raw) as Partial<BestieReply> & { suggestedQuestion?: string };
+	const parsed = JSON.parse(raw) as Partial<BestieReply> & {
+		suggestedQuestion?: string;
+		proofRequest?: string | null;
+		proofRefusal?: boolean;
+	};
+
+	const proofStateUpdate = nextProofState(proofState, parsed, invitable);
+
 	return {
 		signal: parsed.signal ?? '✅',
 		read: stripBannedDashes(parsed.read ?? ''),
-		reply: stripBannedDashes(parsed.reply ?? parsed.suggestedQuestion ?? '')
+		reply: stripBannedDashes(parsed.reply ?? parsed.suggestedQuestion ?? ''),
+		...(proofStateUpdate ? { proofStateUpdate } : {})
 	};
 }
 
@@ -219,6 +371,20 @@ export async function generateAndSendBestieReply(
 	const timing: { claudeMs?: number } = {};
 	const t0 = Date.now();
 	const reply = await generateBestieReply(userId, matchId, lastMessage, timing);
+
+	// Persist any proof-request state change this turn produced (invite opened /
+	// refusal registered / fulfilled request closed). Non-fatal; conversational
+	// state only — never feeds trust or match scoring.
+	if (reply.proofStateUpdate) {
+		try {
+			await (supabase as any)
+				.from('verified_vibe_matches')
+				.update({ proof_request: reply.proofStateUpdate })
+				.eq('id', matchId);
+		} catch (e) {
+			console.warn('[bestie] proof_request persist failed (non-fatal):', e);
+		}
+	}
 
 	// Attach the coaching card (read/signal) to the triggering message so the
 	// female user sees it when she opens the chat.

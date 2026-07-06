@@ -4,6 +4,7 @@ import 'app_logger.dart';
 import 'archetypes.dart';
 import 'category_proof_screen.dart';
 import 'config.dart';
+import 'profile_body.dart' show isKnownTravelPlace;
 import 'verification_screen.dart';
 
 /// A boostable proof category shown on the Trust & Boost page.
@@ -809,9 +810,10 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
 
 
   Future<void> _editCountries(TrustData d) async {
-    if (d.countries.isEmpty) return;
     final countries = List<String>.from(d.countries);
-    bool saving = false;
+    if (countries.isEmpty) return;
+    String? deletingCountry;
+    var changed = false;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -824,7 +826,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('Travel Magnets', style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700, fontSize: 18)),
             const SizedBox(height: 4),
-            const Text('Tap × to remove a country. Upload a passport or boarding pass to add more.', style: TextStyle(color: Color(Config.text3), fontSize: 12)),
+            const Text('Detected from your travel uploads. Tap × to remove.', style: TextStyle(color: Color(Config.text3), fontSize: 12)),
             const SizedBox(height: 16),
             Wrap(spacing: 8, runSpacing: 8, children: [
               for (final c in countries)
@@ -835,41 +837,33 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
                     Text('✈️  $c', style: const TextStyle(color: Color(Config.text1), fontSize: 13)),
                     const SizedBox(width: 6),
                     GestureDetector(
-                      onTap: () => setS(() => countries.remove(c)),
-                      child: const Icon(Icons.close, size: 14, color: Color(Config.text3)),
+                      onTap: deletingCountry != null ? null : () async {
+                        setS(() { deletingCountry = c; countries.remove(c); });
+                        try {
+                          await saveCountries(List<String>.from(countries));
+                          changed = true;
+                        } catch (_) {
+                          AppLogger.instance.error('save_countries failed', screen: 'trust_boost', action: 'save_countries');
+                          setS(() => countries.insert(0, c));
+                        } finally {
+                          if (ctx.mounted) setS(() => deletingCountry = null);
+                        }
+                      },
+                      child: deletingCountry == c
+                          ? const SizedBox(width: 14, height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)))
+                          : const Icon(Icons.close, size: 14, color: Color(Config.text3)),
                     ),
                   ]),
                 ),
             ]),
             const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: saving ? null : () async {
-                  setS(() => saving = true);
-                  try {
-                    await saveCountries(countries);
-                    if (ctx.mounted) Navigator.of(ctx).pop();
-                    _refresh();
-                  } catch (_) {
-                    AppLogger.instance.error('save_countries failed', screen: 'trust_boost', action: 'save_countries');
-                    setS(() => saving = false);
-                  }
-                },
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(Config.accent),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: saving
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Color(0xFFFFFFFF), strokeWidth: 2))
-                    : const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
-              ),
-            ),
           ]),
         ),
       ),
     );
+
+    if (changed) _refresh();
   }
 
   Widget _travelMagnetsSection(TrustData d) {
@@ -903,7 +897,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
             subtitle: 'AI detects countries automatically',
             pts: 8,
           ),
-          if (d.countries.isNotEmpty) ...[
+          if (d.countries.where(isKnownTravelPlace).isNotEmpty) ...[
             const SizedBox(height: 8),
             GestureDetector(
               onTap: () => _editCountries(d),
@@ -918,7 +912,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
                   const Icon(Icons.edit_outlined, size: 14, color: Color(Config.text2)),
                   const SizedBox(width: 8),
                   Expanded(child: Text(
-                    d.countries.join(' · '),
+                    d.countries.where(isKnownTravelPlace).join(' · '),
                     style: const TextStyle(color: Color(Config.text2), fontSize: 13),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
