@@ -783,13 +783,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 6),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 16, color: Color(0xFFAAAAAA)),
-                  onPressed: () => setState(() => _manBannerDismissed = true),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
               ]),
             ),
           _Composer(
