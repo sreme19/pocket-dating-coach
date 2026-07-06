@@ -13,6 +13,9 @@ import 'verification_screen.dart';
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
 
+  /// Total unread count (messages + admirers) — read by HomeShell for the badge.
+  static final unreadNotifier = ValueNotifier<int>(0);
+
   @override
   State<ChatListScreen> createState() => _ChatListScreenState();
 }
@@ -438,6 +441,12 @@ class _ChatListScreenState extends State<ChatListScreen>
             ..sort((a, b) => (b.lastMessageTime ?? DateTime(1970))
                 .compareTo(a.lastMessageTime ?? DateTime(1970)));
           final unreadTotal = active.where((c) => c.unreadCount > 0 && !_clearedConvos.contains(c.id)).length;
+          final totalBadge = active.where((c) => !_clearedConvos.contains(c.id)).fold<int>(0, (sum, c) => sum + c.unreadCount) + data.admirers.where((a) => !a.replied).length;
+          if (ChatListScreen.unreadNotifier.value != totalBadge) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              ChatListScreen.unreadNotifier.value = totalBadge;
+            });
+          }
           if (_filter == 1) active = active.where((c) => c.unreadCount > 0 && !_clearedConvos.contains(c.id)).toList();
 
           return RefreshIndicator(
@@ -458,7 +467,7 @@ class _ChatListScreenState extends State<ChatListScreen>
                   filter: _filter,
                   allCount: conversations.where((c) => c.hasMessages).length,
                   unreadCount: unreadTotal,
-                  admirerCount: data.admirers.length,
+                  admirerCount: data.admirers.where((a) => !a.replied).length,
                   sentCount: data.sentAdmirers.length,
                   onChanged: (i) => setState(() => _filter = i),
                 ),

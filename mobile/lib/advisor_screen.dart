@@ -285,12 +285,13 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
     );
   }
 
-  Widget _composerBar() => SafeArea(
-        top: false,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-          color: const Color(Config.bg2),
-          child: Row(children: [
+  Widget _composerBar() => Container(
+        color: const Color(Config.bg2),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+            child: Row(children: [
             Expanded(
               child: TextField(
                 controller: _composer,
@@ -321,6 +322,7 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
               ),
             ),
           ]),
+          ),
         ),
       );
 }
