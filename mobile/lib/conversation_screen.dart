@@ -364,6 +364,56 @@ class _ConversationScreenState extends State<ConversationScreen> {
         const SizedBox(height: 9),
         const Text('She can also drop in herself, any time.',
             style: TextStyle(color: Color(Config.text3), fontSize: 11.5, fontStyle: FontStyle.italic)),
+        // Voice call button embedded inside the card — no separate banner needed
+        if (!_manBannerDismissed) ...[
+          const SizedBox(height: 10),
+          const Divider(height: 1, color: Color(0x1AFFFFFF)),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  AppLogger.instance.action('conversation', 'open_voice_call');
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => VoiceCallScreen(
+                      matchId: widget.conversationId,
+                      name: name,
+                    ),
+                  )).then((_) {
+                    // Re-show the button after call ends + resync bestie state
+                    if (mounted) setState(() => _manBannerDismissed = false);
+                    _pollOnce();
+                  });
+                },
+                child: Container(
+                  height: 38,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    const Text('✨', style: TextStyle(fontSize: 14)),
+                    const SizedBox(width: 6),
+                    Text('Voice chat with $name\'s AI Bestie',
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+                    const SizedBox(width: 6),
+                    const Icon(Icons.mic_rounded, color: Colors.white, size: 15),
+                  ]),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            GestureDetector(
+              onTap: () => setState(() => _manBannerDismissed = true),
+              child: const Icon(Icons.close, size: 16, color: Color(0xFFAAAAAA)),
+            ),
+          ]),
+        ],
       ]),
     );
   }
@@ -711,20 +761,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
           // Status banners at the TOP so they don't crowd the composer
           if (!_loading && _viewerGender == 'woman' && _otherGender == 'man')
             _bestieBanner(),
-          if (!_loading && _viewerGender == 'man' && _otherGender == 'woman' && _bestieActive && !_manBannerDismissed)
-            _BestieCallBanner(
-              name: _otherName.isNotEmpty ? _otherName : widget.title,
-              onTap: () {
-                AppLogger.instance.action('conversation', 'open_voice_call');
-                Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => VoiceCallScreen(
-                    matchId: widget.conversationId,
-                    name: _otherName.isNotEmpty ? _otherName : widget.title,
-                  ),
-                ));
-              },
-              onDismiss: () => setState(() => _manBannerDismissed = true),
-            ),
           if (!_loading && _viewerGender == 'man' && _otherGender == 'woman' && !_bestieActive)
             _directHandoffBanner(),
           Expanded(
@@ -774,66 +810,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
 }
 
 
-class _BestieCallBanner extends StatelessWidget {
-  final String name;
-  final VoidCallback onTap;
-  final VoidCallback onDismiss;
-  const _BestieCallBanner({required this.name, required this.onTap, required this.onDismiss});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 2),
-      child: Row(children: [
-        Expanded(
-          child: GestureDetector(
-            onTap: onTap,
-            child: Container(
-              height: 40,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                ),
-                borderRadius: BorderRadius.circular(999),
-                boxShadow: const [
-                  BoxShadow(color: Color(0x44FF3B6B), blurRadius: 10, offset: Offset(0, 4)),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('✨', style: TextStyle(fontSize: 15)),
-                  const SizedBox(width: 7),
-                  Text(
-                    'Voice chat with $name\'s AI Bestie',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                  const SizedBox(width: 7),
-                  const Icon(Icons.mic_rounded, color: Colors.white, size: 16),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 6),
-        IconButton(
-          icon: const Icon(Icons.close, size: 16, color: Color(0xFFAAAAAA)),
-          onPressed: onDismiss,
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(),
-          tooltip: 'Dismiss',
-        ),
-      ]),
-    );
-  }
-}
 
 class _Bubble extends StatelessWidget {
   final ChatMessage msg;
