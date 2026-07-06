@@ -69,25 +69,7 @@ class PushService {
   }
 
   static void _handleForeground(RemoteMessage m) {
-    final n = m.notification;
-    final ctx = navKey?.currentContext;
-    if (n == null || ctx == null) return;
-    final title = n.title ?? 'New notification';
-    final body = n.body ?? '';
-    ScaffoldMessenger.of(ctx).showSnackBar(
-      SnackBar(
-        backgroundColor: const Color(Config.bg2),
-        content: Text(
-          body.isEmpty ? title : '$title — $body',
-          style: const TextStyle(color: Color(Config.text1)),
-        ),
-        action: SnackBarAction(
-          label: 'View',
-          textColor: const Color(Config.accent),
-          onPressed: () => _handleDeepLink(m.data),
-        ),
-      ),
-    );
+    _handleDeepLink(m.data);
   }
 
   /// Routes a notification's `data` payload to the right screen.

@@ -59,3 +59,4 @@ mobile/.asc-keys/
 *.p12
 *.pfx
 mobile/.signing/
+.env*

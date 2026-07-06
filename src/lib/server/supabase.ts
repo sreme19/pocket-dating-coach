@@ -63,12 +63,14 @@ export type Database = {
 					id: string;
 					user_id: string;
 					passed_user_id: string;
+					reason: string;
 					created_at: string;
 				};
 				Insert: {
 					id?: string;
 					user_id: string;
 					passed_user_id: string;
+					reason?: string;
 					created_at?: string;
 				};
 				Update: Partial<Database['public']['Tables']['verified_vibe_passes']['Insert']>;

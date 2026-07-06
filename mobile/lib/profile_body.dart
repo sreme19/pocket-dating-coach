@@ -113,8 +113,15 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(color: const Color(Config.bg3), borderRadius: BorderRadius.circular(12)),
-        child: Row(children: [
-          const Text('🚗', style: TextStyle(fontSize: 24)),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(
+            width: 40, height: 40,
+            decoration: BoxDecoration(
+              color: const Color(0x1AFF3B6B),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.directions_car_rounded, size: 22, color: Color(Config.accent)),
+          ),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(car.title, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
@@ -272,12 +279,12 @@ const _flagFor = <String, String>{
 // Light-theme variant: each magnet keeps its hue wash (over cream) but the text
 // is darkened to a saturated tone so it reads on the light surface.
 const _magnetColors = <(int, int, int)>[
-  (0x33F59E0B, 0x66F59E0B, 0xFFB45309), // peach
-  (0x333B82F6, 0x663B82F6, 0xFF1D4ED8), // sky
-  (0x3310B981, 0x6610B981, 0xFF047857), // mint
-  (0x33A855F7, 0x66A855F7, 0xFF7C3AED), // lavender
-  (0x33EC4899, 0x66EC4899, 0xFFE11D54), // rose
-  (0x3314B8A6, 0x6614B8A6, 0xFF0F766E), // teal
+  (0x55FEF3C7, 0x66FDE68A, 0xFFD97706), // amber soft
+  (0x55DBEAFE, 0x66BFDBFE, 0xFF2563EB), // sky soft
+  (0x55D1FAE5, 0x66A7F3D0, 0xFF059669), // mint soft
+  (0x55EDE9FE, 0x66DDD6FE, 0xFF7C3AED), // lavender soft
+  (0x55FFE4E6, 0x66FECDD3, 0xFFBE123C), // rose soft
+  (0x55CCFBF1, 0x6699F6E4, 0xFF0D9488), // teal soft
 ];
 
 /// Returns true if [place] has a recognised country flag (not a domestic city).
@@ -300,15 +307,13 @@ String _magnetEmoji(String place) {
 /// Travel magnets rendered like real colorful fridge magnets (varied pastel
 /// colors + slight rotations).
 Widget travelMagnets(List<String> places) {
-  // Only show places with a recognised country flag — unrecognised city names
-  // (e.g. domestic cities that return 🌍) are hidden from the public profile.
   final recognised = places.where((p) => _magnetEmoji(p) != '🌍').toList();
   return Wrap(
     spacing: 10, runSpacing: 12,
     children: [
       for (var i = 0; i < recognised.length; i++)
         Transform.rotate(
-          angle: ((i * 37) % 7 - 3) * 0.018, // deterministic ~ -3°..+3°
+          angle: ((i * 37) % 7 - 3) * 0.018,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
@@ -567,29 +572,37 @@ class _SignalTabsState extends State<SignalTabs> {
           ]),
           const SizedBox(height: 12),
           // Chips
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            for (final c in s.group.chips)
-              Tooltip(
+          LayoutBuilder(builder: (ctx, constraints) {
+            final pillMax = (constraints.maxWidth - 8) / 2;
+            return Wrap(spacing: 8, runSpacing: 8, children: List.generate(s.group.chips.length, (ci) {
+              final c = s.group.chips[ci];
+              return Tooltip(
                 message: c.inferred ? _inferredTip(c.from) : '',
                 triggerMode: c.inferred ? TooltipTriggerMode.tap : TooltipTriggerMode.manual,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: c.inferred ? _inferredColor.withValues(alpha: 0.10) : const Color(Config.bg3),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: c.inferred ? _inferredColor.withValues(alpha: 0.40) : const Color(0x0F1B1020)),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: pillMax),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: c.inferred ? _inferredColor.withValues(alpha: 0.10) : const Color(Config.bg3),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: c.inferred ? _inferredColor.withValues(alpha: 0.40) : const Color(0x0F1B1020)),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text(c.emoji, style: const TextStyle(fontSize: 14)),
+                      const SizedBox(width: 5),
+                      Flexible(child: Text(c.label,
+                          style: const TextStyle(fontSize: 12, color: Color(Config.text1), fontWeight: FontWeight.w500))),
+                      if (c.inferred) ...[
+                        const SizedBox(width: 4),
+                        const Text('✦', style: TextStyle(fontSize: 10, color: _inferredColor)),
+                      ],
+                    ]),
                   ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Text('${c.emoji}  ${c.label}',
-                        style: const TextStyle(fontSize: 13, color: Color(Config.text1), fontWeight: FontWeight.w500)),
-                    if (c.inferred) ...[
-                      const SizedBox(width: 4),
-                      const Text('✦', style: TextStyle(fontSize: 11, color: _inferredColor)),
-                    ],
-                  ]),
                 ),
-              ),
-          ]),
+              );
+            }));
+          }),
           if (s.group.aggregated.isNotEmpty) ...[
             const SizedBox(height: 12),
             Container(
