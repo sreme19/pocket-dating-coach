@@ -5,6 +5,7 @@ import { getSupabase } from '$lib/server/supabase';
 import { getTrustScoreBand } from '$lib/server/pool-registry';
 import type { Message } from '$lib/verified-vibe/types';
 import { logAppError } from '$lib/server/logAppError';
+import { buildNotificationPayload, sendNotification } from '$lib/server/notifications';
 
 interface SendMessageRequest {
   conversationId: string;
@@ -342,6 +343,31 @@ export const POST: RequestHandler = async ({ request }) => {
     // Fire-and-forget insight extraction (non-blocking)
     extractAndUpdatePreferences(user.id, body.content.trim())
       .catch(err => console.error('[preferences] insight extraction failed (non-critical):', err));
+
+    // Fire-and-forget push notification to the recipient
+    const recipientId = match.user1_id === user.id ? match.user2_id : match.user1_id;
+    waitUntil((async () => {
+      try {
+        const db = getSupabase();
+        const [{ data: tokenRow }, { data: sender }] = await Promise.all([
+          db.from('device_tokens').select('token').eq('user_id', recipientId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          db.from('verified_vibe_users').select('first_name').eq('id', user.id).maybeSingle(),
+        ]);
+        if (!tokenRow?.token) return;
+        const senderName = (sender as any)?.first_name ?? 'Someone';
+        const preview = body.content.trim().slice(0, 100);
+        const payload = buildNotificationPayload({
+          token: tokenRow.token,
+          title: senderName,
+          body: preview,
+          type: 'conversation_reminder',
+          deepLink: `/verified-vibe/chat/${body.conversationId}`,
+        });
+        await sendNotification(payload);
+      } catch (e) {
+        console.error('[push] failed (non-critical):', e);
+      }
+    })());
 
     return json(response, { status: 201 });
   } catch (error) {
