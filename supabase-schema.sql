@@ -173,6 +173,7 @@ create table if not exists verified_vibe_passes (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references verified_vibe_users(id) on delete cascade,
   passed_user_id uuid not null references verified_vibe_users(id) on delete cascade,
+  reason text not null default 'passed',
   created_at timestamp with time zone default now(),
   unique(user_id, passed_user_id)
 );
