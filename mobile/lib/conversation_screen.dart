@@ -745,7 +745,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
           ),
           if (!_loading && _viewerGender == 'man' && _otherGender == 'woman' && _bestieActive && !_manBannerDismissed)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 2),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
               child: Row(children: [
                 Expanded(
                   child: GestureDetector(
