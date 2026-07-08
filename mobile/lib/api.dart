@@ -1294,13 +1294,18 @@ MediaType _mimeOf(String path) {
 /// Upload a proof artifact (multipart) for a category → returns the API result
 /// ({verified, insights, pts_awarded, aggregated, ...}).
 Future<Map> uploadProof(String category, List<String> filePaths,
-    {String? relationship}) async {
+    {String? relationship, String? matchId}) async {
   final form = FormData();
   form.fields.add(MapEntry('category', category));
   // Declared ownership relationship for assets not in the user's own name
   // (company / family / financed / other) — set by the relationship picker.
   if (relationship != null && relationship.isNotEmpty) {
     form.fields.add(MapEntry('relationship', relationship));
+  }
+  // When the upload answers a Bestie in-chat proof request, matchId lets the
+  // server fulfil/fail that request (spec §3 Step 3).
+  if (matchId != null && matchId.isNotEmpty) {
+    form.fields.add(MapEntry('matchId', matchId));
   }
   for (final path in filePaths) {
     form.files.add(MapEntry('files',
@@ -1756,14 +1761,40 @@ class ChatMessage {
       );
 }
 
+/// Bestie-driven in-chat proof request state on a match (spec §3 Step 3).
+/// Category always comes from the woman's Bestie question; the man's proof
+/// upload button only exists while a request is [active].
+class ProofRequest {
+  final String category;
+  final String status; // pending | failed_attempt | refused | fulfilled | closed
+  final int attempts;
+  ProofRequest({required this.category, required this.status, required this.attempts});
+
+  /// Request is open → show the man's proof upload affordance.
+  bool get active => status == 'pending' || status == 'failed_attempt';
+
+  static ProofRequest? fromApi(dynamic raw) {
+    if (raw is! Map) return null;
+    final cat = raw['category']?.toString();
+    final st = raw['status']?.toString();
+    if (cat == null || cat.isEmpty || st == null || st.isEmpty) return null;
+    return ProofRequest(
+      category: cat,
+      status: st,
+      attempts: (raw['attempts'] as num?)?.toInt() ?? 0,
+    );
+  }
+}
+
 class ConversationThread {
   final String? otherId;
   final String otherName;
   final String? otherAvatar;
   final String? otherGender;
   final bool aiBestieActive;
+  final ProofRequest? proofRequest;
   final List<ChatMessage> messages;
-  ConversationThread({required this.otherId, required this.otherName, required this.otherAvatar, required this.otherGender, required this.aiBestieActive, required this.messages});
+  ConversationThread({required this.otherId, required this.otherName, required this.otherAvatar, required this.otherGender, required this.aiBestieActive, this.proofRequest, required this.messages});
 }
 
 Future<ConversationThread> fetchConversation(String conversationId) async {
@@ -1781,6 +1812,7 @@ Future<ConversationThread> fetchConversation(String conversationId) async {
     otherAvatar: u['avatar'] as String?,
     otherGender: u['gender'] as String?,
     aiBestieActive: data['aiBestieActive'] != false, // default true; only false when explicitly off
+    proofRequest: ProofRequest.fromApi(data['proofRequest']),
     messages: msgs.whereType<Map>().map(ChatMessage.fromApi).toList(),
   );
 }

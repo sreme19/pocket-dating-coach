@@ -1484,7 +1484,7 @@ class _EditableChipsState extends State<_EditableChips> {
                 // rare long label wraps to a second line instead of overflowing —
                 // either way the full text is shown, never truncated.
                 ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                  constraints: BoxConstraints(maxWidth: (constraints.maxWidth - 8) / 2),
                   child: _ChipWithRemove(text: '${c.emoji} ${c.label}', editing: _edit, onRemove: () => _remove(c)),
                 ),
               GestureDetector(

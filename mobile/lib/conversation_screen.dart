@@ -47,6 +47,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
   bool _bestieActive = true; // per-match AI Bestie state (woman's side)
   bool _bestieBannerDismissed = false; // woman's banner dismiss flag
   bool _manBannerDismissed = false;    // man's banner dismiss flag
+  ProofRequest? _proofRequest;         // Bestie's open in-chat proof ask (man's side)
+  bool _proofUploading = false;        // verification in progress
+  bool _bestieCardCollapsed = false;
 
   @override
   void initState() {
@@ -119,6 +122,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       _otherName = thread.otherName;
       _otherGender = thread.otherGender;
       _bestieActive = thread.aiBestieActive;
+      _proofRequest = thread.proofRequest;
       _merge(thread.messages, scroll: true);
       // Re-check presence now that _otherId is known — fixes race condition
       // where onPresenceSync fired before _initialLoad completed (Android).
@@ -159,11 +163,20 @@ class _ConversationScreenState extends State<ConversationScreen> {
     try {
       final thread = await fetchConversation(widget.conversationId);
       _merge(thread.messages);
-      if (mounted && thread.aiBestieActive != _bestieActive) {
+      // Keep the proof-request state live — this is what makes the 📎 appear the
+      // moment her Bestie asks (and disappear on refusal/fulfilment). Don't stomp
+      // a local in-flight upload's optimistic state while _proofUploading.
+      final proofChanged = !_proofUploading &&
+          (thread.proofRequest?.status != _proofRequest?.status ||
+           thread.proofRequest?.category != _proofRequest?.category);
+      if (mounted && (thread.aiBestieActive != _bestieActive || proofChanged)) {
         setState(() {
-          _bestieActive = thread.aiBestieActive;
-          _bestieBannerDismissed = false; // re-show banner on status change
-          _manBannerDismissed = false;
+          if (thread.aiBestieActive != _bestieActive) {
+            _bestieActive = thread.aiBestieActive;
+            _bestieBannerDismissed = false; // re-show banner on status change
+            _manBannerDismissed = false;
+          }
+          if (proofChanged) _proofRequest = thread.proofRequest;
         });
       }
     } catch (_) {
@@ -290,80 +303,95 @@ class _ConversationScreenState extends State<ConversationScreen> {
         ],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Container(
-            width: 34, height: 34,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)]),
-              shape: BoxShape.circle,
+        GestureDetector(
+          onTap: () => setState(() => _bestieCardCollapsed = !_bestieCardCollapsed),
+          behavior: HitTestBehavior.opaque,
+          child: Row(children: [
+            Container(
+              width: 34, height: 34,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)]),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.auto_awesome, size: 17, color: Colors.white),
             ),
-            child: const Icon(Icons.auto_awesome, size: 17, color: Colors.white),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('AI Bestie',
-                  style: TextStyle(color: Color(Config.text1), fontSize: 14, fontWeight: FontWeight.w700)),
-              Text('${name.toUpperCase()}\'S AI BESTIE',
-                  style: const TextStyle(
-                      color: Color(Config.text3), fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.6)),
-            ]),
-          ),
-        ]),
-        const SizedBox(height: 12),
-        RichText(
-          text: TextSpan(
-            style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4),
-            children: [
-              TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
-              const TextSpan(text: ' asked her AI Bestie to get to know you first. Anything you share here, '),
-              TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
-              const TextSpan(text: ' sees — directly, or summarised. Bring your best.'),
-            ],
-          ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('AI Bestie',
+                    style: TextStyle(color: Color(Config.text1), fontSize: 14, fontWeight: FontWeight.w700)),
+                Text('${name.toUpperCase()}\'S AI BESTIE',
+                    style: const TextStyle(
+                        color: Color(Config.text3), fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.6)),
+              ]),
+            ),
+            if (_bestieCardCollapsed)
+              Text('$cleared/$total cleared',
+                  style: const TextStyle(color: Color(Config.accent), fontSize: 11, fontWeight: FontWeight.w700)),
+            const SizedBox(width: 6),
+            Icon(
+              _bestieCardCollapsed ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
+              size: 18,
+              color: const Color(Config.text3),
+            ),
+          ]),
         ),
-        const SizedBox(height: 14),
-        Row(children: [
-          Expanded(
-            child: RichText(
-              text: TextSpan(
-                style: const TextStyle(color: Color(Config.text2), fontSize: 12, fontWeight: FontWeight.w600),
-                children: [
-                  TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
-                  const TextSpan(text: ' joins in'),
-                ],
+        if (!_bestieCardCollapsed) ...[
+          const SizedBox(height: 12),
+          RichText(
+            text: TextSpan(
+              style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4),
+              children: [
+                TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
+                const TextSpan(text: ' asked her AI Bestie to get to know you first. Anything you share here, '),
+                TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
+                const TextSpan(text: ' sees — directly, or summarised. Bring your best.'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(children: [
+            Expanded(
+              child: RichText(
+                text: TextSpan(
+                  style: const TextStyle(color: Color(Config.text2), fontSize: 12, fontWeight: FontWeight.w600),
+                  children: [
+                    TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
+                    const TextSpan(text: ' joins in'),
+                  ],
+                ),
               ),
             ),
-          ),
-          Text('$cleared/$total cleared',
-              style: const TextStyle(color: Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w700)),
-        ]),
-        const SizedBox(height: 7),
-        Row(children: [
-          const Text('★', style: TextStyle(color: Color(Config.accent), fontSize: 13)),
-          const SizedBox(width: 6),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: Container(
-                height: 7,
-                color: const Color(0x14FF3B6B),
-                child: FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: cleared / total,
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)]),
+            Text('$cleared/$total cleared',
+                style: const TextStyle(color: Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w700)),
+          ]),
+          const SizedBox(height: 7),
+          Row(children: [
+            const Text('★', style: TextStyle(color: Color(Config.accent), fontSize: 13)),
+            const SizedBox(width: 6),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: Container(
+                  height: 7,
+                  color: const Color(0x14FF3B6B),
+                  child: FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: cleared / total,
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)]),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ]),
-        const SizedBox(height: 9),
-        const Text('She can also drop in herself, any time.',
-            style: TextStyle(color: Color(Config.text3), fontSize: 11.5, fontStyle: FontStyle.italic)),
+          ]),
+          const SizedBox(height: 9),
+          const Text('She can also drop in herself, any time.',
+              style: TextStyle(color: Color(Config.text3), fontSize: 11.5, fontStyle: FontStyle.italic)),
+        ],
       ]),
     );
   }
@@ -472,6 +500,82 @@ class _ConversationScreenState extends State<ConversationScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Image send failed: $e')));
       }
+    }
+  }
+
+  void _proofSnack(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text), duration: const Duration(seconds: 5)),
+    );
+  }
+
+  /// Man answers his match's Bestie proof request: pick a photo, run it through
+  /// the FULL verification pipeline (Vision + face-match + anti-forgery + ID
+  /// gate) scoped to this match. The file is never shown to her — only the
+  /// verified signal reaches her Bestie. Category comes from her request.
+  Future<void> _uploadRequestedProof() async {
+    final req = _proofRequest;
+    if (req == null || !req.active || _proofUploading) return;
+
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: const Color(Config.bg2),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(height: 8),
+          ListTile(
+            leading: const Icon(Icons.photo_library_outlined, color: Color(Config.text1)),
+            title: const Text('Choose from gallery', style: TextStyle(color: Color(Config.text1))),
+            onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+          ),
+          ListTile(
+            leading: const Icon(Icons.camera_alt_outlined, color: Color(Config.text1)),
+            title: const Text('Take a photo', style: TextStyle(color: Color(Config.text1))),
+            onTap: () => Navigator.pop(ctx, ImageSource.camera),
+          ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+    if (source == null) return;
+
+    final file = await ImagePicker().pickImage(source: source, imageQuality: 85);
+    if (file == null) return;
+
+    setState(() => _proofUploading = true);
+    try {
+      final res = await uploadProof(req.category, [file.path], matchId: widget.conversationId);
+      if (!mounted) return;
+
+      if (res['requiresIdVerification'] == true) {
+        // Gated category (wealth/spending) without verified ID — a prerequisite,
+        // not a failed attempt. The request stays open.
+        _proofSnack(res['requiresSelfie'] == true
+            ? 'This proof needs your verified selfie first — finish verification in your profile, then try again.'
+            : 'This proof needs your government ID verified first — finish verification in your profile, then try again.');
+      } else if (res['verified'] == true) {
+        final insights = res['insights'];
+        final label = (insights is List && insights.isNotEmpty && insights.first is Map)
+            ? (insights.first as Map)['label']?.toString() ?? 'Proof verified'
+            : 'Proof verified';
+        final pts = (res['pts_awarded'] as num?)?.toInt() ?? 0;
+        final name = _otherName.isNotEmpty ? _otherName : 'She';
+        _proofSnack('🔒 Verified: $label (+$pts pts), saved to your profile. $name can\'t see the file, but her Bestie knows it\'s real.');
+        setState(() => _proofRequest = ProofRequest.fromApi(res['proofRequest']));
+      } else {
+        final reason = res['reason']?.toString() ?? 'we couldn\'t confirm that from this photo.';
+        _proofSnack('❌ Didn\'t pass verification: $reason You can try again with a clearer photo.');
+        final updated = ProofRequest.fromApi(res['proofRequest']);
+        if (updated != null) setState(() => _proofRequest = updated);
+      }
+    } catch (e) {
+      AppLogger.instance.error(e, screen: 'conversation', action: 'upload_requested_proof');
+      _proofSnack(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _proofUploading = false);
     }
   }
 
@@ -730,7 +834,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
                               final prevMsg = i < _messages.length - 1
                                   ? _messages[_messages.length - 2 - i]
                                   : null;
-                              final showName = prevMsg == null || prevMsg.senderId != msg.senderId;
+                              final nextMsg = i > 0 ? _messages[_messages.length - i] : null;
+                              final isGroupStart = prevMsg == null || prevMsg.senderId != msg.senderId;
+                              final showName = nextMsg == null || nextMsg.senderId != msg.senderId;
                               return _Bubble(
                                 msg: msg,
                                 mine: msg.senderId == _myId,
@@ -739,6 +845,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                 myName: _myName,
                                 myAvatar: _myAvatar,
                                 showName: showName,
+                                isGroupStart: isGroupStart,
                               );
                             },
                           ),
@@ -792,7 +899,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
             conversationId: widget.conversationId,
             viewerGender: _viewerGender,
             otherGender: _otherGender,
+            otherName: _otherName,
             onImagePicked: _sendImageMessage,
+            proofRequest: _proofRequest,
+            proofUploading: _proofUploading,
+            onUploadProof: _uploadRequestedProof,
           ),
         ],
       ),
@@ -811,6 +922,7 @@ class _Bubble extends StatelessWidget {
   final String myName;
   final String? myAvatar;
   final bool showName;
+  final bool isGroupStart;
 
   const _Bubble({
     required this.msg,
@@ -820,6 +932,7 @@ class _Bubble extends StatelessWidget {
     required this.myName,
     required this.myAvatar,
     required this.showName,
+    required this.isGroupStart,
   });
 
   String _formatTime(DateTime? dt) {
@@ -957,7 +1070,7 @@ class _Bubble extends StatelessWidget {
     );
 
     return Padding(
-      padding: EdgeInsets.only(top: showName ? 10 : 2, bottom: 2, left: 8, right: 8),
+      padding: EdgeInsets.only(top: isGroupStart ? 10 : 2, bottom: 2, left: 8, right: 8),
       child: Column(
         crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
@@ -989,6 +1102,17 @@ class _Bubble extends StatelessWidget {
   }
 }
 
+/// Short, man-facing description of what each proof category means. Mirrors the
+/// web PROOF_CATEGORY_SHORT map so both surfaces read the same.
+const Map<String, String> _kProofCategoryShort = {
+  'travel': 'travel proof (passport stamps or trip photos with you in them)',
+  'lifestyle': 'a lifestyle photo (you living it)',
+  'discipline': 'a fitness photo (you training)',
+  'social_proof': 'a photo with your people',
+  'wealth': 'wealth proof (bank statement or payslip)',
+  'spending': 'spending proof (receipts or bills)',
+};
+
 class _Composer extends StatefulWidget {
   final TextEditingController controller;
   final bool sending;
@@ -996,7 +1120,11 @@ class _Composer extends StatefulWidget {
   final String conversationId;
   final String? viewerGender;
   final String? otherGender;
+  final String otherName;
   final Future<void> Function(String url) onImagePicked;
+  final ProofRequest? proofRequest;
+  final bool proofUploading;
+  final VoidCallback onUploadProof;
 
   const _Composer({
     required this.controller,
@@ -1005,7 +1133,11 @@ class _Composer extends StatefulWidget {
     required this.conversationId,
     required this.viewerGender,
     required this.otherGender,
+    required this.otherName,
     required this.onImagePicked,
+    required this.proofRequest,
+    required this.proofUploading,
+    required this.onUploadProof,
   });
 
   @override
@@ -1018,6 +1150,11 @@ class _ComposerState extends State<_Composer> {
 
   bool get _showWingman =>
       widget.viewerGender == 'man' && widget.otherGender == 'woman';
+
+  // Man's contextual proof affordance: only while his match's Bestie has an
+  // open request (spec §3 Step 3 — no unprompted uploads).
+  bool get _proofActive =>
+      _showWingman && (widget.proofRequest?.active ?? false);
 
   Future<void> _pickAndSendImage() async {
     // Let user choose gallery or camera
@@ -1113,13 +1250,74 @@ class _ComposerState extends State<_Composer> {
 
   @override
   Widget build(BuildContext context) {
+    final req = widget.proofRequest;
+    final proofLabel = req == null
+        ? ''
+        : (_kProofCategoryShort[req.category] ?? '${req.category} proof');
     return ColoredBox(
       color: const Color(Config.bg2),
       child: SafeArea(
         top: false,
         child: Container(
           padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
-          child: Row(children: [
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+          // Bestie proof-request banner — the 📎 exists only while her request
+          // is open; the category comes from her question, never a picker.
+          if (_proofActive)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 8, left: 2, right: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0x14FF3B6B),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0x33FF3B6B)),
+              ),
+              child: Row(children: [
+                const Text('✨', style: TextStyle(fontSize: 13)),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    "${widget.otherName.isNotEmpty ? widget.otherName : 'Her'}'s Bestie asked for $proofLabel"
+                    "${req?.status == 'failed_attempt' ? ' — last try didn\'t pass, give it another go' : ''}"
+                    '. Tap 📎 to get it verified. Private: she never sees the file.',
+                    style: const TextStyle(color: Color(Config.text2), fontSize: 12, height: 1.35),
+                  ),
+                ),
+              ]),
+            ),
+          Row(children: [
+            // 📎 Proof upload — man answering his match's Bestie request. Only
+            // rendered while the request is open (spec §3 Step 3).
+            if (_proofActive) ...[
+              widget.proofUploading
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 10),
+                      child: SizedBox(
+                          width: 18, height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFF3B6B))),
+                    )
+                  : InkWell(
+                      onTap: widget.onUploadProof,
+                      borderRadius: BorderRadius.circular(999),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+                        decoration: BoxDecoration(
+                          color: const Color(0x14FF3B6B),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(color: const Color(0x33FF3B6B)),
+                        ),
+                        child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                          Text('📎', style: TextStyle(fontSize: 14)),
+                          SizedBox(width: 4),
+                          Text('Verify',
+                              style: TextStyle(
+                                  color: Color(0xFFFF3B6B), fontSize: 12, fontWeight: FontWeight.w700)),
+                        ]),
+                      ),
+                    ),
+              const SizedBox(width: 2),
+            ],
             // 📷 Image button — temporarily disabled
             // SizedBox(
             //   width: 40,
@@ -1202,6 +1400,7 @@ class _ComposerState extends State<_Composer> {
                     : const Icon(Icons.arrow_upward, color: Color(0xFFFFFFFF)),
               ),
             ),
+          ]),
           ]),
         ),
       ),
