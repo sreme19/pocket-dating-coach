@@ -49,6 +49,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   bool _manBannerDismissed = false;    // man's banner dismiss flag
   ProofRequest? _proofRequest;         // Bestie's open in-chat proof ask (man's side)
   bool _proofUploading = false;        // verification in progress
+  bool _bestieCardCollapsed = false;
 
   @override
   void initState() {
@@ -302,80 +303,95 @@ class _ConversationScreenState extends State<ConversationScreen> {
         ],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Container(
-            width: 34, height: 34,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)]),
-              shape: BoxShape.circle,
+        GestureDetector(
+          onTap: () => setState(() => _bestieCardCollapsed = !_bestieCardCollapsed),
+          behavior: HitTestBehavior.opaque,
+          child: Row(children: [
+            Container(
+              width: 34, height: 34,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)]),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.auto_awesome, size: 17, color: Colors.white),
             ),
-            child: const Icon(Icons.auto_awesome, size: 17, color: Colors.white),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('AI Bestie',
-                  style: TextStyle(color: Color(Config.text1), fontSize: 14, fontWeight: FontWeight.w700)),
-              Text('${name.toUpperCase()}\'S AI BESTIE',
-                  style: const TextStyle(
-                      color: Color(Config.text3), fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.6)),
-            ]),
-          ),
-        ]),
-        const SizedBox(height: 12),
-        RichText(
-          text: TextSpan(
-            style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4),
-            children: [
-              TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
-              const TextSpan(text: ' asked her AI Bestie to get to know you first. Anything you share here, '),
-              TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
-              const TextSpan(text: ' sees — directly, or summarised. Bring your best.'),
-            ],
-          ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('AI Bestie',
+                    style: TextStyle(color: Color(Config.text1), fontSize: 14, fontWeight: FontWeight.w700)),
+                Text('${name.toUpperCase()}\'S AI BESTIE',
+                    style: const TextStyle(
+                        color: Color(Config.text3), fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.6)),
+              ]),
+            ),
+            if (_bestieCardCollapsed)
+              Text('$cleared/$total cleared',
+                  style: const TextStyle(color: Color(Config.accent), fontSize: 11, fontWeight: FontWeight.w700)),
+            const SizedBox(width: 6),
+            Icon(
+              _bestieCardCollapsed ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
+              size: 18,
+              color: const Color(Config.text3),
+            ),
+          ]),
         ),
-        const SizedBox(height: 14),
-        Row(children: [
-          Expanded(
-            child: RichText(
-              text: TextSpan(
-                style: const TextStyle(color: Color(Config.text2), fontSize: 12, fontWeight: FontWeight.w600),
-                children: [
-                  TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
-                  const TextSpan(text: ' joins in'),
-                ],
+        if (!_bestieCardCollapsed) ...[
+          const SizedBox(height: 12),
+          RichText(
+            text: TextSpan(
+              style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4),
+              children: [
+                TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
+                const TextSpan(text: ' asked her AI Bestie to get to know you first. Anything you share here, '),
+                TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
+                const TextSpan(text: ' sees — directly, or summarised. Bring your best.'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(children: [
+            Expanded(
+              child: RichText(
+                text: TextSpan(
+                  style: const TextStyle(color: Color(Config.text2), fontSize: 12, fontWeight: FontWeight.w600),
+                  children: [
+                    TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
+                    const TextSpan(text: ' joins in'),
+                  ],
+                ),
               ),
             ),
-          ),
-          Text('$cleared/$total cleared',
-              style: const TextStyle(color: Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w700)),
-        ]),
-        const SizedBox(height: 7),
-        Row(children: [
-          const Text('★', style: TextStyle(color: Color(Config.accent), fontSize: 13)),
-          const SizedBox(width: 6),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: Container(
-                height: 7,
-                color: const Color(0x14FF3B6B),
-                child: FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: cleared / total,
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)]),
+            Text('$cleared/$total cleared',
+                style: const TextStyle(color: Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w700)),
+          ]),
+          const SizedBox(height: 7),
+          Row(children: [
+            const Text('★', style: TextStyle(color: Color(Config.accent), fontSize: 13)),
+            const SizedBox(width: 6),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: Container(
+                  height: 7,
+                  color: const Color(0x14FF3B6B),
+                  child: FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: cleared / total,
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)]),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        ]),
-        const SizedBox(height: 9),
-        const Text('She can also drop in herself, any time.',
-            style: TextStyle(color: Color(Config.text3), fontSize: 11.5, fontStyle: FontStyle.italic)),
+          ]),
+          const SizedBox(height: 9),
+          const Text('She can also drop in herself, any time.',
+              style: TextStyle(color: Color(Config.text3), fontSize: 11.5, fontStyle: FontStyle.italic)),
+        ],
       ]),
     );
   }
@@ -818,7 +834,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
                               final prevMsg = i < _messages.length - 1
                                   ? _messages[_messages.length - 2 - i]
                                   : null;
-                              final showName = prevMsg == null || prevMsg.senderId != msg.senderId;
+                              final nextMsg = i > 0 ? _messages[_messages.length - i] : null;
+                              final isGroupStart = prevMsg == null || prevMsg.senderId != msg.senderId;
+                              final showName = nextMsg == null || nextMsg.senderId != msg.senderId;
                               return _Bubble(
                                 msg: msg,
                                 mine: msg.senderId == _myId,
@@ -827,6 +845,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                 myName: _myName,
                                 myAvatar: _myAvatar,
                                 showName: showName,
+                                isGroupStart: isGroupStart,
                               );
                             },
                           ),
@@ -903,6 +922,7 @@ class _Bubble extends StatelessWidget {
   final String myName;
   final String? myAvatar;
   final bool showName;
+  final bool isGroupStart;
 
   const _Bubble({
     required this.msg,
@@ -912,6 +932,7 @@ class _Bubble extends StatelessWidget {
     required this.myName,
     required this.myAvatar,
     required this.showName,
+    required this.isGroupStart,
   });
 
   String _formatTime(DateTime? dt) {
@@ -1049,7 +1070,7 @@ class _Bubble extends StatelessWidget {
     );
 
     return Padding(
-      padding: EdgeInsets.only(top: showName ? 10 : 2, bottom: 2, left: 8, right: 8),
+      padding: EdgeInsets.only(top: isGroupStart ? 10 : 2, bottom: 2, left: 8, right: 8),
       child: Column(
         crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
