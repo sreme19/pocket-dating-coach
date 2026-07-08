@@ -341,10 +341,10 @@ const FACE_GATED_CATEGORIES = new Set(['lifestyle', 'discipline', 'social_proof'
 
 const FACE_GATE_PREFIX = `IMAGE 1 is the account owner's verified reference selfie from identity verification. It is NOT a proof photo — never extract insights from it and never treat it as evidence.
 
-FACE CHECK — run this BEFORE the category analysis below. Number the proof photos from 1 (image 2 = proof photo 1, image 3 = proof photo 2, ...). For EACH proof photo, decide whether the person in the reference selfie clearly appears in it — the same person, allowing for lighting, angle, expression, glasses, facial hair, or grooming changes. A screenshot, document, scenery shot, or photo of other people with the owner absent FAILS the check. When genuinely uncertain whether a visible face is the owner, fail that photo.
+FACE CHECK — run this BEFORE the category analysis below. Refer to every image by the ACTUAL position it has in this message: image 1 is the selfie, image 2 is the first proof photo, image 3 is the second proof photo, and so on. For EACH proof photo (image 2 onward), decide whether the person in the reference selfie clearly appears in it — the same person, allowing for lighting, angle, expression, glasses, facial hair, or grooming changes. A screenshot, document, scenery shot, or photo of other people with the owner absent FAILS the check. When genuinely uncertain whether a visible face is the owner, fail that photo.
 
-Add this field to the JSON object you return (every proof photo number must appear in exactly one of the two arrays):
-"faceCheck":{"matchedPhotos":[proof photo numbers where the owner clearly appears],"unmatchedPhotos":[proof photo numbers where the owner does NOT clearly appear]}
+Add this field to the JSON object you return, using those ACTUAL image numbers (2, 3, 4, …). NEVER include image 1 (the selfie) in either array. Every proof photo (image 2 onward) must appear in exactly one of the two arrays:
+"faceCheck":{"matchedPhotos":[image numbers where the owner clearly appears],"unmatchedPhotos":[image numbers where the owner does NOT clearly appear]}
 
 Then run the category analysis below on the MATCHED photos ONLY — treat unmatched photos as if they were never uploaded: no insights, no locations, no cross-section signals from them.
 If NO proof photo contains the owner, set verified=false and reason="Couldn't identify your face in these photos."
@@ -1065,12 +1065,21 @@ export const POST: RequestHandler = async ({ request }) => {
     // verified face.
     let faceCheck: { matchedPhotos: number[]; unmatchedPhotos: number[] } | null = null;
     if (faceGated && anchorSelfie) {
+      // Claude reports ACTUAL image positions: image 1 = selfie, image 2 = first
+      // proof photo, etc. Convert to proof-photo numbers (selfie excluded, 1-based)
+      // by subtracting 1, so image 2 → proof photo 1 = imageFiles[0]. Image 1 (the
+      // selfie) is out of range and dropped. Keeping this the single conversion
+      // point means the storage loop (i + 1) and the mobile display stay correct.
       const toPhotoNums = (a: unknown) => Array.isArray(a)
-        ? a.filter((n): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 1 && n <= imageFiles.length)
+        ? a.filter((n): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 2 && n <= imageFiles.length + 1)
+            .map(n => n - 1)
         : [];
       const matched   = toPhotoNums(result.faceCheck?.matchedPhotos);
       const unmatched = toPhotoNums(result.faceCheck?.unmatchedPhotos).filter(n => !matched.includes(n));
       faceCheck = { matchedPhotos: matched, unmatchedPhotos: unmatched };
+      // TEMP verification log — confirm raw model numbers map to the right files,
+      // then remove once validated on a real 2-photo (one with/one without face) upload.
+      console.log(`[proof-upload faceCheck] category=${category} proofPhotos=${imageFiles.length} rawMatched=${JSON.stringify(result.faceCheck?.matchedPhotos ?? null)} → matched=${JSON.stringify(matched)} unmatched=${JSON.stringify(unmatched)}`);
       if (matched.length === 0) {
         const proofRequest = matchId
           ? await updateMatchProofRequest(userId, matchId, category, false)

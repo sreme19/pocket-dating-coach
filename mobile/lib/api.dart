@@ -1410,8 +1410,10 @@ Future<Map<String, dynamic>> verifyIdExtract(String imagePath) async {
   };
 }
 
-/// Verify selfie face against the government ID photo.
-/// Returns true if match confidence >= 50.
+/// Verify a live selfie against the government ID photo.
+/// The server applies the same liveness standard as onboarding AND the ID
+/// face-match (bar 55); it returns the combined decision in `match`. Returns
+/// that decision (fails open only on a server-side API error).
 Future<bool> verifySelfieVsId(String selfiePath, String idBase64, String idMime) async {
   final bytes = await File(selfiePath).readAsBytes();
   final selfieB64 = base64Encode(bytes);
@@ -1445,9 +1447,9 @@ Future<bool> verifySelfieVsId(String selfiePath, String idBase64, String idMime)
   // If Claude itself errored (images too large, API failure) the server sets
   // apiError:true — fail open so users aren't hard-blocked by infra issues.
   if (data['apiError'] == true) return true;
-  final match = data['match'] == true;
-  final conf = (data['confidence'] as num?)?.toDouble() ?? 0;
-  return match || conf >= 50;
+  // Server is the single source of truth: `match` already encodes both the
+  // liveness (genuine live person) and the ID face-match (bar 55) decisions.
+  return data['match'] == true;
 }
 
 /// Upload proof with both a profile URL and a file (e.g. LinkedIn URL + resume PDF).
