@@ -200,6 +200,30 @@ export const POST: RequestHandler = async ({ request }) => {
       );
     }
 
+    // Wrap-up freeze (spec §F/§K, Option A): once Bestie has WRAPPED UP her
+    // checklist she is on hold for the woman to step in. The MAN's chat is frozen
+    // until she replies; the woman (owner) is never frozen — her reply is how she
+    // steps in (and it deactivates Bestie below). isAi sends are never user-
+    // initiated, so they're exempt. Gender is only looked up in this rare wrapped
+    // state, so the normal send path pays no extra query.
+    const checklistStatus = (match as any).bestie_checklist?.status;
+    if (body.isAi !== true && checklistStatus === 'wrapped' && (match as any).ai_bestie_active) {
+      const { data: senderRow } = await supabase
+        .from('verified_vibe_users')
+        .select('gender')
+        .eq('id', user.id)
+        .single();
+      if (senderRow?.gender === 'man') {
+        return json(
+          {
+            error: 'awaiting_handoff',
+            message: "Her AI Bestie has everything it needs and has asked her to jump in. Hang tight — she'll take it from here."
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     // Save message to database
     const { data: savedMessage, error: saveError } = await supabase
       .from('verified_vibe_messages')

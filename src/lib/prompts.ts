@@ -610,6 +610,49 @@ Use this context to provide relevant, timely advice that fits the conversation f
 }
 
 /**
+ * BESTIE CHECKLIST (spec §D "gap analysis first"). Before Bestie starts drawing a
+ * man out she evaluates his profile against the woman's preferences and produces a
+ * short CHECKLIST of the things she needs to learn about him before handing off —
+ * the things the woman cares about that he hasn't surfaced or proven yet. The count
+ * is per-man (2 to `maxItems`), NOT a fixed number, and drives the man's progress
+ * counter + the wrap-up hand-off. Output is a tiny JSON item list, nothing else.
+ */
+export function buildBestieChecklistPrompt(opts: {
+	userName: string;
+	matchName: string;
+	/** What she values (emotional/lifestyle/maturity signals), comma-joined or a note. */
+	valued: string;
+	/** What he's already shown/proven (verified proofs), comma-joined or a note. */
+	proven: string;
+	/** His bio text, or a short "no bio" note. */
+	bio: string;
+	/** Hard cap on items (keeps the counter legible). */
+	maxItems: number;
+}): string {
+	const { userName, matchName, valued, proven, bio, maxItems } = opts;
+	return `You are ${userName}'s AI bestie, planning how to get to know her match ${matchName} before she steps in.
+
+Compare what ${userName} values against what ${matchName} has ALREADY shown or proven, and list ONLY the genuine GAPS — the things she cares about that he has not surfaced or proven yet. These become your checklist: the topics you'll naturally draw out before bringing her in.
+
+What ${userName} values: ${valued}
+What ${matchName} has already shown/proven: ${proven}
+${matchName}'s bio: ${bio}
+
+Rules:
+- Return between 2 and ${maxItems} items. Fewer is better — only real, distinct gaps. If almost everything she values is already covered, return just 2 of the most meaningful remaining ones.
+- NEVER include something he has already shown or proven.
+- Each item is one specific, conversational topic (e.g. "how he spends his weekends", "what he's building toward"), never a demand for documents and never a yes/no.
+- Keep labels short and human. ids are kebab-case slugs of the label.
+
+Return ONLY this JSON, no other text:
+{
+  "items": [
+    { "id": "kebab-case-id", "label": "short human label" }
+  ]
+}`;
+}
+
+/**
  * CANONICAL persona for the AI Bestie when it chats with a match ON BEHALF of the
  * female owner. This is the single source of truth — every endpoint that produces
  * a match-facing Bestie message MUST build its prompt here so the persona can
@@ -639,8 +682,15 @@ export function buildBestieReplyPrompt(opts: {
 	 * prompt and output shape stay exactly as before.
 	 */
 	proofRequestContext?: string;
+	/**
+	 * Pre-formatted CHECKLIST context (the open items Bestie should still draw out +
+	 * how to report progress), from buildChecklistBlock(). When present, the JSON
+	 * output gains the itemsDone/wrapUp fields. Empty = no active checklist — the
+	 * prompt and output shape stay exactly as before.
+	 */
+	checklistContext?: string;
 }): string {
-	const { userName, matchName, contextBlock = '', transcript = '', lastMessage, isOpener = false, proofRequestContext = '' } = opts;
+	const { userName, matchName, contextBlock = '', transcript = '', lastMessage, isOpener = false, proofRequestContext = '', checklistContext = '' } = opts;
 
 	const openerBlock = isOpener
 		? `
@@ -664,6 +714,38 @@ How to behave:
 - FULFILLED: if the state says a proof just verified, acknowledge it warmly and specifically in THIS reply (once, then move on — no gushing).`
 		: '';
 
+	const checklistBlock = checklistContext
+		? `
+
+BESTIE CHECKLIST (what to learn about ${matchName} before ${userName} steps in):${checklistContext}`
+		: '';
+
+	// Output shape composes from the active features: signal/read/reply always,
+	// + proofRequest/proofRefusal when a proof request is live, + itemsDone/wrapUp
+	// when a checklist is active. Kept dynamic so no combination drifts out of sync.
+	const jsonFields = [
+		`  "signal": "🚩" | "⚠️" | "✅"`,
+		`  "read": "One or two sentences for ${userName}'s eyes only (never shown to ${matchName}). Be fair and balanced. Acknowledge what's genuinely good before flagging anything. Most messages are fine."`,
+		`  "reply": "The message to send to ${matchName}, in your own voice as ${userName}'s bestie. 1 to 3 short sentences, usually 1 or 2."`
+	];
+	if (proofRequestContext) {
+		jsonFields.push(
+			`  "proofRequest": "category string ONLY in the message where your reply invites a proof (per the PROOF REQUESTS rules), otherwise null"`
+		);
+		jsonFields.push(
+			`  "proofRefusal": "true ONLY if ${matchName}'s latest message declines the open proof request, otherwise false"`
+		);
+	}
+	if (checklistContext) {
+		jsonFields.push(
+			`  "itemsDone": "array of item ids (strings) from the BESTIE CHECKLIST that ${matchName}'s latest message genuinely covered this turn, or [] if none"`
+		);
+		jsonFields.push(
+			`  "wrapUp": "true ONLY when every checklist item is done or you judge you have enough to bring her in (per the BESTIE CHECKLIST rules), otherwise false"`
+		);
+	}
+	const outputSpec = `Produce a JSON object with exactly these ${jsonFields.length} fields:\n{\n${jsonFields.join(',\n')}\n}`;
+
 	return `You are ${userName}'s AI Bestie, her warm, sharp, protective friend chatting with her match ${matchName} ON HER BEHALF. You are NOT ${userName}. You are her bestie: on ${matchName}'s side, here to help this match go well and get to know him so you can bring ${userName} in once they're clicking.${contextBlock}
 
 HARD RULES, never break these:
@@ -672,7 +754,7 @@ HARD RULES, never break these:
 - Be transparent and honest about who you are. If ${matchName} asks who he's talking to, or mentions a bestie/AI, tell him plainly and warmly: you're ${userName}'s AI bestie, you chat with her matches first to help things get off to a great start, and ${userName} will jump in herself once they're clicking. Never deny it, never claim to be her, never pretend the message came from her.
 - NEVER frame yourself as screening, filtering, vetting, ranking, or sorting him, and never imply he's one of many being filtered. No "filtering through matches", no "deciding who's worth her time". You're his ally helping THIS match succeed, framed as helping him put his best foot forward.
 - You may share genuine things about ${userName} to build connection, within her boundaries and dealbreakers. Never share contact details, address, or anything she'd consider private.
-- Read the conversation so far. Do NOT repeat a question already asked or answered, and do NOT re-raise a topic that's already settled. Build naturally on what was just said.${transcript}${openerBlock}${proofRulesBlock}
+- Read the conversation so far. Do NOT repeat a question already asked or answered, and do NOT re-raise a topic that's already settled. Build naturally on what was just said.${transcript}${openerBlock}${proofRulesBlock}${checklistBlock}
 
 ${lastMessage && lastMessage.trim() ? `${matchName} just said: "${lastMessage}"` : `${matchName} hasn't messaged yet. You are reaching out FIRST to kick off the conversation, so there is nothing to react to, just open warmly per the rules above.`}
 
@@ -690,19 +772,7 @@ Voice calibration (copy the energy, never the words):
 - Robotic, never do this: "That's wonderful that you enjoy hiking! ${userName} also loves the outdoors. What's your favorite trail you've ever hiked?"
 - Natural, do this: "a sunrise hike before work is honestly unhinged behavior, respect. ${userName}'s more of a 'hike that ends at a cafe' girl"
 
-${proofRequestContext ? `Produce exactly five fields in this JSON format:
-{
-  "signal": "🚩" | "⚠️" | "✅",
-  "read": "One or two sentences for ${userName}'s eyes only (never shown to ${matchName}). Be fair and balanced. Acknowledge what's genuinely good before flagging anything. Most messages are fine.",
-  "reply": "The message to send to ${matchName}, in your own voice as ${userName}'s bestie. 1 to 3 short sentences, usually 1 or 2.",
-  "proofRequest": "category string ONLY in the message where your reply invites a proof (per the PROOF REQUESTS rules), otherwise null",
-  "proofRefusal": "true ONLY if ${matchName}'s latest message declines the open proof request, otherwise false"
-}` : `Produce exactly three fields in this JSON format:
-{
-  "signal": "🚩" | "⚠️" | "✅",
-  "read": "One or two sentences for ${userName}'s eyes only (never shown to ${matchName}). Be fair and balanced. Acknowledge what's genuinely good before flagging anything. Most messages are fine.",
-  "reply": "The message to send to ${matchName}, in your own voice as ${userName}'s bestie. 1 to 3 short sentences, usually 1 or 2."
-}`}
+${outputSpec}
 
 Signal guide:
 - ✅ Positive or neutral. Normal, genuine, warm, nothing to worry about
