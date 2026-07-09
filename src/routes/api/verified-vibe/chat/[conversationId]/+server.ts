@@ -10,6 +10,8 @@ interface ConversationResponse {
     aiBestieActive: boolean;
     /** Bestie-driven in-chat proof request state (null when none). */
     proofRequest: Record<string, unknown> | null;
+    /** AI Bestie CHECKLIST — drives the man's "she joins in" counter + wrap-up (null when none). */
+    bestieChecklist: Record<string, unknown> | null;
   };
 }
 
@@ -167,7 +169,8 @@ export const GET: RequestHandler = async ({ params, request }) => {
         },
         messages,
         aiBestieActive: match.ai_bestie_active ?? true,
-        proofRequest: (match as any).proof_request ?? null
+        proofRequest: (match as any).proof_request ?? null,
+        bestieChecklist: (match as any).bestie_checklist ?? null
       }
     };
 

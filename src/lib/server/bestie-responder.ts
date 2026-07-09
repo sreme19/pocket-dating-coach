@@ -9,7 +9,7 @@ import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
 import { getSupabase } from '$lib/server/supabase';
 import { loadPreferences } from '$lib/server/profile-service';
 import type { PreferencesProfile } from '$lib/server/profile-service';
-import { buildBestieReplyPrompt, stripBannedDashes } from '$lib/prompts';
+import { buildBestieReplyPrompt, stripBannedDashes, buildBestieChecklistPrompt } from '$lib/prompts';
 import {
 	PROOF_REQUEST_CATEGORIES,
 	PROOF_CATEGORY_LABELS,
@@ -20,6 +20,15 @@ import {
 	type ProofRequestCategory,
 	type ProofRequestState,
 } from '$lib/server/proof-signals';
+import {
+	buildChecklistBlock,
+	buildChecklist,
+	nextChecklistState,
+	isWrapped,
+	CHECKLIST_MAX_ITEMS,
+	type BestieChecklist,
+} from '$lib/server/bestie-checklist';
+import { buildNotificationPayload, sendNotification } from '$lib/server/notifications';
 
 export interface BestieReply {
 	signal: string;
@@ -31,6 +40,13 @@ export interface BestieReply {
 	 * SEND the reply must persist this to verified_vibe_matches.proof_request.
 	 */
 	proofStateUpdate?: ProofRequestState;
+	/**
+	 * When set, the Bestie's turn changed the CHECKLIST — either it was just created
+	 * (opener turn), items were marked done, or she wrapped up. Callers that SEND the
+	 * reply must persist this to verified_vibe_matches.bestie_checklist, and on a
+	 * transition to `wrapped` must run the hand-off (freeze the man + notify her).
+	 */
+	checklistUpdate?: BestieChecklist;
 }
 
 // ── In-chat proof request context + state machine (spec §3 Step 3) ────────────
@@ -183,23 +199,24 @@ export async function generateBestieReply(
 			.eq('id', userId)
 			.single()
 			.then((r) => r.data),
-		// Cast: generated DB types predate the proof_request column
-		// (20260706090000_add_proof_request_to_matches.sql). Falls back to the
-		// legacy column set if that migration hasn't been applied yet, so a
-		// deploy-before-migrate window can never null out the match context.
+		// Cast: generated DB types predate the proof_request / bestie_checklist columns
+		// (20260706090000_add_proof_request_to_matches.sql,
+		// 20260709120000_add_bestie_checklist_to_matches.sql). Falls back to the legacy
+		// column set if a migration hasn't been applied yet, so a deploy-before-
+		// migrate window can never null out the match context.
 		(supabase as any)
 			.from('verified_vibe_matches')
-			.select('user1_id, user2_id, proof_request')
+			.select('user1_id, user2_id, proof_request, bestie_checklist')
 			.eq('id', matchId)
 			.single()
 			.then(async (r: any) => {
-				if (r.data) return r.data as { user1_id: string; user2_id: string; proof_request?: unknown };
+				if (r.data) return r.data as { user1_id: string; user2_id: string; proof_request?: unknown; bestie_checklist?: unknown };
 				const legacy = await supabase
 					.from('verified_vibe_matches')
 					.select('user1_id, user2_id')
 					.eq('id', matchId)
 					.single();
-				return legacy.data as { user1_id: string; user2_id: string; proof_request?: unknown } | null;
+				return legacy.data as { user1_id: string; user2_id: string; proof_request?: unknown; bestie_checklist?: unknown } | null;
 			}),
 		loadPreferences(userId).catch(() => null),
 		supabase
@@ -306,9 +323,19 @@ export async function generateBestieReply(
 		isOpener,
 	});
 
+	// Bestie checklist (gap analysis, spec §D/§F). If a checklist already exists,
+	// inject its open items so this turn can mark them done / wrap up. If it does NOT
+	// exist yet and this is the first Bestie turn, we generate it CONCURRENTLY with
+	// the reply below (the reply prompt has no checklist context on that turn, so
+	// they're independent — running them in parallel adds no wall-clock latency).
+	const existingChecklist = ((matchRow as any)?.bestie_checklist ?? null) as BestieChecklist | null;
+	const { block: checklistContext } = buildChecklistBlock(existingChecklist);
+	const shouldGenerateChecklist = isOpener && !existingChecklist;
+
 	const client = getClaudeClient();
 	const tClaude = Date.now();
-	const message = await client.messages.create({
+
+	const replyPromise = client.messages.create({
 		model: CLAUDE_MODEL,
 		max_tokens: 400,
 		messages: [
@@ -321,11 +348,54 @@ export async function generateBestieReply(
 					transcript,
 					lastMessage,
 					isOpener,
-					proofRequestContext
+					proofRequestContext,
+					checklistContext
 				})
 			}
 		]
 	});
+
+	const checklistPromise: Promise<BestieChecklist | null> = shouldGenerateChecklist
+		? client.messages
+				.create({
+					model: CLAUDE_MODEL,
+					max_tokens: 300,
+					messages: [
+						{
+							role: 'user',
+							content: buildBestieChecklistPrompt({
+								userName,
+								matchName,
+								valued: (structuredPrefs
+									? [
+											...structuredPrefs.emotionalSignals,
+											...structuredPrefs.lifestyleSignals,
+											...structuredPrefs.maturitySignals
+									  ]
+									: []
+								).join(', ') || '(nothing specific recorded yet)',
+								proven: provenTags.length ? provenTags.join(', ') : 'nothing verified on his profile yet',
+								bio: maleAbout || '(no bio yet)',
+								maxItems: CHECKLIST_MAX_ITEMS
+							})
+						}
+					]
+				})
+				.then((m) => {
+					const c = m.content[0];
+					if (c.type !== 'text') return null;
+					const txt = c.text.trim().replace(/^```json\s*/i, '').replace(/```$/, '');
+					try {
+						const p = JSON.parse(txt) as { items?: Array<{ id?: unknown; label?: unknown }> };
+						return buildChecklist(p.items);
+					} catch {
+						return null;
+					}
+				})
+				.catch(() => null)
+		: Promise.resolve(null);
+
+	const [message, newChecklist] = await Promise.all([replyPromise, checklistPromise]);
 
 	if (timing) timing.claudeMs = Date.now() - tClaude;
 
@@ -338,15 +408,30 @@ export async function generateBestieReply(
 		suggestedQuestion?: string;
 		proofRequest?: string | null;
 		proofRefusal?: boolean;
+		itemsDone?: unknown;
+		wrapUp?: unknown;
 	};
 
 	const proofStateUpdate = nextProofState(proofState, parsed, invitable);
+
+	// Checklist update: a freshly-created checklist (opener turn) takes precedence;
+	// otherwise apply the items this turn marked done / any wrap-up to the existing one.
+	let checklistUpdate: BestieChecklist | undefined;
+	if (newChecklist) {
+		checklistUpdate = newChecklist;
+	} else {
+		checklistUpdate = nextChecklistState(existingChecklist, {
+			itemsDone: parsed.itemsDone,
+			wrapUp: parsed.wrapUp
+		});
+	}
 
 	return {
 		signal: parsed.signal ?? '✅',
 		read: stripBannedDashes(parsed.read ?? ''),
 		reply: stripBannedDashes(parsed.reply ?? parsed.suggestedQuestion ?? ''),
-		...(proofStateUpdate ? { proofStateUpdate } : {})
+		...(proofStateUpdate ? { proofStateUpdate } : {}),
+		...(checklistUpdate ? { checklistUpdate } : {})
 	};
 }
 
@@ -383,6 +468,24 @@ export async function generateAndSendBestieReply(
 				.eq('id', matchId);
 		} catch (e) {
 			console.warn('[bestie] proof_request persist failed (non-fatal):', e);
+		}
+	}
+
+	// Persist any checklist change (items done / wrap-up). Same non-fatal,
+	// conversational-state-only treatment. When this turn WRAPPED UP the checklist
+	// (§F: items sufficiently answered, her judgment), run the hand-off: the man's
+	// chat freezes (enforced server-side in the send route by reading bestie_checklist)
+	// and the woman is notified to step in.
+	let justWrapped = false;
+	if (reply.checklistUpdate) {
+		try {
+			await (supabase as any)
+				.from('verified_vibe_matches')
+				.update({ bestie_checklist: reply.checklistUpdate })
+				.eq('id', matchId);
+			justWrapped = isWrapped(reply.checklistUpdate);
+		} catch (e) {
+			console.warn('[bestie] bestie_checklist persist failed (non-fatal):', e);
 		}
 	}
 
@@ -440,6 +543,65 @@ export async function generateAndSendBestieReply(
 			console.error('[ai-timing] failed to record server timing (non-fatal):', e);
 		}
 	}
+
+	// Hand-off (spec §F/§K, Option A): Bestie has wrapped up. Her reply above already
+	// told the man she'll bring the woman in; the man's chat is now frozen server-side
+	// (send route reads bestie_checklist.status). Notify the woman so she comes to step in.
+	if (justWrapped) {
+		await notifyWomanToStepIn(supabase, matchId, userId);
+	}
+}
+
+/**
+ * Wrap-up hand-off notification: push the woman a "your turn to step in" prompt
+ * that deep-links to the frozen conversation. Best-effort and non-fatal — a
+ * missing device token or FCM failure must never break the reply flow. The
+ * in-app popup she sees on open is driven separately by bestie_checklist.status.
+ */
+async function notifyWomanToStepIn(
+	supabase: ReturnType<typeof getSupabase>,
+	matchId: string,
+	womanId: string
+): Promise<void> {
+	try {
+		const [{ data: tokenRow }, { data: matchRow }] = await Promise.all([
+			(supabase as any)
+				.from('device_tokens')
+				.select('token')
+				.eq('user_id', womanId)
+				.order('created_at', { ascending: false })
+				.limit(1)
+				.maybeSingle(),
+			supabase.from('verified_vibe_matches').select('user1_id, user2_id').eq('id', matchId).single()
+		]);
+		if (!tokenRow?.token) return;
+
+		const manId = matchRow
+			? matchRow.user1_id === womanId
+				? matchRow.user2_id
+				: matchRow.user1_id
+			: null;
+		let manName = 'your match';
+		if (manId) {
+			const { data: man } = await supabase
+				.from('verified_vibe_users')
+				.select('first_name')
+				.eq('id', manId)
+				.single();
+			manName = (man as any)?.first_name || manName;
+		}
+
+		const payload = buildNotificationPayload({
+			token: tokenRow.token,
+			title: '✨ Your turn to step in',
+			body: `AI Bestie got to know ${manName} for you. Reply now to take it from here.`,
+			type: 'follow_up_prompt',
+			deepLink: `/verified-vibe/chat/${matchId}`
+		});
+		await sendNotification(payload);
+	} catch (e) {
+		console.error('[bestie] wrap-up notify failed (non-fatal):', e);
+	}
 }
 
 /**
@@ -488,8 +650,17 @@ export async function generateAndSendBestieOpener(matchId: string): Promise<void
 		const timing: { claudeMs?: number } = {};
 		const t0 = Date.now();
 		// Empty lastMessage → generateBestieReply runs the proactive opener path
-		// (isOpener is true since no owner-side message exists yet).
+		// (isOpener is true since no owner-side message exists yet). This turn also
+		// generates the CHECKLIST concurrently, so persist it if present.
 		const reply = await generateBestieReply(woman.id, matchId, '', timing);
+		if (reply.checklistUpdate) {
+			try {
+				await (supabase as any)
+					.from('verified_vibe_matches')
+					.update({ bestie_checklist: reply.checklistUpdate })
+					.eq('id', matchId);
+			} catch { /* non-fatal — checklist will be generated on the man's first turn instead */ }
+		}
 		if (!reply.reply) return;
 
 		// Re-check right before insert to shrink the double-open race window (e.g. if

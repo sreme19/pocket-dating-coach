@@ -1788,6 +1788,29 @@ class ProofRequest {
   }
 }
 
+/// AI Bestie CHECKLIST (spec §D/§F). The per-man list of things Bestie draws out
+/// before the woman steps in. Drives the man's "she joins in" progress (done/total,
+/// NOT a fixed 5) and the wrap-up hand-off (wrapped → his chat freezes). The mobile
+/// side only needs the counts + status; the full item list stays server-side.
+class BestieChecklist {
+  final int total; // number of checklist items
+  final int done;  // items marked done
+  final String status; // active | wrapped
+  BestieChecklist({required this.total, required this.done, required this.status});
+
+  /// Bestie has wrapped up → the man's chat freezes until the woman steps in.
+  bool get wrapped => status == 'wrapped';
+
+  static BestieChecklist? fromApi(dynamic raw) {
+    if (raw is! Map) return null;
+    final items = raw['items'];
+    if (items is! List) return null;
+    final done = items.where((i) => i is Map && i['status'] == 'done').length;
+    final st = raw['status']?.toString() ?? 'active';
+    return BestieChecklist(total: items.length, done: done, status: st);
+  }
+}
+
 class ConversationThread {
   final String? otherId;
   final String otherName;
@@ -1795,8 +1818,9 @@ class ConversationThread {
   final String? otherGender;
   final bool aiBestieActive;
   final ProofRequest? proofRequest;
+  final BestieChecklist? bestieChecklist;
   final List<ChatMessage> messages;
-  ConversationThread({required this.otherId, required this.otherName, required this.otherAvatar, required this.otherGender, required this.aiBestieActive, this.proofRequest, required this.messages});
+  ConversationThread({required this.otherId, required this.otherName, required this.otherAvatar, required this.otherGender, required this.aiBestieActive, this.proofRequest, this.bestieChecklist, required this.messages});
 }
 
 Future<ConversationThread> fetchConversation(String conversationId) async {
@@ -1815,6 +1839,7 @@ Future<ConversationThread> fetchConversation(String conversationId) async {
     otherGender: u['gender'] as String?,
     aiBestieActive: data['aiBestieActive'] != false, // default true; only false when explicitly off
     proofRequest: ProofRequest.fromApi(data['proofRequest']),
+    bestieChecklist: BestieChecklist.fromApi(data['bestieChecklist']),
     messages: msgs.whereType<Map>().map(ChatMessage.fromApi).toList(),
   );
 }
@@ -2095,12 +2120,35 @@ Future<void> markConversationRead(String matchId) async {
   );
 }
 
+/// Thrown when the man tries to send while Bestie has WRAPPED UP her checklist and
+/// is on hold for the woman to step in (send route returns 409 awaiting_handoff,
+/// spec §F/§K Option A). The conversation screen catches this to show the frozen
+/// state instead of a generic send error.
+class AwaitingHandoffException implements Exception {
+  final String message;
+  AwaitingHandoffException(this.message);
+  @override
+  String toString() => message;
+}
+
 Future<ChatMessage?> sendMessage(String conversationId, String content) async {
-  final resp = await _dio.post(
-    '${Config.apiBase}/api/verified-vibe/chat/send',
-    data: {'conversationId': conversationId, 'content': content},
-    options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
-  );
+  final Response resp;
+  try {
+    resp = await _dio.post(
+      '${Config.apiBase}/api/verified-vibe/chat/send',
+      data: {'conversationId': conversationId, 'content': content},
+      options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
+    );
+  } on DioException catch (e) {
+    final data = e.response?.data;
+    if (e.response?.statusCode == 409 && data is Map && data['error'] == 'awaiting_handoff') {
+      throw AwaitingHandoffException(
+        data['message']?.toString() ??
+            "Her AI Bestie has everything it needs and has asked her to jump in. Hang tight — she'll take it from here.",
+      );
+    }
+    rethrow;
+  }
   final body = resp.data is Map ? resp.data as Map : const {};
   final data = body['data'] is Map ? body['data'] as Map : const {};
   final m = data['message'] as Map?;

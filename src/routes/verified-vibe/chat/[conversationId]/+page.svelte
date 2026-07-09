@@ -196,6 +196,32 @@
     currentUserGender === 'man' && $currentMatch?.gender === 'woman'
   );
 
+  // ── AI Bestie CHECKLIST (spec §D/§F) ───────────────────────────────────────
+  // Drives the man's "she joins in" progress (per-man item count, NOT a fixed 5)
+  // and the wrap-up hand-off (Option A: his chat freezes until she replies).
+  interface ChecklistItem { id: string; label: string; status: 'open' | 'done'; done_at?: string | null }
+  interface BestieChecklist { items: ChecklistItem[]; status: 'active' | 'wrapped'; created_at: string; wrapped_at?: string | null }
+  let bestieChecklist = $state<BestieChecklist | null>(null);
+  // Set when the server rejects a send with 409 awaiting_handoff — a local freeze
+  // fallback in case the poll hasn't yet surfaced the wrapped checklist.
+  let awaitingHandoff = $state(false);
+  // The woman dismisses the "step in" popup for this open; it re-shows on reopen.
+  let handoffPopupDismissed = $state(false);
+
+  const checklistTotal = $derived(bestieChecklist?.items?.length ?? 0);
+  const checklistDone = $derived(bestieChecklist?.items?.filter((i) => i.status === 'done').length ?? 0);
+  const checklistWrapped = $derived(bestieChecklist?.status === 'wrapped');
+
+  // The MAN's chat is frozen once Bestie wrapped up and is on hold for the woman.
+  const bestieFrozen = $derived(
+    (currentUserGender === 'man' && $currentMatch?.gender === 'woman' && aiBestieActive && checklistWrapped) ||
+    awaitingHandoff
+  );
+  // The WOMAN sees a "your turn to step in" popup when Bestie has wrapped up.
+  const showHandoffPopup = $derived(
+    currentUserGender === 'woman' && $currentMatch?.gender === 'man' && aiBestieActive && checklistWrapped && !handoffPopupDismissed
+  );
+
   function openAttachPanel() {
     fileInputEl?.click();
   }
@@ -312,6 +338,7 @@
 
       aiBestieActive = bestieActive ?? true;
       proofRequest = data.data.proofRequest ?? null;
+      bestieChecklist = data.data.bestieChecklist ?? null;
 
       // If bestie is active in the DB, restore activeAssistant.
       // Only for female users — male users never run Bestie on their side.
@@ -796,7 +823,20 @@
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
+        // Wrap-up freeze (Option A): Bestie has handed off and is on hold for the
+        // woman. Flip to the frozen banner instead of a generic error, and drop the
+        // optimistic bubble — his message never sent.
+        if (response.status === 409 && errorData.error === 'awaiting_handoff') {
+          awaitingHandoff = true;
+          bestieTyping = false;
+          if (optimisticMessageId) {
+            messages.update((msgs) => msgs.filter((m) => m.id !== optimisticMessageId));
+            optimisticMessageId = null;
+          }
+          endSend({ ok: false });
+          return;
+        }
         throw new Error(errorData.error || 'Failed to send message');
       }
 
@@ -1047,6 +1087,9 @@
         // appears the moment her Bestie invites a proof (and disappears on
         // refusal/fulfilment) without a page refresh.
         if (data.proofRequest !== undefined) proofRequest = data.proofRequest ?? null;
+        // Keep the checklist live so the man's counter fills and his chat freezes
+        // the moment Bestie wraps up (and the woman's step-in popup appears).
+        if (data.bestieChecklist !== undefined) bestieChecklist = data.bestieChecklist ?? null;
         const fetched: Message[] = (data.messages || []).map((m: any) => ({
           id: m.id,
           matchId: m.matchId || conversationId,
@@ -1500,10 +1543,11 @@
     </div>
   {/if}
 
-  <!-- AI Bestie Intro Card — visible to Adrian (male) only when AI Bestie is active -->
-  {#if aiBestieActive && $currentMatch?.gender === 'woman' && currentUserGender === 'woman'}
-    {@const cleared = Math.min($messages.filter(m => m.senderId === $user?.id).length, 5)}
-    {@const total = 5}
+  <!-- AI Bestie Intro Card — visible to the male match only, while AI Bestie is active.
+       The progress ("she joins in") is driven by Bestie's per-man CHECKLIST, not a
+       fixed message count: the denominator is how many items she chose for THIS man,
+       and it fills as she checks them off. On wrap-up it becomes the hand-off state. -->
+  {#if aiBestieActive && $currentMatch?.gender === 'woman' && currentUserGender === 'man'}
     <div class="bestie-intro-card" transition:slide={{ duration: 300, axis: 'y' }}>
       <div class="bestie-intro-header">
         <div class="bestie-intro-icon">✨</div>
@@ -1518,19 +1562,42 @@
         or summarised by AI Bestie. Bring your best.
       </p>
       <div class="bestie-intro-divider"></div>
-      <div class="bestie-intro-progress-section">
-        <div class="bestie-intro-progress-header">
-          <span class="bestie-intro-joins"><strong>{$currentMatch.firstName}</strong> joins in</span>
-          <span class="bestie-intro-cleared">{cleared}/{total} cleared</span>
-        </div>
-        <div class="bestie-intro-progress-bar">
-          <div class="bestie-intro-progress-star">★</div>
-          <div class="bestie-intro-bar-track">
-            <div class="bestie-intro-bar-fill" style="width: {(cleared / total) * 100}%"></div>
+      {#if checklistWrapped}
+        <!-- Wrap-up: Bestie has everything she needs and has asked the woman to step in. -->
+        <div class="bestie-intro-progress-section">
+          <div class="bestie-intro-progress-header">
+            <span class="bestie-intro-joins"><strong>{$currentMatch.firstName}</strong> is stepping in</span>
+            <span class="bestie-intro-cleared">done ✓</span>
           </div>
+          <div class="bestie-intro-progress-bar">
+            <div class="bestie-intro-progress-star">★</div>
+            <div class="bestie-intro-bar-track">
+              <div class="bestie-intro-bar-fill" style="width: 100%"></div>
+            </div>
+          </div>
+          <p class="bestie-intro-drop-in">AI Bestie has everything it needs — {$currentMatch.firstName} has been asked to jump in.</p>
         </div>
-        <p class="bestie-intro-drop-in">She can also drop in herself, any time.</p>
-      </div>
+      {:else if checklistTotal > 0}
+        <!-- Active checklist: per-man progress. -->
+        <div class="bestie-intro-progress-section">
+          <div class="bestie-intro-progress-header">
+            <span class="bestie-intro-joins"><strong>{$currentMatch.firstName}</strong> joins in</span>
+            <span class="bestie-intro-cleared">{checklistDone}/{checklistTotal} cleared</span>
+          </div>
+          <div class="bestie-intro-progress-bar">
+            <div class="bestie-intro-progress-star">★</div>
+            <div class="bestie-intro-bar-track">
+              <div class="bestie-intro-bar-fill" style="width: {(checklistDone / checklistTotal) * 100}%"></div>
+            </div>
+          </div>
+          <p class="bestie-intro-drop-in">She can also drop in herself, any time.</p>
+        </div>
+      {:else}
+        <!-- Checklist not computed yet (very first moments of the thread). -->
+        <div class="bestie-intro-progress-section">
+          <p class="bestie-intro-drop-in">AI Bestie is getting to know you. She can also drop in herself, any time.</p>
+        </div>
+      {/if}
       <div class="bestie-intro-divider"></div>
       <p class="bestie-intro-footer">
         Not a fit? AI Bestie will let {$currentMatch.firstName} know kindly.
@@ -1702,19 +1769,31 @@
         </p>
       </div>
     {/if}
-    <!-- Voice call: the male match can request a live call with her AI bestie -->
-    {#if currentUserGender === 'man' && $currentMatch?.gender === 'woman'}
+    <!-- Voice call: the male match can request a live call with her AI bestie.
+         Hidden once Bestie has wrapped up (he's on hold for the woman to step in). -->
+    {#if currentUserGender === 'man' && $currentMatch?.gender === 'woman' && !bestieFrozen}
       <VoiceCall conversationId={conversationId} ownerName={$currentMatch?.firstName ?? 'her'} />
+    {/if}
+
+    <!-- Wrap-up freeze (Option A): Bestie handed off; the man waits for the woman. -->
+    {#if bestieFrozen}
+      <div class="handoff-frozen-banner" transition:slide={{ duration: 250, axis: 'y' }}>
+        <span class="handoff-frozen-icon">✨</span>
+        <p class="handoff-frozen-text">
+          AI Bestie has everything it needs and asked <strong>{$currentMatch?.firstName ?? 'her'}</strong>
+          to jump in. Hang tight — she'll take it from here.
+        </p>
+      </div>
     {/if}
 
     <div class="input-wrapper">
       <textarea
         class="message-input"
-        placeholder="Type a message..."
+        placeholder={bestieFrozen ? 'Waiting for her to jump in…' : 'Type a message...'}
         bind:value={messageInput}
         oninput={handleInputChange}
         onkeypress={handleKeyPress}
-        disabled={isSending || isLoading}
+        disabled={isSending || isLoading || bestieFrozen}
         aria-label="Message input"
         rows="1"
       ></textarea>
@@ -1722,7 +1801,7 @@
       <!-- Voice dictation — available for both Neha and Adrian -->
       <VoiceDictation
         onUse={(text) => { messageInput = text; }}
-        disabled={isSending || isLoading}
+        disabled={isSending || isLoading || bestieFrozen}
       />
 
       <!-- Image / document upload (PDC-50). For the man in a female chat this is
@@ -1741,7 +1820,7 @@
         class:attach-btn-proof={isProofUploader && proofRequestActive}
         type="button"
         onclick={openAttachPanel}
-        disabled={isSending || isLoading || uploadingImage}
+        disabled={isSending || isLoading || uploadingImage || bestieFrozen}
         title={isProofUploader && proofRequestActive ? 'Upload the proof her Bestie asked for' : 'Upload image or document'}
         aria-label="Attach image"
       >
@@ -1789,7 +1868,7 @@
       <button
         class="send-btn"
         onclick={handleSendMessage}
-        disabled={!messageInput.trim() || isSending || isLoading}
+        disabled={!messageInput.trim() || isSending || isLoading || bestieFrozen}
         aria-label="Send message"
         title={isSending ? 'Sending...' : 'Send message (Enter)'}
       >
@@ -1808,6 +1887,28 @@
     </div>
   </div>
 </div>
+
+<!-- Hand-off popup (woman): AI Bestie has wrapped up and is asking her to step in.
+     Shown on open (or as soon as the poll surfaces the wrapped plan). Dismissing it
+     just closes the popup — she then replies in the thread to take over. -->
+{#if showHandoffPopup}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="modal-backdrop" onclick={() => handoffPopupDismissed = true} transition:fade={{ duration: 150 }}>
+    <div class="modal-card" onclick={(e) => e.stopPropagation()}>
+      <div class="handoff-popup-icon">✨</div>
+      <h3 class="modal-title">Your turn to step in</h3>
+      <p class="modal-text">
+        AI Bestie got to know <strong>{$currentMatch?.firstName ?? 'your match'}</strong> for you and has everything it needs.
+        He's waiting on you now — send a message to take it from here.
+      </p>
+      <div class="modal-actions">
+        <button class="modal-btn modal-btn--primary" onclick={() => handoffPopupDismissed = true}>
+          Reply now
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <!-- Unmatch confirmation modal -->
 {#if showUnmatchConfirm}
@@ -3095,5 +3196,55 @@
 
   .modal-btn--danger:hover:not(:disabled) {
     background: #dc2626;
+  }
+
+  .modal-btn--primary {
+    background: linear-gradient(135deg, #a855f7, #7c3aed);
+    color: white;
+  }
+
+  .modal-btn--primary:hover:not(:disabled) {
+    filter: brightness(1.05);
+  }
+
+  /* Wrap-up hand-off (Option A): the man's frozen-composer banner. */
+  .handoff-frozen-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+  }
+
+  .handoff-frozen-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .handoff-frozen-text {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-1);
+  }
+
+  .handoff-frozen-text strong {
+    color: #c084fc;
+  }
+
+  /* Wrap-up hand-off popup (woman): the "your turn to step in" sparkle. */
+  .handoff-popup-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #a855f7, #7c3aed);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    margin: 0 auto 14px;
   }
 </style>

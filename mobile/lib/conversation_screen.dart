@@ -50,6 +50,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
   ProofRequest? _proofRequest;         // Bestie's open in-chat proof ask (man's side)
   bool _proofUploading = false;        // verification in progress
   bool _bestieCardCollapsed = false;
+  BestieChecklist? _checklist;         // Bestie's per-man checklist (drives progress + freeze)
+  bool _awaitingHandoff = false;       // local freeze fallback after a 409 send rejection
+  bool _handoffPromptShown = false;    // woman: guard so the step-in dialog shows once per open
 
   @override
   void initState() {
@@ -123,6 +126,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       _otherGender = thread.otherGender;
       _bestieActive = thread.aiBestieActive;
       _proofRequest = thread.proofRequest;
+      _checklist = thread.bestieChecklist;
       _merge(thread.messages, scroll: true);
       // Re-check presence now that _otherId is known — fixes race condition
       // where onPresenceSync fired before _initialLoad completed (Android).
@@ -148,6 +152,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
         AppLogger.instance.error('load_user_profile failed', screen: 'conversation', action: 'load_user_profile');
       }
       if (mounted) setState(() => _loading = false);
+      _maybeShowHandoffPrompt();
       markConversationRead(widget.conversationId).catchError((_) {});
     } catch (e) {
       AppLogger.instance.error(e, screen: 'conversation', action: 'initial_load');
@@ -169,7 +174,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
       final proofChanged = !_proofUploading &&
           (thread.proofRequest?.status != _proofRequest?.status ||
            thread.proofRequest?.category != _proofRequest?.category);
-      if (mounted && (thread.aiBestieActive != _bestieActive || proofChanged)) {
+      // Keep the checklist live so the man's counter fills + his chat freezes the
+      // moment Bestie wraps up (and the woman's step-in prompt appears).
+      final checklistChanged = thread.bestieChecklist?.status != _checklist?.status ||
+          thread.bestieChecklist?.done != _checklist?.done ||
+          thread.bestieChecklist?.total != _checklist?.total;
+      if (mounted && (thread.aiBestieActive != _bestieActive || proofChanged || checklistChanged)) {
         setState(() {
           if (thread.aiBestieActive != _bestieActive) {
             _bestieActive = thread.aiBestieActive;
@@ -177,8 +187,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
             _manBannerDismissed = false;
           }
           if (proofChanged) _proofRequest = thread.proofRequest;
+          if (checklistChanged) _checklist = thread.bestieChecklist;
         });
       }
+      _maybeShowHandoffPrompt();
     } catch (_) {
       AppLogger.instance.error('load_thread_state failed', screen: 'conversation', action: 'load_thread_state');
       /* transient */
@@ -238,6 +250,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
       if (_viewerGender == 'woman' && _bestieActive && mounted) {
         setState(() => _bestieActive = false);
       }
+    } on AwaitingHandoffException catch (e) {
+      // Wrap-up freeze (Option A): Bestie handed off and is on hold for the woman.
+      // Flip to the frozen composer instead of a generic error. His text never sent.
+      if (mounted) {
+        setState(() => _awaitingHandoff = true);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
     } catch (e) {
       AppLogger.instance.error(e, screen: 'conversation', action: 'send_message');
       if (mounted) {
@@ -253,6 +272,63 @@ class _ConversationScreenState extends State<ConversationScreen> {
         await _pollOnce();
       }
     });
+  }
+
+  /// When Bestie has WRAPPED UP and the viewer is the woman, surface a one-time
+  /// dialog asking her to step in (mirrors the web hand-off popup). The push
+  /// notification brings her here; this is what she sees on open.
+  void _maybeShowHandoffPrompt() {
+    if (!mounted || _handoffPromptShown || !_womanShouldStepIn) return;
+    _handoffPromptShown = true;
+    final name = _otherName.isNotEmpty ? _otherName : widget.title;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(Config.bg2),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Your turn to step in',
+              style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700)),
+          content: Text(
+            "AI Bestie got to know $name for you and has everything it needs. He's waiting on you now — send a message to take it from here.",
+            style: const TextStyle(color: Color(Config.text2), height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Reply now',
+                  style: TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  /// Replaces the man's composer once Bestie has wrapped up (Option A freeze): he
+  /// can't send until the woman steps in. Her reply lifts this (Bestie deactivates).
+  Widget _frozenComposer() {
+    final name = _otherName.isNotEmpty ? _otherName : widget.title;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      child: Row(children: [
+        const Text('✨', style: TextStyle(fontSize: 16)),
+        const SizedBox(width: 10),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              style: const TextStyle(color: Color(Config.text2), fontSize: 12.5, height: 1.4),
+              children: [
+                const TextSpan(text: 'AI Bestie has everything it needs and asked '),
+                TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
+                const TextSpan(text: " to jump in. Hang tight — she'll take it from here."),
+              ],
+            ),
+          ),
+        ),
+      ]),
+    );
   }
 
   Future<void> _resumeBestie() async {
@@ -275,12 +351,22 @@ class _ConversationScreenState extends State<ConversationScreen> {
   bool get _bestieIsProxy =>
       _viewerGender == 'man' && _otherGender == 'woman' && _bestieActive;
 
-  /// How many of the man's own replies have landed, capped at the 5 the path
-  /// plan asks for before the woman steps in. Drives the intro card progress.
-  int get _gapsCleared {
-    final mine = _messages.where((m) => m.senderId == _myId).length;
-    return mine > 5 ? 5 : mine;
-  }
+  /// Progress toward the woman stepping in, from Bestie's per-man CHECKLIST (spec
+  /// §D/§F) — NOT a fixed 5. `_itemsDone` is how many items she has checked off,
+  /// `_itemsTotal` is how many she chose for THIS man. Both 0 until the checklist
+  /// has been generated (the very first moments of the thread).
+  int get _itemsDone => _checklist?.done ?? 0;
+  int get _itemsTotal => _checklist?.total ?? 0;
+
+  /// The MAN's chat is frozen once Bestie has wrapped up her checklist and is on
+  /// hold for the woman to step in (spec §F/§K, Option A). `_awaitingHandoff` is a
+  /// local fallback set when the send route rejects a send with 409.
+  bool get _manFrozen => _bestieIsProxy && ((_checklist?.wrapped ?? false) || _awaitingHandoff);
+
+  /// True when the viewer is the WOMAN (owner) and Bestie has wrapped up, so she
+  /// should be prompted to step in.
+  bool get _womanShouldStepIn =>
+      _viewerGender == 'woman' && _otherGender == 'man' && _bestieActive && (_checklist?.wrapped ?? false);
 
   /// First-class transparency + path-plan card shown to the MALE match while
   /// the woman's AI Bestie is the proxy speaker. Ports the web `bestie-intro-card`
@@ -289,8 +375,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
   /// sparse threads otherwise leave blank.
   Widget _bestieIntroCard() {
     final name = _otherName.isNotEmpty ? _otherName : widget.title;
-    final cleared = _gapsCleared;
-    const total = 5;
+    final done = _itemsDone;
+    final total = _itemsTotal;
+    final wrapped = _checklist?.wrapped ?? false;
+    final hasChecklist = total > 0;
+    final progress = hasChecklist ? done / total : 0.0;
+    // Collapsed pill / header label reflects the checklist state.
+    final progressLabel = wrapped ? 'done ✓' : (hasChecklist ? '$done/$total cleared' : '…');
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 2),
       padding: const EdgeInsets.all(14),
@@ -326,7 +417,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
               ]),
             ),
             if (_bestieCardCollapsed)
-              Text('$cleared/$total cleared',
+              Text(progressLabel,
                   style: const TextStyle(color: Color(Config.accent), fontSize: 11, fontWeight: FontWeight.w700)),
             const SizedBox(width: 6),
             Icon(
@@ -350,47 +441,55 @@ class _ConversationScreenState extends State<ConversationScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          Row(children: [
-            Expanded(
-              child: RichText(
-                text: TextSpan(
-                  style: const TextStyle(color: Color(Config.text2), fontSize: 12, fontWeight: FontWeight.w600),
-                  children: [
-                    TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
-                    const TextSpan(text: ' joins in'),
-                  ],
+          if (hasChecklist || wrapped) ...[
+            Row(children: [
+              Expanded(
+                child: RichText(
+                  text: TextSpan(
+                    style: const TextStyle(color: Color(Config.text2), fontSize: 12, fontWeight: FontWeight.w600),
+                    children: [
+                      TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
+                      TextSpan(text: wrapped ? ' is stepping in' : ' joins in'),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            Text('$cleared/$total cleared',
-                style: const TextStyle(color: Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w700)),
-          ]),
-          const SizedBox(height: 7),
-          Row(children: [
-            const Text('★', style: TextStyle(color: Color(Config.accent), fontSize: 13)),
-            const SizedBox(width: 6),
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: Container(
-                  height: 7,
-                  color: const Color(0x14FF3B6B),
-                  child: FractionallySizedBox(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: cleared / total,
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)]),
+              Text(progressLabel,
+                  style: const TextStyle(color: Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w700)),
+            ]),
+            const SizedBox(height: 7),
+            Row(children: [
+              const Text('★', style: TextStyle(color: Color(Config.accent), fontSize: 13)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: Container(
+                    height: 7,
+                    color: const Color(0x14FF3B6B),
+                    child: FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: wrapped ? 1.0 : progress,
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)]),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ]),
-          const SizedBox(height: 9),
-          const Text('She can also drop in herself, any time.',
-              style: TextStyle(color: Color(Config.text3), fontSize: 11.5, fontStyle: FontStyle.italic)),
+            ]),
+            const SizedBox(height: 9),
+          ],
+          Text(
+            wrapped
+                ? 'AI Bestie has everything it needs — $name has been asked to jump in.'
+                : (hasChecklist
+                    ? 'She can also drop in herself, any time.'
+                    : 'AI Bestie is getting to know you. She can also drop in herself, any time.'),
+            style: const TextStyle(color: Color(Config.text3), fontSize: 11.5, fontStyle: FontStyle.italic),
+          ),
         ],
       ]),
     );
@@ -850,7 +949,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                             },
                           ),
           ),
-          if (!_loading && _viewerGender == 'man' && _otherGender == 'woman' && _bestieActive && !_manBannerDismissed)
+          if (!_loading && _viewerGender == 'man' && _otherGender == 'woman' && _bestieActive && !_manBannerDismissed && !_manFrozen)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
               child: Row(children: [
@@ -892,19 +991,22 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 ),
               ]),
             ),
-          _Composer(
-            controller: _composer,
-            sending: _sending,
-            onSend: _send,
-            conversationId: widget.conversationId,
-            viewerGender: _viewerGender,
-            otherGender: _otherGender,
-            otherName: _otherName,
-            onImagePicked: _sendImageMessage,
-            proofRequest: _proofRequest,
-            proofUploading: _proofUploading,
-            onUploadProof: _uploadRequestedProof,
-          ),
+          if (_manFrozen)
+            _frozenComposer()
+          else
+            _Composer(
+              controller: _composer,
+              sending: _sending,
+              onSend: _send,
+              conversationId: widget.conversationId,
+              viewerGender: _viewerGender,
+              otherGender: _otherGender,
+              otherName: _otherName,
+              onImagePicked: _sendImageMessage,
+              proofRequest: _proofRequest,
+              proofUploading: _proofUploading,
+              onUploadProof: _uploadRequestedProof,
+            ),
         ],
       ),
     ),
