@@ -63,23 +63,36 @@ export const POST: RequestHandler = async ({ request }) => {
         const admirer   = attnMsg.sender_id;    // Neha — sent the admirer msg
         const recipient = attnMsg.recipient_id; // Ryan  — just replied
 
-        // Check for an existing match between these two users
+        // Check for an existing match between these two users (any status — soft-
+        // deleted rows survive for analytics, so there may be a terminal one).
         const { data: existingMatch } = await supabase
           .from('verified_vibe_matches')
-          .select('id')
+          .select('id, status')
           .or(
             `and(user1_id.eq.${admirer},user2_id.eq.${recipient}),` +
             `and(user1_id.eq.${recipient},user2_id.eq.${admirer})`
           )
           .maybeSingle();
 
-        if (existingMatch) {
+        if (existingMatch && (existingMatch as any).status === 'blocked') {
+          // Blocked pair — never auto-reconnect (block clears only on unblock).
+          autoMatchId = null;
+        } else if (existingMatch) {
           autoMatchId = existingMatch.id;
+          // Reconnecting after an unmatch: revive the SAME row (one row per pair, so
+          // we never create a duplicate that breaks pair lookups) with fresh Bestie
+          // state. An already-mutual match is just reused as-is.
+          if ((existingMatch as any).status === 'unmatched') {
+            await supabase
+              .from('verified_vibe_matches')
+              .update({ status: 'mutual', ai_bestie_active: true, bestie_checklist: null } as any)
+              .eq('id', existingMatch.id);
+          }
         } else {
           // Create a mutual match
           const { data: newMatch, error: matchErr } = await supabase
             .from('verified_vibe_matches')
-            .insert({ user1_id: admirer, user2_id: recipient, status: 'mutual' })
+            .insert({ user1_id: admirer, user2_id: recipient, status: 'mutual', source: 'notice_me' })
             .select('id')
             .single();
 

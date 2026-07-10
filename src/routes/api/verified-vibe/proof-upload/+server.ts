@@ -481,11 +481,13 @@ async function updateMatchProofRequest(
     const db = getSupabase() as any;
     const { data: match } = await db
       .from('verified_vibe_matches')
-      .select('user1_id, user2_id, proof_request')
+      .select('user1_id, user2_id, proof_request, status')
       .eq('id', matchId)
       .maybeSingle();
     if (!match) return null;
     if (match.user1_id !== userId && match.user2_id !== userId) return null;
+    // No proof collection on an ended (unmatched/blocked) match.
+    if (match.status === 'unmatched' || match.status === 'blocked') return null;
 
     const state = match.proof_request as {
       category?: string; status?: string; attempts?: number;

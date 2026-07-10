@@ -71,10 +71,13 @@ export const POST: RequestHandler = async ({ request }) => {
       return json({ error: 'Unauthorized — not part of this match' }, { status: 403 });
     }
 
-    // Delete the match
+    // Soft-delete the match: mark it 'unmatched' rather than deleting the row, so
+    // the match + its message history are preserved for analytics. Reads that list
+    // active matches filter status='mutual', so this hides it from both users. The
+    // pair CAN resurface in Discover again (unmatched, not blocked).
     await db
       .from('verified_vibe_matches')
-      .delete()
+      .update({ status: 'unmatched' })
       .eq('id', matchId);
 
     // Record outcome signal for Matchmaker feedback loop (fire-and-forget)

@@ -66,7 +66,7 @@ export async function engageBestieForAttention(messageId: string): Promise<Engag
     // Create a mutual match with Bestie active — Bestie engaging IS the match.
     const { data: newMatch, error: matchErr } = await supabase
       .from('verified_vibe_matches')
-      .insert({ user1_id: admirer, user2_id: recipient, status: 'mutual', ai_bestie_active: true })
+      .insert({ user1_id: admirer, user2_id: recipient, status: 'mutual', source: 'notice_me', ai_bestie_active: true })
       .select('id')
       .single();
 

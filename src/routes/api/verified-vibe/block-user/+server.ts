@@ -98,10 +98,14 @@ export const POST: RequestHandler = async ({ request }) => {
     }
 
     if (resolvedMatchId) {
-      // Delete the match
+      // Soft-delete the match: mark it 'blocked' rather than deleting the row, so
+      // the match + message history survive for analytics. The block itself is
+      // enforced by the verified_vibe_passes rows written above (that's what keeps
+      // the user hidden from Discover until they're unblocked); this status is the
+      // terminal marker. Reads that list active matches filter status='mutual'.
       await db
         .from('verified_vibe_matches')
-        .delete()
+        .update({ status: 'blocked' })
         .eq('id', resolvedMatchId);
 
       // Record outcome signal for Matchmaker feedback loop (fire-and-forget)

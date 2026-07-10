@@ -64,7 +64,7 @@ export const DELETE: RequestHandler = async ({ params, request }) => {
     // Verify that the current user is part of this match
     const { data: match, error: matchError } = await (supabase as any)
       .from('verified_vibe_matches')
-      .select('user1_id, user2_id')
+      .select('user1_id, user2_id, status')
       .eq('id', conversationId)
       .maybeSingle();
 
@@ -89,6 +89,15 @@ export const DELETE: RequestHandler = async ({ params, request }) => {
       return json(
         { error: 'You are not part of this conversation' },
         { status: 403 }
+      );
+    }
+
+    // Never clear an ended (unmatched/blocked) match — its messages are retained
+    // for analytics and it's no longer a live conversation.
+    if (match.status === 'unmatched' || match.status === 'blocked') {
+      return json(
+        { error: 'Conversation not found' },
+        { status: 404 }
       );
     }
 
