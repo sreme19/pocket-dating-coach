@@ -92,7 +92,7 @@ export const POST: RequestHandler = async ({ request }) => {
           // Create a mutual match
           const { data: newMatch, error: matchErr } = await supabase
             .from('verified_vibe_matches')
-            .insert({ user1_id: admirer, user2_id: recipient, status: 'mutual' })
+            .insert({ user1_id: admirer, user2_id: recipient, status: 'mutual', source: 'notice_me' })
             .select('id')
             .single();
 

@@ -82,6 +82,7 @@ export type Database = {
 					user1_id: string;
 					user2_id: string;
 					status: 'pending' | 'mutual' | 'rejected' | 'unmatched' | 'blocked';
+					source: string | null;
 					ai_bestie_active: boolean;
 					user1_last_read_at: string | null;
 					user2_last_read_at: string | null;
@@ -92,6 +93,7 @@ export type Database = {
 					user1_id: string;
 					user2_id: string;
 					status?: 'pending' | 'mutual' | 'rejected' | 'unmatched' | 'blocked';
+					source?: string | null;
 					ai_bestie_active?: boolean;
 					user1_last_read_at?: string | null;
 					user2_last_read_at?: string | null;

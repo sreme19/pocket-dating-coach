@@ -146,7 +146,7 @@ export async function runVectorMatchmaker(opts: { dryRun?: boolean; caps?: Match
 		if (sample.length < 25) sample.push({ manId: a.manId, womanId: a.womanId, value: a.value, phase: a.phase, isNew });
 		if (isNew && !dryRun) {
 			const { data: created, error } = await db.from('verified_vibe_matches').insert({
-				user1_id: a.manId, user2_id: a.womanId, status: 'mutual', ai_bestie_active: true,
+				user1_id: a.manId, user2_id: a.womanId, status: 'mutual', source: 'matchmaker', ai_bestie_active: true,
 			}).select('id').single();
 			if (!error) {
 				fired++;
