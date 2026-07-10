@@ -34,7 +34,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		// Verify the requesting user is part of this match
 		const { data: match, error: matchError } = await supabase
 			.from('verified_vibe_matches')
-			.select('user1_id, user2_id')
+			.select('user1_id, user2_id, status')
 			.eq('id', conversationId)
 			.single();
 
@@ -44,6 +44,11 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		if (match.user1_id !== user.id && match.user2_id !== user.id) {
 			return json({ error: 'Unauthorized' }, { status: 401 });
+		}
+
+		// Don't reactivate Bestie on an ended (unmatched/blocked) match.
+		if ((match as any).status === 'unmatched' || (match as any).status === 'blocked') {
+			return json({ error: 'Conversation not found' }, { status: 404 });
 		}
 
 		const { error: updateError } = await supabase

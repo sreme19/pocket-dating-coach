@@ -22,7 +22,7 @@ export type Archetype =
   | 'just_friends_woman';
 export type VerificationStep = 'id' | 'liveness' | 'photos' | 'spending_or_qa';
 export type VerificationStatus = 'pending' | 'completed' | 'failed';
-export type MatchStatus = 'pending' | 'mutual' | 'rejected';
+export type MatchStatus = 'pending' | 'mutual' | 'rejected' | 'unmatched' | 'blocked';
 export type Phase = 'gate' | 'home' | 'verify' | 'verification' | 'app';
 export type Tab = 'discover' | 'trust' | 'chat' | 'profile';
 

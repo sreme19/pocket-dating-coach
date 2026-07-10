@@ -39,6 +39,10 @@ export const POST: RequestHandler = async ({ request }) => {
 		if (match.user1_id !== caller.id && match.user2_id !== caller.id) {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
+		// No voice calls on an ended (unmatched/blocked) match.
+		if (match.status === 'unmatched' || match.status === 'blocked') {
+			return json({ error: 'Conversation not found' }, { status: 404 });
+		}
 
 		const ownerId = match.user1_id === caller.id ? match.user2_id : match.user1_id;
 

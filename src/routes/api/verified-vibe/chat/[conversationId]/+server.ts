@@ -106,6 +106,12 @@ export const GET: RequestHandler = async ({ params, request }) => {
       );
     }
 
+    // An ended (unmatched/blocked) match is no longer a live conversation. The row
+    // is kept for analytics, but neither user should be able to open it.
+    if ((match as any).status === 'unmatched' || (match as any).status === 'blocked') {
+      return json({ error: 'Conversation not found' }, { status: 404 });
+    }
+
     // Determine the other user ID
     const otherUserId = match.user1_id === user.id ? match.user2_id : match.user1_id;
 

@@ -200,6 +200,15 @@ export const POST: RequestHandler = async ({ request }) => {
       );
     }
 
+    // Reject sends to an ended (soft-deleted) match. The row survives for analytics
+    // once unmatched/blocked, but it's no longer a live conversation.
+    if ((match as any).status === 'unmatched' || (match as any).status === 'blocked') {
+      return json(
+        { error: 'match_ended', message: 'This conversation is no longer available.' },
+        { status: 404 }
+      );
+    }
+
     // Wrap-up freeze (spec §F/§K, Option A): once Bestie has WRAPPED UP her
     // checklist she is on hold for the woman to step in. The MAN's chat is frozen
     // until she replies; the woman (owner) is never frozen — her reply is how she
