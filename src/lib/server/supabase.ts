@@ -84,6 +84,8 @@ export type Database = {
 					status: 'pending' | 'mutual' | 'rejected' | 'unmatched' | 'blocked';
 					source: string | null;
 					ai_bestie_active: boolean;
+					proof_request: Record<string, unknown> | null;
+					bestie_checklist: Record<string, unknown> | null;
 					user1_last_read_at: string | null;
 					user2_last_read_at: string | null;
 					created_at: string;
@@ -95,6 +97,8 @@ export type Database = {
 					status?: 'pending' | 'mutual' | 'rejected' | 'unmatched' | 'blocked';
 					source?: string | null;
 					ai_bestie_active?: boolean;
+					proof_request?: Record<string, unknown> | null;
+					bestie_checklist?: Record<string, unknown> | null;
 					user1_last_read_at?: string | null;
 					user2_last_read_at?: string | null;
 					created_at?: string;

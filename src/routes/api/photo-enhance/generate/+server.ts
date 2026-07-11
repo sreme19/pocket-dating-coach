@@ -98,30 +98,42 @@ export const POST: RequestHandler = async ({ request }) => {
     return json(generateMockPhotos(count ?? 3));
   }
 
-  // Face pre-flight: the image models hallucinate a random person when no
-  // reference has a face, so refuse to generate unless at least ONE reference
-  // photo contains an identifiable human face. Fail-open on Claude API errors
-  // (a broken face check must not block generation entirely).
+  // Face pre-flight: the image models hallucinate a random person (or an
+  // animal-humanoid) from a reference that has no face, so DROP any faceless
+  // reference and generate only from the ones that show the user's face. If none
+  // of the references has a face, refuse to generate. Fail-open on Claude API
+  // errors (a broken face check must not block generation entirely).
+  let genRefs = refs;
   try {
-    const images = refs
-      .map((r) => /^data:([^;]+);base64,(.+)$/.exec(r))
-      .filter((m): m is RegExpExecArray => m !== null)
-      .map((m) => ({ mime: m[1], data: m[2] }));
-    const { faceFound } = await detectFaceInPhotosWithClaude(images);
-    if (!faceFound) {
+    // Parse once, keeping each parsed image paired with its source ref so we can
+    // map the per-photo face flags back to the exact references to keep.
+    const parsed = refs
+      .map((ref) => {
+        const m = /^data:([^;]+);base64,(.+)$/.exec(ref);
+        return m ? { ref, mime: m[1], data: m[2] } : null;
+      })
+      .filter((x): x is { ref: string; mime: string; data: string } => x !== null);
+
+    const { faces } = await detectFaceInPhotosWithClaude(
+      parsed.map(({ mime, data }) => ({ mime, data }))
+    );
+    const withFace = parsed.filter((_, i) => faces[i]).map((p) => p.ref);
+
+    if (withFace.length === 0) {
       return json(
         { error: 'no_face', message: 'No face can be identified in your photos.' },
         { status: 422 }
       );
     }
+    genRefs = withFace;
   } catch (e) {
     console.warn('[photo-enhance] face pre-flight failed (fail-open):', e);
   }
 
   const result = await generateProfilePhotos(
     {
-      referenceDataUrl: primaryRef,
-      referenceDataUrls: refs,
+      referenceDataUrl: genRefs[0],
+      referenceDataUrls: genRefs,
       archetype: archetype ?? 'casual_man',
       count: Math.min(count ?? 3, 3),
       rejectedPhotos: rejectedPhotos ?? [],

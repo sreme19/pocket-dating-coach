@@ -32,6 +32,7 @@ class _ChatListScreenState extends State<ChatListScreen>
   final _onlineUsers = <String>{};
   final _clearedConvos = <String>{}; // optimistic read-clear before server confirms
   List<Conversation>? _cachedConversations; // updated in-place on realtime events
+  final Set<String> _shownHandoff = {}; // matches whose "your turn to step in" popup already showed this session
   String get _myId => Supabase.instance.client.auth.currentUser?.id ?? '';
   Timer? _periodicRefresh;
 
@@ -128,6 +129,51 @@ class _ChatListScreenState extends State<ChatListScreen>
         },
       ),
     );
+  }
+
+  /// Hand-off popup (spec §K): when AI Bestie has wrapped up and is waiting for the
+  /// woman to step in, show a matchmaker-style dialog the moment she lands here.
+  /// Two paths: Reply (step into his chat) or Review (open her Bestie advisor with
+  /// a "summarize him" request pre-sent). Shows once per match per session.
+  void _maybeShowHandoff(List<Conversation> convos) {
+    Conversation? pending;
+    for (final c in convos) {
+      if (c.handoffPending && !_shownHandoff.contains(c.id)) { pending = c; break; }
+    }
+    if (pending == null) return;
+    final c = pending;
+    _shownHandoff.add(c.id);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierColor: Colors.black54,
+        builder: (_) => _HandoffDialog(
+          name: c.name,
+          avatarUrl: c.avatar,
+          onReply: () {
+            Navigator.pop(context);
+            Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => ConversationScreen(
+                conversationId: c.id,
+                title: c.age != null ? '${c.name}, ${c.age}' : c.name,
+                onReturn: () { if (mounted) _refresh(); },
+              ),
+            )).then((_) => _refresh());
+          },
+          onReview: () {
+            Navigator.pop(context);
+            Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => AdvisorScreen(
+                wingman: false,
+                initialMessage:
+                    'Can you summarize my conversation with ${c.name} and tell me what I should know about him before I step in?',
+              ),
+            ));
+          },
+        ),
+      );
+    });
   }
 
   @override
@@ -331,6 +377,7 @@ class _ChatListScreenState extends State<ChatListScreen>
         /* non-fatal */
       }
       _cachedConversations = convos;
+      _maybeShowHandoff(convos);
       return _ChatData(gender: gender, conversations: convos, admirers: admirers, sentAdmirers: sentAdmirers, tipSummary: tipSummary);
     } catch (e) {
       AppLogger.instance.error(e, screen: 'chat_list', action: 'load');
@@ -1430,4 +1477,56 @@ class _GhostBtn extends StatelessWidget {
       child: Text(label, style: const TextStyle(color: Color(Config.text2), fontWeight: FontWeight.w500, fontSize: 15)),
     ),
   );
+}
+
+/// AI Bestie hand-off popup — styled like the "It's a Match!" dialog. Reply steps
+/// the woman into his chat; Review opens her Bestie advisor with a summary request.
+class _HandoffDialog extends StatelessWidget {
+  final String name;
+  final String? avatarUrl;
+  final VoidCallback onReply;
+  final VoidCallback onReview;
+  const _HandoffDialog({
+    required this.name,
+    required this.avatarUrl,
+    required this.onReply,
+    required this.onReview,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: const Color(Config.bg2),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('✨', style: TextStyle(fontSize: 40)),
+          const SizedBox(height: 12),
+          const Text('Your turn to step in',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+          const SizedBox(height: 16),
+          _Avatar(url: avatarUrl, name: name),
+          const SizedBox(height: 14),
+          RichText(
+            textAlign: TextAlign.center,
+            text: TextSpan(
+              style: const TextStyle(fontSize: 14, color: Color(Config.text2), height: 1.5),
+              children: [
+                const TextSpan(text: 'AI Bestie got to know '),
+                TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
+                const TextSpan(text: ' for you. Reply to take it from here, or review what she learned first.'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 22),
+          Row(children: [
+            Expanded(child: _GhostBtn(label: 'Review', onTap: onReview)),
+            const SizedBox(width: 10),
+            Expanded(child: _PrimaryBtn(label: 'Reply', onTap: onReply)),
+          ]),
+        ]),
+      ),
+    );
+  }
 }

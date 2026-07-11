@@ -596,7 +596,9 @@ async function notifyWomanToStepIn(
 			title: '✨ Your turn to step in',
 			body: `AI Bestie got to know ${manName} for you. Reply now to take it from here.`,
 			type: 'follow_up_prompt',
-			deepLink: `/verified-vibe/chat/${matchId}`
+			// Land her on the Messages/chat list, where the hand-off popup (with Reply
+			// + Review) fires — not straight into his thread, so she gets the choice.
+			deepLink: `/messages`
 		});
 		await sendNotification(payload);
 	} catch (e) {
