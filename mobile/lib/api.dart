@@ -1685,6 +1685,8 @@ class Conversation {
   final String archetype; // raw code
   final String? gender;
   final int trustScore;
+  /// AI Bestie wrapped up and is waiting for the woman (this viewer) to step in.
+  final bool handoffPending;
 
   Conversation({
     required this.id,
@@ -1700,6 +1702,7 @@ class Conversation {
     required this.archetype,
     required this.gender,
     required this.trustScore,
+    this.handoffPending = false,
   });
 }
 
@@ -1732,6 +1735,7 @@ Future<List<Conversation>> fetchConversations() async {
       archetype: (u['archetype'] ?? '').toString(),
       gender: u['gender'] as String?,
       trustScore: u['trustScore'] is num ? (u['trustScore'] as num).toInt() : 0,
+      handoffPending: c['handoffPending'] == true,
     );
   }).toList();
 }

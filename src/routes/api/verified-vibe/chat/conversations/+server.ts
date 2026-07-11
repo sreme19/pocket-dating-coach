@@ -13,6 +13,8 @@ export interface Conversation {
   unreadCount: number;
   hasMessages: boolean;
   matchedAt: Date;
+  /** True when AI Bestie wrapped up and is waiting for THIS user (the woman) to step in. */
+  handoffPending: boolean;
 }
 
 interface ConversationsResponse {
@@ -42,7 +44,7 @@ export const GET: RequestHandler = async ({ request }) => {
     // 1. Fetch all mutual matches (single query)
     const { data: matches, error: matchesError } = await supabase
       .from('verified_vibe_matches')
-      .select('id, user1_id, user2_id, status, created_at, user1_last_read_at, user2_last_read_at')
+      .select('id, user1_id, user2_id, status, created_at, user1_last_read_at, user2_last_read_at, ai_bestie_active, bestie_checklist')
       .eq('status', 'mutual')
       .or(`user1_id.eq.${userId},user2_id.eq.${userId}`);
 
@@ -111,6 +113,13 @@ export const GET: RequestHandler = async ({ request }) => {
       if (!otherUser) continue;
 
       const lastMsg = lastMessageMap.get(match.id);
+      // Hand-off pending = Bestie wrapped up her checklist and is on hold for the
+      // woman to step in. Only the woman (whose match partner is a man) sees it.
+      const checklist = (match as any).bestie_checklist as { status?: string } | null;
+      const handoffPending =
+        otherUser.gender === 'man' &&
+        (match as any).ai_bestie_active === true &&
+        checklist?.status === 'wrapped';
       conversations.push({
         id: match.id,
         matchId: match.id,
@@ -133,7 +142,8 @@ export const GET: RequestHandler = async ({ request }) => {
         lastMessageTime: lastMsg?.created_at ? new Date(lastMsg.created_at) : new Date(match.created_at),
         unreadCount: unreadMap.get(match.id) ?? 0,
         hasMessages: !!lastMsg,
-        matchedAt: new Date(match.created_at)
+        matchedAt: new Date(match.created_at),
+        handoffPending
       });
     }
 

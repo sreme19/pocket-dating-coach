@@ -81,7 +81,7 @@ class PushService {
 
     // Conversation thread → switch to Chat tab first, then open conversation.
     // Switching tab first ensures the back button returns to Chat (not Discover).
-    final convo = RegExp(r'^/(?:chat|conversations)/([^/?#]+)').firstMatch(link);
+    final convo = RegExp(r'^(?:/verified-vibe)?/(?:chat|conversations)/([^/?#]+)').firstMatch(link);
     if (convo != null) {
       final id = convo.group(1)!;
       onSwitchTab?.call(1); // triggers setState in HomeShell (_index = 1)

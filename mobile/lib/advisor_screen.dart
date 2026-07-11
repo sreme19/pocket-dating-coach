@@ -11,7 +11,10 @@ import 'markdown.dart';
 /// thumbs feedback. Each send posts the running history to the chat endpoint.
 class AdvisorScreen extends StatefulWidget {
   final bool wingman;
-  const AdvisorScreen({super.key, required this.wingman});
+  /// When set, this message is auto-sent once on open (e.g. the hand-off "Review"
+  /// button seeds a "summarize my chat with him" request).
+  final String? initialMessage;
+  const AdvisorScreen({super.key, required this.wingman, this.initialMessage});
 
   @override
   State<AdvisorScreen> createState() => _AdvisorScreenState();
@@ -48,7 +51,10 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
     super.initState();
     AppLogger.instance.screen('advisor');
     AppLogger.instance.action('advisor', 'load_advisor');
-    _loadHistory().then((_) => _loadGreeting());
+    _loadHistory().then((_) => _loadGreeting()).then((_) {
+      final seed = widget.initialMessage?.trim();
+      if (seed != null && seed.isNotEmpty && mounted) _send(text: seed);
+    });
   }
 
   Future<void> _loadHistory() async {

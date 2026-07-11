@@ -52,7 +52,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
   bool _bestieCardCollapsed = false;
   BestieChecklist? _checklist;         // Bestie's per-man checklist (drives progress + freeze)
   bool _awaitingHandoff = false;       // local freeze fallback after a 409 send rejection
-  bool _handoffPromptShown = false;    // woman: guard so the step-in dialog shows once per open
 
   @override
   void initState() {
@@ -152,7 +151,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
         AppLogger.instance.error('load_user_profile failed', screen: 'conversation', action: 'load_user_profile');
       }
       if (mounted) setState(() => _loading = false);
-      _maybeShowHandoffPrompt();
       markConversationRead(widget.conversationId).catchError((_) {});
     } catch (e) {
       AppLogger.instance.error(e, screen: 'conversation', action: 'initial_load');
@@ -190,7 +188,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
           if (checklistChanged) _checklist = thread.bestieChecklist;
         });
       }
-      _maybeShowHandoffPrompt();
     } catch (_) {
       AppLogger.instance.error('load_thread_state failed', screen: 'conversation', action: 'load_thread_state');
       /* transient */
@@ -274,38 +271,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
     });
   }
 
-  /// When Bestie has WRAPPED UP and the viewer is the woman, surface a one-time
-  /// dialog asking her to step in (mirrors the web hand-off popup). The push
-  /// notification brings her here; this is what she sees on open.
-  void _maybeShowHandoffPrompt() {
-    if (!mounted || _handoffPromptShown || !_womanShouldStepIn) return;
-    _handoffPromptShown = true;
-    final name = _otherName.isNotEmpty ? _otherName : widget.title;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(Config.bg2),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Your turn to step in',
-              style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700)),
-          content: Text(
-            "AI Bestie got to know $name for you and has everything it needs. He's waiting on you now — send a message to take it from here.",
-            style: const TextStyle(color: Color(Config.text2), height: 1.4),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Reply now',
-                  style: TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w700)),
-            ),
-          ],
-        ),
-      );
-    });
-  }
-
   /// Replaces the man's composer once Bestie has wrapped up (Option A freeze): he
   /// can't send until the woman steps in. Her reply lifts this (Bestie deactivates).
   Widget _frozenComposer() {
@@ -362,11 +327,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
   /// hold for the woman to step in (spec §F/§K, Option A). `_awaitingHandoff` is a
   /// local fallback set when the send route rejects a send with 409.
   bool get _manFrozen => _bestieIsProxy && ((_checklist?.wrapped ?? false) || _awaitingHandoff);
-
-  /// True when the viewer is the WOMAN (owner) and Bestie has wrapped up, so she
-  /// should be prompted to step in.
-  bool get _womanShouldStepIn =>
-      _viewerGender == 'woman' && _otherGender == 'man' && _bestieActive && (_checklist?.wrapped ?? false);
 
   /// First-class transparency + path-plan card shown to the MALE match while
   /// the woman's AI Bestie is the proxy speaker. Ports the web `bestie-intro-card`
