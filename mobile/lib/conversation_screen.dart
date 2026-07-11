@@ -49,8 +49,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   ProofRequest? _proofRequest;         // Bestie's open in-chat proof ask (man's side)
   bool _proofUploading = false;        // verification in progress
   bool _bestieCardCollapsed = false;
-  BestieChecklist? _checklist;         // Bestie's per-man checklist (drives progress + freeze)
-  bool _awaitingHandoff = false;       // local freeze fallback after a 409 send rejection
+  BestieChecklist? _checklist;         // Bestie's per-man checklist (drives progress)
 
   @override
   void initState() {
@@ -246,13 +245,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
       if (_viewerGender == 'woman' && _bestieActive && mounted) {
         setState(() => _bestieActive = false);
       }
-    } on AwaitingHandoffException catch (e) {
-      // Wrap-up freeze (Option A): Bestie handed off and is on hold for the woman.
-      // Flip to the frozen composer instead of a generic error. His text never sent.
-      if (mounted) {
-        setState(() => _awaitingHandoff = true);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
-      }
     } catch (e) {
       AppLogger.instance.error(e, screen: 'conversation', action: 'send_message');
       if (mounted) {
@@ -268,31 +260,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
         await _pollOnce();
       }
     });
-  }
-
-  /// Replaces the man's composer once Bestie has wrapped up (Option A freeze): he
-  /// can't send until the woman steps in. Her reply lifts this (Bestie deactivates).
-  Widget _frozenComposer() {
-    final name = _otherName.isNotEmpty ? _otherName : widget.title;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      child: Row(children: [
-        const Text('✨', style: TextStyle(fontSize: 16)),
-        const SizedBox(width: 10),
-        Expanded(
-          child: RichText(
-            text: TextSpan(
-              style: const TextStyle(color: Color(Config.text2), fontSize: 12.5, height: 1.4),
-              children: [
-                const TextSpan(text: 'AI Bestie has everything it needs and asked '),
-                TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
-                const TextSpan(text: " to jump in. Hang tight — she'll take it from here."),
-              ],
-            ),
-          ),
-        ),
-      ]),
-    );
   }
 
   Future<void> _resumeBestie() async {
@@ -321,11 +288,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
   /// has been generated (the very first moments of the thread).
   int get _itemsDone => _checklist?.done ?? 0;
   int get _itemsTotal => _checklist?.total ?? 0;
-
-  /// The MAN's chat is frozen once Bestie has wrapped up her checklist and is on
-  /// hold for the woman to step in (spec §F/§K, Option A). `_awaitingHandoff` is a
-  /// local fallback set when the send route rejects a send with 409.
-  bool get _manFrozen => _bestieIsProxy && ((_checklist?.wrapped ?? false) || _awaitingHandoff);
 
   /// First-class transparency + path-plan card shown to the MALE match while
   /// the woman's AI Bestie is the proxy speaker. Ports the web `bestie-intro-card`
@@ -443,7 +405,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
           ],
           Text(
             wrapped
-                ? 'AI Bestie has everything it needs — $name has been asked to jump in.'
+                ? '$name has been asked to jump in. Ask AI Bestie anything about her while you wait.'
                 : (hasChecklist
                     ? 'She can also drop in herself, any time.'
                     : 'AI Bestie is getting to know you. She can also drop in herself, any time.'),
@@ -908,7 +870,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                             },
                           ),
           ),
-          if (!_loading && _viewerGender == 'man' && _otherGender == 'woman' && _bestieActive && !_manBannerDismissed && !_manFrozen)
+          if (!_loading && _viewerGender == 'man' && _otherGender == 'woman' && _bestieActive && !_manBannerDismissed)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
               child: Row(children: [
@@ -950,22 +912,19 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 ),
               ]),
             ),
-          if (_manFrozen)
-            _frozenComposer()
-          else
-            _Composer(
-              controller: _composer,
-              sending: _sending,
-              onSend: _send,
-              conversationId: widget.conversationId,
-              viewerGender: _viewerGender,
-              otherGender: _otherGender,
-              otherName: _otherName,
-              onImagePicked: _sendImageMessage,
-              proofRequest: _proofRequest,
-              proofUploading: _proofUploading,
-              onUploadProof: _uploadRequestedProof,
-            ),
+          _Composer(
+            controller: _composer,
+            sending: _sending,
+            onSend: _send,
+            conversationId: widget.conversationId,
+            viewerGender: _viewerGender,
+            otherGender: _otherGender,
+            otherName: _otherName,
+            onImagePicked: _sendImageMessage,
+            proofRequest: _proofRequest,
+            proofUploading: _proofUploading,
+            onUploadProof: _uploadRequestedProof,
+          ),
         ],
       ),
     ),

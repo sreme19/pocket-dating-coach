@@ -117,8 +117,35 @@ export function buildChecklistBlock(checklist: BestieChecklist | null | undefine
 		`\nYour open checklist items to draw out (cover them naturally through conversation, ONE focus at a time, never as a checklist read aloud or an interview):\n${lines}\n` +
 		`Progress so far: ${done}/${total} done.\n` +
 		`- When his latest answer genuinely covers one or more of these items, list their ids in "itemsDone". Only mark an item done when it's really answered — not on a vague or deflecting reply.\n` +
-		`- When every item is done (or you judge you have enough to bring her in), set "wrapUp": true and make your reply a warm sign-off: tell him you've got what you need and you'll bring her in to take it from here. Do NOT ask a new question in a wrap-up message.`;
+		`- When every item is done (or you judge you have enough to bring her in), set "wrapUp": true. On that turn your "reply" is ONLY a brief, warm one-liner reacting to what he just said — do NOT mention handing off, waiting, or her stepping in, and do NOT ask a question. The hand-off line is appended automatically.`;
 	return { block, hasWork: true };
+}
+
+/**
+ * The guaranteed hand-off closing line (spec §F). Appended in code to Bestie's
+ * wrap-up reply so the "she'll take it from here" message is ALWAYS said, even if
+ * the model's own reply drifts. Keeps her voice (the model writes the lead-in) +
+ * guarantees the close-off + the invitation to ask about her while he waits.
+ */
+export function handoffClosingLine(userName: string): string {
+	return `I've got everything I need for now, so I've asked ${userName} to jump in and take it from here. Feel free to ask me anything about her while you wait.`;
+}
+
+/**
+ * Prompt block for the HAND-OFF PHASE — after Bestie has wrapped up (checklist
+ * 'wrapped') she is no longer drawing him out. She's told him she's bringing the
+ * woman in and is now just keeping him company until she steps in: reactive, lets
+ * HIM lead, and does not interrogate. Injected instead of the checklist block.
+ */
+export function buildHandoffPhaseBlock(userName: string, matchName: string): string {
+	return `
+
+HAND-OFF PHASE — you've already told ${matchName} you're bringing ${userName} in. Now you're just keeping him company until she steps in. Your job here is NOT to draw him out anymore:
+- Let HIM lead. Answer whatever he asks about ${userName} warmly and honestly, within her boundaries (never her private contact details).
+- Do NOT interrogate, do NOT run through topics, and do NOT end your message with a question. Never stack questions.
+- Only ask something back when HIS message naturally invites one (he asked you something that genuinely begs a follow-up) — otherwise none.
+- If he has little to say, a short friendly reply is fine. Never chase him or fill silence with a question.
+- Don't keep repeating that she's stepping in — you've already said it once.`;
 }
 
 /**

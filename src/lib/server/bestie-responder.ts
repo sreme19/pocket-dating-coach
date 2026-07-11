@@ -24,6 +24,8 @@ import {
 	buildChecklistBlock,
 	buildChecklist,
 	nextChecklistState,
+	buildHandoffPhaseBlock,
+	handoffClosingLine,
 	isWrapped,
 	CHECKLIST_MAX_ITEMS,
 	type BestieChecklist,
@@ -329,7 +331,12 @@ export async function generateBestieReply(
 	// the reply below (the reply prompt has no checklist context on that turn, so
 	// they're independent — running them in parallel adds no wall-clock latency).
 	const existingChecklist = ((matchRow as any)?.bestie_checklist ?? null) as BestieChecklist | null;
+	// Active checklist → draw out the open items. Wrapped checklist → HAND-OFF PHASE:
+	// reactive mode (she's already handed off, now just answers his questions). These
+	// are mutually exclusive.
 	const { block: checklistContext } = buildChecklistBlock(existingChecklist);
+	const handoffContext =
+		existingChecklist?.status === 'wrapped' ? buildHandoffPhaseBlock(userName, matchName) : '';
 	const shouldGenerateChecklist = isOpener && !existingChecklist;
 
 	const client = getClaudeClient();
@@ -349,7 +356,8 @@ export async function generateBestieReply(
 					lastMessage,
 					isOpener,
 					proofRequestContext,
-					checklistContext
+					checklistContext,
+					handoffContext
 				})
 			}
 		]
@@ -426,10 +434,22 @@ export async function generateBestieReply(
 		});
 	}
 
+	let finalReply = stripBannedDashes(parsed.reply ?? parsed.suggestedQuestion ?? '');
+	// Guarantee the hand-off closing line on the turn Bestie wraps up. The model is
+	// told to write only a brief reaction on that turn; we append the "she'll take it
+	// from here" line in code so it is ALWAYS said (spec §F), fixing the drift where
+	// the model kept the conversation going instead of closing off.
+	const justWrappedThisTurn =
+		checklistUpdate?.status === 'wrapped' && existingChecklist?.status !== 'wrapped';
+	if (justWrappedThisTurn) {
+		const closing = handoffClosingLine(userName);
+		finalReply = finalReply ? `${finalReply} ${closing}` : closing;
+	}
+
 	return {
 		signal: parsed.signal ?? '✅',
 		read: stripBannedDashes(parsed.read ?? ''),
-		reply: stripBannedDashes(parsed.reply ?? parsed.suggestedQuestion ?? ''),
+		reply: finalReply,
 		...(proofStateUpdate ? { proofStateUpdate } : {}),
 		...(checklistUpdate ? { checklistUpdate } : {})
 	};
