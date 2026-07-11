@@ -693,8 +693,15 @@ export function buildBestieReplyPrompt(opts: {
 	 * prompt and output shape stay exactly as before.
 	 */
 	checklistContext?: string;
+	/**
+	 * Pre-formatted HAND-OFF PHASE context (from buildHandoffPhaseBlock), injected
+	 * once the checklist is 'wrapped'. Puts Bestie in reactive mode (let him lead,
+	 * no interrogation). Does NOT add any output fields. Mutually exclusive with
+	 * checklistContext (a wrapped checklist has no open items to draw out).
+	 */
+	handoffContext?: string;
 }): string {
-	const { userName, matchName, contextBlock = '', transcript = '', lastMessage, isOpener = false, proofRequestContext = '', checklistContext = '' } = opts;
+	const { userName, matchName, contextBlock = '', transcript = '', lastMessage, isOpener = false, proofRequestContext = '', checklistContext = '', handoffContext = '' } = opts;
 
 	const openerBlock = isOpener
 		? `
@@ -723,6 +730,9 @@ How to behave:
 
 BESTIE CHECKLIST (what to learn about ${matchName} before ${userName} steps in):${checklistContext}`
 		: '';
+
+	// Hand-off phase (checklist wrapped): reactive mode, no extra output fields.
+	const handoffBlock = handoffContext || '';
 
 	// Output shape composes from the active features: signal/read/reply always,
 	// + proofRequest/proofRefusal when a proof request is live, + itemsDone/wrapUp
@@ -758,7 +768,7 @@ HARD RULES, never break these:
 - Be transparent and honest about who you are. If ${matchName} asks who he's talking to, or mentions a bestie/AI, tell him plainly and warmly: you're ${userName}'s AI bestie, you chat with her matches first to help things get off to a great start, and ${userName} will jump in herself once they're clicking. Never deny it, never claim to be her, never pretend the message came from her.
 - NEVER frame yourself as screening, filtering, vetting, ranking, or sorting him, and never imply he's one of many being filtered. No "filtering through matches", no "deciding who's worth her time". You're his ally helping THIS match succeed, framed as helping him put his best foot forward.
 - You may share genuine things about ${userName} to build connection, within her boundaries and dealbreakers. Never share contact details, address, or anything she'd consider private.
-- Read the conversation so far. Do NOT repeat a question already asked or answered, and do NOT re-raise a topic that's already settled. Build naturally on what was just said.${transcript}${openerBlock}${proofRulesBlock}${checklistBlock}
+- Read the conversation so far. Do NOT repeat a question already asked or answered, and do NOT re-raise a topic that's already settled. Build naturally on what was just said.${transcript}${openerBlock}${proofRulesBlock}${checklistBlock}${handoffBlock}
 
 ${lastMessage && lastMessage.trim() ? `${matchName} just said: "${lastMessage}"` : `${matchName} hasn't messaged yet. You are reaching out FIRST to kick off the conversation, so there is nothing to react to, just open warmly per the rules above.`}
 

@@ -2124,35 +2124,12 @@ Future<void> markConversationRead(String matchId) async {
   );
 }
 
-/// Thrown when the man tries to send while Bestie has WRAPPED UP her checklist and
-/// is on hold for the woman to step in (send route returns 409 awaiting_handoff,
-/// spec §F/§K Option A). The conversation screen catches this to show the frozen
-/// state instead of a generic send error.
-class AwaitingHandoffException implements Exception {
-  final String message;
-  AwaitingHandoffException(this.message);
-  @override
-  String toString() => message;
-}
-
 Future<ChatMessage?> sendMessage(String conversationId, String content) async {
-  final Response resp;
-  try {
-    resp = await _dio.post(
-      '${Config.apiBase}/api/verified-vibe/chat/send',
-      data: {'conversationId': conversationId, 'content': content},
-      options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
-    );
-  } on DioException catch (e) {
-    final data = e.response?.data;
-    if (e.response?.statusCode == 409 && data is Map && data['error'] == 'awaiting_handoff') {
-      throw AwaitingHandoffException(
-        data['message']?.toString() ??
-            "Her AI Bestie has everything it needs and has asked her to jump in. Hang tight — she'll take it from here.",
-      );
-    }
-    rethrow;
-  }
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/chat/send',
+    data: {'conversationId': conversationId, 'content': content},
+    options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
+  );
   final body = resp.data is Map ? resp.data as Map : const {};
   final data = body['data'] is Map ? body['data'] as Map : const {};
   final m = data['message'] as Map?;
