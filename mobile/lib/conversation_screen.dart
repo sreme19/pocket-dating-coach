@@ -8,7 +8,6 @@ import 'app_logger.dart';
 import 'config.dart';
 import 'match_profile_screen.dart';
 import 'push_service.dart';
-import 'trust_boost_screen.dart';
 import 'voice_call_screen.dart';
 
 class ConversationScreen extends StatefulWidget {
@@ -1208,7 +1207,6 @@ class _Composer extends StatefulWidget {
 
 class _ComposerState extends State<_Composer> {
   bool _imageUploading = false;
-  bool _wingmanLoading = false;
 
   bool get _showWingman =>
       widget.viewerGender == 'man' && widget.otherGender == 'woman';
@@ -1263,50 +1261,6 @@ class _ComposerState extends State<_Composer> {
       }
     } finally {
       if (mounted) setState(() => _imageUploading = false);
-    }
-  }
-
-  Future<void> _showWingmanSheet() async {
-    setState(() => _wingmanLoading = true);
-    try {
-      final result = await fetchWingmanSuggestion(widget.conversationId);
-      if (!mounted) return;
-      final suggestion = (result['suggestion'] ?? '').toString();
-      final coaching = result['coaching'] as String?;
-      if (suggestion.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not generate a suggestion. Try again.')),
-        );
-        return;
-      }
-      await showModalBottomSheet(
-        context: context,
-        backgroundColor: const Color(Config.bg2),
-        isScrollControlled: true,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        builder: (ctx) => _WingmanBottomSheet(
-          suggestion: suggestion,
-          coaching: coaching,
-          onUse: (text) {
-            widget.controller.text = text;
-            widget.controller.selection = TextSelection.fromPosition(
-              TextPosition(offset: text.length),
-            );
-          },
-          onUploadProof: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const TrustBoostScreen()),
-          ),
-        ),
-      );
-    } catch (e) {
-      AppLogger.instance.error(e, screen: 'conversation', action: 'wingman_note');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Wingman error: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _wingmanLoading = false);
     }
   }
 
@@ -1395,38 +1349,6 @@ class _ComposerState extends State<_Composer> {
             //           padding: EdgeInsets.zero,
             //         ),
             // ),
-            // ✨ AI Wingman button (men chatting with women only). Labeled pill
-            // so the man knows it's his private coach — purple distinguishes it
-            // from her pink Bestie.
-            if (_showWingman) ...[
-              const SizedBox(width: 2),
-              _wingmanLoading
-                  ? const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 12),
-                      child: SizedBox(
-                          width: 18, height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFA855F7))),
-                    )
-                  : InkWell(
-                      onTap: _showWingmanSheet,
-                      borderRadius: BorderRadius.circular(999),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-                        decoration: BoxDecoration(
-                          color: const Color(0x14A855F7),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: const Color(0x33A855F7)),
-                        ),
-                        child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(Icons.auto_awesome, color: Color(0xFFA855F7), size: 16),
-                          SizedBox(width: 4),
-                          Text('Wingman',
-                              style: TextStyle(
-                                  color: Color(0xFFA855F7), fontSize: 12, fontWeight: FontWeight.w700)),
-                        ]),
-                      ),
-                    ),
-            ],
             const SizedBox(width: 4),
             Expanded(
               child: TextField(
@@ -1464,112 +1386,6 @@ class _ComposerState extends State<_Composer> {
             ),
           ]),
           ]),
-        ),
-      ),
-    );
-  }
-}
-
-class _WingmanBottomSheet extends StatelessWidget {
-  final String suggestion;
-  final String? coaching;
-  final void Function(String text) onUse;
-  final VoidCallback onUploadProof;
-
-  const _WingmanBottomSheet({
-    required this.suggestion,
-    required this.coaching,
-    required this.onUse,
-    required this.onUploadProof,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                const Icon(Icons.auto_awesome, color: Color(0xFFA855F7), size: 20),
-                const SizedBox(width: 8),
-                const Text('AI Wingman suggestion',
-                    style: TextStyle(color: Color(Config.text1), fontSize: 16, fontWeight: FontWeight.w700)),
-              ]),
-              const SizedBox(height: 14),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(Config.bg3),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0x33A855F7)),
-                ),
-                child: Text(suggestion,
-                    style: const TextStyle(color: Color(Config.text1), fontSize: 15, height: 1.4)),
-              ),
-              if (coaching != null && coaching!.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Text(coaching!,
-                    style: const TextStyle(color: Color(Config.text3), fontSize: 12, height: 1.4)),
-              ],
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    onUploadProof();
-                  },
-                  icon: const Text('📎', style: TextStyle(fontSize: 14)),
-                  label: const Text('Add a proof to strengthen your profile',
-                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFA855F7),
-                    side: const BorderSide(color: Color(0x33A855F7)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              Row(children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(Config.text2),
-                      side: const BorderSide(color: Color(Config.bg3)),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                    ),
-                    child: const Text('Dismiss'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  flex: 2,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      onUse(suggestion);
-                      Navigator.of(context).pop();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFA855F7),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                    ),
-                    child: const Text('Use this reply', style: TextStyle(fontWeight: FontWeight.w700)),
-                  ),
-                ),
-              ]),
-            ],
-          ),
         ),
       ),
     );

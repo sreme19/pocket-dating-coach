@@ -130,15 +130,15 @@ async function persistVerificationStep(
 // (see handleLivenessVerification) instead of re-deriving a threshold of its own.
 const LIVENESS_MIN_CONFIDENCE = 75;
 
-/** Fetch the user's current government-ID verification row (status + data), or null. */
-async function getIdRow(userId: string): Promise<{ status?: string; data?: any } | null> {
+/** Fetch the user's current verification row for a step (status + data), or null. */
+async function getStepRow(userId: string, step: string): Promise<{ status?: string; data?: any } | null> {
   try {
     const supabase = getSupabase();
     const { data } = await (supabase as any)
       .from('verified_vibe_verification')
       .select('status, data')
       .eq('user_id', userId)
-      .eq('step', 'id')
+      .eq('step', step)
       .maybeSingle();
     return data ?? null;
   } catch {
@@ -153,7 +153,7 @@ async function getIdRow(userId: string): Promise<{ status?: string; data?: any }
  */
 async function finalizeIdFaceVerified(userId: string): Promise<void> {
   try {
-    const existing = await getIdRow(userId);
+    const existing = await getStepRow(userId, 'id');
     const prev = (existing?.data as Record<string, unknown>) ?? {};
     await persistVerificationStep(
       userId,
@@ -227,15 +227,13 @@ async function handleIDVerification(data: any, userId: string | null = null) {
   const skipVerification = import.meta.env.VITE_SKIP_VERIFICATION === 'true';
 
   try {
-    const result: any = skipVerification
-      ? { idNumber: 'DEV-SKIP', idName: 'Dev User', idDOB: '01/01/1990', idGender: undefined, expirationDate: undefined }
-      : await extractIDWithClaude(data.image, data.mimeType);
-
-    // Identity is only VERIFIED from the ID when the ID photo matches the user's
-    // verified anchor selfie (bar 55, enforced inside checkLivenessWithClaude).
-    // No anchor yet → identity stays PENDING; the client captures a live selfie
-    // (liveness step) that establishes the anchor and finalizes the ID. A mismatch
-    // is REJECTED — never stored as a verified identity, never awarded points.
+    // Face-gate FIRST. Identity is only VERIFIED from the ID when the ID photo
+    // matches the user's verified anchor selfie (bar 55, enforced inside
+    // checkLivenessWithClaude). A mismatch is REJECTED before anything else
+    // happens — the name/data extraction never runs, nothing is persisted, no
+    // points are awarded — and the client offers a re-upload. No anchor yet →
+    // extraction runs but identity stays PENDING; the client captures a live
+    // selfie (liveness step) that establishes the anchor and finalizes the ID.
     let faceMatch: boolean | null = null;
     let faceConfidence: number | null = null;
     let hasAnchor = false;
@@ -255,8 +253,20 @@ async function handleIDVerification(data: any, userId: string | null = null) {
           hasAnchor = false;
           faceMatch = null;
         }
+        if (faceMatch === false) {
+          return json({
+            status: 'completed',
+            step: 'id',
+            data: { faceMatch: false, faceConfidence, faceVerified: false },
+            trustPoints: 0,
+          });
+        }
       }
     }
+
+    const result: any = skipVerification
+      ? { idNumber: 'DEV-SKIP', idName: 'Dev User', idDOB: '01/01/1990', idGender: undefined, expirationDate: undefined }
+      : await extractIDWithClaude(data.image, data.mimeType);
 
     const faceVerified = skipVerification || (hasAnchor && faceMatch === true);
     const enriched = { ...result, faceMatch, faceConfidence, faceVerified };
@@ -267,14 +277,11 @@ async function handleIDVerification(data: any, userId: string | null = null) {
         // Matches the anchor (or dev bypass) → completed + points.
         await persistVerificationStep(userId, 'id', idPoints, enriched, 'completed');
         enrollInPoolIfVerified(userId).catch(() => {});
-      } else if (hasAnchor && faceMatch === false) {
-        // Mismatch — do NOT persist or award. The client shows a "retake" prompt.
-        // Never overwrite an already-verified ID with a bad upload.
       } else {
         // No anchor to compare against yet → keep the extracted name as a PENDING
         // row so the live-selfie step can finalize it, but never clobber an
         // already-completed (verified) ID row.
-        const existingId = await getIdRow(userId);
+        const existingId = await getStepRow(userId, 'id');
         if (existingId?.status !== 'completed') {
           await persistVerificationStep(userId, 'id', 0, enriched, 'pending');
         }
@@ -392,8 +399,18 @@ async function handleLivenessVerification(data: any, userId: string | null = nul
     stepData.underReview = !passed;
 
     if (userId) {
-      await persistVerificationStep(userId, 'liveness', trustPoints, stepData, status);
-      if (passed) enrollInPoolIfVerified(userId).catch(() => {});
+      if (passed) {
+        await persistVerificationStep(userId, 'liveness', trustPoints, stepData, status);
+        enrollInPoolIfVerified(userId).catch(() => {});
+      } else {
+        // A failed attempt must never downgrade an already-completed liveness
+        // row (e.g. a poor gate selfie after onboarding passed) — that would
+        // silently change the trust score on a FAILURE.
+        const existing = await getStepRow(userId, 'liveness');
+        if (existing?.status !== 'completed') {
+          await persistVerificationStep(userId, 'liveness', 0, stepData, status);
+        }
+      }
     }
 
     return json({ status, step: 'liveness', data: stepData, trustPoints }, { status: 201 });
