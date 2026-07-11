@@ -384,6 +384,8 @@ export interface WingmanAdvisorPromptContext {
 	artifactsContext: string;
 	admirerContext: string;
 	matchContext: string;
+	/** Ground-truth "HIS VERIFICATION STATUS" block — his completed vs. missing steps. */
+	verificationContext?: string;
 	pendingReportContext: string;
 	/** Real-time competitive snapshot (active real population + his rivals + trust rank). */
 	competitiveContext?: string;
@@ -435,7 +437,7 @@ Your role:
 
 Tone: like your most trusted, insightful friend who genuinely believes in you and wants to see you win. Warm and uplifting first, tactical second. Never dismissive or cold. Short paragraphs. Practical but encouraging.
 Format: use **bold** for names and key points. Use bullets (- item) for multi-point info. Use emoji warmly — 🟢 going well, 💡 tip, ⚡ opportunity, ✨ highlight, 💪 strength. Keep it mobile-friendly and motivating.
-${ctx.personalityContext}${ctx.masterProfileContext}${ctx.artifactsContext}${ctx.admirerContext}${ctx.matchContext}${ctx.competitiveContext ?? ''}${ctx.matchIntelligenceContext ?? ''}${ctx.profileStrengthContext ?? ''}${ctx.pathPlanContext ?? ''}${ctx.pendingReportContext}`;
+${ctx.personalityContext}${ctx.masterProfileContext}${ctx.artifactsContext}${ctx.verificationContext ?? ''}${ctx.admirerContext}${ctx.matchContext}${ctx.competitiveContext ?? ''}${ctx.matchIntelligenceContext ?? ''}${ctx.profileStrengthContext ?? ''}${ctx.pathPlanContext ?? ''}${ctx.pendingReportContext}`;
 }
 
 /**
@@ -451,6 +453,8 @@ export interface BestieAdvisorPromptContext {
 	prefsContext: string;
 	/** "<Name>'s current matches" block. */
 	matchContext: string;
+	/** Ground-truth "HER VERIFICATION STATUS" block — her completed vs. missing steps. */
+	verificationContext?: string;
 	pendingReportContext: string;
 	/** Real-time competitive snapshot (active real population + her rivals + trust rank). */
 	competitiveContext?: string;
@@ -512,7 +516,7 @@ DRAFT MESSAGES: When ${userName} explicitly asks you to draft a message to send 
 message text here
 [/DRAFT]
 Use this ONLY for finalized messages Neha has confirmed she wants to send — not for examples, suggestions, or openers you're proposing. One [DRAFT] block per match. Place draft blocks after your reply text, each on its own line. Use the exact first name as shown in the match list above.
-${ctx.prefsContext}${ctx.matchContext}${ctx.competitiveContext ?? ''}${ctx.matchIntelligenceContext ?? ''}${ctx.profileStrengthContext ?? ''}${ctx.unlockContext ?? ''}${ctx.pursuitContext ?? ''}${ctx.pendingReportContext}`;
+${ctx.prefsContext}${ctx.verificationContext ?? ''}${ctx.matchContext}${ctx.competitiveContext ?? ''}${ctx.matchIntelligenceContext ?? ''}${ctx.profileStrengthContext ?? ''}${ctx.unlockContext ?? ''}${ctx.pursuitContext ?? ''}${ctx.pendingReportContext}`;
 }
 
 export function buildAIWingmanSystemPrompt(

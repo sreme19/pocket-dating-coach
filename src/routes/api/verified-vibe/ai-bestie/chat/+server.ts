@@ -44,6 +44,8 @@ import { complianceGate } from '$lib/server/ai-compliance';
  * Response: { reply: string }
  */
 export const POST: RequestHandler = async ({ request }) => {
+	// Declared outside the try so the catch block can reference it in logAppError.
+	let userId = '';
 	try {
 		// ── Parse body ────────────────────────────────────────────────────────
 		const body = (await request.json()) as {
@@ -54,7 +56,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		};
 
 		// ── Validate userId ───────────────────────────────────────────────────
-		const userId = (body.userId ?? '').trim();
+		userId = (body.userId ?? '').trim();
 		if (!userId) {
 			return json({ error: 'userId is required' }, { status: 400 });
 		}
@@ -79,7 +81,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		// Name, preferences, and current matches (+ bios/messages/proofs) are all
 		// assembled in one place so the live endpoint and the Test Suite can never
 		// drift. See src/lib/server/bestie-advisor-context.ts.
-		const { userName, prefsContext, matchContext, nameToMatchId } =
+		const { userName, prefsContext, matchContext, verificationContext, nameToMatchId } =
 			await loadBestieAdvisorContext(supabase, userId, { intent });
 
 		// ── Resolve the user message based on intent ──────────────────────────
@@ -128,6 +130,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			userName,
 			prefsContext,
 			matchContext,
+			verificationContext,
 			competitiveContext,
 			matchIntelligenceContext,
 			profileStrengthContext,
