@@ -33,6 +33,8 @@ export const POST: RequestHandler = async ({ request }) => {
 	// Server-half latency clock: request received → reply ready. Mirrors the
 	// AI Bestie generation timing so advisor replies show up in the AI Latency tab.
 	const t0 = Date.now();
+	// Declared outside the try so the catch block can reference it in logAppError.
+	let userId = '';
 	try {
 		const body = await request.json() as {
 			userId?: string;
@@ -41,7 +43,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			history?: { role: 'user' | 'assistant'; content: string }[];
 		};
 
-		const userId = (body.userId ?? '').trim();
+		userId = (body.userId ?? '').trim();
 		if (!userId) return json({ error: 'userId is required' }, { status: 400 });
 
 		// Touch last_active and check for pending intelligence reports (fire-and-forget for active touch)
@@ -85,7 +87,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		// All profile/match/artifact/admirer assembly lives in one place so the
 		// live endpoint and the Test Suite can never drift. See
 		// src/lib/server/wingman-advisor-context.ts.
-		const { personalityContext, masterProfileContext, artifactsContext, admirerContext, matchContext } =
+		const { personalityContext, masterProfileContext, artifactsContext, admirerContext, matchContext, verificationContext } =
 			await loadWingmanAdvisorContext(supabase, userId, { intent });
 
 		// ── Competitive intelligence snapshot ──────────────────────────────────
@@ -115,6 +117,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			artifactsContext,
 			admirerContext,
 			matchContext,
+			verificationContext,
 			competitiveContext,
 			matchIntelligenceContext,
 			profileStrengthContext,

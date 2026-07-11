@@ -18,6 +18,7 @@
 
 import { loadPreferences } from './profile-service';
 import { loadProofSignals } from './proof-signals';
+import { loadVerificationStatusContext } from './verification-status-context';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface BestieAdvisorContext {
@@ -27,6 +28,13 @@ export interface BestieAdvisorContext {
 	prefsContext: string;
 	/** "<Name>'s current matches" block (with bios, messages, proofs). */
 	matchContext: string;
+	/**
+	 * Ground-truth "HER VERIFICATION STATUS" block — which verification steps she
+	 * has actually completed and which she hasn't, plus her own uploaded proofs.
+	 * The advisor previously had NO data about her own verification and would
+	 * hallucinate that she'd "done all of it"; this is the authoritative source.
+	 */
+	verificationContext: string;
 	/** Lower-cased match first name → match id, for DRAFT marker resolution. */
 	nameToMatchId: Record<string, string>;
 	/** Number of mutual matches found (for the trace). */
@@ -125,7 +133,7 @@ export async function loadBestieAdvisorContext(
 
 			const { data: recentMsgs } = await supabase
 				.from('verified_vibe_messages')
-				.select('content, sender_id, created_at')
+				.select('content, sender_id, created_at, is_ai')
 				.eq('match_id', match.id)
 				.order('created_at', { ascending: false })
 				.limit(6);
@@ -136,10 +144,21 @@ export async function loadBestieAdvisorContext(
 			const recentActivity =
 				cutoff && msgs.some((m) => new Date(m.created_at).getTime() > cutoff);
 
+			// Speaker labels. Her side is split in two: messages SHE typed vs.
+			// messages the AI Bestie sent on her behalf during hand-off (is_ai).
+			// verified_vibe_messages stamps both with sender_id = her id, so without
+			// the is_ai split a summary attributes the Bestie's own hand-off lines to
+			// her — the advisor literally can't tell its words from hers.
+			const anyAiMsg = msgs.some((m) => m.sender_id === userId && (m as any).is_ai);
 			const msgText =
 				msgs.length > 0
 					? msgs
-							.map((m) => `${m.sender_id === userId ? userName : otherUser.first_name}: ${m.content}`)
+							.map((m) => {
+								if (m.sender_id !== userId) return `${otherUser.first_name}: ${m.content}`;
+								return (m as any).is_ai
+									? `AI Bestie (sent for ${userName}): ${m.content}`
+									: `${userName}: ${m.content}`;
+							})
 							.join('\n')
 					: 'No messages yet';
 
@@ -156,8 +175,13 @@ export async function loadBestieAdvisorContext(
 			}
 
 			const freshTag = recentActivity ? ' 🆕 (active in last 48h)' : '';
+			// When any line was AI-sent, remind the advisor to keep the two apart so a
+			// summary never says "you told him X" about a message the Bestie sent.
+			const aiNote = anyAiMsg
+				? `\n(NOTE: lines marked "AI Bestie (sent for ${userName})" were sent by you on her behalf during hand-off — NOT her own words. Attribute them correctly when summarising.)`
+				: '';
 			details.push(
-				`**${otherUser.first_name}**, ${otherUser.age}${freshTag}\nBio: ${otherUser.about?.slice(0, 120) ?? 'n/a'}${artifactLine}\nRecent messages:\n${msgText}`
+				`**${otherUser.first_name}**, ${otherUser.age}${freshTag}\nBio: ${otherUser.about?.slice(0, 120) ?? 'n/a'}${artifactLine}\nRecent messages:\n${msgText}${aiNote}`
 			);
 		}
 
@@ -165,5 +189,22 @@ export async function loadBestieAdvisorContext(
 		matchContext = `\n\n${userName}'s current matches (${matches.length} total${remaining}):\n\n${details.join('\n\n---\n\n')}`;
 	}
 
-	return { userName, prefsContext, matchContext, nameToMatchId, matchCount, preferencesData };
+	// ── Her own verification ground truth ────────────────────────────────────
+	// Which steps she has actually completed vs. not. Without this the advisor
+	// has no data on her verification and hallucinates that it's all done. Shared
+	// with the AI Wingman via loadVerificationStatusContext.
+	const verificationContext = await loadVerificationStatusContext(supabase, userId, {
+		subject: 'woman',
+		name: userName
+	});
+
+	return {
+		userName,
+		prefsContext,
+		matchContext,
+		verificationContext,
+		nameToMatchId,
+		matchCount,
+		preferencesData
+	};
 }

@@ -201,7 +201,6 @@ function formatPromptBlock(s: CompetitiveSnapshot): string {
 	const sub = isMan ? 'he' : 'she';
 	const Sub = isMan ? 'He' : 'She';
 	const obj = isMan ? 'him' : 'her';
-	const ownerWord = isMan ? 'man' : 'woman';
 	// Opposite gender = the pool of people the owner can pursue (their "options").
 	const optionsCount = isMan ? s.realWomenActive : s.realMenActive;
 	const optionsWord = isMan ? 'women' : 'men';
@@ -227,8 +226,11 @@ function formatPromptBlock(s: CompetitiveSnapshot): string {
 			`${isMan ? 'His' : 'Her'} Trust Score standing: ${score}/100 — ranked #${rank} of ${total} real ${rivalsWord} (top ${percentile}%).`
 		);
 		if (rank === 1) {
+			// A #1 Trust RANK is NOT proof that every verification step is done — the
+			// pool can be tiny. Never assert completeness here; defer to the
+			// "VERIFICATION STATUS" ground-truth block for what she/he has actually finished.
 			lines.push(
-				`${Sub} is ALREADY the highest-verified real ${ownerWord} on the platform. Do NOT push ${obj} to grind for more trust points — there is almost no competitive gap left to close on verification. ${Sub === 'He' ? 'His' : 'Her'} leverage now is making moves on matches, not uploading more proof.`
+				`${Sub} has the #1 Trust Score among real ${rivalsWord} right now — strong standing relative to ${isMan ? 'his' : 'her'} competition. NOTE: this is a RANK, not proof every verification step is done. Defer to the "VERIFICATION STATUS" block for what ${sub} has actually completed; if steps there are still "NOT done yet", ${sub} can still raise ${isMan ? 'his' : 'her'} own score by finishing them. ${Sub === 'He' ? 'His' : 'Her'} other main leverage is making moves on matches.`
 			);
 		}
 	}

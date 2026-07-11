@@ -332,6 +332,7 @@ async function runWingmanAdvisor(
 		artifactsContext: ctx.artifactsContext,
 		admirerContext: ctx.admirerContext,
 		matchContext: ctx.matchContext,
+		verificationContext: ctx.verificationContext,
 		competitiveContext,
 		matchIntelligenceContext,
 		pendingReportContext: ''
@@ -483,6 +484,7 @@ async function runBestieAdvisor(
 		userName: ctx.userName,
 		prefsContext: ctx.prefsContext,
 		matchContext: ctx.matchContext,
+		verificationContext: ctx.verificationContext,
 		competitiveContext,
 		matchIntelligenceContext,
 		pendingReportContext: ''

@@ -17,6 +17,7 @@
 // ============================================================
 
 import { loadPersonality } from './profile-service';
+import { loadVerificationStatusContext } from './verification-status-context';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface WingmanAdvisorContext {
@@ -30,6 +31,12 @@ export interface WingmanAdvisorContext {
 	admirerContext: string;
 	/** "His current matches" block (with abstracted preferences). */
 	matchContext: string;
+	/**
+	 * Ground-truth "HIS VERIFICATION STATUS" block — which verification steps he
+	 * has actually completed and which he hasn't, plus his uploaded proofs. Without
+	 * it the advisor has no data on his verification and hallucinates it's all done.
+	 */
+	verificationContext: string;
 	/** Which table the personality block was sourced from (for the trace). */
 	profileSource: 'user_master_profile' | 'ai_assistant_profiles' | 'default';
 	/** Raw profile object that fed the prompt (for the trace). */
@@ -263,7 +270,7 @@ export async function loadWingmanAdvisorContext(
 
 			const { data: recentMsgs } = await supabase
 				.from('verified_vibe_messages')
-				.select('content, sender_id, created_at')
+				.select('content, sender_id, created_at, is_ai')
 				.eq('match_id', match.id)
 				.order('created_at', { ascending: false })
 				.limit(6);
@@ -271,17 +278,32 @@ export async function loadWingmanAdvisorContext(
 			const msgs = (recentMsgs ?? []).reverse();
 			const recentActivity = cutoff && msgs.some(m => new Date(m.created_at).getTime() > cutoff);
 			const freshTag = recentActivity ? ' 🆕 (active recently)' : '';
+			// Her side splits in two: messages SHE typed vs. messages her AI Bestie
+			// sent as her proxy while screening him (is_ai). The man is told up front
+			// he's talking to her Bestie, so surfacing the distinction here just lets
+			// the Wingman coach accurately (e.g. "she's now replying herself").
+			const anyBestieMsg = msgs.some(m => m.sender_id !== userId && (m as any).is_ai);
 			const msgText = msgs.length > 0
-				? msgs.map(m => `${m.sender_id === userId ? 'Him' : otherUser.first_name}: ${m.content}`).join('\n')
+				? msgs.map(m => {
+					if (m.sender_id === userId) return `Him: ${m.content}`;
+					return (m as any).is_ai
+						? `${otherUser.first_name}'s AI Bestie: ${m.content}`
+						: `${otherUser.first_name}: ${m.content}`;
+				}).join('\n')
 				: 'No messages yet';
 
 			const prefLine = prefSignals.length
 				? `\nHer signals (use to coach him, don't quote directly): ${prefSignals.join(' | ')}`
 				: '';
 			const tipLine = tipSignals.length ? `\n${tipSignals.join(' | ')}` : '';
+			// When her Bestie was the proxy, remind the Wingman so it doesn't credit her
+			// directly for the Bestie's screening — and can flag when she steps in herself.
+			const bestieNote = anyBestieMsg
+				? `\n(NOTE: lines marked "${otherUser.first_name}'s AI Bestie" were sent by her AI Bestie proxy screening him on her behalf, NOT ${otherUser.first_name} herself. Lines marked just "${otherUser.first_name}" are her own words — a signal she's stepped in.)`
+				: '';
 
 			details.push(
-				`**${otherUser.first_name}**, ${otherUser.age} — ${otherUser.archetype}${freshTag}\nBio: ${otherUser.about?.slice(0, 100) ?? 'n/a'}${prefLine}${tipLine}\nRecent messages:\n${msgText}`
+				`**${otherUser.first_name}**, ${otherUser.age} — ${otherUser.archetype}${freshTag}\nBio: ${otherUser.about?.slice(0, 100) ?? 'n/a'}${prefLine}${tipLine}\nRecent messages:\n${msgText}${bestieNote}`
 			);
 		}
 
@@ -289,12 +311,20 @@ export async function loadWingmanAdvisorContext(
 		matchContext = `\n\nHis current matches (${matches.length} total${remaining}):\n\n${details.join('\n\n---\n\n')}`;
 	}
 
+	// ── His own verification ground truth ────────────────────────────────────
+	// Which steps he has actually completed vs. not. Shared with the AI Bestie
+	// via loadVerificationStatusContext.
+	const verificationContext = await loadVerificationStatusContext(supabase, userId, {
+		subject: 'man'
+	});
+
 	return {
 		personalityContext,
 		masterProfileContext,
 		artifactsContext,
 		admirerContext,
 		matchContext,
+		verificationContext,
 		profileSource,
 		profileData,
 		matchCount
