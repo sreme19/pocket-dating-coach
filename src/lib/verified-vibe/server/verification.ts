@@ -574,29 +574,31 @@ Do not include any other text.`
 }
 
 /**
- * Check whether ANY of the given photos contains an identifiable human face.
+ * Check, per photo, which of the given photos contain an identifiable human face.
  *
- * Pre-flight for the AI photo-enhance pipeline: FLUX PuLID hallucinates a random
- * person when the reference set has no face, so generation must be refused when
- * no face is found in any reference (found-in-one is enough to proceed).
+ * Pre-flight for the AI photo-enhance pipeline: the image models hallucinate a
+ * random person (or an animal-humanoid) when a reference has no face, so faceless
+ * references must be dropped before generation, and generation refused entirely
+ * when NONE of the references has a face.
  *
  * @param images - Reference photos as { data: base64 (no data: prefix), mime }
- * @returns { faceFound } — true if at least one photo has an identifiable face
+ * @returns `faces` — per-photo flags aligned to `images` (true = has an identifiable
+ *          face); `faceFound` — true if at least one photo has one (i.e. some `faces`).
  * @throws Error if the Claude call itself fails (caller decides fail-open/closed)
  */
 export async function detectFaceInPhotosWithClaude(
   images: Array<{ data: string; mime: string }>
-): Promise<{ faceFound: boolean }> {
+): Promise<{ faceFound: boolean; faces: boolean[] }> {
   if (!CLAUDE_API_KEY) {
     console.error('ANTHROPIC_API_KEY environment variable not set');
     throw new Error('API configuration error. Please contact support.');
   }
-  if (images.length === 0) return { faceFound: false };
+  if (images.length === 0) return { faceFound: false, faces: [] };
 
   const messageContent: any[] = [
     {
       type: 'text',
-      text: `You will see ${images.length} photo(s). Determine whether AT LEAST ONE of them contains a clearly identifiable, real human face (a photo of an actual person — not a drawing, statue, pet, object, or landscape, and not a face too small/blurred/obscured to identify).`
+      text: `You will see ${images.length} photo(s), indexed 0 to ${images.length - 1} in the order shown. For EACH photo, decide whether it contains a clearly identifiable, real human face (a photo of an actual person — not a drawing, statue, pet, object, or landscape, and not a face too small/blurred/obscured to identify).`
     }
   ];
   for (const img of images) {
@@ -607,9 +609,9 @@ export async function detectFaceInPhotosWithClaude(
   }
   messageContent.push({
     type: 'text',
-    text: `Return ONLY a JSON object:
+    text: `Return ONLY a JSON object where "faces" is an array of ${images.length} booleans, one per photo in the order shown (faces[i] = true if photo i has an identifiable human face):
 {
-  "faceFound": <boolean>,
+  "faces": [<boolean>, ...],
   "reasoning": "<brief explanation>"
 }
 
@@ -648,7 +650,12 @@ Do not include any other text.`
     throw new Error('Invalid response format from Claude API');
   }
 
-  return { faceFound: parsed.faceFound === true };
+  // Normalise to one boolean per input photo, aligned to `images` order. Anything
+  // missing/malformed is treated as "no face" so a bad response can't smuggle a
+  // faceless reference through (fail-safe for the drop-faceless-refs step).
+  const raw = Array.isArray(parsed.faces) ? parsed.faces : [];
+  const faces = images.map((_, i) => raw[i] === true);
+  return { faceFound: faces.some(Boolean), faces };
 }
 
 /**
