@@ -5,6 +5,7 @@
 	import Case1 from './Case1.svelte';
 	import Case2 from './Case2.svelte';
 	import Case3 from './Case3.svelte';
+	import PhotosReview from './PhotosReview.svelte';
 	import History from './History.svelte';
 	import type { AgentTrace, RestorePayload } from './lib';
 	import type { PageData } from './$types';
@@ -15,7 +16,8 @@
 		{ id: 1, title: 'Individual assistant', desc: 'Advisor chat · Bestie or Wingman' },
 		{ id: 2, title: 'Bestie in match chat', desc: 'On-her-behalf reply + coaching' },
 		{ id: 3, title: 'Matchmaker', desc: 'Hard-filter + soft-score a pair' },
-		{ id: 4, title: 'History', desc: 'Past runs · ts_runs' }
+		{ id: 4, title: 'AI Photos', desc: 'Review & tag generated images' },
+		{ id: 5, title: 'History', desc: 'Past runs · ts_runs' }
 	];
 
 	let tab = $state(1);
@@ -27,7 +29,7 @@
 	// honor ?tab=<n> on load so a shared deep link (e.g. ?tab=4&run=<id>) lands on the right tab
 	onMount(() => {
 		const t = Number(new URLSearchParams(location.search).get('tab'));
-		if (t >= 1 && t <= 4) tab = t;
+		if (t >= 1 && t <= 5) tab = t;
 	});
 
 	function switchTab(id: number) {
@@ -103,6 +105,8 @@
 		{:else if tab === 3}
 			<Case3 roster={data.roster} {trace} {setTrace} {persist} />
 		{:else if tab === 4}
+			<PhotosReview />
+		{:else if tab === 5}
 			<History {trace} {setTrace} onRestore={restoreRun} />
 		{/if}
 	</main>
