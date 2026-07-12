@@ -11,7 +11,8 @@
 		{ href: '/admin/qa/voice', label: 'Voice Calls' },
 		{ href: '/admin/qa/results', label: 'QA Results' },
 		{ href: '/admin/analytics', label: 'Analytics' },
-		{ href: '/admin/test-suite', label: 'Test Suite' },
+		{ href: '/admin/test-suite', label: 'AI Assistants' },
+		{ href: '/admin/photos', label: 'AI Photos' },
 		{ href: '/admin/monitoring', label: 'Monitoring' }
 	];
 
