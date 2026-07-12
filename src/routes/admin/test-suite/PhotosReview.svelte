@@ -11,6 +11,7 @@
 		note: string | null;
 		updated_at: string | null;
 	};
+	type Original = { label: string; url: string };
 	type Photo = {
 		userId: string | null;
 		userName: string;
@@ -21,6 +22,7 @@
 		scene: string;
 		source: 'existing' | 'generated';
 		updatedAt: string | null;
+		originals: Original[];
 		reviews: Review[];
 	};
 	type Draft = { identity: IdentityVerdict; artifacts: boolean; quality: number; note: string };
@@ -44,6 +46,9 @@
 	let generating = $state(false);
 	let genErr = $state('');
 	let generated = $state<Photo[]>([]);
+
+	// Lightbox for enlarging a reference/original photo.
+	let zoomUrl = $state<string | null>(null);
 
 	const ARCHETYPES = [
 		{ id: 'casual_man', label: 'Casual man' },
@@ -183,6 +188,7 @@
 			if (!res.ok || data.error) {
 				throw new Error(data.message || data.error || 'generation failed');
 			}
+			const refOriginals: Original[] = refs.map((r, i) => ({ label: `ref ${i + 1}`, url: r }));
 			const fresh: Photo[] = (data.photos ?? []).map(
 				(ph: { url: string; role?: string; scene?: string }) => ({
 					userId: null,
@@ -194,6 +200,7 @@
 					scene: ph.scene ?? '',
 					source: 'generated' as const,
 					updatedAt: null,
+					originals: refOriginals,
 					reviews: []
 				})
 			);
@@ -236,6 +243,26 @@
 				{#if p.role}<span class="pr-chip">{p.role}</span>{/if}
 				{#if p.scene}<span class="pr-chip ghost">{p.scene}</span>{/if}
 			</div>
+
+			{#if p.originals.length}
+				<div class="pr-field">
+					<span class="pr-flabel">Original uploads · click to enlarge</span>
+					<div class="pr-orig">
+						{#each p.originals as o}
+							<button
+								type="button"
+								class="pr-origthumb"
+								title={o.label || 'original'}
+								onclick={() => (zoomUrl = o.url)}
+							>
+								<img src={o.url} alt="original {o.label}" loading="lazy" />
+							</button>
+						{/each}
+					</div>
+				</div>
+			{:else}
+				<div class="pr-noorig">No original uploads on file for this user.</div>
+			{/if}
 
 			<div class="pr-field">
 				<span class="pr-flabel">Identity preserved</span>
@@ -416,6 +443,22 @@
 	{/if}
 </div>
 
+{#if zoomUrl}
+	<div
+		class="pr-lightbox"
+		role="button"
+		tabindex="0"
+		aria-label="close preview"
+		onclick={() => (zoomUrl = null)}
+		onkeydown={(e) => {
+			if (e.key === 'Escape' || e.key === 'Enter') zoomUrl = null;
+		}}
+	>
+		<img src={zoomUrl} alt="original upload enlarged" />
+		<button class="pr-lightbox-x" aria-label="close"><Icon name="x" size={20} /></button>
+	</div>
+{/if}
+
 <style>
 	.pr-root {
 		display: flex;
@@ -568,6 +611,32 @@
 		display: flex;
 		flex-direction: column;
 		gap: 5px;
+	}
+	.pr-orig {
+		display: flex;
+		gap: 6px;
+		flex-wrap: wrap;
+	}
+	.pr-origthumb {
+		width: 46px;
+		height: 58px;
+		border-radius: 7px;
+		overflow: hidden;
+		border: 1px solid rgba(255, 255, 255, 0.14);
+		padding: 0;
+		cursor: zoom-in;
+		background: #0b1120;
+	}
+	.pr-origthumb img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		display: block;
+	}
+	.pr-noorig {
+		font-size: 11px;
+		color: var(--text-3);
+		font-style: italic;
 	}
 	.pr-flabel {
 		font-size: 10.5px;
@@ -779,5 +848,40 @@
 		padding: 7px 10px;
 		color: var(--text-2);
 		font-size: 13px;
+	}
+
+	/* Lightbox */
+	.pr-lightbox {
+		position: fixed;
+		inset: 0;
+		z-index: 1000;
+		background: rgba(0, 0, 0, 0.82);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 40px;
+		cursor: zoom-out;
+	}
+	.pr-lightbox img {
+		max-width: 92vw;
+		max-height: 92vh;
+		object-fit: contain;
+		border-radius: 10px;
+		box-shadow: 0 10px 60px rgba(0, 0, 0, 0.6);
+	}
+	.pr-lightbox-x {
+		position: fixed;
+		top: 20px;
+		right: 24px;
+		width: 40px;
+		height: 40px;
+		border-radius: 50%;
+		border: none;
+		background: rgba(255, 255, 255, 0.12);
+		color: #fff;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
 	}
 </style>
