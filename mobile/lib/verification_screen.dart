@@ -142,7 +142,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
     super.initState();
     AppLogger.instance.screen('verification');
     _step = widget.initialStep;
-    _photos = List<String?>.filled(_isWoman ? 6 : 3, null);
+    _photos = List<String?>.filled(6, null);
     _preloadUserData();
   }
 
@@ -275,9 +275,11 @@ class _VerificationScreenState extends State<VerificationScreen> {
   final _nameCtrl  = TextEditingController();
   final _ageCtrl   = TextEditingController();
   final _cityCtrl  = TextEditingController();
-  late List<String?> _photos; // 3 slots for men, 6 for women
+  late List<String?> _photos; // 6 slots for all; men see 3 required + 3 optional
   bool  _openToTravel = false;
   bool  _detectingCity = false;
+  String? _photoError;
+  bool  _checkingPhoto = false;
 
   bool get _isWoman => (widget.archetypeId ?? '').endsWith('_woman');
 
@@ -290,7 +292,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
       case 2: return _step2Required.every((k) => (_howYouLive[k]?.isNotEmpty ?? false));
       case 3:
         final a = int.tryParse(_ageCtrl.text.trim());
-        return _photoCount > 0
+        final minPhotos = _isWoman ? 1 : 3;
+        return _photoCount >= minPhotos
             && _nameCtrl.text.trim().isNotEmpty
             && a != null && a >= 18 && a <= 99
             && _cityCtrl.text.trim().isNotEmpty;
@@ -398,30 +401,59 @@ class _VerificationScreenState extends State<VerificationScreen> {
     });
   }
 
+  /// Returns null if quality is acceptable, or an error message string if not.
+  String? _checkBlur(Uint8List bytes) {
+    // Sample up to 4000 bytes evenly spaced as a fast brightness-variance proxy.
+    // A very low variance across sampled bytes indicates a nearly solid-colour
+    // (overexposed, underexposed, or blurry) image.
+    if (bytes.length < 100) return 'This photo looks too small. Try a different one.';
+    final step = (bytes.length / 4000).ceil().clamp(1, bytes.length);
+    double sum = 0, sumSq = 0;
+    int n = 0;
+    for (int i = 0; i < bytes.length; i += step) {
+      final v = bytes[i].toDouble();
+      sum += v; sumSq += v * v; n++;
+    }
+    final mean = sum / n;
+    final variance = sumSq / n - mean * mean;
+    if (variance < 100) return 'This photo looks blurry or overexposed. Try a clearer one.';
+    return null;
+  }
+
   Future<void> _pickPhoto(int slot) async {
     AppLogger.instance.action('verification', 'upload_verification_photo');
-    // If tapping an empty slot, offer multi-select so the user can pick
-    // several photos at once and fill consecutive empty slots.
     if (_photos[slot] == null) {
+      // Empty slot — multi-select to fill consecutive empty slots.
       final picked = await _picker.pickMultiImage(maxWidth: 1024, imageQuality: 75);
       if (picked.isEmpty) return;
-      // Fill starting from this slot, skipping slots that already have a photo.
       final emptySlots = [
         for (int i = slot; i < _photos.length; i++)
           if (_photos[i] == null) i,
       ];
       final toFill = picked.take(emptySlots.length).toList();
+      if (mounted) setState(() { _checkingPhoto = true; _photoError = null; });
       for (int j = 0; j < toFill.length; j++) {
         final bytes = await toFill[j].readAsBytes();
+        final err = _checkBlur(bytes);
+        if (err != null) {
+          if (mounted) setState(() { _photoError = err; _checkingPhoto = false; });
+          return;
+        }
         final b64 = base64Encode(bytes);
         if (mounted) setState(() => _photos[emptySlots[j]] = b64);
       }
+      if (mounted) setState(() => _checkingPhoto = false);
     } else {
-      // Tapping a slot that already has a photo → replace it with a single pick.
+      // Filled slot — replace with a single pick.
       final x = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 1024, imageQuality: 75);
       if (x == null) return;
       final bytes = await x.readAsBytes();
-      if (mounted) setState(() => _photos[slot] = base64Encode(bytes));
+      final err = _checkBlur(bytes);
+      if (err != null) {
+        if (mounted) setState(() => _photoError = err);
+        return;
+      }
+      if (mounted) setState(() { _photos[slot] = base64Encode(bytes); _photoError = null; });
     }
   }
 
@@ -947,21 +979,58 @@ class _VerificationScreenState extends State<VerificationScreen> {
         const Text('Your photos',
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(Config.text2))),
         const SizedBox(height: 8),
+        // Consent notice — men only
+        if (!_isWoman)
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(Config.bg2),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0x181B1020)),
+            ),
+            child: const Text(
+              '🔒 Your photos are used only to create your AI profile pictures. They will never be shown to anyone.',
+              style: TextStyle(fontSize: 11, color: Color(Config.text3), height: 1.4),
+            ),
+          ),
         LayoutBuilder(builder: (ctx, box) {
           final w = (box.maxWidth - 16) / 3;
           final h = w * 4 / 3;
-          final rows = _photos.length ~/ 3;
+          final showSecondRow = _isWoman || _photoCount >= 3;
           return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (int row = 0; row < rows; row++) ...[
-                if (row > 0) const SizedBox(height: 8),
+              // Required row (slots 0–2)
+              SizedBox(
+                height: h,
+                child: Row(
+                  children: [
+                    for (int col = 0; col < 3; col++) ...[
+                      if (col > 0) const SizedBox(width: 8),
+                      SizedBox(width: w, height: h, child: _photoSlot(col)),
+                    ],
+                  ],
+                ),
+              ),
+              // Optional row (slots 3–5) — always for women; revealed for men after 3 filled
+              if (showSecondRow) ...[
+                const SizedBox(height: 8),
+                if (!_isWoman)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 6),
+                    child: Text(
+                      '✨ Add more for better AI results  OPTIONAL',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(Config.text3)),
+                    ),
+                  ),
                 SizedBox(
                   height: h,
                   child: Row(
                     children: [
                       for (int col = 0; col < 3; col++) ...[
                         if (col > 0) const SizedBox(width: 8),
-                        SizedBox(width: w, height: h, child: _photoSlot(row * 3 + col)),
+                        SizedBox(width: w, height: h, child: _photoSlot(3 + col)),
                       ],
                     ],
                   ),
@@ -971,8 +1040,15 @@ class _VerificationScreenState extends State<VerificationScreen> {
           );
         }),
         const SizedBox(height: 8),
-        const Text('Add at least 1 photo to continue.',
-            style: TextStyle(fontSize: 11, color: Color(Config.text3))),
+        if (_photoError != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(_photoError!, style: const TextStyle(fontSize: 11.5, color: Color(0xFFF87171))),
+          ),
+        Text(
+          _isWoman ? 'Add at least 1 photo to continue.' : 'Add at least 3 photos to continue.',
+          style: const TextStyle(fontSize: 11, color: Color(Config.text3)),
+        ),
         const SizedBox(height: 20),
         // City
         const Text('Your city',
@@ -1047,7 +1123,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
       fit: StackFit.expand,
       children: [
         GestureDetector(
-          onTap: _busy ? null : () => _pickPhoto(slot),
+          onTap: (_busy || _checkingPhoto) ? null : () => _pickPhoto(slot),
           child: Container(
             decoration: BoxDecoration(
               color: const Color(Config.bg2),
@@ -1214,7 +1290,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
         final filled = _step2Required.where((k) => _howYouLive[k]?.isNotEmpty ?? false).length;
         label = 'Answer the required sections ($filled/${_step2Required.length})';
       } else {
-        label = 'Add your name, age, a photo & city';
+        label = _isWoman
+            ? 'Add your name, age, a photo & city'
+            : 'Add your name, age, 3 photos & city';
       }
     }
 
