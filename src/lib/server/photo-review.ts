@@ -64,7 +64,7 @@ interface RawPhoto {
 
 interface MasterProfileRow {
 	user_id: string;
-	data: { aiPhotos?: AiPhoto[]; photos?: RawPhoto[] } | null;
+	data: { aiPhotos?: AiPhoto[]; aiPhotosHistory?: AiPhoto[]; photos?: RawPhoto[] } | null;
 	updated_at: string | null;
 }
 
@@ -92,7 +92,9 @@ export async function listGeneratedPhotos(limit = 400): Promise<PhotoItem[]> {
 	if (error) throw new Error(error.message);
 
 	const withPhotos = ((rows ?? []) as MasterProfileRow[]).filter(
-		(r) => Array.isArray(r.data?.aiPhotos) && r.data!.aiPhotos!.length > 0
+		(r) =>
+			(Array.isArray(r.data?.aiPhotos) && r.data!.aiPhotos!.length > 0) ||
+			(Array.isArray(r.data?.aiPhotosHistory) && r.data!.aiPhotosHistory!.length > 0)
 	);
 	if (withPhotos.length === 0) return [];
 
@@ -113,8 +115,14 @@ export async function listGeneratedPhotos(limit = 400): Promise<PhotoItem[]> {
 	for (const row of withPhotos) {
 		const u = userMap.get(row.user_id);
 		const originals = extractOriginals(row.data!.photos);
-		for (const p of row.data!.aiPhotos!) {
-			if (!p?.url) continue;
+		// Union of the archive and the current set so photos overwritten by a
+		// regenerate stay taggable. Dedupe by url (history already contains the
+		// current set, but old rows predating the archive may only have aiPhotos).
+		const seen = new Set<string>();
+		const all = [...(row.data!.aiPhotosHistory ?? []), ...(row.data!.aiPhotos ?? [])];
+		for (const p of all) {
+			if (!p?.url || seen.has(p.url)) continue;
+			seen.add(p.url);
 			photos.push({
 				userId: row.user_id,
 				userName: u?.first_name ?? '(unknown)',
