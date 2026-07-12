@@ -9,7 +9,8 @@ import {
   checkSelfieLivenessWithClaude,
   checkPhotoConsistencyWithClaude,
   analyzeSpendingPatternWithClaude,
-  evaluateQAResponsesWithClaude
+  evaluateQAResponsesWithClaude,
+  claudeErrorResponse
 } from '$lib/verified-vibe/server/verification';
 import { enrollInPoolIfVerified } from '$lib/server/pool-registry';
 import { recomputeAndNormalize } from '$lib/server/trust-normalize';
@@ -208,6 +209,8 @@ export const POST: RequestHandler = async ({ request }) => {
 
     return json({ error: 'Invalid verification step' }, { status: 400 });
   } catch (error) {
+    const svcErr = claudeErrorResponse(error);
+    if (svcErr) return svcErr;
     console.error('Verification step error:', error);
     return json(
       { error: 'Failed to process verification step' },
@@ -293,6 +296,8 @@ async function handleIDVerification(data: any, userId: string | null = null) {
     // live selfie. Points/persistence are gated above, not by this field.
     return json({ status: 'completed', step: 'id', data: enriched, trustPoints: faceVerified ? idPoints : 0 });
   } catch (error) {
+    const svcErr = claudeErrorResponse(error);
+    if (svcErr) return svcErr;
     const message = error instanceof Error ? error.message : 'ID extraction failed';
     return json({ error: message }, { status: 422 });
   }
@@ -415,6 +420,8 @@ async function handleLivenessVerification(data: any, userId: string | null = nul
 
     return json({ status, step: 'liveness', data: stepData, trustPoints }, { status: 201 });
   } catch (error) {
+    const svcErr = claudeErrorResponse(error);
+    if (svcErr) return svcErr;
     const message = error instanceof Error ? error.message : 'Liveness check failed';
     return json({ error: message }, { status: 422 });
   }
@@ -541,6 +548,8 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
 
     return json(response, { status: 201 });
   } catch (error) {
+    const svcErr = claudeErrorResponse(error);
+    if (svcErr) return svcErr;
     console.error('Photo verification error:', error);
 
     if (error instanceof Error) {
@@ -615,6 +624,8 @@ async function handleSpendingOrQAVerification(data: any, userId: string | null =
 
     return json({ error: 'Q&A responses are required' }, { status: 400 });
   } catch (error) {
+    const svcErr = claudeErrorResponse(error);
+    if (svcErr) return svcErr;
     console.error('Spending/Q&A verification error:', error);
 
     if (error instanceof Error) {
@@ -679,6 +690,8 @@ async function handleSpendingVerification(spendingImageBase64: string, mimeType:
       createdAt: new Date().toISOString()
     }, { status: 201 });
   } catch (error) {
+    const svcErr = claudeErrorResponse(error);
+    if (svcErr) return svcErr;
     console.error('Spending verification error:', error);
 
     if (error instanceof Error) {
@@ -760,6 +773,8 @@ async function handleQAVerification(responses: Record<string, string>, gender: s
       createdAt: new Date().toISOString()
     }, { status: 201 });
   } catch (error) {
+    const svcErr = claudeErrorResponse(error);
+    if (svcErr) return svcErr;
     console.error('Q&A verification error:', error);
     return json({ error: 'Failed to save Q&A responses. Please try again.' }, { status: 500 });
   }

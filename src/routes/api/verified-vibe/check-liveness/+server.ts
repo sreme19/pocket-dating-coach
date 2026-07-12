@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { checkLivenessWithClaude } from '$lib/verified-vibe/server/verification';
+import { checkLivenessWithClaude, claudeErrorResponse } from '$lib/verified-vibe/server/verification';
 import { logAppError } from '$lib/server/logAppError';
 
 /**
@@ -100,6 +100,11 @@ export const POST: RequestHandler = async ({ request }) => {
       file: 'src/routes/api/verified-vibe/check-liveness/+server.ts',
       endpoint: 'POST /api/verified-vibe/check-liveness',
     }).catch(() => {});
+
+    // Billing / auth / transient Claude failures — surface honestly instead of
+    // masquerading as a generic "try again".
+    const svcErr = claudeErrorResponse(error);
+    if (svcErr) return svcErr;
 
     // Handle specific error types
     if (error instanceof Error) {

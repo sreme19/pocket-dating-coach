@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { extractIDWithClaude } from '$lib/verified-vibe/server/verification';
+import { extractIDWithClaude, claudeErrorResponse } from '$lib/verified-vibe/server/verification';
 
 /**
  * POST /api/verified-vibe/extract-id
@@ -63,6 +63,11 @@ export const POST: RequestHandler = async ({ request }) => {
     );
   } catch (error) {
     console.error('ID extraction error:', error);
+
+    // Billing / auth / transient Claude failures — surface honestly instead of
+    // masquerading as a generic "try again".
+    const svcErr = claudeErrorResponse(error);
+    if (svcErr) return svcErr;
 
     // Handle specific error types
     if (error instanceof Error) {
