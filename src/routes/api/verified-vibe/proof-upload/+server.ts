@@ -59,6 +59,45 @@ async function fetchWithRetry(url: string, init: RequestInit, maxAttempts = 3): 
   throw lastError ?? new Error('Claude API unreachable after retries');
 }
 
+/** Thrown when Claude returns a non-OK HTTP status we can't recover from. Carries
+ *  the response so the handler can surface an honest, category-aware error. */
+class ClaudeHttpError extends Error {
+  constructor(public readonly status: number, public readonly detail: string) {
+    super(`Claude API HTTP ${status}`);
+    this.name = 'ClaudeHttpError';
+  }
+}
+
+/** Read a failed Claude response into a ClaudeHttpError (best-effort body capture). */
+async function toClaudeHttpError(resp: Response): Promise<ClaudeHttpError> {
+  let detail = '';
+  try { detail = (await resp.clone().text()).slice(0, 400); } catch { /* body already consumed / unavailable */ }
+  return new ClaudeHttpError(resp.status, detail);
+}
+
+/**
+ * Map a Claude failure to a user-facing JSON error, distinguishing transient
+ * failures (429 / 529 / 5xx — worth retrying) from permanent ones (billing,
+ * auth, bad request — retrying won't help). This is why an out-of-credits or
+ * misconfigured-key failure no longer masquerades to the user as a momentary
+ * blip: transient → 503 "try again in a moment", permanent → 502 "on our side".
+ */
+function claudeErrorResponse(err: ClaudeHttpError, context: string) {
+  const transient = err.status === 429 || err.status === 529 || err.status >= 500;
+  console.error(`[proof-upload] Claude ${context} failed: HTTP ${err.status}${transient ? ' (transient)' : ' (non-retryable — check billing/API key)'} — ${err.detail}`);
+  if (transient) {
+    return json(
+      { error: 'AI service is busy right now. Please try again in a moment.', retryable: true },
+      { status: 503 },
+    );
+  }
+  // Billing / auth / bad request: the account needs attention, not the upload.
+  return json(
+    { error: 'AI verification is temporarily offline. Please try again later — this is on our side, not your upload.', retryable: false },
+    { status: 502 },
+  );
+}
+
 // ── Per-category prompts (all return insights array) ─────────────────────────
 
 const PROMPTS: Record<string, string> = {
@@ -676,7 +715,9 @@ async function finalizeAssets(parsed: any, ctx: {
   fileCount: number;
 }) {
   if (!parsed) {
-    return json({ error: 'Analysis unavailable — try again' }, { status: 503 });
+    // Reached only when Claude returned OK but the body wasn't parseable JSON
+    // (HTTP failures throw ClaudeHttpError and are handled by the caller).
+    return json({ error: 'Couldn\'t read this document — try a clearer photo or PDF.' }, { status: 422 });
   }
 
   const verified = parsed.verified !== false;
@@ -886,7 +927,7 @@ export const POST: RequestHandler = async ({ request }) => {
         }),
         signal: AbortSignal.timeout(60_000),
       });
-      if (!resp.ok) return null;
+      if (!resp.ok) throw await toClaudeHttpError(resp);
       const data = await resp.json();
       let raw = (data.content?.[0]?.text ?? '{}') as string;
       raw = raw.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim();
@@ -1016,8 +1057,7 @@ export const POST: RequestHandler = async ({ request }) => {
     });
 
     if (!claudeResp.ok) {
-      console.error('Claude API error after retries:', claudeResp.status);
-      return json({ error: 'Vision API unavailable — try again' }, { status: 503 });
+      return claudeErrorResponse(await toClaudeHttpError(claudeResp), 'vision');
     }
 
     const claudeData = await claudeResp.json();
@@ -1175,6 +1215,12 @@ export const POST: RequestHandler = async ({ request }) => {
     });
 
   } catch (error) {
+    // A non-OK Claude response (billing/auth/bad-request or transient overload)
+    // reaches here from the PDF path — surface it honestly instead of a blanket
+    // "try again". The image (Vision) path handles this inline above.
+    if (error instanceof ClaudeHttpError) {
+      return claudeErrorResponse(error, 'pdf');
+    }
     console.error('proof-upload handler error:', error);
     return json({ error: 'Failed to analyse proof — try again' }, { status: 500 });
   }
