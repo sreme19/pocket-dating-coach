@@ -231,7 +231,7 @@ async function handleIDVerification(data: any, userId: string | null = null) {
 
   try {
     // Face-gate FIRST. Identity is only VERIFIED from the ID when the ID photo
-    // matches the user's verified anchor selfie (bar 55, enforced inside
+    // matches the user's verified anchor selfie (bar 65, enforced inside
     // checkLivenessWithClaude). A mismatch is REJECTED before anything else
     // happens — the name/data extraction never runs, nothing is persisted, no
     // points are awarded — and the client offers a re-upload. No anchor yet →
@@ -320,7 +320,7 @@ async function handleLivenessVerification(data: any, userId: string | null = nul
     if (hasIdPhoto) {
       // Gov-ID gate selfie. Applies the SAME standard as onboarding — the selfie
       // must be a genuine live person (checkSelfieLivenessWithClaude) — AND it must
-      // match the government-ID photo (checkLivenessWithClaude, bar 55). BOTH must
+      // match the government-ID photo (checkLivenessWithClaude, bar 65). BOTH must
       // pass. Non-fatal: if Claude fails we return apiError:true so the client can
       // fail-open rather than hard-blocking on an outage.
       if (skipVerification) {
@@ -332,7 +332,7 @@ async function handleLivenessVerification(data: any, userId: string | null = nul
             checkLivenessWithClaude(data.selfieImage, data.idPhotoBase64, mimeType),
           ]);
           const livePass  = liveness.live === true && liveness.confidence >= LIVENESS_MIN_CONFIDENCE;
-          const matchPass = faceMatch.match === true; // 55 bar applied inside checkLivenessWithClaude
+          const matchPass = faceMatch.match === true; // 65 bar applied inside checkLivenessWithClaude
           stepData = {
             confidence: faceMatch.confidence,
             match: livePass && matchPass,
@@ -365,7 +365,7 @@ async function handleLivenessVerification(data: any, userId: string | null = nul
 
     // Pass criteria differ per path:
     //  • gov-ID gate selfie (hasIdPhoto): stepData.match already encodes liveness
-    //    AND the ID face-match (bar 55) — trust that combined decision directly.
+    //    AND the ID face-match (bar 65) — trust that combined decision directly.
     //  • onboarding selfie: gate on BOTH live=true AND confidence>=threshold.
     //    Checking confidence alone is insufficient: Claude may return live=false
     //    with a mid-range confidence (e.g. no face → live:false, confidence:0).

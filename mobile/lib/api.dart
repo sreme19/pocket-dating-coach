@@ -1413,7 +1413,7 @@ Future<Map<String, dynamic>> verifyIdExtract(String imagePath) async {
 
 /// Verify a live selfie against the government ID photo.
 /// The server applies the same liveness standard as onboarding AND the ID
-/// face-match (bar 55); it returns the combined decision in `match`. Returns
+/// face-match (bar 65); it returns the combined decision in `match`. Returns
 /// that decision (fails open only on a server-side API error).
 Future<bool> verifySelfieVsId(String selfiePath, String idBase64, String idMime) async {
   final bytes = await File(selfiePath).readAsBytes();
@@ -1449,7 +1449,7 @@ Future<bool> verifySelfieVsId(String selfiePath, String idBase64, String idMime)
   // apiError:true — fail open so users aren't hard-blocked by infra issues.
   if (data['apiError'] == true) return true;
   // Server is the single source of truth: `match` already encodes both the
-  // liveness (genuine live person) and the ID face-match (bar 55) decisions.
+  // liveness (genuine live person) and the ID face-match (bar 65) decisions.
   return data['match'] == true;
 }
 
