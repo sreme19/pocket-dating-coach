@@ -123,8 +123,6 @@ export async function listGeneratedPhotos(limit = 400): Promise<PhotoItem[]> {
 		for (const p of all) {
 			if (!p?.url || seen.has(p.url)) continue;
 			seen.add(p.url);
-		for (const p of row.data!.aiPhotos!) {
-			if (!p?.url) continue;
 			photos.push({
 				userId: row.user_id,
 				userName: u?.first_name ?? '(unknown)',
