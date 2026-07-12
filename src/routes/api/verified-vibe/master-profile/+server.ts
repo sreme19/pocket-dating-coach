@@ -254,7 +254,31 @@ export const POST: RequestHandler = async ({ request }: { request: Request }) =>
   if (body.garagePortraitUrl      !== undefined) updated.garagePortraitUrl      = body.garagePortraitUrl;
   // Photos: full-replace (client owns the canonical ordered list of hosted URLs)
   if (body.photos                !== undefined) updated.photos                = body.photos;
-  if (body.aiPhotos              !== undefined) updated.aiPhotos              = body.aiPhotos;
+  if (body.aiPhotos              !== undefined) {
+    updated.aiPhotos = body.aiPhotos;
+    // Durable archive for human tagging: regenerating replaces the canonical
+    // `aiPhotos` set, but every AI photo ever generated must remain taggable in
+    // the admin "AI Photos" review tab. Accumulate an append-only, url-deduped
+    // history so older photos aren't dropped when new ones overwrite `aiPhotos`.
+    const prevHistory = Array.isArray(prev.aiPhotosHistory)
+      ? (prev.aiPhotosHistory as Array<{ url?: string }>)
+      : [];
+    const prevCurrent = Array.isArray(prev.aiPhotos)
+      ? (prev.aiPhotos as Array<{ url?: string }>)
+      : [];
+    const merged: Array<{ url?: string }> = [];
+    const seen = new Set<string>();
+    // Oldest first: prior history, then the set being replaced, then the new set.
+    for (const p of [...prevHistory, ...prevCurrent, ...(body.aiPhotos as Array<{ url?: string }>)]) {
+      const url = p?.url;
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      merged.push(p);
+    }
+    // Cap to keep the JSON row bounded; drop the oldest beyond the limit.
+    const CAP = 100;
+    updated.aiPhotosHistory = merged.length > CAP ? merged.slice(merged.length - CAP) : merged;
+  }
   // P0-5: Lane change log — append single entry {ts, from, to}
   if (body.laneChange !== undefined && body.laneChange !== null) {
     const prevChanges = Array.isArray(prev.laneChanges) ? (prev.laneChanges as object[]) : [];

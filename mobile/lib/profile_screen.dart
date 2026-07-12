@@ -2912,8 +2912,11 @@ class _PhotoStorySectionState extends State<_PhotoStorySection> {
             style: const TextStyle(fontSize: 12, color: Color(Config.text3), height: 1.35),
           ),
           const SizedBox(height: 12),
-          // Enhance with AI — shown for men only; greyed out until photos exist
-          if (isMan)
+          // Enhance with AI — men only, and ONLY for the first-time generation.
+          // Once AI photos exist we hide the button so users can't repeatedly
+          // regenerate and burn through generation credits. (While a run is in
+          // flight we keep it visible so they can restart with latest photos.)
+          if (isMan && (!hasAiPhotos || enhancing))
             SizedBox(
               width: double.infinity, height: 50,
               child: FilledButton(
@@ -2930,15 +2933,13 @@ class _PhotoStorySectionState extends State<_PhotoStorySection> {
                   const Text('✨', style: TextStyle(fontSize: 16)),
                   const SizedBox(width: 8),
                   Text(
-                    enhancing
-                        ? 'Restart generation'
-                        : (hasAiPhotos ? 'Regenerate AI Photos' : 'Enhance with AI'),
+                    enhancing ? 'Restart generation' : 'Enhance with AI',
                     style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
                   ),
                 ]),
               ),
             )
-          else
+          else if (!isMan)
             SizedBox(
               width: double.infinity, height: 46,
               child: OutlinedButton.icon(

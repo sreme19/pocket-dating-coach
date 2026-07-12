@@ -94,16 +94,19 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
 
   Future<void> _save() async {
     if (_isMan) {
-      // Prompt the user to regenerate AI photos with the updated reference set.
+      // Confirm saving the updated reference set. Note: this only stores the
+      // raw references privately — it does NOT regenerate the AI portraits.
+      // Regeneration is a deliberate one-time action to protect generation
+      // credits, so we no longer promise it here.
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: const Color(Config.bg2),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('Regenerate AI photos?',
+          title: const Text('Save your photos?',
               style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700)),
           content: const Text(
-            'Your updated photos will be used to regenerate your AI profile pictures. Your real photos are never shown to anyone.',
+            'Your updated photos are stored privately as references. Your AI profile pictures stay as they are, and your real photos are never shown to anyone.',
             style: TextStyle(color: Color(Config.text2), fontSize: 14, height: 1.5),
           ),
           actions: [
@@ -117,7 +120,7 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
                 backgroundColor: const Color(Config.accent),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              child: const Text('Regenerate', style: TextStyle(fontWeight: FontWeight.w700)),
+              child: const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
             ),
           ],
         ),
