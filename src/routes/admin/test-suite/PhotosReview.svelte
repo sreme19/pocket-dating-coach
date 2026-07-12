@@ -77,7 +77,7 @@
 		loading = true;
 		loadErr = '';
 		try {
-			const res = await fetch('/admin/test-suite/api/photos');
+			const res = await fetch('/admin/photos/api/photos');
 			const data = await res.json();
 			if (!res.ok) throw new Error(data.error || 'failed to load');
 			photos = data.photos as Photo[];
@@ -121,7 +121,7 @@
 		saving[p.url] = true;
 		saveErr[p.url] = '';
 		try {
-			const res = await fetch('/admin/test-suite/api/photos', {
+			const res = await fetch('/admin/photos/api/photos', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({
