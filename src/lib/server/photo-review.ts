@@ -30,6 +30,11 @@ export interface PhotoReview {
 	updated_at: string | null;
 }
 
+export interface OriginalPhoto {
+	label: string;
+	url: string;
+}
+
 export interface PhotoItem {
 	userId: string | null;
 	userName: string;
@@ -40,6 +45,8 @@ export interface PhotoItem {
 	scene: string;
 	source: 'existing' | 'generated';
 	updatedAt: string | null;
+	/** The user's original uploaded reference photos, for identity comparison. */
+	originals: OriginalPhoto[];
 	reviews: PhotoReview[];
 }
 
@@ -49,10 +56,24 @@ interface AiPhoto {
 	scene?: string;
 }
 
+interface RawPhoto {
+	label?: string;
+	dataUrl?: string;
+	url?: string;
+}
+
 interface MasterProfileRow {
 	user_id: string;
-	data: { aiPhotos?: AiPhoto[] } | null;
+	data: { aiPhotos?: AiPhoto[]; photos?: RawPhoto[] } | null;
 	updated_at: string | null;
+}
+
+/** Normalize a user's raw uploaded photos to { label, url }, dropping any without a URL. */
+function extractOriginals(photos: RawPhoto[] | undefined): OriginalPhoto[] {
+	if (!Array.isArray(photos)) return [];
+	return photos
+		.map((p) => ({ label: p?.label ?? '', url: p?.dataUrl ?? p?.url ?? '' }))
+		.filter((p) => !!p.url);
 }
 
 /**
@@ -91,6 +112,7 @@ export async function listGeneratedPhotos(limit = 400): Promise<PhotoItem[]> {
 	const photos: Omit<PhotoItem, 'reviews'>[] = [];
 	for (const row of withPhotos) {
 		const u = userMap.get(row.user_id);
+		const originals = extractOriginals(row.data!.photos);
 		for (const p of row.data!.aiPhotos!) {
 			if (!p?.url) continue;
 			photos.push({
@@ -102,7 +124,8 @@ export async function listGeneratedPhotos(limit = 400): Promise<PhotoItem[]> {
 				role: p.role ?? '',
 				scene: p.scene ?? '',
 				source: 'existing',
-				updatedAt: row.updated_at
+				updatedAt: row.updated_at,
+				originals
 			});
 		}
 	}
