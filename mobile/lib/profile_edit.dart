@@ -32,10 +32,12 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
   bool _dirty = false;
   String? _error;
 
-  // Gender photo model: men get up to 3 (shown AI-enhanced), women up to 6 (real).
+  // Gender photo model: men get up to 6 reference photos (AI-enhanced for profile), women up to 6 (real).
   bool get _isMan => widget.gender == 'man';
-  int get _maxPhotos => _isMan ? 3 : 6;
+  int get _maxPhotos => 6;
+  int get _minPhotos => _isMan ? 3 : 1;
   bool get _atCap => _photos.length >= _maxPhotos;
+  bool get _atFloor => _photos.length <= _minPhotos;
 
   Future<void> _add(ImageSource source) async {
     if (_busy || _atCap) return;
@@ -71,8 +73,14 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
   }
 
   void _remove(int i) {
+    if (_atFloor) {
+      setState(() => _error = _isMan
+          ? 'You need at least 3 photos for AI generation.'
+          : 'You need at least 1 photo.');
+      return;
+    }
     AppLogger.instance.action('profile_edit', 'remove_photo');
-    setState(() { _photos.removeAt(i); _dirty = true; });
+    setState(() { _photos.removeAt(i); _dirty = true; _error = null; });
   }
 
   void _makeLead(int i) {
@@ -85,11 +93,40 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
   }
 
   Future<void> _save() async {
+    if (_isMan) {
+      // Prompt the user to regenerate AI photos with the updated reference set.
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(Config.bg2),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Regenerate AI photos?',
+              style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700)),
+          content: const Text(
+            'Your updated photos will be used to regenerate your AI profile pictures. Your real photos are never shown to anyone.',
+            style: TextStyle(color: Color(Config.text2), fontSize: 14, height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel', style: TextStyle(color: Color(Config.text2))),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(Config.accent),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text('Regenerate', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
     setState(() { _busy = true; _error = null; });
     try {
-      // Men's raw photos are stored edit-only (never presented) — persist them,
-      // but do NOT auto-run AI generation here. Editing photos requires the user
-      // to tap "Enhance with AI / Regenerate" manually; only onboarding auto-runs.
+      // Men's raw photos are stored edit-only (never presented) — persist them.
       await savePhotos(_photos, isMan: _isMan);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
@@ -118,13 +155,19 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
         children: [
           Text(
             _isMan
-                ? 'Up to 3 photos. Viewers only ever see an AI-enhanced version — your raw photo is never shown to anyone. First photo is your lead; long-press another to make it lead.'
+                ? 'Up to 6 reference photos (min 3). Viewers only ever see your AI-enhanced portraits — your real photos are never shown to anyone. First photo is your lead; long-press another to make it lead.'
                 : 'Up to 6 real photos — no AI filters, authenticity is the point. First photo is your lead; long-press another to make it lead.',
             style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4),
           ),
+          const SizedBox(height: 4),
+          if (_isMan)
+            const Text(
+              '🔒 Your photos are used only to create your AI profile pictures. They will never be shown to anyone.',
+              style: TextStyle(color: Color(Config.text3), fontSize: 12, height: 1.4),
+            ),
           const SizedBox(height: 8),
           Text(
-            '${_photos.length}/$_maxPhotos photos${_atCap ? ' · maximum reached' : ''}',
+            '${_photos.length}/$_maxPhotos photos${_atCap ? ' · maximum reached' : _atFloor && _isMan ? ' · minimum 3 required' : ''}',
             style: TextStyle(
               color: _atCap ? const Color(Config.accent) : const Color(Config.text3),
               fontSize: 12,

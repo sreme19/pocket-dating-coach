@@ -16,6 +16,9 @@ String _friendlyError(Object e) {
       s.contains('connection') || s.contains('network') || s.contains('timeout')) {
     return 'Connection issue. Please check your internet and try again.';
   }
+  // Pass through explicit user-facing messages thrown by the API layer
+  final msg = s.startsWith('Exception: ') ? s.substring(11) : s;
+  if (msg.length < 200 && !msg.contains('Exception') && !msg.contains('Error(')) return msg;
   return 'Something went wrong. Please try again.';
 }
 
@@ -337,7 +340,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
 
   Future<void> _pickPhotos() async {
     if (_analysing) return;
-    final picked = await _picker.pickMultiImage(maxWidth: 1800, imageQuality: 85);
+    final picked = await _picker.pickMultiImage(maxWidth: 1200, imageQuality: 72);
     if (picked.isEmpty) return;
     final combined = [..._files, ...picked];
     setState(() {

@@ -277,9 +277,9 @@ Carefully study the fixed bone structure in both photos and determine if they ar
                 type: 'text',
                 text: `Based on structural facial geometry alone (ignoring age, hair, beard, and appearance changes), what is your confidence these are the same person?
 
-A score of 60+ means the structural features are consistent and this should pass verification.
+A score of 65+ means the structural features are consistent and this should pass verification.
 A score below 40 means clearly different people.
-Scores 40–59 indicate uncertainty — only fail if you are confident these are different people.
+Scores 40–64 indicate uncertainty — do not pass unless the fixed bone structure genuinely lines up.
 
 Return ONLY a JSON object:
 {
@@ -317,10 +317,14 @@ Do not include any other text.`
       throw new Error('Invalid response format from Claude API');
     }
 
-    // Use 55 as the pass threshold (not 80) — ID photos can be 10-20 years old,
-    // so a confident structural match rarely scores above 75.
+    // Pass threshold 65 (raised from 55). Gate purely on the structural-match
+    // confidence: a borderline look-alike (e.g. a similar-looking friend's ID
+    // scoring in the low-60s) no longer clears the gate, while a genuine match
+    // on an old ID photo still comfortably reaches 65. We intentionally do NOT
+    // fall back to Claude's self-declared `match` flag — that OR let sub-65
+    // scores through, since the prompt nudges the model to "pass" borderline cases.
     const confidence = parsedResponse.confidence ?? 0;
-    const match = parsedResponse.match === true || confidence >= 55;
+    const match = confidence >= 65;
 
     return {
       confidence,
