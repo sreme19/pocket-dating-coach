@@ -5,11 +5,64 @@
  * and photo consistency analysis.
  */
 
+import { json } from '@sveltejs/kit';
 import type { IDExtractionResult, LivenessCheckResult, PhotoConsistencyResult } from '../types';
 import { ANTHROPIC_API_KEY as CLAUDE_API_KEY } from '$env/static/private';
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_MODEL = 'claude-sonnet-4-6';
+
+/**
+ * Raised when the Claude API itself returns a non-OK HTTP status (as opposed to
+ * a content/parse problem). `retryable` distinguishes transient overload
+ * (429 / 529 / 5xx — worth retrying) from permanent account issues (billing,
+ * auth, 400 — retrying won't help), so route handlers stop telling users to
+ * "try again in a moment" for an out-of-credits or misconfigured key.
+ */
+export class ClaudeServiceError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly retryable: boolean,
+    detail?: string,
+  ) {
+    super(detail || `Claude API error ${status}`);
+    this.name = 'ClaudeServiceError';
+  }
+}
+
+/** Convert a failed Claude fetch Response into a classified ClaudeServiceError. */
+async function claudeServiceError(response: Response): Promise<ClaudeServiceError> {
+  let detail = '';
+  try {
+    const e = await response.clone().json();
+    detail = e?.error?.message || e?.message || '';
+  } catch {
+    detail = response.statusText || '';
+  }
+  const retryable = response.status === 429 || response.status === 529 || response.status >= 500;
+  console.error(`Claude API error (${response.status})${retryable ? ' [transient]' : ' [non-retryable — check billing/API key]'}: ${detail}`);
+  return new ClaudeServiceError(response.status, retryable, detail);
+}
+
+/**
+ * Map a caught error to a user-facing JSON Response IF it's a Claude service
+ * failure; returns null otherwise so the caller can handle its own domain
+ * errors (unclear photo, no face, timeout, parse failure, …). Transient →
+ * 503 "try again in a moment"; permanent (billing/auth/4xx) → 502 "on our side".
+ */
+export function claudeErrorResponse(error: unknown): Response | null {
+  if (!(error instanceof ClaudeServiceError)) return null;
+  if (error.retryable) {
+    return json(
+      { error: 'AI verification is busy right now. Please try again in a moment.', retryable: true },
+      { status: 503 },
+    );
+  }
+  return json(
+    { error: 'AI verification is temporarily offline. Please try again later — this is on our side, not your upload.', retryable: false },
+    { status: 502 },
+  );
+}
 
 /**
  * Extract ID information from an image using Claude Vision
@@ -97,29 +150,7 @@ Do not include any other text or explanation.`
 
       clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        let errorMessage = 'Failed to process ID image';
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.error?.message || errorData.message || errorMessage;
-        } catch {
-          // If error response is not JSON, use status text
-          errorMessage = response.statusText || errorMessage;
-        }
-
-        console.error(`Claude API error (${response.status}):`, errorMessage);
-
-        // Provide user-friendly error messages based on status
-        if (response.status === 401 || response.status === 403) {
-          throw new Error('Authentication error. Please try again later.');
-        } else if (response.status === 429) {
-          throw new Error('Service is busy. Please wait a moment and try again.');
-        } else if (response.status >= 500) {
-          throw new Error('Service temporarily unavailable. Please try again later.');
-        }
-
-        throw new Error(errorMessage);
-      }
+      if (!response.ok) throw await claudeServiceError(response);
 
       const data = await response.json();
       const content = data.content[0]?.text;
@@ -296,11 +327,7 @@ Do not include any other text.`
       })
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      console.error('Claude API error:', error);
-      throw new Error(`Claude API error: ${error.error?.message || 'Unknown error'}`);
-    }
+    if (!response.ok) throw await claudeServiceError(response);
 
     const data = await response.json();
     const content = data.content[0]?.text;
@@ -426,11 +453,7 @@ Do not include any other text.`
 
       clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        console.error('Claude API error:', error);
-        throw new Error(`Claude API error: ${error.error?.message || 'Unknown error'}`);
-      }
+      if (!response.ok) throw await claudeServiceError(response);
 
       const data = await response.json();
       const content = data.content[0]?.text;
@@ -544,11 +567,7 @@ Do not include any other text.`
       })
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      console.error('Claude API error:', error);
-      throw new Error(`Claude API error: ${error.error?.message || 'Unknown error'}`);
-    }
+    if (!response.ok) throw await claudeServiceError(response);
 
     const data = await response.json();
     const content = data.content[0]?.text;
@@ -729,11 +748,7 @@ Do not include any other text.`
       })
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      console.error('Claude API error:', error);
-      throw new Error(`Claude API error: ${error.error?.message || 'Unknown error'}`);
-    }
+    if (!response.ok) throw await claudeServiceError(response);
 
     const data = await response.json();
     const content = data.content[0]?.text;
@@ -824,11 +839,7 @@ Do not include any other text.`
       })
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      console.error('Claude API error:', error);
-      throw new Error(`Claude API error: ${error.error?.message || 'Unknown error'}`);
-    }
+    if (!response.ok) throw await claudeServiceError(response);
 
     const data = await response.json();
     const content = data.content[0]?.text;
