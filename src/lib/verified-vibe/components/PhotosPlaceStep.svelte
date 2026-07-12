@@ -17,8 +17,8 @@
 
   const showAiStrip = $derived(gender !== 'woman');
 
-  const MAX_PHOTOS = 3;
-  const MIN_PHOTOS = 1;
+  const MAX_PHOTOS = 6;
+  let MIN_PHOTOS = $derived(gender === 'woman' ? 1 : 3);
   const MIN_AGE = 18;
   const MAX_AGE = 120;
 
@@ -30,12 +30,15 @@
   let fileInputEl = $state<HTMLInputElement | null>(null);
   let detecting = $state(false);
   let detectError = $state('');
+  let photoError = $state('');
+  let checking = $state(false);
 
   const nameOk = $derived(firstName.trim().length > 0);
   const ageOk = $derived(age != null && age >= MIN_AGE && age <= MAX_AGE);
   const aboutFilled = $derived(nameOk && ageOk);
   const ready = $derived(aboutFilled && photos.length >= MIN_PHOTOS && city.trim().length > 0);
   const photosFilled = $derived(photos.length >= MIN_PHOTOS);
+  const showOptionalSlots = $derived(showAiStrip && photos.length >= 3);
 
   function readFileAsDataURL(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -46,20 +49,75 @@
     });
   }
 
+  async function checkPhotoQuality(dataUrl: string): Promise<{ ok: boolean; error: string }> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = async () => {
+        const scale = Math.min(1, 320 / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { resolve({ ok: true, error: '' }); return; }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+        // Blur check: low pixel variance → blurry image
+        let sum = 0, sumSq = 0, n = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+          sum += gray; sumSq += gray * gray; n++;
+        }
+        const mean = sum / n;
+        const variance = sumSq / n - mean * mean;
+        if (variance < 80) {
+          resolve({ ok: false, error: 'This photo looks blurry. Try a clearer one.' });
+          return;
+        }
+
+        // Face detection — Chrome/Android WebView only; skip gracefully elsewhere
+        if ('FaceDetector' in window) {
+          try {
+            // @ts-ignore
+            const detector = new window.FaceDetector({ fastMode: true });
+            const faces = await detector.detect(img);
+            if (faces.length === 0) {
+              resolve({ ok: false, error: "We couldn't detect a clear face. Try a different photo." });
+              return;
+            }
+          } catch { /* unsupported or permission denied — skip */ }
+        }
+
+        resolve({ ok: true, error: '' });
+      };
+      img.onerror = () => resolve({ ok: true, error: '' });
+      img.src = dataUrl;
+    });
+  }
+
   async function handleFileChange(e: Event & { currentTarget: HTMLInputElement }) {
     const files = e.currentTarget.files;
     if (!files?.length) return;
     const remaining = MAX_PHOTOS - photos.length;
     const toAdd = Array.from(files).slice(0, remaining);
+    checking = true;
+    photoError = '';
     for (const file of toAdd) {
       const dataUrl = await readFileAsDataURL(file);
+      const check = await checkPhotoQuality(dataUrl);
+      if (!check.ok) {
+        photoError = check.error;
+        continue;
+      }
       photos = [...photos, { file, dataUrl }];
     }
+    checking = false;
     e.currentTarget.value = '';
   }
 
   function removePhoto(index: number) {
     photos = photos.filter((_, i) => i !== index);
+    photoError = '';
   }
 
   function triggerFileInput() {
@@ -126,51 +184,88 @@
           <span class="section-icon">📸</span>
           Add a few photos
         </div>
-        <div class="section-sub">Min 1. First photo becomes your hero.</div>
+        <div class="section-sub">
+          {#if showAiStrip}
+            Min 3. More photos = better AI results.
+          {:else}
+            Min 1. First photo becomes your hero.
+          {/if}
+        </div>
       </div>
       <div class="count-pip" class:count-pip--filled={photosFilled}>
         {photos.length}<span class="count-denom">/{MAX_PHOTOS}</span>
       </div>
     </div>
 
-    <!-- 3-slot photo grid -->
+    <!-- Consent notice — men only -->
+    {#if showAiStrip}
+      <p class="consent-notice">
+        🔒 Your photos are used only to create your AI profile pictures. They will never be shown to anyone.
+      </p>
+    {/if}
+
+    <!-- Required slots (0–2) -->
     <div class="photo-grid">
-      {#each Array(MAX_PHOTOS) as _, i (i)}
+      {#each [0, 1, 2] as i (i)}
         {#if photos[i]}
-          <!-- Filled slot -->
           <div class="slot slot--filled" style="background-image: url({photos[i].dataUrl})">
-            {#if i === 0}
-              <div class="main-badge">MAIN</div>
-            {/if}
-            <button class="remove-btn" onclick={() => removePhoto(i)} aria-label="Remove photo">
-              ✕
-            </button>
+            {#if i === 0}<div class="main-badge">MAIN</div>{/if}
+            <button class="remove-btn" onclick={() => removePhoto(i)} aria-label="Remove photo">✕</button>
             <div class="slot-gradient"></div>
           </div>
         {:else}
-          <!-- Empty slot -->
           <button
             class="slot slot--empty"
             class:slot--empty-next={i === photos.length}
             onclick={triggerFileInput}
+            disabled={checking}
           >
             <div class="slot-plus-icon" class:slot-plus-icon--next={i === photos.length}>
-              <span class="plus-symbol">+</span>
+              <span class="plus-symbol">{checking && i === photos.length ? '…' : '+'}</span>
             </div>
-            <span class="slot-label">
-              {i === 0 && photos.length === 0 ? 'Add main' : 'Add'}
-            </span>
+            <span class="slot-label">{i === 0 && photos.length === 0 ? 'Add main' : 'Add'}</span>
           </button>
         {/if}
       {/each}
     </div>
+
+    <!-- Optional slots (3–5) — men only, revealed after 3 required are filled -->
+    {#if showOptionalSlots}
+      <div class="optional-row-label">✨ Add more for better AI results <span class="optional-tag">optional</span></div>
+      <div class="photo-grid">
+        {#each [3, 4, 5] as i (i)}
+          {#if photos[i]}
+            <div class="slot slot--filled" style="background-image: url({photos[i].dataUrl})">
+              <button class="remove-btn" onclick={() => removePhoto(i)} aria-label="Remove photo">✕</button>
+              <div class="slot-gradient"></div>
+            </div>
+          {:else}
+            <button
+              class="slot slot--empty"
+              class:slot--empty-next={i === photos.length}
+              onclick={triggerFileInput}
+              disabled={checking}
+            >
+              <div class="slot-plus-icon" class:slot-plus-icon--next={i === photos.length}>
+                <span class="plus-symbol">{checking && i === photos.length ? '…' : '+'}</span>
+              </div>
+              <span class="slot-label">Add</span>
+            </button>
+          {/if}
+        {/each}
+      </div>
+    {/if}
+
+    {#if photoError}
+      <p class="photo-error">{photoError}</p>
+    {/if}
 
     <!-- AI portrait strip — men only -->
     {#if showAiStrip}
       <div class="ai-strip">
         <div class="ai-strip-icon">✨</div>
         <p class="ai-strip-text">
-          <em class="ai-strip-em">AI will render</em> two portraits from your verified face — added to your profile.
+          <em class="ai-strip-em">AI will render</em> your profile portraits from these photos — your real photos stay private.
         </p>
       </div>
     {/if}
@@ -269,7 +364,7 @@
       {#if ready}
         Create profile &amp; find matches →
       {:else}
-        Add your name, age, a photo &amp; city to continue
+        Add your name, age, {showAiStrip ? '3 photos' : 'a photo'} &amp; city to continue
       {/if}
     </button>
     <p class="cta-hint">🔒 Photos are blurred for un-verified viewers.</p>
@@ -479,6 +574,49 @@
     inset: 0;
     background: linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.4) 100%);
     pointer-events: none;
+  }
+
+  /* Consent notice */
+  .consent-notice {
+    font-size: 11px;
+    color: var(--text-3);
+    margin: 0 0 10px;
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border-1);
+    border-radius: 10px;
+    line-height: 1.4;
+  }
+
+  /* Optional row label */
+  .optional-row-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-3);
+    letter-spacing: 0.02em;
+    margin: 12px 0 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .optional-tag {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border-1);
+    color: var(--text-3);
+  }
+
+  /* Photo error */
+  .photo-error {
+    font-size: 11.5px;
+    color: #f87171;
+    margin: 4px 0 8px;
+    padding: 0 2px;
   }
 
   /* AI strip */

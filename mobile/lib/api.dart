@@ -1330,6 +1330,7 @@ Future<Map> uploadProof(String category, List<String> filePaths,
     final code = resp.statusCode;
     final serverMsg = (body['error'] ?? body['message'])?.toString();
     if (code == 503) throw Exception('AI service temporarily unavailable. Please try again in a moment.');
+    if (code == 413) throw Exception('Photos are too large. Try selecting fewer photos.');
     if (code == 401 || code == 403) throw Exception('Session expired — please sign out and back in.');
     if (serverMsg != null && serverMsg.isNotEmpty && serverMsg.length < 200) throw Exception(serverMsg);
     throw Exception('Upload failed (error $code). Please try again.');
@@ -1491,6 +1492,7 @@ Future<Map> _uploadProofPost(FormData form) async {
     final code = resp.statusCode;
     final serverMsg = (body['error'] ?? body['message'])?.toString();
     if (code == 503) throw Exception('AI service temporarily unavailable. Please try again in a moment.');
+    if (code == 413) throw Exception('Photos are too large. Try selecting fewer photos.');
     if (code == 401 || code == 403) throw Exception('Session expired — please sign out and back in.');
     if (serverMsg != null && serverMsg.isNotEmpty && serverMsg.length < 200) throw Exception(serverMsg);
     throw Exception('Upload failed (error $code). Please try again.');
