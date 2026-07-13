@@ -1636,6 +1636,7 @@ Future<void> saveGenderArchetype(String gender, String archetype) async {
       .maybeSingle();
   await supabase.from('verified_vibe_users').upsert({
     'id': uid,
+    'is_seed': false, // real signup — mirror web (profileService.saveProfile)
     'gender': gender,
     'archetype': archetype,
     'first_name': existing?['first_name'] ?? 'New member',
