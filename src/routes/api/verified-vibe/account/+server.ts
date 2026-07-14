@@ -24,6 +24,7 @@ import type { RequestHandler } from './$types';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { createClient } from '@supabase/supabase-js';
 import { getSupabase } from '$lib/server/supabase';
+import { purgeUser } from '$lib/server/delete-user';
 
 // Canned reason codes the UI offers. Anything else is coerced to null.
 const VALID_REASONS = new Set([
@@ -108,24 +109,15 @@ export const DELETE: RequestHandler = async ({ request }) => {
     console.error('Account deletion: failed to record feedback (continuing):', err);
   }
 
-  // 2. Delete the app profile row — cascades to all verified_vibe_* data.
-  const { error: profileErr } = await db
-    .from('verified_vibe_users')
-    .delete()
-    .eq('id', userId);
-  if (profileErr) {
-    console.error('Account deletion: failed to delete profile row:', profileErr);
-    return json({ error: 'Failed to delete account data. Please try again.' }, { status: 500 });
-  }
-
-  // 3. Delete the auth user — cascades to auth.users-keyed tables and the login.
-  const { error: authErr } = await db.auth.admin.deleteUser(userId);
-  if (authErr) {
-    console.error('Account deletion: failed to delete auth user:', authErr);
-    return json(
-      { error: 'Your data was deleted but the login could not be fully removed. Please contact support.' },
-      { status: 500 }
-    );
+  // 2 & 3. Delete the app profile row (cascades to all verified_vibe_* data)
+  // then the auth user (cascades to auth.users-keyed tables and the login).
+  const result = await purgeUser(db, userId);
+  if (!result.ok) {
+    const error =
+      result.stage === 'auth'
+        ? 'Your data was deleted but the login could not be fully removed. Please contact support.'
+        : 'Failed to delete account data. Please try again.';
+    return json({ error }, { status: 500 });
   }
 
   return json({ success: true, deletedAt: new Date().toISOString() });
