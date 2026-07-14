@@ -42,8 +42,13 @@
 
 	// ── Derived chart data — recomputed from filteredUsers on every filter change ──
 
+	// Users deleted this session — filtered out client-side so the table updates
+	// instantly without a full reload (the backend row is already gone).
+	let deletedIds = $state<Set<string>>(new Set());
+
 	let filteredBase = $derived(
 		data.userList.filter((u) => {
+			if (deletedIds.has(u.id)) return false;
 			if (genderFilter !== 'all' && u.gender !== genderFilter) return false;
 			if (typeFilter === 'real' && u.isSeed) return false;
 			if (typeFilter === 'seed' && !u.isSeed) return false;
@@ -186,6 +191,54 @@
 	function toggleSort(col: typeof sortCol) {
 		if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
 		else { sortCol = col; sortDir = col === 'joinedAt' || col === 'trustScore' ? 'desc' : 'asc'; }
+	}
+
+	// ── Delete user ────────────────────────────────────────────────────
+	// Clicking a name opens a type-to-confirm modal; confirming permanently
+	// purges the profile and every backend record via the admin endpoint.
+	type DeleteTarget = { id: string; name: string | null };
+	let deleteTarget = $state<DeleteTarget | null>(null);
+	let deleteConfirmText = $state('');
+	let deleting = $state(false);
+	let deleteError = $state<string | null>(null);
+
+	function askDelete(u: { id: string; name: string | null }) {
+		deleteTarget = { id: u.id, name: u.name };
+		deleteConfirmText = '';
+		deleteError = null;
+	}
+
+	function cancelDelete() {
+		if (deleting) return;
+		deleteTarget = null;
+		deleteConfirmText = '';
+		deleteError = null;
+	}
+
+	async function confirmDelete() {
+		if (!deleteTarget || deleting) return;
+		deleting = true;
+		deleteError = null;
+		try {
+			const res = await fetch('/admin/analytics/delete-user', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ userId: deleteTarget.id })
+			});
+			const body = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				deleteError = body?.error ?? `Delete failed (${res.status})`;
+				return;
+			}
+			// Hide the row immediately; the backend records are already gone.
+			deletedIds = new Set([...deletedIds, deleteTarget.id]);
+			deleteTarget = null;
+			deleteConfirmText = '';
+		} catch (err) {
+			deleteError = err instanceof Error ? err.message : 'Network error';
+		} finally {
+			deleting = false;
+		}
 	}
 
 	let filteredUsers = $derived.by(() => {
@@ -378,6 +431,7 @@
 	<div class="card mb-6">
 		<div class="mb-4">
 			<h2 class="chart-title mb-0">Users ({filteredUsers.length})</h2>
+			<p class="mt-0.5 text-xs text-slate-500">Click a name to permanently delete that profile and all of its data.</p>
 		</div>
 		<div class="overflow-x-auto">
 			<table class="w-full text-sm">
@@ -412,7 +466,17 @@
 				<tbody>
 					{#each filteredUsers as u}
 						<tr class="border-b border-white/[0.04] hover:bg-white/[0.02]">
-							<td class="py-2 pr-4 font-medium text-slate-200">{u.name ?? '—'}</td>
+							<td class="py-2 pr-4 font-medium">
+								<button
+									type="button"
+									onclick={() => askDelete(u)}
+									title="Delete this profile"
+									class="group inline-flex items-center gap-1.5 text-slate-200 transition-colors hover:text-red-400"
+								>
+									<span class="underline decoration-dotted decoration-slate-600 underline-offset-2 group-hover:decoration-red-400">{u.name ?? '—'}</span>
+									<span class="text-xs text-red-400 opacity-0 transition-opacity group-hover:opacity-100">🗑</span>
+								</button>
+							</td>
 							<td class="py-2 pr-4 text-slate-400">{u.age ?? '—'}</td>
 							<td class="py-2 pr-4 text-slate-400">{u.city ?? '—'}</td>
 							<td class="py-2 pr-4 text-slate-400 capitalize">{u.gender ?? '—'}</td>
@@ -450,6 +514,7 @@
 			<option value="">— choose a user —</option>
 			{#each data.userList
 				.filter(u => {
+					if (deletedIds.has(u.id)) return false;
 					if (genderFilter !== 'all' && u.gender !== genderFilter) return false;
 					if (typeFilter === 'real' && u.isSeed) return false;
 					if (typeFilter === 'seed' && !u.isSeed) return false;
@@ -758,6 +823,60 @@
 			</p>
 		</div>
 	{/if}
+{/if}
+
+{#if deleteTarget}
+	{@const confirmed = deleteConfirmText.trim().toUpperCase() === 'DELETE'}
+	<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+		onclick={cancelDelete}
+	>
+		<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+		<div
+			class="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#0d1522] p-6 shadow-2xl"
+			onclick={(e) => e.stopPropagation()}
+		>
+			<h3 class="text-lg font-bold text-white">Delete profile</h3>
+			<p class="mt-2 text-sm text-slate-400">
+				This permanently deletes
+				<span class="font-semibold text-slate-200">{deleteTarget.name ?? 'this user'}</span>
+				and <span class="font-semibold text-red-400">all of their data</span> — matches, messages,
+				likes, AI conversations, photos and login. This cannot be undone.
+			</p>
+
+			<label class="mt-4 block text-xs font-medium text-slate-500">
+				Type <span class="font-mono text-slate-300">DELETE</span> to confirm
+			</label>
+			<input
+				type="text"
+				bind:value={deleteConfirmText}
+				autocomplete="off"
+				disabled={deleting}
+				placeholder="DELETE"
+				class="mt-1 w-full rounded-lg border border-white/[0.08] bg-[#0b1120] px-3 py-2 text-sm text-slate-200 focus:border-red-500 focus:outline-none"
+			/>
+
+			{#if deleteError}
+				<p class="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400">{deleteError}</p>
+			{/if}
+
+			<div class="mt-5 flex justify-end gap-2">
+				<button
+					type="button"
+					onclick={cancelDelete}
+					disabled={deleting}
+					class="rounded-lg border border-white/[0.08] px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-white/[0.04] disabled:opacity-50"
+				>Cancel</button>
+				<button
+					type="button"
+					onclick={confirmDelete}
+					disabled={!confirmed || deleting}
+					class="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+				>{deleting ? 'Deleting…' : 'Delete permanently'}</button>
+			</div>
+		</div>
+	</div>
 {/if}
 </div>
 
