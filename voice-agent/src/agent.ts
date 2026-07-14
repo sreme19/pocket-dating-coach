@@ -38,6 +38,13 @@ const CLAUDE_MODEL = 'claude-sonnet-4-5-20250929';
 // Hard ceiling on call length (phase 1). Length should follow the conversation
 // winding down, but this guarantees cost + UX never run away.
 const MAX_CALL_SECONDS = Number(process.env.MAX_CALL_SECONDS ?? 360);
+// How long the caller can pause before we treat their turn as finished. The
+// Silero VAD default (550ms of silence) is short enough that a normal breath
+// between sentences gets read as "done", so the bestie jumps in and the caller
+// feels rushed. Give them ~1.3s of comfortable pause room. Tunable live via env
+// (milliseconds) without a code change. See turnHandling.endpointing below —
+// this must move together with it.
+const TURN_SILENCE_MS = Number(process.env.TURN_SILENCE_MS ?? 1300);
 
 interface CallContext {
 	callId: string;
@@ -224,7 +231,9 @@ class ClaudeLLM extends llm.LLM {
 export default defineAgent({
 	/** Load the VAD model once per worker process. */
 	prewarm: async (proc) => {
-		(proc.userData as any).vad = await silero.VAD.load();
+		// Widen the end-of-speech silence window so a between-sentence pause isn't
+		// mistaken for the caller finishing their turn (units: ms).
+		(proc.userData as any).vad = await silero.VAD.load({ minSilenceDuration: TURN_SILENCE_MS });
 	},
 
 	entry: async (ctx: JobContext) => {
@@ -317,6 +326,17 @@ export default defineAgent({
 				apiKey: process.env.ELEVENLABS_API_KEY
 			}),
 			turnHandling: {
+				// Endpointing floor: don't declare the caller's turn over until at
+				// least TURN_SILENCE_MS has passed since their last speech, matching the
+				// widened VAD silence window above. Without this the session's default
+				// 500ms minDelay would still cut pausey speakers off early. 'fixed' keeps
+				// the wait predictable (no adaptive shrinking); maxDelay caps how long we
+				// wait when speech trails off mid-sentence.
+				endpointing: {
+					mode: 'fixed',
+					minDelay: TURN_SILENCE_MS,
+					maxDelay: Math.max(TURN_SILENCE_MS + 1500, 4000)
+				},
 				// Generate ONE reply per finalized user turn, not on every interim STT
 				// chunk. Preemptive generation fires (and then cancels) a fresh Claude
 				// stream on each partial transcript; with our custom Anthropic-backed
