@@ -12,7 +12,8 @@
 		{ href: '/admin/analytics', label: 'Analytics' },
 		{ href: '/admin/test-suite', label: 'AI Assistants' },
 		{ href: '/admin/photos', label: 'AI Photos' },
-		{ href: '/admin/monitoring', label: 'Monitoring' }
+		{ href: '/admin/monitoring', label: 'Monitoring' },
+		{ href: '/admin/beta', label: 'Beta Invites' }
 	];
 
 	// Active link is the single most-specific match so `/admin/qa/results`

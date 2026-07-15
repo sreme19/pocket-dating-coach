@@ -20,6 +20,7 @@
 		"setup:fal": "node scripts/setup-fal-key.js",
 		"configure:rls": "tsx --env-file=.env.local scripts/configure-rls.ts",
 		"apply:rls": "tsx --env-file=.env.local scripts/apply-rls-policies.ts",
+		"apply:beta-invites": "tsx --env-file=.env.local scripts/apply-beta-invites.ts",
 		"verify:prod-env": "tsx --env-file=.env.production scripts/verify-production-env.ts",
 		"verify:local-env": "tsx --env-file=.env.local scripts/verify-production-env.ts",
 		"generate:bios": "tsx --env-file=.env.local scripts/generate-about-bios.ts",
