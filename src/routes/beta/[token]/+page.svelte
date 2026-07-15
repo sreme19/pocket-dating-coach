@@ -232,7 +232,7 @@
 	.photo {
 		position: relative;
 		width: 100%;
-		aspect-ratio: 4 / 3;
+		aspect-ratio: 3 / 4;
 		border-radius: 14px;
 		overflow: hidden;
 	}
