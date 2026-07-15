@@ -20,11 +20,13 @@
 	let genError = $state<string | null>(null);
 	let copiedId = $state<string | null>(null);
 
-	let origin = $derived(typeof window !== 'undefined' ? window.location.origin : '');
+	// Beta links are always shared on the public branded domain, not whatever
+	// host the admin page happens to be loaded from (e.g. the vercel.app URL).
+	const LINK_BASE = 'https://www.riteangle.dating';
 
 	function linkFor(token: string | null): string {
 		if (!token) return '';
-		return `${origin}/beta/${token}`;
+		return `${LINK_BASE}/beta/${token}`;
 	}
 
 	async function generate() {
