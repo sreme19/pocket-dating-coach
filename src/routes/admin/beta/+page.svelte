@@ -77,7 +77,8 @@
 	let selectedWoman = $derived(women.find((w) => w.id === selectedId) ?? null);
 </script>
 
-<div class="mx-auto max-w-5xl px-6 py-8 text-slate-200">
+<div class="min-h-screen bg-[#0b1120] px-6 py-8 text-slate-100">
+	<div class="mx-auto max-w-5xl">
 	<h1 class="text-xl font-bold text-white">Beta Invites</h1>
 	<p class="mt-1 text-sm text-slate-400">
 		Generate a shareable link for a female user. Anyone who opens it and submits their email is
@@ -212,4 +213,5 @@
 			</div>
 		{/if}
 	</section>
+	</div>
 </div>
