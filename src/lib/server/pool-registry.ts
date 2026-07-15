@@ -667,6 +667,17 @@ export async function enrollInPoolIfVerified(userId: string): Promise<void> {
   if (!allDone) return;
 
   await refreshPoolEntry(userId);
+
+  // Testing-period beta invite: a man who just entered the pool may have been
+  // referred via a woman's share link. Redeem it now. Dynamic import avoids a
+  // module-load cycle (beta-invite → matchmaker-service). Idempotent + non-fatal
+  // so it can never block enrollment.
+  try {
+    const { redeemBetaInviteIfEligible } = await import('./beta-invite');
+    await redeemBetaInviteIfEligible(userId);
+  } catch (e) {
+    console.error('[pool-registry] beta invite redeem failed (non-fatal):', e);
+  }
 }
 
 // ── Public: update last_active_at ─────────────────────────────────────────────
