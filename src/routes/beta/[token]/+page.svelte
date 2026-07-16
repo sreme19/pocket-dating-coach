@@ -6,6 +6,7 @@
 	let { data }: { data: PageData } = $props();
 
 	let email = $state('');
+	let platform = $state<'' | 'ios' | 'android'>('');
 	let busy = $state(false);
 	let error = $state('');
 	let done = $state(false);
@@ -21,12 +22,16 @@
 			error = 'Please enter a valid email address.';
 			return;
 		}
+		if (platform !== 'ios' && platform !== 'android') {
+			error = 'Please select your phone type.';
+			return;
+		}
 		busy = true;
 		try {
 			const res = await fetch('/api/beta/submit', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ token: data.token, email: email.trim() })
+				body: JSON.stringify({ token: data.token, email: email.trim(), platform })
 			});
 			const body = await res.json().catch(() => ({}));
 			if (!res.ok) {
@@ -110,6 +115,20 @@
 					onkeydown={(e) => e.key === 'Enter' && submit()}
 					autocomplete="email"
 				/>
+			</div>
+
+			<div class="field">
+				<label class="label" for="beta-platform">Your phone</label>
+				<select
+					id="beta-platform"
+					class="input select"
+					class:placeholder={platform === ''}
+					bind:value={platform}
+				>
+					<option value="" disabled>Select your phone type…</option>
+					<option value="ios">iPhone (iOS)</option>
+					<option value="android">Android</option>
+				</select>
 			</div>
 
 			{#if error}
@@ -339,6 +358,21 @@
 	}
 
 	.input::placeholder {
+		color: var(--text-4);
+	}
+
+	/* Native select styled to match .input, with a custom caret. */
+	.select {
+		appearance: none;
+		-webkit-appearance: none;
+		cursor: pointer;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%23b08' stroke-width='2' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+		background-repeat: no-repeat;
+		background-position: right 14px center;
+		padding-right: 38px;
+	}
+
+	.select.placeholder {
 		color: var(--text-4);
 	}
 
