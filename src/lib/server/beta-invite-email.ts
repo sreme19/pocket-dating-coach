@@ -29,7 +29,7 @@ export type Platform = 'ios' | 'android';
 // refuses to send an iOS invite while it's blank so we never mail a dead link.
 export const STORE_LINKS: Record<Platform, string> = {
   android: 'https://play.google.com/store/apps/details?id=com.riteangle.app',
-  ios: '',
+  ios: 'https://testflight.apple.com/join/FxGV4VrC',
 };
 
 export function storeUrlFor(platform: Platform): string {
@@ -139,7 +139,7 @@ export async function sendBetaConfirmationEmail(toEmail: string, referrer: Refer
 // ── 2. Early-access email (manual, from admin) ────────────────────────────────
 
 function storeButton(platform: Platform, url: string): string {
-  const label = platform === 'ios' ? 'Download on the App Store' : 'Get it on Google Play';
+  const label = platform === 'ios' ? 'Join the beta on TestFlight' : 'Get it on Google Play';
   return `<a href="${escapeHtml(url)}"
       style="display:inline-block;background:#ec4899;color:#fff;text-decoration:none;
              font-size:16px;font-weight:700;padding:14px 28px;border-radius:12px">
