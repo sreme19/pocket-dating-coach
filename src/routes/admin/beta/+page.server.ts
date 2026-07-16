@@ -14,7 +14,7 @@ export const load: PageServerLoad = async () => {
 			.select('referrer_id, token, active, created_at'),
 		db
 			.from('verified_vibe_beta_signups')
-			.select('id, email, platform, status, referrer_id, matched_user_id, created_at, matched_at')
+			.select('id, email, platform, status, referrer_id, matched_user_id, created_at, matched_at, invited_at')
 			.order('created_at', { ascending: false })
 	]);
 
@@ -42,6 +42,7 @@ export const load: PageServerLoad = async () => {
 		email: s.email,
 		platform: s.platform ?? null,
 		status: s.status,
+		invited_at: s.invited_at ?? null,
 		created_at: s.created_at,
 		matched_at: s.matched_at,
 		referrerName: nameById.get(s.referrer_id) ?? '—',

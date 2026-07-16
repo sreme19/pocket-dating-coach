@@ -15,10 +15,59 @@
 	// Local copy of the women list so a freshly-generated token shows immediately.
 	let women = $state<Woman[]>(data.women.map((w: Woman) => ({ ...w })));
 
+	type Signup = {
+		id: string;
+		email: string;
+		platform: 'ios' | 'android' | null;
+		status: string;
+		invited_at: string | null;
+		referrerName: string;
+		matchedName: string | null;
+		created_at: string;
+		matched_at: string | null;
+	};
+
+	// Local copy so an invite send flips the row to "invited" without a reload.
+	let signups = $state<Signup[]>(data.signups.map((s: Signup) => ({ ...s })));
+
 	let selectedId = $state('');
 	let generating = $state(false);
 	let genError = $state<string | null>(null);
 	let copiedId = $state<string | null>(null);
+
+	// Per-row invite send state.
+	let sendingId = $state<string | null>(null);
+	let inviteError = $state<{ id: string; msg: string } | null>(null);
+
+	async function sendInvite(s: Signup) {
+		if (sendingId) return;
+		if (!s.platform) return; // guarded in the UI too
+		const label = s.invited_at ? 'Re-send' : 'Send';
+		if (!confirm(`${label} the early-access invite to ${s.email} (${s.platform === 'ios' ? 'iOS' : 'Android'})?`)) {
+			return;
+		}
+		sendingId = s.id;
+		inviteError = null;
+		try {
+			const res = await fetch('/admin/beta/invite', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ signupId: s.id })
+			});
+			const body = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				inviteError = { id: s.id, msg: body?.error ?? `Failed (${res.status})` };
+				return;
+			}
+			signups = signups.map((row) =>
+				row.id === s.id ? { ...row, invited_at: body.invited_at } : row
+			);
+		} catch (err) {
+			inviteError = { id: s.id, msg: err instanceof Error ? err.message : 'Network error' };
+		} finally {
+			sendingId = null;
+		}
+	}
 
 	// Beta links are always shared on the public branded domain, not whatever
 	// host the admin page happens to be loaded from (e.g. the vercel.app URL).
@@ -183,8 +232,8 @@
 
 	<!-- Signups -->
 	<section class="mt-8">
-		<h2 class="text-sm font-semibold text-white">Collected emails ({data.signups.length})</h2>
-		{#if data.signups.length === 0}
+		<h2 class="text-sm font-semibold text-white">Collected emails ({signups.length})</h2>
+		{#if signups.length === 0}
 			<p class="mt-2 text-sm text-slate-500">No one has signed up through a link yet.</p>
 		{:else}
 			<div class="mt-3 overflow-x-auto rounded-lg border border-white/[0.08]">
@@ -196,10 +245,11 @@
 							<th class="px-4 py-2.5">Referred by</th>
 							<th class="px-4 py-2.5">Status</th>
 							<th class="px-4 py-2.5">Submitted</th>
+							<th class="px-4 py-2.5">Invite</th>
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-white/[0.05]">
-						{#each data.signups as s}
+						{#each signups as s (s.id)}
 							<tr>
 								<td class="px-4 py-2.5 text-slate-200">{s.email}</td>
 								<td class="px-4 py-2.5 text-slate-300">{fmtDevice(s.platform)}</td>
@@ -216,6 +266,31 @@
 									{/if}
 								</td>
 								<td class="px-4 py-2.5 text-slate-400">{fmtDate(s.created_at)}</td>
+								<td class="px-4 py-2.5">
+									{#if !s.platform}
+										<span class="text-xs text-slate-500" title="No device on file — this signup predates device capture.">no device</span>
+									{:else}
+										<div class="flex flex-col gap-1">
+											<button
+												onclick={() => sendInvite(s)}
+												disabled={sendingId === s.id}
+												class="w-fit rounded border border-white/[0.1] px-2.5 py-1 text-xs text-slate-200 transition-colors hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-40"
+											>
+												{sendingId === s.id
+													? 'Sending…'
+													: s.invited_at
+														? 'Re-send invite'
+														: 'Send invite'}
+											</button>
+											{#if s.invited_at}
+												<span class="text-xs text-emerald-400">✓ invited · {fmtDate(s.invited_at)}</span>
+											{/if}
+											{#if inviteError && inviteError.id === s.id}
+												<span class="text-xs text-red-400">{inviteError.msg}</span>
+											{/if}
+										</div>
+									{/if}
+								</td>
 							</tr>
 						{/each}
 					</tbody>
