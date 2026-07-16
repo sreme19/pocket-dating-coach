@@ -48,7 +48,35 @@
 </script>
 
 <svelte:head>
-	<title>riteangle · private beta</title>
+	{#if data.valid && data.referrer}
+		{@const ogTitle = `Get matched today with ${data.referrer.first_name} on riteangle`}
+		{@const ogDesc = `${data.referrer.first_name}${data.referrer.age ? `, ${data.referrer.age}` : ''}${data.referrer.city ? ` · ${data.referrer.city}` : ''} is identity-verified on riteangle — and she wants to match with you. Claim your private-beta invite.`}
+		<title>{ogTitle}</title>
+		<meta name="description" content={ogDesc} />
+
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="riteangle" />
+		<meta property="og:url" content={data.pageUrl} />
+		<meta property="og:title" content={ogTitle} />
+		<meta property="og:description" content={ogDesc} />
+		{#if data.ogImage}
+			<meta property="og:image" content={data.ogImage} />
+			<meta property="og:image:alt" content={`${data.referrer.first_name} on riteangle`} />
+		{/if}
+
+		<meta name="twitter:card" content={data.ogImage ? 'summary_large_image' : 'summary'} />
+		<meta name="twitter:title" content={ogTitle} />
+		<meta name="twitter:description" content={ogDesc} />
+		{#if data.ogImage}
+			<meta name="twitter:image" content={data.ogImage} />
+		{/if}
+	{:else}
+		<title>riteangle · private beta</title>
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="riteangle" />
+		<meta property="og:title" content="riteangle · private beta" />
+		<meta property="og:description" content="An identity-verified dating beta. Invite only." />
+	{/if}
 </svelte:head>
 
 <div class="screen">
