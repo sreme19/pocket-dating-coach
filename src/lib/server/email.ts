@@ -10,6 +10,8 @@
  * a throw as non-fatal and swallow it.
  */
 
+import { env } from '$env/dynamic/private';
+
 const DEFAULT_FROM = 'riteangle <hello@riteangle.dating>';
 
 export interface SendEmailArgs {
@@ -22,7 +24,7 @@ export interface SendEmailArgs {
 }
 
 export async function sendEmail({ to, subject, html, from, replyTo }: SendEmailArgs): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY;
+  const apiKey = env.RESEND_API_KEY;
   if (!apiKey) throw new Error('RESEND_API_KEY not set');
 
   const body: Record<string, unknown> = {
