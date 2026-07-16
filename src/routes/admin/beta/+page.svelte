@@ -259,6 +259,10 @@
 										<span class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-400">
 											matched{s.matchedName ? ` · ${s.matchedName}` : ''}
 										</span>
+									{:else if s.invited_at}
+										<span class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-400">
+											invite sent
+										</span>
 									{:else}
 										<span class="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-400">
 											pending
