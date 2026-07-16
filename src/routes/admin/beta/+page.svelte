@@ -65,6 +65,12 @@
 		}
 	}
 
+	function fmtDevice(platform: string | null): string {
+		if (platform === 'ios') return 'iOS';
+		if (platform === 'android') return 'Android';
+		return '—';
+	}
+
 	function fmtDate(iso: string | null): string {
 		if (!iso) return '—';
 		return new Date(iso).toLocaleString(undefined, {
@@ -186,6 +192,7 @@
 					<thead class="bg-white/[0.03] text-xs uppercase tracking-wide text-slate-400">
 						<tr>
 							<th class="px-4 py-2.5">Email</th>
+							<th class="px-4 py-2.5">Device</th>
 							<th class="px-4 py-2.5">Referred by</th>
 							<th class="px-4 py-2.5">Status</th>
 							<th class="px-4 py-2.5">Submitted</th>
@@ -195,6 +202,7 @@
 						{#each data.signups as s}
 							<tr>
 								<td class="px-4 py-2.5 text-slate-200">{s.email}</td>
+								<td class="px-4 py-2.5 text-slate-300">{fmtDevice(s.platform)}</td>
 								<td class="px-4 py-2.5 text-slate-300">{s.referrerName}</td>
 								<td class="px-4 py-2.5">
 									{#if s.status === 'matched'}
