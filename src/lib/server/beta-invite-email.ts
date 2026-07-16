@@ -164,20 +164,29 @@ export function buildEarlyAccessHtml(referrer: ReferrerCard, platform: Platform,
     ${referrerCardHtml(referrer)}
     <div style="padding:8px 28px 28px">
       ${platform === 'ios' ? `
-      <h2 style="margin:16px 0 10px;font-size:15px;color:#111827">How to get the app (3 steps):</h2>
+      <h2 style="margin:16px 0 10px;font-size:15px;color:#111827">How to get the app (4 steps):</h2>
       <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%">
         <tr>
           <td style="vertical-align:top;padding-right:12px;padding-bottom:14px">
             <div style="width:28px;height:28px;border-radius:50%;background:#ec4899;color:#fff;font-size:13px;font-weight:700;line-height:28px;text-align:center">1</div>
           </td>
           <td style="vertical-align:top;padding-bottom:14px">
-            <div style="font-size:14px;font-weight:600;color:#111827">Check your email from Apple</div>
-            <div style="font-size:14px;color:#6b7280;margin-top:2px">Look for an invite from <strong>noreply@email.apple.com</strong> (check spam too). <strong>Important:</strong> the invite is sent to this email — make sure it matches your Apple ID, or you won't be able to accept it.</div>
+            <div style="font-size:14px;font-weight:600;color:#111827">Accept the team invitation from Apple</div>
+            <div style="font-size:14px;color:#6b7280;margin-top:2px">You'll get an email from <strong>noreply@email.apple.com</strong> — subject: <em>"You have been invited to join…"</em>. Click <strong>Accept Invitation</strong> and sign in with your Apple ID. No new account needed — just use your existing Apple ID.</div>
           </td>
         </tr>
         <tr>
           <td style="vertical-align:top;padding-right:12px;padding-bottom:14px">
             <div style="width:28px;height:28px;border-radius:50%;background:#ec4899;color:#fff;font-size:13px;font-weight:700;line-height:28px;text-align:center">2</div>
+          </td>
+          <td style="vertical-align:top;padding-bottom:14px">
+            <div style="font-size:14px;font-weight:600;color:#111827">Accept the TestFlight invitation</div>
+            <div style="font-size:14px;color:#6b7280;margin-top:2px">After step 1, you'll get a second email from Apple with your TestFlight invite (check spam too). Open it and tap <strong>View in TestFlight</strong>.</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="vertical-align:top;padding-right:12px;padding-bottom:14px">
+            <div style="width:28px;height:28px;border-radius:50%;background:#ec4899;color:#fff;font-size:13px;font-weight:700;line-height:28px;text-align:center">3</div>
           </td>
           <td style="vertical-align:top;padding-bottom:14px">
             <div style="font-size:14px;font-weight:600;color:#111827">Install TestFlight</div>
@@ -186,11 +195,11 @@ export function buildEarlyAccessHtml(referrer: ReferrerCard, platform: Platform,
         </tr>
         <tr>
           <td style="vertical-align:top;padding-right:12px">
-            <div style="width:28px;height:28px;border-radius:50%;background:#ec4899;color:#fff;font-size:13px;font-weight:700;line-height:28px;text-align:center">3</div>
+            <div style="width:28px;height:28px;border-radius:50%;background:#ec4899;color:#fff;font-size:13px;font-weight:700;line-height:28px;text-align:center">4</div>
           </td>
           <td style="vertical-align:top">
-            <div style="font-size:14px;font-weight:600;color:#111827">Tap "View in TestFlight" → Install</div>
-            <div style="font-size:14px;color:#6b7280;margin-top:2px">Open Apple's invite email, tap the button, accept in TestFlight, then tap <strong>Install</strong>. riteangle will appear on your home screen.</div>
+            <div style="font-size:14px;font-weight:600;color:#111827">Tap Install in TestFlight</div>
+            <div style="font-size:14px;color:#6b7280;margin-top:2px">Open TestFlight, find riteangle, and tap <strong>Install</strong>. The app will appear on your home screen — you're all set!</div>
           </td>
         </tr>
       </table>` : `
