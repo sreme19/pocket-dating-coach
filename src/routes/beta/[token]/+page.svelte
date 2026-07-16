@@ -115,6 +115,11 @@
 					onkeydown={(e) => e.key === 'Enter' && submit()}
 					autocomplete="email"
 				/>
+				{#if platform === 'ios'}
+					<p class="hint-ios" transition:fade={{ duration: 150 }}>
+						📧 Use the same email as your Apple ID — TestFlight will send the invite there.
+					</p>
+				{/if}
 			</div>
 
 			<div class="field">
@@ -419,6 +424,17 @@
 		color: var(--text-4);
 		text-align: center;
 		margin: 13px 0 0;
+		line-height: 1.5;
+	}
+
+	.hint-ios {
+		font-size: 12px;
+		color: #b45309;
+		background: #fef3c7;
+		border: 1px solid #fde68a;
+		border-radius: 8px;
+		padding: 8px 12px;
+		margin: 8px 0 0;
 		line-height: 1.5;
 	}
 
