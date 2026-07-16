@@ -3,11 +3,12 @@
  *   Public endpoint behind the /beta/{token} landing page. Collects a
  *   prospective beta tester's email against a woman's referral link.
  *
- *   Body (JSON): { token: string, email: string }
+ *   Body (JSON): { token: string, email: string, platform: 'ios' | 'android' }
  *
  * No auth (public), service-role write. First invite wins: if the email is
  * already on the list, the original referrer is kept and we report success
- * without leaking whether it existed.
+ * without leaking whether it existed (the device platform is refreshed on the
+ * existing row so a re-submit can correct it).
  *
  * On every accepted submit (new or duplicate) we send a confirmation email
  * with the referring woman's card. A light per-link rate limit caps how many
@@ -21,6 +22,8 @@ import { getSupabase } from '$lib/server/supabase';
 import { sendBetaConfirmationEmail } from '$lib/server/beta-invite-email';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PLATFORMS = ['ios', 'android'] as const;
+type Platform = (typeof PLATFORMS)[number];
 
 // Abuse guard: at most this many signups per link within the rolling window.
 const RATE_LIMIT_MAX = 10;
@@ -44,8 +47,9 @@ async function sendConfirmation(db: any, referrerId: string, toEmail: string): P
 export const POST: RequestHandler = async ({ request }) => {
   let token: unknown;
   let email: unknown;
+  let platform: unknown;
   try {
-    ({ token, email } = await request.json());
+    ({ token, email, platform } = await request.json());
   } catch {
     return json({ error: 'Invalid request' }, { status: 400 });
   }
@@ -56,7 +60,11 @@ export const POST: RequestHandler = async ({ request }) => {
   if (typeof email !== 'string' || !EMAIL_RE.test(email.trim())) {
     return json({ error: 'Please enter a valid email address.' }, { status: 400 });
   }
+  if (typeof platform !== 'string' || !PLATFORMS.includes(platform as Platform)) {
+    return json({ error: 'Please select your phone type.' }, { status: 400 });
+  }
   const normalized = email.trim().toLowerCase();
+  const device = platform as Platform;
 
   const db = getSupabase() as any;
 
@@ -77,6 +85,11 @@ export const POST: RequestHandler = async ({ request }) => {
     .eq('email', normalized)
     .maybeSingle();
   if (existing) {
+    // Keep the original referrer, but refresh the device in case they corrected it.
+    await db
+      .from('verified_vibe_beta_signups')
+      .update({ platform: device })
+      .eq('id', existing.id);
     await sendConfirmation(db, link.referrer_id, normalized);
     return json({ success: true });
   }
@@ -97,6 +110,7 @@ export const POST: RequestHandler = async ({ request }) => {
     link_id: link.id,
     referrer_id: link.referrer_id,
     email: normalized,
+    platform: device,
     status: 'pending',
   });
 
