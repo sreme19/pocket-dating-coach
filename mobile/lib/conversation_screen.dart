@@ -855,8 +855,21 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                   ? _messages[_messages.length - 2 - i]
                                   : null;
                               final nextMsg = i > 0 ? _messages[_messages.length - i] : null;
-                              final isGroupStart = prevMsg == null || prevMsg.senderId != msg.senderId;
-                              final showName = nextMsg == null || nextMsg.senderId != msg.senderId;
+                              // A group breaks on sender change AND on AI↔human
+                              // change — the Bestie sends as the owner (same
+                              // senderId), so runs of her-own vs Bestie-proxy
+                              // messages must split to get their own tag/style.
+                              bool sameRun(ChatMessage? a, ChatMessage b) =>
+                                  a != null && a.senderId == b.senderId && a.isAi == b.isAi;
+                              final isGroupStart = !sameRun(prevMsg, msg);
+                              final showName = !sameRun(nextMsg, msg);
+                              // On the owner's (woman's) side her column mixes
+                              // Bestie-proxy and her own messages; tag/colour them
+                              // apart. Irrelevant on the man's side (no mixing).
+                              final distinguishOwner = _viewerGender == 'woman';
+                              final prevWasBestie = prevMsg != null &&
+                                  prevMsg.senderId == _myId &&
+                                  prevMsg.isAi;
                               return _Bubble(
                                 msg: msg,
                                 mine: msg.senderId == _myId,
@@ -871,6 +884,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                 showCoaching: _viewerGender == 'woman' &&
                                     msg.senderId != _myId &&
                                     (msg.aiRead?.trim().isNotEmpty ?? false),
+                                distinguishOwner: distinguishOwner,
+                                prevWasBestie: prevWasBestie,
                               );
                             },
                           ),
@@ -952,6 +967,11 @@ class _Bubble extends StatelessWidget {
   // True only on the female owner's view, on the man's incoming messages that
   // carry a read note. Never true on the man's device → the note never leaks.
   final bool showCoaching;
+  // Owner's view: colour/tag Bestie-proxy vs her own messages apart.
+  final bool distinguishOwner;
+  // The previous (older) message was a Bestie-proxy message from the owner —
+  // used to tag her first message after stepping in with "You".
+  final bool prevWasBestie;
 
   const _Bubble({
     required this.msg,
@@ -963,6 +983,8 @@ class _Bubble extends StatelessWidget {
     required this.showName,
     required this.isGroupStart,
     required this.showCoaching,
+    required this.distinguishOwner,
+    required this.prevWasBestie,
   });
 
   String _formatTime(DateTime? dt) {
@@ -989,13 +1011,27 @@ class _Bubble extends StatelessWidget {
     final initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : '?';
     final resolvedUrl = (avatarUrl != null && avatarUrl.startsWith('http')) ? avatarUrl : null;
 
-    final bubbleBg = mine
-        ? const Color(Config.accent)
-        : ai
-            ? const Color(0x22FF3B6B)
-            : const Color(Config.bg3);
-    final textColor = mine ? const Color(0xFFFFFFFF) : const Color(Config.text1);
-    final timeColor = mine ? const Color(0x99FFFFFF) : const Color(Config.text3);
+    // Owner viewing a Bestie-proxy message sent in her name → distinct lavender
+    // treatment so her own (solid pink) step-ins stand apart. Only on her side.
+    final ownerBestie = mine && ai && distinguishOwner;
+
+    final bubbleBg = ownerBestie
+        ? const Color(0xFFF0E4FC) // lavender
+        : mine
+            ? const Color(Config.accent)
+            : ai
+                ? const Color(0x22FF3B6B)
+                : const Color(Config.bg3);
+    final textColor = ownerBestie
+        ? const Color(0xFF3B1667) // deep purple ink
+        : mine
+            ? const Color(0xFFFFFFFF)
+            : const Color(Config.text1);
+    final timeColor = ownerBestie
+        ? const Color(0x883B1667)
+        : mine
+            ? const Color(0x99FFFFFF)
+            : const Color(Config.text3);
 
     // Own messages have no avatar (like Bumble/iMessage — you know who you are)
     final baseAvatar = CircleAvatar(
@@ -1074,7 +1110,11 @@ class _Bubble extends StatelessWidget {
                 bottomLeft: Radius.circular(mine ? 16 : 4),
                 bottomRight: Radius.circular(mine ? 4 : 16),
               ),
-              border: ai ? Border.all(color: const Color(Config.accent)) : null,
+              border: ownerBestie
+                  ? Border.all(color: const Color(0x559A4DEB))
+                  : ai
+                      ? Border.all(color: const Color(Config.accent))
+                      : null,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1121,6 +1161,32 @@ class _Bubble extends StatelessWidget {
                         fontSize: 11,
                         fontWeight: ai ? FontWeight.w700 : FontWeight.w500)),
               ]),
+            ),
+          // Owner's-side tag marking who composed this run: the Bestie (sent in
+          // her name) vs. her stepping in herself. Once per run, right-aligned.
+          if (mine && distinguishOwner && isGroupStart && ai)
+            Padding(
+              padding: const EdgeInsets.only(right: 4, bottom: 3),
+              child: Row(mainAxisSize: MainAxisSize.min, children: const [
+                Text('✨', style: TextStyle(fontSize: 11)),
+                SizedBox(width: 3),
+                Text('AI BESTIE',
+                    style: TextStyle(
+                        color: Color(0xFF8A2BE2),
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5)),
+              ]),
+            ),
+          if (mine && distinguishOwner && isGroupStart && !ai && prevWasBestie)
+            const Padding(
+              padding: EdgeInsets.only(right: 4, bottom: 3),
+              child: Text('YOU',
+                  style: TextStyle(
+                      color: Color(Config.text3),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5)),
             ),
           Row(
             mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start,
