@@ -866,6 +866,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                 myAvatar: _myAvatar,
                                 showName: showName,
                                 isGroupStart: isGroupStart,
+                                // Private coaching card: female owner only, on
+                                // the man's incoming messages that carry a read.
+                                showCoaching: _viewerGender == 'woman' &&
+                                    msg.senderId != _myId &&
+                                    (msg.aiRead?.trim().isNotEmpty ?? false),
                               );
                             },
                           ),
@@ -943,6 +948,10 @@ class _Bubble extends StatelessWidget {
   final String? myAvatar;
   final bool showName;
   final bool isGroupStart;
+  // Show the private coaching card (signal + read note) under this bubble.
+  // True only on the female owner's view, on the man's incoming messages that
+  // carry a read note. Never true on the man's device → the note never leaks.
+  final bool showCoaching;
 
   const _Bubble({
     required this.msg,
@@ -953,6 +962,7 @@ class _Bubble extends StatelessWidget {
     required this.myAvatar,
     required this.showName,
     required this.isGroupStart,
+    required this.showCoaching,
   });
 
   String _formatTime(DateTime? dt) {
@@ -1070,8 +1080,11 @@ class _Bubble extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                // The Bestie signal/read is NOT prefixed inline here — that
+                // leaked it to the man. It renders as the female-owner-only
+                // coaching card below the bubble (see showCoaching).
                 Text(
-                  '${msg.aiSignal != null ? '${msg.aiSignal} ' : ''}${msg.content}',
+                  msg.content,
                   style: TextStyle(color: textColor, fontSize: 15, height: 1.35),
                 ),
                 const SizedBox(height: 3),
@@ -1116,11 +1129,84 @@ class _Bubble extends StatelessWidget {
                 ? [bubble, const SizedBox(width: 6), avatar]
                 : [avatar, const SizedBox(width: 6), bubble],
           ),
+          if (showCoaching)
+            _CoachingCard(signal: msg.aiSignal ?? '✅', read: msg.aiRead!.trim()),
         ],
       ),
     );
   }
 }
+
+/// AI Bestie's private coaching card — the female owner's read on an incoming
+/// message from a man. Signal glyph (✅/⚠️/🚩) + a one-liner only she sees.
+/// Purple bestie identity, left-accent bar; mirrors the web coaching card.
+/// Gated upstream (see `_Bubble.showCoaching`) so the man never sees it.
+class _CoachingCard extends StatelessWidget {
+  final String signal;
+  final String read;
+  const _CoachingCard({required this.signal, required this.read});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      // left: 36 aligns the card under the bubble (avatar 30 + gap 6).
+      margin: const EdgeInsets.only(top: 6, left: 36, right: 8),
+      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.72),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(width: 3, color: _kBestiePurple),
+              Expanded(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Color(0x14BF5AF2),
+                    border: Border(
+                      top: BorderSide(color: Color(0x33BF5AF2)),
+                      right: BorderSide(color: Color(0x33BF5AF2)),
+                      bottom: BorderSide(color: Color(0x33BF5AF2)),
+                    ),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(11, 9, 12, 9),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(children: [
+                        const Text('✨', style: TextStyle(fontSize: 11)),
+                        const SizedBox(width: 4),
+                        const Text('AI BESTIE',
+                            style: TextStyle(
+                                color: _kBestiePurple,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5)),
+                        const Spacer(),
+                        Text(signal, style: const TextStyle(fontSize: 15)),
+                      ]),
+                      const SizedBox(height: 5),
+                      Text(read,
+                          style: const TextStyle(
+                              color: Color(Config.text2),
+                              fontSize: 12,
+                              height: 1.45,
+                              fontStyle: FontStyle.italic)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bestie identity purple (matches the sparkle-badge gradient end + web card).
+const Color _kBestiePurple = Color(0xFFBF5AF2);
 
 /// Short, man-facing description of what each proof category means. Mirrors the
 /// web PROOF_CATEGORY_SHORT map so both surfaces read the same.
