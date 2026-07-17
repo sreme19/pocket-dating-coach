@@ -76,6 +76,10 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # Do/don't example photos for the proof-upload tiles.
+  assets:
+    - assets/proof/
+
   # riteangle brand font (variable weight 400–900)
   fonts:
     - family: Gabarito
