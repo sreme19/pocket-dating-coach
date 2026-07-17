@@ -1907,6 +1907,17 @@ Future<void> activateBestie(String conversationId) async {
   );
 }
 
+/// Explicit per-match "turn AI Bestie off" — the owner deliberately takes over
+/// (spec §A.2). Counterpart of [activateBestie]. Previously off was only an
+/// implicit side effect of her sending a message.
+Future<void> deactivateBestie(String conversationId) async {
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/ai-bestie/deactivate',
+    data: {'conversationId': conversationId},
+    options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
+  );
+}
+
 /// Thumbs up/down on an AI Bestie coaching-card "read" (spec §T). Mirrors the
 /// web coaching-card feedback: positive posts immediately; negative carries an
 /// optional reason chip + free-text note. Non-blocking — swallows errors so a
