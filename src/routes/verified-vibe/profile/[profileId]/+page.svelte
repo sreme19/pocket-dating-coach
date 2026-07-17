@@ -36,7 +36,27 @@
   let garageActiveIdx = $state(0);
   let carImages = $state<Record<string, string>>({});
 
-  const profileId = $page.params.profileId;
+  const profileId = $page.params.profileId ?? '';
+
+  // ── Admin public-view preview ────────────────────────────────────────────
+  // Opened from the admin Users table as /verified-vibe/profile/[id]?adminPreview=1&as=man|woman.
+  // In this mode the viewer gender is driven by the `as` toggle (not the logged-in
+  // user), and the Bestie flags are fetched from an admin-cookie-gated endpoint so
+  // no member session is needed.
+  const adminPreview = $derived($page.url.searchParams.get('adminPreview') === '1');
+  let previewGender = $state<'man' | 'woman'>(
+    $page.url.searchParams.get('as') === 'man' ? 'man' : 'woman'
+  );
+  const effectiveViewerGender = $derived(
+    adminPreview ? previewGender : ($user?.gender ?? null)
+  );
+
+  function setPreviewGender(g: 'man' | 'woman') {
+    if (previewGender === g) return;
+    previewGender = g;
+    bestieFlags = [];
+    if (g === 'woman' && profile?.gender === 'man') fetchBestieFlags(profileId);
+  }
 
   const intentTags = $derived(
     (() => {
@@ -163,17 +183,27 @@
   let bestieFlagsLoading = $state(false);
 
   async function fetchBestieFlags(pId: string) {
-    if ($user?.gender !== 'woman') return;
+    if (effectiveViewerGender !== 'woman') return;
     bestieFlagsLoading = true;
     try {
-      const sb = getSupabaseClient();
-      const { data: { session } } = await sb.auth.getSession();
-      if (!session?.access_token) return;
-      const res = await fetch('/api/verified-vibe/bestie-profile-flags', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify({ profileId: pId }),
-      });
+      let res: Response;
+      if (adminPreview) {
+        // Admin cookie (path-scoped to /admin) rides along on this request.
+        res = await fetch('/admin/analytics/public-view-flags', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ profileId: pId }),
+        });
+      } else {
+        const sb = getSupabaseClient();
+        const { data: { session } } = await sb.auth.getSession();
+        if (!session?.access_token) return;
+        res = await fetch('/api/verified-vibe/bestie-profile-flags', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ profileId: pId }),
+        });
+      }
       if (res.ok) {
         const data = await res.json() as { flags: BestieFlag[] };
         bestieFlags = data.flags ?? [];
@@ -205,6 +235,38 @@
 </svelte:head>
 
 <div class="public-profile-page">
+  {#if adminPreview}
+    <div class="admin-preview-bar">
+      <span class="apb-tag">ADMIN PREVIEW</span>
+      <span class="apb-label">Viewing as</span>
+      <div class="apb-toggle" role="group" aria-label="Viewer perspective">
+        <button
+          type="button"
+          class="apb-btn"
+          class:active={previewGender === 'woman'}
+          onclick={() => setPreviewGender('woman')}
+        >👩 Woman</button>
+        <button
+          type="button"
+          class="apb-btn"
+          class:active={previewGender === 'man'}
+          onclick={() => setPreviewGender('man')}
+        >👨 Man</button>
+      </div>
+      {#if profile}
+        <span class="apb-note">
+          {#if profile.gender === 'man'}
+            {previewGender === 'woman'
+              ? "Bestie's Take shows below (women-only panel)"
+              : "Bestie's Take hidden (men don't see it)"}
+          {:else}
+            Perspective doesn't change this profile
+          {/if}
+        </span>
+      {/if}
+    </div>
+  {/if}
+
   {#if backToDiscover}
     <button class="back-bar" onclick={() => goto('/verified-vibe/discover')}>
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -264,7 +326,7 @@
       <PublicProfileBody {profile} />
 
       <!-- AI Bestie flags — female viewer + male profile only -->
-      {#if $user?.gender === 'woman' && profile.gender === 'man'}
+      {#if effectiveViewerGender === 'woman' && profile.gender === 'man'}
         <div class="bestie-section">
           <div class="bestie-header">
             <span class="bestie-avatar">💬</span>
@@ -344,6 +406,55 @@
     flex-direction: column;
     max-width: 480px;
     margin: 0 auto;
+  }
+
+  .admin-preview-bar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: #1B1020;
+    color: #FFF3F0;
+    font-size: 0.75rem;
+  }
+  .apb-tag {
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    font-size: 0.625rem;
+    background: #FF3D7F;
+    color: #fff;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+  }
+  .apb-label { opacity: 0.8; }
+  .apb-toggle {
+    display: inline-flex;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .apb-btn {
+    padding: 0.2rem 0.65rem;
+    background: transparent;
+    color: #FFF3F0;
+    border: none;
+    cursor: pointer;
+    font-size: 0.75rem;
+    line-height: 1.2;
+  }
+  .apb-btn.active {
+    background: #FF3D7F;
+    color: #fff;
+    font-weight: 600;
+  }
+  .apb-note {
+    opacity: 0.7;
+    font-style: italic;
+    flex-basis: 100%;
   }
 
   .loading-state, .error-state {
