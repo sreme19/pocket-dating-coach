@@ -44,7 +44,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   String _myName = '';
   String? _myAvatar;
   bool _bestieActive = true; // per-match AI Bestie state (woman's side)
-  bool _bestieBannerDismissed = false; // woman's banner dismiss flag
+  bool _togglingBestie = false;        // in-flight take-over / resume call
   bool _manBannerDismissed = false;    // man's banner dismiss flag
   ProofRequest? _proofRequest;         // Bestie's open in-chat proof ask (man's side)
   bool _proofUploading = false;        // verification in progress
@@ -179,7 +179,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
         setState(() {
           if (thread.aiBestieActive != _bestieActive) {
             _bestieActive = thread.aiBestieActive;
-            _bestieBannerDismissed = false; // re-show banner on status change
             _manBannerDismissed = false;
           }
           if (proofChanged) _proofRequest = thread.proofRequest;
@@ -263,7 +262,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
   }
 
   Future<void> _resumeBestie() async {
-    setState(() => _bestieActive = true); // optimistic
+    if (_togglingBestie) return;
+    setState(() { _bestieActive = true; _togglingBestie = true; }); // optimistic
     try {
       await activateBestie(widget.conversationId);
     } catch (e) {
@@ -272,6 +272,27 @@ class _ConversationScreenState extends State<ConversationScreen> {
         setState(() => _bestieActive = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not resume Bestie: $e')));
       }
+    } finally {
+      if (mounted) setState(() => _togglingBestie = false);
+    }
+  }
+
+  /// Explicit "take over" — the owner deliberately turns Bestie off to speak
+  /// directly (spec §A.2). Previously off only happened as a side effect of
+  /// sending a message; this is the direct control.
+  Future<void> _takeOver() async {
+    if (_togglingBestie) return;
+    setState(() { _bestieActive = false; _togglingBestie = true; }); // optimistic
+    try {
+      await deactivateBestie(widget.conversationId);
+    } catch (e) {
+      AppLogger.instance.error(e, screen: 'conversation', action: 'deactivate_bestie');
+      if (mounted) {
+        setState(() => _bestieActive = true);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not take over: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _togglingBestie = false);
     }
   }
 
@@ -448,66 +469,80 @@ class _ConversationScreenState extends State<ConversationScreen> {
     );
   }
 
-  /// Per-match AI Bestie status, shown to the woman only. When active, an
-  /// info pill (sending a message steps in); when off, a Resume button.
+  /// Per-match AI Bestie status + explicit toggle, shown to the woman only
+  /// (spec §A.1–A.4). PERSISTENT (no dismiss) so she never loses the signal
+  /// of who is speaking as her. ON → purple "replying for you" + Take over;
+  /// OFF → neutral "you're replying" + Let Bestie back.
   Widget _bestieBanner() {
-    if (_bestieBannerDismissed) return const SizedBox.shrink();
     if (_bestieActive) {
       return Container(
         margin: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-        padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+        padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
         decoration: BoxDecoration(
-          color: const Color(0x1422C55E),
+          color: const Color(0x14BF5AF2),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0x3322C55E)),
+          border: Border.all(color: const Color(0x33BF5AF2)),
         ),
         child: Row(children: [
-          const Text('💚', style: TextStyle(fontSize: 14)),
+          const Text('✨', style: TextStyle(fontSize: 13)),
           const SizedBox(width: 8),
           const Expanded(
-            child: Text('AI Bestie is chatting on your behalf — send a message any time to step in.',
-                style: TextStyle(color: Color(0xFF22C55E), fontSize: 12, fontWeight: FontWeight.w600)),
+            child: Text('AI Bestie is replying for you',
+                style: TextStyle(color: Color(0xFF7A2BB8), fontSize: 12, fontWeight: FontWeight.w600)),
           ),
-          IconButton(
-            icon: const Icon(Icons.close, size: 16, color: Color(0xFF22C55E)),
-            onPressed: () => setState(() => _bestieBannerDismissed = true),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            tooltip: 'Dismiss',
+          _bestieToggleBtn(
+            label: 'Take over',
+            filled: false,
+            onTap: _togglingBestie ? null : _takeOver,
           ),
         ]),
       );
     }
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-      padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+      padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
       decoration: BoxDecoration(
         color: const Color(Config.bg2),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0x33EC4899)),
+        border: Border.all(color: const Color(0x22BF5AF2)),
       ),
       child: Row(children: [
-        const Expanded(
-          child: Text("You're handling this chat. Hand it back any time.",
-              style: TextStyle(color: Color(Config.text2), fontSize: 12)),
-        ),
-        TextButton.icon(
-          onPressed: _resumeBestie,
-          icon: const Text('💚', style: TextStyle(fontSize: 13)),
-          label: const Text('Resume Bestie', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
-          style: TextButton.styleFrom(
-            foregroundColor: const Color(0xFF22C55E),
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+        Expanded(
+          child: Text(
+            _otherName.isNotEmpty ? "You're replying to $_otherName yourself" : "You're replying yourself",
+            style: const TextStyle(color: Color(Config.text2), fontSize: 12),
           ),
         ),
-        IconButton(
-          icon: const Icon(Icons.close, size: 16, color: Color(0xFFAAAAAA)),
-          onPressed: () => setState(() => _bestieBannerDismissed = true),
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(),
-          tooltip: 'Dismiss',
+        _bestieToggleBtn(
+          label: '✨ Let Bestie back',
+          filled: true,
+          onTap: _togglingBestie ? null : _resumeBestie,
         ),
       ]),
+    );
+  }
+
+  /// Pill control inside the persistent Bestie bar. Filled = bring Bestie back
+  /// (primary), outlined = take over (secondary).
+  Widget _bestieToggleBtn({required String label, required bool filled, VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Opacity(
+        opacity: onTap == null ? 0.5 : 1,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: filled ? const Color(0xFFBF5AF2) : Colors.transparent,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: const Color(0xFFBF5AF2), width: filled ? 0 : 1),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                  color: filled ? Colors.white : const Color(0xFF7A2BB8),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700)),
+        ),
+      ),
     );
   }
 
@@ -855,8 +890,21 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                   ? _messages[_messages.length - 2 - i]
                                   : null;
                               final nextMsg = i > 0 ? _messages[_messages.length - i] : null;
-                              final isGroupStart = prevMsg == null || prevMsg.senderId != msg.senderId;
-                              final showName = nextMsg == null || nextMsg.senderId != msg.senderId;
+                              // A group breaks on sender change AND on AI↔human
+                              // change — the Bestie sends as the owner (same
+                              // senderId), so runs of her-own vs Bestie-proxy
+                              // messages must split to get their own tag/style.
+                              bool sameRun(ChatMessage? a, ChatMessage b) =>
+                                  a != null && a.senderId == b.senderId && a.isAi == b.isAi;
+                              final isGroupStart = !sameRun(prevMsg, msg);
+                              final showName = !sameRun(nextMsg, msg);
+                              // On the owner's (woman's) side her column mixes
+                              // Bestie-proxy and her own messages; tag/colour them
+                              // apart. Irrelevant on the man's side (no mixing).
+                              final distinguishOwner = _viewerGender == 'woman';
+                              final prevWasBestie = prevMsg != null &&
+                                  prevMsg.senderId == _myId &&
+                                  prevMsg.isAi;
                               return _Bubble(
                                 msg: msg,
                                 mine: msg.senderId == _myId,
@@ -864,8 +912,16 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                 otherAvatar: _otherAvatar,
                                 myName: _myName,
                                 myAvatar: _myAvatar,
+                                myUserId: _myId,
                                 showName: showName,
                                 isGroupStart: isGroupStart,
+                                // Private coaching card: female owner only, on
+                                // the man's incoming messages that carry a read.
+                                showCoaching: _viewerGender == 'woman' &&
+                                    msg.senderId != _myId &&
+                                    (msg.aiRead?.trim().isNotEmpty ?? false),
+                                distinguishOwner: distinguishOwner,
+                                prevWasBestie: prevWasBestie,
                               );
                             },
                           ),
@@ -941,8 +997,18 @@ class _Bubble extends StatelessWidget {
   final String? otherAvatar;
   final String myName;
   final String? myAvatar;
+  final String myUserId;
   final bool showName;
   final bool isGroupStart;
+  // Show the private coaching card (signal + read note) under this bubble.
+  // True only on the female owner's view, on the man's incoming messages that
+  // carry a read note. Never true on the man's device → the note never leaks.
+  final bool showCoaching;
+  // Owner's view: colour/tag Bestie-proxy vs her own messages apart.
+  final bool distinguishOwner;
+  // The previous (older) message was a Bestie-proxy message from the owner —
+  // used to tag her first message after stepping in with "You".
+  final bool prevWasBestie;
 
   const _Bubble({
     required this.msg,
@@ -951,8 +1017,12 @@ class _Bubble extends StatelessWidget {
     required this.otherAvatar,
     required this.myName,
     required this.myAvatar,
+    required this.myUserId,
     required this.showName,
     required this.isGroupStart,
+    required this.showCoaching,
+    required this.distinguishOwner,
+    required this.prevWasBestie,
   });
 
   String _formatTime(DateTime? dt) {
@@ -979,13 +1049,27 @@ class _Bubble extends StatelessWidget {
     final initial = displayName.isNotEmpty ? displayName[0].toUpperCase() : '?';
     final resolvedUrl = (avatarUrl != null && avatarUrl.startsWith('http')) ? avatarUrl : null;
 
-    final bubbleBg = mine
-        ? const Color(Config.accent)
-        : ai
-            ? const Color(0x22FF3B6B)
-            : const Color(Config.bg3);
-    final textColor = mine ? const Color(0xFFFFFFFF) : const Color(Config.text1);
-    final timeColor = mine ? const Color(0x99FFFFFF) : const Color(Config.text3);
+    // Owner viewing a Bestie-proxy message sent in her name → distinct lavender
+    // treatment so her own (solid pink) step-ins stand apart. Only on her side.
+    final ownerBestie = mine && ai && distinguishOwner;
+
+    final bubbleBg = ownerBestie
+        ? const Color(0xFFF0E4FC) // lavender
+        : mine
+            ? const Color(Config.accent)
+            : ai
+                ? const Color(0x22FF3B6B)
+                : const Color(Config.bg3);
+    final textColor = ownerBestie
+        ? const Color(0xFF3B1667) // deep purple ink
+        : mine
+            ? const Color(0xFFFFFFFF)
+            : const Color(Config.text1);
+    final timeColor = ownerBestie
+        ? const Color(0x883B1667)
+        : mine
+            ? const Color(0x99FFFFFF)
+            : const Color(Config.text3);
 
     // Own messages have no avatar (like Bumble/iMessage — you know who you are)
     final baseAvatar = CircleAvatar(
@@ -1064,14 +1148,21 @@ class _Bubble extends StatelessWidget {
                 bottomLeft: Radius.circular(mine ? 16 : 4),
                 bottomRight: Radius.circular(mine ? 4 : 16),
               ),
-              border: ai ? Border.all(color: const Color(Config.accent)) : null,
+              border: ownerBestie
+                  ? Border.all(color: const Color(0x559A4DEB))
+                  : ai
+                      ? Border.all(color: const Color(Config.accent))
+                      : null,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                // The Bestie signal/read is NOT prefixed inline here — that
+                // leaked it to the man. It renders as the female-owner-only
+                // coaching card below the bubble (see showCoaching).
                 Text(
-                  '${msg.aiSignal != null ? '${msg.aiSignal} ' : ''}${msg.content}',
+                  msg.content,
                   style: TextStyle(color: textColor, fontSize: 15, height: 1.35),
                 ),
                 const SizedBox(height: 3),
@@ -1109,6 +1200,32 @@ class _Bubble extends StatelessWidget {
                         fontWeight: ai ? FontWeight.w700 : FontWeight.w500)),
               ]),
             ),
+          // Owner's-side tag marking who composed this run: the Bestie (sent in
+          // her name) vs. her stepping in herself. Once per run, right-aligned.
+          if (mine && distinguishOwner && isGroupStart && ai)
+            Padding(
+              padding: const EdgeInsets.only(right: 4, bottom: 3),
+              child: Row(mainAxisSize: MainAxisSize.min, children: const [
+                Text('✨', style: TextStyle(fontSize: 11)),
+                SizedBox(width: 3),
+                Text('AI BESTIE',
+                    style: TextStyle(
+                        color: Color(0xFF8A2BE2),
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5)),
+              ]),
+            ),
+          if (mine && distinguishOwner && isGroupStart && !ai && prevWasBestie)
+            const Padding(
+              padding: EdgeInsets.only(right: 4, bottom: 3),
+              child: Text('YOU',
+                  style: TextStyle(
+                      color: Color(Config.text3),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5)),
+            ),
           Row(
             mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start,
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -1116,11 +1233,265 @@ class _Bubble extends StatelessWidget {
                 ? [bubble, const SizedBox(width: 6), avatar]
                 : [avatar, const SizedBox(width: 6), bubble],
           ),
+          if (showCoaching)
+            _CoachingCard(signal: msg.aiSignal ?? '✅', read: msg.aiRead!.trim(), userId: myUserId),
         ],
       ),
     );
   }
 }
+
+/// AI Bestie's private coaching card — the female owner's read on an incoming
+/// message from a man. Signal glyph (✅/⚠️/🚩) + a one-liner only she sees.
+/// Purple bestie identity, left-accent bar; mirrors the web coaching card.
+/// Gated upstream (see `_Bubble.showCoaching`) so the man never sees it.
+class _CoachingCard extends StatefulWidget {
+  final String signal;
+  final String read;
+  final String userId;
+  const _CoachingCard({required this.signal, required this.read, required this.userId});
+
+  @override
+  State<_CoachingCard> createState() => _CoachingCardState();
+}
+
+/// Reason chips on a 👎 — keys match the server's VALID_REASON_CHIPS and the
+/// web coaching-card panel exactly.
+const List<MapEntry<String, String>> _kReasonChips = [
+  MapEntry('too_generic', 'Too generic'),
+  MapEntry('not_relevant', 'Not relevant'),
+  MapEntry('wrong_tone', 'Wrong tone'),
+  MapEntry('factually_off', 'Factually off'),
+  MapEntry('other', 'Other'),
+];
+
+class _CoachingCardState extends State<_CoachingCard> {
+  String? _thumb;          // 'up' | 'down' | null
+  bool _panelOpen = false; // reason-chip panel, shown after a 👎
+  String? _chip;           // selected reason chip key
+  bool _done = false;      // feedback submitted → thank-you note
+  bool _submitting = false;
+  final TextEditingController _note = TextEditingController();
+
+  @override
+  void dispose() {
+    _note.dispose();
+    super.dispose();
+  }
+
+  void _tapThumb(String val) {
+    // Same button again → toggle off (mirrors web).
+    if (_thumb == val) {
+      setState(() {
+        _thumb = null;
+        if (val == 'down') { _panelOpen = false; _chip = null; _note.clear(); }
+      });
+      return;
+    }
+    if (val == 'up') {
+      setState(() { _thumb = 'up'; _panelOpen = false; _chip = null; _note.clear(); });
+      // Positive posts immediately; stays toggle-able (not marked done).
+      submitBestieCardFeedback(
+        userId: widget.userId,
+        feedbackType: 'positive',
+        messageContent: widget.read,
+      );
+    } else {
+      setState(() { _thumb = 'down'; _panelOpen = true; _chip = null; _note.clear(); });
+    }
+  }
+
+  Future<void> _postNegative({String? chip, String? note}) async {
+    if (_submitting) return;
+    setState(() => _submitting = true);
+    await submitBestieCardFeedback(
+      userId: widget.userId,
+      feedbackType: 'negative',
+      messageContent: widget.read,
+      reasonChip: chip,
+      feedbackText: (note == null || note.trim().isEmpty) ? null : note.trim(),
+    );
+    if (!mounted) return;
+    setState(() { _submitting = false; _done = true; _panelOpen = false; });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      // left: 36 aligns the card under the bubble (avatar 30 + gap 6).
+      margin: const EdgeInsets.only(top: 6, left: 36, right: 8),
+      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(width: 3, color: _kBestiePurple),
+              Expanded(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Color(0x14BF5AF2),
+                    border: Border(
+                      top: BorderSide(color: Color(0x33BF5AF2)),
+                      right: BorderSide(color: Color(0x33BF5AF2)),
+                      bottom: BorderSide(color: Color(0x33BF5AF2)),
+                    ),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(11, 9, 12, 9),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(children: [
+                        const Text('✨', style: TextStyle(fontSize: 11)),
+                        const SizedBox(width: 4),
+                        const Text('AI BESTIE',
+                            style: TextStyle(
+                                color: _kBestiePurple,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5)),
+                        const Spacer(),
+                        Text(widget.signal, style: const TextStyle(fontSize: 15)),
+                      ]),
+                      const SizedBox(height: 5),
+                      Text(widget.read,
+                          style: const TextStyle(
+                              color: Color(Config.text2),
+                              fontSize: 12,
+                              height: 1.45,
+                              fontStyle: FontStyle.italic)),
+                      const SizedBox(height: 7),
+                      _feedback(),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _feedback() {
+    if (_done) {
+      return const Text('Thanks for the feedback 👍',
+          style: TextStyle(color: Color(Config.text3), fontSize: 11, fontWeight: FontWeight.w600));
+    }
+    if (_panelOpen) return _reasonPanel();
+    return Row(children: [
+      _thumbBtn('up', '👍'),
+      const SizedBox(width: 8),
+      _thumbBtn('down', '👎'),
+    ]);
+  }
+
+  Widget _thumbBtn(String val, String glyph) {
+    final active = _thumb == val;
+    return GestureDetector(
+      onTap: () => _tapThumb(val),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+        decoration: BoxDecoration(
+          color: active ? const Color(0x22BF5AF2) : Colors.transparent,
+          borderRadius: BorderRadius.circular(7),
+          border: Border.all(color: active ? _kBestiePurple : const Color(0x33BF5AF2)),
+        ),
+        child: Text(glyph, style: TextStyle(fontSize: 13, color: active ? null : const Color(0xAA000000))),
+      ),
+    );
+  }
+
+  Widget _reasonPanel() {
+    final canSend = _chip != null && !_submitting;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('What was off?',
+            style: TextStyle(color: Color(Config.text2), fontSize: 11.5, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6, runSpacing: 6,
+          children: _kReasonChips.map((c) {
+            final sel = _chip == c.key;
+            return GestureDetector(
+              onTap: () => setState(() => _chip = c.key),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: sel ? _kBestiePurple : Colors.transparent,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: sel ? _kBestiePurple : const Color(0x33BF5AF2)),
+                ),
+                child: Text(c.value,
+                    style: TextStyle(
+                        fontSize: 11.5,
+                        color: sel ? Colors.white : const Color(0xFF6B3FA0),
+                        fontWeight: FontWeight.w600)),
+              ),
+            );
+          }).toList(),
+        ),
+        if (_chip != null) ...[
+          const SizedBox(height: 8),
+          TextField(
+            controller: _note,
+            maxLines: 2,
+            style: const TextStyle(fontSize: 12, color: Color(Config.text1)),
+            decoration: InputDecoration(
+              hintText: 'Optional — tell us more…',
+              hintStyle: const TextStyle(fontSize: 12, color: Color(Config.text3)),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              filled: true,
+              fillColor: const Color(0x0DBF5AF2),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Color(0x33BF5AF2)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Color(0x33BF5AF2)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: _kBestiePurple),
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 8),
+        Row(children: [
+          GestureDetector(
+            onTap: _submitting ? null : () => _postNegative(chip: null, note: null),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              child: Text('Skip', style: TextStyle(fontSize: 12, color: Color(Config.text3), fontWeight: FontWeight.w600)),
+            ),
+          ),
+          const Spacer(),
+          GestureDetector(
+            onTap: canSend ? () => _postNegative(chip: _chip, note: _note.text) : null,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                color: canSend ? _kBestiePurple : const Color(0x33BF5AF2),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(_submitting ? 'Sending…' : 'Send',
+                  style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ]),
+      ],
+    );
+  }
+}
+
+/// Bestie identity purple (matches the sparkle-badge gradient end + web card).
+const Color _kBestiePurple = Color(0xFFBF5AF2);
 
 /// Short, man-facing description of what each proof category means. Mirrors the
 /// web PROOF_CATEGORY_SHORT map so both surfaces read the same.

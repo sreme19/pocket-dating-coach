@@ -337,7 +337,13 @@ export async function generateBestieReply(
 	const { block: checklistContext } = buildChecklistBlock(existingChecklist);
 	const handoffContext =
 		existingChecklist?.status === 'wrapped' ? buildHandoffPhaseBlock(userName, matchName) : '';
-	const shouldGenerateChecklist = isOpener && !existingChecklist;
+	// Generate a checklist whenever one is MISSING — not only on the opener turn.
+	// This makes gap-vetting repeatable (spec §F): on reactivation we clear the
+	// checklist to re-vet against her current preferences (see the reactivate
+	// endpoint), and it also self-heals matches whose opener failed to persist one.
+	// A 'wrapped' checklist is not regenerated (it's non-null); the woman stepping
+	// in flips Bestie off, so this only fires while she's still delegating.
+	const shouldGenerateChecklist = !existingChecklist;
 
 	const client = getClaudeClient();
 	const tClaude = Date.now();

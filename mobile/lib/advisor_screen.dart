@@ -51,10 +51,21 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
     super.initState();
     AppLogger.instance.screen('advisor');
     AppLogger.instance.action('advisor', 'load_advisor');
-    _loadHistory().then((_) => _loadGreeting()).then((_) {
+    _loadHistory().then((_) => _loadGreeting()).then((_) => _loadHandoffNudge()).then((_) {
       final seed = widget.initialMessage?.trim();
       if (seed != null && seed.isNotEmpty && mounted) _send(text: seed);
     });
+  }
+
+  /// Surface the AI Bestie's time-sensitive hand-off nudge (spec B2, point 4) —
+  /// only for the woman's Bestie, and only while a match is still awaiting her.
+  Future<void> _loadHandoffNudge() async {
+    if (widget.wingman) return; // nudge is a Bestie-only, woman-facing message
+    final n = await fetchHandoffNudge();
+    if (n != null && mounted) {
+      setState(() => _turns.add(_Turn('greeting', n.content, greetingId: n.id)));
+      _scrollToBottom();
+    }
   }
 
   Future<void> _loadHistory() async {

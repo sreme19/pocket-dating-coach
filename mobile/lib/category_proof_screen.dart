@@ -24,6 +24,35 @@ String _friendlyError(Object e) {
 
 // ── Category config ───────────────────────────────────────────────────────────
 
+/// One do/don't tile in the visual "what counts" strip.
+///
+/// `image` is an example photo; when null the tile falls back to `icon`, so a
+/// category can adopt photos one tile at a time.
+class _ProofTile {
+  final IconData icon;
+  final String label;
+  final bool counts;
+  final String? image;
+  const _ProofTile(this.icon, this.label, {this.counts = false, this.image});
+}
+
+/// Leaves the ✓ example in full colour.
+const _tileNoFilter = ColorFilter.matrix(<double>[
+  1, 0, 0, 0, 0,
+  0, 1, 0, 0, 0,
+  0, 0, 1, 0, 0,
+  0, 0, 0, 1, 0,
+]);
+
+/// Luminance weights — drains colour from the ✗ examples so "wrong" reads at a
+/// glance rather than depending on the badge.
+const _tileDesaturate = ColorFilter.matrix(<double>[
+  0.2126, 0.7152, 0.0722, 0, 0,
+  0.2126, 0.7152, 0.0722, 0, 0,
+  0.2126, 0.7152, 0.0722, 0, 0,
+  0,      0,      0,      1, 0,
+]);
+
 class _CatConfig {
   final String id;
   final String icon;
@@ -40,6 +69,19 @@ class _CatConfig {
   final String? connectLabel;
   final String? connectUrl;
   final Color? connectColor;
+
+  /// Trust points awarded — shown in the app bar so the reward stays visible
+  /// at the moment effort is asked for.
+  final int points;
+
+  /// Visual do/don't strip. When non-empty the screen renders the redesigned
+  /// layout (upload target first, rule shown as tiles, examples collapsed);
+  /// when empty it falls back to the original prose layout.
+  final List<_ProofTile> tiles;
+
+  /// The single decision-relevant rule, stated once beneath the tiles.
+  final String rule;
+
   const _CatConfig({
     required this.id,
     required this.icon,
@@ -56,6 +98,9 @@ class _CatConfig {
     this.connectLabel,
     this.connectUrl,
     this.connectColor,
+    this.points = 0,
+    this.tiles = const [],
+    this.rule = '',
   });
 }
 
@@ -67,12 +112,22 @@ const _configs = <String, _CatConfig>{
     subtitle: 'Show your real world: travel, dining, experiences',
     privacyCopy: 'Your uploads stay private. They help confirm your profile is authentic and improve match quality.',
     examples: [
-      'Travel or dining photos with YOUR FACE visible',
-      'Event or concert photos showing you were there',
-      'Restaurant or bar photos with you in the frame',
-      'Experience moments — hotels, flights, adventures — with you in them',
+      'Travel or dining photos',
+      'Events and concerts',
+      'Restaurants and bars',
+      'Hotels, flights, adventures',
     ],
-    hintLine: 'Each photo is matched against your verified selfie — only photos that clearly show your face count. Screenshots without you are skipped.',
+    hintLine: '',
+    points: 8,
+    tiles: [
+      _ProofTile(Icons.face_retouching_natural_rounded, 'Counts',
+          counts: true, image: 'assets/proof/lifestyle_good.webp'),
+      _ProofTile(Icons.landscape_outlined, 'No face',
+          image: 'assets/proof/lifestyle_no_face.webp'),
+      _ProofTile(Icons.phone_android_outlined, 'Screenshot',
+          image: 'assets/proof/lifestyle_screenshot.webp'),
+    ],
+    rule: 'We match each photo to your selfie. No face, no points.',
     maxFiles: 20,
   ),
   'discipline': _CatConfig(
@@ -82,12 +137,22 @@ const _configs = <String, _CatConfig>{
     subtitle: 'Show your consistent habits and routines',
     privacyCopy: 'Private by default. Your proofs strengthen trust, verify authenticity, and help you get better matches.',
     examples: [
-      'Gym check-in or workout selfie',
-      'Sport or training photos with you in frame',
-      'Morning run, swim, or cycling selfie',
-      'You at practice, class, or study sessions',
+      'Gym check-ins and workouts',
+      'Sport or training sessions',
+      'Morning runs, swims, rides',
+      'Practice, class, study sessions',
     ],
-    hintLine: 'Each photo is matched against your verified selfie — only photos that clearly show your face count. App screenshots are skipped.',
+    hintLine: '',
+    points: 4,
+    tiles: [
+      _ProofTile(Icons.face_retouching_natural_rounded, 'Counts',
+          counts: true, image: 'assets/proof/discipline_good.webp'),
+      _ProofTile(Icons.fitness_center_outlined, 'No face',
+          image: 'assets/proof/discipline_no_face.webp'),
+      _ProofTile(Icons.phone_android_outlined, 'Screenshot',
+          image: 'assets/proof/discipline_screenshot.webp'),
+    ],
+    rule: 'We match each photo to your selfie. No face, no points.',
     maxFiles: 20,
   ),
   'social_proof': _CatConfig(
@@ -97,12 +162,22 @@ const _configs = <String, _CatConfig>{
     subtitle: 'Show your real social life — friends, events, and gatherings you host',
     privacyCopy: 'Nothing here is public. These signals confirm your lifestyle and improve compatibility.',
     examples: [
-      'Group photos with friends — with you clearly visible',
-      'Community or club events you attend',
-      'Sports team or group activity photos including you',
-      'Dinners, parties or celebrations you host',
+      'Group photos with friends',
+      'Community or club events',
+      'Sports teams and activities',
+      'Dinners and celebrations',
     ],
-    hintLine: 'Each photo is matched against your verified selfie — only group shots where your face is visible count. Natural moments beat posed shots.',
+    hintLine: '',
+    points: 4,
+    tiles: [
+      _ProofTile(Icons.face_retouching_natural_rounded, 'Counts',
+          counts: true, image: 'assets/proof/social_good.webp'),
+      _ProofTile(Icons.groups_outlined, 'Face hidden',
+          image: 'assets/proof/social_no_face.webp'),
+      _ProofTile(Icons.phone_android_outlined, 'Screenshot',
+          image: 'assets/proof/social_screenshot.webp'),
+    ],
+    rule: 'We match each photo to your selfie. In group shots, your face has to be visible.',
     maxFiles: 20,
   ),
   'hosting': _CatConfig(
@@ -348,6 +423,14 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
         ..clear()
         ..addAll(combined.take(_cfg.maxFiles));
     });
+  }
+
+  Future<void> _pickFromCamera() async {
+    if (_analysing) return;
+    if (_files.length >= _cfg.maxFiles) return;
+    final shot = await _picker.pickImage(source: ImageSource.camera, maxWidth: 1200, imageQuality: 72);
+    if (shot == null) return;
+    setState(() => _files.add(shot));
   }
 
   Future<void> _pickResumeImages() async {
@@ -1064,6 +1147,141 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
     );
   }
 
+  // ── Redesigned layout pieces (categories that define `tiles`) ─────────────
+
+  /// Primary upload target — accent-filled so it reads as the action, with
+  /// camera and gallery side by side.
+  Widget _buildDropzone(_CatConfig cfg) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+        decoration: BoxDecoration(
+          color: const Color(0x14FF3B6B),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0x66FF3B6B), width: 1.5),
+        ),
+        child: Column(children: [
+          Container(
+            width: 52, height: 52,
+            decoration: BoxDecoration(
+              color: const Color(Config.accent),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.add_photo_alternate_rounded, color: Colors.white, size: 27),
+          ),
+          const SizedBox(height: 12),
+          const Text('Add your photos',
+              style: TextStyle(color: Color(Config.text1), fontSize: 16, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          Text('Up to ${cfg.maxFiles} · your face in each',
+              style: const TextStyle(color: Color(Config.text2), fontSize: 12)),
+          const SizedBox(height: 14),
+          Row(children: [
+            Expanded(child: _sourceButton(Icons.photo_camera_rounded, 'Camera', _pickFromCamera)),
+            const SizedBox(width: 10),
+            Expanded(child: _sourceButton(Icons.photo_library_rounded, 'Gallery', _pickPhotos)),
+          ]),
+        ]),
+      );
+
+  Widget _sourceButton(IconData icon, String label, VoidCallback onTap) => SizedBox(
+        height: 44,
+        child: OutlinedButton.icon(
+          onPressed: _analysing ? null : onTap,
+          icon: Icon(icon, size: 18),
+          label: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(Config.accent),
+            backgroundColor: const Color(Config.bg2),
+            side: const BorderSide(color: Color(0x4DFF3B6B)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+      );
+
+  /// Visual do/don't strip — teaches the rule faster than the prose it replaces.
+  Widget _buildTileStrip(_CatConfig cfg) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final t in cfg.tiles) ...[
+            Expanded(child: _proofTile(t)),
+            if (t != cfg.tiles.last) const SizedBox(width: 8),
+          ],
+        ],
+      );
+
+  Widget _proofTile(_ProofTile t) {
+    const good = Color(0xFF22C55E);
+    final tint = t.counts ? const Color(0x1A22C55E) : const Color(Config.bg2);
+    final line = t.counts ? const Color(0x6622C55E) : const Color(0x181B1020);
+    final fg = t.counts ? good : const Color(Config.text3);
+    return Column(children: [
+      AspectRatio(
+        aspectRatio: 1,
+        child: Stack(clipBehavior: Clip.none, fit: StackFit.expand, children: [
+          Container(
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: tint,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: line),
+            ),
+            child: t.image == null
+                ? Icon(t.icon, size: 30, color: fg)
+                : ColorFiltered(
+                    colorFilter: t.counts ? _tileNoFilter : _tileDesaturate,
+                    child: Image.asset(
+                      t.image!,
+                      fit: BoxFit.cover,
+                      // Tiles render ~113dp wide; decode to match rather than
+                      // holding a full-size bitmap per example.
+                      cacheWidth: 360,
+                      // A missing example degrades to the icon rather than
+                      // breaking the screen.
+                      errorBuilder: (_, _, _) => Icon(t.icon, size: 30, color: fg),
+                    ),
+                  ),
+          ),
+          Positioned(
+            bottom: -5, right: -5,
+            child: Container(
+              width: 20, height: 20,
+              decoration: BoxDecoration(
+                color: t.counts ? good : const Color(Config.bg3),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(Config.bg1), width: 1.5),
+              ),
+              child: Icon(t.counts ? Icons.check_rounded : Icons.close_rounded,
+                  size: 12, color: t.counts ? Colors.white : const Color(Config.text3)),
+            ),
+          ),
+        ]),
+      ),
+      const SizedBox(height: 8),
+      Text(t.label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+              color: fg, fontSize: 11, fontWeight: t.counts ? FontWeight.w700 : FontWeight.w400)),
+    ]);
+  }
+
+  /// Privacy demoted to a footer that expands on tap.
+  Widget _buildPrivacyFooter(_CatConfig cfg) => Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: const EdgeInsets.only(bottom: 12),
+          leading: const Icon(Icons.lock_outline_rounded, size: 15, color: Color(Config.text3)),
+          title: const Text('Private — only AI highlights show',
+              style: TextStyle(color: Color(Config.text3), fontSize: 12)),
+          iconColor: const Color(Config.text3),
+          collapsedIconColor: const Color(Config.text3),
+          children: [
+            Text(cfg.privacyCopy,
+                style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4)),
+          ],
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final cfg = _cfg;
@@ -1083,35 +1301,51 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                   style: const TextStyle(
                       color: Color(Config.text1), fontWeight: FontWeight.w700, fontSize: 16),
                   overflow: TextOverflow.ellipsis),
-              Text(cfg.subtitle,
-                  style: const TextStyle(color: Color(Config.text2), fontSize: 11),
-                  overflow: TextOverflow.ellipsis),
+              if (cfg.tiles.isEmpty)
+                Text(cfg.subtitle,
+                    style: const TextStyle(color: Color(Config.text2), fontSize: 11),
+                    overflow: TextOverflow.ellipsis),
             ]),
           ),
         ]),
+        actions: [
+          if (cfg.points > 0)
+            Container(
+              margin: const EdgeInsets.only(right: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0x22FF3B6B),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text('+${cfg.points} pts',
+                  style: const TextStyle(
+                      color: Color(Config.accent), fontWeight: FontWeight.w700, fontSize: 13)),
+            ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: [
-          // Privacy notice
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0x1A6366F1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0x336366F1)),
-            ),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('🔒', style: TextStyle(fontSize: 15)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(cfg.privacyCopy,
-                    style: const TextStyle(color: Color(0xFF4338CA), fontSize: 13, height: 1.4)),
+          // Privacy notice — demoted to a footer in the redesigned layout.
+          if (cfg.tiles.isEmpty) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0x1A6366F1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0x336366F1)),
               ),
-            ]),
-          ),
-
-          const SizedBox(height: 20),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('🔒', style: TextStyle(fontSize: 15)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(cfg.privacyCopy,
+                      style: const TextStyle(color: Color(0xFF4338CA), fontSize: 13, height: 1.4)),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 20),
+          ],
 
           // ── Already verified history ─────────────────────────────────────
           if (widget.existingProof != null) ...[
@@ -1119,8 +1353,9 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
             const SizedBox(height: 20),
           ],
 
-          // WHAT WORKS
-          if (cfg.examples.isNotEmpty) ...[
+          // WHAT WORKS — prose layout only; `tiles` categories show the strip
+          // below the upload target instead.
+          if (cfg.tiles.isEmpty && cfg.examples.isNotEmpty) ...[
             const Text('WHAT WORKS',
                 style: TextStyle(
                     color: Color(Config.text2),
@@ -1339,36 +1574,39 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
           if (!cfg.hasUrlInput) ...[
             if (_files.isEmpty)
               // ── Empty state ──────────────────────────────────────────────────
-              GestureDetector(
-                onTap: _analysing ? null : _pickPhotos,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 36),
-                  decoration: BoxDecoration(
-                    color: const Color(Config.bg2),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0x33FF3B6B), width: 1.5),
-                  ),
-                  child: Column(children: [
-                    Container(
-                      width: 52, height: 52,
-                      decoration: BoxDecoration(
-                        color: const Color(Config.bg3),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Icon(Icons.add_photo_alternate_outlined,
-                          color: Color(Config.text2), size: 28),
+              if (cfg.tiles.isNotEmpty)
+                _buildDropzone(cfg)
+              else
+                GestureDetector(
+                  onTap: _analysing ? null : _pickPhotos,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 36),
+                    decoration: BoxDecoration(
+                      color: const Color(Config.bg2),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0x33FF3B6B), width: 1.5),
                     ),
-                    const SizedBox(height: 12),
-                    const Text('Tap to select photos',
-                        style: TextStyle(
-                            color: Color(Config.text2), fontSize: 15, fontWeight: FontWeight.w500)),
-                    const SizedBox(height: 4),
-                    Text('Up to ${cfg.maxFiles} files · JPEG / PNG / HEIC',
-                        style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
-                  ]),
-                ),
-              )
+                    child: Column(children: [
+                      Container(
+                        width: 52, height: 52,
+                        decoration: BoxDecoration(
+                          color: const Color(Config.bg3),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(Icons.add_photo_alternate_outlined,
+                            color: Color(Config.text2), size: 28),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text('Tap to select photos',
+                          style: TextStyle(
+                              color: Color(Config.text2), fontSize: 15, fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 4),
+                      Text('Up to ${cfg.maxFiles} files · JPEG / PNG / HEIC',
+                          style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
+                    ]),
+                  ),
+                )
             else
               // ── Photo grid preview ───────────────────────────────────────────
               Container(
@@ -1460,6 +1698,45 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                   ),
                 ]),
               ),
+
+            // ── Visual do/don't strip + the one rule ─────────────────────────
+            if (cfg.tiles.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _buildTileStrip(cfg),
+              if (cfg.rule.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Text(cfg.rule,
+                    style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4)),
+              ],
+              if (cfg.examples.isNotEmpty)
+                Theme(
+                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    childrenPadding: const EdgeInsets.only(bottom: 8),
+                    title: const Text('More examples',
+                        style: TextStyle(
+                            color: Color(Config.text2), fontSize: 13, fontWeight: FontWeight.w600)),
+                    iconColor: const Color(Config.text2),
+                    collapsedIconColor: const Color(Config.text2),
+                    children: [
+                      for (final ex in cfg.examples)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            const Icon(Icons.check, size: 15, color: Color(Config.accent)),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(ex,
+                                  style: const TextStyle(
+                                      color: Color(Config.text1), fontSize: 14, height: 1.4)),
+                            ),
+                          ]),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
 
             const SizedBox(height: 16),
           ],
@@ -1608,6 +1885,8 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                           style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
             ),
           ),
+
+          if (cfg.tiles.isNotEmpty) _buildPrivacyFooter(cfg),
         ],
       ),
     );
