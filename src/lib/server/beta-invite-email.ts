@@ -163,50 +163,10 @@ export function buildEarlyAccessHtml(referrer: ReferrerCard, platform: Platform,
     </div>
     ${referrerCardHtml(referrer)}
     <div style="padding:8px 28px 28px">
-      ${platform === 'ios' ? `
-      <h2 style="margin:16px 0 10px;font-size:15px;color:#111827">How to get the app (4 steps):</h2>
-      <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%">
-        <tr>
-          <td style="vertical-align:top;padding-right:12px;padding-bottom:14px">
-            <div style="width:28px;height:28px;border-radius:50%;background:#ec4899;color:#fff;font-size:13px;font-weight:700;line-height:28px;text-align:center">1</div>
-          </td>
-          <td style="vertical-align:top;padding-bottom:14px">
-            <div style="font-size:14px;font-weight:600;color:#111827">Accept the team invitation from Apple</div>
-            <div style="font-size:14px;color:#6b7280;margin-top:2px">You'll get an email from <strong>noreply@email.apple.com</strong> — subject: <em>"You have been invited to join…"</em>. Click <strong>Accept Invitation</strong> and sign in with your Apple ID. No new account needed — just use your existing Apple ID.</div>
-          </td>
-        </tr>
-        <tr>
-          <td style="vertical-align:top;padding-right:12px;padding-bottom:14px">
-            <div style="width:28px;height:28px;border-radius:50%;background:#ec4899;color:#fff;font-size:13px;font-weight:700;line-height:28px;text-align:center">2</div>
-          </td>
-          <td style="vertical-align:top;padding-bottom:14px">
-            <div style="font-size:14px;font-weight:600;color:#111827">Accept the TestFlight invitation</div>
-            <div style="font-size:14px;color:#6b7280;margin-top:2px">After step 1, you'll get a second email from Apple with your TestFlight invite (check spam too). Open it and tap <strong>View in TestFlight</strong>.</div>
-          </td>
-        </tr>
-        <tr>
-          <td style="vertical-align:top;padding-right:12px;padding-bottom:14px">
-            <div style="width:28px;height:28px;border-radius:50%;background:#ec4899;color:#fff;font-size:13px;font-weight:700;line-height:28px;text-align:center">3</div>
-          </td>
-          <td style="vertical-align:top;padding-bottom:14px">
-            <div style="font-size:14px;font-weight:600;color:#111827">Install TestFlight</div>
-            <div style="font-size:14px;color:#6b7280;margin-top:2px">Download <a href="https://apps.apple.com/app/testflight/id899247664" style="color:#ec4899;text-decoration:none">TestFlight</a> from the App Store if you don't have it yet. It's free.</div>
-          </td>
-        </tr>
-        <tr>
-          <td style="vertical-align:top;padding-right:12px">
-            <div style="width:28px;height:28px;border-radius:50%;background:#ec4899;color:#fff;font-size:13px;font-weight:700;line-height:28px;text-align:center">4</div>
-          </td>
-          <td style="vertical-align:top">
-            <div style="font-size:14px;font-weight:600;color:#111827">Tap Install in TestFlight</div>
-            <div style="font-size:14px;color:#6b7280;margin-top:2px">Open TestFlight, find riteangle, and tap <strong>Install</strong>. The app will appear on your home screen — you're all set!</div>
-          </td>
-        </tr>
-      </table>` : `
       <h2 style="margin:16px 0 10px;font-size:15px;color:#111827">Get the app to meet ${safeName}</h2>
       <div style="text-align:center;margin:6px 0 10px">
         ${storeButton(platform, storeUrl)}
-      </div>`}
+      </div>
       <p style="margin:16px 0 0;font-size:15px;line-height:1.55;color:#374151">
         See you inside.<br/>— The riteangle team
       </p>
