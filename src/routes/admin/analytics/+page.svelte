@@ -458,7 +458,7 @@
 	<div class="card mb-6">
 		<div class="mb-4">
 			<h2 class="chart-title mb-0">Users ({filteredUsers.length})</h2>
-			<p class="mt-0.5 text-xs text-slate-500">Click a name to permanently delete that profile and all of its data.</p>
+			<p class="mt-0.5 text-xs text-slate-500">Click a name to permanently delete that profile and all of its data. Use <span class="text-slate-300">View</span> to open the public profile as members see it (opens in a new tab).</p>
 		</div>
 		<div class="overflow-x-auto">
 			<table class="w-full text-sm">
@@ -473,6 +473,7 @@
 							['trustScore', 'Trust'],
 							[null, 'Type'],
 							['joinedAt', 'Joined'],
+							[null, 'View'],
 						] as [col, label]}
 							<th class="pb-2 pr-4 font-medium last:pr-0">
 								{#if col}
@@ -531,7 +532,18 @@
 									{togglingId === u.id ? '…' : effectiveSeed(u) ? 'seed' : 'real'}
 								</button>
 							</td>
-							<td class="py-2 text-slate-500 text-xs">{u.joinedAt ? u.joinedAt.slice(0, 10) : '—'}</td>
+							<td class="py-2 pr-4 text-slate-500 text-xs">{u.joinedAt ? u.joinedAt.slice(0, 10) : '—'}</td>
+							<td class="py-2">
+								<a
+									href={`/verified-vibe/profile/${u.id}?adminPreview=1&as=${u.gender === 'man' ? 'woman' : 'man'}`}
+									target="_blank"
+									rel="noopener"
+									title="Open the public profile as members see it"
+									class="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-0.5 text-xs text-slate-300 transition-colors hover:border-emerald-400/40 hover:text-emerald-300"
+								>
+									View ↗
+								</a>
+							</td>
 						</tr>
 					{/each}
 				</tbody>
