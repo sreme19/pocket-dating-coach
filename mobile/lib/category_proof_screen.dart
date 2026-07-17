@@ -288,7 +288,17 @@ const _configs = <String, _CatConfig>{
       'You holding your boarding pass or passport stamp',
       'Other people in the shot are fine — you just have to be in it too',
     ],
-    hintLine: 'Your face must be visible. Photos without you in them won\'t count. Up to 20 photos.',
+    hintLine: '',
+    points: 8,
+    tiles: [
+      _ProofTile(Icons.emoji_flags_outlined, 'Counts',
+          counts: true, image: 'assets/proof/travel_good.webp'),
+      _ProofTile(Icons.photo_outlined, 'No face',
+          image: 'assets/proof/travel_no_face.webp'),
+      _ProofTile(Icons.receipt_long_outlined, 'Booking',
+          image: 'assets/proof/travel_booking.webp'),
+    ],
+    rule: 'We match each photo to your selfie. No face, no points — a booking alone isn\'t you being there.',
     maxFiles: 20,
   ),
   'spending': _CatConfig(
