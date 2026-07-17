@@ -1749,6 +1749,9 @@ class ChatMessage {
   final String content;
   final bool isAi;
   final String? aiSignal;
+  // Bestie's private "read" note on a received (man's) message — female-owner
+  // eyes only. Rendered as the coaching card; never shown to the man.
+  final String? aiRead;
   final DateTime? createdAt;
 
   ChatMessage({
@@ -1757,6 +1760,7 @@ class ChatMessage {
     required this.content,
     required this.isAi,
     required this.aiSignal,
+    required this.aiRead,
     required this.createdAt,
   });
 
@@ -1766,6 +1770,7 @@ class ChatMessage {
         content: (m['content'] ?? '').toString(),
         isAi: (m['isAi'] ?? m['is_ai']) == true,
         aiSignal: (m['aiSignal'] ?? m['ai_signal']) as String?,
+        aiRead: (m['aiRead'] ?? m['ai_read']) as String?,
         createdAt: _dt(m['createdAt'] ?? m['created_at']),
       );
 }
