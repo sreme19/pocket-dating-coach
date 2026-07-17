@@ -1690,6 +1690,14 @@ class Conversation {
   final int trustScore;
   /// AI Bestie wrapped up and is waiting for the woman (this viewer) to step in.
   final bool handoffPending;
+  /// 'mutual' (active) or 'expired' (hand-off window elapsed — Inactive section).
+  final String status;
+  /// When Bestie handed off (ISO). The step-in deadline is this + 48h. Null unless handoffPending.
+  final DateTime? handoffAt;
+  /// When the match expired. Null unless status == 'expired'.
+  final DateTime? expiredAt;
+  /// True only for the woman on an expired match — she alone gets Reactivate.
+  final bool canReactivate;
 
   Conversation({
     required this.id,
@@ -1706,7 +1714,17 @@ class Conversation {
     required this.gender,
     required this.trustScore,
     this.handoffPending = false,
+    this.status = 'mutual',
+    this.handoffAt,
+    this.expiredAt,
+    this.canReactivate = false,
   });
+
+  bool get isExpired => status == 'expired';
+
+  /// The 48h step-in deadline while a hand-off is pending, else null.
+  DateTime? get handoffDeadline =>
+      handoffAt == null ? null : handoffAt!.add(const Duration(hours: 48));
 }
 
 DateTime? _dt(dynamic v) => v == null ? null : DateTime.tryParse(v.toString());
@@ -1739,8 +1757,30 @@ Future<List<Conversation>> fetchConversations() async {
       gender: u['gender'] as String?,
       trustScore: u['trustScore'] is num ? (u['trustScore'] as num).toInt() : 0,
       handoffPending: c['handoffPending'] == true,
+      status: (c['status'] ?? 'mutual').toString(),
+      handoffAt: _dt(c['handoffAt']),
+      expiredAt: _dt(c['expiredAt']),
+      canReactivate: c['canReactivate'] == true,
     );
   }).toList();
+}
+
+/// Reactivate an expired match (woman-only; spec B2). Returns the re-engage mode
+/// ('revet' | 'direct') on success. Throws with a friendly message on failure —
+/// e.g. "He's no longer available" (410) if he blocked her in the interim.
+Future<String> reactivateMatch(String conversationId) async {
+  try {
+    final resp = await _dio.post(
+      '${Config.apiBase}/api/verified-vibe/ai-bestie/reactivate',
+      data: {'conversationId': conversationId},
+      options: Options(headers: {'Authorization': _bearer()}),
+    );
+    final body = resp.data is Map ? resp.data as Map : const {};
+    return (body['reengaged'] ?? 'direct').toString();
+  } on DioException catch (e) {
+    final msg = e.response?.data is Map ? (e.response!.data as Map)['error'] : null;
+    throw Exception(msg?.toString() ?? 'Could not reactivate this match');
+  }
 }
 
 class ChatMessage {
@@ -2550,6 +2590,26 @@ Future<({String id, String content})?> fetchGreeting() async {
     return (id: id, content: content);
   } catch (_) {
     return null; // non-fatal — advisor still works without a greeting
+  }
+}
+
+/// The AI Bestie's proactive hand-off nudge for her advisor thread (spec B2).
+/// Returns null when there's no pending nudge (or she's already acted). Non-fatal.
+Future<({String id, String content})?> fetchHandoffNudge() async {
+  try {
+    final resp = await _dio.get(
+      '${Config.apiBase}/api/verified-vibe/ai-bestie/handoff-nudges',
+      options: Options(headers: {'Authorization': _bearer()}),
+    );
+    final b = resp.data is Map ? resp.data as Map : const {};
+    final n = b['nudge'] is Map ? b['nudge'] as Map : null;
+    if (n == null) return null;
+    final content = (n['content'] ?? '').toString();
+    final id = (n['id'] ?? '').toString();
+    if (content.isEmpty) return null;
+    return (id: id, content: content);
+  } catch (_) {
+    return null; // non-fatal — advisor still works without a nudge
   }
 }
 

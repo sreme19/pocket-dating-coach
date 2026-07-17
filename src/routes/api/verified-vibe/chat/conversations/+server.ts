@@ -15,6 +15,14 @@ export interface Conversation {
   matchedAt: Date;
   /** True when AI Bestie wrapped up and is waiting for THIS user (the woman) to step in. */
   handoffPending: boolean;
+  /** 'mutual' (active) or 'expired' (hand-off window elapsed — Inactive section). */
+  status: string;
+  /** When Bestie handed off (checklist wrapped_at, ISO). Deadline = this + 48h. Null unless handoffPending. */
+  handoffAt: string | null;
+  /** When the match expired (ISO). Null unless status='expired'. */
+  expiredAt: string | null;
+  /** True only for the WOMAN on an expired match — she alone gets the Reactivate control. */
+  canReactivate: boolean;
 }
 
 interface ConversationsResponse {
@@ -44,8 +52,8 @@ export const GET: RequestHandler = async ({ request }) => {
     // 1. Fetch all mutual matches (single query)
     const { data: matches, error: matchesError } = await supabase
       .from('verified_vibe_matches')
-      .select('id, user1_id, user2_id, status, created_at, user1_last_read_at, user2_last_read_at, ai_bestie_active, bestie_checklist')
-      .eq('status', 'mutual')
+      .select('id, user1_id, user2_id, status, created_at, user1_last_read_at, user2_last_read_at, ai_bestie_active, bestie_checklist, expired_at')
+      .in('status', ['mutual', 'expired'])
       .or(`user1_id.eq.${userId},user2_id.eq.${userId}`);
 
     if (matchesError) {
@@ -115,11 +123,16 @@ export const GET: RequestHandler = async ({ request }) => {
       const lastMsg = lastMessageMap.get(match.id);
       // Hand-off pending = Bestie wrapped up her checklist and is on hold for the
       // woman to step in. Only the woman (whose match partner is a man) sees it.
-      const checklist = (match as any).bestie_checklist as { status?: string } | null;
+      const checklist = (match as any).bestie_checklist as { status?: string; wrapped_at?: string } | null;
+      const isExpired = (match as any).status === 'expired';
       const handoffPending =
+        !isExpired &&
         otherUser.gender === 'man' &&
         (match as any).ai_bestie_active === true &&
         checklist?.status === 'wrapped';
+      // Bestie proxies woman → man, so if the OTHER user is a man, THIS user is the
+      // woman — she alone may reactivate an expired match.
+      const canReactivate = isExpired && otherUser.gender === 'man';
       conversations.push({
         id: match.id,
         matchId: match.id,
@@ -143,7 +156,11 @@ export const GET: RequestHandler = async ({ request }) => {
         unreadCount: unreadMap.get(match.id) ?? 0,
         hasMessages: !!lastMsg,
         matchedAt: new Date(match.created_at),
-        handoffPending
+        handoffPending,
+        status: (match as any).status,
+        handoffAt: handoffPending ? (checklist?.wrapped_at ?? null) : null,
+        expiredAt: isExpired ? ((match as any).expired_at ?? null) : null,
+        canReactivate
       });
     }
 

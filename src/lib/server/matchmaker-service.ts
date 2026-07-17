@@ -508,8 +508,21 @@ async function logOnDemandRun(db: any, evaluated: number, fired: number): Promis
   } catch { /* observability only — non-fatal */ }
 }
 
-export async function runMatchmakerForUser(userId: string): Promise<FindMatchResult> {
+/**
+ * Run the on-demand matcher for one user.
+ *
+ * opts.system = a system-initiated match (e.g. the hand-off-timeout replacement),
+ * NOT a user pressing "find match". System runs skip the quota charge and the
+ * runs-limit gate — the man never asked for this, so it can't cost him a press or
+ * be blocked by his cap. Candidate selection + scoring + creation are unchanged,
+ * and his existing matches (incl. the just-expired row) are still excluded.
+ */
+export async function runMatchmakerForUser(
+  userId: string,
+  opts: { system?: boolean } = {}
+): Promise<FindMatchResult> {
   const db = getSupabase() as any;
+  const system = opts.system === true;
 
   // Load the requesting user + quota.
   const { data: me } = await db
@@ -537,16 +550,19 @@ export async function runMatchmakerForUser(userId: string): Promise<FindMatchRes
   if (!myPoolRaw) return { status: 'needs_verification' };
   const myPool = isMan ? poolToWingmanRow(myPoolRaw) : poolToBestieRow(myPoolRaw);
 
-  // Quota check.
+  // Quota check. System runs (e.g. hand-off-timeout replacement) are exempt: the
+  // user didn't press the button, so they neither charge a run nor hit the limit.
   const runsUsed  = me.matchmaker_runs_used  ?? 0;
   const runsLimit = me.matchmaker_runs_limit ?? 0;
-  if (runsUsed >= runsLimit) {
+  if (!system && runsUsed >= runsLimit) {
     return { status: 'limit_reached', runsUsed, runsLimit };
   }
 
   // Charge one run up-front (per-press billing; bounds AI usage even on no-match).
-  const newRunsUsed = runsUsed + 1;
-  await db.from('verified_vibe_users').update({ matchmaker_runs_used: newRunsUsed }).eq('id', userId);
+  const newRunsUsed = system ? runsUsed : runsUsed + 1;
+  if (!system) {
+    await db.from('verified_vibe_users').update({ matchmaker_runs_used: newRunsUsed }).eq('id', userId);
+  }
 
   // Load opposite-gender active candidates + this user's existing matches.
   const [{ data: candidateRows }, { data: myMatches }] = await Promise.all([
