@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:dio/dio.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'config.dart';
 import 'app_logger.dart';
 import 'onboarding_flow.dart' show GateStep, pendingSignupGender, pendingSignupArchetype;
@@ -332,7 +333,10 @@ class _AuthScreenState extends State<AuthScreen> {
           TextSpan(
             text: 'Privacy Policy',
             style: const TextStyle(color: Color(Config.accent)),
-            recognizer: TapGestureRecognizer()..onTap = () {},
+            recognizer: TapGestureRecognizer()..onTap = () {
+              launchUrl(Uri.parse('https://www.riteangle.dating/privacy-policy'),
+                  mode: LaunchMode.externalApplication);
+            },
           ),
           const TextSpan(text: '. New accounts are created automatically.'),
         ],

@@ -442,6 +442,24 @@ class _ChatListScreenState extends State<ChatListScreen>
     if (mounted) setState(() => _clearedConvos.remove(c.id));
   }
 
+  Future<void> _reactivate(Conversation c) async {
+    try {
+      final mode = await reactivateMatch(c.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(mode == 'revet'
+            ? 'Reactivated — your AI Bestie is checking a couple more things with him.'
+            : "Reactivated — you're back in touch."),
+      ));
+      _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(e.toString().replaceFirst('Exception: ', '')),
+      ));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -496,6 +514,30 @@ class _ChatListScreenState extends State<ChatListScreen>
           }
           if (_filter == 1) active = active.where((c) => c.unreadCount > 0 && !_clearedConvos.contains(c.id)).toList();
 
+          // Bucket the list: "Your move" (Bestie handed off — countdown), normal
+          // active, and "Inactive" (expired). Sectioning applies on the All tab;
+          // the Unread tab just hides expired matches.
+          final sectioned = _filter == 0;
+          final yourMove = sectioned
+              ? active.where((c) => c.handoffPending && !c.isExpired).toList()
+              : <Conversation>[];
+          final inactive = sectioned ? active.where((c) => c.isExpired).toList() : <Conversation>[];
+          final normal = active
+              .where((c) => !c.isExpired && !(sectioned && c.handoffPending))
+              .toList();
+
+          _ConversationTile tile(Conversation c) => _ConversationTile(
+                convo: c,
+                onTap: () => _open(c),
+                myId: Supabase.instance.client.auth.currentUser?.id,
+                online: c.otherId != null && _onlineUsers.contains(c.otherId),
+                cleared: _clearedConvos.contains(c.id),
+                variant: c.isExpired
+                    ? _TileVariant.expired
+                    : (sectioned && c.handoffPending ? _TileVariant.handoff : _TileVariant.normal),
+                onReactivate: c.canReactivate ? () => _reactivate(c) : null,
+              );
+
           return RefreshIndicator(
             onRefresh: _refresh,
             child: ListView(
@@ -542,7 +584,7 @@ class _ChatListScreenState extends State<ChatListScreen>
                     )
                   else
                     ...data.sentAdmirers.map((s) => _SentAdmirerCard(admirer: s)),
-                ] else if (active.isEmpty)
+                ] else if (yourMove.isEmpty && normal.isEmpty && inactive.isEmpty)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 40, 20, 0),
                     child: Text(
@@ -555,14 +597,20 @@ class _ChatListScreenState extends State<ChatListScreen>
                       style: const TextStyle(color: Color(Config.text2)),
                     ),
                   )
-                else
-                  ...active.map((c) => _ConversationTile(
-                    convo: c,
-                    onTap: () => _open(c),
-                    myId: Supabase.instance.client.auth.currentUser?.id,
-                    online: c.otherId != null && _onlineUsers.contains(c.otherId),
-                    cleared: _clearedConvos.contains(c.id),
-                  )),
+                else ...[
+                  if (yourMove.isNotEmpty) ...[
+                    const _SectionHeader(label: 'Your move'),
+                    ...yourMove.map(tile),
+                  ],
+                  if (normal.isNotEmpty) ...[
+                    if (yourMove.isNotEmpty) const _SectionHeader(label: 'Active'),
+                    ...normal.map(tile),
+                  ],
+                  if (inactive.isNotEmpty) ...[
+                    const _SectionHeader(label: 'Inactive'),
+                    ...inactive.map(tile),
+                  ],
+                ],
               ],
             ),
           );
@@ -1151,78 +1199,220 @@ class _SentAdmirerCard extends StatelessWidget {
   }
 }
 
+enum _TileVariant { normal, handoff, expired }
+
 class _ConversationTile extends StatelessWidget {
   final Conversation convo;
   final VoidCallback onTap;
   final String? myId;
   final bool online;
   final bool cleared;
-  const _ConversationTile({required this.convo, required this.onTap, this.myId, this.online = false, this.cleared = false});
+  final _TileVariant variant;
+  /// Set only for the woman on an expired match — renders the Reactivate control.
+  final VoidCallback? onReactivate;
+  const _ConversationTile({
+    required this.convo,
+    required this.onTap,
+    this.myId,
+    this.online = false,
+    this.cleared = false,
+    this.variant = _TileVariant.normal,
+    this.onReactivate,
+  });
 
   @override
   Widget build(BuildContext context) {
     final arch = convo.archetype.isNotEmpty ? archetypeFor(convo.archetype) : null;
+    final expired = variant == _TileVariant.expired;
+    final handoff = variant == _TileVariant.handoff;
+
+    final leading = handoff
+        ? _CountdownRing(deadline: convo.handoffDeadline, url: convo.avatar, name: convo.name)
+        : Opacity(
+            opacity: expired ? 0.5 : 1,
+            child: _RingAvatar(url: convo.avatar, name: convo.name, online: online && !expired),
+          );
+
+    // Expired subtitle differs by side: she can bring him back; he just sees it ended.
+    final String? expiredSubtitle = expired
+        ? (onReactivate != null ? 'Expired — he moved on' : "This match expired — you've got a new one")
+        : null;
+
     return ListTile(
       onTap: onTap,
-      leading: _RingAvatar(url: convo.avatar, name: convo.name, online: online),
+      leading: leading,
       title: Row(children: [
         Flexible(
           child: Text(convo.age != null ? '${convo.name}, ${convo.age}' : convo.name,
               maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w600)),
+              style: TextStyle(
+                  color: Color(expired ? Config.text2 : Config.text1),
+                  fontWeight: FontWeight.w600)),
         ),
-        if (arch != null) ...[
+        if (arch != null && !expired) ...[
           const SizedBox(width: 6),
           Text(arch.emoji, style: const TextStyle(fontSize: 13)),
         ],
       ]),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 2),
-        child: Row(children: [
-          if (convo.trustScore > 0) ...[
-            const Text('🛡', style: TextStyle(fontSize: 11)),
-            const SizedBox(width: 2),
-            Text('${convo.trustScore}',
-                style: const TextStyle(color: Color(Config.text3), fontSize: 12, fontWeight: FontWeight.w600)),
-            const SizedBox(width: 8),
-          ],
-          Expanded(
-            child: Builder(builder: (_) {
-              final isMe = myId != null && convo.lastMessageSenderId == myId;
-              final rawMsg = convo.lastMessage;
-              final displayMsg = rawMsg.startsWith('[IMG]') ? '📷 Photo' : rawMsg;
-              final preview = rawMsg.isNotEmpty
-                  ? (isMe ? 'You: $displayMsg' : displayMsg)
-                  : 'Say hello 👋';
-              final hasUnread = convo.unreadCount > 0 && !cleared;
-              return Text(
-                preview,
-                maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: hasUnread ? const Color(Config.text1) : const Color(Config.text2),
-                  fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w400,
+        child: expiredSubtitle != null
+            ? Text(expiredSubtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Color(Config.text3), fontSize: 12))
+            : Row(children: [
+                if (convo.trustScore > 0) ...[
+                  const Text('🛡', style: TextStyle(fontSize: 11)),
+                  const SizedBox(width: 2),
+                  Text('${convo.trustScore}',
+                      style: const TextStyle(color: Color(Config.text3), fontSize: 12, fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: Builder(builder: (_) {
+                    if (handoff) {
+                      return const Text('Bestie handed off · your turn',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: Color(Config.text2), fontWeight: FontWeight.w500));
+                    }
+                    final isMe = myId != null && convo.lastMessageSenderId == myId;
+                    final rawMsg = convo.lastMessage;
+                    final displayMsg = rawMsg.startsWith('[IMG]') ? '📷 Photo' : rawMsg;
+                    final preview = rawMsg.isNotEmpty
+                        ? (isMe ? 'You: $displayMsg' : displayMsg)
+                        : 'Say hello 👋';
+                    final hasUnread = convo.unreadCount > 0 && !cleared;
+                    return Text(
+                      preview,
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: hasUnread ? const Color(Config.text1) : const Color(Config.text2),
+                        fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                    );
+                  }),
                 ),
-              );
-            }),
-          ),
-        ]),
+              ]),
       ),
-      trailing: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        if (convo.lastMessageTime != null)
-          Text(_ago(convo.lastMessageTime),
-              style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
-        if (convo.unreadCount > 0 && !cleared) ...[
-          const SizedBox(height: 4),
-          CircleAvatar(
-            radius: 10,
-            backgroundColor: const Color(Config.accent),
-            child: Text('${convo.unreadCount}',
-                style: const TextStyle(color: Color(0xFFFFFFFF), fontSize: 11, fontWeight: FontWeight.w700)),
+      trailing: _trailing(),
+    );
+  }
+
+  Widget? _trailing() {
+    if (variant == _TileVariant.handoff) {
+      return _countdownPill(convo.handoffDeadline);
+    }
+    if (variant == _TileVariant.expired) {
+      if (onReactivate != null) {
+        return TextButton.icon(
+          onPressed: onReactivate,
+          icon: const Icon(Icons.refresh, size: 16),
+          label: const Text('Reactivate'),
+          style: TextButton.styleFrom(
+            foregroundColor: const Color(Config.accent),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            visualDensity: VisualDensity.compact,
           ),
-        ],
+        );
+      }
+      return const Text('Inactive', style: TextStyle(color: Color(Config.text3), fontSize: 12));
+    }
+    return Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      if (convo.lastMessageTime != null)
+        Text(_ago(convo.lastMessageTime),
+            style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
+      if (convo.unreadCount > 0 && !cleared) ...[
+        const SizedBox(height: 4),
+        CircleAvatar(
+          radius: 10,
+          backgroundColor: const Color(Config.accent),
+          child: Text('${convo.unreadCount}',
+              style: const TextStyle(color: Color(0xFFFFFFFF), fontSize: 11, fontWeight: FontWeight.w700)),
+        ),
+      ],
+    ]);
+  }
+}
+
+// ── Hand-off countdown + Inactive section helpers (spec B2) ─────────────────
+
+/// Emerald >24h · amber 3–24h · red <3h — matches the mockup escalation.
+Color _urgencyColor(Duration remaining) {
+  final hours = remaining.inMinutes / 60.0;
+  if (hours > 24) return const Color(0xFF10B981);
+  if (hours >= 3) return const Color(0xFFEF9F27);
+  return const Color(0xFFE24B4A);
+}
+
+String _remainingLabel(Duration r) {
+  if (r.isNegative || r.inMinutes <= 0) return 'expiring…';
+  if (r.inMinutes < 60) return '${r.inMinutes}m left';
+  return '${(r.inMinutes / 60).floor()}h left';
+}
+
+Widget _countdownPill(DateTime? deadline) {
+  final remaining = deadline == null ? Duration.zero : deadline.difference(DateTime.now());
+  final color = _urgencyColor(remaining);
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(999)),
+    child: Text(_remainingLabel(remaining),
+        style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700)),
+  );
+}
+
+/// Avatar wrapped in a depleting progress ring, coloured by urgency.
+class _CountdownRing extends StatelessWidget {
+  final DateTime? deadline;
+  final String? url;
+  final String name;
+  const _CountdownRing({required this.deadline, required this.url, required this.name});
+  @override
+  Widget build(BuildContext context) {
+    final remaining = deadline == null ? Duration.zero : deadline!.difference(DateTime.now());
+    final frac = (remaining.inSeconds / (48 * 3600)).clamp(0.0, 1.0);
+    final color = _urgencyColor(remaining);
+    final hasUrl = url != null && url!.startsWith('http');
+    return SizedBox(
+      width: 52,
+      height: 52,
+      child: Stack(alignment: Alignment.center, children: [
+        SizedBox(
+          width: 52,
+          height: 52,
+          child: CircularProgressIndicator(
+            value: frac,
+            strokeWidth: 3,
+            backgroundColor: const Color(0x22000000),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
+        CircleAvatar(
+          radius: 21,
+          backgroundColor: const Color(Config.bg3),
+          backgroundImage: hasUrl ? CachedNetworkImageProvider(url!) : null,
+          child: hasUrl
+              ? null
+              : Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: const TextStyle(color: Color(Config.text1))),
+        ),
       ]),
     );
   }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String label;
+  const _SectionHeader({required this.label});
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+        child: Text(label.toUpperCase(),
+            style: const TextStyle(
+                color: Color(Config.text3), fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+      );
 }
 
 // ── Find Match Button ──────────────────────────────────────────────────────

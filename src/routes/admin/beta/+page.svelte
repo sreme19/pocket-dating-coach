@@ -273,41 +273,6 @@
 								<td class="px-4 py-2.5">
 									{#if !s.platform}
 										<span class="text-xs text-slate-500" title="No device on file — this signup predates device capture.">no device</span>
-									{:else if s.platform === 'ios'}
-										<div class="flex flex-col gap-2">
-											<!-- Step 1: Add to App Store Connect (manual) -->
-											<div class="flex items-start gap-2">
-												<span class="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold {s.invited_at ? 'bg-emerald-500 text-white' : 'bg-white/10 text-slate-400'}">1</span>
-												<div class="flex flex-col gap-0.5">
-													<span class="text-xs text-slate-300">Add to App Store Connect</span>
-													<a
-														href="https://appstoreconnect.apple.com/access/users"
-														target="_blank"
-														rel="noopener"
-														class="text-[11px] text-pink-400 hover:underline"
-													>Open App Store Connect ↗</a>
-												</div>
-											</div>
-											<!-- Step 2: Send invite email -->
-											<div class="flex items-start gap-2">
-												<span class="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold {s.invited_at ? 'bg-emerald-500 text-white' : 'bg-white/10 text-slate-400'}">2</span>
-												<div class="flex flex-col gap-0.5">
-													<button
-														onclick={() => sendInvite(s)}
-														disabled={sendingId === s.id}
-														class="w-fit rounded border border-white/[0.1] px-2.5 py-1 text-xs text-slate-200 transition-colors hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-40"
-													>
-														{sendingId === s.id ? 'Sending…' : s.invited_at ? 'Re-send invite' : 'Send invite email'}
-													</button>
-													{#if s.invited_at}
-														<span class="text-[11px] text-emerald-400">✓ invited · {fmtDate(s.invited_at)}</span>
-													{/if}
-													{#if inviteError && inviteError.id === s.id}
-														<span class="text-[11px] text-red-400">{inviteError.msg}</span>
-													{/if}
-												</div>
-											</div>
-										</div>
 									{:else}
 										<div class="flex flex-col gap-1">
 											<button
