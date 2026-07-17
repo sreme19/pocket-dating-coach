@@ -1907,6 +1907,35 @@ Future<void> activateBestie(String conversationId) async {
   );
 }
 
+/// Thumbs up/down on an AI Bestie coaching-card "read" (spec §T). Mirrors the
+/// web coaching-card feedback: positive posts immediately; negative carries an
+/// optional reason chip + free-text note. Non-blocking — swallows errors so a
+/// flaky network never reverts the UI. [messageContent] is the read note rated.
+Future<void> submitBestieCardFeedback({
+  required String userId,
+  required String feedbackType, // 'positive' | 'negative'
+  required String messageContent,
+  String? reasonChip,
+  String? feedbackText,
+}) async {
+  try {
+    await _dio.post(
+      '${Config.apiBase}/api/verified-vibe/ai-bestie/feedback',
+      data: {
+        'userId': userId,
+        'assistantType': 'bestie',
+        'feedbackType': feedbackType,
+        'messageContent': messageContent,
+        'reasonChip': reasonChip,
+        'feedbackText': feedbackText,
+      },
+      options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
+    );
+  } catch (_) {
+    // Non-blocking: feedback is best-effort, never surfaces an error to her.
+  }
+}
+
 /// A started AI-bestie voice call — LiveKit room + join token.
 class VoiceCallSession {
   final String callId;
