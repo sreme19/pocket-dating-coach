@@ -92,7 +92,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
         _idx = 0;
         _bestieFlags = [];
         _bestieFlagsLoading = false;
-        _detail = list.isEmpty ? null : fetchMatchDetail(list.first.id);
+        _detail = list.isEmpty || list.first.id.startsWith('seed-') ? null : fetchMatchDetail(list.first.id);
       });
     } catch (e) {
       AppLogger.instance.error(e, screen: 'discover', action: 'load_feed');
@@ -148,7 +148,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
     }
     setState(() {
       _idx += 1;
-      _detail = fetchMatchDetail(feed[_idx].id);
+      _detail = feed[_idx].id.startsWith('seed-') ? null : fetchMatchDetail(feed[_idx].id);
       _bestieFlags = [];
       _bestieFlagsLoading = false;
       _autoSkipping = false;
@@ -170,7 +170,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
       _bestieFlags = [];
       _bestieFlagsLoading = false;
       _autoSkipping = false;
-      _detail = remaining.isEmpty ? null : fetchMatchDetail(remaining.first.id);
+      _detail = remaining.isEmpty || remaining.first.id.startsWith('seed-') ? null : fetchMatchDetail(remaining.first.id);
     });
     if (remaining.isNotEmpty) _maybeFetchBestie();
     if (_scroll.hasClients) _scroll.jumpTo(0);
