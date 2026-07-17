@@ -11,6 +11,7 @@
   import RiteLogo from '$lib/verified-vibe/components/RiteLogo.svelte';
 
   const COMING_SOON = true;
+  const isAdminPreview = $derived($page.url.searchParams.has('adminPreview'));
 
   let { children } = $props();
   let hydrationComplete = $state(false);
@@ -101,7 +102,7 @@
 </script>
 
 <div class="verified-vibe-container">
-  {#if COMING_SOON}
+  {#if COMING_SOON && !isAdminPreview}
     <div class="coming-soon-screen" transition:fade={{ duration: 300 }}>
       <div class="coming-soon-brand">
         <div class="coming-soon-logo">
@@ -117,7 +118,7 @@
         </p>
         <div class="coming-soon-badges">
           <a
-            href="https://apps.apple.com/app/riteangle/id6748988169"
+            href="https://testflight.apple.com/join/FxGV4VrC"
             class="store-badge"
             target="_blank"
             rel="noopener noreferrer"
@@ -126,7 +127,7 @@
             App Store
           </a>
           <a
-            href="https://play.google.com/store/apps/details?id=dating.riteangle.app"
+            href="https://play.google.com/apps/testing/com.riteangle.app"
             class="store-badge"
             target="_blank"
             rel="noopener noreferrer"
