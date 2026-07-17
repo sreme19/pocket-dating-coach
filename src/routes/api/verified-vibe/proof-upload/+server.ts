@@ -286,12 +286,12 @@ YOU MUST return ONLY raw JSON — no explanation, no preamble, no markdown, no c
 {"verified":true,"documentName":"full name on document or null","lienHolder":"bank/financier name or null","registeredToCompany":false,"photoWithCar":false,"photoCarMatchesDoc":null,"insights":[{"label":"3-5 words e.g. 'BMW X5 owner'","emoji":"🚗"}],"aggregated":"e.g. 'Licensed driver with multi-vehicle authorisation across India'","assets":[{"type":"car","make":"","model":"","year":"","color":"","vehicleType":""}],"confidence":0.0-1.0,"reason":"one sentence"}
 Only populate fields you can actually read. For a DL with no RC, omit make/model and set type to "car" with vehicleType matching the COV class.`,
 
-  travel: `You are reviewing 1–20 travel proof images for a dating-app "Travel Magnets" section.
-Images may include: passport pages (entry/exit stamps), boarding passes, visa stickers, hotel booking confirmations, travel itineraries, airport photos, or any document showing travel to a country.
-Analyse ALL images. For each image, identify every country or city that appears — from passport stamps, visa labels, boarding pass destinations, hotel names/addresses, airport codes, or visible landmarks.
+  travel: `You are reviewing 1–20 travel photos for a dating-app "Travel Magnets" section.
+Each photo should show the account owner somewhere they actually travelled. For each photo, identify every country or city you can confirm from what is VISIBLE in that photo — a recognisable landmark or skyline, street or shop signage, a menu, licence plates, currency, or a boarding pass / passport stamp held in frame alongside the person.
+Only list a place you can genuinely SEE evidence for. Never infer a place from architectural style, vegetation, or the appearance of people in the photo. A photo with no identifiable location contributes nothing.
 
-Extract UP TO 5 insights about the person's travel style or history (e.g. "Frequent Asia traveller", "Business-class flyer", "Multi-continent explorer").
-List ALL distinct countries or cities you can confirm — be thorough, include every country from every stamp or boarding pass visible.
+Extract UP TO 5 insights about the person's travel style or history (e.g. "Frequent Asia traveller", "City-break explorer", "Multi-continent explorer").
+List ALL distinct countries or cities you can confirm.
 Write one punchy "aggregated" sentence (10–15 words) that captures their travel personality.
 
 Return ONLY raw JSON — no markdown, no code fences:
@@ -376,7 +376,12 @@ PROMPTS['intro'] = AUTO_VERIFY;
 // verified anchor selfie (stored during identity verification) is prepended as
 // image 1; Claude flags each proof photo as matched/unmatched BEFORE the
 // category analysis and analyses ONLY the matched ones.
-const FACE_GATED_CATEGORIES = new Set(['lifestyle', 'discipline', 'social_proof']);
+//
+// `travel` is gated for the same reason the spec exists: a magnet must mean the
+// owner was there, not that they photographed someone else's passport. A stamp
+// or boarding pass alone carries no face and therefore never verifies — the
+// place has to be visible in a photo the owner is standing in.
+const FACE_GATED_CATEGORIES = new Set(['lifestyle', 'discipline', 'social_proof', 'travel']);
 
 const FACE_GATE_PREFIX = `IMAGE 1 is the account owner's verified reference selfie from identity verification. It is NOT a proof photo — never extract insights from it and never treat it as evidence.
 
@@ -622,10 +627,18 @@ async function persistInsight(userId: string, category: string, pts: number, dat
       // Also union-merge locations into countriesTraveled — include any travel
       // locations surfaced as cross-signals from THIS upload, not just the
       // primary `locations` array.
+      //
+      // A magnet always means "the owner was there", so a cross-signal may only
+      // mint one when the source upload was itself face-gated (its locations then
+      // come from photos the owner was confirmed in). Locations spotted on a
+      // receipt, statement, or CV carry no face check, so they stay as inferred
+      // crossSignals for the public profile and never become magnets.
       const incomingCross: CrossSignal[] = Array.isArray(d.crossSignals) ? d.crossSignals as CrossSignal[] : [];
-      const crossTravelLocations = incomingCross
-        .filter(s => s.section === 'travel' && Array.isArray(s.locations))
-        .flatMap(s => s.locations as string[]);
+      const crossTravelLocations = FACE_GATED_CATEGORIES.has(category)
+        ? incomingCross
+            .filter(s => s.section === 'travel' && Array.isArray(s.locations))
+            .flatMap(s => s.locations as string[])
+        : [];
       const prevCountries: string[] = Array.isArray(masterData.countriesTraveled)
         ? masterData.countriesTraveled as string[]
         : [];
@@ -1134,7 +1147,9 @@ export const POST: RequestHandler = async ({ request }) => {
           pts_awarded: 0,
           photo_count: files.length,
           confidence: result.confidence ?? 0,
-          reason: 'Couldn\'t identify your face in these photos. Only photos that clearly show you count as proof — try again with photos where your face is visible.',
+          reason: category === 'travel'
+            ? 'Couldn\'t identify your face in these photos. A magnet only counts if you\'re in the picture at the place — a passport stamp or boarding pass on its own can\'t prove you were there. Try photos of you at the destination.'
+            : 'Couldn\'t identify your face in these photos. Only photos that clearly show you count as proof — try again with photos where your face is visible.',
           thumbnail_urls: [],
         });
       }

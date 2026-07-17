@@ -886,15 +886,15 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
             const Row(children: [
               Icon(Icons.check, size: 11, color: Color(Config.text3)),
               SizedBox(width: 4),
-              Expanded(child: Text('Countries auto-detected from your travel documents',
+              Expanded(child: Text('Countries auto-detected from travel photos you appear in',
                   style: TextStyle(color: Color(Config.text3), fontSize: 11))),
             ]),
             const SizedBox(height: 14),
           ],
           _miniProofCard(
             d: d, categoryId: 'travel',
-            icon: '🛂', title: 'Upload Passport / Boarding Pass',
-            subtitle: 'AI detects countries automatically',
+            icon: '📸', title: 'Upload Travel Photos',
+            subtitle: 'Photos of you at the place — AI detects the country',
             pts: 8,
           ),
           if (d.countries.where(isKnownTravelPlace).isNotEmpty) ...[
