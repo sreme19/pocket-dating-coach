@@ -50,8 +50,9 @@
 		data.userList.filter((u) => {
 			if (deletedIds.has(u.id)) return false;
 			if (genderFilter !== 'all' && u.gender !== genderFilter) return false;
-			if (typeFilter === 'real' && u.isSeed) return false;
-			if (typeFilter === 'seed' && !u.isSeed) return false;
+			const seed = effectiveSeed(u);
+			if (typeFilter === 'real' && seed) return false;
+			if (typeFilter === 'seed' && !seed) return false;
 			return true;
 		})
 	);
@@ -292,6 +293,32 @@
 		return s ? new Date(s).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 	}
 
+	// ── Toggle seed/real ───────────────────────────────────────────────
+	// Local override map so changes reflect immediately without a page reload.
+	let seedOverrides = $state<Record<string, boolean>>({});
+	let togglingId = $state<string | null>(null);
+
+	function effectiveSeed(u: { id: string; isSeed: boolean }): boolean {
+		return u.id in seedOverrides ? seedOverrides[u.id] : u.isSeed;
+	}
+
+	async function toggleSeed(u: { id: string; isSeed: boolean }) {
+		if (togglingId) return;
+		const current = effectiveSeed(u);
+		const next = !current;
+		togglingId = u.id;
+		try {
+			const res = await fetch(`/admin/users/${u.id}/set-seed`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ isSeed: next }),
+			});
+			if (res.ok) seedOverrides = { ...seedOverrides, [u.id]: next };
+		} finally {
+			togglingId = null;
+		}
+	}
+
 	function fmtMs(v: number | null | undefined): string {
 		if (v == null || !isFinite(v)) return '—';
 		return v >= 1000 ? (v / 1000).toFixed(1) + 's' : Math.round(v) + 'ms';
@@ -493,9 +520,16 @@
 								</span>
 							</td>
 							<td class="py-2 pr-4">
-								<span class="rounded px-1.5 py-0.5 text-xs font-medium {u.isSeed ? 'bg-slate-500/20 text-slate-400' : 'bg-blue-500/20 text-blue-400'}">
-									{u.isSeed ? 'seed' : 'real'}
-								</span>
+								<button
+									onclick={() => toggleSeed(u)}
+									disabled={togglingId === u.id}
+									title="Click to toggle seed/real"
+									class="rounded px-1.5 py-0.5 text-xs font-medium transition-colors disabled:opacity-40
+										{effectiveSeed(u)
+											? 'bg-slate-500/20 text-slate-400 hover:bg-amber-500/20 hover:text-amber-400'
+											: 'bg-blue-500/20 text-blue-400 hover:bg-slate-500/20 hover:text-slate-400'}">
+									{togglingId === u.id ? '…' : effectiveSeed(u) ? 'seed' : 'real'}
+								</button>
 							</td>
 							<td class="py-2 text-slate-500 text-xs">{u.joinedAt ? u.joinedAt.slice(0, 10) : '—'}</td>
 						</tr>

@@ -15,6 +15,7 @@ export const load: PageServerLoad = async () => {
 		{ data: femaleFunnel },
 		{ data: bestie },
 		{ data: aiTimingRows },
+		{ data: verifySteps },
 	] = await Promise.all([
 		sb.from('verified_vibe_users').select('id, first_name, age, city, gender, archetype, trust_score, is_seed, created_at').order('created_at', { ascending: false }),
 		sb.from('verified_vibe_likes').select('created_at').order('created_at'),
@@ -28,6 +29,7 @@ export const load: PageServerLoad = async () => {
 			.select('*')
 			.order('created_at', { ascending: false })
 			.limit(2000),
+		sb.from('verified_vibe_verification').select('user_id, step, status'),
 	]);
 
 	// Signups per day (last 30 days)
@@ -118,6 +120,31 @@ export const load: PageServerLoad = async () => {
 		approvedFemale,
 	};
 
+	// Build trust score per user using the same formula as the mobile app
+	const PROOF_PTS: Record<string, number> = {
+		lifestyle: 8, hosting: 6, discipline: 4, social_proof: 4,
+		linkedin: 5, instagram: 3, twitter: 2, habit_tracker: 2,
+		intro: 8, spending: 10, assets: 10, wealth: 12, travel: 8,
+	};
+	const stepsByUser = new Map<string, { step: string; status: string }[]>();
+	for (const s of verifySteps ?? []) {
+		if (!stepsByUser.has(s.user_id)) stepsByUser.set(s.user_id, []);
+		stepsByUser.get(s.user_id)!.push(s);
+	}
+	function calcTrust(userId: string): number {
+		const steps = stepsByUser.get(userId) ?? [];
+		const done = (name: string) => steps.some((s) => s.step === name && s.status === 'completed');
+		const vPts = (done('id') ? 10 : 0) + (done('liveness') ? 10 : 0)
+		           + (done('photos') ? 15 : 0) + (done('spending_or_qa') ? 10 : 0);
+		let proofPts = 0;
+		for (const s of steps) {
+			if (s.step.startsWith('proof_') && s.status === 'completed') {
+				proofPts += PROOF_PTS[s.step.replace('proof_', '')] ?? 4;
+			}
+		}
+		return Math.min(vPts + proofPts, 100);
+	}
+
 	return {
 		totals,
 		signupsByDay,
@@ -137,7 +164,7 @@ export const load: PageServerLoad = async () => {
 			city: u.city,
 			gender: u.gender,
 			archetype: u.archetype,
-			trustScore: u.trust_score,
+			trustScore: calcTrust(u.id),
 			joinedAt: u.created_at,
 			isSeed: u.is_seed ?? true,
 		})),
