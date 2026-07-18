@@ -50,8 +50,9 @@
 		data.userList.filter((u) => {
 			if (deletedIds.has(u.id)) return false;
 			if (genderFilter !== 'all' && u.gender !== genderFilter) return false;
-			if (typeFilter === 'real' && u.isSeed) return false;
-			if (typeFilter === 'seed' && !u.isSeed) return false;
+			const seed = effectiveSeed(u);
+			if (typeFilter === 'real' && seed) return false;
+			if (typeFilter === 'seed' && !seed) return false;
 			return true;
 		})
 	);
@@ -293,11 +294,18 @@
 	}
 
 	// ── Toggle seed/real ───────────────────────────────────────────────
+	// Local override map so changes reflect immediately without a page reload.
+	let seedOverrides = $state<Record<string, boolean>>({});
 	let togglingId = $state<string | null>(null);
+
+	function effectiveSeed(u: { id: string; isSeed: boolean }): boolean {
+		return u.id in seedOverrides ? seedOverrides[u.id] : u.isSeed;
+	}
 
 	async function toggleSeed(u: { id: string; isSeed: boolean }) {
 		if (togglingId) return;
-		const next = !u.isSeed;
+		const current = effectiveSeed(u);
+		const next = !current;
 		togglingId = u.id;
 		try {
 			const res = await fetch(`/admin/users/${u.id}/set-seed`, {
@@ -305,11 +313,7 @@
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({ isSeed: next }),
 			});
-			if (res.ok) {
-				// Update in-place so the table reflects the change immediately
-				const idx = data.userList.findIndex((r) => r.id === u.id);
-				if (idx !== -1) data.userList[idx] = { ...data.userList[idx], isSeed: next };
-			}
+			if (res.ok) seedOverrides = { ...seedOverrides, [u.id]: next };
 		} finally {
 			togglingId = null;
 		}
@@ -521,10 +525,10 @@
 									disabled={togglingId === u.id}
 									title="Click to toggle seed/real"
 									class="rounded px-1.5 py-0.5 text-xs font-medium transition-colors disabled:opacity-40
-										{u.isSeed
+										{effectiveSeed(u)
 											? 'bg-slate-500/20 text-slate-400 hover:bg-amber-500/20 hover:text-amber-400'
 											: 'bg-blue-500/20 text-blue-400 hover:bg-slate-500/20 hover:text-slate-400'}">
-									{togglingId === u.id ? '…' : u.isSeed ? 'seed' : 'real'}
+									{togglingId === u.id ? '…' : effectiveSeed(u) ? 'seed' : 'real'}
 								</button>
 							</td>
 							<td class="py-2 text-slate-500 text-xs">{u.joinedAt ? u.joinedAt.slice(0, 10) : '—'}</td>
