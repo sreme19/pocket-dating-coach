@@ -12,7 +12,11 @@ export const load: PageServerLoad = async ({ params }) => {
 		{ data: verification },
 		{ data: aiPhotos },
 		{ data: matches },
-		{ data: messages },
+		{ data: likesGiven },
+		{ data: likesReceived },
+		{ data: passesSent },
+		{ data: tips },
+		{ data: aiConvos },
 	] = await Promise.all([
 		sb.from('verified_vibe_users').select('*').eq('id', userId).single(),
 		sb.from('user_master_profile').select('data').eq('user_id', userId).maybeSingle(),
@@ -22,11 +26,14 @@ export const load: PageServerLoad = async ({ params }) => {
 			.select('id, status, created_at, user1_id, user2_id')
 			.or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
 			.order('created_at', { ascending: false }),
-		sb.from('verified_vibe_messages')
-			.select('id, content, sender_id, created_at, is_ai')
-			.eq('sender_id', userId)
-			.order('created_at', { ascending: false })
-			.limit(20),
+		sb.from('verified_vibe_likes').select('liked_user_id, created_at').eq('user_id', userId).order('created_at', { ascending: false }),
+		sb.from('verified_vibe_likes').select('user_id, created_at').eq('liked_user_id', userId).order('created_at', { ascending: false }),
+		sb.from('verified_vibe_passes').select('passed_user_id, reason, created_at').eq('user_id', userId).order('created_at', { ascending: false }),
+		sb.from('profile_tips').select('tip_tags, created_at').eq('target_user_id', userId).order('created_at', { ascending: false }),
+		sb.from('ai_assistant_conversations')
+			.select('id, match_conversation_id, assistant_type, messages, exchange_count, updated_at')
+			.eq('user_id', userId)
+			.order('updated_at', { ascending: false }),
 	]);
 
 	if (!user) throw error(404, 'User not found');
@@ -36,14 +43,11 @@ export const load: PageServerLoad = async ({ params }) => {
 
 	// Collect all photo URLs from master profile
 	const photoUrls: { url: string; label: string }[] = [];
-
 	if (user.avatar_url) photoUrls.push({ url: user.avatar_url, label: 'Avatar' });
-
 	const rawPhotos: any[] = Array.isArray(masterData.rawPhotos) ? masterData.rawPhotos : [];
 	for (const p of rawPhotos) {
 		if (p?.url) photoUrls.push({ url: p.url, label: 'Lifestyle photo' });
 	}
-
 	for (const proof of verifiedProofs) {
 		if (proof?.imageUrl) photoUrls.push({ url: proof.imageUrl, label: `Proof: ${proof.category ?? ''}` });
 		if (proof?.documentUrl) photoUrls.push({ url: proof.documentUrl, label: `Doc: ${proof.category ?? ''}` });
@@ -59,13 +63,55 @@ export const load: PageServerLoad = async ({ params }) => {
 	}
 
 	// Match partners — fetch their names
-	const partnerIds = (matches ?? []).map((m: any) =>
+	const matchList = matches ?? [];
+	const partnerIds = matchList.map((m: any) =>
 		m.user1_id === userId ? m.user2_id : m.user1_id
 	);
 	const { data: partners } = partnerIds.length
 		? await sb.from('verified_vibe_users').select('id, first_name').in('id', partnerIds)
 		: { data: [] };
 	const partnerName = new Map((partners ?? []).map((p: any) => [p.id, p.first_name]));
+
+	// Fetch all messages across all matches (grouped by match_id)
+	const matchIds = matchList.map((m: any) => m.id);
+	let allMessages: any[] = [];
+	if (matchIds.length > 0) {
+		const { data: msgs } = await sb
+			.from('verified_vibe_messages')
+			.select('id, match_id, content, sender_id, is_ai, created_at')
+			.in('match_id', matchIds)
+			.order('created_at', { ascending: true });
+		allMessages = msgs ?? [];
+	}
+
+	const messagesByMatch = new Map<string, any[]>();
+	for (const msg of allMessages) {
+		if (!messagesByMatch.has(msg.match_id)) messagesByMatch.set(msg.match_id, []);
+		messagesByMatch.get(msg.match_id)!.push(msg);
+	}
+
+	// Aggregate tips
+	const tipTagCounts: Record<string, number> = {};
+	for (const t of tips ?? []) {
+		for (const tag of t.tip_tags ?? []) {
+			tipTagCounts[tag] = (tipTagCounts[tag] ?? 0) + 1;
+		}
+	}
+	const tipsSummary = Object.entries(tipTagCounts)
+		.sort(([, a], [, b]) => b - a)
+		.map(([tag, count]) => ({ tag, count }));
+
+	// Resolve liked/passed user names
+	const allExternalIds = [
+		...(likesGiven ?? []).map((l: any) => l.liked_user_id),
+		...(likesReceived ?? []).map((l: any) => l.user_id),
+		...(passesSent ?? []).map((p: any) => p.passed_user_id),
+	].filter(Boolean);
+	const uniqueExternalIds = [...new Set(allExternalIds as string[])];
+	const { data: externalUsers } = uniqueExternalIds.length
+		? await sb.from('verified_vibe_users').select('id, first_name').in('id', uniqueExternalIds)
+		: { data: [] };
+	const externalName = new Map((externalUsers ?? []).map((u: any) => [u.id, u.first_name]));
 
 	return {
 		user: {
@@ -81,10 +127,12 @@ export const load: PageServerLoad = async ({ params }) => {
 			looking: user.looking,
 			createdAt: user.created_at,
 			avatarUrl: user.avatar_url,
+			email: user.email ?? null,
+			phone: user.phone ?? null,
 		},
 		masterData: {
 			onboarding: masterData.onboarding ?? {},
-			generatedProfile: masterData.generatedProfile ?? {},
+			generatedProfile: masterData.generatedProfile ?? null,
 			moneyMatters: masterData.moneyMatters ?? null,
 		},
 		verification: (verification ?? []).map((v: any) => ({
@@ -100,18 +148,59 @@ export const load: PageServerLoad = async ({ params }) => {
 		})),
 		photoUrls,
 		aiPhotoUrls,
-		matches: (matches ?? []).map((m: any) => ({
-			id: m.id,
-			status: m.status,
-			createdAt: m.created_at,
-			partnerId: m.user1_id === userId ? m.user2_id : m.user1_id,
-			partnerName: partnerName.get(m.user1_id === userId ? m.user2_id : m.user1_id) ?? '—',
-		})),
-		recentMessages: (messages ?? []).map((m: any) => ({
-			id: m.id,
-			content: m.content,
-			isAi: m.is_ai,
-			createdAt: m.created_at,
-		})),
+		matches: matchList.map((m: any) => {
+			const pid = m.user1_id === userId ? m.user2_id : m.user1_id;
+			const msgs = messagesByMatch.get(m.id) ?? [];
+			return {
+				id: m.id,
+				status: m.status,
+				createdAt: m.created_at,
+				partnerId: pid,
+				partnerName: partnerName.get(pid) ?? '—',
+				messages: msgs.map((msg: any) => ({
+					id: msg.id,
+					content: msg.content,
+					senderIsMe: msg.sender_id === userId,
+					isAi: msg.is_ai,
+					createdAt: msg.created_at,
+				})),
+			};
+		}),
+		activity: {
+			likesGiven: (likesGiven ?? []).length,
+			likesReceived: (likesReceived ?? []).length,
+			passesSent: (passesSent ?? []).length,
+			recentLikesGiven: (likesGiven ?? []).slice(0, 10).map((l: any) => ({
+				name: externalName.get(l.liked_user_id) ?? '—',
+				createdAt: l.created_at,
+			})),
+			recentLikesReceived: (likesReceived ?? []).slice(0, 10).map((l: any) => ({
+				name: externalName.get(l.user_id) ?? '—',
+				createdAt: l.created_at,
+			})),
+			recentPasses: (passesSent ?? []).slice(0, 10).map((p: any) => ({
+				name: externalName.get(p.passed_user_id) ?? '—',
+				reason: p.reason,
+				createdAt: p.created_at,
+			})),
+		},
+		tips: {
+			totalReceived: (tips ?? []).length,
+			summary: tipsSummary,
+		},
+		aiConversations: (aiConvos ?? []).map((c: any) => {
+			const msgs: any[] = Array.isArray(c.messages) ? c.messages : [];
+			return {
+				id: c.id,
+				matchConversationId: c.match_conversation_id,
+				assistantType: c.assistant_type,
+				exchangeCount: c.exchange_count ?? 0,
+				updatedAt: c.updated_at,
+				lastFewMessages: msgs.slice(-6).map((m: any) => ({
+					role: m.role ?? '?',
+					content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+				})),
+			};
+		}),
 	};
 };

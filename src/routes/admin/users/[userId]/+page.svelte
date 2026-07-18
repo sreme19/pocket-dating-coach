@@ -4,6 +4,26 @@
 
 	const { user, verification, verifiedProofs, photoUrls, aiPhotoUrls, matches, recentMessages, masterData } = data;
 
+	let isSeed = $state(user.isSeed);
+	let toggling = $state(false);
+
+	async function toggleSeed() {
+		if (toggling) return;
+		const next = !isSeed;
+		if (!confirm(`Mark this user as ${next ? 'seed' : 'real'}?`)) return;
+		toggling = true;
+		try {
+			const res = await fetch(`/admin/users/${user.id}/set-seed`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ isSeed: next }),
+			});
+			if (res.ok) isSeed = next;
+		} finally {
+			toggling = false;
+		}
+	}
+
 	function fmtDate(iso: string | null) {
 		if (!iso) return '—';
 		return new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -43,7 +63,13 @@
 				<h1 class="text-2xl font-bold text-white">{user.firstName ?? 'Unknown'}{user.age ? `, ${user.age}` : ''}</h1>
 				<p class="mt-1 text-sm text-slate-400">{user.city ?? '—'} · {user.gender ?? '—'} · {user.archetype ?? '—'}</p>
 				<div class="mt-2 flex flex-wrap gap-2">
-					<span class="rounded px-2 py-0.5 text-xs font-medium {user.isSeed ? 'bg-slate-500/20 text-slate-400' : 'bg-blue-500/20 text-blue-400'}">{user.isSeed ? 'seed' : 'real'}</span>
+					<button
+					onclick={toggleSeed}
+					disabled={toggling}
+					class="rounded px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-50
+						{isSeed ? 'bg-slate-500/20 text-slate-400 hover:bg-amber-500/20 hover:text-amber-400' : 'bg-blue-500/20 text-blue-400 hover:bg-slate-500/20 hover:text-slate-400'}">
+					{toggling ? '…' : isSeed ? 'seed' : 'real'}
+				</button>
 					<span class="rounded px-2 py-0.5 text-xs font-medium {(user.trustScore ?? 0) >= 70 ? 'bg-emerald-500/20 text-emerald-400' : (user.trustScore ?? 0) >= 40 ? 'bg-amber-500/20 text-amber-400' : 'bg-red-500/20 text-red-400'}">
 						Trust {user.trustScore ?? 0}
 					</span>
