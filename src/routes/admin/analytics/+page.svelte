@@ -292,6 +292,29 @@
 		return s ? new Date(s).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 	}
 
+	// ── Toggle seed/real ───────────────────────────────────────────────
+	let togglingId = $state<string | null>(null);
+
+	async function toggleSeed(u: { id: string; isSeed: boolean }) {
+		if (togglingId) return;
+		const next = !u.isSeed;
+		togglingId = u.id;
+		try {
+			const res = await fetch(`/admin/users/${u.id}/set-seed`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ isSeed: next }),
+			});
+			if (res.ok) {
+				// Update in-place so the table reflects the change immediately
+				const idx = data.userList.findIndex((r) => r.id === u.id);
+				if (idx !== -1) data.userList[idx] = { ...data.userList[idx], isSeed: next };
+			}
+		} finally {
+			togglingId = null;
+		}
+	}
+
 	function fmtMs(v: number | null | undefined): string {
 		if (v == null || !isFinite(v)) return '—';
 		return v >= 1000 ? (v / 1000).toFixed(1) + 's' : Math.round(v) + 'ms';
@@ -493,9 +516,16 @@
 								</span>
 							</td>
 							<td class="py-2 pr-4">
-								<span class="rounded px-1.5 py-0.5 text-xs font-medium {u.isSeed ? 'bg-slate-500/20 text-slate-400' : 'bg-blue-500/20 text-blue-400'}">
-									{u.isSeed ? 'seed' : 'real'}
-								</span>
+								<button
+									onclick={() => toggleSeed(u)}
+									disabled={togglingId === u.id}
+									title="Click to toggle seed/real"
+									class="rounded px-1.5 py-0.5 text-xs font-medium transition-colors disabled:opacity-40
+										{u.isSeed
+											? 'bg-slate-500/20 text-slate-400 hover:bg-amber-500/20 hover:text-amber-400'
+											: 'bg-blue-500/20 text-blue-400 hover:bg-slate-500/20 hover:text-slate-400'}">
+									{togglingId === u.id ? '…' : u.isSeed ? 'seed' : 'real'}
+								</button>
 							</td>
 							<td class="py-2 text-slate-500 text-xs">{u.joinedAt ? u.joinedAt.slice(0, 10) : '—'}</td>
 						</tr>
