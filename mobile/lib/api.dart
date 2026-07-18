@@ -352,7 +352,10 @@ Future<ProfileData> fetchProfile() async {
     }
   }
 
-  // Travel: explicit list + any locations embedded in proofs (deduped).
+  // Travel: the server's countriesTraveled is the only source. It already unions
+  // in each proof's locations AND subtracts the ones the owner deleted, so
+  // re-harvesting proofs[].locations here would resurrect removed magnets and
+  // mint them from proofs that never passed the face check.
   final countries = <String>[];
   void addCountry(dynamic c) {
     final s = '$c'.trim();
@@ -361,13 +364,6 @@ Future<ProfileData> fetchProfile() async {
   if (master['countriesTraveled'] is List) {
     for (final c in (master['countriesTraveled'] as List)) {
       addCountry(c);
-    }
-  }
-  for (final p in proofs) {
-    if (p is Map && p['locations'] is List) {
-      for (final l in (p['locations'] as List)) {
-        addCountry(l);
-      }
     }
   }
 

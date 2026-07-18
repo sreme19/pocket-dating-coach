@@ -197,7 +197,9 @@ Future<bool> showAdmireSheet(BuildContext context, {required String recipientId,
                       AppLogger.instance.action('engage', 'send_engage');
                       setSheet(() => sending = true);
                       try {
-                        await sendAttention(recipientId, viewerGender, textCtrl.text.trim());
+                        if (!recipientId.startsWith('seed-')) {
+                          await sendAttention(recipientId, viewerGender, textCtrl.text.trim());
+                        }
                         sent = true;
                         if (ctx.mounted) Navigator.pop(ctx);
                         if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Sent to $name ✓')));
