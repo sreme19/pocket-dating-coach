@@ -56,6 +56,11 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
   void _applyResult(_Cat cat, Map res) {
     final verified = res['verified'] == true;
     final pts = res['pts_awarded'] is num ? (res['pts_awarded'] as num).toInt() : 0;
+    // Feature-usage funnel: the "opened" and "upload started" stages are already
+    // logged (initState screen() + upload/submit actions). This closes the loop
+    // with the outcome so the admin dashboard can show verified rate per category.
+    AppLogger.instance.action('proof_upload', 'proof_result',
+        meta: {'category': cat.id, 'verified': verified, 'pts': pts});
     // `??` only fires on null; the backend always sends `aggregated` as a
     // (often empty) string, so fall back to `reason` when it's blank.
     final aggRaw = (res['aggregated'] ?? '').toString().trim();
