@@ -10,6 +10,7 @@
 		{ href: '/admin/qa', label: 'QA Queue' },
 		{ href: '/admin/qa/voice', label: 'Voice Calls' },
 		{ href: '/admin/analytics', label: 'Analytics' },
+		{ href: '/admin/features', label: 'Feature Usage' },
 		{ href: '/admin/test-suite', label: 'AI Assistants' },
 		{ href: '/admin/photos', label: 'AI Photos' },
 		{ href: '/admin/monitoring', label: 'Monitoring' },
