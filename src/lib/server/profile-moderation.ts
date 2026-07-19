@@ -187,6 +187,8 @@ export function cleanChipList(arr: unknown, maxItems = 12, maxLen = 50): string[
  * Single decision for whether a profile should be hidden from Discover entirely,
  * across every abuse vector we gate. Extend here as new fields get abused.
  */
+const DEFAULT_PLACEHOLDER_NAMES = ['new member', 'user', 'new user'];
+
 export function profileHideReason(p: {
   firstName?: unknown;
   age?: unknown;
@@ -194,6 +196,7 @@ export function profileHideReason(p: {
   about?: unknown;
 }): string | null {
   if (isAbusiveName(p.firstName)) return 'abusive name';
+  if (typeof p.firstName === 'string' && DEFAULT_PLACEHOLDER_NAMES.includes(p.firstName.toLowerCase().trim())) return 'default name not updated';
   if (isAbusiveAge(p.age)) return 'invalid age';
   if (isAbusiveCity(p.city)) return 'abusive city';
   if (analyzeAbout(p.about).verdict === 'reject') return 'abusive about';
