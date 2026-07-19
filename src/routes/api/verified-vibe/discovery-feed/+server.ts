@@ -208,12 +208,13 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
     // But for this app women are the primary seekers, so unknown → show men
     const targetGender = resolvedGender === 'man' ? 'woman' : 'man';
 
-    // Fetch ALL opposite-gender profiles — archetype compatibility is a ranking signal, not a hard filter
+    // Fetch ALL opposite-gender real (non-seed) profiles
     const { data: profiles, error: profileError } = await (supabase as any)
       .from('verified_vibe_users')
       .select('*')
       .neq('id', currentUserId)
       .eq('gender', targetGender)
+      .eq('is_seed', false)
       .is('deleted_at', null);
 
     if (profileError) {
@@ -368,12 +369,7 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
       return b.trustScore - a.trustScore;
     });
 
-    // Merge seed profiles as padding after real profiles
-    const seedProfiles = buildSeedProfiles(targetGender, compatibleArchetypes);
-    const seedsNotAlreadyExcluded = seedProfiles.filter(
-      s => !allExcludeIds.has(s.id) && !blockedIds.includes(s.id)
-    );
-    const combinedProfiles = [...discoveryProfiles, ...seedsNotAlreadyExcluded];
+    const combinedProfiles = [...discoveryProfiles];
 
     // Apply pagination
     let total = combinedProfiles.length;

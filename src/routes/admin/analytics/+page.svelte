@@ -458,7 +458,7 @@
 	<div class="card mb-6">
 		<div class="mb-4">
 			<h2 class="chart-title mb-0">Users ({filteredUsers.length})</h2>
-			<p class="mt-0.5 text-xs text-slate-500">Click a name to permanently delete that profile and all of its data. Use <span class="text-slate-300">View</span> to open the public profile as members see it (opens in a new tab).</p>
+			<p class="mt-0.5 text-xs text-slate-500">Click a name to open user detail. Use <span class="text-slate-300">View</span> to open the public profile as members see it (opens in a new tab).</p>
 		</div>
 		<div class="overflow-x-auto">
 			<table class="w-full text-sm">
@@ -495,18 +495,10 @@
 					{#each filteredUsers as u}
 						<tr class="border-b border-white/[0.04] hover:bg-white/[0.02]">
 							<td class="py-2 pr-4 font-medium">
-								<div class="inline-flex items-center gap-2">
-									<a
-										href="/admin/users/{u.id}"
-										class="text-slate-200 hover:text-pink-400 underline decoration-dotted decoration-slate-600 underline-offset-2 hover:decoration-pink-400 transition-colors"
-									>{u.name ?? '—'}</a>
-									<button
-										type="button"
-										onclick={() => askDelete(u)}
-										title="Delete this profile"
-										class="text-slate-600 hover:text-red-400 transition-colors text-xs"
-									>🗑</button>
-								</div>
+								<a
+									href="/admin/users/{u.id}"
+									class="text-slate-200 hover:text-pink-400 underline decoration-dotted decoration-slate-600 underline-offset-2 hover:decoration-pink-400 transition-colors"
+								>{u.name ?? '—'}</a>
 							</td>
 							<td class="py-2 pr-4 text-slate-400">{u.age ?? '—'}</td>
 							<td class="py-2 pr-4 text-slate-400">{u.city ?? '—'}</td>
