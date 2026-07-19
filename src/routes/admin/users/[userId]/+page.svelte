@@ -2,7 +2,7 @@
 	import type { PageData } from './$types';
 	let { data }: { data: PageData } = $props();
 
-	const { user, verification, verifiedProofs, photoUrls, aiPhotoUrls, matches, masterData, activity, tips, aiConversations } = data;
+	const { user, verification, verifiedProofs, photoUrls, aiPhotoUrls, matches, masterData, activity, tips, aiConversations, qaAnswers } = data;
 
 	let isSeed = $state(user.isSeed);
 	let toggling = $state(false);
@@ -149,6 +149,25 @@
 			<h2 class="text-sm font-semibold text-white">Profile</h2>
 			{#if user.looking}<p class="text-sm text-slate-400"><span class="text-slate-300 font-medium">Looking for:</span> {user.looking}</p>{/if}
 			{#if user.about}<p class="text-sm text-slate-400 leading-relaxed"><span class="text-slate-300 font-medium">About:</span> {user.about}</p>{/if}
+		</section>
+		{/if}
+
+		<!-- Q&A Answers -->
+		{#if qaAnswers && qaAnswers.length > 0}
+		<section class="rounded-lg border border-white/[0.08] bg-[#111a2e] p-5">
+			<h2 class="mb-4 text-sm font-semibold text-white">Q&A Answers</h2>
+			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+				{#each qaAnswers as qa}
+					<div>
+						<p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 capitalize">{qa.section}</p>
+						<div class="flex flex-wrap gap-1.5">
+							{#each qa.items as item}
+								<span class="rounded-full bg-white/[0.05] border border-white/[0.08] px-2.5 py-1 text-xs text-slate-300">{item}</span>
+							{/each}
+						</div>
+					</div>
+				{/each}
+			</div>
 		</section>
 		{/if}
 
