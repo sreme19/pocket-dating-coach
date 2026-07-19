@@ -361,7 +361,7 @@ export async function runVectorBackfill(opts: { userIds?: string[]; includeSeed?
 	const db = getSupabase() as any;
 	let ids = opts.userIds;
 	if (!ids) {
-		let q = db.from('verified_vibe_users').select('id');
+		let q = db.from('verified_vibe_users').select('id').is('deleted_at', null);
 		if (!opts.includeSeed) q = q.eq('is_seed', false);
 		const { data } = await q;
 		ids = (data ?? []).map((r: any) => r.id);

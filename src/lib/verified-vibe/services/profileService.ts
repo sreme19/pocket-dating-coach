@@ -63,6 +63,7 @@ export async function getProfile(): Promise<VVProfile | null> {
   const { data, error } = await (supabase as any)
     .from('verified_vibe_users')
     .select('*')
+    .is('deleted_at', null) // soft-deleted → treat as no profile so the app-shell bounces
     .single();
 
   if (error) {

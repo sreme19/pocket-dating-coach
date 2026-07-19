@@ -203,10 +203,11 @@ class _DeleteAccountSheetState extends State<DeleteAccountSheet> {
       padding: EdgeInsets.fromLTRB(20, 18, 20, MediaQuery.of(context).viewInsets.bottom + 20),
       child: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Delete account & data',
+          const Text('Delete account',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(Config.text1))),
           const SizedBox(height: 6),
-          const Text('This permanently deletes your profile, matches, messages, and proofs. This can’t be undone.',
+          const Text(
+              'You’ll be signed out and removed from matches and discovery right away, and you won’t be able to sign back in. This can’t be undone.\n\nWhile we’re early-stage, we keep an anonymized copy of your data to improve the product — your photos and identifying details are permanently deleted after 90 days.',
               style: TextStyle(fontSize: 13, color: Color(Config.text2), height: 1.4)),
           const SizedBox(height: 16),
           const Text('Mind sharing why? (optional)', style: TextStyle(fontSize: 13, color: Color(Config.text2))),

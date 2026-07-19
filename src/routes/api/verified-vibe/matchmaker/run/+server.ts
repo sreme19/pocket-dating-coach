@@ -21,6 +21,7 @@ import { runVectorBackfill, computeUserVectors } from '$lib/server/vector-builde
 import { runShadowScoring, diffScores } from '$lib/server/vector-scoring-shadow';
 import { runVectorMatchmaker } from '$lib/server/vector-matchmaker';
 import { refreshPoolEntry } from '$lib/server/pool-registry';
+import { runAnonymizeDeleted } from '$lib/server/anonymize-deleted';
 import { getSupabase } from '$lib/server/supabase';
 import { MATCHMAKER_RUN_SECRET } from '$env/static/private';
 import { env } from '$env/dynamic/private';
@@ -36,11 +37,13 @@ export const POST: RequestHandler = async ({ request }) => {
       cityScoped?: boolean;
       task?: 'trust-normalize' | 'match-scores' | 'build-vectors' | 'inspect-vectors'
         | 'score-vectors-shadow' | 'diff-scores' | 'match-v2-dryrun' | 'match-v2'
-        | 'backfill-profile-fields';
+        | 'backfill-profile-fields' | 'anonymize-deleted';
       userId?: string;
       userIds?: string[];
       includeSeed?: boolean;
       limit?: number;
+      olderThanDays?: number;
+      dryRun?: boolean;
     };
 
     // Validate secret
@@ -105,13 +108,27 @@ export const POST: RequestHandler = async ({ request }) => {
       return json({ task: 'match-scores', ...result });
     }
 
+    // Day-90 retention: anonymize soft-deleted users past the retention window
+    // (strip identifiers, purge photos/voice, scrub auth PII). Synchronous, no
+    // LLM. Pass dryRun:true to preview, olderThanDays to override the 90d window.
+    if (body.task === 'anonymize-deleted') {
+      const result = await runAnonymizeDeleted({
+        olderThanDays: body.olderThanDays,
+        limit: body.limit,
+        dryRun: body.dryRun
+      });
+      return json({ task: 'anonymize-deleted', ...result });
+    }
+
     // Backfill the user-facing "Here For" + "Hard nos" columns from onboarding by
     // re-running refreshPoolEntry for every enrolled user. Idempotent: it only
     // seeds columns the owner left blank, never overwrites edits. Synchronous,
     // no LLM (pure derivation). Optional `userId` scopes it to one user.
     if (body.task === 'backfill-profile-fields') {
       const db = getSupabase() as any;
-      let q = db.from('verified_vibe_users').select('id').in('gender', ['man', 'woman']);
+      // Guard deleted_at: refreshPoolEntry re-sets availability_status='active',
+      // which would resurrect a soft-deleted user into the pool.
+      let q = db.from('verified_vibe_users').select('id').in('gender', ['man', 'woman']).is('deleted_at', null);
       if (body.userId) q = q.eq('id', body.userId);
       const { data: users } = await q;
       let hereForCount = 0, hardNosCount = 0;

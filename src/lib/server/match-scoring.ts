@@ -245,6 +245,7 @@ export async function generateMatchScores(userId: string): Promise<any[]> {
 				.from('verified_vibe_users')
 				.select('id, raw_trust')
 				.eq('is_seed', false).eq('gender', gender)
+				.is('deleted_at', null)
 				.gte('last_active_at', activeCutoff());
 			cohortRawsByGender[gender] = (data ?? []).map((r: any) => ({ id: r.id, raw: r.raw_trust ?? 0 }));
 		}
@@ -344,7 +345,8 @@ export async function runAllMatchScores(): Promise<{ pairs: number; men: number 
 	const { data: users } = await db
 		.from('verified_vibe_users')
 		.select('id, gender')
-		.in('id', [...ids]);
+		.in('id', [...ids])
+		.is('deleted_at', null);
 	const men = (users ?? []).filter((u: any) => u.gender === 'man').map((u: any) => u.id);
 
 	let pairs = 0;

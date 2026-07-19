@@ -213,7 +213,8 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
       .from('verified_vibe_users')
       .select('*')
       .neq('id', currentUserId)
-      .eq('gender', targetGender);
+      .eq('gender', targetGender)
+      .is('deleted_at', null);
 
     if (profileError) {
       console.error('Database error:', profileError);

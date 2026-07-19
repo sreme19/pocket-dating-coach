@@ -37,9 +37,9 @@ async function gatherStats(): Promise<DailyStats> {
 		proofsRes,
 		matchesRes,
 	] = await Promise.allSettled([
-		(supabase as any).from('verified_vibe_users').select('count', { count: 'exact', head: true }),
-		(supabase as any).from('verified_vibe_users').select('count', { count: 'exact', head: true }).gte('created_at', since),
-		(supabase as any).from('verified_vibe_users').select('count', { count: 'exact', head: true }).gte('updated_at', since),
+		(supabase as any).from('verified_vibe_users').select('count', { count: 'exact', head: true }).is('deleted_at', null),
+		(supabase as any).from('verified_vibe_users').select('count', { count: 'exact', head: true }).is('deleted_at', null).gte('created_at', since),
+		(supabase as any).from('verified_vibe_users').select('count', { count: 'exact', head: true }).is('deleted_at', null).gte('updated_at', since),
 		(supabase as any).from('vv_proofs').select('count', { count: 'exact', head: true }).gte('created_at', since),
 		(supabase as any).from('vv_matches').select('count', { count: 'exact', head: true }).gte('created_at', since),
 	]);
