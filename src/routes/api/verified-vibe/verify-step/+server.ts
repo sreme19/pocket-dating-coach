@@ -12,7 +12,7 @@ import {
   evaluateQAResponsesWithClaude,
   claudeErrorResponse
 } from '$lib/verified-vibe/server/verification';
-import { enrollInPoolIfVerified } from '$lib/server/pool-registry';
+import { enrollInPoolIfVerified, redeemBetaInviteIfProfileReady } from '$lib/server/pool-registry';
 import { recomputeAndNormalize } from '$lib/server/trust-normalize';
 import { scheduleVectorRebuild } from '$lib/server/vector-rebuild';
 import { storeAnchorSelfie, loadAnchorSelfie } from '$lib/verified-vibe/server/anchor-selfie';
@@ -536,7 +536,15 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
 
     if (userId) {
       await persistVerificationStep(userId, 'photos', trustPoints, stepData);
-      enrollInPoolIfVerified(userId).catch(() => {});
+      // Testing-period beta lever: fire the referral match as soon as the man has a
+      // usable profile (name/age/city + ≥3 photos), without waiting for full
+      // verification. Both this and enrollInPoolIfVerified call the same redeem
+      // (SELECT-then-INSERT, no DB unique guard), so we chain them — the beta redeem
+      // runs only after enrollment settles, so they can't race to insert a duplicate
+      // match. Non-fatal — neither can block the photos step.
+      enrollInPoolIfVerified(userId)
+        .catch(() => {})
+        .finally(() => { redeemBetaInviteIfProfileReady(userId).catch(() => {}); });
     }
 
     const response = {
