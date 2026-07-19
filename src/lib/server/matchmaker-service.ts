@@ -421,6 +421,7 @@ export async function runNightlyBatch(cityScoped = false): Promise<void> {
     const { data: coldUsers } = await db
       .from('verified_vibe_users')
       .select('id, gender')
+      .is('deleted_at', null)
       .lt('last_active_at', sevenDaysAgo)
       .in('id', [...(males as WingmanPoolRow[]).map((m) => m.user_id), ...(females as BestiePoolRow[]).map((f) => f.user_id)]);
 

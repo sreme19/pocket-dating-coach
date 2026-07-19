@@ -3,14 +3,16 @@
  *   Permanently deletes a user's profile and all associated backend data.
  *   Triggered from the Users table in the admin analytics dashboard.
  *
- *   Body (JSON): { userId: string }
+ *   Body (JSON): { userId: string, hard?: boolean }
+ *     hard — when true, performs a full destructive erasure (right-to-erasure).
+ *            Default is a soft-delete that retains data for product improvement.
  *
  * Auth: admin session cookie (pdc_admin). This route lives under /admin so the
  * path-scoped admin cookie is sent with the request; +server.ts handlers don't
  * run the layout load, so the token is validated explicitly here.
  *
  * Deletion reuses purgeUser() — the same routine the user-facing account
- * deletion endpoint uses — so an admin delete wipes exactly the same records.
+ * deletion endpoint uses — so an admin delete behaves exactly like a user one.
  */
 
 import { json } from '@sveltejs/kit';
@@ -25,8 +27,11 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 	}
 
 	let userId: unknown;
+	let hard = false;
 	try {
-		({ userId } = await request.json());
+		const body = await request.json();
+		userId = body?.userId;
+		hard = body?.hard === true;
 	} catch {
 		return json({ error: 'Invalid request body' }, { status: 400 });
 	}
@@ -46,7 +51,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		return json({ error: 'User not found' }, { status: 404 });
 	}
 
-	const result = await purgeUser(db, userId);
+	const result = await purgeUser(db, userId, { mode: hard ? 'hard' : 'soft' });
 	if (!result.ok) {
 		return json({ error: result.message }, { status: 500 });
 	}

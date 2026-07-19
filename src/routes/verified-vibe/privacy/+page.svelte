@@ -286,8 +286,9 @@
 
     <div class="info-box">
       <p>
-        <strong>GDPR Compliance:</strong> We comply with GDPR regulations. You can request data deletion
-        at any time, and we will permanently delete your data within 30 days.
+        <strong>GDPR Compliance:</strong> You can request full data deletion at any time, which we
+        honor within 30 days. When you delete your account, we retain an anonymized copy to improve
+        the product and permanently delete your photos and identifying details within 90 days.
       </p>
     </div>
   </div>
@@ -313,7 +314,8 @@
         <strong>Export Data:</strong> Download a copy of all your personal data in JSON format.
       </p>
       <p>
-        <strong>Delete Account:</strong> Permanently delete your account and all associated data.
+        <strong>Delete Account:</strong> Remove your profile and lock your login. An anonymized copy is
+        kept to improve the product; photos and identifying details are deleted after 90 days.
       </p>
     </div>
   </div>
@@ -386,11 +388,15 @@
             Deleting your account will:
           </p>
           <ul class="delete-list">
-            <li>Permanently delete your profile and all personal data</li>
-            <li>Cancel all active matches and conversations</li>
-            <li>Remove your verification records</li>
-            <li>Delete all messages and chat history</li>
+            <li>Sign you out and lock your login — you won't be able to sign back in</li>
+            <li>Remove you from discovery and end all active matches and conversations</li>
+            <li>Hide your profile from everyone immediately</li>
           </ul>
+          <p class="text-muted">
+            While we're early-stage, we keep an <strong>anonymized</strong> copy of your data to
+            improve the product. Your photos and identifying details are permanently deleted after
+            90 days. You can request full deletion at any time.
+          </p>
 
           <p class="text-muted">
             To confirm deletion, type <strong>DELETE</strong> in the field below:

@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/handoff-timeout",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/anonymize-deleted",
+      "schedule": "30 3 * * *"
     }
   ]
 }
