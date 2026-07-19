@@ -567,6 +567,20 @@ class _VerificationScreenState extends State<VerificationScreen> {
           break;
         case 3:
           final imgs = _photos.whereType<String>().toList();
+          // Save identity FIRST so it's in the DB before the photos POST: the
+          // server's photos handler fires the instant beta referral match, which
+          // requires the man's real name/age/city to already be saved (see
+          // redeemBetaInviteIfProfileReady). saveIdentity is a direct DB write
+          // with no server hook, so ordering it ahead is what makes the match fire.
+          try {
+            await saveIdentity(
+              firstName: _nameCtrl.text.trim(),
+              age: int.tryParse(_ageCtrl.text.trim()),
+              city: _cityCtrl.text.trim(),
+            );
+          } catch (_) {
+            AppLogger.instance.error('parse_age failed', screen: 'verification', action: 'parse_age');
+          }
           await verifyStep('photos', {
             'images': imgs,
             'mimeTypes': List.filled(imgs.length, 'image/jpeg'),
@@ -593,15 +607,6 @@ class _VerificationScreenState extends State<VerificationScreen> {
               ],
               archetype: _arch,
             );
-          }
-          try {
-            await saveIdentity(
-              firstName: _nameCtrl.text.trim(),
-              age: int.tryParse(_ageCtrl.text.trim()),
-              city: _cityCtrl.text.trim(),
-            );
-          } catch (_) {
-            AppLogger.instance.error('parse_age failed', screen: 'verification', action: 'parse_age');
           }
           // Sync Q&A onboarding responses to user_master_profile so web
           // profile and AI context can read them.
@@ -687,17 +692,22 @@ class _VerificationScreenState extends State<VerificationScreen> {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(Config.text1)),
             ),
           ),
+          // Step 3 (name / age / city / photos) is mandatory — no skip. The
+          // 36-wide box is kept so the centered title stays balanced against the
+          // back button on the left.
           SizedBox(
             width: 36,
-            child: TextButton(
-              onPressed: () => _showSkipDialog(onConfirm: widget.onDone),
-              style: TextButton.styleFrom(
-                padding: EdgeInsets.zero,
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              child: const Text('Skip', style: TextStyle(fontSize: 13, color: Color(Config.text3))),
-            ),
+            child: _step == 3
+                ? null
+                : TextButton(
+                    onPressed: () => _showSkipDialog(onConfirm: widget.onDone),
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text('Skip', style: TextStyle(fontSize: 13, color: Color(Config.text3))),
+                  ),
           ),
         ],
       ),
@@ -1108,8 +1118,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
         ),
         const SizedBox(height: 28),
         _testimonialCard(_testimonials[3]),
-        const SizedBox(height: 16),
-        _skipLink(onConfirm: widget.onDone),
+        // No skip on the final step — name/age/city/photos are required so a
+        // referral match can form (see redeemBetaInviteIfProfileReady).
         const SizedBox(height: 20),
       ],
     );

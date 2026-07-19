@@ -680,6 +680,59 @@ export async function enrollInPoolIfVerified(userId: string): Promise<void> {
   }
 }
 
+// ── Public: lite beta match — fire the referral match before full verification ─
+// Testing-period lever: a referred man should match his referrer the moment he
+// has a real, usable profile — name, age, city and ≥3 photos — WITHOUT waiting
+// for the full 3-step verification (liveness + Q&A + photos) the matchmaker pool
+// normally requires. This lowers ONLY the beta referral bar; enrollInPoolIfVerified
+// still governs general matchmaker eligibility for everyone else.
+//
+// Called from the photos verify-step, so the photos row is already persisted; the
+// client saves identity (name/age/city) just before that POST. Idempotent (the
+// redeem no-ops when a match already exists) and non-fatal.
+export async function redeemBetaInviteIfProfileReady(userId: string): Promise<void> {
+  const db = getSupabase() as any;
+
+  const { data: user } = await db
+    .from('verified_vibe_users')
+    .select('gender, first_name, age, city')
+    .eq('id', userId)
+    .maybeSingle();
+  if (!user || user.gender !== 'man') return; // referral match is man → woman only
+
+  const name = `${user.first_name ?? ''}`.trim();
+  const city = `${user.city ?? ''}`.trim();
+  const age  = typeof user.age === 'number' ? user.age : Number.parseInt(`${user.age ?? ''}`, 10);
+  // saveGenderArchetype seeds placeholders ('New member' / 18 / '') on the brand-new
+  // row; a real profile has overwritten name + city. Age can legitimately be 18, so
+  // it's only range-checked — name/city are what prove the profile was actually filled.
+  const nameReady = name.length > 0 && name !== 'New member';
+  const cityReady = city.length > 0;
+  const ageReady  = Number.isFinite(age) && age >= 18 && age <= 99;
+  if (!nameReady || !cityReady || !ageReady) return;
+
+  // Require the photos step complete with ≥3 photos (men upload 3+).
+  const { data: photoRow } = await db
+    .from('verified_vibe_verification')
+    .select('data')
+    .eq('user_id', userId)
+    .eq('step', 'photos')
+    .eq('status', 'completed')
+    .maybeSingle();
+  const photoCount = Number((photoRow?.data as any)?.photoCount ?? 0);
+  if (!photoRow || photoCount < 3) return;
+
+  // Give the man a pool entry (so the matchmaker + bestie have his distilled
+  // profile), then redeem the referral into an instant mutual match.
+  await refreshPoolEntry(userId);
+  try {
+    const { redeemBetaInviteIfEligible } = await import('./beta-invite');
+    await redeemBetaInviteIfEligible(userId);
+  } catch (e) {
+    console.error('[pool-registry] lite beta redeem failed (non-fatal):', e);
+  }
+}
+
 // ── Public: update last_active_at ─────────────────────────────────────────────
 
 export async function touchLastActive(userId: string): Promise<void> {
