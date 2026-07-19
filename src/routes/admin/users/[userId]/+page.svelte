@@ -2,7 +2,7 @@
 	import type { PageData } from './$types';
 	let { data }: { data: PageData } = $props();
 
-	const { user, verification, verifiedProofs, photoUrls, aiPhotoUrls, matches, recentMessages, masterData } = data;
+	const { user, verification, verifiedProofs, photoUrls, aiPhotoUrls, matches, masterData, activity, tips, aiConversations } = data;
 
 	let isSeed = $state(user.isSeed);
 	let toggling = $state(false);
@@ -40,6 +40,8 @@
 		if (status === 'unmatched' || status === 'blocked') return 'bg-red-500/20 text-red-400';
 		return 'bg-slate-500/20 text-slate-400';
 	}
+
+	let expandedMatch = $state<string | null>(null);
 </script>
 
 <div class="min-h-screen bg-[#0b1120] px-6 py-8 text-slate-100">
@@ -62,6 +64,8 @@
 			<div>
 				<h1 class="text-2xl font-bold text-white">{user.firstName ?? 'Unknown'}{user.age ? `, ${user.age}` : ''}</h1>
 				<p class="mt-1 text-sm text-slate-400">{user.city ?? '—'} · {user.gender ?? '—'} · {user.archetype ?? '—'}</p>
+				{#if user.email}<p class="mt-0.5 text-xs text-slate-500">✉ {user.email}</p>{/if}
+				{#if user.phone}<p class="mt-0.5 text-xs text-slate-500">📞 {user.phone}</p>{/if}
 				<div class="mt-2 flex flex-wrap gap-2">
 					<button
 					onclick={toggleSeed}
@@ -78,6 +82,66 @@
 				<p class="mt-1 text-xs text-slate-600 font-mono">{user.id}</p>
 			</div>
 		</div>
+
+		<!-- Activity Stats -->
+		<section class="rounded-lg border border-white/[0.08] bg-[#111a2e] p-5">
+			<h2 class="mb-4 text-sm font-semibold text-white">Activity</h2>
+			<div class="grid grid-cols-3 gap-4 mb-5">
+				<div class="rounded bg-black/20 p-3 text-center">
+					<p class="text-2xl font-bold text-pink-400">{activity.likesGiven}</p>
+					<p class="text-xs text-slate-500 mt-1">Likes Sent</p>
+				</div>
+				<div class="rounded bg-black/20 p-3 text-center">
+					<p class="text-2xl font-bold text-emerald-400">{activity.likesReceived}</p>
+					<p class="text-xs text-slate-500 mt-1">Likes Received</p>
+				</div>
+				<div class="rounded bg-black/20 p-3 text-center">
+					<p class="text-2xl font-bold text-slate-400">{activity.passesSent}</p>
+					<p class="text-xs text-slate-500 mt-1">Passes Sent</p>
+				</div>
+			</div>
+			<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+				{#if activity.recentLikesGiven.length > 0}
+				<div>
+					<p class="text-xs font-medium text-slate-400 mb-2">Recent Likes Sent</p>
+					<div class="space-y-1">
+						{#each activity.recentLikesGiven as l}
+							<div class="flex justify-between text-xs">
+								<span class="text-slate-300">{l.name}</span>
+								<span class="text-slate-600">{l.createdAt?.slice(0,10)}</span>
+							</div>
+						{/each}
+					</div>
+				</div>
+				{/if}
+				{#if activity.recentLikesReceived.length > 0}
+				<div>
+					<p class="text-xs font-medium text-slate-400 mb-2">Recent Likes Received</p>
+					<div class="space-y-1">
+						{#each activity.recentLikesReceived as l}
+							<div class="flex justify-between text-xs">
+								<span class="text-slate-300">{l.name}</span>
+								<span class="text-slate-600">{l.createdAt?.slice(0,10)}</span>
+							</div>
+						{/each}
+					</div>
+				</div>
+				{/if}
+				{#if activity.recentPasses.length > 0}
+				<div>
+					<p class="text-xs font-medium text-slate-400 mb-2">Recent Passes</p>
+					<div class="space-y-1">
+						{#each activity.recentPasses as p}
+							<div class="flex justify-between text-xs">
+								<span class="text-slate-300">{p.name}</span>
+								<span class="text-slate-600">{p.createdAt?.slice(0,10)}</span>
+							</div>
+						{/each}
+					</div>
+				</div>
+				{/if}
+			</div>
+		</section>
 
 		<!-- About -->
 		{#if user.about || user.looking}
@@ -99,6 +163,7 @@
 						<div class="rounded border border-white/[0.06] bg-black/30 px-3 py-1.5 text-xs">
 							<span class="font-medium text-slate-300">{v.step}</span>
 							<span class="ml-2 rounded px-1.5 py-0.5 text-[10px] {statusColor(v.status)}">{v.status}</span>
+							{#if v.updatedAt}<span class="ml-1 text-slate-600">{v.updatedAt.slice(0,10)}</span>{/if}
 						</div>
 					{/each}
 				</div>
@@ -163,51 +228,90 @@
 		</section>
 		{/if}
 
-		<!-- Matches -->
+		<!-- Tips Received -->
+		{#if tips.totalReceived > 0}
+		<section class="rounded-lg border border-white/[0.08] bg-[#111a2e] p-5">
+			<h2 class="mb-3 text-sm font-semibold text-white">Tips Received ({tips.totalReceived})</h2>
+			<div class="flex flex-wrap gap-2">
+				{#each tips.summary as t}
+					<span class="rounded-full bg-pink-500/10 border border-pink-500/20 px-3 py-1 text-xs text-pink-300">
+						{t.tag} <span class="ml-1 font-bold text-pink-400">×{t.count}</span>
+					</span>
+				{/each}
+			</div>
+		</section>
+		{/if}
+
+		<!-- Matches + Messages -->
 		<section class="rounded-lg border border-white/[0.08] bg-[#111a2e] p-5">
 			<h2 class="mb-3 text-sm font-semibold text-white">Matches ({matches.length})</h2>
 			{#if matches.length === 0}
 				<p class="text-sm text-slate-500">No matches yet.</p>
 			{:else}
-				<div class="overflow-x-auto">
-					<table class="w-full text-left text-xs">
-						<thead class="text-slate-500 uppercase tracking-wide">
-							<tr>
-								<th class="py-2 pr-4">Partner</th>
-								<th class="py-2 pr-4">Status</th>
-								<th class="py-2 pr-4">Date</th>
-								<th class="py-2">Match ID</th>
-							</tr>
-						</thead>
-						<tbody class="divide-y divide-white/[0.04]">
-							{#each matches as m}
-								<tr>
-									<td class="py-2 pr-4 text-slate-300">{m.partnerName}</td>
-									<td class="py-2 pr-4">
-										<span class="rounded px-1.5 py-0.5 text-[10px] font-medium {matchStatusColor(m.status)}">{m.status}</span>
-									</td>
-									<td class="py-2 pr-4 text-slate-500">{fmtDate(m.createdAt)}</td>
-									<td class="py-2 font-mono text-slate-600 text-[10px]">{m.id}</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
+				<div class="space-y-3">
+					{#each matches as m}
+						<div class="rounded border border-white/[0.06] bg-black/20">
+							<button
+								type="button"
+								class="w-full flex items-center justify-between px-4 py-3 text-left"
+								onclick={() => expandedMatch = expandedMatch === m.id ? null : m.id}
+							>
+								<div class="flex items-center gap-3">
+									<span class="text-sm font-medium text-slate-200">{m.partnerName}</span>
+									<span class="rounded px-1.5 py-0.5 text-[10px] font-medium {matchStatusColor(m.status)}">{m.status}</span>
+									{#if m.messages.length > 0}
+										<span class="text-xs text-slate-500">{m.messages.length} msgs</span>
+									{/if}
+								</div>
+								<div class="flex items-center gap-3">
+									<span class="text-xs text-slate-600">{fmtDate(m.createdAt)}</span>
+									<span class="text-slate-500 text-xs">{expandedMatch === m.id ? '▲' : '▼'}</span>
+								</div>
+							</button>
+							{#if expandedMatch === m.id && m.messages.length > 0}
+								<div class="border-t border-white/[0.04] px-4 py-3 space-y-2 max-h-96 overflow-y-auto">
+									{#each m.messages as msg}
+										<div class="flex {msg.senderIsMe ? 'justify-end' : 'justify-start'}">
+											<div class="max-w-[75%] rounded-lg px-3 py-2 text-xs {msg.senderIsMe ? 'bg-pink-500/20 text-pink-100' : 'bg-white/[0.06] text-slate-300'}">
+												{#if msg.isAi}<span class="text-[10px] text-purple-400 block mb-0.5">🤖 AI</span>{/if}
+												<p class="leading-relaxed">{msg.content}</p>
+												<p class="mt-1 text-[10px] opacity-40">{msg.createdAt?.slice(11,16)}</p>
+											</div>
+										</div>
+									{/each}
+								</div>
+							{:else if expandedMatch === m.id}
+								<div class="border-t border-white/[0.04] px-4 py-3">
+									<p class="text-xs text-slate-500">No messages in this match yet.</p>
+								</div>
+							{/if}
+						</div>
+					{/each}
 				</div>
 			{/if}
 		</section>
 
-		<!-- Recent Messages -->
-		{#if recentMessages.length > 0}
+		<!-- AI Conversations -->
+		{#if aiConversations.length > 0}
 		<section class="rounded-lg border border-white/[0.08] bg-[#111a2e] p-5">
-			<h2 class="mb-3 text-sm font-semibold text-white">Recent Messages Sent ({recentMessages.length})</h2>
-			<div class="space-y-2">
-				{#each recentMessages as msg}
-					<div class="rounded border border-white/[0.05] bg-black/20 px-3 py-2">
-						<div class="flex items-center gap-2 mb-1">
-							<span class="text-[10px] text-slate-600">{fmtDate(msg.createdAt)}</span>
-							{#if msg.isAi}<span class="rounded bg-purple-500/20 px-1.5 py-0.5 text-[10px] text-purple-400">AI</span>{/if}
+			<h2 class="mb-3 text-sm font-semibold text-white">AI Conversations ({aiConversations.length})</h2>
+			<div class="space-y-3">
+				{#each aiConversations as c}
+					<div class="rounded border border-white/[0.06] bg-black/20 p-3">
+						<div class="flex items-center justify-between mb-2">
+							<span class="text-xs font-medium text-purple-300 capitalize">{c.assistantType} · {c.exchangeCount} exchanges</span>
+							<span class="text-xs text-slate-600">{fmtDate(c.updatedAt)}</span>
 						</div>
-						<p class="text-xs text-slate-400 leading-relaxed line-clamp-3">{msg.content}</p>
+						{#if c.lastFewMessages.length > 0}
+							<div class="space-y-1.5">
+								{#each c.lastFewMessages as msg}
+									<div class="text-xs">
+										<span class="text-slate-500 uppercase text-[10px] mr-2">{msg.role}</span>
+										<span class="text-slate-400 leading-relaxed">{msg.content.slice(0, 200)}{msg.content.length > 200 ? '…' : ''}</span>
+									</div>
+								{/each}
+							</div>
+						{/if}
 					</div>
 				{/each}
 			</div>
