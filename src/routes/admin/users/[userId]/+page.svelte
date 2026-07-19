@@ -42,6 +42,26 @@
 	}
 
 	let expandedMatch = $state<string | null>(null);
+	let generatingAi = $state(false);
+	let aiGenResult = $state<string | null>(null);
+	let aiGenError = $state<string | null>(null);
+
+	async function generateAiPhotos() {
+		if (generatingAi) return;
+		generatingAi = true;
+		aiGenResult = null;
+		aiGenError = null;
+		try {
+			const res = await fetch(`/admin/users/${user.id}/generate-ai-photos`, { method: 'POST' });
+			const body = await res.json();
+			if (res.ok) aiGenResult = body.imageUrl;
+			else aiGenError = body.error ?? 'Generation failed';
+		} catch (e) {
+			aiGenError = 'Network error';
+		} finally {
+			generatingAi = false;
+		}
+	}
 </script>
 
 <div class="min-h-screen bg-[#0b1120] px-6 py-8 text-slate-100">
@@ -209,21 +229,40 @@
 		</section>
 
 		<!-- AI Photos -->
-		{#if aiPhotoUrls.length > 0}
 		<section class="rounded-lg border border-white/[0.08] bg-[#111a2e] p-5">
-			<h2 class="mb-3 text-sm font-semibold text-white">AI Generated Photos ({aiPhotoUrls.length})</h2>
+			<div class="mb-3 flex items-center justify-between">
+				<h2 class="text-sm font-semibold text-white">AI Generated Photos ({aiPhotoUrls.length})</h2>
+				<button
+					type="button"
+					onclick={generateAiPhotos}
+					disabled={generatingAi}
+					class="rounded border border-purple-500/30 bg-purple-500/10 px-3 py-1 text-xs font-medium text-purple-300 transition-colors hover:bg-purple-500/20 disabled:opacity-50"
+				>
+					{generatingAi ? '⏳ Generating…' : '✨ Generate AI Photos'}
+				</button>
+			</div>
+			{#if aiGenError}<p class="mb-2 text-xs text-red-400">{aiGenError}</p>{/if}
+			{#if aiGenResult}
+				<div class="mb-3">
+					<p class="mb-1 text-xs text-emerald-400">✓ Generated successfully!</p>
+					<img src={aiGenResult} alt="New AI photo" class="h-40 rounded-lg border border-purple-500/30 object-cover" />
+				</div>
+			{/if}
+		{#if aiPhotoUrls.length > 0}
 			<div class="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
 				{#each aiPhotoUrls as p}
 					<div>
 						<a href={p.url} target="_blank" rel="noopener">
 							<img src={p.url} alt="AI photo" class="h-32 w-full rounded-lg object-cover border border-purple-500/20 transition hover:border-purple-400/50" />
 						</a>
-						<p class="mt-1 truncate text-[10px] text-slate-500">AI · {p.status}</p>
+						<p class="mt-1 truncate text-[10px] text-slate-500">AI · {p.label}</p>
 					</div>
 				{/each}
 			</div>
-		</section>
+		{:else}
+			<p class="text-sm text-slate-500">No AI photos yet.</p>
 		{/if}
+		</section>
 
 		<!-- Verified Proofs -->
 		{#if verifiedProofs.length > 0}

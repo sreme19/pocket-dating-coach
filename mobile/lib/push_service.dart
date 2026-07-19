@@ -44,7 +44,17 @@ class PushService {
       final settings = await messaging.requestPermission(alert: true, badge: true, sound: true);
       if (settings.authorizationStatus == AuthorizationStatus.denied) return;
 
-      final token = await messaging.getToken();
+      // On iOS, APNs token may not be ready immediately — retry up to 3x with backoff.
+      String? token;
+      for (int attempt = 0; attempt < 3 && token == null; attempt++) {
+        if (attempt > 0) await Future.delayed(Duration(seconds: attempt * 2));
+        try {
+          token = await messaging.getToken();
+        } catch (e) {
+          if (e.toString().contains('apns-token-not-set') && attempt < 2) continue;
+          rethrow;
+        }
+      }
       if (token != null && token.isNotEmpty) {
         await registerPushToken(token);
         _done = true;
