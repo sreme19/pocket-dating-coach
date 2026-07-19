@@ -40,25 +40,50 @@ export const load: PageServerLoad = async ({ params }) => {
 
 	const masterData = (master?.data ?? {}) as Record<string, any>;
 	const verifiedProofs: any[] = Array.isArray(masterData.verifiedProofs) ? masterData.verifiedProofs : [];
+	const { PUBLIC_SUPABASE_URL } = await import('$env/static/public');
 
-	// Collect all photo URLs from master profile
+	// Collect all photo URLs — master profile uses `photos[].dataUrl`
+	const seen = new Set<string>();
 	const photoUrls: { url: string; label: string }[] = [];
-	if (user.avatar_url) photoUrls.push({ url: user.avatar_url, label: 'Avatar' });
-	const rawPhotos: any[] = Array.isArray(masterData.rawPhotos) ? masterData.rawPhotos : [];
-	for (const p of rawPhotos) {
-		if (p?.url) photoUrls.push({ url: p.url, label: 'Lifestyle photo' });
-	}
-	for (const proof of verifiedProofs) {
-		if (proof?.imageUrl) photoUrls.push({ url: proof.imageUrl, label: `Proof: ${proof.category ?? ''}` });
-		if (proof?.documentUrl) photoUrls.push({ url: proof.documentUrl, label: `Doc: ${proof.category ?? ''}` });
+	function addPhoto(url: string | null | undefined, label: string) {
+		if (!url || seen.has(url)) return;
+		seen.add(url);
+		photoUrls.push({ url, label });
 	}
 
-	// AI generated photos
+	// Selfie from liveness step
+	const livenessStep = (verification ?? []).find((v: any) => v.step === 'liveness');
+	const selfiePath: string | null = livenessStep?.data?.anchorSelfiePath ?? null;
+	if (selfiePath) addPhoto(`${PUBLIC_SUPABASE_URL}/storage/v1/object/public/profiles/${selfiePath}`, 'Selfie (liveness)');
+
+	// Profile photos from master profile
+	const masterPhotos: any[] = Array.isArray(masterData.photos) ? masterData.photos : [];
+	for (const p of masterPhotos) {
+		addPhoto(p?.dataUrl ?? p?.url, p?.label ? `Photo (${p.label})` : 'Photo');
+	}
+
+	// Avatar fallback
+	addPhoto(user.avatar_url, 'Avatar');
+
+	// Proof images
+	for (const proof of verifiedProofs) {
+		addPhoto(proof?.imageUrl, `Proof: ${proof.category ?? ''}`);
+		addPhoto(proof?.documentUrl, `Doc: ${proof.category ?? ''}`);
+	}
+
+	// AI generated photos from master profile
 	const aiPhotoUrls: { url: string; label: string; status: string }[] = [];
+	const masterAiPhotos: any[] = Array.isArray(masterData.aiPhotos) ? masterData.aiPhotos : [];
+	for (const p of masterAiPhotos) {
+		if (p?.url) aiPhotoUrls.push({ url: p.url, label: p.scene ?? p.role ?? 'AI photo', status: 'generated' });
+	}
+	// Also check vv_ai_photo_jobs as fallback
 	for (const job of aiPhotos ?? []) {
 		const photos: any[] = Array.isArray(job.ai_photos) ? job.ai_photos : [];
 		for (const p of photos) {
-			if (p?.url) aiPhotoUrls.push({ url: p.url, label: 'AI photo', status: job.status ?? '' });
+			if (p?.url && !aiPhotoUrls.find(x => x.url === p.url)) {
+				aiPhotoUrls.push({ url: p.url, label: 'AI photo', status: job.status ?? '' });
+			}
 		}
 	}
 
@@ -123,13 +148,23 @@ export const load: PageServerLoad = async ({ params }) => {
 			archetype: user.archetype,
 			trustScore: user.trust_score,
 			isSeed: user.is_seed,
-			about: user.about,
+			about: masterData.generatedProfile?.about ?? user.about ?? null,
 			looking: user.looking,
 			createdAt: user.created_at,
 			avatarUrl: user.avatar_url,
 			email: user.email ?? null,
 			phone: user.phone ?? null,
 		},
+		qaAnswers: (() => {
+			const responses = (verification ?? []).find((v: any) => v.step === 'spending_or_qa')?.data?.responses ?? null;
+			if (!responses) return null;
+			const out: { section: string; items: string[] }[] = [];
+			for (const [key, val] of Object.entries(responses as Record<string, any>)) {
+				const items = Array.isArray(val) ? val : Object.values(val as any).flat();
+				if (items.length) out.push({ section: key.replace(/_/g, ' '), items: items as string[] });
+			}
+			return out;
+		})(),
 		masterData: {
 			onboarding: masterData.onboarding ?? {},
 			generatedProfile: masterData.generatedProfile ?? null,
