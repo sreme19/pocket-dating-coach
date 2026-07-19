@@ -42,8 +42,9 @@ export const POST: RequestHandler = async ({ params, url: reqUrl }) => {
 	});
 
 	if (!portraitRes.ok) {
-		const err = await portraitRes.text();
-		return json({ error: `Portrait generation failed: ${err}` }, { status: 500 });
+		const body = await portraitRes.json().catch(() => ({})) as any;
+		const detail = body?.detail ?? body?.error ?? await portraitRes.text().catch(() => '');
+		return json({ error: `Portrait generation failed: ${detail}` }, { status: 500 });
 	}
 
 	const { imageUrl } = await portraitRes.json() as { imageUrl?: string };

@@ -149,7 +149,8 @@ export const POST: RequestHandler = async ({ request }) => {
 
     return json({ imageUrl });
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     console.error('personality-portrait error:', err);
-    return json({ error: 'Failed to generate portrait' }, { status: 500 });
+    return json({ error: 'Failed to generate portrait', detail: msg }, { status: 500 });
   }
 };
