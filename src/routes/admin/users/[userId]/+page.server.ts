@@ -154,6 +154,7 @@ export const load: PageServerLoad = async ({ params }) => {
 			avatarUrl: user.avatar_url,
 			email: user.email ?? null,
 			phone: user.phone ?? null,
+			deletedAt: user.deleted_at ?? null,
 		},
 		qaAnswers: (() => {
 			const responses = (verification ?? []).find((v: any) => v.step === 'spending_or_qa')?.data?.responses ?? null;
