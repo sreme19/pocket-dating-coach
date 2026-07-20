@@ -118,8 +118,10 @@
 						Trust {user.trustScore ?? 0}
 					</span>
 					<span class="rounded px-2 py-0.5 text-xs text-slate-500">Joined {fmtDate(user.createdAt)}</span>
-					{#if user.deletedAt && !unbanned}
-						<span class="rounded px-2 py-0.5 text-xs font-medium bg-red-500/20 text-red-400">banned / soft-deleted</span>
+					{#if (user.deletedAt || user.isBanned) && !unbanned}
+						<span class="rounded px-2 py-0.5 text-xs font-medium bg-red-500/20 text-red-400">
+							{user.deletedAt ? 'soft-deleted' : 'banned'}
+						</span>
 						<button
 							onclick={unbanUser}
 							disabled={unbanning}
