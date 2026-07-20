@@ -466,6 +466,7 @@
 					<tr class="border-b border-white/[0.06] text-left text-xs">
 						{#each [
 							['name', 'Name'],
+							[null, 'Email'],
 							['age', 'Age'],
 							['city', 'City'],
 							['gender', 'Gender'],
@@ -500,6 +501,13 @@
 									href="/admin/users/{u.id}"
 									class="text-slate-200 hover:text-pink-400 underline decoration-dotted decoration-slate-600 underline-offset-2 hover:decoration-pink-400 transition-colors"
 								>{u.name ?? '—'}</a>
+							</td>
+							<td class="py-2 pr-4 text-slate-400">
+								{#if u.email}
+									<a href={`mailto:${u.email}`} class="hover:text-pink-400 transition-colors">{u.email}</a>
+								{:else}
+									—
+								{/if}
 							</td>
 							<td class="py-2 pr-4 text-slate-400">{u.age ?? '—'}</td>
 							<td class="py-2 pr-4 text-slate-400">{u.city ?? '—'}</td>
