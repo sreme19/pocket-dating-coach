@@ -17,6 +17,7 @@ export const load: PageServerLoad = async ({ params }) => {
 		{ data: passesSent },
 		{ data: tips },
 		{ data: aiConvos },
+		{ data: { user: authUser } },
 	] = await Promise.all([
 		sb.from('verified_vibe_users').select('*').eq('id', userId).single(),
 		sb.from('user_master_profile').select('data').eq('user_id', userId).maybeSingle(),
@@ -34,6 +35,7 @@ export const load: PageServerLoad = async ({ params }) => {
 			.select('id, match_conversation_id, assistant_type, messages, exchange_count, updated_at')
 			.eq('user_id', userId)
 			.order('updated_at', { ascending: false }),
+		sb.auth.admin.getUserById(userId),
 	]);
 
 	if (!user) throw error(404, 'User not found');
@@ -152,8 +154,10 @@ export const load: PageServerLoad = async ({ params }) => {
 			looking: user.looking,
 			createdAt: user.created_at,
 			avatarUrl: user.avatar_url,
-			email: user.email ?? null,
-			phone: user.phone ?? null,
+			email: authUser?.email ?? user.email ?? null,
+			phone: authUser?.phone ?? user.phone ?? null,
+			deletedAt: user.deleted_at ?? null,
+			isBanned: !!(authUser?.banned_until && new Date(authUser.banned_until) > new Date()),
 		},
 		qaAnswers: (() => {
 			const responses = (verification ?? []).find((v: any) => v.step === 'spending_or_qa')?.data?.responses ?? null;

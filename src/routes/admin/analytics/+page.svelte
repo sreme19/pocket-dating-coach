@@ -474,6 +474,7 @@
 							[null, 'Type'],
 							['joinedAt', 'Joined'],
 							[null, 'View'],
+							[null, ''],
 						] as [col, label]}
 							<th class="pb-2 pr-4 font-medium last:pr-0">
 								{#if col}
@@ -535,6 +536,13 @@
 								>
 									View ↗
 								</a>
+							</td>
+							<td class="py-2 pl-2">
+								<button
+									onclick={() => askDelete(u)}
+									title="Delete user"
+									class="rounded px-1.5 py-0.5 text-xs text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+								>🗑</button>
 							</td>
 						</tr>
 					{/each}

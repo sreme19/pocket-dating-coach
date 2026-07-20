@@ -46,6 +46,26 @@
 	let aiGenResult = $state<string | null>(null);
 	let aiGenError = $state<string | null>(null);
 
+	let unbanning = $state(false);
+	let unbanned = $state(false);
+	let unbanError = $state<string | null>(null);
+
+	async function unbanUser() {
+		if (unbanning || !confirm('Unban and restore this user?')) return;
+		unbanning = true;
+		unbanError = null;
+		try {
+			const res = await fetch(`/admin/users/${user.id}/unban`, { method: 'POST' });
+			const body = await res.json();
+			if (res.ok) unbanned = true;
+			else unbanError = body.error ?? 'Unban failed';
+		} catch {
+			unbanError = 'Network error';
+		} finally {
+			unbanning = false;
+		}
+	}
+
 	async function generateAiPhotos() {
 		if (generatingAi) return;
 		generatingAi = true;
@@ -98,6 +118,22 @@
 						Trust {user.trustScore ?? 0}
 					</span>
 					<span class="rounded px-2 py-0.5 text-xs text-slate-500">Joined {fmtDate(user.createdAt)}</span>
+					{#if (user.deletedAt || user.isBanned) && !unbanned}
+						<span class="rounded px-2 py-0.5 text-xs font-medium bg-red-500/20 text-red-400">
+							{user.deletedAt ? 'soft-deleted' : 'banned'}
+						</span>
+						<button
+							onclick={unbanUser}
+							disabled={unbanning}
+							class="rounded px-2 py-0.5 text-xs font-medium bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-50 transition-colors"
+						>{unbanning ? 'Unbanning…' : 'Unban'}</button>
+					{/if}
+					{#if unbanned}
+						<span class="rounded px-2 py-0.5 text-xs font-medium bg-emerald-500/20 text-emerald-400">Unbanned</span>
+					{/if}
+					{#if unbanError}
+						<span class="rounded px-2 py-0.5 text-xs text-red-400">{unbanError}</span>
+					{/if}
 				</div>
 				<p class="mt-1 text-xs text-slate-600 font-mono">{user.id}</p>
 			</div>
