@@ -1,10 +1,29 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
   import { fade, scale } from 'svelte/transition';
   import { user } from '$lib/verified-vibe/stores';
   import BestieAvatar from '$lib/components/BestieAvatar.svelte';
   import type { Conversation } from '../../api/verified-vibe/chat/conversations/+server';
+
+  // ── Admin "view-as-user" mode ────────────────────────────────────────────
+  // /verified-vibe/chat?adminAs=<userId> — an admin inspecting this user's chats
+  // exactly as he sees them. Data comes from admin-cookie-gated endpoints; if the
+  // admin isn't signed in the fetch 401s and we bounce to the admin login. Every
+  // adminView branch is additive — with no param the member flow is unchanged.
+  const adminAs = $derived($page.url.searchParams.get('adminAs'));
+  const adminView = $derived(!!adminAs);
+  const adminSuffix = $derived(adminAs ? `?adminAs=${adminAs}` : '');
+
+  function chatHref(matchId: string): string {
+    return `/verified-vibe/chat/${matchId}${adminSuffix}`;
+  }
+
+  function bounceToLogin() {
+    const next = encodeURIComponent($page.url.pathname + $page.url.search);
+    goto(`/admin/login?next=${next}`);
+  }
 
   // ── Archetype display metadata ─────────────────────────────────────────────
   const ARCHETYPE_META: Record<string, { emoji: string; label: string; color: string; bg: string }> = {
@@ -100,7 +119,7 @@
 
   // Bring an expired match back — only the woman gets this control (canReactivate).
   async function reactivate(c: Conversation) {
-    if (reactivatingId) return;
+    if (adminView || reactivatingId) return;
     reactivatingId = c.matchId;
     try {
       const token = await fmGetToken();
@@ -130,7 +149,7 @@
 
   // Show the "your turn to step in" prompt once per match, per session.
   $effect(() => {
-    if (isLoading || handoffPopup) return;
+    if (adminView || isLoading || handoffPopup) return;
     const pending = conversations.find(
       c => c.handoffPending && c.status !== 'expired' && !shownHandoff.has(c.matchId)
     );
@@ -259,6 +278,20 @@
     try {
       isLoading = true;
       error = null;
+
+      // Admin view-as-user: fetch his conversations via the admin-gated endpoint.
+      // No member session, no attention/matchmaker (out of scope), no writes.
+      if (adminView) {
+        const res = await fetch(`/admin/verified-vibe/impersonate/conversations?userId=${adminAs}`);
+        if (res.status === 401) { bounceToLogin(); return; }
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(errBody.error || `Failed to load conversations (${res.status})`);
+        }
+        const data = await res.json();
+        conversations = data.data.conversations;
+        return;
+      }
 
       const { getSupabaseClient } = await import('$lib/client/supabase');
       const supabase = getSupabaseClient();
@@ -427,7 +460,7 @@
   function fmGoVerify()     { goto('/verified-vibe/verification'); }
   function fmOpenMatchChat() { if (fmMatch?.matchId) goto(`/verified-vibe/chat/${fmMatch.matchId}`); }
 
-  onMount(loadMatchmakerStatus);
+  onMount(() => { if (!adminView) loadMatchmakerStatus(); });
 
   // Keep hand-off countdowns fresh without a reload.
   onMount(() => {
@@ -438,16 +471,25 @@
 
 <div class="chat-list-screen">
 
+  {#if adminView}
+    <div class="admin-view-banner">
+      <span class="avb-tag">ADMIN VIEW</span>
+      <span class="avb-text">Viewing this member's chats — read-only</span>
+      <button class="avb-refresh" onclick={() => location.reload()} aria-label="Refresh">↻ Refresh</button>
+    </div>
+  {/if}
+
   <!-- ── Header ── -->
   <div class="page-header">
     <div class="header-top">
-      <button class="back-btn" onclick={() => goto('/verified-vibe/discover')} aria-label="Go back">
+      <button class="back-btn" onclick={() => adminView ? history.back() : goto('/verified-vibe/discover')} aria-label="Go back">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <path d="M19 12H5M12 19l-7-7 7-7"/>
         </svg>
       </button>
       <h1 class="page-title">Messages<span class="title-dot">.</span></h1>
       <div class="header-right">
+        {#if !adminView}
         <button
           class="find-match-btn"
           onclick={runFindMatches}
@@ -466,6 +508,7 @@
             {/if}
           {/if}
         </button>
+        {/if}
       </div>
     </div>
     {#if !isLoading && !error && conversations.length > 0}
@@ -479,8 +522,8 @@
   <!-- ── Content ── -->
   <div class="chat-list-content">
 
-    <!-- AI Bestie pinned row — female users only -->
-    {#if $user?.gender === 'woman' || $user?.archetype?.endsWith('_woman')}
+    <!-- AI Bestie pinned row — female users only (hidden in admin view: advisor threads are out of scope) -->
+    {#if !adminView && ($user?.gender === 'woman' || $user?.archetype?.endsWith('_woman'))}
       <button class="bestie-row" onclick={() => goto('/verified-vibe/chat/ai-bestie')}>
         <BestieAvatar size={48} />
         <div class="bestie-text">
@@ -494,8 +537,8 @@
       <div class="band-divider"></div>
     {/if}
 
-    <!-- AI Wingman pinned row — male users only -->
-    {#if $user?.gender === 'man' || $user?.archetype?.endsWith('_man')}
+    <!-- AI Wingman pinned row — male users only (hidden in admin view: advisor threads are out of scope) -->
+    {#if !adminView && ($user?.gender === 'man' || $user?.archetype?.endsWith('_man'))}
       <button class="bestie-row wingman-row" onclick={() => goto('/verified-vibe/chat/ai-wingman')}>
         <div class="wingman-avatar">🛡️</div>
         <div class="bestie-text">
@@ -545,7 +588,7 @@
 
           <div class="bubbles-scroll">
             {#each newMatches as m (m.id)}
-              <button class="match-bubble" onclick={() => goto(`/verified-vibe/chat/${m.matchId}`)}>
+              <button class="match-bubble" onclick={() => goto(chatHref(m.matchId))}>
                 <div class="bubble-ring-wrap">
                   {#if m.matchedUser.avatar}
                     <img class="bubble-img" src={m.matchedUser.avatar} alt={m.matchedUser.firstName} />
@@ -596,7 +639,7 @@
             {@const deadline = handoffDeadline(c)}
             {@const remaining = deadline ? deadline - now : 0}
             {@const uc = urgencyColor(remaining)}
-            <button class="convo-row handoff-row" onclick={() => goto(`/verified-vibe/chat/${c.matchId}`)}>
+            <button class="convo-row handoff-row" onclick={() => goto(chatHref(c.matchId))}>
               <div class="convo-avatar-wrap">
                 <svg class="countdown-ring" viewBox="0 0 52 52" aria-hidden="true">
                   <circle cx="26" cy="26" r="24" fill="none" stroke="rgba(0,0,0,0.10)" stroke-width="3" />
@@ -643,7 +686,7 @@
             {@const meta = ARCHETYPE_META[c.matchedUser.archetype ?? '']}
             <button
               class="convo-row {c.unreadCount > 0 ? 'row-unread' : ''}"
-              onclick={() => goto(`/verified-vibe/chat/${c.matchId}`)}
+              onclick={() => goto(chatHref(c.matchId))}
             >
               <div class="convo-avatar-wrap">
                 {#if c.matchedUser.avatar}
@@ -686,7 +729,7 @@
             <div class="admirer-item {!msg.isRead ? 'admirer-item-unread' : ''}">
               <button
                 class="convo-row admirer-convo-row"
-                onclick={() => linkedMatchId ? goto(`/verified-vibe/chat/${linkedMatchId}`) : toggleAdmirer(msg.id)}
+                onclick={() => linkedMatchId ? goto(chatHref(linkedMatchId)) : toggleAdmirer(msg.id)}
               >
                 <div class="convo-avatar-wrap">
                   {#if msg.senderAvatar}
@@ -882,7 +925,7 @@
       </p>
       <div class="fm-actions">
         <button class="fm-btn fm-btn-ghost" onclick={() => { handoffPopup = null; goto('/verified-vibe/chat/ai-bestie'); }}>Review</button>
-        <button class="fm-btn fm-btn-primary" onclick={() => { const id = c.matchId; handoffPopup = null; goto(`/verified-vibe/chat/${id}`); }}>Reply</button>
+        <button class="fm-btn fm-btn-primary" onclick={() => { const id = c.matchId; handoffPopup = null; goto(chatHref(id)); }}>Reply</button>
       </div>
     </div>
   </div>
@@ -968,6 +1011,41 @@
     background: var(--bg-1);
     overflow: hidden;
   }
+
+  /* ── Admin view-as-user banner ── */
+  .admin-view-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    background: #1a1a2e;
+    color: #fff;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .avb-tag {
+    background: #FF3B6B;
+    color: #fff;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 10px;
+  }
+  .avb-text { opacity: 0.85; }
+  .avb-refresh {
+    margin-left: auto;
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .avb-refresh:hover { background: rgba(255,255,255,0.2); }
 
   /* ── Header ── */
   .page-header {
