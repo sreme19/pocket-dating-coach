@@ -645,8 +645,23 @@ export async function refreshPoolEntry(userId: string): Promise<void> {
   }
 }
 
+// ── Matchmaker pool eligibility: required verification steps ──────────────────
+//
+// BOOTSTRAP PROTOCOL (temporary — 2026-07-21): while we grow the base to
+// 30 female + 100 male users, only liveness + photos are required to enter the
+// matchmaker pool. The spending_or_qa ("Q&A") step is intentionally NOT
+// compulsory during this phase to lower the bar and let matches form.
+//
+// TO REVERT once we pass 30F/100M: add 'spending_or_qa' back to this array —
+// that single change restores the full 3-step gate across enrollment, the
+// on-demand eligibility check, and the backfill task (all import this constant).
+// ('id' / government ID is never part of pool eligibility — it only gates
+// spending/wealth proof uploads.)
+export const POOL_REQUIRED_STEPS = ['liveness', 'photos'] as const;
+
 // ── Public: auto-enroll on verification completion ────────────────────────────
-// Called from verify-step endpoint when all 4 steps are complete.
+// Called from verify-step endpoint after each step; no-ops until the required
+// steps (POOL_REQUIRED_STEPS) are all complete.
 
 export async function enrollInPoolIfVerified(userId: string): Promise<void> {
   const db = getSupabase() as any;
@@ -659,10 +674,7 @@ export async function enrollInPoolIfVerified(userId: string): Promise<void> {
     .eq('status', 'completed');
 
   const completedSteps = new Set((steps ?? []).map((s: any) => s.step));
-  // 'id' (government ID) is only required for spending/wealth proof uploads,
-  // not for pool eligibility. The 3 Safety Check steps are sufficient.
-  const required = ['liveness', 'photos', 'spending_or_qa'];
-  const allDone = required.every((s) => completedSteps.has(s));
+  const allDone = POOL_REQUIRED_STEPS.every((s) => completedSteps.has(s));
 
   if (!allDone) return;
 

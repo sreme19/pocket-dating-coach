@@ -1,8 +1,8 @@
 /**
  * POST /api/admin/backfill-pool
  *
- * One-time backfill: finds all users who completed liveness + photos +
- * spending_or_qa but are not yet in the pool, then enrolls them.
+ * One-time backfill: finds all users who completed the required pool steps
+ * (POOL_REQUIRED_STEPS) but are not yet in the pool, then enrolls them.
  *
  * Auth: CRON_SECRET bearer token (same as cron jobs).
  */
@@ -10,7 +10,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
-import { enrollInPoolIfVerified } from '$lib/server/pool-registry';
+import { enrollInPoolIfVerified, POOL_REQUIRED_STEPS } from '$lib/server/pool-registry';
 
 function authorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
@@ -26,11 +26,11 @@ export const POST: RequestHandler = async ({ request }) => {
 
   const db = getSupabase() as any;
 
-  // Find all users with all 3 required steps completed
+  // Find all users with the required steps completed
   const { data: rows, error } = await db
     .from('verified_vibe_verification')
     .select('user_id, step')
-    .in('step', ['liveness', 'photos', 'spending_or_qa'])
+    .in('step', [...POOL_REQUIRED_STEPS])
     .eq('status', 'completed');
 
   if (error) {
@@ -44,10 +44,9 @@ export const POST: RequestHandler = async ({ request }) => {
     byUser.get(row.user_id)!.add(row.step);
   }
 
-  // Filter: users with all 3 steps
-  const required = ['liveness', 'photos', 'spending_or_qa'];
+  // Filter: users with all required steps
   const eligible = [...byUser.entries()]
-    .filter(([, steps]) => required.every((s) => steps.has(s)))
+    .filter(([, steps]) => POOL_REQUIRED_STEPS.every((s) => steps.has(s)))
     .map(([userId]) => userId);
 
   // Enroll each user (fire and await sequentially to avoid DB overload)
