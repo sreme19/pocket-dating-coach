@@ -24,6 +24,24 @@ import { getSupabase } from '$lib/server/supabase';
 import { recomputeAndNormalize } from '$lib/server/trust-normalize';
 import { scheduleVectorRebuild } from '$lib/server/vector-rebuild';
 import { loadAnchorSelfie } from '$lib/verified-vibe/server/anchor-selfie';
+import { waitUntil } from '@vercel/functions';
+
+// A chat-thread upload can FULFIL the woman's Bestie proof request. An upload is
+// not a chat message, so nothing else would trigger her acknowledgement — the
+// thread would stall right after "🔒 Verified". When the request just became
+// fulfilled we schedule her ack turn in the background (waitUntil keeps the
+// function alive past the flushed response, up to maxDuration), matching the
+// chat/send Bestie pattern.
+export const config = { maxDuration: 60 };
+
+function ackFulfilledProof(matchId: string, proofRequest: unknown): void {
+  if (!matchId || (proofRequest as { status?: string } | null)?.status !== 'fulfilled') return;
+  waitUntil(
+    import('$lib/server/bestie-responder')
+      .then((m) => m.generateAndSendBestieProofAck(matchId))
+      .catch((e) => console.error('[proof-upload] bestie proof-ack failed (non-fatal):', e))
+  );
+}
 // pdf-parse kept as dep for potential future text pre-processing;
 // primary PDF analysis now goes through Anthropic's native PDF document type
 
@@ -978,6 +996,7 @@ export const POST: RequestHandler = async ({ request }) => {
       const proofRequest = matchId
         ? await updateMatchProofRequest(userId, matchId, category, parsed?.verified !== false)
         : null;
+      ackFulfilledProof(matchId, proofRequest);
       return json({
         ...(proofRequest ? { proofRequest } : {}),
         verified:          parsed?.verified !== false,
@@ -1210,6 +1229,7 @@ export const POST: RequestHandler = async ({ request }) => {
     const proofRequest = matchId
       ? await updateMatchProofRequest(userId, matchId, category, verified)
       : null;
+    ackFulfilledProof(matchId, proofRequest);
 
     return json({
       ...(proofRequest ? { proofRequest } : {}),

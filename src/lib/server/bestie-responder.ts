@@ -209,7 +209,8 @@ export async function generateBestieReply(
 	userId: string,
 	matchId: string,
 	lastMessage: string,
-	timing?: { claudeMs?: number }
+	timing?: { claudeMs?: number },
+	opts?: { proofAckCategory?: string }
 ): Promise<BestieReply> {
 	const supabase = getSupabase();
 
@@ -382,10 +383,12 @@ export async function generateBestieReply(
 					contextBlock: `${preferencesContext}${structuredPreferencesContext}${maleArtifactContext}${openerContext}`,
 					transcript,
 					lastMessage,
-					isOpener,
+					// A proof-ack turn is never an opener even if the message read is empty.
+					isOpener: opts?.proofAckCategory ? false : isOpener,
 					proofRequestContext,
 					checklistContext,
-					handoffContext
+					handoffContext,
+					proofAckCategory: opts?.proofAckCategory ?? ''
 				})
 			}
 		]
@@ -747,5 +750,88 @@ export async function generateAndSendBestieOpener(matchId: string): Promise<void
 		}
 	} catch (err) {
 		console.error('[bestie-opener] failed (non-fatal):', err);
+	}
+}
+
+/**
+ * Fire the Bestie's acknowledgement turn after a man fulfils an in-chat proof
+ * request by UPLOADING (not texting). An upload isn't a message, so nothing else
+ * triggers her reply — without this the thread stalls right after "🔒 Verified".
+ * Resolves the owner (woman) + man, confirms Bestie is on and the request is
+ * fulfilled, generates a warm proof-ack reply, sends it, and closes the request.
+ * Non-fatal and idempotent-ish (closing the request means a re-fire no-ops) —
+ * safe to call fire-and-forget from the upload route.
+ */
+export async function generateAndSendBestieProofAck(matchId: string): Promise<void> {
+	const supabase = getSupabase();
+	try {
+		const { data: matchRow } = await (supabase as any)
+			.from('verified_vibe_matches')
+			.select('user1_id, user2_id, ai_bestie_active, proof_request, status')
+			.eq('id', matchId)
+			.single();
+		if (!matchRow) return;
+		if (matchRow.ai_bestie_active === false) return;
+		if (matchRow.status === 'unmatched' || matchRow.status === 'blocked') return;
+		const proof = matchRow.proof_request as { category?: string; status?: string } | null;
+		// Only ack a JUST-fulfilled request; anything else (pending/closed/refused) no-ops.
+		if (proof?.status !== 'fulfilled' || !proof.category) return;
+
+		const ids = [matchRow.user1_id, matchRow.user2_id];
+		const { data: users } = await supabase
+			.from('verified_vibe_users')
+			.select('id, gender')
+			.in('id', ids);
+		const woman = (users ?? []).find((u: any) => u.gender === 'woman');
+		if (!woman) return; // Bestie only proxies the woman
+
+		const timing: { claudeMs?: number } = {};
+		const t0 = Date.now();
+		const reply = await generateBestieReply(woman.id, matchId, '', timing, {
+			proofAckCategory: proof.category
+		});
+
+		// Close the fulfilled request now it's been acknowledged (fulfilled → closed),
+		// and persist any checklist movement. Both non-fatal, conversational-state only.
+		if (reply.proofStateUpdate) {
+			try {
+				await (supabase as any)
+					.from('verified_vibe_matches')
+					.update({ proof_request: reply.proofStateUpdate })
+					.eq('id', matchId);
+			} catch (e) { console.warn('[bestie-proof-ack] proof_request persist failed (non-fatal):', e); }
+		}
+		if (reply.checklistUpdate) {
+			try {
+				await (supabase as any)
+					.from('verified_vibe_matches')
+					.update({ bestie_checklist: reply.checklistUpdate })
+					.eq('id', matchId);
+			} catch (e) { console.warn('[bestie-proof-ack] checklist persist failed (non-fatal):', e); }
+		}
+		if (!reply.reply) return;
+
+		const { data: inserted } = await (supabase as any)
+			.from('verified_vibe_messages')
+			.insert({ match_id: matchId, sender_id: woman.id, content: reply.reply, is_ai: true })
+			.select('id, created_at')
+			.single();
+
+		if (inserted?.id) {
+			try {
+				await (supabase as any)
+					.from('vv_ai_response_timings')
+					.upsert({
+						reply_message_id: inserted.id,
+						match_id: matchId,
+						response_type: 'bestie',
+						generated_at: inserted.created_at ?? null,
+						generation_ms: Date.now() - t0,
+						claude_ms: timing.claudeMs ?? null
+					}, { onConflict: 'reply_message_id' });
+			} catch { /* non-critical */ }
+		}
+	} catch (err) {
+		console.error('[bestie-proof-ack] failed (non-fatal):', err);
 	}
 }

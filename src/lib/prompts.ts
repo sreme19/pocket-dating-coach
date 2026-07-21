@@ -700,8 +700,14 @@ export function buildBestieReplyPrompt(opts: {
 	 * checklistContext (a wrapped checklist has no open items to draw out).
 	 */
 	handoffContext?: string;
+	/**
+	 * Set to a proof category when this turn is triggered by the man JUST uploading
+	 * a verified proof (not by a text message). Reframes the turn as a warm, specific
+	 * acknowledgement that keeps the conversation moving — see the lastMessage block.
+	 */
+	proofAckCategory?: string;
 }): string {
-	const { userName, matchName, contextBlock = '', transcript = '', lastMessage, isOpener = false, proofRequestContext = '', checklistContext = '', handoffContext = '' } = opts;
+	const { userName, matchName, contextBlock = '', transcript = '', lastMessage, isOpener = false, proofRequestContext = '', checklistContext = '', handoffContext = '', proofAckCategory = '' } = opts;
 
 	const openerBlock = isOpener
 		? `
@@ -771,7 +777,7 @@ HARD RULES, never break these:
 - ONLY say things about ${userName} that appear in the context above. If he asks something you don't have (her job, hobbies, a specific detail), say she'll tell him herself, e.g. "she'll fill you in on that" — NEVER invent or guess facts about her. This includes NOT mirroring his answers back as hers: do not say she shares his job, interests, or background ("she's in tech too", "she loves that too", "same as you") unless the context above actually states it. Use her name EXACTLY as given (${userName}); never expand, complete, or substitute it, even if it's short or a single letter.
 - Read the conversation so far. Do NOT repeat a question already asked or answered, and do NOT re-raise a topic that's already settled. Build naturally on what was just said.${transcript}${openerBlock}${proofRulesBlock}${checklistBlock}${handoffBlock}
 
-${lastMessage && lastMessage.trim() ? `${matchName} just said: "${lastMessage}"` : `${matchName} hasn't messaged yet. You are reaching out FIRST to kick off the conversation, so there is nothing to react to, just open warmly per the rules above.`}
+${proofAckCategory ? `${matchName} just uploaded a ${proofAckCategory} proof and it PASSED verification — it's now real on his profile. React in ONE short message: warm and specific about him actually backing it up (no gushing, don't restate the category like a form), then keep things flowing naturally. Do NOT ask him to upload anything else, and do NOT thank him mechanically.` : lastMessage && lastMessage.trim() ? `${matchName} just said: "${lastMessage}"` : `${matchName} hasn't messaged yet. You are reaching out FIRST to kick off the conversation, so there is nothing to react to, just open warmly per the rules above.`}
 
 HOW YOU TEXT. This is what makes you feel like a person and not a bot:
 - Text like a real friend: casual, warm, a little playful. Use contractions. Short sentences.
