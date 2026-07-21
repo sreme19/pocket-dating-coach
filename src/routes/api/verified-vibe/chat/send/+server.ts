@@ -7,6 +7,14 @@ import type { Message } from '$lib/verified-vibe/types';
 import { logAppError } from '$lib/server/logAppError';
 import { buildNotificationPayload, sendNotification } from '$lib/server/notifications';
 
+// The server-side AI Bestie reply is generated in a waitUntil() background task
+// after the response is flushed (see below). waitUntil keeps the function alive
+// only until this maxDuration — NOT indefinitely. Bestie generation measures
+// ~9s (Claude ~8s + DB reads/writes), which does not fit inside Vercel's short
+// default (~10s) after the send's own synchronous work, so the reply was being
+// truncated and never inserted. Give the function room to finish it.
+export const config = { maxDuration: 60 };
+
 interface SendMessageRequest {
   conversationId: string;
   content: string;
@@ -257,7 +265,11 @@ export const POST: RequestHandler = async ({ request }) => {
     // schedule it via waitUntil(): the response returns immediately and Vercel
     // keeps the function alive to finish generation in the background. The
     // sender's client fast-polls for the reply, so it still appears promptly.
-    if (body.isAi !== true && (match as any).ai_bestie_active) {
+    // Bestie is default-ON: only an explicit `false` turns it off. Treating
+    // null/undefined as OFF here (while the opener guard treats it as ON) would
+    // make a match open a thread and then go permanently silent. Mirror the
+    // opener's `!== false` semantics.
+    if (body.isAi !== true && (match as any).ai_bestie_active !== false) {
       const recipientId = match.user1_id === user.id ? match.user2_id : match.user1_id;
       const bestieTask = (async () => {
         try {
