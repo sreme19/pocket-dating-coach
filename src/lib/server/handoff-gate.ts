@@ -73,18 +73,37 @@ export function assessHandoffReadiness(args: {
 		.filter((x) => x.w >= MIN_WEIGHT)
 		.sort((a, b) => b.w - a.w);
 
+	const blockOn = (d: DimensionId, target: string, reason: string): HandoffGate => ({
+		ready: false,
+		blockingDim: d,
+		blockingPhrase: ASK_PHRASE[d] ?? (OPEN_DIMENSIONS.find((x) => x.id === d)?.label ?? d).toLowerCase(),
+		requestCategory: target,
+		reason,
+	});
+	const available = (d: DimensionId): string | null =>
+		(DIM_TO_PROOF[d] ?? []).find((cat) => !verified.has(cat) && !refused.has(cat)) ?? null;
+
+	// PASS 1 — specific gaps: a dimension she values that he CLAIMS (v≥45) but hasn't
+	// PROVEN. The income case: "claims a good salary, c stuck at the floor."
 	for (const { d, w, v, c } of ranked) {
 		if (c >= PROVEN_C) continue;   // already shown — fine
-		if (v < CLAIMING_V) continue;  // not really claiming it — don't demand proof
-		const target = (DIM_TO_PROOF[d] ?? []).find((cat) => !verified.has(cat) && !refused.has(cat));
+		if (v < CLAIMING_V) continue;  // not really claiming it — Pass 2 covers the floor
+		const target = available(d);
 		if (!target) continue;         // nothing left to ask (asked/refused/verified) — don't dead-end
-		return {
-			ready: false,
-			blockingDim: d,
-			blockingPhrase: ASK_PHRASE[d] ?? (OPEN_DIMENSIONS.find((x) => x.id === d)?.label ?? d).toLowerCase(),
-			requestCategory: target,
-			reason: `unproven high-value dim ${d} (w=${w.toFixed(2)}, v=${v}, c=${c})`,
-		};
+		return blockOn(d, target, `unproven high-value dim ${d} (w=${w.toFixed(2)}, v=${v}, c=${c})`);
+	}
+
+	// PASS 2 — substance floor: hand-offs are NOT lightweight. Even a man who isn't
+	// loudly claiming anything must have PROVEN at least one thing she values before
+	// she is asked to step in. Talk + a bare selfie is not enough. (Base `photos` is
+	// the universal onboarding step, so it doesn't count as substantive here.)
+	const hasSubstantiveProof = [...verified].some((c) => c !== 'photos');
+	if (!hasSubstantiveProof) {
+		for (const { d } of ranked) {
+			const target = available(d);
+			if (!target) continue; // all her valued proofs refused/asked → don't dead-end
+			return blockOn(d, target, 'substance floor: no verified proof of a valued dimension yet');
+		}
 	}
 	return READY('proof-coverage-ok');
 }
