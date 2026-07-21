@@ -11,21 +11,25 @@
   import RiteLogo from '$lib/verified-vibe/components/RiteLogo.svelte';
 
   const COMING_SOON = true;
+  let { children } = $props();
+  let hydrationComplete = $state(false);
+  let pathname = $derived($page.url.pathname);
+
   const isAdminPreview = $derived($page.url.searchParams.has('adminPreview'));
 
+  // Admin "view-as-user" chat mode: /verified-vibe/chat*?adminAs=<userId>. Data is
+  // served only by admin-cookie-gated endpoints under /admin, so the param alone
+  // grants nothing — but the layout must let the (session-less) admin through the
+  // auth guard and past the Coming-Soon gate to render the member chat UI.
+  const isAdminView = $derived($page.url.searchParams.has('adminAs'));
+
   // In admin preview, the profile being viewed is /verified-vibe/profile/<id>.
-  // Grab that id so the Chat nav can jump straight to this user's conversations
-  // in the admin QA inspector instead of the member chat route (which needs a
-  // member session and would bounce the admin to auth).
+  // Grab that id so the Chat nav can open that user's chat, viewed as he sees it.
   const adminPreviewUserId = $derived(
     isAdminPreview
       ? (pathname.match(/^\/verified-vibe\/profile\/([^/]+)/)?.[1] ?? null)
       : null
   );
-
-  let { children } = $props();
-  let hydrationComplete = $state(false);
-  let pathname = $derived($page.url.pathname);
 
   const ONBOARDING_PATHS = ['/verified-vibe/auth', '/verified-vibe/gate', '/verified-vibe/home', '/verified-vibe/verify', '/verified-vibe/verification'];
   const showBottomNav = $derived(
@@ -73,6 +77,10 @@
   $effect(() => {
     if (!hydrationComplete) return; // Wait for hydration to complete
 
+    // Admin "view-as-user" mode: no member session exists. The admin cookie gates
+    // the data endpoints, so skip the member auth redirect entirely here.
+    if (isAdminView) return;
+
     const pathname = $page.url.pathname;
 
     // Public paths (no session check needed)
@@ -112,7 +120,7 @@
 </script>
 
 <div class="verified-vibe-container">
-  {#if COMING_SOON && !isAdminPreview}
+  {#if COMING_SOON && !isAdminPreview && !isAdminView}
     <div class="coming-soon-screen" transition:fade={{ duration: 300 }}>
       <div class="coming-soon-brand">
         <div class="coming-soon-logo">
@@ -167,10 +175,12 @@
           <button
             class="nav-item {active ? 'active' : ''}"
             onclick={async () => {
-              // Admin preview: Chat inspects this user's conversations in the QA
-              // console rather than opening the member chat (no member session here).
+              // Admin preview: Chat opens this user's real chat, viewed exactly as
+              // he sees it (read-only). Data is served by admin-cookie-gated
+              // endpoints; if the admin isn't signed in the chat page bounces to
+              // /admin/login. Falls back to the QA console if we can't resolve the id.
               if (isAdminPreview && item.tab === 'chat') {
-                await goto(adminPreviewUserId ? `/admin/qa?user=${adminPreviewUserId}` : '/admin/qa');
+                await goto(adminPreviewUserId ? `/verified-vibe/chat?adminAs=${adminPreviewUserId}` : '/admin/qa');
                 return;
               }
               currentTab.set(item.tab);
