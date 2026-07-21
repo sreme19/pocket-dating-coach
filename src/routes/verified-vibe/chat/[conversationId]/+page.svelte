@@ -17,6 +17,20 @@
   // Initialise from route params immediately — the $effect fires AFTER onMount,
   // so reading $page.params here ensures localStorage keys are correct from mount.
   let conversationId = $state($page.params.conversationId || '');
+
+  // ── Admin "view-as-user" mode ────────────────────────────────────────────
+  // ?adminAs=<userId> — an admin inspecting this exact conversation as the user
+  // sees it. Data comes from an admin-cookie-gated endpoint; ALL writes/side
+  // effects (send, mark-read, presence, typing, polling) are disabled and the
+  // composer is replaced by a read-only bar. Every adminView branch is additive.
+  const adminAs = $derived($page.url.searchParams.get('adminAs'));
+  const adminView = $derived(!!adminAs);
+  const adminSuffix = $derived(adminAs ? `?adminAs=${adminAs}` : '');
+
+  function bounceToLogin() {
+    const next = encodeURIComponent($page.url.pathname + $page.url.search);
+    goto(`/admin/login?next=${next}`);
+  }
   let messageInput = $state('');
   let isLoading = $state(true);
   let uploadingImage = $state(false);
@@ -144,6 +158,7 @@
     reasonChip: string | null,
     feedbackText: string | null
   ) {
+    if (adminView) return; // read-only admin view
     try {
       await fetch('/api/verified-vibe/ai-bestie/feedback', {
         method: 'POST',
@@ -270,6 +285,33 @@
       isLoading = true;
       error = null;
       connectionError = false;
+
+      // ── Admin view-as-user: static, read-only snapshot ────────────────────
+      // Load the conversation via the admin-gated endpoint, render it exactly as
+      // the user sees it, and skip every session-dependent side effect (presence,
+      // poller, mark-read, typing). No writes ever fire from this path.
+      if (adminView) {
+        currentUserId = adminAs;
+        const res = await fetch(`/admin/verified-vibe/impersonate/conversation/${conversationId}?userId=${adminAs}`);
+        if (res.status === 401) { bounceToLogin(); return; }
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(errBody.error || `Failed to load conversation (${res.status})`);
+        }
+        const data = await res.json();
+        const { matchedUser, messages: initialMessages, aiBestieActive: bestieActive, selfGender } = data.data;
+        currentUserGender = selfGender ?? null;
+        aiBestieActive = bestieActive ?? true;
+        proofRequest = data.data.proofRequest ?? null;
+        bestieChecklist = data.data.bestieChecklist ?? null;
+        setCurrentMatch(conversationId, matchedUser);
+        if (Array.isArray(initialMessages)) messages.set(initialMessages);
+        loadCoachingCards();
+        listReady = true;
+        await tick();
+        scrollToBottom();
+        return;
+      }
 
       // Check if user is a seed user
       userIsSeed = await isSeedUser();
@@ -640,7 +682,7 @@
    * Notify server that user is typing
    */
   async function notifyTyping(isTyping: boolean) {
-    if (!$user) return;
+    if (adminView || !$user) return;
 
     try {
       await publishTypingIndicator(conversationId, $user.id, isTyping);
@@ -656,6 +698,7 @@
   }
 
   async function handleFileUpload(e: Event) {
+    if (adminView) return; // read-only admin view
     const files = Array.from((e.target as HTMLInputElement).files ?? []);
     const userId = currentUserId ?? $user?.id;
     if (files.length === 0 || !userId) return;
@@ -748,6 +791,7 @@
    * Handle send message with optimistic update
    */
   async function handleSendMessage() {
+    if (adminView) return; // read-only admin view
     if (!messageInput.trim()) return;
     const endSend = perf.startSpan('send → server ack');
     const endOptimistic = perf.startSpan('send → optimistic bubble (input latency)');
@@ -922,13 +966,14 @@
    * Handle back button click
    */
   function handleBackClick() {
-    goto('/verified-vibe/chat');
+    goto('/verified-vibe/chat' + adminSuffix);
   }
 
   /**
    * Handle profile click to view matched user's profile
    */
   function handleProfileClick() {
+    if (adminView) return; // read-only admin view — no side navigation
     if ($currentMatch) {
       goto(`/verified-vibe/match-profile/${$currentMatch.id}?from=/verified-vibe/chat/${conversationId}`);
     }
@@ -953,6 +998,7 @@
    * Clear all chat messages for current conversation (seed users only)
    */
   async function handleClearChat() {
+    if (adminView) return; // read-only admin view
     try {
       const confirmed = window.confirm(
         'Are you sure you want to clear all chat messages? This action cannot be undone.'
@@ -1010,6 +1056,7 @@
    * Handle activate assistant
    */
   async function handleActivateAssistant(assistantType: AssistantType) {
+    if (adminView) return; // read-only admin view
     if (isActivating || activeAssistant) return;
     isActivating = true;
     try {
@@ -1337,6 +1384,7 @@
   }
 
   async function handleUnmatch() {
+    if (adminView) return; // read-only admin view
     if (!$currentMatch || !conversationId || isUnmatching) return;
     isUnmatching = true;
     showUnmatchConfirm = false;
@@ -1375,6 +1423,7 @@
   }
 
   async function handleBlock() {
+    if (adminView) return; // read-only admin view
     if (!$currentMatch || isUnmatching) return;
     isUnmatching = true;
     showBlockConfirm = false;
@@ -1414,6 +1463,13 @@
 </script>
 
 <div class="chat-interface-screen">
+  {#if adminView}
+    <div class="admin-view-banner">
+      <span class="avb-tag">ADMIN VIEW</span>
+      <span class="avb-text">His side of this conversation — read-only</span>
+      <button class="avb-refresh" onclick={() => location.reload()} aria-label="Refresh">↻ Refresh</button>
+    </div>
+  {/if}
   <!-- Header -->
   <div class="chat-header" transition:slide={{ duration: 400, delay: 0, axis: 'y' }}>
     <button class="back-btn" onclick={handleBackClick} aria-label="Go back">
@@ -1451,6 +1507,7 @@
           </div>
         </button>
 
+        {#if !adminView}
         <button
           class="clear-chat-btn"
           onclick={handleClearChat}
@@ -1461,10 +1518,12 @@
             <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6h14zM10 11v6M14 11v6"/>
           </svg>
         </button>
+        {/if}
       {/if}
     </div>
 
-    <!-- Options menu (unmatch/block) -->
+    <!-- Options menu (unmatch/block) — hidden in read-only admin view -->
+    {#if !adminView}
     <div class="header-options">
       <button
         class="options-btn"
@@ -1496,6 +1555,7 @@
         </div>
       {/if}
     </div>
+    {/if}
   </div>
 
   <!-- Error Banner -->
@@ -1735,6 +1795,11 @@
   </div>
 
   <!-- Input Area -->
+  {#if adminView}
+    <div class="admin-readonly-bar">
+      🔍 Admin view — read-only. This is the member's own view of the conversation; you can't send or edit anything.
+    </div>
+  {:else}
   <div class="input-area" transition:slide={{ duration: 400, delay: 0, axis: 'y' }}>
     <!-- Bestie proof request banner — the 📎 only exists while her Bestie has an
          open request; the category always comes from her question, never a picker -->
@@ -1855,6 +1920,7 @@
       </button>
     </div>
   </div>
+  {/if}
 </div>
 
 <!-- Hand-off popup (woman): AI Bestie has wrapped up and is asking her to step in.
@@ -1927,6 +1993,51 @@
     flex-direction: column;
     height: 100%;
     background: var(--bg-1);
+  }
+
+  /* ── Admin view-as-user ── */
+  .admin-view-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    background: #1a1a2e;
+    color: #fff;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+  .admin-view-banner .avb-tag {
+    background: #FF3B6B;
+    color: #fff;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 10px;
+  }
+  .admin-view-banner .avb-text { opacity: 0.85; }
+  .admin-view-banner .avb-refresh {
+    margin-left: auto;
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .admin-view-banner .avb-refresh:hover { background: rgba(255,255,255,0.2); }
+  .admin-readonly-bar {
+    padding: 14px 18px calc(14px + env(safe-area-inset-bottom, 0px));
+    background: var(--bg-2, #f6f2ef);
+    border-top: 1px solid var(--border-1, rgba(0,0,0,0.08));
+    color: var(--text-2, #6b6b6b);
+    font-size: 13px;
+    line-height: 1.4;
+    text-align: center;
+    flex-shrink: 0;
   }
 
   /* Header */
