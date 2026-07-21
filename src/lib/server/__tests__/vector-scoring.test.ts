@@ -10,6 +10,7 @@ import {
 	upsideByDimension,
 	pathGaps,
 	portfolioActions,
+	proofPayoff,
 	type Vec,
 } from '../vector-scoring';
 import {
@@ -203,5 +204,19 @@ describe('portfolioActions — cross-match breadth (§10/§11a)', () => {
 		expect(actions.every((a) => a.stacksHelped === 0)).toBe(true);
 		expect(actions.every((a) => a.helpedNames.length === 0)).toBe(true);
 		expect(actions.every((a) => a.deltaPS > 0)).toBe(true);
+	});
+});
+
+describe('proofPayoff — rank movement in her stack (§11a)', () => {
+	it('computes his rank now vs if he verified the dimension', () => {
+		const herW: Vec = { ...fill(0), financial: 1 };        // she only weights financial
+		const hisA: Vec = { ...fill(0), financial: 80 };
+		const hisC: Vec = { ...fill(0.3), financial: 0.3 };    // claimed, unproven
+		const rivals = [50, 20];                                // two other men's appeal to her
+		const p = proofPayoff(herW, hisA, hisC, rivals, 'financial');
+		expect(p.pool).toBe(3);
+		expect(p.rankNow).toBe(2);          // appeal 24 sits below the 50 rival
+		expect(p.rankIfVerified).toBe(1);   // appeal 80 tops the stack
+		expect(p.appealDelta).toBe(56);
 	});
 });

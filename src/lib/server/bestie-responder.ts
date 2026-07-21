@@ -31,6 +31,9 @@ import {
 	type BestieChecklist,
 } from '$lib/server/bestie-checklist';
 import { buildNotificationPayload, sendNotification } from '$lib/server/notifications';
+import { assessHandoffReadiness, handoffProofAskLine } from '$lib/server/handoff-gate';
+import { appeal, type Vec } from '$lib/server/vector-scoring';
+import { buildProofInviteContext } from '$lib/server/proof-invite-context';
 
 export interface BestieReply {
 	signal: string;
@@ -263,10 +266,18 @@ export async function generateBestieReply(
 	let provenTags: string[] = [];
 	let otherUserId: string | null = null;
 	let verifiedCategories: string[] = [];
+	// Hand-off gate inputs (§3): her preference weights + his proven vectors, so we
+	// don't sell him to her on talk alone when she values something he hasn't proven.
+	let herWeights: Vec | null = null;
+	let hisAttrs: Vec | null = null;
+	let hisConf: Vec | null = null;
+	// Her other matched men's appeal toward her — the "stack" his rank is measured
+	// against, for the concrete proof payoff ("proving X moves you from #4 to #2").
+	let rivalAppeals: number[] = [];
 	if (matchRow) {
 		const partnerId = matchRow.user1_id === userId ? matchRow.user2_id : matchRow.user1_id;
 		otherUserId = partnerId;
-		const [otherUser, proofSignals] = await Promise.all([
+		const [otherUser, proofSignals, herVec, hisVec] = await Promise.all([
 			supabase
 				.from('verified_vibe_users')
 				.select('first_name, about')
@@ -276,10 +287,36 @@ export async function generateBestieReply(
 			// Merged view of BOTH proof sources (pipeline verifiedProofs + legacy
 			// user_artifacts) — see proof-signals.ts.
 			loadProofSignals(supabase, partnerId),
+			supabase.from('vv_user_vectors').select('weights').eq('user_id', userId).maybeSingle().then((r: any) => r.data),
+			supabase.from('vv_user_vectors').select('attributes, confidence').eq('user_id', partnerId).maybeSingle().then((r: any) => r.data),
 		]);
 		matchName = otherUser?.first_name || 'him';
 		maleAbout = ((otherUser as any)?.about ?? '').toString().slice(0, 240);
 		verifiedCategories = proofSignals.categories;
+		herWeights = (herVec?.weights ?? null) as Vec | null;
+		hisAttrs = (hisVec?.attributes ?? null) as Vec | null;
+		hisConf = (hisVec?.confidence ?? null) as Vec | null;
+
+		// Build her stack: appeal of every OTHER man she's matched with, toward her.
+		if (herWeights) {
+			const { data: herMatches } = await supabase
+				.from('verified_vibe_matches')
+				.select('user1_id, user2_id')
+				.or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
+				.eq('status', 'mutual');
+			const rivalIds = (herMatches ?? [])
+				.map((m: any) => (m.user1_id === userId ? m.user2_id : m.user1_id))
+				.filter((id: string) => id !== partnerId);
+			if (rivalIds.length > 0) {
+				const { data: rivalVecs } = await supabase
+					.from('vv_user_vectors')
+					.select('attributes, confidence')
+					.in('user_id', rivalIds);
+				rivalAppeals = (rivalVecs ?? [])
+					.filter((v: any) => v.attributes)
+					.map((v: any) => appeal(herWeights as Vec, v.attributes as Vec, (v.confidence ?? {}) as Vec));
+			}
+		}
 
 		if (proofSignals.lines.length > 0) {
 			provenTags = proofSignals.lines;
@@ -348,6 +385,19 @@ export async function generateBestieReply(
 		isOpener,
 	});
 
+	// Proactive, preference-targeted proof invites (§11a): the proofs SHE values most
+	// that he hasn't proven, with the concrete rank payoff — invited even without a
+	// topic trigger. Never promises she'll step in. '' when no vectors / nothing to ask.
+	const { block: proofInviteContext } = buildProofInviteContext({
+		herWeights,
+		hisAttrs,
+		hisConf,
+		rivalAppeals,
+		allowed: invitable,
+		matchName,
+		userName,
+	});
+
 	// Bestie checklist (gap analysis, spec §D/§F). If a checklist already exists,
 	// inject its open items so this turn can mark them done / wrap up. If it does NOT
 	// exist yet and this is the first Bestie turn, we generate it CONCURRENTLY with
@@ -386,6 +436,7 @@ export async function generateBestieReply(
 					// A proof-ack turn is never an opener even if the message read is empty.
 					isOpener: opts?.proofAckCategory ? false : isOpener,
 					proofRequestContext,
+					proofInviteContext,
 					checklistContext,
 					handoffContext,
 					proofAckCategory: opts?.proofAckCategory ?? ''
@@ -466,15 +517,53 @@ export async function generateBestieReply(
 	}
 
 	let finalReply = stripBannedDashes(parsed.reply ?? parsed.suggestedQuestion ?? '');
-	// Guarantee the hand-off closing line on the turn Bestie wraps up. The model is
-	// told to write only a brief reaction on that turn; we append the "she'll take it
-	// from here" line in code so it is ALWAYS said (spec §F), fixing the drift where
-	// the model kept the conversation going instead of closing off.
-	const justWrappedThisTurn =
+	let proofStateFinal = proofStateUpdate;
+
+	// Did this turn try to wrap up (→ hand off to her)?
+	const wantsWrap =
 		checklistUpdate?.status === 'wrapped' && existingChecklist?.status !== 'wrapped';
-	if (justWrappedThisTurn) {
-		// Strip a trailing follow-up question so the wrap turn doesn't ask AND say
-		// goodbye in one breath (§F clean close). See dropTrailingQuestion.
+
+	// HAND-OFF GATE (§3 "verification is the floor-raiser"): never hand a man off on
+	// conversation alone when she VALUES a provable dimension he has CLAIMED but not
+	// PROVEN (income is the canonical case). Hold the wrap, keep vetting, invite the
+	// proof. Degrades to the old behaviour when we have no vectors / the gate is off.
+	const gate = wantsWrap
+		? assessHandoffReadiness({
+				herWeights,
+				hisAttrs,
+				hisConf,
+				verifiedCategories,
+				refusedCategories: refusedCategories(proofState)
+		  })
+		: null;
+
+	if (wantsWrap && gate && !gate.ready) {
+		// Block the hand-off: keep the checklist ACTIVE and pivot to a warm proof ask.
+		if (checklistUpdate) checklistUpdate = { ...checklistUpdate, status: 'active', wrapped_at: null };
+		finalReply = dropTrailingQuestion(finalReply);
+		// Only ISSUE the ask (and open a request) when none is already live — don't nag
+		// if we already invited this proof on a prior turn.
+		const canOpen =
+			!!gate.requestCategory && !isProofRequestActive(proofState) && proofState?.status !== 'fulfilled';
+		if (canOpen) {
+			const ask = handoffProofAskLine(gate.blockingPhrase);
+			finalReply = finalReply ? `${finalReply} ${ask}` : ask;
+			proofStateFinal = {
+				category: gate.requestCategory as ProofRequestCategory,
+				status: 'pending',
+				asked_at: new Date().toISOString(),
+				attempts: 0,
+				resolved_at: null,
+				history: proofState?.history ?? []
+			};
+		}
+		// Never return an empty reply on a blocked wrap turn.
+		if (!finalReply) finalReply = handoffProofAskLine(gate.blockingPhrase);
+	} else if (wantsWrap) {
+		// Cleared the gate → guarantee the hand-off closing line (§F). The model is
+		// told to write only a brief reaction on the wrap turn; we append the "she'll
+		// take it from here" line in code so it is ALWAYS said. Strip a trailing
+		// follow-up question so the wrap turn doesn't ask AND say goodbye in one breath.
 		finalReply = dropTrailingQuestion(finalReply);
 		const closing = handoffClosingLine(userName);
 		finalReply = finalReply ? `${finalReply} ${closing}` : closing;
@@ -484,7 +573,7 @@ export async function generateBestieReply(
 		signal: parsed.signal ?? '✅',
 		read: stripBannedDashes(parsed.read ?? ''),
 		reply: finalReply,
-		...(proofStateUpdate ? { proofStateUpdate } : {}),
+		...(proofStateFinal ? { proofStateUpdate: proofStateFinal } : {}),
 		...(checklistUpdate ? { checklistUpdate } : {})
 	};
 }

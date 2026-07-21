@@ -167,6 +167,38 @@ export function upsideByDimension(attrs: Vec, conf: Vec): Array<{ dim: Dimension
 	return out.sort((a, b) => b.deltaPS - a.deltaPS);
 }
 
+export interface ProofPayoff {
+	/** His rank in her stack now (1 = top), and if he verified this dimension. */
+	rankNow: number;
+	rankIfVerified: number;
+	pool: number;
+	/** Appeal points gained toward her by proving this dimension. */
+	appealDelta: number;
+}
+
+/**
+ * Concrete payoff of proving ONE dimension for a specific pairing (§11a): how far
+ * up HER stack it moves him. Verifying only raises HIS confidence, so the rivals'
+ * appeals are unchanged — we recompute his rank against them before/after. Powers
+ * "proving your income moves you from #4 to #2 with her." Pure arithmetic.
+ */
+export function proofPayoff(
+	herWeights: Vec,
+	hisAttrs: Vec,
+	hisConf: Vec,
+	rivalAppeals: number[],
+	dim: DimensionId,
+): ProofPayoff {
+	const aNow = appeal(herWeights, hisAttrs, hisConf);
+	const aVer = appeal(herWeights, hisAttrs, { ...hisConf, [dim]: 1 });
+	return {
+		rankNow: standingRank(aNow, rivalAppeals).rank,
+		rankIfVerified: standingRank(aVer, rivalAppeals).rank,
+		pool: rivalAppeals.length + 1,
+		appealDelta: round1(aVer - aNow),
+	};
+}
+
 export interface PortfolioAction {
 	dim: DimensionId;
 	label: string;
