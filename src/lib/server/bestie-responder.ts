@@ -11,7 +11,7 @@ import { loadPreferences } from '$lib/server/profile-service';
 import type { PreferencesProfile } from '$lib/server/profile-service';
 import { buildBestieReplyPrompt, stripBannedDashes, buildBestieChecklistPrompt } from '$lib/prompts';
 import {
-	PROOF_REQUEST_CATEGORIES,
+	PROOF_CATEGORY_PRIORITY,
 	PROOF_CATEGORY_LABELS,
 	loadProofSignals,
 	isProofRequestActive,
@@ -72,10 +72,13 @@ function buildProofRequestBlock(opts: {
 
 	// Invites are OFF while a request is open/fulfilled, and on the very first
 	// message (the opener stays a warm hello, never an ask for evidence).
+	// Otherwise: every category he hasn't verified or already been asked is
+	// invitable, in highest-leverage-first order (career/fitness/travel lead;
+	// the ID-gated wealth/spending/assets trail).
 	let invitable: ProofRequestCategory[] = [];
 	const requestOpen = isProofRequestActive(state) || state?.status === 'fulfilled';
 	if (!requestOpen && !isOpener) {
-		invitable = PROOF_REQUEST_CATEGORIES.filter(
+		invitable = PROOF_CATEGORY_PRIORITY.filter(
 			(c) => !verifiedCategories.includes(c) && !asked.includes(c)
 		);
 	}
@@ -99,8 +102,11 @@ function buildProofRequestBlock(opts: {
 		);
 	}
 	if (invitable.length > 0) {
+		// Show the top few (highest-leverage first) so the prompt stays tight; the
+		// state machine still honours any category in the full invitable set.
+		const shortlist = invitable.slice(0, 4);
 		lines.push(
-			`- AVAILABLE to invite (at most ONE, only when it naturally fits the gap you're drawing out): ${invitable
+			`- AVAILABLE to invite (pick the ONE that matches what he's talking about — see the topic→proof map in the rules): ${shortlist
 				.map((c) => `${c} = ${PROOF_CATEGORY_LABELS[c]}`)
 				.join('; ')}`
 		);
