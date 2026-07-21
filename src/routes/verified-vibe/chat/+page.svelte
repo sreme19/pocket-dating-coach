@@ -72,6 +72,78 @@
   let expandedAdmirers = $state(new Set<string>());
   let promotingId      = $state<string | null>(null); // loading state for promote
 
+  // ── Hand-off / reactivation (spec B2) ───────────────────────────────────────
+  let reactivatingId = $state<string | null>(null);        // in-flight reactivate
+  let toast          = $state<string | null>(null);        // transient status line
+  let handoffPopup   = $state<Conversation | null>(null);  // "your turn" prompt
+  const shownHandoff = new Set<string>();                  // once per match/session
+  let now            = $state(Date.now());                 // ticks the countdowns
+
+  const HANDOFF_WINDOW_MS = 48 * 60 * 60 * 1000;
+  // Deadline = when Bestie handed off + 48h.
+  function handoffDeadline(c: Conversation): number | null {
+    return c.handoffAt ? Date.parse(c.handoffAt) + HANDOFF_WINDOW_MS : null;
+  }
+  // Emerald >24h · amber 3–24h · red <3h — matches the mobile escalation.
+  function urgencyColor(remainingMs: number): string {
+    const hours = remainingMs / 3_600_000;
+    if (hours > 24) return '#10B981';
+    if (hours >= 3) return '#EF9F27';
+    return '#E24B4A';
+  }
+  function remainingLabel(remainingMs: number): string {
+    if (remainingMs <= 0) return 'expiring…';
+    const mins = Math.floor(remainingMs / 60_000);
+    if (mins < 60) return `${mins}m left`;
+    return `${Math.floor(mins / 60)}h left`;
+  }
+
+  // Bring an expired match back — only the woman gets this control (canReactivate).
+  async function reactivate(c: Conversation) {
+    if (reactivatingId) return;
+    reactivatingId = c.matchId;
+    try {
+      const token = await fmGetToken();
+      if (!token) { toast = 'Please sign in again.'; return; }
+      const res = await fetch('/api/verified-vibe/ai-bestie/reactivate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ conversationId: c.matchId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast = data.error || 'Could not reactivate'; return; }
+      // Flip locally: expired → mutual so it leaves Inactive and rejoins the list.
+      conversations = conversations.map(x =>
+        x.matchId === c.matchId
+          ? { ...x, status: 'mutual', expiredAt: null, canReactivate: false }
+          : x
+      );
+      toast = data.reengaged === 'revet'
+        ? 'Reactivated — your AI Bestie is checking a couple more things with him.'
+        : "Reactivated — you're back in touch.";
+    } catch {
+      toast = 'Could not reactivate';
+    } finally {
+      reactivatingId = null;
+    }
+  }
+
+  // Show the "your turn to step in" prompt once per match, per session.
+  $effect(() => {
+    if (isLoading || handoffPopup) return;
+    const pending = conversations.find(
+      c => c.handoffPending && c.status !== 'expired' && !shownHandoff.has(c.matchId)
+    );
+    if (pending) { shownHandoff.add(pending.matchId); handoffPopup = pending; }
+  });
+
+  // Auto-dismiss the toast.
+  $effect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => (toast = null), 4200);
+    return () => clearTimeout(id);
+  });
+
   function toggleAdmirer(id: string) {
     expandedAdmirers = new Set(
       expandedAdmirers.has(id)
@@ -104,9 +176,19 @@
     | { kind: 'admirer';       data: AttentionMessage;    sortTs: number }
     | { kind: 'sent_admirer';  data: SentAdmirerMessage;  sortTs: number };
 
-  let newMatches   = $derived(conversations.filter(c => !c.hasMessages));
+  let newMatches   = $derived(conversations.filter(c => !c.hasMessages && c.status !== 'expired'));
   let activeConvos = $derived(conversations.filter(c => c.hasMessages));
-  let unreadTotal  = $derived(conversations.reduce((s, c) => s + c.unreadCount, 0));
+  let unreadTotal  = $derived(conversations.reduce((s, c) => s + (c.status === 'expired' ? 0 : c.unreadCount), 0));
+
+  // Hand-off (Bestie wrapped, waiting for her) + expired (window elapsed) buckets — spec B2.
+  let sectioned     = $derived(activeFilter === 'all');
+  let handoffConvos = $derived(conversations.filter(c => c.hasMessages && c.status !== 'expired' && c.handoffPending));
+  let expiredConvos = $derived(conversations.filter(c => c.status === 'expired'));
+  // Normal unified list: never expired; hand-off rows move to their own "Your move"
+  // section only while sectioned (All tab), otherwise they list inline.
+  let listConvos    = $derived(conversations.filter(c =>
+    c.hasMessages && c.status !== 'expired' && !(sectioned && c.handoffPending)
+  ));
   let admUnread    = $derived(attentionMsgs.filter(m => !m.isRead).length);
 
   // Map: otherUserId → matchId — used to link admirer cards to their chat thread
@@ -139,7 +221,7 @@
 
   let allItems = $derived.by((): ListItem[] => {
     // Exclude any conversation whose match is already represented by an admirer card
-    const convItems: ListItem[] = activeConvos
+    const convItems: ListItem[] = listConvos
       .filter(c => !admirerLinkedMatchIds.has(c.matchId))
       .map(c => ({
         kind: 'conversation',
@@ -346,6 +428,12 @@
   function fmOpenMatchChat() { if (fmMatch?.matchId) goto(`/verified-vibe/chat/${fmMatch.matchId}`); }
 
   onMount(loadMatchmakerStatus);
+
+  // Keep hand-off countdowns fresh without a reload.
+  onMount(() => {
+    const id = setInterval(() => (now = Date.now()), 60_000);
+    return () => clearInterval(id);
+  });
 </script>
 
 <div class="chat-list-screen">
@@ -481,7 +569,7 @@
           <button
             class="filter-tab {activeFilter === 'all' ? 'tab-active' : ''}"
             onclick={() => activeFilter = 'all'}
-          >All {activeConvos.filter(c => !admirerLinkedMatchIds.has(c.matchId)).length + attentionMsgs.length + pendingSentAdmirers.length}</button>
+          >All {conversations.filter(c => c.hasMessages && c.status !== 'expired' && !admirerLinkedMatchIds.has(c.matchId)).length + attentionMsgs.length + pendingSentAdmirers.length}</button>
           <button
             class="filter-tab {activeFilter === 'unread' ? 'tab-active' : ''}"
             onclick={() => activeFilter = 'unread'}
@@ -493,6 +581,57 @@
             >🌹 Admirer {#if admUnread > 0}<span class="admirer-dot"></span>{/if}</button>
           {/if}
         </div>
+      {/if}
+
+      <!-- ── YOUR MOVE (Bestie handed off — countdown) ── -->
+      {#if sectioned && handoffConvos.length > 0}
+        <section class="handoff-section" transition:fade={{ duration: 200 }}>
+          <div class="section-hdr">
+            <span class="section-dot" style="background:#EC4899;"></span>
+            <span class="section-label">YOUR MOVE</span>
+            <span class="section-hint">{handoffConvos.length} waiting · step in before it expires</span>
+          </div>
+          {#each handoffConvos as c (c.matchId)}
+            {@const meta = ARCHETYPE_META[c.matchedUser.archetype ?? '']}
+            {@const deadline = handoffDeadline(c)}
+            {@const remaining = deadline ? deadline - now : 0}
+            {@const uc = urgencyColor(remaining)}
+            <button class="convo-row handoff-row" onclick={() => goto(`/verified-vibe/chat/${c.matchId}`)}>
+              <div class="convo-avatar-wrap">
+                <svg class="countdown-ring" viewBox="0 0 52 52" aria-hidden="true">
+                  <circle cx="26" cy="26" r="24" fill="none" stroke="rgba(0,0,0,0.10)" stroke-width="3" />
+                  <circle
+                    cx="26" cy="26" r="24" fill="none" stroke={uc} stroke-width="3"
+                    stroke-linecap="round" transform="rotate(-90 26 26)"
+                    stroke-dasharray={2 * Math.PI * 24}
+                    stroke-dashoffset={2 * Math.PI * 24 * (1 - Math.max(0, Math.min(1, remaining / HANDOFF_WINDOW_MS)))}
+                  />
+                </svg>
+                {#if c.matchedUser.avatar}
+                  <img class="convo-avatar-img handoff-avatar" src={c.matchedUser.avatar} alt={c.matchedUser.firstName} />
+                {:else}
+                  <div class="convo-avatar-letter handoff-avatar">{c.matchedUser.firstName.charAt(0).toUpperCase()}</div>
+                {/if}
+              </div>
+              <div class="convo-body">
+                <div class="convo-line1">
+                  <div class="convo-name-group">
+                    <span class="convo-name">{c.matchedUser.firstName}</span>
+                    <span class="convo-age">, {c.matchedUser.age}</span>
+                    {#if meta}
+                      <span class="archetype-chip" style="color:{meta.color}; background:{meta.bg}; border-color:{meta.color}55;">{meta.emoji} {meta.label}</span>
+                    {/if}
+                  </div>
+                  <span class="countdown-pill" style="color:{uc}; background:{uc}26;">{remainingLabel(remaining)}</span>
+                </div>
+                <div class="convo-line2">
+                  <span class="convo-preview handoff-preview">✨ AI Bestie got to know him — your turn to step in</span>
+                </div>
+              </div>
+            </button>
+          {/each}
+        </section>
+        <div class="band-divider"></div>
       {/if}
 
       <!-- ── Unified list (conversations + admirers) ── -->
@@ -664,14 +803,90 @@
           <div class="all-caught-up">✅ All caught up!</div>
         {:else if allItems.length === 0 && activeFilter === 'admirer'}
           <div class="all-caught-up">No admirers yet 🌹</div>
-        {:else if allItems.length === 0 && activeFilter === 'all'}
+        {:else if allItems.length === 0 && activeFilter === 'all' && handoffConvos.length === 0 && expiredConvos.length === 0}
           <div class="all-caught-up">No conversations yet</div>
         {/if}
       </div>
 
+      <!-- ── INACTIVE (expired hand-offs) ── -->
+      {#if sectioned && expiredConvos.length > 0}
+        <section class="inactive-section" transition:fade={{ duration: 200 }}>
+          <div class="section-hdr">
+            <span class="section-dot" style="background:var(--text-3);"></span>
+            <span class="section-label">INACTIVE</span>
+          </div>
+          {#each expiredConvos as c (c.matchId)}
+            {@const meta = ARCHETYPE_META[c.matchedUser.archetype ?? '']}
+            <div class="convo-row expired-row">
+              <div class="convo-avatar-wrap">
+                {#if c.matchedUser.avatar}
+                  <img class="convo-avatar-img expired-avatar" src={c.matchedUser.avatar} alt={c.matchedUser.firstName} />
+                {:else}
+                  <div class="convo-avatar-letter expired-avatar">{c.matchedUser.firstName.charAt(0).toUpperCase()}</div>
+                {/if}
+              </div>
+              <div class="convo-body">
+                <div class="convo-line1">
+                  <div class="convo-name-group">
+                    <span class="convo-name expired-name">{c.matchedUser.firstName}</span>
+                    <span class="convo-age">, {c.matchedUser.age}</span>
+                  </div>
+                </div>
+                <div class="convo-line2">
+                  <span class="convo-preview">
+                    {c.canReactivate ? 'Expired — he moved on' : "This match expired — you've got a new one"}
+                  </span>
+                </div>
+              </div>
+              {#if c.canReactivate}
+                <button
+                  class="reactivate-btn"
+                  onclick={() => reactivate(c)}
+                  disabled={reactivatingId === c.matchId}
+                >{reactivatingId === c.matchId ? '…' : 'Reactivate'}</button>
+              {:else}
+                <span class="inactive-tag">Inactive</span>
+              {/if}
+            </div>
+          {/each}
+        </section>
+      {/if}
+
     {/if}
   </div>
 </div>
+
+<!-- ── Transient toast ── -->
+{#if toast}
+  <div class="toast" transition:fade={{ duration: 180 }}>{toast}</div>
+{/if}
+
+<!-- ── Hand-off "your turn" prompt ── -->
+{#if handoffPopup}
+  {@const c = handoffPopup}
+  <div
+    class="fm-overlay"
+    transition:fade={{ duration: 180 }}
+    role="dialog"
+    aria-modal="true"
+    tabindex="-1"
+    onclick={(e) => { if (e.target === e.currentTarget) handoffPopup = null; }}
+    onkeydown={(e) => { if (e.key === 'Escape') handoffPopup = null; }}
+  >
+    <div class="fm-modal" transition:scale={{ duration: 220, start: 0.95 }}>
+      <div class="fm-emoji">✨</div>
+      <h2 class="fm-title">Your turn to step in</h2>
+      <p class="fm-sub">
+        AI Bestie got to know <strong>{c.matchedUser.firstName}</strong> for you.
+        Reply to take it from here, or review what she learned first.
+      </p>
+      <div class="fm-actions">
+        <button class="fm-btn fm-btn-ghost" onclick={() => { handoffPopup = null; goto('/verified-vibe/chat/ai-bestie'); }}>Review</button>
+        <button class="fm-btn fm-btn-primary" onclick={() => { const id = c.matchId; handoffPopup = null; goto(`/verified-vibe/chat/${id}`); }}>Reply</button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <!-- ── Find Matches popups ── -->
 {#if fmPopup}
@@ -1610,5 +1825,84 @@
   @media (max-width: 767px) {
     .find-match-btn { padding: 7px 10px; font-size: 12px; }
     .fm-btn-icon { font-size: 13px; }
+  }
+
+  /* ── Hand-off ("Your move") + Inactive sections (spec B2) ── */
+  .handoff-section,
+  .inactive-section { padding: 10px 0 4px; flex-shrink: 0; }
+
+  .handoff-row .convo-avatar-wrap { display: grid; place-items: center; }
+  .countdown-ring {
+    position: absolute;
+    inset: -3px;
+    width: 58px;
+    height: 58px;
+    pointer-events: none;
+  }
+  .handoff-avatar {
+    width: 46px !important;
+    height: 46px !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+  }
+  .handoff-preview { color: #EC4899 !important; font-weight: 500; }
+
+  .countdown-pill {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Expired rows — muted, non-tappable, with a reactivate control for her */
+  .expired-row { cursor: default; }
+  .expired-row:hover { background: transparent; }
+  .expired-avatar {
+    opacity: 0.5;
+    border-color: var(--border-2) !important;
+    box-shadow: none !important;
+  }
+  .expired-name { color: var(--text-2); }
+
+  .reactivate-btn {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1.5px solid #EC4899;
+    background: rgba(236,72,153,0.1);
+    color: #EC4899;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 150ms;
+  }
+  .reactivate-btn:hover:not(:disabled) { background: rgba(236,72,153,0.2); }
+  .reactivate-btn:disabled { opacity: 0.6; cursor: progress; }
+
+  .inactive-tag {
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--text-3);
+  }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    z-index: 1100;
+    max-width: 92%;
+    padding: 12px 18px;
+    border-radius: 12px;
+    background: var(--text-1);
+    color: var(--bg-1);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
   }
 </style>
