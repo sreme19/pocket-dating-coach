@@ -32,6 +32,23 @@ export const load: PageServerLoad = async () => {
 		sb.from('verified_vibe_verification').select('user_id, step, status'),
 	]);
 
+	// Emails live in Supabase Auth (keyed by the same id as verified_vibe_users),
+	// not on the profile table. The bulk admin listUsers endpoint is broken on this
+	// project (returns a 500 "Database error finding users"), so resolve each id
+	// individually via getUserById — which works — in small concurrent batches.
+	const emailById = new Map<string, string>();
+	const userIds = (users ?? []).map((u) => u.id);
+	const EMAIL_BATCH = 10;
+	for (let i = 0; i < userIds.length; i += EMAIL_BATCH) {
+		const batch = userIds.slice(i, i + EMAIL_BATCH);
+		await Promise.all(
+			batch.map(async (id) => {
+				const { data: au } = await sb.auth.admin.getUserById(id);
+				if (au?.user?.email) emailById.set(id, au.user.email);
+			})
+		);
+	}
+
 	// Signups per day (last 30 days)
 	const signupsByDay = bucketByDay(users ?? [], 30);
 
@@ -160,6 +177,7 @@ export const load: PageServerLoad = async () => {
 		userList: (users ?? []).map((u) => ({
 			id: u.id,
 			name: u.first_name,
+			email: emailById.get(u.id) ?? null,
 			age: u.age,
 			city: u.city,
 			gender: u.gender,
