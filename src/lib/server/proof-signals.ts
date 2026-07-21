@@ -22,21 +22,41 @@
  */
 
 export const PROOF_REQUEST_CATEGORIES = [
+	'linkedin',
 	'travel',
-	'lifestyle',
 	'discipline',
+	'lifestyle',
 	'social_proof',
+	'assets',
 	'wealth',
 	'spending',
 ] as const;
 export type ProofRequestCategory = (typeof PROOF_REQUEST_CATEGORIES)[number];
 
+/**
+ * Priority order for what to invite first when several gaps are open — highest-
+ * leverage and lowest-friction categories lead. Career (linkedin) and the photo
+ * categories need no ID gate; wealth/spending/assets do, so they trail.
+ */
+export const PROOF_CATEGORY_PRIORITY: ProofRequestCategory[] = [
+	'linkedin',
+	'discipline',
+	'travel',
+	'lifestyle',
+	'social_proof',
+	'assets',
+	'wealth',
+	'spending',
+];
+
 /** Friendly labels for prompts + UI copy. */
 export const PROOF_CATEGORY_LABELS: Record<ProofRequestCategory, string> = {
+	linkedin: 'career (a LinkedIn screenshot, or your résumé)',
 	travel: 'travel (passport stamps, boarding passes, trip photos with you in them)',
-	lifestyle: 'lifestyle (photos of you living it — dining, events, experiences)',
 	discipline: 'fitness / discipline (you at the gym, training, sport)',
+	lifestyle: 'lifestyle (photos of you living it — dining, events, experiences)',
 	social_proof: 'social life (you with friends, at events)',
+	assets: 'assets (ownership papers for your car or other big things — needs verified ID)',
 	wealth: 'wealth (bank statement, payslip — needs verified ID)',
 	spending: 'spending (receipts, bills — needs verified ID)',
 };
