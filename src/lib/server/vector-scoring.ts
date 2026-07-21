@@ -167,6 +167,65 @@ export function upsideByDimension(attrs: Vec, conf: Vec): Array<{ dim: Dimension
 	return out.sort((a, b) => b.deltaPS - a.deltaPS);
 }
 
+export interface PortfolioAction {
+	dim: DimensionId;
+	label: string;
+	/** His matches (by name) whose appeal to him rises if he verifies this dim. */
+	helpedNames: string[];
+	stacksHelped: number;
+	totalStacks: number;
+	/** Summed appeal lift across all his matches (appeal points). */
+	totalLift: number;
+	/** Global Profile-Strength lift from proving this dim (pool-avg weights). */
+	deltaPS: number;
+}
+
+/**
+ * Portfolio / cross-match coaching (§10 middle "portfolio" zoom, §11a). Ranks the
+ * man's VERIFY actions (prove dim d → c[d]→1) by BREADTH of impact — how many of
+ * his matches each move lifts, and by how much in total. Generalises
+ * upsideByDimension (a single GLOBAL number) into "verify income → helps you with
+ * Maya AND Anjali." Pure arithmetic over precomputed vectors; OPEN dims only,
+ * skips already-proven dims. `minLift` is the appeal-point threshold for a stack
+ * to count as helped.
+ */
+export function portfolioActions(
+	myAttrs: Vec,
+	myConf: Vec,
+	stacks: Array<{ name: string; weights: Vec }>,
+	opts: { minLift?: number; max?: number } = {},
+): PortfolioAction[] {
+	const minLift = opts.minLift ?? 1;
+	const max = opts.max ?? 3;
+	const psBase = profileStrength(myAttrs, myConf);
+	const out: PortfolioAction[] = [];
+	for (const d of OPEN_DIMENSION_IDS) {
+		if ((myConf[d] ?? 0) >= 1) continue; // already proven — nothing to verify
+		const c2: Vec = { ...myConf, [d]: 1 };
+		const helpedNames: string[] = [];
+		let totalLift = 0;
+		for (const s of stacks) {
+			const lift = appeal(s.weights, myAttrs, c2) - appeal(s.weights, myAttrs, myConf);
+			if (lift >= minLift) { helpedNames.push(s.name); totalLift += lift; }
+		}
+		const deltaPS = round1(profileStrength(myAttrs, c2) - psBase);
+		if (helpedNames.length === 0 && deltaPS <= 0) continue;
+		out.push({
+			dim: d,
+			label: OPEN_DIMENSIONS.find((x) => x.id === d)?.label ?? d,
+			helpedNames,
+			stacksHelped: helpedNames.length,
+			totalStacks: stacks.length,
+			totalLift: round1(totalLift),
+			deltaPS,
+		});
+	}
+	// Breadth first (helps the most matches at once), then total lift, then global PS.
+	return out
+		.sort((a, b) => b.stacksHelped - a.stacksHelped || b.totalLift - a.totalLift || b.deltaPS - a.deltaPS)
+		.slice(0, max);
+}
+
 export interface PathGap {
 	dim: DimensionId;
 	label: string;

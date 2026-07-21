@@ -25,7 +25,7 @@ import { touchLastActive } from '$lib/server/pool-registry';
 import { popPendingChatMessage } from '$lib/server/intelligence-report-processor';
 import { buildCompetitiveSnapshot } from '$lib/server/competitive-snapshot';
 import { loadMatchIntelligenceContext } from '$lib/server/match-intelligence';
-import { loadVectorAdvisorContext, loadPathPlanContext } from '$lib/server/vector-advisor-context';
+import { loadVectorAdvisorContext, loadPathPlanContext, loadPortfolioContext } from '$lib/server/vector-advisor-context';
 import { complianceGate } from '$lib/server/ai-compliance';
 import { logAppError } from '$lib/server/logAppError';
 
@@ -109,6 +109,8 @@ export const POST: RequestHandler = async ({ request }) => {
 		const profileStrengthContext = await loadVectorAdvisorContext(supabase, userId);
 		// Per-match path-plan levers (§11c) — flag-gated, empty otherwise.
 		const pathPlanContext = await loadPathPlanContext(supabase, userId);
+		// Cross-match portfolio (§10/§11a) — verify-actions ranked by breadth of impact.
+		const portfolioContext = await loadPortfolioContext(supabase, userId);
 
 		// ── Build system prompt ────────────────────────────────────────────────
 		const systemPrompt = buildAIWingmanAdvisorSystemPrompt({
@@ -122,6 +124,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			matchIntelligenceContext,
 			profileStrengthContext,
 			pathPlanContext,
+			portfolioContext,
 			pendingReportContext
 		});
 

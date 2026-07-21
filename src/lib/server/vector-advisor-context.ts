@@ -20,6 +20,7 @@ import {
 	upsidePreview,
 	upsideByDimension,
 	pathGaps,
+	portfolioActions,
 	type Vec,
 } from './vector-scoring';
 
@@ -135,6 +136,66 @@ export async function loadPathPlanContext(supabase: any, manId: string): Promise
 PATH PLAN (deterministic per-match levers — translate into APPROACH advice, NEVER state her weights or these labels as "what she wants"):
 ${lines.join('\n')}
 For each: "verify" means the fastest win is proving an existing claim (raises confidence → appeal to her). "thin" means genuinely add/show more. Lead with the single highest-leverage move per match.`;
+	} catch {
+		return '';
+	}
+}
+
+/**
+ * Portfolio / cross-match coaching for the Wingman (§10 "portfolio" zoom, §11a):
+ * ranks his verify-actions by how many of his matches each one lifts at once —
+ * "verify income → helps you with Maya AND Anjali", not just a single global number.
+ * Only meaningful across ≥2 matches (a single match is covered by the path plan).
+ * Names ARE his own matches (fine to name); still never exposes her weights.
+ * Flag-gated; '' when off / <2 matches with vectors. Pure arithmetic.
+ */
+export async function loadPortfolioContext(supabase: any, manId: string): Promise<string> {
+	if (!advisorVectorsEnabled()) return '';
+	try {
+		const { data: me } = await supabase
+			.from('vv_user_vectors').select('attributes, confidence').eq('user_id', manId).maybeSingle();
+		if (!me?.attributes) return '';
+		const myAttrs = me.attributes as Vec;
+		const myConf = (me.confidence ?? {}) as Vec;
+
+		const { data: matches } = await supabase
+			.from('verified_vibe_matches')
+			.select('user1_id, user2_id')
+			.or(`user1_id.eq.${manId},user2_id.eq.${manId}`)
+			.eq('status', 'mutual');
+		const partnerIds: string[] = (matches ?? []).map((m: any) => (m.user1_id === manId ? m.user2_id : m.user1_id));
+		if (partnerIds.length < 2) return ''; // portfolio is inherently cross-match
+
+		const { data: women } = await supabase
+			.from('verified_vibe_users').select('id, first_name, gender').in('id', partnerIds).eq('gender', 'woman');
+		const nameMap = new Map<string, string>((women ?? []).map((u: any) => [u.id, u.first_name ?? 'She']));
+		if (nameMap.size < 2) return '';
+
+		const { data: vecs } = await supabase
+			.from('vv_user_vectors').select('user_id, weights').in('user_id', [...nameMap.keys()]);
+		const stacks = (vecs ?? [])
+			.filter((v: any) => v.weights && Object.keys(v.weights).length)
+			.map((v: any) => ({ name: nameMap.get(v.user_id) ?? 'She', weights: v.weights as Vec }));
+		if (stacks.length < 2) return '';
+
+		const actions = portfolioActions(myAttrs, myConf, stacks, { max: 3 });
+		if (!actions.length) return '';
+
+		const total = stacks.length;
+		const lines = actions.map((a) => {
+			const names = a.helpedNames.length ? a.helpedNames.map((n) => `**${n}**`).join(', ') : '';
+			const breadth = a.stacksHelped > 0
+				? `lifts him with ${a.stacksHelped} of ${total} matches (${names})`
+				: 'raises his overall standing';
+			const ps = a.deltaPS > 0 ? ` · ~+${a.deltaPS} to overall Profile Strength` : '';
+			return `  - Verify ${a.label.toLowerCase()} → ${breadth}${ps}`;
+		});
+
+		return `
+
+CROSS-MATCH IMPACT (portfolio — rank moves by how many of his matches they help AT ONCE; §10):
+${lines.join('\n')}
+Lead with the move that helps the MOST matches simultaneously — "proving this lifts you with several people at once" is far more motivating than a single-match tip. These are HIS matches by name (fine to name them); still NEVER state any woman's preference weights. Make the leverage explicit: one verification can advance several stacks AND his global standing together.`;
 	} catch {
 		return '';
 	}

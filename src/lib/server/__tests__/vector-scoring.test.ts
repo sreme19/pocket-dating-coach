@@ -9,6 +9,7 @@ import {
 	upsidePreview,
 	upsideByDimension,
 	pathGaps,
+	portfolioActions,
 	type Vec,
 } from '../vector-scoring';
 import {
@@ -164,5 +165,43 @@ describe('pathGaps — per-match coaching levers (§11c)', () => {
 		const herWeights: Vec = { ...fill(0), looks: 1, faith: 1 }; // sensitive only
 		const gaps = pathGaps(herWeights, fill(30), fill(0.3));
 		expect(gaps.length).toBe(0); // nothing coachable
+	});
+});
+
+describe('portfolioActions — cross-match breadth (§10/§11a)', () => {
+	// Man: strong-but-UNPROVEN financial claim; ambition already proven; rest neutral.
+	const attrs: Vec = { ...fill(50), financial: 80, ambition: 70 };
+	const conf: Vec = { ...fill(0.3), ambition: 1 };
+
+	it('ranks a verify-action by how many matches it helps, names them, skips proven dims', () => {
+		const stacks = [
+			{ name: 'Alice', weights: weightsOn(['financial']) },
+			{ name: 'Bella', weights: weightsOn(['financial']) },
+			{ name: 'Cara',  weights: weightsOn(['humor']) },
+		];
+		const actions = portfolioActions(attrs, conf, stacks, { max: 5 });
+
+		const financial = actions.find((a) => a.dim === 'financial');
+		const humor = actions.find((a) => a.dim === 'humor');
+
+		// Verifying financial helps the two financial-weighting women; humor helps one.
+		expect(financial?.stacksHelped).toBe(2);
+		expect(financial?.helpedNames.sort()).toEqual(['Alice', 'Bella']);
+		expect(humor?.stacksHelped).toBe(1);
+		expect(humor?.helpedNames).toEqual(['Cara']);
+
+		// Breadth wins: the 2-stack move outranks the 1-stack move.
+		expect(actions[0].dim).toBe('financial');
+
+		// Already-proven dims are never a verify-action.
+		expect(actions.some((a) => a.dim === 'ambition')).toBe(false);
+	});
+
+	it('degrades to global-PS upside when there are no stacks (stacksHelped=0)', () => {
+		const actions = portfolioActions(attrs, conf, []);
+		expect(actions.length).toBeGreaterThan(0);         // still surfaces global upside
+		expect(actions.every((a) => a.stacksHelped === 0)).toBe(true);
+		expect(actions.every((a) => a.helpedNames.length === 0)).toBe(true);
+		expect(actions.every((a) => a.deltaPS > 0)).toBe(true);
 	});
 });
