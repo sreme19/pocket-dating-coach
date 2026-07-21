@@ -13,6 +13,16 @@
   const COMING_SOON = true;
   const isAdminPreview = $derived($page.url.searchParams.has('adminPreview'));
 
+  // In admin preview, the profile being viewed is /verified-vibe/profile/<id>.
+  // Grab that id so the Chat nav can jump straight to this user's conversations
+  // in the admin QA inspector instead of the member chat route (which needs a
+  // member session and would bounce the admin to auth).
+  const adminPreviewUserId = $derived(
+    isAdminPreview
+      ? (pathname.match(/^\/verified-vibe\/profile\/([^/]+)/)?.[1] ?? null)
+      : null
+  );
+
   let { children } = $props();
   let hydrationComplete = $state(false);
   let pathname = $derived($page.url.pathname);
@@ -156,7 +166,16 @@
           {@const Icon = item.icon}
           <button
             class="nav-item {active ? 'active' : ''}"
-            onclick={async () => { currentTab.set(item.tab); await goto(`/verified-vibe/${item.tab}`); }}
+            onclick={async () => {
+              // Admin preview: Chat inspects this user's conversations in the QA
+              // console rather than opening the member chat (no member session here).
+              if (isAdminPreview && item.tab === 'chat') {
+                await goto(adminPreviewUserId ? `/admin/qa?user=${adminPreviewUserId}` : '/admin/qa');
+                return;
+              }
+              currentTab.set(item.tab);
+              await goto(`/verified-vibe/${item.tab}`);
+            }}
             title={item.label}
           >
             <div class="nav-icon">
