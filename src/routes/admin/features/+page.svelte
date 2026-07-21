@@ -37,7 +37,18 @@
 		})
 	);
 
-	let proofOpen = $state(false);
+	let openKeys = $state<Record<string, boolean>>({});
+	const expandable = (f: (typeof data.features)[number]) => f.key === 'proof' || !!(f.breakdown && f.breakdown.length);
+	function toggle(k: string) {
+		openKeys = { ...openKeys, [k]: !openKeys[k] };
+	}
+
+	const STEP_LABELS: Record<string, string> = {
+		id: 'Government ID',
+		liveness: 'Liveness / selfie',
+		photos: 'Profile photos',
+		spending_or_qa: 'Spending / Q&A'
+	};
 
 	const tierColor: Record<string, string> = { good: '#34d399', warn: '#fbbf24', crit: '#fb7185' };
 	const tierLabel: Record<string, string> = { good: 'Healthy', warn: 'Low use', crit: 'Dormant' };
@@ -69,7 +80,7 @@
 
 	const CAT_LABELS: Record<string, string> = {
 		travel: 'Travel', lifestyle: 'Lifestyle', discipline: 'Discipline', social_proof: 'Social proof',
-		wealth: 'Wealth', spending: 'Spending', assets: 'Assets', hosting: 'Hosting', linkedin: 'LinkedIn',
+		wealth: 'Wealth', spending: 'Spending', assets: 'Assets (garage)', hosting: 'Hosting', linkedin: 'LinkedIn',
 		instagram: 'Instagram', twitter: 'Twitter / X', habit_tracker: 'Habit tracker', intro: 'Intro', unknown: 'Uncategorised'
 	};
 	const catLabel = (c: string) => CAT_LABELS[c] ?? c;
@@ -163,12 +174,12 @@
 						{#each sorted as f}
 							{@const sp = spark(f.spark)}
 							<tr
-								class="border-b border-white/[0.06] {f.key === 'proof' ? 'cursor-pointer' : ''} hover:bg-white/[0.02]"
-								onclick={() => f.key === 'proof' && (proofOpen = !proofOpen)}
+								class="border-b border-white/[0.06] {expandable(f) ? 'cursor-pointer' : ''} hover:bg-white/[0.02]"
+								onclick={() => expandable(f) && toggle(f.key)}
 							>
 								<td class="px-4 py-2.5">
 									<div class="flex items-center gap-2">
-										{#if f.key === 'proof'}<span class="text-[10px] text-emerald-400">{proofOpen ? '▼' : '▶'}</span>{:else}<span class="w-[10px]"></span>{/if}
+										{#if expandable(f)}<span class="text-[10px] text-emerald-400">{openKeys[f.key] ? '▼' : '▶'}</span>{:else}<span class="w-[10px]"></span>{/if}
 										<span class="font-semibold text-slate-100">{f.name}</span>
 										<span class="rounded-full border border-white/[0.08] px-2 py-0.5 text-[10px] uppercase tracking-wide text-slate-500">{f.group}</span>
 									</div>
@@ -197,10 +208,14 @@
 									</span>
 								</td>
 							</tr>
-							{#if f.key === 'proof' && proofOpen}
+							{#if expandable(f) && openKeys[f.key]}
 								<tr class="bg-white/[0.015]">
 									<td colspan="7" class="px-4 py-4">
-										{@render proofDrill()}
+										{#if f.key === 'proof'}
+											{@render proofDrill(f.breakdown ?? [])}
+										{:else if f.key === 'verification'}
+											{@render stepBreakdown(f.breakdown ?? [])}
+										{/if}
 									</td>
 								</tr>
 							{/if}
@@ -236,8 +251,27 @@
 	</div>
 </div>
 
-{#snippet proofDrill()}
+{#snippet proofDrill(catBreakdown: { key: string; uses: number; users: number }[])}
 	<div class="rounded-xl border border-white/[0.06] bg-[#0d1526] p-4">
+		<!-- Which proofs people actually upload (real data, filter-aware) -->
+		<div class="mb-4">
+			<div class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Which proofs people upload</div>
+			{#if catBreakdown.length}
+				{@const maxU = Math.max(1, ...catBreakdown.map((c) => c.users))}
+				<div class="flex flex-col gap-1.5">
+					{#each catBreakdown as c}
+						<div class="grid grid-cols-[140px_1fr_92px] items-center gap-3">
+							<span class="truncate text-[12.5px] text-slate-200" title={catLabel(c.key)}>{catLabel(c.key)}</span>
+							<span class="h-3 overflow-hidden rounded bg-white/[0.06]"><span class="block h-full rounded bg-emerald-500" style="width:{(c.users / maxU) * 100}%;min-width:2px"></span></span>
+							<span class="text-right text-[12px] tabular-nums text-slate-400">{c.users} users · {c.uses}</span>
+						</div>
+					{/each}
+				</div>
+			{:else}
+				<p class="text-[12.5px] text-slate-500">No verified proofs in this window for the current filter.</p>
+			{/if}
+		</div>
+
 		<div class="mb-1 flex items-baseline justify-between">
 			<h3 class="text-[13px] font-semibold text-slate-100">Open → upload funnel <span class="ml-1 rounded-full border border-sky-400/30 px-1.5 py-0.5 text-[9.5px] uppercase text-sky-300">men only</span></h3>
 			<span class="text-[11px] text-slate-500">mobile app · {data.proof.days}d</span>
@@ -271,11 +305,9 @@
 			{/each}
 		</div>
 
-		<div class="mt-4">
-			<div class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-				{data.proof.categories.length ? 'By category (verified / attempts)' : 'Verified proofs on record, by category'}
-			</div>
-			{#if data.proof.categories.length}
+		{#if data.proof.categories.length}
+			<div class="mt-4">
+				<div class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Upload verify-rate by category</div>
 				<div class="flex flex-col gap-1.5">
 					{#each data.proof.categories as c}
 						<div class="flex items-center justify-between text-[12.5px]">
@@ -284,15 +316,27 @@
 						</div>
 					{/each}
 				</div>
-			{:else if data.proof.onRecord.byCategory.length}
-				<div class="grid grid-cols-2 gap-x-6 gap-y-1">
-					{#each data.proof.onRecord.byCategory as c}
-						<div class="flex items-center justify-between text-[12.5px]"><span class="text-slate-200">{catLabel(c.cat)}</span><span class="tabular-nums text-emerald-400">{c.n}</span></div>
-					{/each}
-				</div>
-			{:else}
-				<p class="text-[12.5px] text-slate-500">No proofs in this window.</p>
-			{/if}
-		</div>
+			</div>
+		{/if}
+	</div>
+{/snippet}
+
+{#snippet stepBreakdown(items: { key: string; uses: number; users: number }[])}
+	<div class="rounded-xl border border-white/[0.06] bg-[#0d1526] p-4">
+		<div class="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Which verification steps people complete</div>
+		{#if items.length}
+			{@const maxU = Math.max(1, ...items.map((c) => c.users))}
+			<div class="flex flex-col gap-1.5">
+				{#each items as c}
+					<div class="grid grid-cols-[160px_1fr_92px] items-center gap-3">
+						<span class="truncate text-[12.5px] text-slate-200" title={STEP_LABELS[c.key] ?? c.key}>{STEP_LABELS[c.key] ?? c.key}</span>
+						<span class="h-3 overflow-hidden rounded bg-white/[0.06]"><span class="block h-full rounded bg-emerald-500" style="width:{(c.users / maxU) * 100}%;min-width:2px"></span></span>
+						<span class="text-right text-[12px] tabular-nums text-slate-400">{c.users} users · {c.uses}</span>
+					</div>
+				{/each}
+			</div>
+		{:else}
+			<p class="text-[12.5px] text-slate-500">No verification steps in this window for the current filter.</p>
+		{/if}
 	</div>
 {/snippet}
