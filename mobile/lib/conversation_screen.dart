@@ -573,6 +573,14 @@ class _ConversationScreenState extends State<ConversationScreen> {
     final req = _proofRequest;
     if (req == null || !req.active || _proofUploading) return;
 
+    // Face-gated categories only count photos the account owner is actually in
+    // (server matches each shot to his verified selfie). Non-photo categories
+    // (career/wealth/spending/assets) are documents — no face needed.
+    const faceGated = {'travel', 'discipline', 'lifestyle', 'social_proof'};
+    final guidance = faceGated.contains(req.category)
+        ? 'Add as many clear photos of you as you can — up to 10. Your face has to be visible in each one, or it won\'t count.'
+        : 'Add up to 10 clear photos or pages. The more you add, the stronger it verifies.';
+
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: const Color(Config.bg2),
@@ -580,10 +588,15 @@ class _ConversationScreenState extends State<ConversationScreen> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const SizedBox(height: 8),
+          const SizedBox(height: 14),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: Text(guidance,
+                style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.35)),
+          ),
           ListTile(
             leading: const Icon(Icons.photo_library_outlined, color: Color(Config.text1)),
-            title: const Text('Choose from gallery', style: TextStyle(color: Color(Config.text1))),
+            title: const Text('Choose from gallery (pick several)', style: TextStyle(color: Color(Config.text1))),
             onTap: () => Navigator.pop(ctx, ImageSource.gallery),
           ),
           ListTile(
@@ -597,12 +610,24 @@ class _ConversationScreenState extends State<ConversationScreen> {
     );
     if (source == null) return;
 
-    final file = await ImagePicker().pickImage(source: source, imageQuality: 85);
-    if (file == null) return;
+    // Gallery → up to 10 photos at once; camera → a single shot. More clear
+    // photos of him = a stronger verified signal (unmatched faces are dropped
+    // server-side), so we actively allow a batch here.
+    final List<String> paths;
+    if (source == ImageSource.gallery) {
+      final picked = await ImagePicker().pickMultiImage(imageQuality: 85);
+      if (picked.isEmpty) return;
+      if (picked.length > 10) _proofSnack('Added your first 10 photos.');
+      paths = picked.take(10).map((f) => f.path).toList();
+    } else {
+      final file = await ImagePicker().pickImage(source: source, imageQuality: 85);
+      if (file == null) return;
+      paths = [file.path];
+    }
 
     setState(() => _proofUploading = true);
     try {
-      final res = await uploadProof(req.category, [file.path], matchId: widget.conversationId);
+      final res = await uploadProof(req.category, paths, matchId: widget.conversationId);
       if (!mounted) return;
 
       if (res['requiresIdVerification'] == true) {

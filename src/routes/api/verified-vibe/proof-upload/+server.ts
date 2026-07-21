@@ -1046,7 +1046,7 @@ export const POST: RequestHandler = async ({ request }) => {
     // photo numbers (1-based) can be mapped back to files for thumbnails.
     const imageFiles: File[] = [];
     const imageBlocks: object[] = [];
-    for (const file of files.slice(0, 8)) {          // cap at 8 per Vision call
+    for (const file of files.slice(0, 10)) {         // cap at 10 per Vision call (+1 anchor selfie when face-gated)
       if (!file.type.startsWith('image/')) continue;
       const buf  = await file.arrayBuffer();
       const b64  = Buffer.from(buf).toString('base64');
