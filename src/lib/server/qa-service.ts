@@ -585,7 +585,7 @@ export async function saveReview(sb: SB, input: SaveReviewInput): Promise<{ erro
 		advisor_chat_id: input.advisorChatId ?? null,
 		voice_call_id: input.voiceCallId ?? null,
 		reviewer: input.reviewer,
-		score_accuracy: input.scores.accuracy,
+		score_accuracy: null,
 		score_tone: input.scores.tone,
 		score_safety: input.scores.safety,
 		score_helpfulness: input.scores.helpfulness,
@@ -613,12 +613,11 @@ export async function getQaStats(sb: SB): Promise<QaStats> {
 	const reviewerAgg = new Map<string, { count: number; scores: number[] }>();
 	const escalations: QaStats['escalations'] = [];
 
-	const dimVals: Record<RubricKey, number[]> = { accuracy: [], tone: [], safety: [], helpfulness: [] };
+	const dimVals: Record<RubricKey, number[]> = { tone: [], safety: [], helpfulness: [] };
 
 	for (const r of reviews) {
 		byStatus[r.status] = (byStatus[r.status] ?? 0) + 1;
 		// Skip N/A (0) and null — only real 1..5 scores feed the dimension averages.
-		if (typeof r.score_accuracy === 'number' && r.score_accuracy >= 1) dimVals.accuracy.push(r.score_accuracy);
 		if (typeof r.score_tone === 'number' && r.score_tone >= 1) dimVals.tone.push(r.score_tone);
 		if (typeof r.score_safety === 'number' && r.score_safety >= 1) dimVals.safety.push(r.score_safety);
 		if (typeof r.score_helpfulness === 'number' && r.score_helpfulness >= 1) dimVals.helpfulness.push(r.score_helpfulness);
@@ -647,7 +646,6 @@ export async function getQaStats(sb: SB): Promise<QaStats> {
 		matchesReviewed: new Set(reviews.map((r) => r.match_id ?? r.advisor_chat_id ?? r.voice_call_id)).size,
 		byStatus,
 		avgByDimension: {
-			accuracy: mean(dimVals.accuracy),
 			tone: mean(dimVals.tone),
 			safety: mean(dimVals.safety),
 			helpfulness: mean(dimVals.helpfulness)
