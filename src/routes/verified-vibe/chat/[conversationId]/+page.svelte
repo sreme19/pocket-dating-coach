@@ -181,10 +181,12 @@
 
   // Short human labels for the banner / notices.
   const PROOF_CATEGORY_SHORT: Record<string, string> = {
+    linkedin:     'your career (a LinkedIn screenshot or résumé)',
     travel:       'travel proof (passport stamps, trip photos with you in them)',
     lifestyle:    'a lifestyle photo (you living it)',
     discipline:   'a fitness photo (you training)',
     social_proof: 'a photo with your people',
+    assets:       'proof of what you own (car or ownership papers)',
     wealth:       'wealth proof (bank statement, payslip)',
     spending:     'spending proof (receipts, bills)',
   };
