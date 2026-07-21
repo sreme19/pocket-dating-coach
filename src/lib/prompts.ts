@@ -395,6 +395,8 @@ export interface WingmanAdvisorPromptContext {
 	profileStrengthContext?: string;
 	/** Per-match path-plan levers — dims she weights where his proven value has room (§11c). */
 	pathPlanContext?: string;
+	/** Cross-match portfolio — verify-actions ranked by how many of his matches they lift (§10/§11a). */
+	portfolioContext?: string;
 }
 
 /**
@@ -437,7 +439,7 @@ Your role:
 
 Tone: like your most trusted, insightful friend who genuinely believes in you and wants to see you win. Warm and uplifting first, tactical second. Never dismissive or cold. Short paragraphs. Practical but encouraging.
 Format: use **bold** for names and key points. Use bullets (- item) for multi-point info. Use emoji warmly — 🟢 going well, 💡 tip, ⚡ opportunity, ✨ highlight, 💪 strength. Keep it mobile-friendly and motivating.
-${ctx.personalityContext}${ctx.masterProfileContext}${ctx.artifactsContext}${ctx.verificationContext ?? ''}${ctx.admirerContext}${ctx.matchContext}${ctx.competitiveContext ?? ''}${ctx.matchIntelligenceContext ?? ''}${ctx.profileStrengthContext ?? ''}${ctx.pathPlanContext ?? ''}${ctx.pendingReportContext}`;
+${ctx.personalityContext}${ctx.masterProfileContext}${ctx.artifactsContext}${ctx.verificationContext ?? ''}${ctx.admirerContext}${ctx.matchContext}${ctx.competitiveContext ?? ''}${ctx.matchIntelligenceContext ?? ''}${ctx.profileStrengthContext ?? ''}${ctx.pathPlanContext ?? ''}${ctx.portfolioContext ?? ''}${ctx.pendingReportContext}`;
 }
 
 /**
