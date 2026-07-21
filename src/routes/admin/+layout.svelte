@@ -13,6 +13,7 @@
 		{ href: '/admin/features', label: 'Feature Usage' },
 		{ href: '/admin/test-suite', label: 'AI Assistants' },
 		{ href: '/admin/photos', label: 'AI Photos' },
+		{ href: '/admin/gemini', label: 'Gemini Lab' },
 		{ href: '/admin/monitoring', label: 'Monitoring' },
 		{ href: '/admin/beta', label: 'Beta Invites' },
 		{ href: '/admin/logs', label: 'App Logs' }

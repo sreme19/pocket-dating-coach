@@ -18,6 +18,7 @@ const ALLOWED_DAYS = [7, 30, 90];
 type Filter = { days: number; gender: 'all' | 'man' | 'woman'; seed: 'exclude' | 'include' };
 type UserMeta = { gender: string; is_seed: boolean };
 type Ev = { user: string | null; at: string };
+type SubItem = { key: string; uses: number; users: number };
 
 export const load: PageServerLoad = async ({ url }) => {
 	const sb = getSupabase();
@@ -93,6 +94,17 @@ export const load: PageServerLoad = async ({ url }) => {
 	const advisorRows = (advisor.data ?? []) as any[];
 	const verifRows = (verification.data ?? []) as any[];
 
+	// Filter-aware sub-breakdowns for the two multi-part features: which
+	// verification steps / which proof categories users are actually doing.
+	const vBreak = subBreakdown(
+		verifRows.filter((r) => !String(r.step).startsWith('proof_')),
+		(r) => String(r.step)
+	);
+	const pBreak = subBreakdown(
+		verifRows.filter((r) => String(r.step).startsWith('proof_')),
+		(r) => String(r.step).replace(/^proof_/, '')
+	);
+
 	const features = [
 		feat('likes', 'Likes sent', 'Discovery', asEv(likes.data, 'user_id')),
 		feat('passes', 'Passes', 'Discovery', asEv(passes.data, 'user_id')),
@@ -107,15 +119,15 @@ export const load: PageServerLoad = async ({ url }) => {
 		feat('bestie', 'AI Bestie', 'AI Coach', asEv(advisorRows.filter((r) => r.assistant_type === 'bestie'), 'user_id')),
 		feat('wingman', 'AI Wingman', 'AI Coach', asEv(advisorRows.filter((r) => r.assistant_type === 'wingman'), 'user_id')),
 		feat('attention', 'Attention / Promote', 'Messaging', asEv(attention.data, 'sender_id')),
-		feat('verification', 'Verification steps', 'Onboarding', asEv(verifRows.filter((r) => !String(r.step).startsWith('proof_')), 'user_id')),
-		feat('proof', 'Proof upload', 'Trust & Safety', asEv(verifRows.filter((r) => String(r.step).startsWith('proof_')), 'user_id'))
+		feat('verification', 'Verification steps', 'Onboarding', asEv(verifRows.filter((r) => !String(r.step).startsWith('proof_')), 'user_id'), vBreak),
+		feat('proof', 'Proof upload', 'Trust & Safety', asEv(verifRows.filter((r) => String(r.step).startsWith('proof_')), 'user_id'), pBreak)
 	].sort((a, b) => b.pct - a.pct);
 
 	// ── Proof funnel drill-down (mobile events; date-filtered only) ──────────────
 	const proof = buildProofFunnel((proofEvents.data ?? []) as any[], verifRows, days);
 
 	// Helper closures capture `passUser`, `base`, `days`, `since` — declared below.
-	function feat(key: string, name: string, group: string, events: Ev[]) {
+	function feat(key: string, name: string, group: string, events: Ev[], breakdown: SubItem[] | null = null) {
 		const kept = events.filter((e) => passUser(e.user));
 		const uses = kept.length;
 		const userSet = new Set(kept.map((e) => e.user));
@@ -124,7 +136,23 @@ export const load: PageServerLoad = async ({ url }) => {
 		const tier = pct >= 30 ? 'good' : pct >= 5 ? 'warn' : 'crit';
 		let last: string | null = null;
 		for (const e of kept) if (!last || e.at > last) last = e.at;
-		return { key, name, group, uses, users: usersCount, pct: round1(pct), tier, lastUsed: last, spark: bucket(kept, days) };
+		return { key, name, group, uses, users: usersCount, pct: round1(pct), tier, lastUsed: last, spark: bucket(kept, days), breakdown };
+	}
+
+	// Group filtered rows by a sub-key (step / category) → per-part uses + users.
+	function subBreakdown(rows: any[], keyFn: (r: any) => string): SubItem[] {
+		const m = new Map<string, { uses: number; users: Set<string> }>();
+		for (const r of rows) {
+			if (!passUser(r.user_id)) continue;
+			const k = keyFn(r);
+			const e = m.get(k) ?? { uses: 0, users: new Set<string>() };
+			e.uses++;
+			e.users.add(r.user_id);
+			m.set(k, e);
+		}
+		return [...m.entries()]
+			.map(([key, e]) => ({ key, uses: e.uses, users: e.users.size }))
+			.sort((a, b) => b.users - a.users || b.uses - a.uses);
 	}
 
 	return {
