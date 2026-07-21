@@ -392,13 +392,15 @@
         Everything here stays private. We only verify that this profile reflects real life. This improves Trust Score and who they match with.
       </div>
 
-      <!-- CTA -->
-      <div class="cta-wrap">
-        <a href="/verified-vibe/auth?mode=signin" class="cta-btn">
-          Connect on riteangle
-        </a>
-        <p class="cta-sub">Join to see their full verified profile</p>
-      </div>
+      <!-- CTA — hidden in admin preview (admins aren't joining) -->
+      {#if !adminPreview}
+        <div class="cta-wrap">
+          <a href="/verified-vibe/auth?mode=signin" class="cta-btn">
+            Connect on riteangle
+          </a>
+          <p class="cta-sub">Join to see their full verified profile</p>
+        </div>
+      {/if}
     </div>
   {/if}
 </div>

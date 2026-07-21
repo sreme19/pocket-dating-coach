@@ -1,7 +1,25 @@
 <script lang="ts">
 	import type { PageData } from './$types';
+	import { page as urlPage } from '$app/stores';
+	import { goto } from '$app/navigation';
 
 	let { data }: { data: PageData } = $props();
+
+	// Optional ?user=<id> filter — set when arriving from the admin profile preview's
+	// Chat nav, to scope the queue to one user's conversations.
+	const userFilter = $derived($urlPage.url.searchParams.get('user'));
+	const userFilterName = $derived.by(() => {
+		if (!userFilter) return null;
+		for (const r of data.queue) {
+			if (r.participantA.id === userFilter) return r.participantA.name;
+			if (r.participantB.id === userFilter) return r.participantB.name;
+		}
+		return null;
+	});
+
+	function clearUserFilter() {
+		goto('/admin/qa');
+	}
 
 	let aiOnly = $state(false);
 	let reviewFilter = $state<'all' | 'unreviewed' | 'reviewed'>('unreviewed');
@@ -29,6 +47,8 @@
 	let filtered = $derived(
 		data.queue
 			.filter((r) => {
+				if (userFilter && r.participantA.id !== userFilter && r.participantB.id !== userFilter)
+					return false;
 				if (aiOnly && !r.hasAi) return false;
 				if (reviewFilter === 'unreviewed' && r.review) return false;
 				if (reviewFilter === 'reviewed' && !r.review) return false;
@@ -95,6 +115,21 @@
 	<p class="mb-6 text-sm text-slate-500">
 		{stats.withAi} threads with AI activity · {stats.unreviewed} awaiting review
 	</p>
+
+	{#if userFilter}
+		<div class="mb-5 flex items-center gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] px-4 py-2.5 text-sm">
+			<span class="text-slate-300">
+				Showing conversations for
+				<span class="font-medium text-emerald-300">{userFilterName ?? userFilter}</span>
+				· {filtered.length} thread{filtered.length === 1 ? '' : 's'}
+			</span>
+			<button
+				onclick={clearUserFilter}
+				class="ml-auto rounded-md border border-white/[0.1] px-2.5 py-1 text-xs text-slate-400 hover:text-slate-200"
+				>Clear filter ✕</button
+			>
+		</div>
+	{/if}
 
 	<div class="mb-5 flex flex-wrap items-center gap-2">
 		<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-xs">
