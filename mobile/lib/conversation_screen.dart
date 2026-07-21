@@ -9,6 +9,7 @@ import 'config.dart';
 import 'match_profile_screen.dart';
 import 'push_service.dart';
 import 'voice_call_screen.dart';
+import 'trust_boost_screen.dart';
 
 class ConversationScreen extends StatefulWidget {
   final String conversationId;
@@ -565,6 +566,83 @@ class _ConversationScreenState extends State<ConversationScreen> {
     );
   }
 
+  /// Post-verify confirmation + Trust & Boost nudge. Shown once a proof clears
+  /// verification: celebrates it, then points the man at Trust & Boost to add
+  /// more, with the payoff spelled out plainly. Only he sees this.
+  void _showBoostNudge({required int pts}) {
+    if (!mounted) return;
+    final name = _otherName.isNotEmpty ? _otherName : 'She';
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(Config.bg2),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              const Icon(Icons.verified_rounded, color: Color(0xFF10B981), size: 22),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('Verified · +$pts trust points',
+                    style: const TextStyle(color: Color(0xFF10B981), fontSize: 16, fontWeight: FontWeight.w700)),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            Text('Saved to your profile. $name only ever sees that it\'s verified, never your photos.',
+                style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.4)),
+            const SizedBox(height: 20),
+            const Text('Add more in Trust & Boost',
+                style: TextStyle(color: Color(Config.text1), fontSize: 16, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 12),
+            _boostBenefit(Icons.trending_up_rounded, 'Get more popular on the platform'),
+            _boostBenefit(Icons.shield_outlined, 'Women trust you faster'),
+            _boostBenefit(Icons.chat_bubble_outline_rounded, 'Leads to real conversations sooner'),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(Config.accent),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const TrustBoostScreen(scrollToShowOff: true)),
+                  );
+                },
+                child: const Text('Open Trust & Boost',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+              ),
+            ),
+            Center(
+              child: TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Maybe later', style: TextStyle(color: Color(Config.text3), fontSize: 14)),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _boostBenefit(IconData icon, String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, color: const Color(Config.accent), size: 19),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text, style: const TextStyle(color: Color(Config.text1), fontSize: 14, height: 1.3)),
+          ),
+        ]),
+      );
+
   /// Man answers his match's Bestie proof request: pick a photo, run it through
   /// the FULL verification pipeline (Vision + face-match + anti-forgery + ID
   /// gate) scoped to this match. The file is never shown to her — only the
@@ -637,14 +715,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
             ? 'This proof needs your verified selfie first — finish verification in your profile, then try again.'
             : 'This proof needs your government ID verified first — finish verification in your profile, then try again.');
       } else if (res['verified'] == true) {
-        final insights = res['insights'];
-        final label = (insights is List && insights.isNotEmpty && insights.first is Map)
-            ? (insights.first as Map)['label']?.toString() ?? 'Proof verified'
-            : 'Proof verified';
         final pts = (res['pts_awarded'] as num?)?.toInt() ?? 0;
-        final name = _otherName.isNotEmpty ? _otherName : 'She';
-        _proofSnack('🔒 Verified: $label (+$pts pts), saved to your profile. $name can\'t see the file, but her Bestie knows it\'s real.');
         setState(() => _proofRequest = ProofRequest.fromApi(res['proofRequest']));
+        // Clean confirmation + a nudge to add more via Trust & Boost.
+        _showBoostNudge(pts: pts);
       } else {
         final reason = res['reason']?.toString() ?? 'we couldn\'t confirm that from this photo.';
         _proofSnack('❌ Didn\'t pass verification: $reason You can try again with a clearer photo.');
