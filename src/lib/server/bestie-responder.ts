@@ -164,6 +164,22 @@ function nextProofState(
 	return undefined;
 }
 
+/**
+ * Drop a trailing question sentence. The checklist auto-wraps when the last open
+ * item is marked done (nextChecklistState: `allDone`), which can happen on a turn
+ * where the model still asked a natural follow-up — appending the hand-off line
+ * onto that produced a "question + goodbye" contradiction (§F). Trimming the
+ * trailing question lets the wrap turn close cleanly. Prior reaction sentences
+ * are kept; a reply that was ONLY a question collapses to '' (closing line stands
+ * alone).
+ */
+function dropTrailingQuestion(text: string): string {
+	const t = text.trimEnd();
+	if (!t.endsWith('?')) return text;
+	const cut = Math.max(t.lastIndexOf('. '), t.lastIndexOf('! '), t.lastIndexOf('? ', t.length - 2));
+	return cut === -1 ? '' : t.slice(0, cut + 1).trimEnd();
+}
+
 function formatStructuredPreferences(prefs: PreferencesProfile | null, hardNos: string[] = []): string {
 	const p = prefs ?? ({
 		emotionalSignals: [], lifestyleSignals: [], maturitySignals: [],
@@ -454,6 +470,9 @@ export async function generateBestieReply(
 	const justWrappedThisTurn =
 		checklistUpdate?.status === 'wrapped' && existingChecklist?.status !== 'wrapped';
 	if (justWrappedThisTurn) {
+		// Strip a trailing follow-up question so the wrap turn doesn't ask AND say
+		// goodbye in one breath (§F clean close). See dropTrailingQuestion.
+		finalReply = dropTrailingQuestion(finalReply);
 		const closing = handoffClosingLine(userName);
 		finalReply = finalReply ? `${finalReply} ${closing}` : closing;
 	}
