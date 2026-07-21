@@ -1496,10 +1496,12 @@ const Color _kBestiePurple = Color(0xFFBF5AF2);
 /// Short, man-facing description of what each proof category means. Mirrors the
 /// web PROOF_CATEGORY_SHORT map so both surfaces read the same.
 const Map<String, String> _kProofCategoryShort = {
+  'linkedin': 'your career (a LinkedIn screenshot or résumé)',
   'travel': 'travel proof (passport stamps or trip photos with you in them)',
   'lifestyle': 'a lifestyle photo (you living it)',
   'discipline': 'a fitness photo (you training)',
   'social_proof': 'a photo with your people',
+  'assets': 'proof of what you own (car or ownership papers)',
   'wealth': 'wealth proof (bank statement or payslip)',
   'spending': 'spending proof (receipts or bills)',
 };
