@@ -286,10 +286,15 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
       ...matchedProfileIds
     ]);
 
-    // Candidate set: passes exclude/block filters + liveness gate.
+    // Candidate set: passes exclude/block filters + discovery verification gate.
+    // Discovery gate = liveness completed AND photos uploaded/verified. A profile
+    // with no photos is never surfaced, even if the selfie liveness check passed.
     const candidates = (profiles || [])
       .filter((p: any) => !allExcludeIds.has(p.id) && !blockedIds.includes(p.id))
-      .filter((p: any) => verificationMap.get(p.id)?.has('liveness') === true);
+      .filter((p: any) => {
+        const steps = verificationMap.get(p.id);
+        return steps?.has('liveness') === true && steps?.has('photos') === true;
+      });
 
     // The displayed `about` actually comes from user_master_profile.generatedProfile.about
     // (the detail view reads that, not verified_vibe_users.about). Batch-fetch it for the
@@ -308,7 +313,7 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
     }
 
     // Convert database profiles to DiscoveryProfile format
-    // P0-4: Only show profiles that have completed liveness verification (minimum trust gate)
+    // P0-4: Only show profiles that have completed liveness AND photos (minimum trust gate)
     const discoveryProfiles: DiscoveryProfile[] = candidates
       .map((p: any) => {
         // Effective about = master-profile generated text, falling back to the DB column.
