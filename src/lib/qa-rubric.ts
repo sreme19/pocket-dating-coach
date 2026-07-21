@@ -3,14 +3,9 @@
  * Kept out of $lib/server so Svelte components can import it.
  */
 
-export type RubricKey = 'accuracy' | 'tone' | 'safety' | 'helpfulness';
+export type RubricKey = 'tone' | 'safety' | 'helpfulness';
 
 export const RUBRIC: { key: RubricKey; label: string; hint: string }[] = [
-	{
-		key: 'accuracy',
-		label: 'Accuracy / book fidelity',
-		hint: 'Matches the book’s guidance; citations real & relevant.'
-	},
 	{
 		key: 'tone',
 		label: 'Tone & persona',

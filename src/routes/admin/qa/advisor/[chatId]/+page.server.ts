@@ -10,7 +10,7 @@ export const load: PageServerLoad = async ({ params }) => {
 	return { review };
 };
 
-const RUBRIC_KEYS: RubricKey[] = ['accuracy', 'tone', 'safety', 'helpfulness'];
+const RUBRIC_KEYS: RubricKey[] = ['tone', 'safety', 'helpfulness'];
 
 export const actions: Actions = {
 	save: async ({ request, params, cookies }) => {
