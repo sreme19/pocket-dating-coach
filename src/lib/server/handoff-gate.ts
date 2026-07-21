@@ -19,33 +19,14 @@
 import { env } from '$env/dynamic/private';
 import { OPEN_DIMENSIONS, type DimensionId } from '$lib/verified-vibe/dimensions';
 import type { Vec } from './vector-scoring';
-
-/** Dimensions that can be backed by a proof UPLOAD. Soft dims (humor, warmth,
- * intellect, family) can't be "proven" by a file, so we never block on them. */
-const PROVABLE_DIMS: DimensionId[] = ['financial', 'lifestyle', 'presentation', 'social_legitimacy', 'ambition'];
-
-/** Best in-chat proof categories per provable dimension, strongest first
- * (mirrors PROOF_CONFIDENCE in vector-builder + the proof-signals taxonomy). */
-const DIM_TO_PROOF: Partial<Record<DimensionId, string[]>> = {
-	financial: ['wealth', 'assets', 'spending'],
-	lifestyle: ['travel', 'lifestyle'],
-	presentation: ['discipline'],
-	social_legitimacy: ['linkedin', 'social_proof'],
-	ambition: ['linkedin'],
-};
-
-/** Friendly phrasing for the woman-voiced proof ask (never the raw dimension label). */
-const ASK_PHRASE: Partial<Record<DimensionId, string>> = {
-	financial: 'income',
-	lifestyle: 'lifestyle',
-	presentation: 'fitness',
-	social_legitimacy: 'work / professional side',
-	ambition: 'career',
-};
-
-const PROVEN_C = 0.55;   // c at/above which a claim counts as "shown enough"
-const CLAIMING_V = 45;   // he must be making a real claim to be asked to prove it
-const MIN_WEIGHT = 0.10; // she must genuinely care about the dimension
+import {
+	PROVABLE_DIMS,
+	DIM_TO_PROOF,
+	ASK_PHRASE,
+	PROVEN_C,
+	CLAIMING_V,
+	MIN_WEIGHT,
+} from './dimension-proof-map';
 
 export interface HandoffGate {
 	ready: boolean;

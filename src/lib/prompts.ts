@@ -689,6 +689,13 @@ export function buildBestieReplyPrompt(opts: {
 	 */
 	proofRequestContext?: string;
 	/**
+	 * Pre-formatted PRIORITY PROOFS context (from buildProofInviteContext): the
+	 * proofs she values most that he hasn't proven, with the concrete rank payoff,
+	 * for PROACTIVE (non-topic-triggered) invites. Carries a hard no-guarantee rule.
+	 * Empty = nothing to proactively invite.
+	 */
+	proofInviteContext?: string;
+	/**
 	 * Pre-formatted CHECKLIST context (the open items Bestie should still draw out +
 	 * how to report progress), from buildChecklistBlock(). When present, the JSON
 	 * output gains the itemsDone/wrapUp fields. Empty = no active checklist — the
@@ -709,7 +716,7 @@ export function buildBestieReplyPrompt(opts: {
 	 */
 	proofAckCategory?: string;
 }): string {
-	const { userName, matchName, contextBlock = '', transcript = '', lastMessage, isOpener = false, proofRequestContext = '', checklistContext = '', handoffContext = '', proofAckCategory = '' } = opts;
+	const { userName, matchName, contextBlock = '', transcript = '', lastMessage, isOpener = false, proofRequestContext = '', proofInviteContext = '', checklistContext = '', handoffContext = '', proofAckCategory = '' } = opts;
 
 	const openerBlock = isOpener
 		? `
@@ -730,7 +737,7 @@ How to behave:
 - OPEN REQUEST: if a request is already open, do NOT re-ask, remind, or nag about it. Carry the conversation normally.
 - FAILED ATTEMPT: his upload didn't pass verification (he already saw why privately). You may ONCE warmly encourage another try ("that one didn't go through, a clearer shot with you in it will land"), never guilt. It is NOT a refusal.
 - REFUSAL: if he declines, deflects with clear unwillingness, or asks you to drop it — set "proofRefusal": true, respond graciously ("all good, no pressure at all"), and NEVER raise that category again. His refusal never counts against him and you never treat him differently for it.
-- FULFILLED: if the state says a proof just verified, acknowledge it warmly and specifically in THIS reply (once, then move on — no gushing).`
+- FULFILLED: if the state says a proof just verified, acknowledge it warmly and specifically in THIS reply (once, then move on — no gushing).${proofInviteContext}`
 		: '';
 
 	const checklistBlock = checklistContext

@@ -32,7 +32,8 @@ import {
 } from '$lib/server/bestie-checklist';
 import { buildNotificationPayload, sendNotification } from '$lib/server/notifications';
 import { assessHandoffReadiness, handoffProofAskLine } from '$lib/server/handoff-gate';
-import type { Vec } from '$lib/server/vector-scoring';
+import { appeal, type Vec } from '$lib/server/vector-scoring';
+import { buildProofInviteContext } from '$lib/server/proof-invite-context';
 
 export interface BestieReply {
 	signal: string;
@@ -270,6 +271,9 @@ export async function generateBestieReply(
 	let herWeights: Vec | null = null;
 	let hisAttrs: Vec | null = null;
 	let hisConf: Vec | null = null;
+	// Her other matched men's appeal toward her — the "stack" his rank is measured
+	// against, for the concrete proof payoff ("proving X moves you from #4 to #2").
+	let rivalAppeals: number[] = [];
 	if (matchRow) {
 		const partnerId = matchRow.user1_id === userId ? matchRow.user2_id : matchRow.user1_id;
 		otherUserId = partnerId;
@@ -292,6 +296,27 @@ export async function generateBestieReply(
 		herWeights = (herVec?.weights ?? null) as Vec | null;
 		hisAttrs = (hisVec?.attributes ?? null) as Vec | null;
 		hisConf = (hisVec?.confidence ?? null) as Vec | null;
+
+		// Build her stack: appeal of every OTHER man she's matched with, toward her.
+		if (herWeights) {
+			const { data: herMatches } = await supabase
+				.from('verified_vibe_matches')
+				.select('user1_id, user2_id')
+				.or(`user1_id.eq.${userId},user2_id.eq.${userId}`)
+				.eq('status', 'mutual');
+			const rivalIds = (herMatches ?? [])
+				.map((m: any) => (m.user1_id === userId ? m.user2_id : m.user1_id))
+				.filter((id: string) => id !== partnerId);
+			if (rivalIds.length > 0) {
+				const { data: rivalVecs } = await supabase
+					.from('vv_user_vectors')
+					.select('attributes, confidence')
+					.in('user_id', rivalIds);
+				rivalAppeals = (rivalVecs ?? [])
+					.filter((v: any) => v.attributes)
+					.map((v: any) => appeal(herWeights as Vec, v.attributes as Vec, (v.confidence ?? {}) as Vec));
+			}
+		}
 
 		if (proofSignals.lines.length > 0) {
 			provenTags = proofSignals.lines;
@@ -360,6 +385,19 @@ export async function generateBestieReply(
 		isOpener,
 	});
 
+	// Proactive, preference-targeted proof invites (§11a): the proofs SHE values most
+	// that he hasn't proven, with the concrete rank payoff — invited even without a
+	// topic trigger. Never promises she'll step in. '' when no vectors / nothing to ask.
+	const { block: proofInviteContext } = buildProofInviteContext({
+		herWeights,
+		hisAttrs,
+		hisConf,
+		rivalAppeals,
+		allowed: invitable,
+		matchName,
+		userName,
+	});
+
 	// Bestie checklist (gap analysis, spec §D/§F). If a checklist already exists,
 	// inject its open items so this turn can mark them done / wrap up. If it does NOT
 	// exist yet and this is the first Bestie turn, we generate it CONCURRENTLY with
@@ -398,6 +436,7 @@ export async function generateBestieReply(
 					// A proof-ack turn is never an opener even if the message read is empty.
 					isOpener: opts?.proofAckCategory ? false : isOpener,
 					proofRequestContext,
+					proofInviteContext,
 					checklistContext,
 					handoffContext,
 					proofAckCategory: opts?.proofAckCategory ?? ''
