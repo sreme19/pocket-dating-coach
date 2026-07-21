@@ -6,6 +6,12 @@
   import PublicProfileBody from '$lib/verified-vibe/components/PublicProfileBody.svelte';
   import { user } from '$lib/verified-vibe/stores';
   import { getSupabaseClient } from '$lib/client/supabase';
+  import type { PageData } from './$types';
+
+  // `data.og` is resolved server-side purely to feed the link-preview meta tags
+  // below (WhatsApp/iMessage/Slack crawlers don't run the client-side fetch).
+  let { data }: { data: PageData } = $props();
+  const og = $derived(data?.og ?? null);
 
   const backToDiscover = $derived($page.url.searchParams.get('back') === 'discover');
 
@@ -231,7 +237,28 @@
 </script>
 
 <svelte:head>
-  <title>{profile ? `${profile.firstName}'s Profile` : 'Profile'} · riteangle</title>
+  <title>{og?.title ?? (profile ? `${profile.firstName}'s Profile · riteangle` : 'Profile · riteangle')}</title>
+  {#if og}
+    <meta name="description" content={og.description} />
+    <!-- Open Graph (WhatsApp, iMessage, Slack, Facebook) -->
+    <meta property="og:type" content="profile" />
+    <meta property="og:title" content={og.title} />
+    <meta property="og:description" content={og.description} />
+    <meta property="og:url" content={og.url} />
+    {#if og.image}
+      <meta property="og:image" content={og.image} />
+      <meta property="og:image:width" content="1024" />
+      <meta property="og:image:height" content="1024" />
+      <meta property="og:image:alt" content={og.title} />
+    {/if}
+    <!-- Twitter -->
+    <meta name="twitter:card" content={og.image ? 'summary_large_image' : 'summary'} />
+    <meta name="twitter:title" content={og.title} />
+    <meta name="twitter:description" content={og.description} />
+    {#if og.image}
+      <meta name="twitter:image" content={og.image} />
+    {/if}
+  {/if}
 </svelte:head>
 
 <div class="public-profile-page">
