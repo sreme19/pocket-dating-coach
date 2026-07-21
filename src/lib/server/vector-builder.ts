@@ -77,6 +77,8 @@ interface BuilderInput {
 	city: string | null;
 	profileText: string;        // generated profile + identity blurbs
 	onboardingText: string;     // flattened onboarding answers (who they are + what they want)
+	selfClaimsText: string;     // self-statements distilled from his own chat (raises v, not c)
+	statedPrefsText: string;    // what he says he wants, distilled from chat (informs w)
 	proofCategories: string[];  // verified proof categories present
 	photoCount: number;
 	strength: Record<string, number>; // per-dim accumulated proof strength (pre-clamp)
@@ -115,6 +117,13 @@ async function gatherInput(db: any, userId: string): Promise<BuilderInput | null
 
 	// Onboarding text (who they are + what they want), all archetypes.
 	const onboardingBits = flattenAnswers(md.onboarding ?? {});
+
+	// Chat disclosures — what he has said about himself / what he wants, distilled
+	// continuously from his conversations (Design §11e). Claims here raise the claimed
+	// level v only; confidence c stays proof-derived below.
+	const disc = (md.chatDisclosures ?? {}) as { selfClaims?: string[]; statedPreferences?: string[] };
+	const selfClaimsText = (disc.selfClaims ?? []).join(' · ').slice(0, 2000);
+	const statedPrefsText = (disc.statedPreferences ?? []).join(' · ').slice(0, 2000);
 
 	// Stated annual income (Money Matters) → LPA, for the deterministic curve.
 	const incomeLPA = parseIncomeToLPA((gen.moneyMatters as any)?.annualIncome);
@@ -161,6 +170,8 @@ async function gatherInput(db: any, userId: string): Promise<BuilderInput | null
 		city: user.city ?? null,
 		profileText: profileBits.join(' · ').slice(0, 4000),
 		onboardingText: onboardingBits.join(' · ').slice(0, 4000),
+		selfClaimsText,
+		statedPrefsText,
 		proofCategories: [...new Set(proofCategories)],
 		photoCount,
 		strength,
@@ -198,11 +209,13 @@ ${dimList}
 USER (gender: ${input.gender ?? 'unknown'}, age: ${input.age ?? 'unknown'}, city: ${input.city ?? 'unknown'}):
 Profile: ${input.profileText || '(sparse)'}
 Onboarding answers (who they are AND what they want in a partner): ${input.onboardingText || '(sparse)'}
+Said about themselves in chat: ${input.selfClaimsText || '(none)'}
+Said they want in a partner (from chat): ${input.statedPrefsText || '(none)'}
 Verified proof categories on file: ${input.proofCategories.join(', ') || 'none'}
 
 Produce:
-1. attributes — for EACH dimension id, the CLAIMED level 0–100 of how much of that quality THIS USER brings, judged from their own profile/answers. This is the claim; do NOT discount for lack of proof (proof is handled separately). Be calibrated: 50 is average, 80+ is a clear standout, use the full range. If there is no evidence for a dimension, give a neutral 40–55, not 0.
-2. weights — for EACH dimension id, how much THIS USER cares about that quality WHEN EVALUATING A PARTNER, inferred from what they say they're looking for / their dealbreakers. Raw non-negative numbers (they will be normalised to sum to 1). Sensitive dimensions (faith, nationality, ethnicity, looks) are allowed here as personal preferences.
+1. attributes — for EACH dimension id, the CLAIMED level 0–100 of how much of that quality THIS USER brings, judged from their own profile/answers AND what they said about themselves in chat. This is the claim; do NOT discount for lack of proof (proof is handled separately). Be calibrated: 50 is average, 80+ is a clear standout, use the full range. If there is no evidence for a dimension, give a neutral 40–55, not 0.
+2. weights — for EACH dimension id, how much THIS USER cares about that quality WHEN EVALUATING A PARTNER, inferred from what they say they're looking for / their dealbreakers (onboarding AND chat). Raw non-negative numbers (they will be normalised to sum to 1). Sensitive dimensions (faith, nationality, ethnicity, looks) are allowed here as personal preferences.
 
 Respond with ONLY valid JSON (no markdown, no code fences):
 {"attributes":{${ALL_DIMENSION_IDS.map((d) => `"${d}":<int>`).join(',')}},"weights":{${ALL_DIMENSION_IDS.map((d) => `"${d}":<number>`).join(',')}}}`;
@@ -317,6 +330,7 @@ export async function computeUserVectors(userId: string): Promise<UserVectors | 
 			photoCount: input.photoCount,
 			proofStrength: input.strength,
 			builtFrom: input.profileText ? 'profile+onboarding' : 'sparse',
+			chatClaims: input.selfClaimsText.length > 0 || input.statedPrefsText.length > 0,
 			incomeLPA: input.incomeLPA,
 			financialFromCurve,
 		},

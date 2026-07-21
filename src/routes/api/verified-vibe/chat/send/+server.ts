@@ -349,9 +349,16 @@ export const POST: RequestHandler = async ({ request }) => {
       }
     }
 
-    // Fire-and-forget insight extraction (non-blocking)
+    // Fire-and-forget insight extraction (non-blocking).
+    // Women → her preferences; men → his own self-claims + stated preferences fold
+    // into his vectors (Design §11e). Each helper self-guards on gender.
     extractAndUpdatePreferences(user.id, body.content.trim())
       .catch(err => console.error('[preferences] insight extraction failed (non-critical):', err));
+    waitUntil(
+      import('$lib/server/chat-intel-capture')
+        .then(({ captureMaleChatIntel }) => captureMaleChatIntel(user.id, body.content.trim()))
+        .catch(err => console.error('[chat-intel] male capture failed (non-critical):', err))
+    );
 
     // Fire-and-forget push notification to the recipient
     const recipientId = match.user1_id === user.id ? match.user2_id : match.user1_id;
