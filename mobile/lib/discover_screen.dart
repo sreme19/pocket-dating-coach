@@ -157,6 +157,23 @@ class _DiscoverScreenState extends State<DiscoverScreen>
     if (_scroll.hasClients) _scroll.jumpTo(0);
   }
 
+  /// Step back to a profile already passed this session. Pure client-side —
+  /// re-walks the loaded feed, no refetch. Mirror of [_next].
+  void _prev() {
+    AppLogger.instance.action('discover', 'previous');
+    final feed = _feed;
+    if (feed == null || _idx <= 0) return;
+    setState(() {
+      _idx -= 1;
+      _detail = feed[_idx].id.startsWith('seed-') ? null : fetchMatchDetail(feed[_idx].id);
+      _bestieFlags = [];
+      _bestieFlagsLoading = false;
+      _autoSkipping = false;
+    });
+    _maybeFetchBestie();
+    if (_scroll.hasClients) _scroll.jumpTo(0);
+  }
+
   /// Loop back to the top after the end of the feed. Skipped profiles reappear
   /// on this fresh pass; anyone matched mid-session is dropped so matches don't
   /// resurface. No refetch — purely client-side re-pass of the loaded feed.
@@ -489,6 +506,19 @@ class _DiscoverScreenState extends State<DiscoverScreen>
             const SizedBox(width: 10),
           ],
           const SizedBox(width: 10),
+          if (_idx > 0) ...[
+            OutlinedButton(
+              onPressed: _prev,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(Config.text2),
+                side: const BorderSide(color: Color(0x331B1020)),
+                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('← Prev', style: TextStyle(fontWeight: FontWeight.w600)),
+            ),
+            const SizedBox(width: 10),
+          ],
           Expanded(
             child: FilledButton(
               onPressed: _next,
