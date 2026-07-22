@@ -448,6 +448,23 @@ class _DiscoverScreenState extends State<DiscoverScreen>
           border: Border(top: BorderSide(color: Color(0x141B1020))),
         ),
         child: Row(children: [
+          if (_idx > 0) ...[
+            SizedBox(
+              width: 44,
+              height: 44,
+              child: OutlinedButton(
+                onPressed: _prev,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(Config.text2),
+                  side: const BorderSide(color: Color(0x331B1020)),
+                  padding: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
           if (!alreadyMatched) ...[
             Expanded(
               child: OutlinedButton.icon(
@@ -457,8 +474,8 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                   if (sent && mounted) setState(() => _tippedIds.add(cur.id));
                 },
                 icon: alreadyTipped
-                    ? const Icon(Icons.check, size: 18)
-                    : const Icon(Icons.chat_bubble_outline, size: 18),
+                    ? const Icon(Icons.check, size: 16)
+                    : const Icon(Icons.chat_bubble_outline, size: 16),
                 label: Text(alreadyTipped ? 'Tipped ✓' : 'Tip'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: alreadyTipped ? const Color(Config.text3) : const Color(Config.text1),
@@ -468,7 +485,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                 ),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: g == null || alreadySent ? null : () async {
@@ -478,8 +495,8 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                 },
                 icon: alreadySent
                     ? const Icon(Icons.check, size: 15)
-                    : Text(g == 'woman' ? '🌹' : '👀', style: const TextStyle(fontSize: 15)),
-                label: Text(alreadySent ? 'Sent ✓' : (g == 'woman' ? 'Admire' : 'Notice me')),
+                    : Text(g == 'woman' ? '🌹' : '👀', style: const TextStyle(fontSize: 14)),
+                label: Text(alreadySent ? 'Sent ✓' : (g == 'woman' ? 'Admire' : 'Notice')),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: alreadySent ? const Color(Config.text3) : const Color(0xFFEC4899),
                   side: BorderSide(color: alreadySent ? const Color(0x221B1020) : const Color(0x55EC4899)),
@@ -488,12 +505,11 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                 ),
               ),
             ),
-            const SizedBox(width: 10),
-          ] else ...[
+          ] else
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: null,
-                icon: const Icon(Icons.favorite, size: 16),
+                icon: const Icon(Icons.favorite, size: 15),
                 label: const Text('Matched ✓'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: const Color(Config.text3),
@@ -503,29 +519,15 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                 ),
               ),
             ),
-            const SizedBox(width: 10),
-          ],
-          const SizedBox(width: 10),
-          if (_idx > 0) ...[
-            OutlinedButton(
-              onPressed: _prev,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(Config.text2),
-                side: const BorderSide(color: Color(0x331B1020)),
-                padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('← Prev', style: TextStyle(fontWeight: FontWeight.w600)),
-            ),
-            const SizedBox(width: 10),
-          ],
-          Expanded(
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 90,
             child: FilledButton(
               onPressed: _next,
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(Config.bg3),
                 foregroundColor: const Color(Config.text1),
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                padding: const EdgeInsets.symmetric(vertical: 13),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               child: const Text('Next →', style: TextStyle(fontWeight: FontWeight.w700)),
