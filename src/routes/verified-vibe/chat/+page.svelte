@@ -684,15 +684,32 @@
           {#if item.kind === 'conversation'}
             {@const c = item.data}
             {@const meta = ARCHETYPE_META[c.matchedUser.archetype ?? '']}
+            <!-- The MAN's mirror of the hand-off window: her Bestie wrapped up and
+                 she hasn't stepped in yet. Countdown-only (he can't act on it). -->
+            {@const awaiting = c.awaitingReply && c.status !== 'expired'}
+            {@const awaitDeadline = awaiting ? handoffDeadline(c) : null}
+            {@const awaitRemaining = awaitDeadline ? awaitDeadline - now : 0}
+            {@const awaitUc = urgencyColor(awaitRemaining)}
             <button
               class="convo-row {c.unreadCount > 0 ? 'row-unread' : ''}"
               onclick={() => goto(chatHref(c.matchId))}
             >
               <div class="convo-avatar-wrap">
+                {#if awaiting}
+                  <svg class="countdown-ring" viewBox="0 0 52 52" aria-hidden="true">
+                    <circle cx="26" cy="26" r="24" fill="none" stroke="rgba(0,0,0,0.10)" stroke-width="3" />
+                    <circle
+                      cx="26" cy="26" r="24" fill="none" stroke={awaitUc} stroke-width="3"
+                      stroke-linecap="round" transform="rotate(-90 26 26)"
+                      stroke-dasharray={2 * Math.PI * 24}
+                      stroke-dashoffset={2 * Math.PI * 24 * (1 - Math.max(0, Math.min(1, awaitRemaining / HANDOFF_WINDOW_MS)))}
+                    />
+                  </svg>
+                {/if}
                 {#if c.matchedUser.avatar}
-                  <img class="convo-avatar-img" src={c.matchedUser.avatar} alt={c.matchedUser.firstName} />
+                  <img class="convo-avatar-img {awaiting ? 'handoff-avatar' : ''}" src={c.matchedUser.avatar} alt={c.matchedUser.firstName} />
                 {:else}
-                  <div class="convo-avatar-letter">{c.matchedUser.firstName.charAt(0).toUpperCase()}</div>
+                  <div class="convo-avatar-letter {awaiting ? 'handoff-avatar' : ''}">{c.matchedUser.firstName.charAt(0).toUpperCase()}</div>
                 {/if}
               </div>
               <div class="convo-body">
@@ -704,18 +721,26 @@
                       <span class="archetype-chip" style="color:{meta.color}; background:{meta.bg}; border-color:{meta.color}55;">{meta.emoji} {meta.label}</span>
                     {/if}
                   </div>
-                  <span class="convo-time {c.unreadCount > 0 ? 'time-unread' : ''}">{formatTime(c.lastMessageTime)}</span>
+                  {#if awaiting}
+                    <span class="countdown-pill" style="color:{awaitUc}; background:{awaitUc}26;">{remainingLabel(awaitRemaining)}</span>
+                  {:else}
+                    <span class="convo-time {c.unreadCount > 0 ? 'time-unread' : ''}">{formatTime(c.lastMessageTime)}</span>
+                  {/if}
                 </div>
                 <div class="convo-line2">
-                  <span class="convo-preview {c.unreadCount > 0 ? 'preview-bold' : ''}">{truncate(c.lastMessage)}</span>
-                  <div class="convo-right-meta">
-                    {#if c.matchedUser.trustScore}
-                      <span class="trust-pill">🛡 {c.matchedUser.trustScore}</span>
-                    {/if}
-                    {#if c.unreadCount > 0}
-                      <span class="unread-badge">{c.unreadCount}</span>
-                    {/if}
-                  </div>
+                  {#if awaiting}
+                    <span class="convo-preview handoff-preview">✨ AI Bestie wrapped up · she's deciding</span>
+                  {:else}
+                    <span class="convo-preview {c.unreadCount > 0 ? 'preview-bold' : ''}">{truncate(c.lastMessage)}</span>
+                    <div class="convo-right-meta">
+                      {#if c.matchedUser.trustScore}
+                        <span class="trust-pill">🛡 {c.matchedUser.trustScore}</span>
+                      {/if}
+                      {#if c.unreadCount > 0}
+                        <span class="unread-badge">{c.unreadCount}</span>
+                      {/if}
+                    </div>
+                  {/if}
                 </div>
               </div>
             </button>

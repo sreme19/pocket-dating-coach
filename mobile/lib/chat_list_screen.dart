@@ -534,7 +534,9 @@ class _ChatListScreenState extends State<ChatListScreen>
                 cleared: _clearedConvos.contains(c.id),
                 variant: c.isExpired
                     ? _TileVariant.expired
-                    : (sectioned && c.handoffPending ? _TileVariant.handoff : _TileVariant.normal),
+                    : c.awaitingReply
+                        ? _TileVariant.awaiting
+                        : (sectioned && c.handoffPending ? _TileVariant.handoff : _TileVariant.normal),
                 onReactivate: c.canReactivate ? () => _reactivate(c) : null,
               );
 
@@ -1199,7 +1201,7 @@ class _SentAdmirerCard extends StatelessWidget {
   }
 }
 
-enum _TileVariant { normal, handoff, expired }
+enum _TileVariant { normal, handoff, expired, awaiting }
 
 class _ConversationTile extends StatelessWidget {
   final Conversation convo;
@@ -1225,8 +1227,12 @@ class _ConversationTile extends StatelessWidget {
     final arch = convo.archetype.isNotEmpty ? archetypeFor(convo.archetype) : null;
     final expired = variant == _TileVariant.expired;
     final handoff = variant == _TileVariant.handoff;
+    // The MAN's mirror of the hand-off window: a countdown-only tile (no step-in,
+    // no reactivate) so he can see how long is left before he's given a new match.
+    final awaiting = variant == _TileVariant.awaiting;
+    final showRing = handoff || awaiting;
 
-    final leading = handoff
+    final leading = showRing
         ? _CountdownRing(deadline: convo.handoffDeadline, url: convo.avatar, name: convo.name)
         : Opacity(
             opacity: expired ? 0.5 : 1,
@@ -1277,6 +1283,12 @@ class _ConversationTile extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(color: Color(Config.text2), fontWeight: FontWeight.w500));
                     }
+                    if (awaiting) {
+                      return const Text('AI Bestie wrapped up · she\'s deciding',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: Color(Config.text2), fontWeight: FontWeight.w500));
+                    }
                     final isMe = myId != null && convo.lastMessageSenderId == myId;
                     final rawMsg = convo.lastMessage;
                     final displayMsg = rawMsg.startsWith('[IMG]') ? '📷 Photo' : rawMsg;
@@ -1301,7 +1313,7 @@ class _ConversationTile extends StatelessWidget {
   }
 
   Widget? _trailing() {
-    if (variant == _TileVariant.handoff) {
+    if (variant == _TileVariant.handoff || variant == _TileVariant.awaiting) {
       return _countdownPill(convo.handoffDeadline);
     }
     if (variant == _TileVariant.expired) {

@@ -32,6 +32,8 @@
     goto(`/admin/login?next=${next}`);
   }
   let messageInput = $state('');
+  let messageInputEl = $state<HTMLTextAreaElement | null>(null);
+  let wrappedCardDismissed = $state(false);
   let isLoading = $state(true);
   let uploadingImage = $state(false);
   let fileInputEl: HTMLInputElement | undefined;
@@ -230,6 +232,38 @@
   const showHandoffPopup = $derived(
     currentUserGender === 'woman' && $currentMatch?.gender === 'man' && aiBestieActive && checklistWrapped && !handoffPopupDismissed
   );
+
+  // The WOMAN also sees a persistent in-thread wrap-up card (spec §K) — the three
+  // ways forward + review link + decision clock — until she dismisses/steps in.
+  const showWrappedCard = $derived(
+    currentUserGender === 'woman' && $currentMatch?.gender === 'man' && aiBestieActive && checklistWrapped && !wrappedCardDismissed
+  );
+  const HANDOFF_WINDOW_MS = 48 * 60 * 60 * 1000;
+  let nowTs = $state(Date.now());
+  const stepInRemaining = $derived(
+    bestieChecklist?.wrapped_at ? Date.parse(bestieChecklist.wrapped_at) + HANDOFF_WINDOW_MS - nowTs : HANDOFF_WINDOW_MS
+  );
+  function stepInLabel(ms: number): string {
+    if (ms <= 0) return 'expiring…';
+    const mins = Math.floor(ms / 60000);
+    if (mins < 60) return `${mins}m left`;
+    return `${Math.floor(mins / 60)}h left`;
+  }
+  function stepInColor(ms: number): string {
+    const hours = ms / 3_600_000;
+    if (hours > 24) return '#10B981';
+    if (hours >= 3) return '#EF9F27';
+    return '#E24B4A';
+  }
+  // "Step into the chat" — dismiss the card and focus the composer. Sending her
+  // own message is what actually steps her in (flips Bestie off server-side).
+  function stepIntoChat() {
+    wrappedCardDismissed = true;
+    tick().then(() => messageInputEl?.focus());
+  }
+  function wrapComingSoon(what: string) {
+    alert(`${what} is coming soon. For now, reply here to step in.`);
+  }
 
   function openAttachPanel() {
     fileInputEl?.click();
@@ -1096,6 +1130,7 @@
   // One poll pass. Extracted so it can run both on the interval and immediately
   // when the page regains visibility (returning from another screen / app).
   async function pollOnce(): Promise<number> {
+      nowTs = Date.now(); // keep the wrap-up countdown fresh (poll fires every 5s)
       if (!(currentUserId ?? $user?.id) || !conversationId) return 0;
       const endPoll = perf.startSpan('poll cycle (fetch + merge)');
       try {
@@ -1647,6 +1682,49 @@
     </div>
   {/if}
 
+  <!-- AI Bestie wrap-up card — the WOMAN owner's in-thread hand-off decision (spec §K).
+       Her three ways forward: step into the chat, set up a call, or share her details,
+       plus a review link and the 48h decision clock. Only "step in" is wired today. -->
+  {#if showWrappedCard && $currentMatch}
+    <div class="bestie-wrapped-card" transition:slide={{ duration: 300, axis: 'y' }}>
+      <div class="bwc-header">
+        <span class="bwc-spark">✨</span>
+        <span class="bwc-title">AI BESTIE · WRAPPED UP</span>
+      </div>
+      <p class="bwc-body">
+        I've learned what I need about <strong>{$currentMatch.firstName}</strong>.
+        Your turn — how do you want to take it forward?
+      </p>
+      <button class="bwc-action bwc-action--primary" onclick={stepIntoChat}>
+        <span class="bwc-action-icon">💬</span>
+        <span class="bwc-action-text">
+          <span class="bwc-action-title">Step into the chat</span>
+          <span class="bwc-action-sub">Reply to {$currentMatch.firstName} yourself now</span>
+        </span>
+      </button>
+      <button class="bwc-action" onclick={() => wrapComingSoon('Scheduling a call')}>
+        <span class="bwc-action-icon">📞</span>
+        <span class="bwc-action-text">
+          <span class="bwc-action-title">Set up a call</span>
+          <span class="bwc-action-sub">Schedule a call on riteangle</span>
+        </span>
+      </button>
+      <button class="bwc-action" onclick={() => wrapComingSoon('Sharing your details')}>
+        <span class="bwc-action-icon">🔗</span>
+        <span class="bwc-action-text">
+          <span class="bwc-action-title">Share your details</span>
+          <span class="bwc-action-sub">Continue off-platform — your choice</span>
+        </span>
+      </button>
+      <button class="bwc-review" onclick={() => goto('/verified-vibe/chat/ai-bestie')}>Review what she learned first</button>
+      <div class="bwc-divider"></div>
+      <p class="bwc-footer">
+        <span style="color:{stepInColor(stepInRemaining)}; font-weight:700;">⏳ {stepInLabel(stepInRemaining)}</span>
+        to decide · after that I'll line up a fresh match for him (this one stays in his inbox)
+      </p>
+    </div>
+  {/if}
+
   <!-- Messages Container -->
   <div class="messages-container" bind:this={messagesContainer}>
     {#if isLoading}
@@ -1823,6 +1901,7 @@
     <div class="input-wrapper">
       <textarea
         class="message-input"
+        bind:this={messageInputEl}
         placeholder="Type a message..."
         bind:value={messageInput}
         oninput={handleInputChange}
@@ -2694,6 +2773,57 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+  }
+
+  /* Woman's in-thread wrap-up card (spec §K) */
+  .bestie-wrapped-card {
+    margin: 12px 16px 0;
+    padding: 16px;
+    background: var(--bg-1, #fff);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    border-radius: 16px;
+    box-shadow: 0 6px 14px rgba(168, 85, 247, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .bwc-header { display: flex; align-items: center; gap: 7px; }
+  .bwc-spark { font-size: 14px; }
+  .bwc-title {
+    color: #7A2BB8; font-size: 12px; font-weight: 800; letter-spacing: 0.6px;
+  }
+  .bwc-body { margin: 0; font-size: 14px; line-height: 1.4; color: var(--text-1, #1a1a1a); }
+  .bwc-action {
+    display: flex; align-items: center; gap: 11px; width: 100%;
+    padding: 11px 12px; border-radius: 12px; cursor: pointer; text-align: left;
+    background: var(--bg-2, #f6f2fb); border: 1px solid rgba(168, 85, 247, 0.14);
+    transition: transform 0.08s ease;
+  }
+  .bwc-action:active { transform: scale(0.99); }
+  .bwc-action--primary {
+    background: linear-gradient(90deg, #FF3B6B 0%, #BF5AF2 100%);
+    border-color: transparent;
+  }
+  .bwc-action-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 9px; font-size: 16px; flex-shrink: 0;
+    background: rgba(168, 85, 247, 0.1);
+  }
+  .bwc-action--primary .bwc-action-icon { background: rgba(255,255,255,0.22); }
+  .bwc-action-text { display: flex; flex-direction: column; }
+  .bwc-action-title { font-size: 14px; font-weight: 700; color: var(--text-1, #1a1a1a); }
+  .bwc-action-sub { font-size: 11.5px; color: var(--text-3, #8a8a8a); margin-top: 1px; }
+  .bwc-action--primary .bwc-action-title,
+  .bwc-action--primary .bwc-action-sub { color: #fff; }
+  .bwc-action--primary .bwc-action-sub { opacity: 0.9; }
+  .bwc-review {
+    align-self: center; background: none; border: none; cursor: pointer;
+    color: #7A2BB8; font-size: 13px; font-weight: 700; padding: 4px;
+  }
+  .bwc-divider { height: 1px; background: rgba(0,0,0,0.08); }
+  .bwc-footer {
+    margin: 0; text-align: center; font-size: 11.5px; line-height: 1.4;
+    color: var(--text-3, #8a8a8a);
   }
 
   .bestie-intro-header {

@@ -7,6 +7,7 @@ import 'api.dart';
 import 'app_logger.dart';
 import 'config.dart';
 import 'match_profile_screen.dart';
+import 'advisor_screen.dart';
 import 'push_service.dart';
 import 'voice_call_screen.dart';
 import 'trust_boost_screen.dart';
@@ -25,6 +26,7 @@ class ConversationScreen extends StatefulWidget {
 
 class _ConversationScreenState extends State<ConversationScreen> {
   final _composer = TextEditingController();
+  final _composerFocus = FocusNode();
   final _scroll = ScrollController();
   final List<ChatMessage> _messages = [];
   final Set<String> _ids = {};
@@ -50,6 +52,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   ProofRequest? _proofRequest;         // Bestie's open in-chat proof ask (man's side)
   bool _proofUploading = false;        // verification in progress
   bool _bestieCardCollapsed = false;
+  bool _wrappedCardCollapsed = false;  // woman's in-thread wrap-up card collapse
   BestieChecklist? _checklist;         // Bestie's per-man checklist (drives progress)
 
   @override
@@ -70,6 +73,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
     if (_channel != null) Supabase.instance.client.removeChannel(_channel!);
     if (_presenceChannel != null) Supabase.instance.client.removeChannel(_presenceChannel!);
     _composer.dispose();
+    _composerFocus.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -467,6 +471,221 @@ class _ConversationScreenState extends State<ConversationScreen> {
           tooltip: 'Dismiss',
         ),
       ]),
+    );
+  }
+
+  /// True when the viewer is the WOMAN owner and her Bestie has wrapped up vetting
+  /// this man but she hasn't stepped in yet — the moment for the in-thread wrap-up
+  /// card (spec §K). Mirror of the man's `_bestieIntroCard`, on her side.
+  bool get _showWrappedCard =>
+      _viewerGender == 'woman' &&
+      _otherGender == 'man' &&
+      _bestieActive &&
+      (_checklist?.wrapped ?? false);
+
+  /// Remaining time in the 48h step-in window, or null if no clock yet.
+  Duration? get _stepInRemaining {
+    final d = _checklist?.deadline;
+    return d == null ? null : d.difference(DateTime.now());
+  }
+
+  /// In-thread "AI BESTIE · WRAPPED UP" card shown to the WOMAN owner (spec §K).
+  /// She's presented the three ways to take it forward — step into the chat, set
+  /// up a call, or share her details — plus a review link and the decision clock.
+  /// Only "Step into the chat" is wired today; the other two are surfaced but
+  /// flagged as coming soon.
+  Widget _bestieWrappedCard() {
+    final name = _otherName.isNotEmpty ? _otherName : widget.title;
+    final remaining = _stepInRemaining;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 2),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(Config.bg2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0x33BF5AF2)),
+        boxShadow: const [
+          BoxShadow(color: Color(0x14BF5AF2), blurRadius: 14, offset: Offset(0, 6)),
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        GestureDetector(
+          onTap: () => setState(() => _wrappedCardCollapsed = !_wrappedCardCollapsed),
+          behavior: HitTestBehavior.opaque,
+          child: Row(children: [
+            const Text('✨', style: TextStyle(fontSize: 14)),
+            const SizedBox(width: 7),
+            const Expanded(
+              child: Text('AI BESTIE · WRAPPED UP',
+                  style: TextStyle(
+                      color: Color(0xFF7A2BB8), fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.6)),
+            ),
+            Icon(
+              _wrappedCardCollapsed ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
+              size: 18,
+              color: const Color(Config.text3),
+            ),
+          ]),
+        ),
+        if (!_wrappedCardCollapsed) ...[
+          const SizedBox(height: 10),
+          RichText(
+            text: TextSpan(
+              style: const TextStyle(color: Color(Config.text1), fontSize: 14, height: 1.4),
+              children: [
+                const TextSpan(text: "I've learned what I need about "),
+                TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                const TextSpan(text: '. Your turn — how do you want to take it forward?'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          _wrapAction(
+            icon: Icons.chat_bubble_outline,
+            title: 'Step into the chat',
+            subtitle: 'Reply to $name yourself now',
+            primary: true,
+            onTap: _stepIntoChat,
+          ),
+          const SizedBox(height: 8),
+          _wrapAction(
+            icon: Icons.phone_outlined,
+            title: 'Set up a call',
+            subtitle: 'Schedule a call on riteangle',
+            primary: false,
+            onTap: () => _wrapComingSoon('Scheduling a call'),
+          ),
+          const SizedBox(height: 8),
+          _wrapAction(
+            icon: Icons.link,
+            title: 'Share your details',
+            subtitle: 'Continue off-platform — your choice',
+            primary: false,
+            onTap: () => _wrapComingSoon('Sharing your details'),
+          ),
+          const SizedBox(height: 10),
+          Center(
+            child: GestureDetector(
+              onTap: () {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => AdvisorScreen(
+                    wingman: false,
+                    initialMessage:
+                        'Can you summarize my conversation with $name and tell me what I should know about him before I step in?',
+                  ),
+                ));
+              },
+              child: const Padding(
+                padding: EdgeInsets.symmetric(vertical: 4),
+                child: Text('Review what she learned first',
+                    style: TextStyle(color: Color(0xFF7A2BB8), fontSize: 13, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Divider(height: 1, color: Color(0x22000000)),
+          const SizedBox(height: 8),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            const Text('⏳', style: TextStyle(fontSize: 12)),
+            const SizedBox(width: 6),
+            Flexible(
+              child: RichText(
+                textAlign: TextAlign.center,
+                text: TextSpan(
+                  style: const TextStyle(color: Color(Config.text3), fontSize: 11.5),
+                  children: [
+                    TextSpan(
+                      text: _stepInLabel(remaining),
+                      style: TextStyle(color: _stepInColor(remaining), fontWeight: FontWeight.w700),
+                    ),
+                    const TextSpan(
+                        text: " to decide · after that I'll line up a fresh match for him (this one stays in his inbox)"),
+                  ],
+                ),
+              ),
+            ),
+          ]),
+        ],
+      ]),
+    );
+  }
+
+  /// One action row inside the wrap-up card. Primary = filled pink gradient.
+  Widget _wrapAction({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool primary,
+    required VoidCallback onTap,
+  }) {
+    final titleColor = primary ? Colors.white : const Color(Config.text1);
+    final subColor = primary ? const Color(0xE6FFFFFF) : const Color(Config.text3);
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        decoration: BoxDecoration(
+          gradient: primary
+              ? const LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)])
+              : null,
+          color: primary ? null : const Color(Config.bg3),
+          borderRadius: BorderRadius.circular(12),
+          border: primary ? null : Border.all(color: const Color(0x22BF5AF2)),
+        ),
+        child: Row(children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: primary ? const Color(0x33FFFFFF) : const Color(0x14BF5AF2),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icon, size: 18, color: primary ? Colors.white : const Color(0xFF7A2BB8)),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title, style: TextStyle(color: titleColor, fontSize: 14, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 1),
+              Text(subtitle, style: TextStyle(color: subColor, fontSize: 11.5)),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  String _stepInLabel(Duration? r) {
+    if (r == null) return '48h left';
+    if (r.isNegative || r.inMinutes <= 0) return 'expiring…';
+    if (r.inMinutes < 60) return '${r.inMinutes}m left';
+    return '${(r.inMinutes / 60).floor()}h left';
+  }
+
+  Color _stepInColor(Duration? r) {
+    final hours = (r?.inMinutes ?? 48 * 60) / 60.0;
+    if (hours > 24) return const Color(0xFF10B981);
+    if (hours >= 3) return const Color(0xFFEF9F27);
+    return const Color(0xFFE24B4A);
+  }
+
+  /// "Step into the chat" — collapse the card and drop her into the composer.
+  /// Sending her own message is what actually steps her in (flips Bestie off).
+  void _stepIntoChat() {
+    setState(() => _wrappedCardCollapsed = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _composerFocus.requestFocus();
+    });
+  }
+
+  void _wrapComingSoon(String what) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$what is coming soon. For now, reply here to step in.'),
+        duration: const Duration(seconds: 3),
+      ),
     );
   }
 
@@ -969,6 +1188,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
           // Status banners at the TOP so they don't crowd the composer
           if (!_loading && _viewerGender == 'woman' && _otherGender == 'man')
             _bestieBanner(),
+          // Woman's in-thread wrap-up card (spec §K) — her three ways forward.
+          if (!_loading && _showWrappedCard) _bestieWrappedCard(),
           if (!_loading && _viewerGender == 'man' && _otherGender == 'woman' && !_bestieActive)
             _directHandoffBanner(),
           Expanded(
@@ -1069,6 +1290,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
             ),
           _Composer(
             controller: _composer,
+            focusNode: _composerFocus,
             sending: _sending,
             onSend: _send,
             conversationId: widget.conversationId,
@@ -1607,6 +1829,7 @@ const Map<String, String> _kProofCategoryShort = {
 
 class _Composer extends StatefulWidget {
   final TextEditingController controller;
+  final FocusNode? focusNode;
   final bool sending;
   final VoidCallback onSend;
   final String conversationId;
@@ -1620,6 +1843,7 @@ class _Composer extends StatefulWidget {
 
   const _Composer({
     required this.controller,
+    this.focusNode,
     required this.sending,
     required this.onSend,
     required this.conversationId,
@@ -1784,6 +2008,7 @@ class _ComposerState extends State<_Composer> {
             Expanded(
               child: TextField(
                 controller: widget.controller,
+                focusNode: widget.focusNode,
                 style: const TextStyle(color: Color(Config.text1)),
                 minLines: 1,
                 maxLines: 4,

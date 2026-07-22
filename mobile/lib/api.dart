@@ -1686,6 +1686,9 @@ class Conversation {
   final int trustScore;
   /// AI Bestie wrapped up and is waiting for the woman (this viewer) to step in.
   final bool handoffPending;
+  /// The MAN's view: her Bestie wrapped up and she hasn't stepped in yet. Drives a
+  /// countdown-only tile on his side (he can't act on it — no step-in, no reactivate).
+  final bool awaitingReply;
   /// 'mutual' (active) or 'expired' (hand-off window elapsed — Inactive section).
   final String status;
   /// When Bestie handed off (ISO). The step-in deadline is this + 48h. Null unless handoffPending.
@@ -1710,6 +1713,7 @@ class Conversation {
     required this.gender,
     required this.trustScore,
     this.handoffPending = false,
+    this.awaitingReply = false,
     this.status = 'mutual',
     this.handoffAt,
     this.expiredAt,
@@ -1753,6 +1757,7 @@ Future<List<Conversation>> fetchConversations() async {
       gender: u['gender'] as String?,
       trustScore: u['trustScore'] is num ? (u['trustScore'] as num).toInt() : 0,
       handoffPending: c['handoffPending'] == true,
+      awaitingReply: c['awaitingReply'] == true,
       status: (c['status'] ?? 'mutual').toString(),
       handoffAt: _dt(c['handoffAt']),
       expiredAt: _dt(c['expiredAt']),
@@ -1844,10 +1849,16 @@ class BestieChecklist {
   final int total; // number of checklist items
   final int done;  // items marked done
   final String status; // active | wrapped
-  BestieChecklist({required this.total, required this.done, required this.status});
+  /// When Bestie wrapped up (ISO parsed). The woman's step-in deadline is this + 48h.
+  final DateTime? wrappedAt;
+  BestieChecklist({required this.total, required this.done, required this.status, this.wrappedAt});
 
   /// Bestie has wrapped up → the man's chat freezes until the woman steps in.
   bool get wrapped => status == 'wrapped';
+
+  /// The 48h step-in deadline once wrapped, else null.
+  DateTime? get deadline =>
+      wrappedAt == null ? null : wrappedAt!.add(const Duration(hours: 48));
 
   static BestieChecklist? fromApi(dynamic raw) {
     if (raw is! Map) return null;
@@ -1855,7 +1866,13 @@ class BestieChecklist {
     if (items is! List) return null;
     final done = items.where((i) => i is Map && i['status'] == 'done').length;
     final st = raw['status']?.toString() ?? 'active';
-    return BestieChecklist(total: items.length, done: done, status: st);
+    final wa = raw['wrapped_at'];
+    return BestieChecklist(
+      total: items.length,
+      done: done,
+      status: st,
+      wrappedAt: wa == null ? null : DateTime.tryParse(wa.toString()),
+    );
   }
 }
 
