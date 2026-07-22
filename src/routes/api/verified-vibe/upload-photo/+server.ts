@@ -11,6 +11,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
+import { captureUploads } from '$lib/server/upload-audit';
 
 const MIME_TO_EXT: Record<string, string> = {
 	'image/jpeg': 'jpg',
@@ -79,6 +80,14 @@ export const POST: RequestHandler = async ({ request }) => {
 
 			const { data: urlData } = supabase.storage.from('profiles').getPublicUrl(path);
 			url = `${urlData.publicUrl}?v=${buffer.length}`;
+
+			// Admin-review capture — reference the stored profile photo (no re-upload).
+			await captureUploads({
+				userId: user.id,
+				source: 'profile-photo',
+				category: label,
+				items: [{ existingUrl: url, name: `${label}.${ext}`, mimeType: mime, sizeBytes: buffer.length }],
+			});
 		} else {
 			return json({ error: 'Provide dataUrl or imageUrl' }, { status: 400 });
 		}
