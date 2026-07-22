@@ -61,13 +61,46 @@ describe('assessHandoffReadiness — guards', () => {
 		expect(assessHandoffReadiness({ herWeights: lowFinancial, hisAttrs: samAttrs, hisConf: samConf, verifiedCategories: ['photos'] }).ready).toBe(true);
 	});
 
-	it('does not demand proof of a dimension he is not really claiming (v < 45)', () => {
+	it('does not demand proof of a dimension he is not really claiming (v < 45) — isolated from the substance floor by giving him one substantive proof already', () => {
 		const thin = { ...samAttrs, financial: 20, lifestyle: 20, presentation: 20, ambition: 20, social_legitimacy: 20 };
-		expect(assessHandoffReadiness({ herWeights: valarieWeights, hisAttrs: thin, hisConf: samConf, verifiedCategories: ['photos'] }).ready).toBe(true);
+		expect(assessHandoffReadiness({ herWeights: valarieWeights, hisAttrs: thin, hisConf: samConf, verifiedCategories: ['photos', 'discipline'] }).ready).toBe(true);
 	});
 
 	it('kill switch: HANDOFF_PROOF_GATE=false disables the gate', () => {
 		mockEnv.HANDOFF_PROOF_GATE = 'false';
 		expect(assessHandoffReadiness({ herWeights: valarieWeights, hisAttrs: samAttrs, hisConf: samConf, verifiedCategories: ['photos'] }).ready).toBe(true);
+	});
+});
+
+describe('assessHandoffReadiness — substance floor (hand-offs are not lightweight)', () => {
+	// A man who isn't loudly claiming anything (all v<45) and has only a selfie.
+	const quietAttrs: Vec = { financial: 30, lifestyle: 30, presentation: 30, ambition: 30, social_legitimacy: 30, warmth: 60, humor: 60, intellect: 55, family: 40, looks: 50 };
+	const floorConf: Vec = { financial: 0.3, lifestyle: 0.3, presentation: 0.3, ambition: 0.3, social_legitimacy: 0.3, warmth: 0.3, humor: 0.3, intellect: 0.3, family: 0.3, looks: 0.3 };
+
+	it('BLOCKS a man with only a base photo and zero substantive proof of what she values', () => {
+		const gate = assessHandoffReadiness({
+			herWeights: valarieWeights, hisAttrs: quietAttrs, hisConf: floorConf,
+			verifiedCategories: ['photos'], refusedCategories: [],
+		});
+		expect(gate.ready).toBe(false);
+		expect(gate.reason).toContain('substance floor');
+		expect(gate.blockingDim).toBe('financial'); // her top provable value
+	});
+
+	it('CLEARS once he has ANY substantive verified proof of a valued dimension', () => {
+		const gate = assessHandoffReadiness({
+			herWeights: valarieWeights, hisAttrs: quietAttrs, hisConf: floorConf,
+			verifiedCategories: ['photos', 'lifestyle'], refusedCategories: [],
+		});
+		expect(gate.ready).toBe(true);
+	});
+
+	it('does not dead-end: quiet man who declined every valued proof is let through', () => {
+		const gate = assessHandoffReadiness({
+			herWeights: valarieWeights, hisAttrs: quietAttrs, hisConf: floorConf,
+			verifiedCategories: ['photos'],
+			refusedCategories: ['wealth', 'assets', 'spending', 'travel', 'lifestyle', 'discipline', 'linkedin', 'social_proof'],
+		});
+		expect(gate.ready).toBe(true);
 	});
 });
