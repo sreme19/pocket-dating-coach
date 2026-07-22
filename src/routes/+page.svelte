@@ -552,7 +552,7 @@
         </div>
         <div class="footer__col"><h5>Date</h5><a href="#how">How it works</a><a href="#trust">Profile Strength</a><a href="#bestie">AI Bestie</a><a href="#wingman">AI Wingman</a></div>
         <div class="footer__col"><h5>Trust</h5><a href="#safety">Safety</a><a href={GET_VERIFIED}>Verification</a><a href={PRIVACY}>Privacy Policy</a><a href="#">Community guidelines</a></div>
-        <div class="footer__col"><h5>Company</h5><a href="#">About</a><a href="#">Careers</a><a href="#">Support</a><a href="#">Press</a></div>
+        <div class="footer__col"><h5>Company</h5><a href="#">About</a><a href="/careers">Careers</a><a href="#">Support</a><a href="#">Press</a></div>
       </div>
       <div class="footer__bottom">
         <p class="footer__legal">© 2026 riteangle, Inc. · Profile Strength, AI Bestie &amp; AI Wingman are marks of riteangle. Must be 18+ to join. Dating involves real-world risk; always meet safely.</p>
