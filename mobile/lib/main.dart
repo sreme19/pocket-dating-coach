@@ -99,6 +99,17 @@ class AuthGate extends StatefulWidget {
 class _AuthGateState extends State<AuthGate> {
   int _recheck = 0; // bump to re-evaluate onboarding (after it completes)
 
+  // Memoise the onboarding check per (user, _recheck). onAuthStateChange fires
+  // on routine events — token refreshes, app resume — and each emission rebuilds
+  // this StreamBuilder. Calling needsOnboarding() inline made a fresh future
+  // every time, flipping the tree to the loading spinner and back and TEARING
+  // DOWN + RECREATING HomeShell (and all its state) on every auth event. That
+  // reset per-screen state such as the chat list's "hand-off popup already
+  // shown" guard, causing the "Your turn to step in" modal to re-pop. Caching
+  // the future keeps the same key resolved, so a token refresh is a no-op here.
+  Future<bool>? _onbFuture;
+  String? _onbKey;
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<AuthState>(
@@ -108,10 +119,20 @@ class _AuthGateState extends State<AuthGate> {
         final session = supabase.auth.currentSession;
         AppLogger.instance.setUser(session?.user.id);
 
-        if (session == null) return const AuthScreen();
+        if (session == null) {
+          // Signed out — drop the cache so the next sign-in re-checks.
+          _onbFuture = null;
+          _onbKey = null;
+          return const AuthScreen();
+        }
+        final onbKey = 'onb_${session.user.id}_$_recheck';
+        if (_onbKey != onbKey) {
+          _onbKey = onbKey;
+          _onbFuture = needsOnboarding();
+        }
         return FutureBuilder<bool>(
-          key: ValueKey('onb_${session.user.id}_$_recheck'),
-          future: needsOnboarding(),
+          key: ValueKey(onbKey),
+          future: _onbFuture,
           builder: (context, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
               return Scaffold(

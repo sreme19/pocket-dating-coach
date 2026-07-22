@@ -33,6 +33,7 @@ class _ChatListScreenState extends State<ChatListScreen>
   final _clearedConvos = <String>{}; // optimistic read-clear before server confirms
   List<Conversation>? _cachedConversations; // updated in-place on realtime events
   final Set<String> _shownHandoff = {}; // matches whose "your turn to step in" popup already showed this session
+  bool _handoffDialogOpen = false;      // guard: never stack a second hand-off popup
   String get _myId => Supabase.instance.client.auth.currentUser?.id ?? '';
   Timer? _periodicRefresh;
 
@@ -136,15 +137,23 @@ class _ChatListScreenState extends State<ChatListScreen>
   /// Two paths: Reply (step into his chat) or Review (open her Bestie advisor with
   /// a "summarize him" request pre-sent). Shows once per match per session.
   void _maybeShowHandoff(List<Conversation> convos) {
+    if (_handoffDialogOpen) return;
     Conversation? pending;
     for (final c in convos) {
       if (c.handoffPending && !_shownHandoff.contains(c.id)) { pending = c; break; }
     }
     if (pending == null) return;
     final c = pending;
-    _shownHandoff.add(c.id);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      if (!mounted || _handoffDialogOpen) return;
+      // Only surface on the VISIBLE chat list — never stack this modal over a
+      // pushed screen (e.g. an open conversation) or another dialog. If we're
+      // not the current route, don't even mark it shown, so it can appear once
+      // when she actually returns to the list.
+      final route = ModalRoute.of(context);
+      if (route == null || !route.isCurrent) return;
+      _shownHandoff.add(c.id);
+      _handoffDialogOpen = true;
       showDialog(
         context: context,
         barrierColor: Colors.black54,
@@ -172,7 +181,9 @@ class _ChatListScreenState extends State<ChatListScreen>
             ));
           },
         ),
-      );
+      ).whenComplete(() {
+        if (mounted) _handoffDialogOpen = false;
+      });
     });
   }
 
