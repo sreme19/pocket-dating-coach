@@ -29,6 +29,11 @@ import {
 	type DimensionId,
 } from '$lib/verified-vibe/dimensions';
 import { incomeToV, parseIncomeToLPA } from '$lib/verified-vibe/valuation';
+import {
+	photoSignalsEnabled,
+	photoConfidenceContribution,
+	type PhotoSignals,
+} from './photo-signals';
 
 export const VECTOR_BUILDER_VERSION = 1;
 
@@ -79,6 +84,7 @@ interface BuilderInput {
 	onboardingText: string;     // flattened onboarding answers (who they are + what they want)
 	selfClaimsText: string;     // self-statements distilled from his own chat (raises v, not c)
 	statedPrefsText: string;    // what he says he wants, distilled from chat (informs w)
+	photoSignalsText: string;   // what their own photos evidence (raises v; c via authenticity)
 	proofCategories: string[];  // verified proof categories present
 	photoCount: number;
 	strength: Record<string, number>; // per-dim accumulated proof strength (pre-clamp)
@@ -163,6 +169,25 @@ async function gatherInput(db: any, userId: string): Promise<BuilderInput | null
 		.from('user_artifacts').select('claim_tag').eq('user_id', userId);
 	for (const a of artifacts ?? []) add(ARTIFACT_CONFIDENCE, a.claim_tag as string);
 
+	// Photo signals (§multimodal): what their OWN uploaded photos evidence. Content
+	// signals raise the claimed level v via the prompt below; a deterministic,
+	// authenticity-gated contribution raises confidence c here (photo-signals.ts owns
+	// the gameability-safe policy). Entirely behind PHOTO_SIGNAL_GATE.
+	let photoSignalsText = '';
+	if (photoSignalsEnabled()) {
+		const ps = (md.photoSignals ?? null) as PhotoSignals | null;
+		if (ps && ps.version) {
+			const dimBits = Object.entries(ps.dims ?? {})
+				.filter((e): e is [string, NonNullable<(typeof e)[1]>] => !!e[1])
+				.map(([dim, v]) => `${dim} ${v.level}${v.evidence ? ` (${v.evidence})` : ''}`);
+			const sceneBit = ps.scenes?.length ? `scenes: ${ps.scenes.join(', ')}` : '';
+			photoSignalsText = [dimBits.join(' · '), sceneBit].filter(Boolean).join(' · ').slice(0, 1500);
+			// Confidence contribution (only when authenticity passes — returns {} otherwise).
+			const pc = photoConfidenceContribution(ps);
+			for (const [dim, s] of Object.entries(pc)) strength[dim] = (strength[dim] ?? 0) + (s as number);
+		}
+	}
+
 	return {
 		userId,
 		gender: user.gender ?? null,
@@ -172,6 +197,7 @@ async function gatherInput(db: any, userId: string): Promise<BuilderInput | null
 		onboardingText: onboardingBits.join(' · ').slice(0, 4000),
 		selfClaimsText,
 		statedPrefsText,
+		photoSignalsText,
 		proofCategories: [...new Set(proofCategories)],
 		photoCount,
 		strength,
@@ -211,6 +237,7 @@ Profile: ${input.profileText || '(sparse)'}
 Onboarding answers (who they are AND what they want in a partner): ${input.onboardingText || '(sparse)'}
 Said about themselves in chat: ${input.selfClaimsText || '(none)'}
 Said they want in a partner (from chat): ${input.statedPrefsText || '(none)'}
+What their own profile photos evidence: ${input.photoSignalsText || '(none)'}
 Verified proof categories on file: ${input.proofCategories.join(', ') || 'none'}
 
 Produce:
@@ -331,6 +358,7 @@ export async function computeUserVectors(userId: string): Promise<UserVectors | 
 			proofStrength: input.strength,
 			builtFrom: input.profileText ? 'profile+onboarding' : 'sparse',
 			chatClaims: input.selfClaimsText.length > 0 || input.statedPrefsText.length > 0,
+			photoSignals: input.photoSignalsText.length > 0,
 			incomeLPA: input.incomeLPA,
 			financialFromCurve,
 		},
