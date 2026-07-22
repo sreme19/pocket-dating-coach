@@ -22,6 +22,7 @@ import { runShadowScoring, diffScores } from '$lib/server/vector-scoring-shadow'
 import { runVectorMatchmaker } from '$lib/server/vector-matchmaker';
 import { refreshPoolEntry } from '$lib/server/pool-registry';
 import { runAnonymizeDeleted } from '$lib/server/anonymize-deleted';
+import { runPhotoSignalBackfill } from '$lib/server/photo-signal-capture';
 import { getSupabase } from '$lib/server/supabase';
 import { MATCHMAKER_RUN_SECRET } from '$env/static/private';
 import { env } from '$env/dynamic/private';
@@ -37,18 +38,32 @@ export const POST: RequestHandler = async ({ request }) => {
       cityScoped?: boolean;
       task?: 'trust-normalize' | 'match-scores' | 'build-vectors' | 'inspect-vectors'
         | 'score-vectors-shadow' | 'diff-scores' | 'match-v2-dryrun' | 'match-v2'
-        | 'backfill-profile-fields' | 'anonymize-deleted';
+        | 'backfill-profile-fields' | 'anonymize-deleted' | 'capture-photo-signals';
       userId?: string;
       userIds?: string[];
       includeSeed?: boolean;
       limit?: number;
       olderThanDays?: number;
       dryRun?: boolean;
+      force?: boolean;
     };
 
     // Validate secret
     if (!body.secret || body.secret !== MATCHMAKER_RUN_SECRET) {
       return json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Multimodal (shadow): analyse each user's uploaded photos into data.photoSignals,
+    // then rebuild their vectors + trust so the claim/confidence/trust changes land.
+    // No-op unless PHOTO_SIGNAL_GATE is on; hash-guarded (pass force:true to re-analyse
+    // everyone). One Claude vision call per user with photos. Synchronous.
+    if (body.task === 'capture-photo-signals') {
+      const result = await runPhotoSignalBackfill({
+        userIds: body.userIds,
+        includeSeed: body.includeSeed,
+        force: body.force,
+      });
+      return json({ task: 'capture-photo-signals', ...result });
     }
 
     // Phase 0 (shadow): backfill per-user value vectors into vv_user_vectors.

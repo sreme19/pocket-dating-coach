@@ -301,5 +301,21 @@ export const POST: RequestHandler = async ({ request }: { request: Request }) =>
   // Live vector propagation (§11g): edited profile text changes attribute levels.
   scheduleVectorRebuild(userId);
 
+  // Multimodal propagation: when the photo set changed, analyse the new uploads and
+  // fold the distilled signals into claim/confidence/trust. No-op unless
+  // PHOTO_SIGNAL_GATE is on; hash-guarded so an unchanged set won't re-call vision.
+  if (body.photos !== undefined) {
+    (async () => {
+      try {
+        const { capturePhotoSignals } = await import('$lib/server/photo-signal-capture');
+        const { waitUntil } = await import('@vercel/functions');
+        const t = capturePhotoSignals(userId).then(() => undefined).catch(() => undefined);
+        try { waitUntil(t); } catch { /* not in a Vercel request ctx — let it run */ }
+      } catch (e) {
+        console.warn('[master-profile] photo-signal capture skipped:', e);
+      }
+    })();
+  }
+
   return json({ synced: true, countriesTraveled: mergedCountries });
 };
