@@ -15,6 +15,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
+import { captureUploads } from '$lib/server/upload-audit';
 
 const MIME_TO_EXT: Record<string, string> = {
 	'image/jpeg': 'jpg',
@@ -71,6 +72,14 @@ export const POST: RequestHandler = async ({ request }) => {
 			const { data: urlData } = supabase.storage.from('profiles').getPublicUrl(path);
 			// Cache-bust so the CDN serves the new image after an overwrite.
 			avatarUrl = `${urlData.publicUrl}?v=${buffer.length}`;
+
+			// Admin-review capture — reference the stored avatar (no re-upload).
+			await captureUploads({
+				userId: user.id,
+				source: 'profile-photo',
+				category: 'avatar',
+				items: [{ existingUrl: avatarUrl, name: `lead.${ext}`, mimeType: mime, sizeBytes: buffer.length }],
+			});
 		} else {
 			return json({ error: 'Provide dataUrl or imageUrl' }, { status: 400 });
 		}

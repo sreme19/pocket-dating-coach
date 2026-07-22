@@ -16,6 +16,8 @@ import { enrollInPoolIfVerified, redeemBetaInviteIfProfileReady } from '$lib/ser
 import { recomputeAndNormalize } from '$lib/server/trust-normalize';
 import { scheduleVectorRebuild } from '$lib/server/vector-rebuild';
 import { storeAnchorSelfie, loadAnchorSelfie } from '$lib/verified-vibe/server/anchor-selfie';
+import { captureUploads, type CaptureItem } from '$lib/server/upload-audit';
+import { waitUntil } from '@vercel/functions';
 
 /**
  * POST /api/verified-vibe/verify-step
@@ -195,6 +197,28 @@ export const POST: RequestHandler = async ({ request }) => {
 
     // Resolve authenticated user (optional — not required to process the step)
     const userId = await getUserIdFromRequest(request);
+
+    // ── Admin-review capture ──────────────────────────────────────────────────
+    // Snapshot identity-step images for review. The gov-ID (`id`) is sensitive →
+    // metadata only, no bytes. Liveness selfie + profile photos are non-sensitive
+    // and stored. Best-effort + non-blocking.
+    {
+      let items: CaptureItem[] = [];
+      if (step === 'id' && data?.image) {
+        items = [{ base64: data.image, mimeType: data.mimeType ?? 'image/jpeg', name: 'gov-id' }];
+      } else if (step === 'liveness' && data?.selfieImage) {
+        items = [{ base64: data.selfieImage, mimeType: data.mimeType ?? 'image/jpeg', name: 'liveness-selfie' }];
+      } else if (step === 'photos' && Array.isArray(data?.images)) {
+        items = data.images.map((img: string, i: number) => ({
+          base64: img,
+          mimeType: data.mimeTypes?.[i] ?? 'image/jpeg',
+          name: `photo_${i}`,
+        }));
+      }
+      if (items.length > 0) {
+        waitUntil(captureUploads({ userId, source: 'verify-step', category: step, items }));
+      }
+    }
 
     // Process verification based on step
     if (step === 'id') {
