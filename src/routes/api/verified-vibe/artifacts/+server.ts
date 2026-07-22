@@ -19,6 +19,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getSupabase } from '$lib/server/supabase';
 import { recomputeAndNormalize } from '$lib/server/trust-normalize';
+import { captureUploads } from '$lib/server/upload-audit';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -87,6 +88,15 @@ export const POST: RequestHandler = async ({ request }) => {
       console.error('[Artifacts] DB insert error:', dbError);
       return json({ error: 'Failed to save artifact record' }, { status: 500 });
     }
+
+    // Admin-review capture — reference the already-public artifact (no re-upload).
+    await captureUploads({
+      userId,
+      source: 'artifacts',
+      category: claimTag,
+      verdict: { verified: true },
+      items: [{ existingUrl: storageUrl, name: file.name, mimeType: file.type, sizeBytes: file.size }],
+    });
 
     // Recompute trust from ALL proof sources (single source of truth) — folds the
     // artifact we just inserted into the unified CG model — then normalize so the

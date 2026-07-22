@@ -17,6 +17,7 @@ export const load: PageServerLoad = async ({ params }) => {
 		{ data: passesSent },
 		{ data: tips },
 		{ data: aiConvos },
+		{ data: uploadAudit },
 		{ data: { user: authUser } },
 	] = await Promise.all([
 		sb.from('verified_vibe_users').select('*').eq('id', userId).single(),
@@ -35,6 +36,7 @@ export const load: PageServerLoad = async ({ params }) => {
 			.select('id, match_conversation_id, assistant_type, messages, exchange_count, updated_at')
 			.eq('user_id', userId)
 			.order('updated_at', { ascending: false }),
+		sb.from('upload_audit').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
 		sb.auth.admin.getUserById(userId),
 	]);
 
@@ -88,6 +90,48 @@ export const load: PageServerLoad = async ({ params }) => {
 			}
 		}
 	}
+
+	// Captured uploads (admin review). Rows with bytes in the private
+	// `upload-audit` bucket get a short-lived signed URL; already-public
+	// references use their URL directly; sensitive rows expose no URL.
+	const SIGNED_URL_TTL_SECONDS = 60 * 60; // 1 hour
+	const uploads = await Promise.all(
+		(uploadAudit ?? []).map(async (u: any) => {
+			let viewUrl: string | null = null;
+			if (!u.is_sensitive) {
+				if (u.storage_path) {
+					const { data: signed } = await sb.storage
+						.from('upload-audit')
+						.createSignedUrl(u.storage_path, SIGNED_URL_TTL_SECONDS);
+					viewUrl = signed?.signedUrl ?? null;
+				} else if (u.existing_url) {
+					viewUrl = u.existing_url;
+				}
+			}
+			const mime = u.mime_type ?? '';
+			const kind = mime.startsWith('image/') ? 'image'
+				: mime === 'application/pdf' ? 'pdf'
+				: mime.startsWith('audio/') ? 'audio'
+				: mime.startsWith('video/') ? 'video'
+				: 'file';
+			return {
+				id: u.id,
+				source: u.source,
+				category: u.category ?? '',
+				isSensitive: !!u.is_sensitive,
+				bytesStored: !!u.bytes_stored,
+				kind,
+				mimeType: mime,
+				fileName: u.file_name ?? '',
+				sizeBytes: u.size_bytes ?? 0,
+				verified: u.verified,
+				viewUrl,
+				matchId: u.match_id ?? null,
+				createdAt: u.created_at,
+				expiresAt: u.expires_at,
+			};
+		})
+	);
 
 	// Match partners — fetch their names
 	const matchList = matches ?? [];
@@ -187,6 +231,7 @@ export const load: PageServerLoad = async ({ params }) => {
 		})),
 		photoUrls,
 		aiPhotoUrls,
+		uploads,
 		matches: matchList.map((m: any) => {
 			const pid = m.user1_id === userId ? m.user2_id : m.user1_id;
 			const msgs = messagesByMatch.get(m.id) ?? [];

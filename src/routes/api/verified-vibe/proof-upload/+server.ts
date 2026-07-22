@@ -24,6 +24,7 @@ import { getSupabase } from '$lib/server/supabase';
 import { recomputeAndNormalize } from '$lib/server/trust-normalize';
 import { scheduleVectorRebuild } from '$lib/server/vector-rebuild';
 import { loadAnchorSelfie } from '$lib/verified-vibe/server/anchor-selfie';
+import { captureUploads } from '$lib/server/upload-audit';
 import { waitUntil } from '@vercel/functions';
 
 // A chat-thread upload can FULFIL the woman's Bestie proof request. An upload is
@@ -862,6 +863,15 @@ export const POST: RequestHandler = async ({ request }) => {
 
     // Resolve the authenticated user once (used by the ID gate + persistence).
     const userId = await getUserIdFromRequest(request);
+
+    // ── Admin-review capture ──────────────────────────────────────────────────
+    // Snapshot every upload here — BEFORE the branching below discards bytes for
+    // use-and-discard categories (assets/wealth/CV) or drops unverified images.
+    // Sensitive name-bearing docs are recorded as metadata only (no bytes).
+    // Best-effort + non-blocking; never affects the response.
+    if (files.length > 0) {
+      waitUntil(captureUploads({ userId, source: 'proof-upload', category, matchId: matchId || null, files }));
+    }
 
     // ── Government-ID gate for name-bearing documents ─────────────────────────
     // Bank statements / payslips / ITR (wealth), ownership docs (assets),

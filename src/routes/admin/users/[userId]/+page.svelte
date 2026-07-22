@@ -2,7 +2,7 @@
 	import type { PageData } from './$types';
 	let { data }: { data: PageData } = $props();
 
-	const { user, verification, verifiedProofs, photoUrls, aiPhotoUrls, matches, masterData, activity, tips, aiConversations, qaAnswers } = data;
+	const { user, verification, verifiedProofs, photoUrls, aiPhotoUrls, uploads, matches, masterData, activity, tips, aiConversations, qaAnswers } = data;
 
 	let isSeed = $state(user.isSeed);
 	let toggling = $state(false);
@@ -27,6 +27,24 @@
 	function fmtDate(iso: string | null) {
 		if (!iso) return '—';
 		return new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+	}
+
+	function fmtSize(bytes: number) {
+		if (!bytes) return '—';
+		if (bytes < 1024) return `${bytes} B`;
+		if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+		return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+	}
+
+	const uploadKindIcon: Record<string, string> = { pdf: '📄', audio: '🎙️', video: '🎥', file: '📎' };
+	function sourceLabel(source: string) {
+		return ({
+			'proof-upload': 'Boost/Trust proof',
+			'verify-step': 'Identity',
+			'artifacts': 'Chat artifact',
+			'car-image': 'Car photo',
+			'profile-photo': 'Profile photo',
+		} as Record<string, string>)[source] ?? source;
 	}
 
 	function statusColor(status: string) {
@@ -298,6 +316,62 @@
 		{:else}
 			<p class="text-sm text-slate-500">No AI photos yet.</p>
 		{/if}
+		</section>
+
+		<!-- All Uploads (Review) -->
+		<section class="rounded-lg border border-white/[0.08] bg-[#111a2e] p-5">
+			<div class="mb-1 flex items-center justify-between">
+				<h2 class="text-sm font-semibold text-white">All Uploads · Review ({uploads.length})</h2>
+			</div>
+			<p class="mb-3 text-[11px] text-slate-500">
+				Every file this user uploaded, captured for quality review. Sensitive documents
+				(bank statements, gov-ID, vehicle RC) keep metadata only — their contents are never stored.
+				Stored files auto-delete 90 days after upload.
+			</p>
+			{#if uploads.length === 0}
+				<p class="text-sm text-slate-500">No uploads captured yet.</p>
+			{:else}
+				<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+					{#each uploads as u}
+						<div class="rounded-lg border border-white/[0.08] bg-[#0d1522] p-2">
+							{#if u.isSensitive}
+								<div class="flex h-28 w-full flex-col items-center justify-center gap-1 rounded bg-amber-500/[0.06] border border-amber-500/20 text-center">
+									<span class="text-xl">🔒</span>
+									<span class="px-2 text-[10px] leading-tight text-amber-300/80">Sensitive — metadata only (not stored)</span>
+								</div>
+							{:else if u.kind === 'image' && u.viewUrl}
+								<a href={u.viewUrl} target="_blank" rel="noopener">
+									<img src={u.viewUrl} alt={u.fileName} class="h-28 w-full rounded object-cover border border-white/[0.08] transition hover:border-pink-500/50" />
+								</a>
+							{:else if u.viewUrl}
+								<a href={u.viewUrl} target="_blank" rel="noopener" class="flex h-28 w-full flex-col items-center justify-center gap-1 rounded bg-white/[0.03] border border-white/[0.08] transition hover:border-pink-500/50">
+									<span class="text-2xl">{uploadKindIcon[u.kind] ?? '📎'}</span>
+									<span class="text-[10px] uppercase text-slate-400">{u.kind}</span>
+								</a>
+							{:else}
+								<div class="flex h-28 w-full flex-col items-center justify-center gap-1 rounded bg-white/[0.03] border border-white/[0.08] text-center">
+									<span class="text-2xl">{uploadKindIcon[u.kind] ?? '📎'}</span>
+									<span class="px-2 text-[10px] text-slate-500">not stored</span>
+								</div>
+							{/if}
+							<div class="mt-2 space-y-1">
+								<div class="flex items-center gap-1">
+									<span class="rounded bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-slate-300">{sourceLabel(u.source)}</span>
+									{#if u.verified === true}
+										<span class="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-medium text-emerald-400">verified</span>
+									{:else if u.verified === false}
+										<span class="rounded bg-red-500/20 px-1.5 py-0.5 text-[9px] font-medium text-red-400">rejected</span>
+									{/if}
+								</div>
+								{#if u.category}<p class="truncate text-[11px] text-white">{u.category}</p>{/if}
+								<p class="truncate text-[10px] text-slate-500">{u.mimeType || '—'} · {fmtSize(u.sizeBytes)}</p>
+								<p class="text-[10px] text-slate-500">{fmtDate(u.createdAt)}</p>
+								<p class="text-[9px] text-slate-600">expires {fmtDate(u.expiresAt)}</p>
+							</div>
+						</div>
+					{/each}
+				</div>
+			{/if}
 		</section>
 
 		<!-- Verified Proofs -->
