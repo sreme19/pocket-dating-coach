@@ -163,6 +163,8 @@
 			type: 'doughnut',
 			data: { labels, datasets: [{ data, backgroundColor: colors }] },
 			options: {
+				responsive: true,
+				maintainAspectRatio: false,
 				plugins: {
 					legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
 				},
@@ -387,11 +389,11 @@
 	<div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
 		<div class="card">
 			<h2 class="chart-title">Signups — last 30 days</h2>
-			<div class="h-52"><canvas id="signups-chart"></canvas></div>
+			<div class="chart-box"><canvas id="signups-chart"></canvas></div>
 		</div>
 		<div class="card">
 			<h2 class="chart-title">Likes vs Passes — last 30 days</h2>
-			<div class="h-52"><canvas id="engagement-chart"></canvas></div>
+			<div class="chart-box"><canvas id="engagement-chart"></canvas></div>
 		</div>
 	</div>
 
@@ -399,11 +401,11 @@
 	<div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
 		<div class="card lg:col-span-2">
 			<h2 class="chart-title">Messages sent — last 30 days</h2>
-			<div class="h-52"><canvas id="messages-chart"></canvas></div>
+			<div class="chart-box"><canvas id="messages-chart"></canvas></div>
 		</div>
 		<div class="card">
 			<h2 class="chart-title">Gender split</h2>
-			<div class="h-52"><canvas id="gender-chart"></canvas></div>
+			<div class="chart-box"><canvas id="gender-chart"></canvas></div>
 		</div>
 	</div>
 
@@ -411,11 +413,11 @@
 	<div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
 		<div class="card">
 			<h2 class="chart-title">Top archetypes</h2>
-			<div class="h-52"><canvas id="archetype-chart"></canvas></div>
+			<div class="chart-box"><canvas id="archetype-chart"></canvas></div>
 		</div>
 		<div class="card">
 			<h2 class="chart-title">Trust score distribution</h2>
-			<div class="h-52"><canvas id="trust-chart"></canvas></div>
+			<div class="chart-box"><canvas id="trust-chart"></canvas></div>
 		</div>
 	</div>
 
@@ -424,13 +426,13 @@
 		{#if Object.keys(data.eventCounts).length}
 			<div class="card">
 				<h2 class="chart-title">Analytics events by type</h2>
-				<div class="h-52"><canvas id="events-chart"></canvas></div>
+				<div class="chart-box"><canvas id="events-chart"></canvas></div>
 			</div>
 		{/if}
 		{#if Object.keys(data.bestieTypes).length}
 			<div class="card">
 				<h2 class="chart-title">AI Bestie feedback types</h2>
-				<div class="h-52"><canvas id="bestie-chart"></canvas></div>
+				<div class="chart-box"><canvas id="bestie-chart"></canvas></div>
 			</div>
 		{/if}
 	</div>
@@ -951,5 +953,17 @@
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		color: #64748b;
+	}
+	/*
+	 * Chart canvas wrapper. Chart.js responsive mode sizes the canvas to this
+	 * box, so it MUST have a definite height and be position:relative (per the
+	 * Chart.js docs). We set the height here in scoped CSS rather than relying on
+	 * a Tailwind height utility — if that utility ever fails to emit in a build,
+	 * the box collapses to auto height and doughnut charts (aspect-ratio driven)
+	 * balloon to fill the card width. This guarantees the box regardless.
+	 */
+	:global(.chart-box) {
+		position: relative;
+		height: 13rem;
 	}
 </style>
