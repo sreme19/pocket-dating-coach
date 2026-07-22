@@ -24,6 +24,7 @@ import {
 	buildChecklistBlock,
 	buildChecklist,
 	nextChecklistState,
+	mergeChecklist,
 	buildHandoffPhaseBlock,
 	handoffClosingLine,
 	isWrapped,
@@ -52,6 +53,12 @@ export interface BestieReply {
 	 * transition to `wrapped` must run the hand-off (freeze the man + notify her).
 	 */
 	checklistUpdate?: BestieChecklist;
+	/**
+	 * The female owner's first name — so the SENDER can append the hand-off closing
+	 * line only when the checklist ACTUALLY transitions to wrapped in the DB (decided
+	 * concurrency-safely at persist time), not from this turn's stale snapshot.
+	 */
+	userName?: string;
 }
 
 // ── In-chat proof request context + state machine (spec §3 Step 3) ────────────
@@ -538,8 +545,10 @@ export async function generateBestieReply(
 		: null;
 
 	if (wantsWrap && gate && !gate.ready) {
-		// Block the hand-off: keep the checklist ACTIVE and pivot to a warm proof ask.
-		if (checklistUpdate) checklistUpdate = { ...checklistUpdate, status: 'active', wrapped_at: null };
+		// Block the hand-off: HOLD the checklist active (hold:true so the concurrency
+		// merge doesn't auto-wrap an all-done-but-unproven checklist) and pivot to a
+		// warm proof ask.
+		if (checklistUpdate) checklistUpdate = { ...checklistUpdate, status: 'active', wrapped_at: null, hold: true };
 		finalReply = dropTrailingQuestion(finalReply);
 		// Only ISSUE the ask (and open a request) when none is already live — don't nag
 		// if we already invited this proof on a prior turn.
@@ -560,22 +569,74 @@ export async function generateBestieReply(
 		// Never return an empty reply on a blocked wrap turn.
 		if (!finalReply) finalReply = handoffProofAskLine(gate.blockingPhrase);
 	} else if (wantsWrap) {
-		// Cleared the gate → guarantee the hand-off closing line (§F). The model is
-		// told to write only a brief reaction on the wrap turn; we append the "she'll
-		// take it from here" line in code so it is ALWAYS said. Strip a trailing
-		// follow-up question so the wrap turn doesn't ask AND say goodbye in one breath.
+		// Cleared the gate → this turn intends to hand off. Release any prior hold
+		// (hold:false, explicit so the merge doesn't fall back to a stale held state)
+		// and strip a trailing follow-up question so the reaction reads cleanly. The
+		// "she'll take it from here" closing line is appended by the SENDER, and only
+		// when the checklist ACTUALLY flips to wrapped in the DB — so an overlapping
+		// turn can never leave the man handed off without being told.
+		if (checklistUpdate) checklistUpdate = { ...checklistUpdate, hold: false };
 		finalReply = dropTrailingQuestion(finalReply);
-		const closing = handoffClosingLine(userName);
-		finalReply = finalReply ? `${finalReply} ${closing}` : closing;
 	}
 
 	return {
 		signal: parsed.signal ?? '✅',
 		read: stripBannedDashes(parsed.read ?? ''),
 		reply: finalReply,
+		userName,
 		...(proofStateFinal ? { proofStateUpdate: proofStateFinal } : {}),
 		...(checklistUpdate ? { checklistUpdate } : {})
 	};
+}
+
+/**
+ * Concurrency-safe persist of a checklist transition (fixes the "wrap never fired"
+ * bug). A Bestie generation reads the checklist at its START, then spends several
+ * seconds in Claude; two overlapping generations for the SAME match would each
+ * write from a stale snapshot, and a last-writer-wins update could silently drop a
+ * wrap-up. Here we instead: re-read the CURRENT row, merge monotonically
+ * (mergeChecklist — done-union + sticky wrap), and write guarded on the row's `rev`
+ * (optimistic CAS). On a lost race the guarded update matches 0 rows and we retry
+ * from a fresh read. Returns whether THIS call is the one that flipped it to wrapped
+ * (so the hand-off notify + closing line fire exactly once). Non-fatal throughout.
+ */
+async function persistChecklist(
+	supabase: any,
+	matchId: string,
+	incoming: BestieChecklist | undefined
+): Promise<{ justWrapped: boolean }> {
+	if (!incoming) return { justWrapped: false };
+	for (let attempt = 0; attempt < 3; attempt++) {
+		const { data: row } = await supabase
+			.from('verified_vibe_matches')
+			.select('bestie_checklist')
+			.eq('id', matchId)
+			.maybeSingle();
+		const fresh = (row?.bestie_checklist ?? null) as BestieChecklist | null;
+		// Already handed off → never regress a wrapped row back to active.
+		if (isWrapped(fresh)) return { justWrapped: false };
+
+		const merged = mergeChecklist(fresh, incoming);
+		if (!merged) return { justWrapped: false };
+
+		let q = supabase.from('verified_vibe_matches').update({ bestie_checklist: merged }).eq('id', matchId);
+		// Optimistic guard: only write if the row is still at the rev we just read.
+		if (!fresh) q = q.is('bestie_checklist', null);
+		else if (fresh.rev == null) q = q.is('bestie_checklist->>rev', null);
+		else q = q.eq('bestie_checklist->>rev', String(fresh.rev));
+
+		const { data: updated, error } = await q.select('id');
+		if (error) {
+			console.warn('[bestie] checklist CAS write failed (non-fatal):', error.message);
+			return { justWrapped: false };
+		}
+		if (updated && updated.length > 0) {
+			return { justWrapped: isWrapped(merged) && !isWrapped(fresh) };
+		}
+		// 0 rows → a concurrent turn advanced the row; retry from a fresh read.
+	}
+	console.warn('[bestie] checklist CAS exhausted retries (non-fatal) for', matchId);
+	return { justWrapped: false };
 }
 
 /**
@@ -614,19 +675,15 @@ export async function generateAndSendBestieReply(
 		}
 	}
 
-	// Persist any checklist change (items done / wrap-up). Same non-fatal,
-	// conversational-state-only treatment. When this turn WRAPPED UP the checklist
-	// (§F: items sufficiently answered, her judgment), run the hand-off: the man's
-	// chat freezes (enforced server-side in the send route by reading bestie_checklist)
-	// and the woman is notified to step in.
+	// Persist any checklist change (items done / wrap-up) with concurrency-safe CAS.
+	// When this turn is the one that WRAPPED UP the checklist (§F), run the hand-off:
+	// the man's chat freezes (send route reads bestie_checklist) and the woman is
+	// notified. justWrapped comes from the persist so it reflects the ACTUAL DB
+	// transition, not this turn's possibly-stale snapshot.
 	let justWrapped = false;
 	if (reply.checklistUpdate) {
 		try {
-			await (supabase as any)
-				.from('verified_vibe_matches')
-				.update({ bestie_checklist: reply.checklistUpdate })
-				.eq('id', matchId);
-			justWrapped = isWrapped(reply.checklistUpdate);
+			({ justWrapped } = await persistChecklist(supabase, matchId, reply.checklistUpdate));
 		} catch (e) {
 			console.warn('[bestie] bestie_checklist persist failed (non-fatal):', e);
 		}
@@ -641,16 +698,26 @@ export async function generateAndSendBestieReply(
 			.eq('id', triggerMsgId);
 	} catch { /* non-critical */ }
 
+	// Append the guaranteed hand-off closing line ONLY when this turn actually flipped
+	// the checklist to wrapped in the DB (§F). Decided post-persist so it can never be
+	// lost or duplicated by an overlapping turn; the includes() guard is belt-and-braces.
+	let replyText = reply.reply;
+	if (justWrapped) {
+		const closing = handoffClosingLine(reply.userName ?? 'she');
+		if (!replyText) replyText = closing;
+		else if (!replyText.includes('take it from here')) replyText = `${replyText} ${closing}`;
+	}
+
 	// Send the reply as a message from the user, flagged as AI.
 	let replyMessageId: string | null = null;
 	let generatedAt: string | null = null;
-	if (reply.reply) {
+	if (replyText) {
 		const { data: inserted } = await (supabase as any)
 			.from('verified_vibe_messages')
 			.insert({
 				match_id: matchId,
 				sender_id: userId,
-				content: reply.reply,
+				content: replyText,
 				is_ai: true
 			})
 			.select('id, created_at')
@@ -799,11 +866,9 @@ export async function generateAndSendBestieOpener(matchId: string): Promise<void
 		// generates the CHECKLIST concurrently, so persist it if present.
 		const reply = await generateBestieReply(woman.id, matchId, '', timing);
 		if (reply.checklistUpdate) {
+			// Concurrency-safe create/merge (opener never wraps — all items open).
 			try {
-				await (supabase as any)
-					.from('verified_vibe_matches')
-					.update({ bestie_checklist: reply.checklistUpdate })
-					.eq('id', matchId);
+				await persistChecklist(supabase, matchId, reply.checklistUpdate);
 			} catch { /* non-fatal — checklist will be generated on the man's first turn instead */ }
 		}
 		if (!reply.reply) return;
@@ -890,19 +955,27 @@ export async function generateAndSendBestieProofAck(matchId: string): Promise<vo
 					.eq('id', matchId);
 			} catch (e) { console.warn('[bestie-proof-ack] proof_request persist failed (non-fatal):', e); }
 		}
+		// A proof-ack turn can be the one that clears the last gap and wraps up
+		// (the proof he just uploaded was the thing she valued). Persist via CAS and
+		// hand off if it flips to wrapped.
+		let justWrapped = false;
 		if (reply.checklistUpdate) {
 			try {
-				await (supabase as any)
-					.from('verified_vibe_matches')
-					.update({ bestie_checklist: reply.checklistUpdate })
-					.eq('id', matchId);
+				({ justWrapped } = await persistChecklist(supabase, matchId, reply.checklistUpdate));
 			} catch (e) { console.warn('[bestie-proof-ack] checklist persist failed (non-fatal):', e); }
 		}
-		if (!reply.reply) return;
+
+		let replyText = reply.reply;
+		if (justWrapped) {
+			const closing = handoffClosingLine(reply.userName ?? 'she');
+			if (!replyText) replyText = closing;
+			else if (!replyText.includes('take it from here')) replyText = `${replyText} ${closing}`;
+		}
+		if (!replyText) return;
 
 		const { data: inserted } = await (supabase as any)
 			.from('verified_vibe_messages')
-			.insert({ match_id: matchId, sender_id: woman.id, content: reply.reply, is_ai: true })
+			.insert({ match_id: matchId, sender_id: woman.id, content: replyText, is_ai: true })
 			.select('id, created_at')
 			.single();
 
@@ -920,6 +993,9 @@ export async function generateAndSendBestieProofAck(matchId: string): Promise<vo
 					}, { onConflict: 'reply_message_id' });
 			} catch { /* non-critical */ }
 		}
+
+		// If acknowledging the proof cleared the last gap, hand off to the woman.
+		if (justWrapped) await notifyWomanToStepIn(supabase, matchId, woman.id);
 	} catch (err) {
 		console.error('[bestie-proof-ack] failed (non-fatal):', err);
 	}

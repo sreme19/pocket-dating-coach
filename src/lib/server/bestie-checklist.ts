@@ -40,6 +40,19 @@ export interface BestieChecklist {
 	status: ChecklistStatus;
 	created_at: string;
 	wrapped_at?: string | null;
+	/**
+	 * Optimistic-concurrency version. Bumped by mergeChecklist on every write; the
+	 * persist layer guards the DB update on it so overlapping Bestie generations for
+	 * the same match can't lose each other's updates (the "wrap never fired" bug).
+	 */
+	rev?: number;
+	/**
+	 * Hand-off HELD by the proof gate: all items may be answered, but she values a
+	 * dimension he hasn't proven, so the wrap is withheld until he does. Keeps the
+	 * merge from auto-wrapping an all-done-but-unproven checklist. Absent (never set)
+	 * on prod until the gate ships — merge then wraps on all-done as before.
+	 */
+	hold?: boolean;
 }
 
 /** Items still open, in checklist order. */
@@ -185,4 +198,63 @@ export function nextChecklistState(
 		return { ...prev, items, status: 'wrapped', wrapped_at: now };
 	}
 	return { ...prev, items };
+}
+
+/** Earliest of two ISO timestamps (either may be null/undefined). */
+function earliestIso(a?: string | null, b?: string | null): string | null {
+	if (a && b) return Date.parse(a) <= Date.parse(b) ? a : b;
+	return a ?? b ?? null;
+}
+
+/**
+ * Monotonically merge a freshly-read checklist (`current`, from the DB right before
+ * writing) with a transition computed from a possibly-stale snapshot (`incoming`,
+ * from the start of this Bestie generation). This is the concurrency-safe core that
+ * fixes lost wrap-ups when two generations for the same match overlap:
+ *
+ *   · done-marks UNION — an item done in EITHER side stays done (earliest done_at);
+ *     item EXISTENCE follows `current` (the fresher row), so a stale set can't
+ *     resurrect or drop items;
+ *   · wrap is STICKY and also fires when every item is done — UNLESS `hold` is set
+ *     (the proof gate withholding the hand-off; absent on prod until the gate ships);
+ *   · `rev` is bumped so the persist layer can guard the write (optimistic CAS).
+ *
+ * Pure. The caller re-reads `current`, calls this, and writes guarded on the old rev.
+ */
+export function mergeChecklist(
+	current: BestieChecklist | null | undefined,
+	incoming: BestieChecklist | null | undefined,
+	now: string = new Date().toISOString()
+): BestieChecklist | null {
+	if (!incoming && !current) return null;
+	if (!incoming) return current ?? null;
+	if (!current) return { ...incoming, rev: (incoming.rev ?? 0) + 1 };
+
+	const incById = new Map(incoming.items.map((i) => [i.id, i]));
+	const items = current.items.map((cur) => {
+		const inc = incById.get(cur.id);
+		const curDone = cur.status === 'done';
+		const incDone = inc?.status === 'done';
+		if (!curDone && !incDone) return cur;
+		return {
+			...cur,
+			status: 'done' as const,
+			done_at: earliestIso(curDone ? cur.done_at : null, incDone ? inc?.done_at : null) ?? now,
+		};
+	});
+
+	// `hold` is explicit-false-aware: the gate's ready-to-wrap path sets hold:false to
+	// release a prior hold, so we must not fall back to current.hold in that case.
+	const held = incoming.hold ?? current.hold ?? false;
+	const allDone = items.length > 0 && items.every((i) => i.status === 'done');
+	const wrapped = current.status === 'wrapped' || incoming.status === 'wrapped' || (allDone && !held);
+
+	return {
+		items,
+		status: wrapped ? 'wrapped' : 'active',
+		created_at: current.created_at,
+		wrapped_at: wrapped ? current.wrapped_at ?? now : null,
+		hold: wrapped ? undefined : held || undefined,
+		rev: (current.rev ?? 0) + 1,
+	};
 }
