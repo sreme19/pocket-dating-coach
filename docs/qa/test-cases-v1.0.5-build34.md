@@ -6,7 +6,8 @@ Semua test case membutuhkan: akun pria yang sudah terverifikasi dengan ≥1 matc
 ---
 
 ## Fitur 01 — Upload Bukti di Chat: Maksimal 10 Foto + Panduan Wajah
-**Commit:** `ccd8ea9`
+**Commit:** `ccd8ea9`  
+**Lokasi di app:** Tab Chat → buka percakapan aktif → tap ikon 📎 di kotak pesan
 
 | ID | Aksi | Hasil yang Diharapkan | Status | Catatan |
 |----|------|-----------------------|--------|---------|
@@ -18,7 +19,8 @@ Semua test case membutuhkan: akun pria yang sudah terverifikasi dengan ≥1 matc
 ---
 
 ## Fitur 02 — Sheet Trust & Boost (Setelah Verifikasi)
-**Commit:** `71b3f6c`
+**Commit:** `71b3f6c`  
+**Lokasi di app:** Tab Chat → buka percakapan aktif → upload bukti → tunggu verifikasi selesai
 
 | ID | Aksi | Hasil yang Diharapkan | Status | Catatan |
 |----|------|-----------------------|--------|---------|
@@ -29,7 +31,8 @@ Semua test case membutuhkan: akun pria yang sudah terverifikasi dengan ≥1 matc
 ---
 
 ## Fitur 03 — Bestie: Undangan Bukti Proaktif Sesuai Preferensi Wanita
-**Commit:** `4ec917b`
+**Commit:** `4ec917b`  
+**Lokasi di app:** Tab Chat → buka percakapan aktif yang ada Bestie-nya → kirim pesan berisi info personal
 
 | ID | Aksi | Hasil yang Diharapkan | Status | Catatan |
 |----|------|-----------------------|--------|---------|
@@ -42,7 +45,8 @@ Semua test case membutuhkan: akun pria yang sudah terverifikasi dengan ≥1 matc
 ---
 
 ## Fitur 04 — Gerbang Hand-off Bestie: Percakapan Harus Berisi
-**Commit:** `af22d06`
+**Commit:** `af22d06`  
+**Lokasi di app:** Tab Chat → buka percakapan aktif yang ada Bestie-nya → perhatikan kapan Bestie menyerahkan ke pria
 
 | ID | Aksi | Hasil yang Diharapkan | Status | Catatan |
 |----|------|-----------------------|--------|---------|
@@ -53,7 +57,8 @@ Semua test case membutuhkan: akun pria yang sudah terverifikasi dengan ≥1 matc
 ---
 
 ## Fitur 05 — Gerbang Hand-off Bestie: Bukti Harus Sesuai Nilai Wanita
-**Commit:** `a4696f5`
+**Commit:** `a4696f5`  
+**Lokasi di app:** Tab Chat → buka percakapan aktif → cek profil wanita untuk lihat nilai/preferensinya → upload bukti yang sesuai/tidak sesuai
 
 | ID | Aksi | Hasil yang Diharapkan | Status | Catatan |
 |----|------|-----------------------|--------|---------|
@@ -63,7 +68,8 @@ Semua test case membutuhkan: akun pria yang sudah terverifikasi dengan ≥1 matc
 ---
 
 ## Fitur 06 — Bestie Tidak Menggali Topik yang Sama Lebih dari 2 Kali
-**Commit:** `dfac9b4`
+**Commit:** `dfac9b4`  
+**Lokasi di app:** Tab Chat → buka percakapan aktif yang ada Bestie-nya → perhatikan pola pertanyaan Bestie
 
 | ID | Aksi | Hasil yang Diharapkan | Status | Catatan |
 |----|------|-----------------------|--------|---------|
@@ -73,7 +79,8 @@ Semua test case membutuhkan: akun pria yang sudah terverifikasi dengan ≥1 matc
 ---
 
 ## Fitur 07 — Bestie: Respons Hangat Setelah Upload Bukti
-**Commit:** `4bf0f20`
+**Commit:** `4bf0f20`  
+**Lokasi di app:** Tab Chat → buka percakapan aktif yang ada Bestie-nya → upload dan verifikasi bukti di tengah percakapan → perhatikan balasan Bestie
 
 | ID | Aksi | Hasil yang Diharapkan | Status | Catatan |
 |----|------|-----------------------|--------|---------|
@@ -83,7 +90,8 @@ Semua test case membutuhkan: akun pria yang sudah terverifikasi dengan ≥1 matc
 ---
 
 ## Fitur 08 — Tombol Verify di Chat: Hanya Foto (Bukan Dokumen)
-**Commit:** `074caf1`
+**Commit:** `074caf1`  
+**Lokasi di app:** Tab Chat → buka percakapan aktif → tap tombol 📎 Verify di kotak pesan
 
 | ID | Aksi | Hasil yang Diharapkan | Status | Catatan |
 |----|------|-----------------------|--------|---------|
