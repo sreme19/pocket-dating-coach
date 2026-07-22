@@ -28,9 +28,13 @@ export interface Conversation {
   matchedAt: Date;
   /** True when AI Bestie wrapped up and is waiting for THIS user (the woman) to step in. */
   handoffPending: boolean;
+  /** True for the MAN's view when her Bestie wrapped up and she hasn't stepped in yet — drives
+   *  a countdown-only tile on his side (no step-in / no Reactivate; he can't act on it). */
+  awaitingReply: boolean;
   /** 'mutual' (active) or 'expired' (hand-off window elapsed — Inactive section). */
   status: string;
-  /** When Bestie handed off (checklist wrapped_at, ISO). Deadline = this + 48h. Null unless handoffPending. */
+  /** When Bestie handed off (checklist wrapped_at, ISO). Deadline = this + 48h.
+   *  Populated for BOTH sides whenever the hand-off window is open (woman: handoffPending; man: awaitingReply). */
   handoffAt: string | null;
   /** When the match expired (ISO). Null unless status='expired'. */
   expiredAt: string | null;
@@ -127,11 +131,16 @@ export async function buildConversations(
     const lastMsg = lastMessageMap.get(match.id);
     const checklist = (match as any).bestie_checklist as { status?: string; wrapped_at?: string } | null;
     const isExpired = (match as any).status === 'expired';
-    const handoffPending =
+    // Bestie wrapped up and is still the proxy → the hand-off window is open.
+    // Which SIDE this is depends on the other user's gender:
+    //   · other is a man  → THIS viewer is the woman → her "step in" (handoffPending)
+    //   · other is a woman → THIS viewer is the man → he's waiting on her (awaitingReply)
+    const windowOpen =
       !isExpired &&
-      otherUser.gender === 'man' &&
       (match as any).ai_bestie_active === true &&
       checklist?.status === 'wrapped';
+    const handoffPending = windowOpen && otherUser.gender === 'man';
+    const awaitingReply = windowOpen && otherUser.gender === 'woman';
     const canReactivate = isExpired && otherUser.gender === 'man';
     conversations.push({
       id: match.id,
@@ -157,8 +166,9 @@ export async function buildConversations(
       hasMessages: !!lastMsg,
       matchedAt: new Date(match.created_at),
       handoffPending,
+      awaitingReply,
       status: (match as any).status,
-      handoffAt: handoffPending ? (checklist?.wrapped_at ?? null) : null,
+      handoffAt: windowOpen ? (checklist?.wrapped_at ?? null) : null,
       expiredAt: isExpired ? ((match as any).expired_at ?? null) : null,
       canReactivate
     });
