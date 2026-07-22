@@ -21,6 +21,7 @@
 import { getSupabase } from './supabase';
 import { calculateCGTotal, type CGTrustSubscores } from '$lib/verified-vibe/server/trustScore';
 import { refreshPoolEntry } from './pool-registry';
+import { photoSignalsEnabled, photoTrustContribution, type PhotoSignals } from './photo-signals';
 
 // Proof-category → CG dimension boost (mirrors CasualGenerousBoostTab / the old
 // inline map in proof-upload). Show-off categories get a photo-count multiplier.
@@ -199,6 +200,21 @@ export async function computeSubscores(userId: string): Promise<SubscoreResult> 
 			if (!m || directDims.has(m.key) || creditedCrossDims.has(m.key)) continue;
 			subscores[m.key] = Math.min(100, subscores[m.key] + Math.round(m.boost * CROSS_SIGNAL_FACTOR));
 			creditedCrossDims.add(m.key);
+		}
+
+		// Photo-signal boosts (multimodal). ONLY when authenticity holds (a single,
+		// consistent, real, artifact-free face) - photoTrustContribution returns []
+		// otherwise, so self-uploaded / AI-looking photos never award trust. Modest,
+		// capped, and - for the cross-signal dims (lifestyle/social) - only credited
+		// when NOT already proven directly, so photos can't inflate a proven dimension
+		// or double-count. Behind PHOTO_SIGNAL_GATE. See photo-signals.ts for policy.
+		if (photoSignalsEnabled()) {
+			const photoSig = (masterRow?.data?.photoSignals ?? null) as PhotoSignals | null;
+			for (const b of photoTrustContribution(photoSig)) {
+				if (b.crossOnly && (directDims.has(b.key) || creditedCrossDims.has(b.key))) continue;
+				subscores[b.key] = Math.min(100, subscores[b.key] + b.boost);
+				if (b.crossOnly) creditedCrossDims.add(b.key);
+			}
 		}
 	} catch (e) {
 		console.warn('computeSubscores failed (non-fatal):', e);
