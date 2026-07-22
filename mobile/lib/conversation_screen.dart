@@ -679,6 +679,18 @@ class _ConversationScreenState extends State<ConversationScreen> {
     });
   }
 
+  /// Launch the AI Bestie voice call. Only ever reachable while her Bestie is
+  /// the proxy (the header "Call Bestie" pill is gated on `_bestieIsProxy`).
+  void _openVoiceCall() {
+    AppLogger.instance.action('conversation', 'open_voice_call');
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => VoiceCallScreen(
+        matchId: widget.conversationId,
+        name: _otherName.isNotEmpty ? _otherName : widget.title,
+      ),
+    )).then((_) => _pollOnce());
+  }
+
   void _wrapComingSoon(String what) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1163,6 +1175,37 @@ class _ConversationScreenState extends State<ConversationScreen> {
           ]),
         ),
         actions: [
+          // "Call Bestie" voice pill — only while her AI Bestie is the proxy
+          // speaker. Vanishes the instant she steps in (`_bestieIsProxy` → false),
+          // so the man is never offered an AI voice call once he's talking to her.
+          if (_bestieIsProxy)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Center(
+                child: GestureDetector(
+                  onTap: _openVoiceCall,
+                  child: Container(
+                    height: 32,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
+                      borderRadius: BorderRadius.circular(999),
+                      boxShadow: const [BoxShadow(color: Color(0x33FF3B6B), blurRadius: 8, offset: Offset(0, 3))],
+                    ),
+                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.mic_rounded, color: Colors.white, size: 15),
+                      SizedBox(width: 5),
+                      Text('Call Bestie',
+                          style: TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w700, letterSpacing: 0.2)),
+                    ]),
+                  ),
+                ),
+              ),
+            ),
           PopupMenuButton<String>(
             color: const Color(Config.bg2),
             icon: const Icon(Icons.more_vert, color: Color(Config.text2)),
@@ -1246,48 +1289,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
                             },
                           ),
           ),
-          if (!_loading && _viewerGender == 'man' && _otherGender == 'woman' && _bestieActive && !_manBannerDismissed)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: Row(children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      AppLogger.instance.action('conversation', 'open_voice_call');
-                      Navigator.of(context).push(MaterialPageRoute(
-                        builder: (_) => VoiceCallScreen(
-                          matchId: widget.conversationId,
-                          name: _otherName.isNotEmpty ? _otherName : widget.title,
-                        ),
-                      )).then((_) {
-                        if (mounted) setState(() => _manBannerDismissed = false);
-                        _pollOnce();
-                      });
-                    },
-                    child: Container(
-                      height: 40,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)],
-                          begin: Alignment.centerLeft,
-                          end: Alignment.centerRight,
-                        ),
-                        borderRadius: BorderRadius.circular(999),
-                        boxShadow: const [BoxShadow(color: Color(0x44FF3B6B), blurRadius: 10, offset: Offset(0, 4))],
-                      ),
-                      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        const Text('✨', style: TextStyle(fontSize: 15)),
-                        const SizedBox(width: 7),
-                        Text('Voice chat with ${_otherName.isNotEmpty ? _otherName : widget.title}\'s AI Bestie',
-                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: 0.2)),
-                        const SizedBox(width: 7),
-                        const Icon(Icons.mic_rounded, color: Colors.white, size: 16),
-                      ]),
-                    ),
-                  ),
-                ),
-              ]),
-            ),
           _Composer(
             controller: _composer,
             focusNode: _composerFocus,
