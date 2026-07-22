@@ -14,6 +14,12 @@ import { env } from '$env/dynamic/private';
 
 const DEFAULT_FROM = 'riteangle <hello@riteangle.dating>';
 
+/** A file to attach. `content` is base64-encoded per the Resend API. */
+export interface EmailAttachment {
+  filename: string;
+  content: string;
+}
+
 export interface SendEmailArgs {
   to: string | string[];
   subject: string;
@@ -21,9 +27,18 @@ export interface SendEmailArgs {
   from?: string;
   /** Address replies go to. Omit for a no-reply message. */
   replyTo?: string;
+  /** Optional file attachments (base64 content). */
+  attachments?: EmailAttachment[];
 }
 
-export async function sendEmail({ to, subject, html, from, replyTo }: SendEmailArgs): Promise<void> {
+export async function sendEmail({
+  to,
+  subject,
+  html,
+  from,
+  replyTo,
+  attachments,
+}: SendEmailArgs): Promise<void> {
   const apiKey = env.RESEND_API_KEY;
   if (!apiKey) throw new Error('RESEND_API_KEY not set');
 
@@ -34,6 +49,7 @@ export async function sendEmail({ to, subject, html, from, replyTo }: SendEmailA
     html,
   };
   if (replyTo) body.reply_to = replyTo;
+  if (attachments && attachments.length) body.attachments = attachments;
 
   const resp = await fetch('https://api.resend.com/emails', {
     method: 'POST',
