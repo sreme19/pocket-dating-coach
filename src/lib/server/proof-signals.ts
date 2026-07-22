@@ -49,6 +49,28 @@ export const PROOF_CATEGORY_PRIORITY: ProofRequestCategory[] = [
 	'spending',
 ];
 
+/**
+ * Document / ID-gated categories: proving these needs a name-bearing DOCUMENT
+ * (income statement, payslip, receipts, vehicle/property ownership papers) matched
+ * against a verified government ID — NOT a picture the man can just snap and upload.
+ *
+ * The in-chat 📎 "Verify" surface is deliberately picture-upload only (bootstrap
+ * decision 2026-07-22: keep it frictionless — pictures only in chat), so the Bestie
+ * NEVER requests these categories there. They remain fully available on the dedicated
+ * /proof-upload screen, which has the ID-gate flow they need. See
+ * `IN_CHAT_PROOF_CATEGORIES` for the set the chat surface may ask for.
+ */
+export const DOCUMENT_PROOF_CATEGORIES = ['wealth', 'assets', 'spending'] as const;
+
+/** True when a category needs a document + ID gate rather than a picture upload. */
+export function isDocumentProofCategory(c: string): boolean {
+	return (DOCUMENT_PROOF_CATEGORIES as readonly string[]).includes(c);
+}
+
+/** Picture-uploadable categories the in-chat 📎 Verify surface may request. */
+export const IN_CHAT_PROOF_CATEGORIES: ProofRequestCategory[] =
+	PROOF_REQUEST_CATEGORIES.filter((c) => !isDocumentProofCategory(c));
+
 /** Friendly labels for prompts + UI copy. */
 export const PROOF_CATEGORY_LABELS: Record<ProofRequestCategory, string> = {
 	linkedin: 'career (a LinkedIn screenshot, or your résumé)',

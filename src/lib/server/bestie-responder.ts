@@ -15,6 +15,7 @@ import {
 	PROOF_CATEGORY_LABELS,
 	loadProofSignals,
 	isProofRequestActive,
+	isDocumentProofCategory,
 	refusedCategories,
 	askedCategories,
 	type ProofRequestCategory,
@@ -82,14 +83,16 @@ function buildProofRequestBlock(opts: {
 
 	// Invites are OFF while a request is open/fulfilled, and on the very first
 	// message (the opener stays a warm hello, never an ask for evidence).
-	// Otherwise: every category he hasn't verified or already been asked is
-	// invitable, in highest-leverage-first order (career/fitness/travel lead;
-	// the ID-gated wealth/spending/assets trail).
+	// Otherwise: every PICTURE category he hasn't verified or already been asked is
+	// invitable, in highest-leverage-first order (career/fitness/travel lead).
+	// Document/ID-gated categories (wealth/assets/spending) are excluded here: the
+	// in-chat 📎 surface is picture-upload only, so the Bestie never asks for income
+	// or ownership papers in chat — those live on the /proof-upload screen.
 	let invitable: ProofRequestCategory[] = [];
 	const requestOpen = isProofRequestActive(state) || state?.status === 'fulfilled';
 	if (!requestOpen && !isOpener) {
 		invitable = PROOF_CATEGORY_PRIORITY.filter(
-			(c) => !verifiedCategories.includes(c) && !asked.includes(c)
+			(c) => !verifiedCategories.includes(c) && !asked.includes(c) && !isDocumentProofCategory(c)
 		);
 	}
 
