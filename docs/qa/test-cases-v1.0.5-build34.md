@@ -82,12 +82,23 @@ All test cases require: a verified man account with ≥1 active match (woman wit
 
 ---
 
+## Feature 08 — In-Chat Verify: Photo Only (No Documents)
+**Commit:** `074caf1`
+
+| ID | Action | Expected | Status | Notes |
+|----|--------|----------|--------|-------|
+| TC-22 | Tap the 📎 Verify button inside an active chat | Photo picker opens — only camera/gallery option shown, no document/file option | ⬜ Pending | |
+| TC-23 | Try to attach a PDF or document file via Verify | Document option not available; only photos can be selected | ⬜ Pending | |
+| TC-24 | Upload a valid photo via in-chat Verify | Photo accepted and proof flow proceeds normally | ⬜ Pending | |
+
+---
+
 ## Summary
 
 | Total | Passed | Failed | Pending |
 |-------|--------|--------|---------|
-| 21 | 0 | 0 | 21 |
+| 24 | 0 | 0 | 24 |
 
 **Tester:** _______________  
 **Date tested:** _______________  
-**Build tested:** v1.0.5 (34) — Production (riteangle.dating)
+**Build tested:** v1.0.5 (34/35) — Production (riteangle.dating)
