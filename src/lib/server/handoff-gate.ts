@@ -27,6 +27,7 @@ import {
 	CLAIMING_V,
 	MIN_WEIGHT,
 } from './dimension-proof-map';
+import { isDocumentProofCategory } from './proof-signals';
 
 export interface HandoffGate {
 	ready: boolean;
@@ -80,8 +81,14 @@ export function assessHandoffReadiness(args: {
 		requestCategory: target,
 		reason,
 	});
+	// Only PICTURE proofs can be requested in chat — the hand-off ask pivots to the
+	// in-chat 📎 surface, which is picture-upload only. Document/ID-gated categories
+	// (income, ownership papers) are skipped; a dim she values that has only doc
+	// proofs (e.g. financial) simply can't gate the hand-off from chat.
 	const available = (d: DimensionId): string | null =>
-		(DIM_TO_PROOF[d] ?? []).find((cat) => !verified.has(cat) && !refused.has(cat)) ?? null;
+		(DIM_TO_PROOF[d] ?? []).find(
+			(cat) => !verified.has(cat) && !refused.has(cat) && !isDocumentProofCategory(cat)
+		) ?? null;
 
 	// PASS 1 — specific gaps: a dimension she values that he CLAIMS (v≥45) but hasn't
 	// PROVEN. The income case: "claims a good salary, c stuck at the floor."

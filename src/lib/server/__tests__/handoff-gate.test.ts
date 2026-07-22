@@ -10,6 +10,12 @@ import { assessHandoffReadiness } from '../handoff-gate';
 // Real state from the reported conversation 05abca84… (Sam ↔ valarie):
 // valarie's top weight is financial (0.21); Sam claims financial v=65 but c=0.3
 // (the unproven floor), with only a `photos` proof — the exact gap.
+//
+// NOTE (2026-07-22): the in-chat 📎 surface is picture-upload only, so income /
+// wealth / assets / spending (document + ID-gated) can NO LONGER be requested in
+// chat. The hand-off gate therefore skips financial (document-only) and falls
+// through to the next PICTURE-provable dimension she values (here: lifestyle →
+// travel). Document proofs still live on the /proof-upload screen.
 const valarieWeights: Vec = {
 	financial: 0.2083, looks: 0.1667, lifestyle: 0.1667, warmth: 0.125, humor: 0.10,
 	presentation: 0.06, ambition: 0.06, intellect: 0.03, social_legitimacy: 0.02, family: 0.02,
@@ -20,34 +26,45 @@ const samConf: Vec = { financial: 0.3, lifestyle: 0.3, presentation: 0.65, ambit
 beforeEach(() => { for (const k of Object.keys(mockEnv)) delete mockEnv[k]; });
 
 describe('assessHandoffReadiness — the Sam ↔ valarie case', () => {
-	it('BLOCKS the hand-off: her #1 value (financial) is claimed but unproven → ask for income proof', () => {
+	it('SKIPS financial (document-only) and blocks on the next picture-provable dim she values', () => {
 		const gate = assessHandoffReadiness({
 			herWeights: valarieWeights, hisAttrs: samAttrs, hisConf: samConf,
 			verifiedCategories: ['photos'], refusedCategories: [],
 		});
 		expect(gate.ready).toBe(false);
-		expect(gate.blockingDim).toBe('financial'); // her highest-weighted provable dim
-		expect(gate.requestCategory).toBe('wealth'); // strongest money proof he lacks
-		expect(gate.blockingPhrase).toBe('income');
+		// financial is her #1 value but its only proofs (wealth/assets/spending) are
+		// documents — never requested in chat — so the gate falls through to lifestyle.
+		expect(gate.blockingDim).toBe('lifestyle');
+		expect(gate.requestCategory).toBe('travel'); // a picture proof, not a document
+		expect(gate.blockingPhrase).toBe('lifestyle');
 	});
 
-	it('CLEARS once he has proven financial (c ≥ 0.55)', () => {
-		const proven = { ...samConf, financial: 0.7 };
-		const gate = assessHandoffReadiness({
-			herWeights: valarieWeights, hisAttrs: samAttrs, hisConf: proven,
-			verifiedCategories: ['photos', 'wealth'], refusedCategories: [],
-		});
-		// financial satisfied; next provable dim (lifestyle) is still unproven → still gated there.
-		// That is correct: she also weights lifestyle. Verify the gate moved OFF financial.
-		expect(gate.blockingDim).not.toBe('financial');
-	});
-
-	it('does not dead-end: if he DECLINED every money proof, financial no longer blocks', () => {
+	it('NEVER requests a document category in chat, even when financial is her top value', () => {
 		const gate = assessHandoffReadiness({
 			herWeights: valarieWeights, hisAttrs: samAttrs, hisConf: samConf,
-			verifiedCategories: ['photos'], refusedCategories: ['wealth', 'assets', 'spending'],
+			verifiedCategories: ['photos'], refusedCategories: [],
 		});
-		expect(gate.blockingDim).not.toBe('financial'); // moves on rather than trapping the match
+		expect(['wealth', 'assets', 'spending']).not.toContain(gate.requestCategory);
+	});
+
+	it('CLEARS once he has proven the picture dims she values (lifestyle + presentation)', () => {
+		// financial is document-only (irrelevant to the chat gate); her other provable
+		// weights ≥ 0.10 are lifestyle. Prove it and the gate lets him through.
+		const proven = { ...samConf, lifestyle: 0.7 };
+		const gate = assessHandoffReadiness({
+			herWeights: valarieWeights, hisAttrs: samAttrs, hisConf: proven,
+			verifiedCategories: ['photos', 'travel'], refusedCategories: [],
+		});
+		expect(gate.ready).toBe(true);
+	});
+
+	it('does not dead-end: if he DECLINED every picture proof she values, he is let through', () => {
+		const gate = assessHandoffReadiness({
+			herWeights: valarieWeights, hisAttrs: samAttrs, hisConf: samConf,
+			verifiedCategories: ['photos'],
+			refusedCategories: ['travel', 'lifestyle', 'discipline', 'linkedin', 'social_proof'],
+		});
+		expect(gate.ready).toBe(true); // moves on rather than trapping the match
 	});
 });
 
@@ -84,7 +101,10 @@ describe('assessHandoffReadiness — substance floor (hand-offs are not lightwei
 		});
 		expect(gate.ready).toBe(false);
 		expect(gate.reason).toContain('substance floor');
-		expect(gate.blockingDim).toBe('financial'); // her top provable value
+		// Her top provable value is financial, but that's document-only (not askable in
+		// chat), so the floor lands on her next picture-provable dim, lifestyle.
+		expect(gate.blockingDim).toBe('lifestyle');
+		expect(['wealth', 'assets', 'spending']).not.toContain(gate.requestCategory);
 	});
 
 	it('CLEARS once he has ANY substantive verified proof of a valued dimension', () => {
