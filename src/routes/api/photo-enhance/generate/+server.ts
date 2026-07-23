@@ -1,32 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { env } from '$env/dynamic/private';
-import { generateProfilePhotos, type PhotoEnhanceResult } from '$lib/photo-enhance';
-import { getSupabase } from '$lib/server/supabase';
-import { detectFaceInPhotosWithClaude } from '$lib/verified-vibe/server/verification';
-
-// Gemini returns base64 data URLs; host them durably in Supabase Storage and swap
-// in the public URL (fal results are already CDN URLs and pass through untouched).
-async function hostDataUrls(photos: PhotoEnhanceResult[]): Promise<PhotoEnhanceResult[]> {
-  const supabase = getSupabase() as any;
-  return Promise.all(photos.map(async (p) => {
-    const m = /^data:([^;]+);base64,(.*)$/s.exec(p.url);
-    if (!m) return p; // already a hosted URL (fal)
-    try {
-      const ext = (m[1].split('/')[1] || 'png').replace('jpeg', 'jpg');
-      const buf = Buffer.from(m[2], 'base64');
-      const path = `ai-photos/${crypto.randomUUID()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from('profiles')
-        .upload(path, buf, { contentType: m[1], upsert: true });
-      if (upErr) throw upErr;
-      const { data } = supabase.storage.from('profiles').getPublicUrl(path);
-      return { ...p, url: data.publicUrl };
-    } catch (e) {
-      console.error('[photo-enhance] failed to host generated image:', e);
-      return p; // leave the data URL as a last resort
-    }
-  }));
-}
+import { enhanceAndHostPhotos } from '$lib/photo-enhance/server';
 
 // Allow up to 90s — parallel fal.ai generations take ~25-35s
 export const config = {
@@ -98,51 +73,19 @@ export const POST: RequestHandler = async ({ request }) => {
     return json(generateMockPhotos(count ?? 3));
   }
 
-  // Face pre-flight: the image models hallucinate a random person (or an
-  // animal-humanoid) from a reference that has no face, so DROP any faceless
-  // reference and generate only from the ones that show the user's face. If none
-  // of the references has a face, refuse to generate. Fail-open on Claude API
-  // errors (a broken face check must not block generation entirely).
-  let genRefs = refs;
-  try {
-    // Parse once, keeping each parsed image paired with its source ref so we can
-    // map the per-photo face flags back to the exact references to keep.
-    const parsed = refs
-      .map((ref) => {
-        const m = /^data:([^;]+);base64,(.+)$/.exec(ref);
-        return m ? { ref, mime: m[1], data: m[2] } : null;
-      })
-      .filter((x): x is { ref: string; mime: string; data: string } => x !== null);
+  const result = await enhanceAndHostPhotos({
+    refs,
+    archetype,
+    count,
+    rejectedPhotos,
+  });
 
-    const { faces } = await detectFaceInPhotosWithClaude(
-      parsed.map(({ mime, data }) => ({ mime, data }))
+  if (result.noFace) {
+    return json(
+      { error: 'no_face', message: 'No face can be identified in your photos.' },
+      { status: 422 }
     );
-    const withFace = parsed.filter((_, i) => faces[i]).map((p) => p.ref);
-
-    if (withFace.length === 0) {
-      return json(
-        { error: 'no_face', message: 'No face can be identified in your photos.' },
-        { status: 422 }
-      );
-    }
-    genRefs = withFace;
-  } catch (e) {
-    console.warn('[photo-enhance] face pre-flight failed (fail-open):', e);
   }
 
-  const result = await generateProfilePhotos(
-    {
-      referenceDataUrl: genRefs[0],
-      referenceDataUrls: genRefs,
-      archetype: archetype ?? 'casual_man',
-      count: Math.min(count ?? 3, 3),
-      rejectedPhotos: rejectedPhotos ?? [],
-    },
-    { geminiKey: env.GEMINI_API_KEY, falKey: env.FAL_KEY }
-  );
-
-  // Host any Gemini base64 results durably (Supabase Storage), keep fal URLs as-is.
-  result.photos = await hostDataUrls(result.photos);
-
-  return json(result);
+  return json({ photos: result.photos, errors: result.errors });
 };

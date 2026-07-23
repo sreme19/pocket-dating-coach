@@ -17,7 +17,15 @@ import { recomputeAndNormalize } from '$lib/server/trust-normalize';
 import { scheduleVectorRebuild } from '$lib/server/vector-rebuild';
 import { storeAnchorSelfie, loadAnchorSelfie } from '$lib/verified-vibe/server/anchor-selfie';
 import { captureUploads, type CaptureItem } from '$lib/server/upload-audit';
+import { enhanceAndHostPhotos } from '$lib/photo-enhance/server';
 import { waitUntil } from '@vercel/functions';
+
+// The photos step generates a man's AI portraits synchronously (Gemini →
+// fal.ai) before responding, so his raw selfie is never displayed. Parallel
+// generation takes ~25-60s, so give the function room beyond the default.
+export const config = {
+  maxDuration: 120
+};
 
 /**
  * POST /api/verified-vibe/verify-step
@@ -509,6 +517,18 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
           'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif'
         };
 
+        // A man's real photo is never displayed — only an AI portrait generated
+        // from it (spec: Profile Owner Pictures). His uploads are reference
+        // inputs, so we do NOT set his avatar to the raw lead; that happens after
+        // generation below. A woman's real lead photo is her avatar as usual.
+        const { data: userRow } = await supabase
+          .from('verified_vibe_users')
+          .select('gender, archetype')
+          .eq('id', userId)
+          .maybeSingle();
+        const isMan = (userRow as any)?.gender === 'man';
+        const archetype = (userRow as any)?.archetype ?? 'casual_man';
+
         // Find which index is the 'lead' photo (fall back to index 0).
         // Mobile sends 'main' as the first label so also match that.
         const labels: Record<string, string> = data.labels ?? {};
@@ -534,7 +554,9 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
           }
         }
 
-        if (avatarUrl) {
+        // Women: real lead photo is the avatar. Men: skip — the AI lead set below
+        // becomes the avatar so a raw male selfie is never surfaced.
+        if (avatarUrl && !isMan) {
           await supabase
             .from('verified_vibe_users')
             .update({ avatar_url: avatarUrl })
@@ -542,9 +564,46 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
         }
 
         // Persist hosted URLs to user_master_profile.photos so the mobile
-        // profile screen can display them without another upload.
+        // profile screen can display them (women) / use them as regeneration
+        // references (men) without another upload.
         if (allPhotoItems.length > 0) {
           await updateMasterProfile(userId, { photos: allPhotoItems });
+        }
+
+        // Men only: generate the AI portraits synchronously from the uploaded
+        // reference photos and make the AI lead his avatar. This is the single
+        // server-side trigger both web and mobile funnel through, so it no longer
+        // depends on a client firing generation (and surviving) after upload.
+        if (isMan) {
+          try {
+            const refs = data.images.map(
+              (b64: string, i: number) => `data:${data.mimeTypes[i] ?? 'image/jpeg'};base64,${b64}`
+            );
+            const gen = await enhanceAndHostPhotos({ refs, archetype, count: 3 });
+
+            if (gen.photos.length > 0) {
+              const aiPhotos = gen.photos.map((p) => ({ url: p.url, role: p.role, scene: p.scene }));
+              const leadPhoto = aiPhotos.find((p) => p.role === 'lead') ?? aiPhotos[0];
+              await updateMasterProfile(userId, {
+                aiPhotos,
+                personalityPortraitUrl: leadPhoto.url,
+              });
+              await supabase
+                .from('verified_vibe_users')
+                .update({ avatar_url: leadPhoto.url })
+                .eq('id', userId);
+              avatarUrl = leadPhoto.url;
+            } else {
+              // no_face / noProvider / empty — leave avatar unset rather than
+              // leaking the raw selfie; the admin backfill can regenerate later.
+              console.warn(
+                `[verify-step] AI photo generation produced nothing for man ${userId}`,
+                { noFace: gen.noFace, noProvider: gen.noProvider }
+              );
+            }
+          } catch (genErr) {
+            console.error('[verify-step] AI photo generation failed (non-fatal):', genErr);
+          }
         }
       } catch (uploadErr) {
         console.error('Photo storage upload error (non-fatal):', uploadErr);
