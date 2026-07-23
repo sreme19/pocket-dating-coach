@@ -6,7 +6,7 @@
   import { upsertProfile } from '$lib/verified-vibe/services/profileService';
   import { getSupabaseClient } from '$lib/client/supabase';
   import { unregisterPushNotifications } from '$lib/push-notifications';
-  import { ShieldCheck, Pencil, Check, X, MapPin, Sparkles, Wand2, LogOut, Heart, Zap, Share2 } from 'lucide-svelte';
+  import { ShieldCheck, Pencil, Check, X, MapPin, Sparkles, Wand2, LogOut, Heart, Zap, Share2, Gift } from 'lucide-svelte';
   import CasualGenerousBoostTab from '$lib/verified-vibe/components/CasualGenerousBoostTab.svelte';
   import { ARCHETYPES, ARCHETYPES_BY_GENDER } from '$lib/verified-vibe/constants';
   import type { Archetype } from '$lib/verified-vibe/types';
@@ -2232,6 +2232,12 @@
         <path d="M19 12H5M12 19l-7-7 7-7"/>
       </svg>
     </button>
+    {#if $user?.gender === 'woman'}
+      <button class="refer-pill" onclick={() => goto('/verified-vibe/refer')} aria-label="Refer and earn">
+        <Gift size={14} />
+        <span>Refer &amp; Earn</span>
+      </button>
+    {/if}
     <span class="header-label">My Profile</span>
     {#if mode === 'enhance'}
       <div class="edit-actions">
@@ -4093,6 +4099,27 @@
     color: var(--text-2);
     flex-shrink: 0;
   }
+
+  .refer-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    font-family: var(--font-serif);
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    flex-shrink: 0;
+    box-shadow: 0 4px 12px var(--accent-glow);
+    transition: var(--transition-base);
+  }
+  .refer-pill:hover { background: var(--accent-bright); }
+  .refer-pill:active { transform: scale(0.97); }
 
   .edit-btn {
     display: flex;

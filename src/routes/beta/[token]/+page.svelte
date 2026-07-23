@@ -124,12 +124,12 @@
 				</div>
 			{/if}
 
-			<h1 class="hl">Get matched today with <em>{name}</em></h1>
-			<p class="hl-sub">{name} is identity-verified on riteangle — and she wants to match with you.</p>
+			<h1 class="hl"><em>{name}</em> moved your chat here</h1>
+			<p class="hl-sub">{name} gets a lot of messages, so she has her Bestie get to know you first. Impress her, and you're straight through to {name}.</p>
 
 			<div class="callout">
-				<span class="ico">🔥</span>
-				<span class="ctxt"><b>Private beta — invites are going fast.</b> Claim yours before it's gone.</span>
+				<span class="ico">💬</span>
+				<span class="ctxt"><b>She only meets the guys her Bestie clicks with.</b> Make your first impression count.</span>
 			</div>
 
 			<div class="field">

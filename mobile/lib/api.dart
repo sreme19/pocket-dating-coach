@@ -707,6 +707,40 @@ Future<ProfileStrength> fetchProfileStrength() async {
   return ProfileStrength.fromJson(resp.data as Map<String, dynamic>);
 }
 
+// ── Refer & Earn (women invite men) ────────────────────────────────────────
+// Consumes GET /api/verified-vibe/referral-link. Kept in lockstep with the web
+// refer screen (src/routes/verified-vibe/refer/+page.svelte).
+
+/// A woman's self-serve referral link + her funnel counts for the status line.
+class ReferralLink {
+  final String shareUrl; // full prod URL: https://www.riteangle.dating/beta/{token}
+  final int invited;
+  final int signedUp;
+  ReferralLink({required this.shareUrl, required this.invited, required this.signedUp});
+}
+
+/// Thrown when the endpoint returns 403 (referral links are for women only).
+class ReferralLinkDenied implements Exception {}
+
+/// Fetch (get-or-create) the current woman's referral link + funnel counts.
+Future<ReferralLink> fetchReferralLink() async {
+  try {
+    final resp = await _dio.get(
+      '${Config.apiBase}/api/verified-vibe/referral-link',
+      options: Options(headers: {'Authorization': _bearerToken()}),
+    );
+    final d = resp.data as Map;
+    return ReferralLink(
+      shareUrl: '${Config.apiBase}${d['path']}',
+      invited: (d['invited'] as num?)?.toInt() ?? 0,
+      signedUp: (d['signedUp'] as num?)?.toInt() ?? 0,
+    );
+  } on DioException catch (e) {
+    if (e.response?.statusCode == 403) throw ReferralLinkDenied();
+    rethrow;
+  }
+}
+
 /// Upload a profile photo (base64 data URL) → returns the hosted URL. When
 /// label == 'lead' the backend also sets verified_vibe_users.avatar_url.
 Future<String> uploadPhoto(String dataUrl, String label) async {
