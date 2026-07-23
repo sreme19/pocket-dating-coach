@@ -8,6 +8,13 @@
 
   const GET_VERIFIED = '/verified-vibe/gate';
 
+  // Absolute URLs so link-preview crawlers (WhatsApp, iMessage, Slack, X) can
+  // resolve the card from the server-rendered HTML.
+  const SITE = 'https://www.riteangle.dating';
+  const ogUrl = `${SITE}/careers/${role.slug}`;
+  const ogImage = `${SITE}/og/riteangle-careers.png`;
+  const ogTitle = `${role.title} — riteangle Careers`;
+
   // ---- application form state ----
   let name = $state('');
   let phone = $state('');
@@ -71,6 +78,25 @@
   <title>{role.title} — Careers at riteangle</title>
   <meta name="description" content={role.tagline} />
   <meta name="theme-color" content="#FF3B6B" />
+
+  <!-- Open Graph / link preview (WhatsApp, iMessage, Slack, LinkedIn) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="riteangle" />
+  <meta property="og:title" content={ogTitle} />
+  <meta property="og:description" content={role.tagline} />
+  <meta property="og:url" content={ogUrl} />
+  <meta property="og:image" content={ogImage} />
+  <meta property="og:image:secure_url" content={ogImage} />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="riteangle — we're hiring" />
+  <!-- Twitter / X -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content={ogTitle} />
+  <meta name="twitter:description" content={role.tagline} />
+  <meta name="twitter:image" content={ogImage} />
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
   <link

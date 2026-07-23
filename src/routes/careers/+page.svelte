@@ -5,6 +5,9 @@
 
   const GET_VERIFIED = '/verified-vibe/gate';
 
+  const SITE = 'https://www.riteangle.dating';
+  const ogImage = `${SITE}/og/riteangle-careers.png`;
+
   onMount(() => {
     const nav = document.getElementById('nav');
     const onScroll = () => nav?.classList.toggle('scrolled', window.scrollY > 12);
@@ -24,6 +27,30 @@
     content="Help us build dating that runs on proof, not vibes. See open roles at riteangle across product, growth and trust & safety."
   />
   <meta name="theme-color" content="#FF3B6B" />
+
+  <!-- Open Graph / link preview (WhatsApp, iMessage, Slack, LinkedIn) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="riteangle" />
+  <meta property="og:title" content="Careers at riteangle" />
+  <meta
+    property="og:description"
+    content="Help us build dating that runs on proof, not vibes. See open roles at riteangle."
+  />
+  <meta property="og:url" content={`${SITE}/careers`} />
+  <meta property="og:image" content={ogImage} />
+  <meta property="og:image:secure_url" content={ogImage} />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="riteangle — we're hiring" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Careers at riteangle" />
+  <meta
+    name="twitter:description"
+    content="Help us build dating that runs on proof, not vibes. See open roles at riteangle."
+  />
+  <meta name="twitter:image" content={ogImage} />
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
   <link
