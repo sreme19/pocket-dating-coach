@@ -547,6 +547,40 @@ export type Database = {
 				Update: Partial<Database['public']['Tables']['device_tokens']['Insert']>;
 				Relationships: [];
 			};
+			job_applications: {
+				Row: {
+					id: string;
+					role_slug: string;
+					role_title: string;
+					name: string;
+					phone: string;
+					email: string | null;
+					cover: string | null;
+					resume_filename: string | null;
+					resume_path: string | null;
+					resume_mime: string | null;
+					resume_size: number | null;
+					email_sent: boolean;
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					role_slug?: string;
+					role_title?: string;
+					name: string;
+					phone: string;
+					email?: string | null;
+					cover?: string | null;
+					resume_filename?: string | null;
+					resume_path?: string | null;
+					resume_mime?: string | null;
+					resume_size?: number | null;
+					email_sent?: boolean;
+					created_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['job_applications']['Insert']>;
+				Relationships: [];
+			};
 		};
 		Functions: {
 			match_book_chunks: {
