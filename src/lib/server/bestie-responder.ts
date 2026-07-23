@@ -244,17 +244,17 @@ export async function generateBestieReply(
 		// migrate window can never null out the match context.
 		(supabase as any)
 			.from('verified_vibe_matches')
-			.select('user1_id, user2_id, proof_request, bestie_checklist')
+			.select('user1_id, user2_id, source, proof_request, bestie_checklist')
 			.eq('id', matchId)
 			.single()
 			.then(async (r: any) => {
-				if (r.data) return r.data as { user1_id: string; user2_id: string; proof_request?: unknown; bestie_checklist?: unknown };
+				if (r.data) return r.data as { user1_id: string; user2_id: string; source?: string; proof_request?: unknown; bestie_checklist?: unknown };
 				const legacy = await supabase
 					.from('verified_vibe_matches')
 					.select('user1_id, user2_id')
 					.eq('id', matchId)
 					.single();
-				return legacy.data as { user1_id: string; user2_id: string; proof_request?: unknown; bestie_checklist?: unknown } | null;
+				return legacy.data as { user1_id: string; user2_id: string; source?: string; proof_request?: unknown; bestie_checklist?: unknown } | null;
 			}),
 		loadPreferences(userId).catch(() => null),
 		supabase
@@ -383,6 +383,17 @@ export async function generateBestieReply(
 			`\n- What ${matchName} has already shown/proven: ${provenLine}` +
 			`\n- ${matchName}'s bio: ${bioLine}` +
 			`\nThe gap to draw out = the ONE thing ${userName} values that ${matchName} hasn't surfaced or proven yet.`;
+
+		// Beta-invite match: ${matchName} arrived through an invite ${userName} sent HIM
+		// (she was getting a lot of messages elsewhere and moved the promising ones over).
+		// Make him feel chosen, never screened — this stays inside the no-filtering rule.
+		if ((matchRow as any)?.source === 'beta_invite') {
+			openerContext +=
+				`\n- HOW HE GOT HERE: ${matchName} came in through an invite ${userName} sent him herself` +
+				` (she has a lot of guys messaging her elsewhere and moved the ones she's curious about over here).` +
+				` Open by warmly landing that SHE reached out and is curious about him, so he feels picked, never sorted or compared.` +
+				` It's a real, flattering hook, use it.`;
+		}
 	}
 
 	// In-chat proof request state for this match (Bestie-driven; category always

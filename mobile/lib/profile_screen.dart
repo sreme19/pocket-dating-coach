@@ -16,6 +16,7 @@ import 'profile_edit.dart';
 import 'category_proof_screen.dart';
 import 'proof_upload_screen.dart';
 import 'profile_strength_screen.dart';
+import 'refer_screen.dart';
 import 'settings_screen.dart';
 import 'trust_boost_screen.dart';
 
@@ -98,12 +99,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late Future<ProfileData> _future;
   ProfileStrength? _profileStrength;
   EnhanceStatus _lastEnhanceStatus = EnhanceStatus.idle;
+  String? _gender; // drives the women-only "Refer & Earn" pill in the app bar
 
   @override
   void initState() {
     super.initState();
     AppLogger.instance.screen('profile');
     _future = fetchProfile();
+    _future.then((p) {
+      if (mounted) setState(() => _gender = p.gender);
+    }).catchError((_) {});
     _fetchStrength();
     // Background AI photo generation lives outside this screen so it survives
     // scroll/tab/navigation. Bind it to the current user and refetch the profile
@@ -143,12 +148,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await _future;
   }
 
+  /// Women-only "Refer & Earn" pill, top-left of the profile app bar. Opens the
+  /// Refer screen (invite the men in your DMs; your Bestie screens them).
+  Widget _buildReferPill(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 12),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: GestureDetector(
+          onTap: () {
+            AppLogger.instance.action('profile', 'open_refer');
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ReferScreen()),
+            );
+          },
+          child: Container(
+            height: 32,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: const Color(Config.accent),
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: const [
+                BoxShadow(color: Color(0x4DFF3B6B), blurRadius: 12, offset: Offset(0, 4)),
+              ],
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.card_giftcard, size: 14, color: Colors.white),
+                SizedBox(width: 6),
+                Text('Refer & Earn',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12.5)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(Config.bg1),
         elevation: 0,
+        leading: _gender == 'woman' ? _buildReferPill(context) : null,
+        leadingWidth: _gender == 'woman' ? 156 : null,
         title: const Text('My Profile',
             style: TextStyle(fontWeight: FontWeight.w600, color: Color(Config.text1))),
         centerTitle: true,

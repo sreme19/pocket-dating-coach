@@ -72,7 +72,7 @@
   // Everything else checks session and redirects if unauthenticated.
   // Verified, profile, and discovery are app-phase routes (require full verification).
   const PUBLIC_VV_PATHS = ['/verified-vibe/auth', '/verified-vibe/gate', '/verified-vibe/home', '/verified-vibe/privacy', '/verified-vibe/verify', '/verified-vibe/verification', '/verified-vibe/profile'];
-  const APP_PHASE_PATHS = ['/verified-vibe/discover', '/verified-vibe/chat'];
+  const APP_PHASE_PATHS = ['/verified-vibe/discover', '/verified-vibe/chat', '/verified-vibe/refer'];
 
   $effect(() => {
     if (!hydrationComplete) return; // Wait for hydration to complete
