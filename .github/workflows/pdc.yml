@@ -558,12 +558,32 @@ jobs:
             --verbose
 
   # ════════════════════════════════════════════════════════════════════════════
-  # iOS — TestFlight / prod  (push → main)
+  # MOBILE — Detect changes on main  (push → main)
+  # ════════════════════════════════════════════════════════════════════════════
+
+  mobile-changes-main:
+    name: Detect — Mobile Changes (main)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.filter.outputs.mobile }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            mobile:
+              - 'mobile/**'
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # iOS — TestFlight / prod  (push → main, hanya jika mobile/** berubah)
   # ════════════════════════════════════════════════════════════════════════════
 
   ios-testflight:
     name: iOS — TestFlight (prod)
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: mobile-changes-main
+    if: needs.mobile-changes-main.outputs.changed == 'true'
     runs-on: macos-26
     timeout-minutes: 60
     permissions:
