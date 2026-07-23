@@ -87,9 +87,10 @@ Return ONLY minified JSON (no markdown, no code fences):
  "scenes": ["<=8 short scene/context tags, e.g. coffee shop, outdoors, travel, gym, group/social, home, restaurant, pets>"],
  "authenticity": {
    "identityConsistent": <true if it is clearly the same person across photos, or a single clear solo shot>,
-   "realNotAi": <true if these read as real photographs, NOT AI-generated/CGI/stock/heavily-filtered>,
-   "artifactFree": <true if no warped faces, broken hands, distortion or obvious editing artifacts>,
+   "realNotAi": <true if this is a REAL HUMAN captured by a camera. Beauty filters, makeup, retouching, studio lighting and posed shots ALL still count as real. Mark false ONLY for AI-generated/CGI/cartoon/rendered images, stock or celebrity photos, or an obviously different person>,
+   "artifactFree": <true UNLESS there are AI-generation defects: warped or melted faces, broken/extra fingers, impossible geometry, garbled text or watermarks. Ordinary photo retouching, smoothing or filters are NOT artifacts and must NOT set this false>,
    "faceClear": <true if at least one clear, front-facing face is visible>,
+   "heavilyEdited": <true if the photos look noticeably filtered/retouched/beautified — informational only, does not affect scoring>,
    "quality": <overall photo-set quality 1-5>
  }
 }
@@ -137,6 +138,7 @@ function parseSignals(raw: string, photoCount: number, photoHash: string): Photo
 		realNotAi: asBool(a.realNotAi),
 		artifactFree: asBool(a.artifactFree),
 		faceClear: asBool(a.faceClear),
+		heavilyEdited: asBool(a.heavilyEdited),
 		quality: isFinite(q) ? Math.max(1, Math.min(5, Math.round(q))) : 3,
 	};
 

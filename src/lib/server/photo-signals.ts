@@ -36,12 +36,24 @@ export interface PhotoDimSignal {
 export interface PhotoAuthenticity {
 	/** Same person across all photos (or a lone clear solo shot). */
 	identityConsistent: boolean;
-	/** Reads as real photography, not AI/CGI/stock/heavily-filtered. */
+	/**
+	 * A REAL human captured by a camera. Beauty filters, makeup, retouching, studio
+	 * lighting and posed shots ALL still count as real — false ONLY for AI-generated /
+	 * CGI / cartoon / stock / celebrity images or a different person. (Renamed intent:
+	 * this is "is a real person", NOT "is unedited" — filtering is captured separately
+	 * by heavilyEdited so it never blocks a genuine person's trust.)
+	 */
 	realNotAi: boolean;
-	/** No distortion / warped faces / broken artifacts. */
+	/**
+	 * Free of AI-GENERATION defects only: warped/melted faces, broken or extra fingers,
+	 * impossible geometry, garbled text/watermarks. Ordinary retouching / smoothing /
+	 * filters are NOT artifacts and must not set this false.
+	 */
 	artifactFree: boolean;
 	/** At least one clear, front-facing face. */
 	faceClear: boolean;
+	/** Noticeably filtered / retouched / beautified. INFORMATIONAL — does not gate. */
+	heavilyEdited?: boolean;
 	/** Overall photo-set quality 1–5. */
 	quality: number;
 }
@@ -65,7 +77,10 @@ export interface PhotoSignals {
 	version: number;
 }
 
-export const PHOTO_SIGNAL_VERSION = 1;
+// v2: authenticity gate distinguishes "real but filtered" (passes) from "fake/AI"
+// (blocked) — filtering no longer withholds photo-trust. Bumping invalidates any v1
+// records so they are re-analysed under the fairer gate.
+export const PHOTO_SIGNAL_VERSION = 2;
 
 /**
  * Kill switch (shadow rollout). OFF unless PHOTO_SIGNAL_GATE === 'true'. When off,
