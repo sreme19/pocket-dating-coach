@@ -1653,7 +1653,10 @@ Future<Map> verifyStep(String step, Map<String, dynamic> data) async {
     data: {'step': step, 'data': data},
     options: Options(
       headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'},
-      receiveTimeout: const Duration(seconds: 90),
+      // The photos step for men generates AI portraits synchronously on the
+      // server (~25-60s, capped at 120s by the function's maxDuration), so the
+      // client must wait at least that long or onboarding would time out mid-run.
+      receiveTimeout: const Duration(seconds: 120),
     ),
   );
   final body = resp.data is Map ? resp.data as Map : const {};
