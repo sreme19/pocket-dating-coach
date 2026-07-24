@@ -18,6 +18,7 @@
 
 import { loadPersonality } from './profile-service';
 import { loadVerificationStatusContext } from './verification-status-context';
+import { seasonAdvisorBlock } from './networking-season';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface WingmanAdvisorContext {
@@ -61,6 +62,19 @@ export async function loadWingmanAdvisorContext(
 	opts: LoadWingmanAdvisorContextOpts = {}
 ): Promise<WingmanAdvisorContext> {
 	const intent = opts.intent ?? 'chat';
+
+	// Networking Season (Phase 3): his season governs whether Wingman coaches in
+	// platonic "networking buddy" mode. Cheap standalone read (owner data here
+	// otherwise comes from user_master_profile). Defaults to date on any failure.
+	let ownerDiscoveryMode: unknown = null;
+	try {
+		const { data: seasonRow } = await (supabase as any)
+			.from('verified_vibe_users')
+			.select('discovery_mode')
+			.eq('id', userId)
+			.maybeSingle();
+		ownerDiscoveryMode = seasonRow?.discovery_mode ?? null;
+	} catch { /* default → date */ }
 
 	// ── Load master profile (user_master_profile — source of truth) ─────────
 	let personalityContext = '';
@@ -318,8 +332,12 @@ export async function loadWingmanAdvisorContext(
 		subject: 'man'
 	});
 
+	// Networking Season (Phase 3): lead his advisor context with platonic grounding
+	// when he's in a networking season. No-op ('') when the flag is off or he's dating.
+	const personalityContextWithSeason = seasonAdvisorBlock(ownerDiscoveryMode) + personalityContext;
+
 	return {
-		personalityContext,
+		personalityContext: personalityContextWithSeason,
 		masterProfileContext,
 		artifactsContext,
 		admirerContext,
