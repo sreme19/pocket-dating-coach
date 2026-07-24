@@ -76,6 +76,9 @@ describe('photoAuthenticityPasses — the trust/confidence pre-condition', () =>
 		expect(photoAuthenticityPasses({ ...authOK, faceClear: false })).toBe(false);
 		expect(photoAuthenticityPasses(null)).toBe(false);
 	});
+	it('a filtered-but-real photo set STILL passes (fairness: heavilyEdited does not gate)', () => {
+		expect(photoAuthenticityPasses({ ...authOK, heavilyEdited: true })).toBe(true);
+	});
 });
 
 describe('photoConfidenceContribution — deterministic c', () => {
