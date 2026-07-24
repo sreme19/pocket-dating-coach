@@ -36,6 +36,7 @@ import { buildNotificationPayload, sendNotification } from '$lib/server/notifica
 import { assessHandoffReadiness, handoffProofAskLine } from '$lib/server/handoff-gate';
 import { appeal, type Vec } from '$lib/server/vector-scoring';
 import { buildProofInviteContext } from '$lib/server/proof-invite-context';
+import { seasonProxyBlock } from '$lib/server/networking-season';
 
 export interface BestieReply {
 	signal: string;
@@ -233,7 +234,7 @@ export async function generateBestieReply(
 	const [user, matchRow, structuredPrefs, recent] = await Promise.all([
 		supabase
 			.from('verified_vibe_users')
-			.select('first_name, preferences, about, looking, hard_nos')
+			.select('first_name, preferences, about, looking, hard_nos, discovery_mode')
 			.eq('id', userId)
 			.single()
 			.then((r) => r.data),
@@ -276,6 +277,9 @@ export async function generateBestieReply(
 	let provenTags: string[] = [];
 	let otherUserId: string | null = null;
 	let verifiedCategories: string[] = [];
+	// Networking Season (Phase 3): platonic-only + disclosure block for the man.
+	// '' unless the flag is on AND this connection is networking. See networking-season.ts.
+	let seasonContext = '';
 	// Hand-off gate inputs (§3): her preference weights + his proven vectors, so we
 	// don't sell him to her on talk alone when she values something he hasn't proven.
 	let herWeights: Vec | null = null;
@@ -290,7 +294,7 @@ export async function generateBestieReply(
 		const [otherUser, proofSignals, herVec, hisVec] = await Promise.all([
 			supabase
 				.from('verified_vibe_users')
-				.select('first_name, about')
+				.select('first_name, about, discovery_mode')
 				.eq('id', partnerId)
 				.single()
 				.then((r) => r.data),
@@ -302,6 +306,7 @@ export async function generateBestieReply(
 		]);
 		matchName = otherUser?.first_name || 'him';
 		maleAbout = ((otherUser as any)?.about ?? '').toString().slice(0, 240);
+		seasonContext = seasonProxyBlock((user as any)?.discovery_mode, (otherUser as any)?.discovery_mode);
 		verifiedCategories = proofSignals.categories;
 		herWeights = (herVec?.weights ?? null) as Vec | null;
 		hisAttrs = (hisVec?.attributes ?? null) as Vec | null;
@@ -451,7 +456,7 @@ export async function generateBestieReply(
 				content: buildBestieReplyPrompt({
 					userName,
 					matchName,
-					contextBlock: `${preferencesContext}${structuredPreferencesContext}${maleArtifactContext}${openerContext}`,
+					contextBlock: `${preferencesContext}${structuredPreferencesContext}${maleArtifactContext}${openerContext}${seasonContext}`,
 					transcript,
 					lastMessage,
 					// A proof-ack turn is never an opener even if the message read is empty.
