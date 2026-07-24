@@ -564,7 +564,7 @@ export async function refreshPoolEntry(userId: string): Promise<void> {
 
   const { data: user, error: userErr } = await db
     .from('verified_vibe_users')
-    .select('archetype, trust_score, city, gender, hard_nos, here_for_title, here_for_desc')
+    .select('archetype, trust_score, city, gender, hard_nos, here_for_title, here_for_desc, discovery_mode')
     .eq('id', userId)
     .single();
 
@@ -631,6 +631,7 @@ export async function refreshPoolEntry(userId: string): Promise<void> {
       city:                city,
       match_profile:       matchProfile,
       preferences:         preferences,
+      discovery_mode:      user.discovery_mode ?? 'date',
       availability_status: 'active',
       last_updated:        new Date().toISOString(),
     },
