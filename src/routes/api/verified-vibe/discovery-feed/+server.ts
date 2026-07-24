@@ -179,7 +179,7 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
     // Fetch current user's profile to get their gender
     const { data: currentUserProfile, error: currentUserError } = await (supabase as any)
       .from('verified_vibe_users')
-      .select('gender, archetype')
+      .select('gender, archetype, discovery_mode')
       .eq('id', currentUserId)
       .maybeSingle();
 
@@ -194,6 +194,9 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
     // Resolve gender — profile may not exist yet for new/unverified users
     const currentUserGender = currentUserProfile?.gender ?? null;
     const currentUserArchetype = currentUserProfile?.archetype ?? '';
+    // Networking Season: 'networking' additionally surfaces same-gender networkers.
+    const currentUserMode =
+      currentUserProfile?.discovery_mode === 'networking' ? 'networking' : 'date';
 
     // Determine compatible archetypes via MATCH_MATRIX
     const compatibleArchetypes: string[] = MATCH_MATRIX[currentUserArchetype] ?? [];
@@ -208,14 +211,26 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
     // But for this app women are the primary seekers, so unknown → show men
     const targetGender = resolvedGender === 'man' ? 'woman' : 'man';
 
-    // Fetch ALL opposite-gender real (non-seed) profiles
-    const { data: profiles, error: profileError } = await (supabase as any)
+    // Candidate query. Date season: opposite gender only (unchanged). Networking
+    // season: opposite gender (any mode) PLUS same-gender users who are ALSO in a
+    // networking season. Straight-only MVP, so same-gender ⇒ networking intent; the
+    // same-gender branch is skipped when our own gender is unknown.
+    let profilesQuery = (supabase as any)
       .from('verified_vibe_users')
       .select('*')
       .neq('id', currentUserId)
-      .eq('gender', targetGender)
       .eq('is_seed', false)
       .is('deleted_at', null);
+
+    if (currentUserMode === 'networking' && (resolvedGender === 'man' || resolvedGender === 'woman')) {
+      profilesQuery = profilesQuery.or(
+        `gender.eq.${targetGender},and(gender.eq.${resolvedGender},discovery_mode.eq.networking)`
+      );
+    } else {
+      profilesQuery = profilesQuery.eq('gender', targetGender);
+    }
+
+    const { data: profiles, error: profileError } = await profilesQuery;
 
     if (profileError) {
       console.error('Database error:', profileError);
@@ -346,6 +361,7 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
         return {
           id: p.id,
           gender: p.gender || 'man',
+          discoveryMode: p.discovery_mode === 'networking' ? 'networking' : 'date',
           archetype: p.archetype || 'casual_man',
           firstName: p.first_name || 'User',
           age: p.age || 25,
