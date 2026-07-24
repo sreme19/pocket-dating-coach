@@ -1091,6 +1091,7 @@ class DiscoveryProfile {
   final String? distance;
   final int verifiedCount;
   final String? gender;
+  final String? discoveryMode; // 'date' | 'networking' (Networking Season)
 
   DiscoveryProfile({
     required this.id,
@@ -1104,7 +1105,10 @@ class DiscoveryProfile {
     required this.distance,
     required this.verifiedCount,
     this.gender,
+    this.discoveryMode,
   });
+
+  bool get isNetworking => discoveryMode == 'networking';
 
   String get trustLabel {
     if (trustScore >= 80) return 'High Trust';
@@ -1153,6 +1157,7 @@ Future<List<DiscoveryProfile>> fetchDiscovery({int limit = 12}) async {
       distance: p['distance'] as String?,
       verifiedCount: (p['verified'] as List?)?.length ?? 0,
       gender: p['gender'] as String?,
+      discoveryMode: p['discoveryMode'] as String?,
     );
   }).toList();
 }

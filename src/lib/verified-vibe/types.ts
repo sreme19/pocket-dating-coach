@@ -134,6 +134,7 @@ export interface DiscoveryProfile extends VerifiedVibeUser {
   trustScore: number;
   photos?: string[]; // Additional photos for carousel (avatar is first photo)
   isSeed?: boolean; // true for demo/seed profiles shown when real pool is empty
+  discoveryMode?: 'date' | 'networking'; // Networking Season: badge networkers in the feed
 }
 
 export type NotificationType = 'match' | 'message' | 'verification' | 'system';

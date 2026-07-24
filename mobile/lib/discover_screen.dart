@@ -394,6 +394,21 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                   style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
             ),
           ),
+        // Networking Season badge — always teal so it reads as "networking intent"
+        // even to a date-mode viewer (opposite-gender networkers still appear).
+        if (_current?.isNetworking == true)
+          Positioned(
+            right: 16, top: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0E9AAE),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: const Text('🌱 Networking',
+                  style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+            ),
+          ),
         const DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(begin: Alignment.center, end: Alignment.bottomCenter,
