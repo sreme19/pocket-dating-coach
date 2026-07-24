@@ -19,6 +19,7 @@
 import { loadPreferences } from './profile-service';
 import { loadProofSignals } from './proof-signals';
 import { loadVerificationStatusContext } from './verification-status-context';
+import { seasonAdvisorBlock } from './networking-season';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface BestieAdvisorContext {
@@ -63,7 +64,7 @@ export async function loadBestieAdvisorContext(
 	// ── Resolve her first name ──────────────────────────────────────────────
 	const { data: userRow } = await (supabase as any)
 		.from('verified_vibe_users')
-		.select('first_name, hard_nos')
+		.select('first_name, hard_nos, discovery_mode')
 		.eq('id', userId)
 		.single();
 	const userName: string = userRow?.first_name || 'her';
@@ -97,6 +98,10 @@ export async function loadBestieAdvisorContext(
 	const dealbreakers = Array.from(new Set([...hardNos, ...prefDealbreakers]));
 	if (dealbreakers.length) parts.unshift(`Dealbreakers: ${dealbreakers.join(', ')}`);
 	if (parts.length) prefsContext = `\n\n${userName}'s preferences:\n${parts.join('\n')}`;
+	// Networking Season (Phase 3): if she's in a networking season, prepend the
+	// platonic "networking buddy" grounding so it leads her advisor context.
+	// No-op ('') when the flag is off or she's dating.
+	prefsContext = seasonAdvisorBlock(userRow?.discovery_mode) + prefsContext;
 
 	// ── Fetch matches with recent messages + proofs ──────────────────────────
 	const { data: matches } = await supabase
