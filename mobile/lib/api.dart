@@ -638,6 +638,26 @@ Future<void> savePreferenceWeights(Map<String, int> importance) async {
   );
 }
 
+// ── Networking Season (discovery mode) ─────────────────────────────────────────
+
+/// The user's current season: true = networking, false = date (default).
+Future<bool> getDiscoveryMode() async {
+  final resp = await _dio.get(
+    '${Config.apiBase}/api/verified-vibe/discovery-mode',
+    options: Options(headers: {'Authorization': _bearerToken()}),
+  );
+  return (resp.data as Map<String, dynamic>)['discoveryMode'] == 'networking';
+}
+
+/// Persist the user's season. The server keeps vv_pool_profiles in sync.
+Future<void> setDiscoveryMode(bool networking) async {
+  await _dio.put(
+    '${Config.apiBase}/api/verified-vibe/discovery-mode',
+    data: {'mode': networking ? 'networking' : 'date'},
+    options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
+  );
+}
+
 // ── Profile Strength (Scoring redesign Phase 2) ───────────────────────────────
 
 class PsAction {

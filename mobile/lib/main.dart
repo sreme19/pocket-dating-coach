@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config.dart';
+import 'season.dart';
 import 'api.dart';
 import 'app_logger.dart';
 import 'auth_screen.dart';
@@ -51,37 +52,45 @@ class VerifiedVibeApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'riteangle',
-      navigatorKey: navigatorKey,
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.light,
-        fontFamily: 'Gabarito',
-        scaffoldBackgroundColor: const Color(Config.bg1),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(Config.accent),
-          brightness: Brightness.light,
-        ),
-        // Dark-themed dialogs & snackbars consistent with app design
-        dialogTheme: const DialogThemeData(
-          backgroundColor: Color(Config.bg2),
-          titleTextStyle: TextStyle(
-            color: Color(Config.text1), fontSize: 18, fontWeight: FontWeight.w700, fontFamily: 'Gabarito',
+    // Rebuild the theme when the season flips so the accent (and every
+    // ColorScheme-driven widget) follows pink ↔ teal app-wide.
+    return ValueListenableBuilder<bool>(
+      valueListenable: SeasonState.networking,
+      builder: (context, _, __) {
+        final accent = Brand.accent;
+        return MaterialApp(
+          title: 'riteangle',
+          navigatorKey: navigatorKey,
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData(
+            useMaterial3: true,
+            brightness: Brightness.light,
+            fontFamily: 'Gabarito',
+            scaffoldBackgroundColor: const Color(Config.bg1),
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: accent,
+              brightness: Brightness.light,
+            ),
+            // Dark-themed dialogs & snackbars consistent with app design
+            dialogTheme: const DialogThemeData(
+              backgroundColor: Color(Config.bg2),
+              titleTextStyle: TextStyle(
+                color: Color(Config.text1), fontSize: 18, fontWeight: FontWeight.w700, fontFamily: 'Gabarito',
+              ),
+              contentTextStyle: TextStyle(color: Color(Config.text2), fontSize: 14, fontFamily: 'Gabarito'),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
+            ),
+            snackBarTheme: SnackBarThemeData(
+              backgroundColor: const Color(Config.bg2),
+              contentTextStyle: const TextStyle(color: Color(Config.text1), fontFamily: 'Gabarito'),
+              actionTextColor: accent,
+              behavior: SnackBarBehavior.floating,
+              shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+            ),
           ),
-          contentTextStyle: TextStyle(color: Color(Config.text2), fontSize: 14, fontFamily: 'Gabarito'),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(16))),
-        ),
-        snackBarTheme: const SnackBarThemeData(
-          backgroundColor: Color(Config.bg2),
-          contentTextStyle: TextStyle(color: Color(Config.text1), fontFamily: 'Gabarito'),
-          actionTextColor: Color(Config.accent),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
-        ),
-      ),
-      home: const AuthGate(),
+          home: const AuthGate(),
+        );
+      },
     );
   }
 }
