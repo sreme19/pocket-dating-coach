@@ -19,7 +19,7 @@
 import { loadPreferences } from './profile-service';
 import { loadProofSignals } from './proof-signals';
 import { loadVerificationStatusContext } from './verification-status-context';
-import { seasonAdvisorBlock } from './networking-season';
+import { seasonAdvisorBlock, networkingSeasonEnabled, networkingEnforcementEnabled, shouldShowSwitchBackNudge } from './networking-season';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface BestieAdvisorContext {
@@ -62,9 +62,15 @@ export async function loadBestieAdvisorContext(
 	const intent = opts.intent ?? 'chat';
 
 	// ── Resolve her first name ──────────────────────────────────────────────
+	// Phase 4: the nudge-cadence columns are only selected when enforcement is on,
+	// so with the flag off this read has no dependency on the Phase 4 migration.
+	const enforce = networkingEnforcementEnabled();
+	const userCols =
+		'first_name, hard_nos, discovery_mode' +
+		(enforce ? ', season_nudge_last_at, season_nudge_opted_out' : '');
 	const { data: userRow } = await (supabase as any)
 		.from('verified_vibe_users')
-		.select('first_name, hard_nos, discovery_mode')
+		.select(userCols)
 		.eq('id', userId)
 		.single();
 	const userName: string = userRow?.first_name || 'her';
@@ -100,8 +106,23 @@ export async function loadBestieAdvisorContext(
 	if (parts.length) prefsContext = `\n\n${userName}'s preferences:\n${parts.join('\n')}`;
 	// Networking Season (Phase 3): if she's in a networking season, prepend the
 	// platonic "networking buddy" grounding so it leads her advisor context.
-	// No-op ('') when the flag is off or she's dating.
-	prefsContext = seasonAdvisorBlock(userRow?.discovery_mode) + prefsContext;
+	// No-op ('') when the flag is off or she's dating. Phase 4 gates the
+	// switch-back nudge line by opt-out + a ~2-week cadence.
+	const includeSwitchBack = shouldShowSwitchBackNudge(
+		userRow?.season_nudge_last_at,
+		userRow?.season_nudge_opted_out,
+	);
+	prefsContext = seasonAdvisorBlock(userRow?.discovery_mode, { includeSwitchBack }) + prefsContext;
+	// When the nudge actually renders under enforcement, stamp the cooldown so it
+	// won't fire again for ~2 weeks. Throttled by design, so the extra write is rare.
+	if (enforce && includeSwitchBack && networkingSeasonEnabled() && userRow?.discovery_mode === 'networking') {
+		try {
+			await (supabase as any)
+				.from('verified_vibe_users')
+				.update({ season_nudge_last_at: new Date().toISOString() })
+				.eq('id', userId);
+		} catch { /* non-fatal */ }
+	}
 
 	// ── Fetch matches with recent messages + proofs ──────────────────────────
 	const { data: matches } = await supabase

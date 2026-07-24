@@ -715,8 +715,14 @@ export function buildBestieReplyPrompt(opts: {
 	 * acknowledgement that keeps the conversation moving — see the lastMessage block.
 	 */
 	proofAckCategory?: string;
+	/**
+	 * True when this connection is in a Networking Season (Phase 4). Adds the
+	 * `romanticPressure` output field so the sender can de-rank a man who keeps
+	 * pushing romance after being told she's networking.
+	 */
+	networking?: boolean;
 }): string {
-	const { userName, matchName, contextBlock = '', transcript = '', lastMessage, isOpener = false, proofRequestContext = '', proofInviteContext = '', checklistContext = '', handoffContext = '', proofAckCategory = '' } = opts;
+	const { userName, matchName, contextBlock = '', transcript = '', lastMessage, isOpener = false, proofRequestContext = '', proofInviteContext = '', checklistContext = '', handoffContext = '', proofAckCategory = '', networking = false } = opts;
 
 	const openerBlock = isOpener
 		? `
@@ -771,6 +777,11 @@ BESTIE CHECKLIST (what to learn about ${matchName} before ${userName} steps in):
 		);
 		jsonFields.push(
 			`  "wrapUp": "true ONLY when every checklist item is done or you judge you have enough to bring her in (per the BESTIE CHECKLIST rules), otherwise false"`
+		);
+	}
+	if (networking) {
+		jsonFields.push(
+			`  "romanticPressure": "true ONLY if ${matchName}'s latest message kept pushing romance — flirting, pursuing, or asking ${userName} out — AFTER being told she's in a networking season this thread; false otherwise (a first, gracious romantic message is NOT pressure)"`
 		);
 	}
 	const outputSpec = `Produce a JSON object with exactly these ${jsonFields.length} fields:\n{\n${jsonFields.join(',\n')}\n}`;

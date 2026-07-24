@@ -18,7 +18,7 @@
 
 import { loadPersonality } from './profile-service';
 import { loadVerificationStatusContext } from './verification-status-context';
-import { seasonAdvisorBlock } from './networking-season';
+import { seasonAdvisorBlock, networkingSeasonEnabled, networkingEnforcementEnabled, shouldShowSwitchBackNudge } from './networking-season';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export interface WingmanAdvisorContext {
@@ -67,12 +67,16 @@ export async function loadWingmanAdvisorContext(
 	// platonic "networking buddy" mode. Cheap standalone read (owner data here
 	// otherwise comes from user_master_profile). Defaults to date on any failure.
 	let ownerDiscoveryMode: unknown = null;
+	let seasonRow: any = null;
+	const enforce = networkingEnforcementEnabled();
 	try {
-		const { data: seasonRow } = await (supabase as any)
+		const cols = 'discovery_mode' + (enforce ? ', season_nudge_last_at, season_nudge_opted_out' : '');
+		const res = await (supabase as any)
 			.from('verified_vibe_users')
-			.select('discovery_mode')
+			.select(cols)
 			.eq('id', userId)
 			.maybeSingle();
+		seasonRow = res.data;
 		ownerDiscoveryMode = seasonRow?.discovery_mode ?? null;
 	} catch { /* default → date */ }
 
@@ -334,7 +338,21 @@ export async function loadWingmanAdvisorContext(
 
 	// Networking Season (Phase 3): lead his advisor context with platonic grounding
 	// when he's in a networking season. No-op ('') when the flag is off or he's dating.
-	const personalityContextWithSeason = seasonAdvisorBlock(ownerDiscoveryMode) + personalityContext;
+	// Phase 4 gates the switch-back nudge line by opt-out + a ~2-week cadence.
+	const includeSwitchBack = shouldShowSwitchBackNudge(
+		seasonRow?.season_nudge_last_at,
+		seasonRow?.season_nudge_opted_out,
+	);
+	const personalityContextWithSeason =
+		seasonAdvisorBlock(ownerDiscoveryMode, { includeSwitchBack }) + personalityContext;
+	if (enforce && includeSwitchBack && networkingSeasonEnabled() && ownerDiscoveryMode === 'networking') {
+		try {
+			await (supabase as any)
+				.from('verified_vibe_users')
+				.update({ season_nudge_last_at: new Date().toISOString() })
+				.eq('id', userId);
+		} catch { /* non-fatal */ }
+	}
 
 	return {
 		personalityContext: personalityContextWithSeason,

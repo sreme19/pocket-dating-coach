@@ -36,7 +36,7 @@ import { buildNotificationPayload, sendNotification } from '$lib/server/notifica
 import { assessHandoffReadiness, handoffProofAskLine } from '$lib/server/handoff-gate';
 import { appeal, type Vec } from '$lib/server/vector-scoring';
 import { buildProofInviteContext } from '$lib/server/proof-invite-context';
-import { seasonProxyBlock } from '$lib/server/networking-season';
+import { seasonProxyBlock, networkingEnforcementEnabled, DERANK_PRESSURE_THRESHOLD } from '$lib/server/networking-season';
 
 export interface BestieReply {
 	signal: string;
@@ -61,6 +61,12 @@ export interface BestieReply {
 	 * concurrency-safely at persist time), not from this turn's stale snapshot.
 	 */
 	userName?: string;
+	/**
+	 * Networking Season (Phase 4): true when the man kept pushing romance after
+	 * being told she's networking. The SENDER increments her per-match pressure
+	 * counter and de-ranks him in HER inbox once it crosses the threshold.
+	 */
+	romanticPressure?: boolean;
 }
 
 // ── In-chat proof request context + state machine (spec §3 Step 3) ────────────
@@ -465,7 +471,9 @@ export async function generateBestieReply(
 					proofInviteContext,
 					checklistContext,
 					handoffContext,
-					proofAckCategory: opts?.proofAckCategory ?? ''
+					proofAckCategory: opts?.proofAckCategory ?? '',
+					// Networking Season (Phase 4): adds the romanticPressure output field.
+					networking: seasonContext !== ''
 				})
 			}
 		]
@@ -526,6 +534,7 @@ export async function generateBestieReply(
 		proofRefusal?: boolean;
 		itemsDone?: unknown;
 		wrapUp?: unknown;
+		romanticPressure?: boolean;
 	};
 
 	const proofStateUpdate = nextProofState(proofState, parsed, invitable);
@@ -604,7 +613,8 @@ export async function generateBestieReply(
 		reply: finalReply,
 		userName,
 		...(proofStateFinal ? { proofStateUpdate: proofStateFinal } : {}),
-		...(checklistUpdate ? { checklistUpdate } : {})
+		...(checklistUpdate ? { checklistUpdate } : {}),
+		...(parsed.romanticPressure === true ? { romanticPressure: true } : {})
 	};
 }
 
@@ -691,6 +701,30 @@ export async function generateAndSendBestieReply(
 				.eq('id', matchId);
 		} catch (e) {
 			console.warn('[bestie] proof_request persist failed (non-fatal):', e);
+		}
+	}
+
+	// Networking Season (Phase 4): a man who keeps pushing romance AFTER being told
+	// she's networking gets de-ranked in HER inbox. Local only — never touches his
+	// global trust/standing. Gated + column-guarded, so it's a no-op (and needs no
+	// migration) when enforcement is off.
+	if (networkingEnforcementEnabled() && reply.romanticPressure) {
+		try {
+			const { data: m } = await (supabase as any)
+				.from('verified_vibe_matches')
+				.select('networking_pressure_count')
+				.eq('id', matchId)
+				.single();
+			const next = ((m?.networking_pressure_count as number) ?? 0) + 1;
+			await (supabase as any)
+				.from('verified_vibe_matches')
+				.update({
+					networking_pressure_count: next,
+					...(next >= DERANK_PRESSURE_THRESHOLD ? { deranked_at: new Date().toISOString() } : {})
+				})
+				.eq('id', matchId);
+		} catch (e) {
+			console.warn('[bestie] networking de-rank persist failed (non-fatal):', e);
 		}
 	}
 
