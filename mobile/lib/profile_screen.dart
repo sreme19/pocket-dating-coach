@@ -194,8 +194,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(
         backgroundColor: const Color(Config.bg1),
         elevation: 0,
-        leading: _gender == 'woman' ? _buildReferPill(context) : null,
-        leadingWidth: _gender == 'woman' ? 156 : null,
+        leading: (_gender == 'woman' || _gender == 'man') ? _buildReferPill(context) : null,
+        leadingWidth: (_gender == 'woman' || _gender == 'man') ? 156 : null,
         title: const Text('My Profile',
             style: TextStyle(fontWeight: FontWeight.w600, color: Color(Config.text1))),
         centerTitle: true,
