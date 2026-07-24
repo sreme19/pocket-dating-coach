@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'api.dart';
 import 'config.dart';
+import 'season.dart';
 
 // ── Inferred (cross-section) signal styling ──────────────────────────────────
 // Some insights are lifted from a DIFFERENT upload than the section they appear
@@ -84,7 +85,7 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
               Text(b.emoji, style: const TextStyle(fontSize: 18)),
               const SizedBox(width: 12),
               Expanded(child: Text(b.text, style: const TextStyle(fontSize: 15, color: Color(Config.text1)))),
-              const Icon(Icons.check_circle, size: 18, color: Color(Config.accent)),
+              Icon(Icons.check_circle, size: 18, color: Brand.accent),
             ]),
           ),
       ])),
@@ -117,10 +118,10 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
           Container(
             width: 40, height: 40,
             decoration: BoxDecoration(
-              color: const Color(0x1AFF3B6B),
+              color: Brand.accentAlpha(0x1A),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.directions_car_rounded, size: 22, color: Color(Config.accent)),
+            child: Icon(Icons.directions_car_rounded, size: 22, color: Brand.accent),
           ),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -134,7 +135,7 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
               Text('✦ Seen in your ${_prettyFrom(car.from)} photos',
                   style: const TextStyle(fontSize: 12, color: _inferredColor))
             else
-              const Text('✅ Ownership verified', style: TextStyle(fontSize: 12, color: Color(Config.accent))),
+              Text('✅ Ownership verified', style: TextStyle(fontSize: 12, color: Brand.accent)),
           ])),
         ]),
       )).toList())),
@@ -380,17 +381,17 @@ Widget moneyMattersCard({
   return Container(
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      gradient: const LinearGradient(
+      gradient: LinearGradient(
         begin: Alignment.topLeft, end: Alignment.bottomRight,
-        colors: [Color(Config.accentTint), Color(Config.bg2)],
+        colors: [Brand.accentTint, Color(Config.bg2)],
       ),
       borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: const Color(Config.accent).withValues(alpha: 0.15)),
+      border: Border.all(color: Brand.accent.withValues(alpha: 0.15)),
     ),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       if (hasData) ...[
         if (income != null) ...[
-          Text('ANNUAL INCOME', style: TextStyle(color: const Color(Config.accent).withValues(alpha: 0.8), fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+          Text('ANNUAL INCOME', style: TextStyle(color: Brand.accent.withValues(alpha: 0.8), fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
           const SizedBox(height: 6),
           Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Text(_moneyEmoji(income), style: const TextStyle(fontSize: 26)),
@@ -402,7 +403,7 @@ Widget moneyMattersCard({
           if (netWorth != null) const SizedBox(height: 14),
         ],
         if (netWorth != null) ...[
-          Text('NET WORTH', style: TextStyle(color: const Color(Config.accent).withValues(alpha: 0.8), fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+          Text('NET WORTH', style: TextStyle(color: Brand.accent.withValues(alpha: 0.8), fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
           const SizedBox(height: 6),
           Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
             Text(_moneyEmoji(netWorth), style: const TextStyle(fontSize: 26)),
@@ -451,7 +452,7 @@ Widget _moneyTile(String emoji, String label, {bool inferred = false, String? fr
       decoration: BoxDecoration(
         color: inferred ? _inferredColor.withValues(alpha: 0.08) : const Color(Config.bg3),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: inferred ? _inferredColor.withValues(alpha: 0.45) : const Color(Config.accent), width: 0.4),
+        border: Border.all(color: inferred ? _inferredColor.withValues(alpha: 0.45) : Brand.accent, width: 0.4),
       ),
       child: Column(children: [
         Text(emoji, style: const TextStyle(fontSize: 22)),
@@ -517,14 +518,14 @@ class _SignalTabsState extends State<SignalTabs> {
                   duration: const Duration(milliseconds: 200),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                   decoration: BoxDecoration(
-                    color: i == active ? const Color(Config.accent) : const Color(Config.bg2),
+                    color: i == active ? Brand.accent : const Color(Config.bg2),
                     borderRadius: BorderRadius.circular(999),
                     border: Border.all(
-                      color: i == active ? const Color(Config.accent) : const Color(0x1A1B1020),
+                      color: i == active ? Brand.accent : const Color(0x1A1B1020),
                       width: 1.5,
                     ),
                     boxShadow: i == active ? [
-                      BoxShadow(color: const Color(Config.accent).withOpacity(0.25), blurRadius: 8, offset: const Offset(0, 3)),
+                      BoxShadow(color: Brand.accent.withOpacity(0.25), blurRadius: 8, offset: const Offset(0, 3)),
                     ] : null,
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -608,7 +609,7 @@ class _SignalTabsState extends State<SignalTabs> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0x08FF3B6B),
+                color: Brand.accentAlpha(0x08),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -679,11 +680,11 @@ class _RadarPainter extends CustomPainter {
       i == 0 ? dataPath.moveTo(p.dx, p.dy) : dataPath.lineTo(p.dx, p.dy);
     }
     dataPath.close();
-    canvas.drawPath(dataPath, Paint()..style = PaintingStyle.fill..color = const Color(0x33FF3B6B));
-    canvas.drawPath(dataPath, Paint()..style = PaintingStyle.stroke..color = const Color(Config.accent)..strokeWidth = 2);
+    canvas.drawPath(dataPath, Paint()..style = PaintingStyle.fill..color = Brand.accentAlpha(0x33));
+    canvas.drawPath(dataPath, Paint()..style = PaintingStyle.stroke..color = Brand.accent..strokeWidth = 2);
     for (var i = 0; i < n; i++) {
       final p = pt(i, radius * (traits[i].$2 / 100));
-      canvas.drawCircle(p, 3, Paint()..color = const Color(Config.accent));
+      canvas.drawCircle(p, 3, Paint()..color = Brand.accent);
     }
 
     // Labels + values
@@ -701,7 +702,7 @@ class _RadarPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
       text: TextSpan(children: [
         TextSpan(text: '$name\n', style: const TextStyle(color: Color(0xD91B1020), fontSize: 11, fontWeight: FontWeight.w600)),
-        TextSpan(text: value, style: const TextStyle(color: Color(Config.accent), fontSize: 10)),
+        TextSpan(text: value, style: TextStyle(color: Brand.accent, fontSize: 10)),
       ]),
     )..layout(maxWidth: 90);
     var dx = at.dx;

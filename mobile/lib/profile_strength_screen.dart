@@ -5,6 +5,7 @@ import 'config.dart';
 import 'preference_weighting_screen.dart';
 import 'category_proof_screen.dart';
 import 'trust_boost_screen.dart';
+import 'season.dart';
 
 /// Profile Strength surface (Scoring & Matching redesign §8, Phase 2). Shows the
 /// user's pool standing as a BAND + momentum + verification-upside actions —
@@ -54,7 +55,7 @@ class _ProfileStrengthScreenState extends State<ProfileStrengthScreen> {
             style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700)),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: Color(Config.accent)))
+          ? Center(child: CircularProgressIndicator(color: Brand.accent))
           : _error != null
               ? _errorView()
               : (_ps?.hasVectors == true ? _content(_ps!) : _notReady()),
@@ -108,18 +109,18 @@ class _ProfileStrengthScreenState extends State<ProfileStrengthScreen> {
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            gradient: const LinearGradient(
-              colors: [Color(Config.accentTint), Color(Config.bg2)],
+            gradient: LinearGradient(
+              colors: [Brand.accentTint, Color(Config.bg2)],
               begin: Alignment.topLeft, end: Alignment.bottomRight,
             ),
-            border: Border.all(color: const Color(0x22FF3B6B)),
+            border: Border.all(color: Brand.accentAlpha(0x22)),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('YOUR PULL IN THIS POOL RIGHT NOW',
                 style: TextStyle(color: Color(Config.text2), fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8)),
             const SizedBox(height: 8),
             Text(ps.band,
-                style: const TextStyle(color: Color(Config.accentBright), fontSize: 30, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+                style: TextStyle(color: Brand.accentBright, fontSize: 30, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
             const SizedBox(height: 14),
             // Progress to next band (momentum).
             ClipRRect(
@@ -127,8 +128,8 @@ class _ProfileStrengthScreenState extends State<ProfileStrengthScreen> {
               child: LinearProgressIndicator(
                 value: ps.nextBand == null ? 1 : ps.progressInBand.clamp(0.04, 1),
                 minHeight: 8,
-                backgroundColor: const Color(0x33FF3B6B),
-                color: const Color(Config.accent),
+                backgroundColor: Brand.accentAlpha(0x33),
+                color: Brand.accent,
               ),
             ),
             const SizedBox(height: 8),
@@ -185,7 +186,7 @@ class _ProfileStrengthScreenState extends State<ProfileStrengthScreen> {
               MaterialPageRoute(builder: (_) => const PreferenceWeightingScreen()),
             );
           },
-          child: const Text('Adjust what you value →', style: TextStyle(color: Color(Config.accentBright))),
+          child: Text('Adjust what you value →', style: TextStyle(color: Brand.accentBright)),
         ),
       ],
     );
@@ -237,8 +238,8 @@ class _ProfileStrengthScreenState extends State<ProfileStrengthScreen> {
         const SizedBox(width: 10),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(color: const Color(Config.accentTint), borderRadius: BorderRadius.circular(999)),
-          child: Text('+${a.deltaPS}', style: const TextStyle(color: Color(Config.accentBright), fontSize: 13, fontWeight: FontWeight.w700)),
+          decoration: BoxDecoration(color: Brand.accentTint, borderRadius: BorderRadius.circular(999)),
+          child: Text('+${a.deltaPS}', style: TextStyle(color: Brand.accentBright, fontSize: 13, fontWeight: FontWeight.w700)),
         ),
       ]),
     ),

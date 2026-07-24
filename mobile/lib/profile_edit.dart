@@ -6,6 +6,7 @@ import 'api.dart';
 import 'app_logger.dart';
 import 'archetypes.dart';
 import 'config.dart';
+import 'season.dart';
 
 // ── Photo manager ────────────────────────────────────────────────────────────
 
@@ -117,7 +118,7 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
             FilledButton(
               onPressed: () => Navigator.pop(ctx, true),
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(Config.accent),
+                backgroundColor: Brand.accent,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               child: const Text('Save', style: TextStyle(fontWeight: FontWeight.w700)),
@@ -149,7 +150,7 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
           if (_dirty)
             TextButton(
               onPressed: _busy ? null : _save,
-              child: const Text('Save', style: TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w700)),
+              child: Text('Save', style: TextStyle(color: Brand.accent, fontWeight: FontWeight.w700)),
             ),
         ],
       ),
@@ -172,7 +173,7 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
           Text(
             '${_photos.length}/$_maxPhotos photos${_atCap ? ' · maximum reached' : _atFloor && _isMan ? ' · minimum 3 required' : ''}',
             style: TextStyle(
-              color: _atCap ? const Color(Config.accent) : const Color(Config.text3),
+              color: _atCap ? Brand.accent : const Color(Config.text3),
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -195,7 +196,7 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
           ],
           if (_busy) ...[
             const SizedBox(height: 16),
-            const Center(child: CircularProgressIndicator(color: Color(Config.accent))),
+            Center(child: CircularProgressIndicator(color: Brand.accent)),
           ],
         ],
       ),
@@ -213,12 +214,12 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
             child: CachedNetworkImage(
               imageUrl: _photos[i].url,
               fit: BoxFit.cover,
-              placeholder: (c, _) => const ColoredBox(
+              placeholder: (c, _) => ColoredBox(
                 color: Color(Config.bg3),
                 child: Center(
                   child: SizedBox(
                     width: 18, height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accent),
                   ),
                 ),
               ),
@@ -235,7 +236,7 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
               left: 6, bottom: 6,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: const Color(0xCCFF3B6B), borderRadius: BorderRadius.circular(999)),
+                decoration: BoxDecoration(color: Brand.accentAlpha(0xCC), borderRadius: BorderRadius.circular(999)),
                 child: const Text('LEAD', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFFFFFFFF))),
               ),
             ),
@@ -352,9 +353,9 @@ class _ArchetypeRow extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: selected ? const Color(0x22FF3B6B) : const Color(Config.bg3),
+          color: selected ? Brand.accentAlpha(0x22) : const Color(Config.bg3),
           borderRadius: BorderRadius.circular(12),
-          border: selected ? Border.all(color: const Color(0x4DFF3B6B)) : null,
+          border: selected ? Border.all(color: Brand.accentAlpha(0x4D)) : null,
         ),
         child: Row(children: [
           Text(a.emoji, style: const TextStyle(fontSize: 22)),
@@ -362,12 +363,12 @@ class _ArchetypeRow extends StatelessWidget {
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(a.name, style: TextStyle(fontWeight: FontWeight.w700,
-                  color: selected ? const Color(Config.accent) : const Color(Config.text1))),
+                  color: selected ? Brand.accent : const Color(Config.text1))),
               const SizedBox(height: 2),
               Text(a.tag, style: const TextStyle(fontSize: 12, color: Color(Config.text2))),
             ]),
           ),
-          if (selected) const Icon(Icons.check_circle, color: Color(Config.accent), size: 20),
+          if (selected) Icon(Icons.check_circle, color: Brand.accent, size: 20),
         ]),
       ),
     );
@@ -480,8 +481,8 @@ class _HardNosEditorState extends State<_HardNosEditor> {
             IconButton(
               onPressed: _adding ? null : _add,
               icon: _adding
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)))
-                  : const Icon(Icons.add_circle, color: Color(Config.accent)),
+                  ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accent))
+                  : Icon(Icons.add_circle, color: Brand.accent),
             ),
           ]),
           if (_error != null) ...[
@@ -494,7 +495,7 @@ class _HardNosEditorState extends State<_HardNosEditor> {
             child: FilledButton(
               onPressed: _saving ? null : _save,
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(Config.accent),
+                backgroundColor: Brand.accent,
                 foregroundColor: const Color(0xFFFFFFFF),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'archetypes.dart';
 import 'config.dart';
+import 'season.dart';
 
 /// Shows the archetype detail bottom sheet (mirrors ArchetypeDetailModal.svelte).
 /// [onLockIn] is called with the archetype id when the user taps "Let's go →".
@@ -131,13 +132,13 @@ class _ArchetypeDetailSheet extends StatelessWidget {
                     _sectionLabel('💚  YOU\'LL MATCH WITH'),
                     const SizedBox(height: 10),
                     if (bestMatches.isNotEmpty) ...[
-                      _tierLabel('BEST MATCH', const Color(Config.accentBright)),
+                      _tierLabel('BEST MATCH', Brand.accentBright),
                       const SizedBox(height: 8),
                       _chipWrap(bestMatches.map((t) => _chip(
                         '💎  ${t.label}',
-                        bg: const Color(Config.accentTint),
-                        border: const Color(Config.accent),
-                        textColor: const Color(Config.accentBright),
+                        bg: Brand.accentTint,
+                        border: Brand.accent,
+                        textColor: Brand.accentBright,
                         bold: true,
                       )).toList()),
                       if (goodMatches.isNotEmpty) ...[
@@ -194,7 +195,7 @@ class _ArchetypeDetailSheet extends StatelessWidget {
                       onLockIn();
                     },
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(Config.accentBright),
+                      backgroundColor: Brand.accentBright,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       elevation: 0,

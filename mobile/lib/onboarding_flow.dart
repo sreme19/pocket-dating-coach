@@ -7,6 +7,7 @@ import 'config.dart';
 import 'earn_profile_screen.dart';
 import 'pre_auth_lane_screen.dart';
 import 'verification_screen.dart';
+import 'season.dart';
 
 /// Gender chosen on the pre-auth gate. OnboardingFlow reads this to skip its
 /// own gate and jump straight to lane (or verification if archetype also set).
@@ -179,18 +180,18 @@ class GateStep extends StatelessWidget {
                   width: 8, height: 8,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: const Color(Config.accent),
-                    boxShadow: const [BoxShadow(color: Color(Config.accentTint), blurRadius: 0, spreadRadius: 4)],
+                    color: Brand.accent,
+                    boxShadow: [BoxShadow(color: Brand.accentTint, blurRadius: 0, spreadRadius: 4)],
                   ),
                 ),
                 const SizedBox(width: 8),
-                const Text(
+                Text(
                   'RITEANGLE',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.4,
-                    color: Color(Config.accentBright),
+                    color: Brand.accentBright,
                   ),
                 ),
               ]),
@@ -206,11 +207,11 @@ class GateStep extends StatelessWidget {
                     letterSpacing: -0.8,
                     color: Color(Config.text1),
                   ),
-                  children: const [
+                  children: [
                     TextSpan(text: 'Two questions.\n'),
                     TextSpan(
                       text: 'Then we move.',
-                      style: TextStyle(color: Color(Config.accentBright)),
+                      style: TextStyle(color: Brand.accentBright),
                     ),
                   ],
                 ),
@@ -237,7 +238,7 @@ class GateStep extends StatelessWidget {
                     color: const Color(Config.bg2),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: over18 ? const Color(Config.accent) : const Color(0x221B1020),
+                      color: over18 ? Brand.accent : const Color(0x221B1020),
                     ),
                   ),
                   child: Row(children: [
@@ -246,10 +247,10 @@ class GateStep extends StatelessWidget {
                       duration: const Duration(milliseconds: 200),
                       width: 26, height: 26,
                       decoration: BoxDecoration(
-                        color: over18 ? const Color(Config.accent) : const Color(Config.bg3),
+                        color: over18 ? Brand.accent : const Color(Config.bg3),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: over18 ? const Color(Config.accent) : const Color(0x331B1020),
+                          color: over18 ? Brand.accent : const Color(0x331B1020),
                         ),
                       ),
                       child: over18
@@ -276,7 +277,7 @@ class GateStep extends StatelessWidget {
                 child: FilledButton(
                   onPressed: ready ? onContinue : null,
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(Config.accent),
+                    backgroundColor: Brand.accent,
                     foregroundColor: Colors.white,
                     disabledBackgroundColor: const Color(Config.bg3),
                     disabledForegroundColor: const Color(Config.text3),
@@ -323,7 +324,7 @@ class GateStep extends StatelessWidget {
                       const TextSpan(text: 'Already a member? '),
                       TextSpan(
                         text: 'Sign in →',
-                        style: const TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w600),
+                        style: TextStyle(color: Brand.accent, fontWeight: FontWeight.w600),
                         recognizer: TapGestureRecognizer()..onTap = onSignIn!,
                       ),
                     ],
@@ -347,9 +348,9 @@ class GateStep extends StatelessWidget {
           width: 22, height: 22,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: done ? const Color(Config.accent) : const Color(Config.bg3),
+            color: done ? Brand.accent : const Color(Config.bg3),
             border: Border.all(
-              color: done ? const Color(Config.accent) : const Color(0x331B1020),
+              color: done ? Brand.accent : const Color(0x331B1020),
             ),
           ),
           child: Center(
@@ -388,14 +389,14 @@ class GateStep extends StatelessWidget {
             color: const Color(Config.bg2),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: sel ? const Color(Config.accent) : const Color(0x221B1020),
+              color: sel ? Brand.accent : const Color(0x221B1020),
               width: sel ? 1.5 : 1,
             ),
             gradient: sel
-                ? const RadialGradient(
+                ? RadialGradient(
                     center: Alignment(1.0, -1.0),
                     radius: 1.2,
-                    colors: [Color(Config.accentTint), Color(Config.bg2)],
+                    colors: [Brand.accentTint, Color(Config.bg2)],
                     stops: [0.0, 0.7],
                   )
                 : null,
@@ -403,7 +404,7 @@ class GateStep extends StatelessWidget {
           child: Stack(
             children: [
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(icon, style: TextStyle(fontSize: 26, color: sel ? const Color(Config.accent) : const Color(Config.text2))),
+                Text(icon, style: TextStyle(fontSize: 26, color: sel ? Brand.accent : const Color(Config.text2))),
                 const SizedBox(height: 6),
                 Text(label, style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w600, fontSize: 17, letterSpacing: -0.1)),
                 const SizedBox(height: 4),
@@ -414,7 +415,7 @@ class GateStep extends StatelessWidget {
                   top: 0, right: 0,
                   child: Container(
                     width: 22, height: 22,
-                    decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(Config.accent)),
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: Brand.accent),
                     child: const Center(
                       child: Text('✓', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
                     ),
@@ -487,7 +488,7 @@ class _Lane extends StatelessWidget {
           ],
         ),
         if (saving)
-          const Positioned.fill(child: ColoredBox(color: Color(0x88000000), child: Center(child: CircularProgressIndicator(color: Color(Config.accent))))),
+          Positioned.fill(child: ColoredBox(color: Color(0x88000000), child: Center(child: CircularProgressIndicator(color: Brand.accent)))),
       ]),
     );
   }
@@ -585,10 +586,10 @@ class _LiveMembersCarouselState extends State<LiveMembersCarousel> {
                 Row(children: [
                   Container(
                     width: 8, height: 8,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Color(Config.accentBright),
-                      boxShadow: [BoxShadow(color: Color(Config.accentTint), blurRadius: 0, spreadRadius: 3)],
+                      color: Brand.accentBright,
+                      boxShadow: [BoxShadow(color: Brand.accentTint, blurRadius: 0, spreadRadius: 3)],
                     ),
                   ),
                   const SizedBox(width: 7),
@@ -649,7 +650,7 @@ class _LiveMembersCarouselState extends State<LiveMembersCarousel> {
                   width: 13, height: 13,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: p.isOnline ? const Color(Config.accentBright) : const Color(0xFFBBBBBB),
+                    color: p.isOnline ? Brand.accentBright : const Color(0xFFBBBBBB),
                     border: Border.all(color: const Color(Config.bg2), width: 2),
                   ),
                 ),
@@ -668,7 +669,7 @@ class _LiveMembersCarouselState extends State<LiveMembersCarousel> {
             p.isOnline ? '● Online' : '● ${p.lastActive}',
             style: TextStyle(
               fontSize: 10,
-              color: p.isOnline ? const Color(Config.accentBright) : const Color(Config.text3),
+              color: p.isOnline ? Brand.accentBright : const Color(Config.text3),
             ),
             textAlign: TextAlign.center,
           ),

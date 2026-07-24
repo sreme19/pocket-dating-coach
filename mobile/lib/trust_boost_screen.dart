@@ -6,6 +6,7 @@ import 'category_proof_screen.dart';
 import 'config.dart';
 import 'profile_body.dart' show isKnownTravelPlace;
 import 'verification_screen.dart';
+import 'season.dart';
 
 /// A boostable proof category shown on the Trust & Boost page.
 class _Cat {
@@ -74,7 +75,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
         future: _future,
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: Color(Config.accent)));
+            return Center(child: CircularProgressIndicator(color: Brand.accent));
           }
           if (snap.hasError || !snap.hasData) {
             final e = snap.error?.toString() ?? '';
@@ -136,11 +137,11 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
   // ── Sections ───────────────────────────────────────────────────────────────
 
   Widget _statsHeader(TrustData d) => Row(children: [
-        _stat('TRUST', d.trustScore > 0 ? '${d.trustScore}' : '—', trustLabel(d.trustScore), const Color(Config.accent)),
+        _stat('TRUST', d.trustScore > 0 ? '${d.trustScore}' : '—', trustLabel(d.trustScore), Brand.accent),
         _vline(),
         _stat('PROFILE', '✓', 'complete', const Color(0xFFF59E0B)),
         _vline(),
-        _stat('VERIFIED', '${d.proofs.length}', 'proofs', const Color(Config.accent)),
+        _stat('VERIFIED', '${d.proofs.length}', 'proofs', Brand.accent),
       ]);
 
   Widget _stat(String label, String value, String sub, Color c) => Expanded(
@@ -191,7 +192,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
             SizedBox(width: 150, height: 150, child: CircularProgressIndicator(
               value: d.trustScore.clamp(0, 100) / 100, strokeWidth: 10,
               backgroundColor: const Color(0x221B1020),
-              valueColor: const AlwaysStoppedAnimation(Color(Config.accent)), strokeCap: StrokeCap.round,
+              valueColor: AlwaysStoppedAnimation(Brand.accent), strokeCap: StrokeCap.round,
             )),
             Column(mainAxisSize: MainAxisSize.min, children: [
               Text('${d.trustScore}', style: const TextStyle(color: Color(Config.text1), fontSize: 44, fontWeight: FontWeight.w800, height: 1)),
@@ -202,8 +203,8 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          decoration: BoxDecoration(color: const Color(0x22FF3B6B), borderRadius: BorderRadius.circular(999)),
-          child: Text('● $alignment', style: const TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w600, fontSize: 13)),
+          decoration: BoxDecoration(color: Brand.accentAlpha(0x22), borderRadius: BorderRadius.circular(999)),
+          child: Text('● $alignment', style: TextStyle(color: Brand.accent, fontWeight: FontWeight.w600, fontSize: 13)),
         ),
         const SizedBox(height: 18),
         _scoreProgress(d),
@@ -231,7 +232,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
           ]),
           FractionallySizedBox(
             widthFactor: s / 100,
-            child: Container(height: 6, color: const Color(Config.accent)),
+            child: Container(height: 6, color: Brand.accent),
           ),
         ]),
       ),
@@ -247,7 +248,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
   }
 
   Widget _tier(String label, bool on) => Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(on ? Icons.check_circle : Icons.circle_outlined, size: 14, color: on ? const Color(Config.accent) : const Color(Config.text3)),
+        Icon(on ? Icons.check_circle : Icons.circle_outlined, size: 14, color: on ? Brand.accent : const Color(Config.text3)),
         const SizedBox(width: 4),
         Text(label, style: TextStyle(fontSize: 12, color: on ? const Color(Config.text1) : const Color(Config.text3))),
       ]);
@@ -346,14 +347,14 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
     required String lowPts,
     VoidCallback? onTap,
   }) {
-    const barColor   = Color(Config.accent);
-    const scoreColor = Color(Config.accent);
+    final barColor   = Brand.accent;
+    final scoreColor = Brand.accent;
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Text(label, style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w600)),
         const Spacer(),
-        Text('$score/100', style: const TextStyle(color: scoreColor, fontWeight: FontWeight.w700, fontSize: 13)),
+        Text('$score/100', style: TextStyle(color: scoreColor, fontWeight: FontWeight.w700, fontSize: 13)),
       ]),
       const SizedBox(height: 6),
       ClipRRect(
@@ -361,34 +362,34 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
         child: LinearProgressIndicator(
           value: score / 100,
           minHeight: 5,
-          backgroundColor: const Color(0x22FF3B6B),
-          valueColor: const AlwaysStoppedAnimation(barColor),
+          backgroundColor: Brand.accentAlpha(0x22),
+          valueColor: AlwaysStoppedAnimation(barColor),
         ),
       ),
       const SizedBox(height: 6),
       if (score >= 75)
         Text('✓ $label verified',
-            style: const TextStyle(color: Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w600))
+            style: TextStyle(color: Brand.accent, fontSize: 12, fontWeight: FontWeight.w600))
       else if (onTap != null)
         GestureDetector(
           onTap: onTap,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
             decoration: BoxDecoration(
-              color: const Color(0x1AFF3B6B),
+              color: Brand.accentAlpha(0x1A),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0x33FF3B6B)),
+              border: Border.all(color: Brand.accentAlpha(0x33)),
             ),
             child: Row(children: [
               Expanded(child: Text(
                 score < 50 ? lowText : midText,
-                style: const TextStyle(color: Color(Config.accent), fontSize: 13),
+                style: TextStyle(color: Brand.accent, fontSize: 13),
               )),
               const SizedBox(width: 8),
               Text(
                 score < 50 ? lowPts : 'boost →',
-                style: const TextStyle(
-                  color: Color(Config.accent),
+                style: TextStyle(
+                  color: Brand.accent,
                   fontWeight: FontWeight.w700,
                   fontSize: 13,
                 ),
@@ -416,7 +417,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
         decoration: BoxDecoration(
           color: const Color(Config.bg2),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: verified ? const Color(0x4DFF3B6B) : const Color(0x181B1020)),
+          border: Border.all(color: verified ? Brand.accentAlpha(0x4D) : const Color(0x181B1020)),
         ),
         child: Row(children: [
           Text(c.emoji, style: const TextStyle(fontSize: 26)),
@@ -429,18 +430,18 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
             const SizedBox(height: 4),
             if (verified)
               Text('✓ Verified${p.photoCount > 0 ? ' · ${p.photoCount} photo${p.photoCount == 1 ? '' : 's'}' : ''}',
-                  style: const TextStyle(color: Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w600))
+                  style: TextStyle(color: Brand.accent, fontSize: 12, fontWeight: FontWeight.w600))
             else if (c.time.isNotEmpty)
               Text(c.time, style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
           ])),
           const SizedBox(width: 10),
           if (verified)
-            const CircleAvatar(radius: 16, backgroundColor: Color(Config.accent), child: Icon(Icons.check, size: 18, color: Color(0xFFFFFFFF)))
+            CircleAvatar(radius: 16, backgroundColor: Brand.accent, child: Icon(Icons.check, size: 18, color: Color(0xFFFFFFFF)))
           else
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(color: const Color(0x22FF3B6B), borderRadius: BorderRadius.circular(999)),
-              child: Text('+${c.pts}', style: const TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w700)),
+              decoration: BoxDecoration(color: Brand.accentAlpha(0x22), borderRadius: BorderRadius.circular(999)),
+              child: Text('+${c.pts}', style: TextStyle(color: Brand.accent, fontWeight: FontWeight.w700)),
             ),
         ]),
       ),
@@ -464,15 +465,15 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
         decoration: BoxDecoration(
           color: const Color(Config.bg2),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: verified ? const Color(0x4DFF3B6B) : const Color(0x181B1020)),
+          border: Border.all(color: verified ? Brand.accentAlpha(0x4D) : const Color(0x181B1020)),
         ),
         child: Column(children: [
           _brandIcon(c.id),
           const SizedBox(height: 8),
           if (verified)
-            const Icon(Icons.check, size: 16, color: Color(Config.accent))
+            Icon(Icons.check, size: 16, color: Brand.accent)
           else
-            Text('+${c.pts}', style: const TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w700, fontSize: 13)),
+            Text('+${c.pts}', style: TextStyle(color: Brand.accent, fontWeight: FontWeight.w700, fontSize: 13)),
         ]),
       ),
     );
@@ -592,7 +593,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
           color: const Color(Config.bg3),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: verified ? const Color(0x4DFF3B6B) : const Color(0x181B1020),
+            color: verified ? Brand.accentAlpha(0x4D) : const Color(0x181B1020),
           ),
         ),
         child: Row(children: [
@@ -606,17 +607,17 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
                 style: const TextStyle(color: Color(Config.text3), fontSize: 11)),
           ])),
           if (verified)
-            const Icon(Icons.check_circle, size: 18, color: Color(Config.accent))
+            Icon(Icons.check_circle, size: 18, color: Brand.accent)
           else
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0x22FF3B6B),
+                color: Brand.accentAlpha(0x22),
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text('+$pts',
-                  style: const TextStyle(
-                      color: Color(Config.accent), fontWeight: FontWeight.w700, fontSize: 12)),
+                  style: TextStyle(
+                      color: Brand.accent, fontWeight: FontWeight.w700, fontSize: 12)),
             ),
         ]),
       ),
@@ -758,7 +759,7 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
                     }
                   },
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(Config.accent),
+                    backgroundColor: Brand.accent,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -793,10 +794,10 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
               duration: const Duration(milliseconds: 150),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
-                color: selected == r ? const Color(Config.accent) : const Color(0x14FFFFFF),
+                color: selected == r ? Brand.accent : const Color(0x14FFFFFF),
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(
-                  color: selected == r ? const Color(Config.accent) : const Color(0x22FFFFFF),
+                  color: selected == r ? Brand.accent : const Color(0x22FFFFFF),
                 ),
               ),
               child: Text(r,
@@ -850,8 +851,8 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
                         }
                       },
                       child: deletingCountry == c
-                          ? const SizedBox(width: 14, height: 14,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)))
+                          ? SizedBox(width: 14, height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accent))
                           : const Icon(Icons.close, size: 14, color: Color(Config.text3)),
                     ),
                   ]),

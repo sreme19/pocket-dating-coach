@@ -5,6 +5,7 @@ import 'archetypes.dart';
 import 'archetype_detail_sheet.dart';
 import 'config.dart';
 import 'onboarding_flow.dart' show LiveMembersCarousel;
+import 'season.dart';
 
 /// Pre-auth "Pick your lane" screen — shown after the gate but before email
 /// sign-up. Mirrors the web /verified-vibe/home page. The chosen archetype id
@@ -72,19 +73,19 @@ class _PreAuthLaneScreenState extends State<PreAuthLaneScreen> {
                 ),
                 Container(
                   width: 8, height: 8,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Color(Config.accent),
-                    boxShadow: [BoxShadow(color: Color(Config.accentTint), blurRadius: 0, spreadRadius: 3)],
+                    color: Brand.accent,
+                    boxShadow: [BoxShadow(color: Brand.accentTint, blurRadius: 0, spreadRadius: 3)],
                   ),
                 ),
                 const SizedBox(width: 8),
-                const Text('RITEANGLE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.4, color: Color(Config.accentBright))),
+                Text('RITEANGLE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.4, color: Brand.accentBright)),
               ]),
               const SizedBox(height: 16),
               // Title
               RichText(
-                text: const TextSpan(
+                text: TextSpan(
                   style: TextStyle(
                     fontSize: 54,
                     fontWeight: FontWeight.w800,
@@ -97,7 +98,7 @@ class _PreAuthLaneScreenState extends State<PreAuthLaneScreen> {
                     TextSpan(text: 'Pick your\n'),
                     TextSpan(
                       text: 'lane.',
-                      style: TextStyle(color: Color(Config.accentBright)),
+                      style: TextStyle(color: Brand.accentBright),
                     ),
                   ],
                 ),
@@ -108,9 +109,9 @@ class _PreAuthLaneScreenState extends State<PreAuthLaneScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                 decoration: BoxDecoration(
-                  color: const Color(0x14E11D54),
+                  color: Brand.accentBrightAlpha(0x14),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0x3FE11D54)),
+                  border: Border.all(color: Brand.accentBrightAlpha(0x3F)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -120,17 +121,17 @@ class _PreAuthLaneScreenState extends State<PreAuthLaneScreen> {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         const Text('Get matched within', style: TextStyle(fontSize: 15, color: Color(Config.text2), fontWeight: FontWeight.w500)),
-                        Text(_timerText, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Color(Config.accentBright), letterSpacing: -0.3, fontFeatures: [FontFeature.tabularFigures()])),
+                        Text(_timerText, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Brand.accentBright, letterSpacing: -0.3, fontFeatures: [FontFeature.tabularFigures()])),
                         const Text('minutes.', style: TextStyle(fontSize: 15, color: Color(Config.text2), fontWeight: FontWeight.w500)),
                       ],
                     ),
                     const SizedBox(height: 6),
                     RichText(
-                      text: const TextSpan(
+                      text: TextSpan(
                         style: TextStyle(fontSize: 13, color: Color(Config.text3), height: 1.45),
                         children: [
                           TextSpan(text: 'Earn your profile, verify your intent. '),
-                          TextSpan(text: 'Pay later.', style: TextStyle(color: Color(Config.accentBright), fontWeight: FontWeight.w600, fontStyle: FontStyle.italic)),
+                          TextSpan(text: 'Pay later.', style: TextStyle(color: Brand.accentBright, fontWeight: FontWeight.w600, fontStyle: FontStyle.italic)),
                         ],
                       ),
                     ),
@@ -187,7 +188,7 @@ class _PreAuthLaneScreenState extends State<PreAuthLaneScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                   decoration: BoxDecoration(
-                    color: isSerious ? const Color(0x1FE11D54) : const Color(0x1FA78BFA),
+                    color: isSerious ? Brand.accentBrightAlpha(0x1F) : const Color(0x1FA78BFA),
                     borderRadius: BorderRadius.circular(100),
                   ),
                   child: Text(
@@ -196,7 +197,7 @@ class _PreAuthLaneScreenState extends State<PreAuthLaneScreen> {
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.5,
-                      color: isSerious ? const Color(Config.accentBright) : const Color(0xFFA78BFA),
+                      color: isSerious ? Brand.accentBright : const Color(0xFFA78BFA),
                     ),
                   ),
                 ),

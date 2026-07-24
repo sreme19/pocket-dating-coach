@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'api.dart';
 import 'app_logger.dart';
 import 'config.dart';
+import 'season.dart';
 
 /// Live voice call with a match's AI bestie. Joins the LiveKit room minted by
 /// /api/voice/calls/start; the agent (server-side) speaks back. Audio-only.
@@ -229,7 +230,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
       case _Phase.consent:
         return _consent();
       case _Phase.connecting:
-        return _center(const CircularProgressIndicator(color: Color(Config.accent)), 'Connecting you to ${widget.name}’s bestie…');
+        return _center(CircularProgressIndicator(color: Brand.accent), 'Connecting you to ${widget.name}’s bestie…');
       case _Phase.error:
         return _center(const Text('⚠️', style: TextStyle(fontSize: 40)), _error ?? 'Something went wrong.', showClose: true);
       case _Phase.ended:
@@ -262,7 +263,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
           icon: const Icon(Icons.call),
           label: const Text('I understand — call', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
           style: FilledButton.styleFrom(
-            backgroundColor: const Color(Config.accent),
+            backgroundColor: Brand.accent,
             foregroundColor: const Color(0xFFFFFFFF),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
@@ -286,7 +287,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
       Text("${widget.name}'s AI bestie",
           style: const TextStyle(color: Color(Config.text1), fontSize: 18, fontWeight: FontWeight.w700)),
       const SizedBox(height: 4),
-      Text(_clock, style: const TextStyle(color: Color(Config.accent), fontSize: 15, fontWeight: FontWeight.w600)),
+      Text(_clock, style: TextStyle(color: Brand.accent, fontSize: 15, fontWeight: FontWeight.w600)),
       const SizedBox(height: 14),
       Expanded(child: _transcriptView()),
       _statusPill(),
@@ -367,9 +368,9 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const SizedBox(
+                      SizedBox(
                         width: 14, height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accent),
                       ),
                       const SizedBox(width: 10),
                       Flexible(
@@ -399,7 +400,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
         margin: EdgeInsets.only(top: 8, left: isUser ? 44 : 0, right: isUser ? 0 : 44),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: isUser ? const Color(Config.accentTint) : const Color(Config.bg2),
+          color: isUser ? Brand.accentTint : const Color(Config.bg2),
           borderRadius: BorderRadius.circular(14),
         ),
         child: Column(
@@ -409,7 +410,7 @@ class _VoiceCallScreenState extends State<VoiceCallScreen> {
             Text(
               isUser ? 'You' : "${widget.name}'s bestie",
               style: TextStyle(
-                color: isUser ? const Color(Config.accentBright) : const Color(Config.text3),
+                color: isUser ? Brand.accentBright : const Color(Config.text3),
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
               ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'api.dart';
 import 'app_logger.dart';
 import 'config.dart';
+import 'season.dart';
 
 /// Settings › Blocked users. Lists everyone the user has blocked and lets them
 /// unblock (reverses the bidirectional block; does not recreate the old match).
@@ -60,7 +61,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
             style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w600)),
       ),
       body: users == null
-          ? const Center(child: CircularProgressIndicator(color: Color(Config.accent)))
+          ? Center(child: CircularProgressIndicator(color: Brand.accent))
           : users.isEmpty
               ? _empty()
               : RefreshIndicator(
@@ -107,17 +108,17 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
       ),
       title: Text(label, style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w600)),
       trailing: busy
-          ? const SizedBox(width: 20, height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)))
+          ? SizedBox(width: 20, height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accent))
           : OutlinedButton(
               onPressed: () => _unblock(u),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(Config.accent)),
+                side: BorderSide(color: Brand.accent),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               ),
-              child: const Text('Unblock',
-                  style: TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w700)),
+              child: Text('Unblock',
+                  style: TextStyle(color: Brand.accent, fontWeight: FontWeight.w700)),
             ),
     );
   }

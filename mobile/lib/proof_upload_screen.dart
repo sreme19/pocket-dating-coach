@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'api.dart';
 import 'app_logger.dart';
 import 'config.dart';
+import 'season.dart';
 
 class _Cat {
   final String id, label, emoji;
@@ -122,7 +123,7 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: Color(Config.text2)))),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFFFFFFFF)),
+            style: FilledButton.styleFrom(backgroundColor: Brand.accent, foregroundColor: const Color(0xFFFFFFFF)),
             child: const Text('Verify'),
           ),
         ],
@@ -166,7 +167,7 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
         content: Text(msg, style: const TextStyle(color: Color(Config.text2), fontSize: 14, height: 1.5)),
         actions: [TextButton(
           onPressed: () => Navigator.pop(ctx),
-          child: const Text('Got it', style: TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w700)),
+          child: Text('Got it', style: TextStyle(color: Brand.accent, fontWeight: FontWeight.w700)),
         )],
       ),
     );
@@ -198,13 +199,13 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: _resultGood ? const Color(0x22FF3B6B) : const Color(0x22F87171),
+                color: _resultGood ? Brand.accentAlpha(0x22) : const Color(0x22F87171),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: _resultGood ? const Color(Config.accent) : const Color(0xFFF87171)),
+                border: Border.all(color: _resultGood ? Brand.accent : const Color(0xFFF87171)),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(_resultText!,
-                    style: TextStyle(color: _resultGood ? const Color(Config.accent) : const Color(0xFFF87171))),
+                    style: TextStyle(color: _resultGood ? Brand.accent : const Color(0xFFF87171))),
                 if (_resultChips.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Wrap(spacing: 6, runSpacing: 6, children: [
@@ -231,9 +232,9 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: verified ? const Color(0x0AFF3B6B) : const Color(Config.bg2),
+        color: verified ? Brand.accentAlpha(0x0A) : const Color(Config.bg2),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: verified ? const Color(0x44FF3B6B) : const Color(0x181B1020)),
+        border: Border.all(color: verified ? Brand.accentAlpha(0x44) : const Color(0x181B1020)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -243,27 +244,27 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(c.label, style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w600, fontSize: 15)),
               Text(verified ? 'Added to your profile' : '+${c.points} trust',
-                  style: TextStyle(color: verified ? const Color(Config.accent) : const Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w600)),
+                  style: TextStyle(color: verified ? Brand.accent : Brand.accent, fontSize: 12, fontWeight: FontWeight.w600)),
             ]),
           ),
           if (loading)
-            const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)))
+            SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accent))
           else if (verified)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(color: const Color(0x22FF3B6B), borderRadius: BorderRadius.circular(999)),
-              child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.check_circle_rounded, color: Color(Config.accent), size: 15),
+              decoration: BoxDecoration(color: Brand.accentAlpha(0x22), borderRadius: BorderRadius.circular(999)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.check_circle_rounded, color: Brand.accent, size: 15),
                 SizedBox(width: 4),
-                Text('Verified', style: TextStyle(color: Color(Config.accent), fontSize: 13, fontWeight: FontWeight.w700)),
+                Text('Verified', style: TextStyle(color: Brand.accent, fontSize: 13, fontWeight: FontWeight.w700)),
               ]),
             )
           else if (c.url)
             FilledButton(
               onPressed: _busy ? null : () => _uploadUrl(c),
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0x22FF3B6B),
-                foregroundColor: const Color(Config.accent),
+                backgroundColor: Brand.accentAlpha(0x22),
+                foregroundColor: Brand.accent,
                 visualDensity: VisualDensity.compact,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -271,7 +272,7 @@ class _ProofUploadScreenState extends State<ProofUploadScreen> {
             )
           else ...[
             IconButton(onPressed: _busy ? null : () => _upload(c, ImageSource.camera), icon: const Icon(Icons.photo_camera_outlined, color: Color(Config.text2))),
-            IconButton(onPressed: _busy ? null : () => _upload(c, ImageSource.gallery), icon: const Icon(Icons.upload_outlined, color: Color(Config.accent))),
+            IconButton(onPressed: _busy ? null : () => _upload(c, ImageSource.gallery), icon: Icon(Icons.upload_outlined, color: Brand.accent)),
           ],
         ]),
         if (c.hint.isNotEmpty && !verified)
@@ -350,7 +351,7 @@ class _ProofStagingScreenState extends State<_ProofStagingScreen> {
           content: Text(_friendlyError(e), style: const TextStyle(color: Color(Config.text2), fontSize: 14, height: 1.5)),
           actions: [TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Got it', style: TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w700)),
+            child: Text('Got it', style: TextStyle(color: Brand.accent, fontWeight: FontWeight.w700)),
           )],
         ),
       );
@@ -373,7 +374,7 @@ class _ProofStagingScreenState extends State<_ProofStagingScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx, ImageSource.gallery), child: const Text('Gallery', style: TextStyle(color: Color(Config.text2)))),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, ImageSource.camera),
-            style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFFFFFFFF)),
+            style: FilledButton.styleFrom(backgroundColor: Brand.accent, foregroundColor: const Color(0xFFFFFFFF)),
             child: const Text('Camera'),
           ),
         ],
@@ -447,9 +448,9 @@ class _ProofStagingScreenState extends State<_ProofStagingScreen> {
           Container(
             margin: const EdgeInsets.only(right: 16),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(color: const Color(0x22FF3B6B), borderRadius: BorderRadius.circular(999)),
+            decoration: BoxDecoration(color: Brand.accentAlpha(0x22), borderRadius: BorderRadius.circular(999)),
             child: Text('+${widget.cat.points} pts',
-                style: const TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w700, fontSize: 13)),
+                style: TextStyle(color: Brand.accent, fontWeight: FontWeight.w700, fontSize: 13)),
           ),
         ],
       ),
@@ -466,7 +467,7 @@ class _ProofStagingScreenState extends State<_ProofStagingScreen> {
         // Image grid
         Expanded(
           child: _loading
-              ? const Center(child: CircularProgressIndicator(color: Color(Config.accent)))
+              ? Center(child: CircularProgressIndicator(color: Brand.accent))
               : Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: GridView.builder(
@@ -504,9 +505,9 @@ class _ProofStagingScreenState extends State<_ProofStagingScreen> {
               child: FilledButton(
                 onPressed: (_busy || _files.isEmpty) ? null : _verify,
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(Config.accent),
+                  backgroundColor: Brand.accent,
                   foregroundColor: const Color(0xFFFFFFFF),
-                  disabledBackgroundColor: const Color(0x44FF3B6B),
+                  disabledBackgroundColor: Brand.accentAlpha(0x44),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
                 child: _busy
@@ -551,16 +552,16 @@ class _ProofStagingScreenState extends State<_ProofStagingScreen> {
     return GestureDetector(
       onTap: _busy ? null : _addMore,
       child: CustomPaint(
-        painter: _DashedBorderPainter(color: const Color(0x99FF3B6B), radius: 16),
+        painter: _DashedBorderPainter(color: Brand.accentAlpha(0x99), radius: 16),
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0x0AFF3B6B),
+            color: Brand.accentAlpha(0x0A),
             borderRadius: BorderRadius.circular(16),
           ),
-          child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.add_photo_alternate_outlined, size: 38, color: Color(Config.accent)),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.add_photo_alternate_outlined, size: 38, color: Brand.accent),
             SizedBox(height: 8),
-            Text('Add more', style: TextStyle(color: Color(Config.accent), fontSize: 13, fontWeight: FontWeight.w600)),
+            Text('Add more', style: TextStyle(color: Brand.accent, fontSize: 13, fontWeight: FontWeight.w600)),
           ]),
         ),
       ),

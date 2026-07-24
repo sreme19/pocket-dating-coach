@@ -5,6 +5,7 @@ import 'api.dart';
 import 'app_logger.dart';
 import 'config.dart';
 import 'markdown.dart';
+import 'season.dart';
 
 /// AI advisor chat — Wingman (men) or Bestie (women). Proactive greeting on
 /// open, quick-action intent chips, markdown replies, Bestie drafts, and
@@ -240,9 +241,9 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: ActionChip(
-                    label: Text(c.label, style: const TextStyle(color: Color(Config.accent), fontSize: 13)),
-                    backgroundColor: const Color(0x22FF3B6B),
-                    side: const BorderSide(color: Color(0x4DFF3B6B)),
+                    label: Text(c.label, style: TextStyle(color: Brand.accent, fontSize: 13)),
+                    backgroundColor: Brand.accentAlpha(0x22),
+                    side: BorderSide(color: Brand.accentAlpha(0x4D)),
                     onPressed: _thinking ? null : () => _chip(c.intent, c.label),
                   ),
                 ),
@@ -284,9 +285,9 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
             const SizedBox(width: 8),
             GestureDetector(
               onTap: _send,
-              child: const CircleAvatar(
+              child: CircleAvatar(
                 radius: 22,
-                backgroundColor: Color(Config.accent),
+                backgroundColor: Brand.accent,
                 child: Icon(Icons.arrow_upward, color: Color(0xFFFFFFFF)),
               ),
             ),
@@ -333,16 +334,16 @@ class _Bubble extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.82),
         decoration: BoxDecoration(
-          color: mine ? const Color(Config.accent) : const Color(Config.bg3),
+          color: mine ? Brand.accent : const Color(Config.bg3),
           borderRadius: BorderRadius.circular(16),
-          border: greeting ? Border.all(color: const Color(0x4DFF3B6B)) : null,
+          border: greeting ? Border.all(color: Brand.accentAlpha(0x4D)) : null,
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           if (greeting)
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(bottom: 4),
               child: Text('👋 A note for you',
-                  style: TextStyle(color: Color(Config.accent), fontSize: 11, fontWeight: FontWeight.w700)),
+                  style: TextStyle(color: Brand.accent, fontSize: 11, fontWeight: FontWeight.w700)),
             ),
           mine
               ? Text(turn.content, style: const TextStyle(color: Color(0xFFFFFFFF), fontSize: 15, height: 1.35))
@@ -380,7 +381,7 @@ class _DraftCard extends StatelessWidget {
           child: FilledButton(
             onPressed: draft.matchId.isEmpty ? null : onSend,
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(Config.accent),
+              backgroundColor: Brand.accent,
               foregroundColor: const Color(0xFFFFFFFF),
               visualDensity: VisualDensity.compact,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -427,12 +428,12 @@ class _Thinking extends StatelessWidget {
   const _Thinking();
   @override
   Widget build(BuildContext context) {
-    return const Align(
+    return Align(
       alignment: Alignment.centerLeft,
       child: Padding(
         padding: EdgeInsets.all(12),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent))),
+          SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accent)),
           SizedBox(width: 10),
           Text('thinking…', style: TextStyle(color: Color(Config.text2))),
         ]),

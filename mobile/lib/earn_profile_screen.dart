@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'app_logger.dart';
 import 'config.dart';
 import 'onboarding_flow.dart' show LiveMembersCarousel;
+import 'season.dart';
 
 /// "Earn your profile." overview screen — shown after OTP verification,
 /// before the step-by-step verification flow. Mirrors verify/+page.svelte.
@@ -43,7 +44,7 @@ class _EarnProfileScreenState extends State<EarnProfileScreen> {
                   children: [
                     // Title
                     RichText(
-                      text: const TextSpan(
+                      text: TextSpan(
                         style: TextStyle(
                           fontSize: 52,
                           fontWeight: FontWeight.w800,
@@ -58,7 +59,7 @@ class _EarnProfileScreenState extends State<EarnProfileScreen> {
                           ),
                           TextSpan(
                             text: 'profile.',
-                            style: TextStyle(color: Color(Config.accentBright)),
+                            style: TextStyle(color: Brand.accentBright),
                           ),
                         ],
                       ),
@@ -72,9 +73,9 @@ class _EarnProfileScreenState extends State<EarnProfileScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: const Color(Config.accentTint),
+                        color: Brand.accentTint,
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: const Color(0x4DFF3B6B)),
+                        border: Border.all(color: Brand.accentAlpha(0x4D)),
                       ),
                       child: Row(
                         children: [
@@ -82,14 +83,14 @@ class _EarnProfileScreenState extends State<EarnProfileScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: RichText(
-                              text: const TextSpan(
+                              text: TextSpan(
                                 style: TextStyle(fontSize: 14, color: Color(Config.text1)),
                                 children: [
                                   TextSpan(text: 'Total time · '),
                                   TextSpan(
                                     text: '~5 min',
                                     style: TextStyle(
-                                      color: Color(Config.accentBright),
+                                      color: Brand.accentBright,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
@@ -129,7 +130,7 @@ class _EarnProfileScreenState extends State<EarnProfileScreen> {
                         widget.onStart();
                       },
                       style: FilledButton.styleFrom(
-                        backgroundColor: const Color(Config.accentBright),
+                        backgroundColor: Brand.accentBright,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
@@ -182,16 +183,16 @@ class _StepRow extends StatelessWidget {
           Container(
             width: 36, height: 36,
             decoration: BoxDecoration(
-              color: const Color(Config.accentTint),
+              color: Brand.accentTint,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Center(
               child: Text(
                 num,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: Color(Config.accentBright),
+                  color: Brand.accentBright,
                 ),
               ),
             ),

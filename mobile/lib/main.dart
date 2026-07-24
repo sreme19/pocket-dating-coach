@@ -149,8 +149,8 @@ class _AuthGateState extends State<AuthGate> {
                 body: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
                   const BrandLockup(),
                   const SizedBox(height: 40),
-                  const SizedBox(width: 24, height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2.5, color: Color(Config.accent))),
+                  SizedBox(width: 24, height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2.5, color: Brand.accent)),
                 ])),
               );
             }

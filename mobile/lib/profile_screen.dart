@@ -19,6 +19,7 @@ import 'profile_strength_screen.dart';
 import 'refer_screen.dart';
 import 'settings_screen.dart';
 import 'trust_boost_screen.dart';
+import 'season.dart';
 
 /// Compact Profile Strength band card shown on the user's OWN profile (Scoring &
 /// Matching redesign §8). Promotes the standing surface out of Settings so the
@@ -46,11 +47,11 @@ class _ProfileStrengthCard extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
-            gradient: const LinearGradient(
-              colors: [Color(Config.accentTint), Color(Config.bg2)],
+            gradient: LinearGradient(
+              colors: [Brand.accentTint, Color(Config.bg2)],
               begin: Alignment.topLeft, end: Alignment.bottomRight,
             ),
-            border: Border.all(color: const Color(0x22FF3B6B)),
+            border: Border.all(color: Brand.accentAlpha(0x22)),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Row(children: [
@@ -62,15 +63,15 @@ class _ProfileStrengthCard extends StatelessWidget {
             ]),
             const SizedBox(height: 6),
             Text(p.band,
-                style: const TextStyle(color: Color(Config.accentBright), fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+                style: TextStyle(color: Brand.accentBright, fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
             const SizedBox(height: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(99),
               child: LinearProgressIndicator(
                 value: p.nextBand == null ? 1 : p.progressInBand.clamp(0.04, 1),
                 minHeight: 7,
-                backgroundColor: const Color(0x33FF3B6B),
-                color: const Color(Config.accent),
+                backgroundColor: Brand.accentAlpha(0x33),
+                color: Brand.accent,
               ),
             ),
             const SizedBox(height: 8),
@@ -166,10 +167,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             height: 32,
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
-              color: const Color(Config.accent),
+              color: Brand.accent,
               borderRadius: BorderRadius.circular(999),
-              boxShadow: const [
-                BoxShadow(color: Color(0x4DFF3B6B), blurRadius: 12, offset: Offset(0, 4)),
+              boxShadow: [
+                BoxShadow(color: Brand.accentAlpha(0x4D), blurRadius: 12, offset: Offset(0, 4)),
               ],
             ),
             child: const Row(
@@ -241,11 +242,11 @@ class _Loading extends StatelessWidget {
   const _Loading();
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CircularProgressIndicator(color: Color(Config.accent)),
+          CircularProgressIndicator(color: Brand.accent),
           SizedBox(height: 16),
           Text('Loading your profile…', style: TextStyle(color: Color(Config.text2))),
         ],
@@ -353,7 +354,7 @@ class _ProfileBody extends StatelessWidget {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                           decoration: BoxDecoration(
-                            color: const Color(0xAAFF3B6B),
+                            color: Brand.accentAlpha(0xAA),
                             borderRadius: BorderRadius.circular(999),
                           ),
                           child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -428,9 +429,9 @@ class _ProfileBody extends StatelessWidget {
                 color: const Color(0xFF1B1020),
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 11),
                 child: Row(children: [
-                  const SizedBox(
+                  SizedBox(
                     width: 14, height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accent),
                   ),
                   const SizedBox(width: 10),
                   const Expanded(
@@ -451,7 +452,7 @@ class _ProfileBody extends StatelessWidget {
                 _Stat(label: 'TRUST',
                     value: data.trustScore > 0 ? '${data.trustScore}' : '—',
                     sub: _trustLabel(data.trustScore),
-                    valueColor: const Color(Config.accent)),
+                    valueColor: Brand.accent),
                 _divider(),
                 _Stat(label: 'PROFILE',
                     value: data.profileComplete ? '✓' : null,
@@ -461,7 +462,7 @@ class _ProfileBody extends StatelessWidget {
                 _Stat(label: 'VERIFIED',
                     value: '${data.proofsCount}',
                     sub: 'proofs',
-                    valueColor: const Color(Config.accent)),
+                    valueColor: Brand.accent),
               ],
             ),
           ),
@@ -477,8 +478,8 @@ class _ProfileBody extends StatelessWidget {
               icon: const Icon(Icons.bolt),
               label: const Text('Trust & Boost', style: TextStyle(fontWeight: FontWeight.w700)),
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(0x22FF3B6B),
-                foregroundColor: const Color(Config.accent),
+                backgroundColor: Brand.accentAlpha(0x22),
+                foregroundColor: Brand.accent,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
@@ -625,7 +626,7 @@ class _ProfileBody extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: const Color(Config.bg2),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0x33FF3B6B), width: 1.5),
+                      border: Border.all(color: Brand.accentAlpha(0x33), width: 1.5),
                     ),
                     child: const Row(children: [
                       Text('🗺️', style: TextStyle(fontSize: 28)),
@@ -816,13 +817,13 @@ Future<void> _editIdentity(BuildContext context, ProfileData d, VoidCallback onC
                       onPressed: detecting ? null : detectCity,
                       style: FilledButton.styleFrom(
                         backgroundColor: const Color(Config.bg3),
-                        foregroundColor: const Color(Config.accent),
+                        foregroundColor: Brand.accent,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                       ),
                       child: detecting
-                          ? const SizedBox(width: 18, height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)))
+                          ? SizedBox(width: 18, height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accent))
                           : const Icon(Icons.my_location_rounded, size: 20),
                     ),
                   ),
@@ -855,7 +856,7 @@ Future<void> _editIdentity(BuildContext context, ProfileData d, VoidCallback onC
                     }
                   },
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(Config.accent),
+                    backgroundColor: Brand.accent,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   child: saving
@@ -935,7 +936,7 @@ Future<void> _editMoneyMatters(BuildContext context, ProfileData d, VoidCallback
                   }
                 },
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(Config.accent),
+                  backgroundColor: Brand.accent,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
@@ -988,10 +989,10 @@ Widget _moneyRangePills({
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             decoration: BoxDecoration(
-              color: selected == r ? const Color(Config.accent) : const Color(0x14FFFFFF),
+              color: selected == r ? Brand.accent : const Color(0x14FFFFFF),
               borderRadius: BorderRadius.circular(999),
               border: Border.all(
-                color: selected == r ? const Color(Config.accent) : const Color(0x22FFFFFF),
+                color: selected == r ? Brand.accent : const Color(0x22FFFFFF),
               ),
             ),
             child: Text(r,
@@ -1074,7 +1075,7 @@ Future<void> _editHereFor(BuildContext context, ProfileData d, VoidCallback onCh
                     }
                   },
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(Config.accent),
+                    backgroundColor: Brand.accent,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   child: saving
@@ -1143,14 +1144,14 @@ Future<void> _editAbout(BuildContext context, ProfileData d, VoidCallback onChan
                     }
                   },
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(Config.accentBright),
-                    side: const BorderSide(color: Color(Config.accentBright)),
+                    foregroundColor: Brand.accentBright,
+                    side: BorderSide(color: Brand.accentBright),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                   icon: generating
-                      ? const SizedBox(width: 16, height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accentBright)))
+                      ? SizedBox(width: 16, height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accentBright))
                       : const Text('✨', style: TextStyle(fontSize: 16)),
                   label: Text(
                     generating ? 'Generating…' : 'Generate with AI',
@@ -1178,7 +1179,7 @@ Future<void> _editAbout(BuildContext context, ProfileData d, VoidCallback onChan
                     }
                   },
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(Config.accent),
+                    backgroundColor: Brand.accent,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   child: saving
@@ -1237,12 +1238,12 @@ Future<void> _editBrings(BuildContext context, ProfileData d, List<BringsItem> c
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: selected.any((s) => s.text == opt.text)
-                        ? const Color(Config.accent)
+                        ? Brand.accent
                         : const Color(0x14FFFFFF),
                     borderRadius: BorderRadius.circular(999),
                     border: Border.all(
                       color: selected.any((s) => s.text == opt.text)
-                          ? const Color(Config.accent)
+                          ? Brand.accent
                           : const Color(0x22FFFFFF),
                     ),
                   ),
@@ -1275,7 +1276,7 @@ Future<void> _editBrings(BuildContext context, ProfileData d, List<BringsItem> c
                 }
               },
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(Config.accent),
+                backgroundColor: Brand.accent,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -1368,7 +1369,7 @@ Future<void> _editSheet(
                           }
                         },
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(Config.accent),
+                    backgroundColor: Brand.accent,
                     foregroundColor: const Color(0xFFFFFFFF),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -1448,7 +1449,7 @@ class _Pill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
       decoration: BoxDecoration(
-        color: highlight ? const Color(Config.accent) : Colors.transparent,
+        color: highlight ? Brand.accent : Colors.transparent,
         borderRadius: BorderRadius.circular(999),
         border: highlight ? null : Border.all(color: const Color(0x40FFFFFF)),
       ),
@@ -1558,12 +1559,12 @@ class _EditableChipsState extends State<_EditableChips> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                     decoration: BoxDecoration(
-                      color: const Color(0x22FF3B6B),
+                      color: Brand.accentAlpha(0x22),
                       borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: const Color(0x4DFF3B6B)),
+                      border: Border.all(color: Brand.accentAlpha(0x4D)),
                     ),
                     child: Text('+ ${c.emoji} ${c.label}',
-                        style: const TextStyle(fontSize: 13, color: Color(Config.accent))),
+                        style: TextStyle(fontSize: 13, color: Brand.accent)),
                   ),
                 ),
             ]),
@@ -1571,9 +1572,9 @@ class _EditableChipsState extends State<_EditableChips> {
           TextButton.icon(
             onPressed: _busy ? null : _suggest,
             icon: _busy
-                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)))
-                : const Icon(Icons.auto_awesome, size: 16, color: Color(Config.accent)),
-            label: const Text('Suggest 3 more', style: TextStyle(color: Color(Config.accent))),
+                ? SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accent))
+                : Icon(Icons.auto_awesome, size: 16, color: Brand.accent),
+            label: Text('Suggest 3 more', style: TextStyle(color: Brand.accent)),
             style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
           ),
         ],
@@ -1662,8 +1663,8 @@ Future<void> _editCountries(BuildContext context, ProfileData d, VoidCallback on
                         }
                       },
                       child: deletingCountry == c
-                          ? const SizedBox(width: 14, height: 14,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)))
+                          ? SizedBox(width: 14, height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accent))
                           : const Icon(Icons.close, size: 14, color: Color(Config.text3)),
                     ),
                   ]),
@@ -1764,17 +1765,17 @@ class _TabPill extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? const Color(0x22FF3B6B) : const Color(Config.bg2),
+          color: selected ? Brand.accentAlpha(0x22) : const Color(Config.bg2),
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: selected ? const Color(0x4DFF3B6B) : const Color(0x181B1020),
+            color: selected ? Brand.accentAlpha(0x4D) : const Color(0x181B1020),
           ),
         ),
         child: Text(label,
             style: TextStyle(
               fontSize: 13,
               fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-              color: selected ? const Color(Config.accent) : const Color(Config.text2),
+              color: selected ? Brand.accent : const Color(Config.text2),
             )),
       ),
     );
@@ -1796,7 +1797,7 @@ class _MyLaneContent extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(Config.bg2),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0x4DFF3B6B)),
+        border: Border.all(color: Brand.accentAlpha(0x4D)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -1815,8 +1816,8 @@ class _MyLaneContent extends StatelessWidget {
           ])),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(color: const Color(0x22FF3B6B), borderRadius: BorderRadius.circular(999)),
-            child: const Text('● Active', style: TextStyle(fontSize: 11, color: Color(Config.accent), fontWeight: FontWeight.w600)),
+            decoration: BoxDecoration(color: Brand.accentAlpha(0x22), borderRadius: BorderRadius.circular(999)),
+            child: Text('● Active', style: TextStyle(fontSize: 11, color: Brand.accent, fontWeight: FontWeight.w600)),
           ),
         ]),
         if (arch!.longTag.isNotEmpty) ...[
@@ -1896,9 +1897,9 @@ class _HardNoPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
       decoration: BoxDecoration(
-        color: const Color(0x22FF3B6B),
+        color: Brand.accentAlpha(0x22),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0x4DFF3B6B)),
+        border: Border.all(color: Brand.accentAlpha(0x4D)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1976,7 +1977,7 @@ class _LanePickerSheetState extends State<_LanePickerSheet> {
           FilledButton(
             onPressed: () => Navigator.of(dctx).pop(true),
             style: FilledButton.styleFrom(
-                backgroundColor: const Color(Config.accent), foregroundColor: Colors.white),
+                backgroundColor: Brand.accent, foregroundColor: Colors.white),
             child: const Text('Switch lane'),
           ),
         ],
@@ -2042,9 +2043,9 @@ class _LanePickerSheetState extends State<_LanePickerSheet> {
           ),
         ),
         if (_saving)
-          const Padding(
+          Padding(
             padding: EdgeInsets.all(16),
-            child: CircularProgressIndicator(color: Color(Config.accent)),
+            child: CircularProgressIndicator(color: Brand.accent),
           ),
       ]),
     );
@@ -2071,14 +2072,14 @@ class _LanePickerSheetState extends State<_LanePickerSheet> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                 decoration: BoxDecoration(
-                  color: isSerious ? const Color(0x1FE11D54) : const Color(0x1FA78BFA),
+                  color: isSerious ? Brand.accentBrightAlpha(0x1F) : const Color(0x1FA78BFA),
                   borderRadius: BorderRadius.circular(100),
                 ),
                 child: Text(
                   '${isSerious ? '❤️' : '✌️'}  ${section.label.toUpperCase()}',
                   style: TextStyle(
                     fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.5,
-                    color: isSerious ? const Color(Config.accentBright) : const Color(0xFFA78BFA),
+                    color: isSerious ? Brand.accentBright : const Color(0xFFA78BFA),
                   ),
                 ),
               ),
@@ -2119,8 +2120,8 @@ class _LanePickerSheetState extends State<_LanePickerSheet> {
             if (isCurrent)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: const Color(0x22FF3B6B), borderRadius: BorderRadius.circular(999)),
-                child: const Text('Current', style: TextStyle(fontSize: 11, color: Color(Config.accent), fontWeight: FontWeight.w600)),
+                decoration: BoxDecoration(color: Brand.accentAlpha(0x22), borderRadius: BorderRadius.circular(999)),
+                child: Text('Current', style: TextStyle(fontSize: 11, color: Brand.accent, fontWeight: FontWeight.w600)),
               )
             else
               const Icon(Icons.chevron_right, color: Color(Config.text3), size: 18),
@@ -2146,7 +2147,7 @@ class _BringsRow extends StatelessWidget {
           child: Text(item.text,
               style: const TextStyle(fontSize: 15, color: Color(Config.text1))),
         ),
-        const Icon(Icons.check_circle, size: 18, color: Color(Config.accent)),
+        Icon(Icons.check_circle, size: 18, color: Brand.accent),
       ]),
     );
   }
@@ -2191,8 +2192,8 @@ class _PortraitTileState extends State<_PortraitTile> {
       return Container(
         height: 200,
         decoration: BoxDecoration(color: const Color(Config.bg3), borderRadius: BorderRadius.circular(14)),
-        child: const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          CircularProgressIndicator(color: Color(Config.accent)),
+        child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          CircularProgressIndicator(color: Brand.accent),
           SizedBox(height: 12),
           Text('Generating your portrait…\nthis takes 20–30 seconds', textAlign: TextAlign.center, style: TextStyle(color: Color(Config.text2), fontSize: 13)),
         ])),
@@ -2215,8 +2216,8 @@ class _PortraitTileState extends State<_PortraitTile> {
           alignment: Alignment.centerRight,
           child: TextButton.icon(
             onPressed: _generate,
-            icon: const Icon(Icons.refresh, size: 16, color: Color(Config.accent)),
-            label: const Text('Regenerate', style: TextStyle(color: Color(Config.accent))),
+            icon: Icon(Icons.refresh, size: 16, color: Brand.accent),
+            label: Text('Regenerate', style: TextStyle(color: Brand.accent)),
           ),
         ),
       ]);
@@ -2229,8 +2230,8 @@ class _PortraitTileState extends State<_PortraitTile> {
           icon: const Icon(Icons.auto_awesome, size: 18),
           label: Text('Generate ${widget.lifestyle ? 'lifestyle portrait' : 'AI portrait'}', style: const TextStyle(fontWeight: FontWeight.w700)),
           style: FilledButton.styleFrom(
-            backgroundColor: const Color(0x22FF3B6B),
-            foregroundColor: const Color(Config.accent),
+            backgroundColor: Brand.accentAlpha(0x22),
+            foregroundColor: Brand.accent,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
@@ -2281,14 +2282,14 @@ class _VerifiedSignalsState extends State<_VerifiedSignals> {
                   duration: const Duration(milliseconds: 200),
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                   decoration: BoxDecoration(
-                    color: i == active ? const Color(Config.accent) : const Color(Config.bg2),
+                    color: i == active ? Brand.accent : const Color(Config.bg2),
                     borderRadius: BorderRadius.circular(999),
                     border: Border.all(
-                      color: i == active ? const Color(Config.accent) : const Color(0x1A1B1020),
+                      color: i == active ? Brand.accent : const Color(0x1A1B1020),
                       width: 1.5,
                     ),
                     boxShadow: i == active ? [
-                      BoxShadow(color: const Color(Config.accent).withOpacity(0.25), blurRadius: 8, offset: const Offset(0, 3)),
+                      BoxShadow(color: Brand.accent.withOpacity(0.25), blurRadius: 8, offset: const Offset(0, 3)),
                     ] : null,
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -2347,7 +2348,7 @@ class _VerifiedSignalsState extends State<_VerifiedSignals> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0x08FF3B6B),
+                color: Brand.accentAlpha(0x08),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2390,8 +2391,8 @@ class _GarageCard extends StatelessWidget {
               Text([car.year, car.color].where((s) => s != null && s.isNotEmpty).join(' · '),
                   style: const TextStyle(fontSize: 13, color: Color(Config.text2))),
               const SizedBox(height: 4),
-              const Text('✅ Ownership verified',
-                  style: TextStyle(fontSize: 12, color: Color(Config.accent))),
+              Text('✅ Ownership verified',
+                  style: TextStyle(fontSize: 12, color: Brand.accent)),
             ],
           ),
         ),
@@ -2462,9 +2463,9 @@ class _HeroState extends State<_Hero> {
               return CachedNetworkImage(
                 imageUrl: url,
                 fit: BoxFit.cover,
-                placeholder: (c, _) => const ColoredBox(
+                placeholder: (c, _) => ColoredBox(
                   color: Color(Config.bg2),
-                  child: Center(child: CircularProgressIndicator(color: Color(Config.accent))),
+                  child: Center(child: CircularProgressIndicator(color: Brand.accent)),
                 ),
                 errorWidget: (c, _, _) => const _PhotoPlaceholder(),
               );
@@ -2514,7 +2515,7 @@ class _HeroState extends State<_Hero> {
                       margin: const EdgeInsets.symmetric(horizontal: 3),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: i == _i ? const Color(Config.accent) : const Color(0x80FFFFFF),
+                        color: i == _i ? Brand.accent : const Color(0x80FFFFFF),
                       ),
                     ),
                 ],
@@ -2670,7 +2671,7 @@ class _RadarPainter extends CustomPainter {
 
     // ── Grid ──
     final gridPaint = Paint()
-      ..color = const Color(0x22FF3B6B)
+      ..color = Brand.accentAlpha(0x22)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.8;
     for (int level = 1; level <= 4; level++) {
@@ -2679,7 +2680,7 @@ class _RadarPainter extends CustomPainter {
 
     // ── Axis lines ──
     final axisPaint = Paint()
-      ..color = const Color(0x22FF3B6B)
+      ..color = Brand.accentAlpha(0x22)
       ..strokeWidth = 0.8;
     for (int i = 0; i < n; i++) {
       final a = _angle(i);
@@ -2697,9 +2698,9 @@ class _RadarPainter extends CustomPainter {
     }
     path.close();
     canvas.drawPath(path,
-        Paint()..color = const Color(0x1AFF3B6B)..style = PaintingStyle.fill);
+        Paint()..color = Brand.accentAlpha(0x1A)..style = PaintingStyle.fill);
     canvas.drawPath(path,
-        Paint()..color = const Color(0xFFFF3B6B)..style = PaintingStyle.stroke..strokeWidth = 2);
+        Paint()..color = Brand.accentAlpha(0xFF)..style = PaintingStyle.stroke..strokeWidth = 2);
 
     // ── Dots ──
     for (int i = 0; i < n; i++) {
@@ -2709,7 +2710,7 @@ class _RadarPainter extends CustomPainter {
       canvas.drawCircle(pt, 5,
           Paint()..color = Colors.white..style = PaintingStyle.fill);
       canvas.drawCircle(pt, 3.5,
-          Paint()..color = const Color(0xFFFF3B6B)..style = PaintingStyle.fill);
+          Paint()..color = Brand.accentAlpha(0xFF)..style = PaintingStyle.fill);
     }
 
     // ── Labels ──
@@ -2750,8 +2751,8 @@ class _RadarPainter extends CustomPainter {
     final pctPainter = TextPainter(
       text: TextSpan(
         text: '$pct',
-        style: const TextStyle(
-          color: Color(0xFFFF3B6B),
+        style: TextStyle(
+          color: Brand.accentAlpha(0xFF),
           fontSize: 10,
           fontWeight: FontWeight.w700,
           height: 1.2,
@@ -2914,11 +2915,11 @@ class _PhotoStorySectionState extends State<_PhotoStorySection> {
               height: 72,
               decoration: BoxDecoration(
                   color: const Color(Config.bg3), borderRadius: BorderRadius.circular(12)),
-              child: const Center(
+              child: Center(
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   SizedBox(
                     width: 16, height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accent),
                   ),
                   SizedBox(width: 10),
                   Text('Generating AI photos… (~30s)',
@@ -2971,9 +2972,9 @@ class _PhotoStorySectionState extends State<_PhotoStorySection> {
                 // restart with their latest photos. Progress is shown by the box above.
                 onPressed: !hasRealPhotos ? null : _regenerate,
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(Config.accent),
+                  backgroundColor: Brand.accent,
                   foregroundColor: Colors.white,
-                  disabledBackgroundColor: const Color(0x44FF3B6B),
+                  disabledBackgroundColor: Brand.accentAlpha(0x44),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -2995,8 +2996,8 @@ class _PhotoStorySectionState extends State<_PhotoStorySection> {
                 label: Text(hasRealPhotos ? 'Manage Photos' : 'Add Photos',
                     style: const TextStyle(fontWeight: FontWeight.w600)),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(Config.accent)),
-                  foregroundColor: const Color(Config.accent),
+                  side: BorderSide(color: Brand.accent),
+                  foregroundColor: Brand.accent,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
@@ -3032,12 +3033,12 @@ class _PhotoSlot extends StatelessWidget {
             child: CachedNetworkImage(
               imageUrl: url!,
               fit: BoxFit.cover,
-              placeholder: (c, _) => const ColoredBox(
+              placeholder: (c, _) => ColoredBox(
                 color: Color(Config.bg3),
                 child: Center(
                   child: SizedBox(
                     width: 18, height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accent),
                   ),
                 ),
               ),
@@ -3069,19 +3070,19 @@ class _PhotoSlot extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: CustomPaint(
-        painter: _DashedSlotBorder(color: const Color(0x99FF3B6B), radius: 10),
+        painter: _DashedSlotBorder(color: Brand.accentAlpha(0x99), radius: 10),
         child: Container(
           decoration: BoxDecoration(
-            color: const Color(0x0AFF3B6B),
+            color: Brand.accentAlpha(0x0A),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Icon(Icons.add_photo_alternate_outlined, color: Color(Config.accent), size: 28),
+            Icon(Icons.add_photo_alternate_outlined, color: Brand.accent, size: 28),
             const SizedBox(height: 5),
             const Text('Add photo', style: TextStyle(fontSize: 11, color: Color(Config.text2), fontWeight: FontWeight.w500)),
             if (isMan)
-              const Text('AI will enhance',
-                  style: TextStyle(fontSize: 10, color: Color(Config.accent), fontStyle: FontStyle.italic)),
+              Text('AI will enhance',
+                  style: TextStyle(fontSize: 10, color: Brand.accent, fontStyle: FontStyle.italic)),
           ]),
         ),
       ),

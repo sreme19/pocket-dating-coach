@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'api.dart';
 import 'app_logger.dart';
 import 'config.dart';
+import 'season.dart';
 
 /// Refer & Earn — one entry, two flows (toggle), in LOCKSTEP with the web screen
 /// src/routes/verified-vibe/refer/+page.svelte:
@@ -189,7 +190,7 @@ class _ReferScreenState extends State<ReferScreen> {
   Widget _content() {
     switch (_view) {
       case _View.loading:
-        return const Center(child: CircularProgressIndicator(color: Color(Config.accent)));
+        return Center(child: CircularProgressIndicator(color: Brand.accent));
       case _View.denied:
         return _pad(const Text(
           "Refer & Earn is for women inviting friends. It isn't available on your account.",
@@ -257,7 +258,7 @@ class _ReferScreenState extends State<ReferScreen> {
           padding: const EdgeInsets.symmetric(vertical: 9),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: on ? const Color(Config.accent) : Colors.transparent,
+            color: on ? Brand.accent : Colors.transparent,
             borderRadius: BorderRadius.circular(999),
           ),
           child: Text(label,
@@ -281,8 +282,8 @@ class _ReferScreenState extends State<ReferScreen> {
               height: 1.1,
               letterSpacing: -0.5)),
       const SizedBox(height: 6),
-      const Text('Your AI Bestie speaks to them. Not you.',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(Config.accentBright))),
+      Text('Your AI Bestie speaks to them. Not you.',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Brand.accentBright)),
       const SizedBox(height: 16),
       const Text(
         "Hundreds of guys sliding into your DMs on Instagram, WhatsApp and Tinder? "
@@ -329,7 +330,7 @@ class _ReferScreenState extends State<ReferScreen> {
               letterSpacing: -0.5)),
       const SizedBox(height: 6),
       Text("₹${c?.currentTier ?? 100} for every friend who joins.",
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(Config.accentBright))),
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Brand.accentBright)),
       const SizedBox(height: 16),
       Text(
         isMan
@@ -367,14 +368,14 @@ class _ReferScreenState extends State<ReferScreen> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(Config.accentTint),
+        color: Brand.accentTint,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: _border2),
       ),
-      child: const Text(
+      child: Text(
         "✨ When someone you invite joins and gets verified, she's matched with you.",
         style: TextStyle(
-            fontSize: 13.5, fontWeight: FontWeight.w600, color: Color(Config.accentBright), height: 1.4),
+            fontSize: 13.5, fontWeight: FontWeight.w600, color: Brand.accentBright, height: 1.4),
       ),
     );
   }
@@ -385,13 +386,13 @@ class _ReferScreenState extends State<ReferScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFFF6E8), Color(Config.accentTint)],
+        gradient: LinearGradient(
+          colors: [Color(0xFFFFF6E8), Brand.accentTint],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(Config.accentTint)),
+        border: Border.all(color: Brand.accentTint),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -413,7 +414,7 @@ class _ReferScreenState extends State<ReferScreen> {
             decoration: BoxDecoration(color: const Color(Config.bg2), borderRadius: BorderRadius.circular(999)),
             child: Text(
               "🎉 ₹${c?.currentTier ?? 100} per friend${(c?.verifiedCount ?? 0) < 25 ? ' · first 25' : ''}",
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(Config.accentBright)),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Brand.accentBright),
             ),
           ),
           const SizedBox(height: 8),
@@ -448,7 +449,7 @@ class _ReferScreenState extends State<ReferScreen> {
             value: pct,
             minHeight: 8,
             backgroundColor: const Color(Config.bg3),
-            valueColor: const AlwaysStoppedAnimation(Color(Config.accent)),
+            valueColor: AlwaysStoppedAnimation(Brand.accent),
           ),
         ),
       ],
@@ -475,9 +476,9 @@ class _ReferScreenState extends State<ReferScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 6),
           decoration: BoxDecoration(
-            color: on ? const Color(Config.accentTint) : const Color(Config.bg2),
+            color: on ? Brand.accentTint : const Color(Config.bg2),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: on ? const Color(Config.accent) : _border2),
+            border: Border.all(color: on ? Brand.accent : _border2),
           ),
           child: Column(
             children: [
@@ -487,7 +488,7 @@ class _ReferScreenState extends State<ReferScreen> {
                   style: TextStyle(
                       fontSize: 11.5,
                       fontWeight: FontWeight.w700,
-                      color: on ? const Color(Config.accentBright) : const Color(Config.text2))),
+                      color: on ? Brand.accentBright : const Color(Config.text2))),
             ],
           ),
         ),
@@ -511,7 +512,7 @@ class _ReferScreenState extends State<ReferScreen> {
             width: 24,
             height: 24,
             alignment: Alignment.center,
-            decoration: const BoxDecoration(color: Color(Config.accent), shape: BoxShape.circle),
+            decoration: BoxDecoration(color: Brand.accent, shape: BoxShape.circle),
             child: Text('$n',
                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)),
           ),
@@ -530,16 +531,16 @@ class _ReferScreenState extends State<ReferScreen> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(Config.accentTint),
+        color: Brand.accentTint,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(Config.accent)),
+        border: Border.all(color: Brand.accent),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('YOUR LINK',
+          Text('YOUR LINK',
               style: TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.0, color: Color(Config.accentBright))),
+                  fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.0, color: Brand.accentBright)),
           const SizedBox(height: 3),
           Text(_prettyUrl,
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(Config.text1))),
@@ -564,7 +565,7 @@ class _ReferScreenState extends State<ReferScreen> {
       child: Container(
         height: 48,
         alignment: Alignment.center,
-        decoration: BoxDecoration(color: const Color(Config.accent), borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(color: Brand.accent, borderRadius: BorderRadius.circular(12)),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -613,8 +614,8 @@ class _ReferScreenState extends State<ReferScreen> {
             GestureDetector(
               onTap: () => _copy(controller.text, isLink: false),
               child: Text(_copiedMsg ? 'Copied ✓' : 'Copy message',
-                  style: const TextStyle(
-                      fontSize: 12.5, fontWeight: FontWeight.w700, color: Color(Config.accentBright))),
+                  style: TextStyle(
+                      fontSize: 12.5, fontWeight: FontWeight.w700, color: Brand.accentBright)),
             ),
           ],
         ),
@@ -634,7 +635,7 @@ class _ReferScreenState extends State<ReferScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(Config.accent), width: 2),
+              borderSide: BorderSide(color: Brand.accent, width: 2),
             ),
           ),
         ),
@@ -665,7 +666,7 @@ class _ReferScreenState extends State<ReferScreen> {
             margin: const EdgeInsets.symmetric(horizontal: 12),
             decoration: const BoxDecoration(color: Color(Config.text3), shape: BoxShape.circle),
           ),
-          _stat('$_signedUp', 'signed up', const Color(Config.accentBright)),
+          _stat('$_signedUp', 'signed up', Brand.accentBright),
         ],
       ),
     );

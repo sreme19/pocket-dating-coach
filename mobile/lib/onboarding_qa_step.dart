@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'config.dart';
 import 'onboarding_questions.dart';
+import 'season.dart';
 
 /// Renders an archetype-specific Q&A step — the native equivalent of the web
 /// DrawnToStep / HowYouLiveStep bodies. Supports three section kinds:
@@ -28,7 +29,7 @@ class QaStep extends StatefulWidget {
 
 class _QaStepState extends State<QaStep> {
   static const _border = Color(0x181B1020); // subtle ink border (unselected)
-  static const _selectedFill = Color(0x22FF3B6B);
+  static Color get _selectedFill => Brand.accentAlpha(0x22); // reskins with season
   final Set<String> _expanded = {};
 
   @override
@@ -63,7 +64,7 @@ class _QaStepState extends State<QaStep> {
           if (s.kind == QKind.multi)
             Text('${picked.length}/${s.max}',
                 style: TextStyle(
-                    color: picked.isEmpty ? const Color(Config.text3) : const Color(Config.accent),
+                    color: picked.isEmpty ? const Color(Config.text3) : Brand.accent,
                     fontSize: 12,
                     fontWeight: FontWeight.w700)),
         ]),
@@ -103,8 +104,8 @@ class _QaStepState extends State<QaStep> {
                 onTap: () => setState(() =>
                     showMore ? _expanded.remove(s.key) : _expanded.add(s.key)),
                 child: Text(showMore ? 'Show less' : '+ more options',
-                    style: const TextStyle(
-                        color: Color(Config.accent), fontWeight: FontWeight.w600, fontSize: 13)),
+                    style: TextStyle(
+                        color: Brand.accent, fontWeight: FontWeight.w600, fontSize: 13)),
               ),
             ],
           ],
@@ -124,7 +125,7 @@ class _QaStepState extends State<QaStep> {
           color: selected ? _selectedFill : const Color(Config.bg2),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-              color: selected ? const Color(Config.accent) : _border,
+              color: selected ? Brand.accent : _border,
               width: selected ? 1.5 : 1),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -135,7 +136,7 @@ class _QaStepState extends State<QaStep> {
           Text(o.label,
               style: TextStyle(
                   color: selected
-                      ? const Color(Config.accent)
+                      ? Brand.accent
                       : (muted ? const Color(Config.text3) : const Color(Config.text1)),
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   fontSize: 14)),
@@ -154,7 +155,7 @@ class _QaStepState extends State<QaStep> {
           color: selected ? _selectedFill : const Color(Config.bg2),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-              color: selected ? const Color(Config.accent) : _border,
+              color: selected ? Brand.accent : _border,
               width: selected ? 1.5 : 1),
         ),
         child: Row(children: [
@@ -166,7 +167,7 @@ class _QaStepState extends State<QaStep> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(o.label,
                   style: TextStyle(
-                      color: selected ? const Color(Config.accent) : const Color(Config.text1),
+                      color: selected ? Brand.accent : const Color(Config.text1),
                       fontWeight: FontWeight.w700,
                       fontSize: 15)),
               if (o.sub != null) ...[
@@ -177,7 +178,7 @@ class _QaStepState extends State<QaStep> {
             ]),
           ),
           Icon(selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-              color: selected ? const Color(Config.accent) : const Color(Config.text3), size: 20),
+              color: selected ? Brand.accent : const Color(Config.text3), size: 20),
         ]),
       ),
     );

@@ -11,6 +11,7 @@ import 'advisor_screen.dart';
 import 'push_service.dart';
 import 'voice_call_screen.dart';
 import 'trust_boost_screen.dart';
+import 'season.dart';
 
 class ConversationScreen extends StatefulWidget {
   final String conversationId;
@@ -335,9 +336,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
       decoration: BoxDecoration(
         color: const Color(Config.bg2),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0x33FF3B6B)),
-        boxShadow: const [
-          BoxShadow(color: Color(0x14FF3B6B), blurRadius: 14, offset: Offset(0, 6)),
+        border: Border.all(color: Brand.accentAlpha(0x33)),
+        boxShadow: [
+          BoxShadow(color: Brand.accentAlpha(0x14), blurRadius: 14, offset: Offset(0, 6)),
         ],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -347,8 +348,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
           child: Row(children: [
             Container(
               width: 34, height: 34,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)]),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [Brand.accentAlpha(0xFF), Color(0xFFBF5AF2)]),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.auto_awesome, size: 17, color: Colors.white),
@@ -365,7 +366,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
             ),
             if (_bestieCardCollapsed)
               Text(progressLabel,
-                  style: const TextStyle(color: Color(Config.accent), fontSize: 11, fontWeight: FontWeight.w700)),
+                  style: TextStyle(color: Brand.accent, fontSize: 11, fontWeight: FontWeight.w700)),
             const SizedBox(width: 6),
             Icon(
               _bestieCardCollapsed ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
@@ -402,24 +403,24 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 ),
               ),
               Text(progressLabel,
-                  style: const TextStyle(color: Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w700)),
+                  style: TextStyle(color: Brand.accent, fontSize: 12, fontWeight: FontWeight.w700)),
             ]),
             const SizedBox(height: 7),
             Row(children: [
-              const Text('★', style: TextStyle(color: Color(Config.accent), fontSize: 13)),
+              Text('★', style: TextStyle(color: Brand.accent, fontSize: 13)),
               const SizedBox(width: 6),
               Expanded(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(999),
                   child: Container(
                     height: 7,
-                    color: const Color(0x14FF3B6B),
+                    color: Brand.accentAlpha(0x14),
                     child: FractionallySizedBox(
                       alignment: Alignment.centerLeft,
                       widthFactor: wrapped ? 1.0 : progress,
                       child: Container(
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)]),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(colors: [Brand.accentAlpha(0xFF), Color(0xFFBF5AF2)]),
                         ),
                       ),
                     ),
@@ -627,7 +628,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
         decoration: BoxDecoration(
           gradient: primary
-              ? const LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)])
+              ? LinearGradient(colors: [Brand.accentAlpha(0xFF), Color(0xFFBF5AF2)])
               : null,
           color: primary ? null : const Color(Config.bg3),
           borderRadius: BorderRadius.circular(12),
@@ -835,7 +836,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(Config.accent),
+                  backgroundColor: Brand.accent,
                   foregroundColor: Colors.white,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 14),
@@ -866,7 +867,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   Widget _boostBenefit(IconData icon, String text) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(icon, color: const Color(Config.accent), size: 19),
+          Icon(icon, color: Brand.accent, size: 19),
           const SizedBox(width: 10),
           Expanded(
             child: Text(text, style: const TextStyle(color: Color(Config.text1), fontSize: 14, height: 1.3)),
@@ -1135,7 +1136,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     ? Container(
                         width: 15, height: 15,
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)]),
+                          gradient: LinearGradient(colors: [Brand.accentAlpha(0xFF), Color(0xFFBF5AF2)]),
                           shape: BoxShape.circle,
                           border: Border.all(color: const Color(Config.bg1), width: 2),
                         ),
@@ -1158,12 +1159,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     maxLines: 1, overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w600, fontSize: 15)),
                 _bestieIsProxy
-                    ? const Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.auto_awesome, size: 11, color: Color(Config.accent)),
+                    ? Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.auto_awesome, size: 11, color: Brand.accent),
                         SizedBox(width: 3),
                         Text('AI Bestie',
                             style: TextStyle(
-                                color: Color(Config.accent), fontSize: 11, fontWeight: FontWeight.w700)),
+                                color: Brand.accent, fontSize: 11, fontWeight: FontWeight.w700)),
                       ])
                     : Text(_partnerOnline ? 'Online' : 'Away',
                         style: TextStyle(
@@ -1188,13 +1189,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     height: 32,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)],
+                      gradient: LinearGradient(
+                        colors: [Brand.accentAlpha(0xFF), Color(0xFFBF5AF2)],
                         begin: Alignment.centerLeft,
                         end: Alignment.centerRight,
                       ),
                       borderRadius: BorderRadius.circular(999),
-                      boxShadow: const [BoxShadow(color: Color(0x33FF3B6B), blurRadius: 8, offset: Offset(0, 3))],
+                      boxShadow: [BoxShadow(color: Brand.accentAlpha(0x33), blurRadius: 8, offset: Offset(0, 3))],
                     ),
                     child: const Row(mainAxisSize: MainAxisSize.min, children: [
                       Icon(Icons.mic_rounded, color: Colors.white, size: 15),
@@ -1237,7 +1238,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
             _directHandoffBanner(),
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator(color: Color(Config.accent)))
+                ? Center(child: CircularProgressIndicator(color: Brand.accent))
                 : _error != null
                     ? Center(child: Text(_error!, style: const TextStyle(color: Color(Config.text2))))
                     : _messages.isEmpty
@@ -1378,9 +1379,9 @@ class _Bubble extends StatelessWidget {
     final bubbleBg = ownerBestie
         ? const Color(0xFFF0E4FC) // lavender
         : mine
-            ? const Color(Config.accent)
+            ? Brand.accent
             : ai
-                ? const Color(0x22FF3B6B)
+                ? Brand.accentAlpha(0x22)
                 : const Color(Config.bg3);
     final textColor = ownerBestie
         ? const Color(0xFF3B1667) // deep purple ink
@@ -1418,7 +1419,7 @@ class _Bubble extends StatelessWidget {
                         child: Container(
                           width: 14, height: 14,
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFBF5AF2)]),
+                            gradient: LinearGradient(colors: [Brand.accentAlpha(0xFF), Color(0xFFBF5AF2)]),
                             shape: BoxShape.circle,
                             border: Border.all(color: const Color(Config.bg1), width: 1.5),
                           ),
@@ -1450,7 +1451,7 @@ class _Bubble extends StatelessWidget {
                 width: MediaQuery.of(context).size.width * 0.55,
                 height: 160,
                 color: const Color(Config.bg3),
-                child: const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent))),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accent)),
               ),
               errorWidget: (_, __, ___) => Container(
                 width: MediaQuery.of(context).size.width * 0.55,
@@ -1473,7 +1474,7 @@ class _Bubble extends StatelessWidget {
               border: ownerBestie
                   ? Border.all(color: const Color(0x559A4DEB))
                   : ai
-                      ? Border.all(color: const Color(Config.accent))
+                      ? Border.all(color: Brand.accent)
                       : null,
             ),
             child: Column(
@@ -1512,12 +1513,12 @@ class _Bubble extends StatelessWidget {
               padding: const EdgeInsets.only(left: 36, bottom: 3),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 if (ai) ...[
-                  const Icon(Icons.auto_awesome, size: 11, color: Color(Config.accent)),
+                  Icon(Icons.auto_awesome, size: 11, color: Brand.accent),
                   const SizedBox(width: 3),
                 ],
                 Text(displayName,
                     style: TextStyle(
-                        color: ai ? const Color(Config.accent) : const Color(Config.text3),
+                        color: ai ? Brand.accent : const Color(Config.text3),
                         fontSize: 11,
                         fontWeight: ai ? FontWeight.w700 : FontWeight.w500)),
               ]),
@@ -1941,9 +1942,9 @@ class _ComposerState extends State<_Composer> {
               margin: const EdgeInsets.only(bottom: 8, left: 2, right: 2),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0x14FF3B6B),
+                color: Brand.accentAlpha(0x14),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0x33FF3B6B)),
+                border: Border.all(color: Brand.accentAlpha(0x33)),
               ),
               child: Row(children: [
                 const Text('✨', style: TextStyle(fontSize: 13)),
@@ -1963,11 +1964,11 @@ class _ComposerState extends State<_Composer> {
             // rendered while the request is open (spec §3 Step 3).
             if (_proofActive) ...[
               widget.proofUploading
-                  ? const Padding(
+                  ? Padding(
                       padding: EdgeInsets.symmetric(horizontal: 10),
                       child: SizedBox(
                           width: 18, height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFF3B6B))),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accentAlpha(0xFF))),
                     )
                   : InkWell(
                       onTap: widget.onUploadProof,
@@ -1975,16 +1976,16 @@ class _ComposerState extends State<_Composer> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
                         decoration: BoxDecoration(
-                          color: const Color(0x14FF3B6B),
+                          color: Brand.accentAlpha(0x14),
                           borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: const Color(0x33FF3B6B)),
+                          border: Border.all(color: Brand.accentAlpha(0x33)),
                         ),
-                        child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
                           Text('📎', style: TextStyle(fontSize: 14)),
                           SizedBox(width: 4),
                           Text('Verify',
                               style: TextStyle(
-                                  color: Color(0xFFFF3B6B), fontSize: 12, fontWeight: FontWeight.w700)),
+                                  color: Brand.accentAlpha(0xFF), fontSize: 12, fontWeight: FontWeight.w700)),
                         ]),
                       ),
                     ),
@@ -1997,7 +1998,7 @@ class _ComposerState extends State<_Composer> {
             //   child: _imageUploading
             //       ? const Padding(
             //           padding: EdgeInsets.all(10),
-            //           child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)),
+            //           child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accent),
             //         )
             //       : IconButton(
             //           onPressed: _pickAndSendImage,
@@ -2035,7 +2036,7 @@ class _ComposerState extends State<_Composer> {
               onTap: widget.onSend,
               child: CircleAvatar(
                 radius: 22,
-                backgroundColor: const Color(Config.accent),
+                backgroundColor: Brand.accent,
                 child: widget.sending
                     ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFFFFFF)))
                     : const Icon(Icons.arrow_upward, color: Color(0xFFFFFFFF)),

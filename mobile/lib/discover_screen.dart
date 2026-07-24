@@ -320,8 +320,8 @@ class _DiscoverScreenState extends State<DiscoverScreen>
       return _centered(Icons.cloud_off, friendly, 'Retry', _load);
     }
     if (_feed == null) {
-      return const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        CircularProgressIndicator(color: Color(Config.accent)),
+      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        CircularProgressIndicator(color: Brand.accent),
         SizedBox(height: 16),
         Text('Loading profiles…', style: TextStyle(color: Color(Config.text2))),
       ]));
@@ -351,7 +351,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
               children: [
                 _photo(avatar, trust, d?.heroIsAi ?? false),
                 if (loading)
-                  const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator(color: Color(Config.accent))))
+                  Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator(color: Brand.accent)))
                 else if (d == null && snap.hasError) ...[
                   _profileError(snap.error),
                 ]
@@ -509,9 +509,9 @@ class _DiscoverScreenState extends State<DiscoverScreen>
             ),
           ])
         else if (_bestieFlags.isEmpty)
-          const Text(
+          Text(
             '✓ Nothing suspicious — profile claims look consistent with what was verified.',
-            style: TextStyle(color: Color(Config.accent), fontSize: 13),
+            style: TextStyle(color: Brand.accent, fontSize: 13),
           )
         else
           for (final flag in _bestieFlags)
@@ -610,10 +610,10 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                 style: OutlinedButton.styleFrom(
                   foregroundColor: alreadySent
                       ? const Color(Config.text3)
-                      : (networking ? Brand.accent : const Color(0xFFEC4899)),
+                      : (networking ? Brand.accent : Brand.accentAlpha(0xFF)),
                   side: BorderSide(color: alreadySent
                       ? const Color(0x221B1020)
-                      : (networking ? const Color(0x550E9AAE) : const Color(0x55EC4899))),
+                      : (networking ? const Color(0x550E9AAE) : Brand.accentAlpha(0x55))),
                   padding: const EdgeInsets.symmetric(vertical: 13),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
@@ -681,7 +681,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                 icon: const Icon(Icons.replay, size: 18),
                 label: const Text('Start from the top', style: TextStyle(fontWeight: FontWeight.w700)),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(Config.accent),
+                  backgroundColor: Brand.accent,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

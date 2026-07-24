@@ -12,6 +12,7 @@ import 'app_logger.dart';
 import 'config.dart';
 import 'onboarding_questions.dart';
 import 'onboarding_qa_step.dart';
+import 'season.dart';
 
 String _friendlyError(Object e) {
   if (e is DioException) {
@@ -336,7 +337,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
             ),
             TextButton(
               onPressed: () { Navigator.pop(ctx); Geolocator.openAppSettings(); },
-              child: const Text('Open Settings', style: TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w700)),
+              child: Text('Open Settings', style: TextStyle(color: Brand.accent, fontWeight: FontWeight.w700)),
             ),
           ],
         ),
@@ -714,11 +715,11 @@ class _VerificationScreenState extends State<VerificationScreen> {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: active || done
-                  ? const Color(Config.accentBright)
+                  ? Brand.accentBright
                   : const Color(Config.bg2),
               border: Border.all(
                 color: active || done
-                    ? const Color(Config.accentBright)
+                    ? Brand.accentBright
                     : const Color(0x331B1020),
                 width: 1.5,
               ),
@@ -754,7 +755,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
           value: (_step + 1) / 4,
           minHeight: 4,
           backgroundColor: const Color(0x221B1020),
-          valueColor: const AlwaysStoppedAnimation(Color(Config.accentBright)),
+          valueColor: AlwaysStoppedAnimation(Brand.accentBright),
         ),
       ),
     );
@@ -791,8 +792,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
               icon: const Icon(Icons.camera_alt_rounded, size: 18),
               label: const Text('Retake selfie'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(Config.accentBright),
-                side: const BorderSide(color: Color(Config.accentBright)),
+                foregroundColor: Brand.accentBright,
+                side: BorderSide(color: Brand.accentBright),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -833,18 +834,18 @@ class _VerificationScreenState extends State<VerificationScreen> {
   Widget _cameraCard() {
     const amber = Color(0xFFFBBF24);
     final borderColor = _livenessDone
-        ? const Color(Config.accentBright)
+        ? Brand.accentBright
         : _livenessUnderReview
             ? amber
             : const Color(Config.text3);
-    final iconColor = _livenessUnderReview ? amber : const Color(Config.accentBright);
+    final iconColor = _livenessUnderReview ? amber : Brand.accentBright;
     final title = _livenessDone
         ? 'Selfie captured ✓'
         : _livenessUnderReview
             ? 'Under review'
             : '📷 Quick selfie';
     final titleColor = _livenessDone
-        ? const Color(Config.accentBright)
+        ? Brand.accentBright
         : _livenessUnderReview
             ? amber
             : const Color(Config.text1);
@@ -868,7 +869,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
           Container(
             width: 72, height: 72,
             decoration: BoxDecoration(
-              color: const Color(Config.accentTint),
+              color: Brand.accentTint,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Icon(
@@ -1058,13 +1059,13 @@ class _VerificationScreenState extends State<VerificationScreen> {
             OutlinedButton.icon(
               onPressed: _detectingCity ? null : _detectCity,
               icon: _detectingCity
-                  ? const SizedBox(width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accentBright)))
+                  ? SizedBox(width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accentBright))
                   : const Icon(Icons.my_location_rounded, size: 16),
               label: const Text('Detect'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(Config.accentBright),
-                side: const BorderSide(color: Color(Config.accentBright)),
+                foregroundColor: Brand.accentBright,
+                side: BorderSide(color: Brand.accentBright),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
               ),
@@ -1096,7 +1097,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
               Switch(
                 value: _openToTravel,
                 onChanged: (v) => setState(() => _openToTravel = v),
-                activeColor: const Color(Config.accentBright),
+                activeColor: Brand.accentBright,
               ),
             ],
           ),
@@ -1124,7 +1125,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
               color: const Color(Config.bg2),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: b64 != null ? const Color(Config.accentBright) : const Color(0x331B1020),
+                color: b64 != null ? Brand.accentBright : const Color(0x331B1020),
               ),
             ),
             child: b64 != null
@@ -1151,7 +1152,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: const Color(Config.accentBright),
+                color: Brand.accentBright,
                 borderRadius: BorderRadius.circular(6),
               ),
               child: const Text('Main',
@@ -1198,11 +1199,11 @@ class _VerificationScreenState extends State<VerificationScreen> {
                       url, width: 48, height: 48, fit: BoxFit.cover,
                       errorBuilder: (_, e, s) => Container(
                         width: 48, height: 48,
-                        decoration: const BoxDecoration(
-                          color: Color(Config.accentTint),
+                        decoration: BoxDecoration(
+                          color: Brand.accentTint,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.person, color: Color(Config.accentBright), size: 28),
+                        child: Icon(Icons.person, color: Brand.accentBright, size: 28),
                       ),
                     ),
                   ),
@@ -1210,8 +1211,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
                     bottom: 0, right: -2,
                     child: Container(
                       width: 16, height: 16,
-                      decoration: const BoxDecoration(
-                        color: Color(Config.accentBright),
+                      decoration: BoxDecoration(
+                        color: Brand.accentBright,
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(Icons.check, size: 10, color: Colors.white),
@@ -1242,8 +1243,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
                 TextSpan(text: t.quoteBefore),
                 TextSpan(
                   text: t.highlight,
-                  style: const TextStyle(
-                    color: Color(Config.accentBright),
+                  style: TextStyle(
+                    color: Brand.accentBright,
                     fontWeight: FontWeight.w700,
                     fontStyle: FontStyle.italic,
                   ),
@@ -1305,7 +1306,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
             child: FilledButton(
               onPressed: action,
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(Config.accentBright),
+                backgroundColor: Brand.accentBright,
                 foregroundColor: Colors.white,
                 disabledBackgroundColor: const Color(Config.bg3),
                 disabledForegroundColor: const Color(Config.text3),
@@ -1353,7 +1354,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         ),
         children: [
           TextSpan(text: line1, style: const TextStyle(color: Color(Config.text1))),
-          TextSpan(text: line2, style: const TextStyle(color: Color(Config.accentBright))),
+          TextSpan(text: line2, style: TextStyle(color: Brand.accentBright)),
         ],
       ),
     );
@@ -1403,7 +1404,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(Config.accentBright), width: 1.5),
+          borderSide: BorderSide(color: Brand.accentBright, width: 1.5),
         ),
       ),
     );
@@ -1438,7 +1439,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(Config.accentBright), width: 1.5),
+          borderSide: BorderSide(color: Brand.accentBright, width: 1.5),
         ),
       ),
     );
@@ -1652,7 +1653,7 @@ class _LivenessCaptureScreenState extends State<_LivenessCaptureScreen> {
             child: FilledButton(
               onPressed: _phase == _LivenessPhase.opening ? null : _openCamera,
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(Config.accentBright),
+                backgroundColor: Brand.accentBright,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
               child: _phase == _LivenessPhase.opening
@@ -1706,7 +1707,7 @@ class _LivenessCaptureScreenState extends State<_LivenessCaptureScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
               decoration: BoxDecoration(
                 color: _phase == _LivenessPhase.filling
-                    ? const Color(0x99FF3B6B)
+                    ? Brand.accentAlpha(0x99)
                     : const Color(0x99000000),
                 borderRadius: BorderRadius.circular(999),
               ),
@@ -1729,12 +1730,12 @@ class _LivenessCaptureScreenState extends State<_LivenessCaptureScreen> {
   // ── Verifying spinner ─────────────────────────────────────────────────────
 
   Widget _verifyingScreen() {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(width: 64, height: 64,
-            child: CircularProgressIndicator(strokeWidth: 4, color: Color(Config.accentBright))),
+            child: CircularProgressIndicator(strokeWidth: 4, color: Brand.accentBright)),
           SizedBox(height: 24),
           Text('Verifying your selfie…',
               style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w700)),
@@ -1781,7 +1782,7 @@ class _LivenessCaptureScreenState extends State<_LivenessCaptureScreen> {
             child: FilledButton(
               onPressed: _retry,
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(Config.accentBright),
+                backgroundColor: Brand.accentBright,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
               child: const Text('Try again', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
@@ -1848,7 +1849,7 @@ class _LivenessCaptureScreenState extends State<_LivenessCaptureScreen> {
             child: FilledButton(
               onPressed: () => Navigator.pop(context, const _LivenessResult('Under review — will be checked within 24h', underReview: true)),
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(Config.accentBright),
+                backgroundColor: Brand.accentBright,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
               child: const Text('Continue', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
@@ -1910,7 +1911,7 @@ class _LivenessRingPainter extends CustomPainter {
       const startAngle = -3.14159265 / 2;
       final sweepAngle  = (fillPct / 100) * 2 * 3.14159265;
       canvas.drawArc(rect, startAngle, sweepAngle, false, Paint()
-        ..color = const Color(0xFFFF3B6B)
+        ..color = Brand.accentAlpha(0xFF)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 4
         ..strokeCap = StrokeCap.round);

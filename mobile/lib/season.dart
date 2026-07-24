@@ -84,4 +84,11 @@ class Brand {
   static Color get navIndicator => Color(_net ? 0x260E9AAE : 0x26FF3B6B);
 
   static int get accentValue => _net ? _netAccent : Config.accent;
+
+  /// The season accent at a custom 8-bit alpha — for the many tinted pink
+  /// literals scattered across screens (0x22FF3B6B, 0x4DFF3B6B, …).
+  static Color accentAlpha(int a) =>
+      Color(((a & 0xFF) << 24) | ((_net ? _netAccent : Config.accent) & 0x00FFFFFF));
+  static Color accentBrightAlpha(int a) =>
+      Color(((a & 0xFF) << 24) | ((_net ? _netAccentBright : Config.accentBright) & 0x00FFFFFF));
 }
