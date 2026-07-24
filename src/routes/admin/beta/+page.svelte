@@ -35,6 +35,68 @@
 	let genError = $state<string | null>(null);
 	let copiedId = $state<string | null>(null);
 
+	// Admin-level links (not tied to any user, shown as "Admin").
+	let adminLinks = $state<{ women: string | null; men: string | null }>({ ...data.adminLinks });
+	let generatingAdmin = $state<'women' | 'men' | null>(null);
+	let adminGenError = $state<string | null>(null);
+	let copiedAdminId = $state<string | null>(null);
+
+	const MOODS = ['networking', 'casual', 'serious'] as const;
+	type Mood = (typeof MOODS)[number];
+
+	const MOOD_LABEL: Record<Mood, string> = {
+		networking: 'Networking',
+		casual: 'Casual',
+		serious: 'Serious'
+	};
+
+	function womenMessageFor(mood: Mood, url: string): string {
+		switch (mood) {
+			case 'networking':
+				return `riteangle is an invite-only network of high-functioning people — tech, finance, founders, creatives, sport. The circle is genuinely impressive and it's first come, first served. (Some people use it to meet someone too — no pressure.) 👉 ${url}`;
+			case 'casual':
+				return `Not like the other dating apps — everyone's identity-verified, skews high-earning tech/finance, and an AI weeds out the creeps before they reach you. 👉 ${url}`;
+			case 'serious':
+				return `A dating app for people who actually want something real — verified, serious, a lot of tech/finance types. Here's an invite 👉 ${url}`;
+		}
+	}
+
+	async function generateAdmin(kind: 'admin_invite_women' | 'admin_invite_men') {
+		const key = kind === 'admin_invite_women' ? 'women' : 'men';
+		if (generatingAdmin) return;
+		generatingAdmin = key;
+		adminGenError = null;
+		try {
+			const res = await fetch('/admin/beta/link', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ kind })
+			});
+			const body = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				adminGenError = body?.error ?? `Failed (${res.status})`;
+				return;
+			}
+			adminLinks = { ...adminLinks, [key]: body.token };
+		} catch (err) {
+			adminGenError = err instanceof Error ? err.message : 'Network error';
+		} finally {
+			generatingAdmin = null;
+		}
+	}
+
+	async function copyText(id: string, text: string) {
+		try {
+			await navigator.clipboard.writeText(text);
+			copiedAdminId = id;
+			setTimeout(() => {
+				if (copiedAdminId === id) copiedAdminId = null;
+			}, 1500);
+		} catch {
+			// Clipboard blocked — no-op; the text is visible for manual copy.
+		}
+	}
+
 	// Per-row invite send state.
 	let sendingId = $state<string | null>(null);
 	let inviteError = $state<{ id: string; msg: string } | null>(null);
@@ -187,6 +249,76 @@
 				</button>
 			</div>
 		{/if}
+	</section>
+
+	<!-- Admin-level links (not tied to any user, shown as "Admin") -->
+	<section class="mt-8 rounded-lg border border-white/[0.08] bg-[#0b1120] p-5">
+		<h2 class="text-sm font-semibold text-white">Admin links</h2>
+		<p class="mt-1 text-sm text-slate-400">
+			Recruiting links not tied to any specific user — signups show up as "Admin" in Collected
+			emails. Same landing page and beta pipeline, just generic branding instead of a real woman's
+			card, and no cash reward or auto-match on either side.
+		</p>
+
+		{#if adminGenError}
+			<p class="mt-3 text-sm text-red-400">{adminGenError}</p>
+		{/if}
+
+		<!-- Invite women: 3 mood-specific copy-ready messages -->
+		<div class="mt-5">
+			<h3 class="text-xs font-semibold uppercase tracking-wide text-slate-400">Invite women</h3>
+			{#if !adminLinks.women}
+				<button
+					onclick={() => generateAdmin('admin_invite_women')}
+					disabled={generatingAdmin === 'women'}
+					class="mt-2 rounded bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-400 transition-colors hover:bg-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-40"
+				>
+					{generatingAdmin === 'women' ? 'Generating…' : 'Generate link'}
+				</button>
+			{:else}
+				<div class="mt-3 space-y-2">
+					{#each MOODS as mood}
+						{@const msg = womenMessageFor(mood, `${linkFor(adminLinks.women)}?m=${mood}`)}
+						<div class="flex items-start gap-2 rounded border border-white/[0.08] bg-black/20 p-3">
+							<div class="min-w-[90px] pt-1 text-xs font-semibold text-slate-300">{MOOD_LABEL[mood]}</div>
+							<p class="flex-1 text-xs leading-relaxed text-slate-300">{msg}</p>
+							<button
+								onclick={() => copyText(`women-${mood}`, msg)}
+								class="shrink-0 rounded border border-white/[0.1] px-2.5 py-1 text-xs text-slate-300 hover:text-white"
+							>
+								{copiedAdminId === `women-${mood}` ? 'Copied!' : 'Copy text'}
+							</button>
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</div>
+
+		<!-- Invite men: plain link, no reward/matching -->
+		<div class="mt-6">
+			<h3 class="text-xs font-semibold uppercase tracking-wide text-slate-400">Invite men</h3>
+			{#if !adminLinks.men}
+				<button
+					onclick={() => generateAdmin('admin_invite_men')}
+					disabled={generatingAdmin === 'men'}
+					class="mt-2 rounded bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-400 transition-colors hover:bg-emerald-500/30 disabled:cursor-not-allowed disabled:opacity-40"
+				>
+					{generatingAdmin === 'men' ? 'Generating…' : 'Generate link'}
+				</button>
+			{:else}
+				<div class="mt-3 flex flex-wrap items-center gap-2">
+					<code class="rounded border border-white/[0.1] bg-black/40 px-3 py-2 text-xs text-emerald-300">
+						{linkFor(adminLinks.men)}
+					</code>
+					<button
+						onclick={() => copyText('men', linkFor(adminLinks.men))}
+						class="rounded border border-white/[0.1] px-3 py-2 text-xs text-slate-300 hover:text-white"
+					>
+						{copiedAdminId === 'men' ? 'Copied!' : 'Copy link'}
+					</button>
+				</div>
+			{/if}
+		</div>
 	</section>
 
 	<!-- Existing links -->

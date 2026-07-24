@@ -26,12 +26,15 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	}
 
 	// The woman who owns the link — shown on a card so the visitor knows exactly
-	// who they'll be matched with.
-	const { data: referrer } = await db
-		.from('verified_vibe_users')
-		.select('first_name, age, city, avatar_url, about')
-		.eq('id', link.referrer_id)
-		.maybeSingle();
+	// who they'll be matched with. Admin-level links (no referrer_id) skip this
+	// entirely and fall through to generic brand copy.
+	const { data: referrer } = link.referrer_id
+		? await db
+				.from('verified_vibe_users')
+				.select('first_name, age, city, avatar_url, about')
+				.eq('id', link.referrer_id)
+				.maybeSingle()
+		: { data: null };
 
 	// Absolute, publicly reachable image for the link preview card. Crawlers
 	// don't run JS and won't follow relative paths, so resolve against origin.

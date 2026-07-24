@@ -13,7 +13,7 @@
 
 	const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-	const name = $derived(data.referrer?.first_name ?? 'her');
+	const name = $derived(data.referrer?.first_name ?? null);
 	const initial = $derived((data.referrer?.first_name ?? '?').charAt(0).toUpperCase());
 
 	async function submit() {
@@ -98,7 +98,7 @@
 				<div class="success-mark" aria-hidden="true">✓</div>
 				<h1 class="title">You're on the list</h1>
 				<p class="sub">
-					Thanks! We'll email <strong>{email}</strong> the moment your spot opens up.{#if !data.mood} When you join,
+					Thanks! We'll email <strong>{email}</strong> the moment your spot opens up.{#if !data.mood && data.referrer} When you join,
 					{name} will already be waiting in your matches.{/if}
 				</p>
 			</div>
@@ -125,32 +125,39 @@
 			{/if}
 
 			{#if data.mood === 'networking'}
-				<h1 class="hl"><em>{name}</em> invited you into a curated circle</h1>
+				<h1 class="hl">{#if name}<em>{name}</em> invited you into a curated circle{:else}You're invited into a curated circle{/if}</h1>
 				<p class="hl-sub">riteangle is an invite-only, identity-verified network of high-functioning people, across tech, finance, founders, creatives and sport. First come, first served.</p>
 				<div class="callout">
 					<span class="ico">🤝</span>
 					<span class="ctxt"><b>Here to meet someone too?</b> That works. Same circle, whenever you're ready.</span>
 				</div>
 			{:else if data.mood === 'casual'}
-				<h1 class="hl"><em>{name}</em> thinks you'd love it here</h1>
+				<h1 class="hl">{#if name}<em>{name}</em> thinks you'd love it here{:else}You're going to love it here{/if}</h1>
 				<p class="hl-sub">Not like the other apps: everyone's identity-verified, it skews high-earning (tech, finance, founders), and an AI filters out the creeps before they reach you.</p>
 				<div class="callout">
 					<span class="ico">✨</span>
 					<span class="ctxt"><b>Come have fun with it.</b> No pressure, just genuinely good people.</span>
 				</div>
 			{:else if data.mood === 'serious'}
-				<h1 class="hl"><em>{name}</em> invited you to something real</h1>
+				<h1 class="hl">{#if name}<em>{name}</em> invited you to something real{:else}You're invited to something real{/if}</h1>
 				<p class="hl-sub">Identity-verified members, an AI that filters out the noise, and people who actually want something serious, a lot of them in tech and finance.</p>
 				<div class="callout">
 					<span class="ico">💍</span>
 					<span class="ctxt"><b>For people who mean it.</b> Verified, serious, worth your time.</span>
 				</div>
-			{:else}
+			{:else if name}
 				<h1 class="hl"><em>{name}</em> moved your chat here</h1>
 				<p class="hl-sub">{name} gets a lot of messages, so she has her Bestie get to know you first. Impress her, and you're straight through to {name}.</p>
 				<div class="callout">
 					<span class="ico">💬</span>
 					<span class="ctxt"><b>She only meets the guys her Bestie clicks with.</b> Make your first impression count.</span>
+				</div>
+			{:else}
+				<h1 class="hl">You've been invited to riteangle</h1>
+				<p class="hl-sub">An identity-verified dating community — every profile is checked before anyone matches. Real people, no noise.</p>
+				<div class="callout">
+					<span class="ico">🔒</span>
+					<span class="ctxt"><b>Verified profiles only.</b> No bots, no catfish, no wasted time.</span>
 				</div>
 			{/if}
 
