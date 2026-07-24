@@ -691,6 +691,16 @@ export async function enrollInPoolIfVerified(userId: string): Promise<void> {
   } catch (e) {
     console.error('[pool-registry] beta invite redeem failed (non-fatal):', e);
   }
+
+  // Refer & Earn Flow 2: if the woman who just verified was invited by another
+  // woman, credit the referrer's cash ledger. No-op for men (handled above) and
+  // idempotent + non-fatal, so it can never block enrollment.
+  try {
+    const { awardReferralRewardIfEligible } = await import('./beta-invite');
+    await awardReferralRewardIfEligible(userId);
+  } catch (e) {
+    console.error('[pool-registry] referral reward failed (non-fatal):', e);
+  }
 }
 
 // ── Public: lite beta match — fire the referral match before full verification ─

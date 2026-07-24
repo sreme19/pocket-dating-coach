@@ -731,12 +731,47 @@ Future<ProfileStrength> fetchProfileStrength() async {
 // Consumes GET /api/verified-vibe/referral-link. Kept in lockstep with the web
 // refer screen (src/routes/verified-vibe/refer/+page.svelte).
 
-/// A woman's self-serve referral link + her funnel counts for the status line.
+/// Flow 2 cash-referral state (women invite women): earnings + tier + cap.
+class ReferralCash {
+  final int verifiedCount;
+  final int earnedInr;
+  final int paidInr;
+  final int pendingInr;
+  final int currentTier; // rate her NEXT referral earns (100 or 150)
+  final int cap;
+  ReferralCash({
+    required this.verifiedCount,
+    required this.earnedInr,
+    required this.paidInr,
+    required this.pendingInr,
+    required this.currentTier,
+    required this.cap,
+  });
+  factory ReferralCash.fromJson(Map? j) => ReferralCash(
+        verifiedCount: (j?['verifiedCount'] as num?)?.toInt() ?? 0,
+        earnedInr: (j?['earnedInr'] as num?)?.toInt() ?? 0,
+        paidInr: (j?['paidInr'] as num?)?.toInt() ?? 0,
+        pendingInr: (j?['pendingInr'] as num?)?.toInt() ?? 0,
+        currentTier: (j?['currentTier'] as num?)?.toInt() ?? 100,
+        cap: (j?['cap'] as num?)?.toInt() ?? 100,
+      );
+}
+
+/// A woman's self-serve referral link + her men-flow funnel counts + the
+/// women-flow cash state.
 class ReferralLink {
   final String shareUrl; // full prod URL: https://www.riteangle.dating/beta/{token}
+  final String? gender; // viewer's gender — tailors the refer UI (woman/man)
   final int invited;
   final int signedUp;
-  ReferralLink({required this.shareUrl, required this.invited, required this.signedUp});
+  final ReferralCash cash;
+  ReferralLink({
+    required this.shareUrl,
+    required this.gender,
+    required this.invited,
+    required this.signedUp,
+    required this.cash,
+  });
 }
 
 /// Thrown when the endpoint returns 403 (referral links are for women only).
@@ -752,8 +787,10 @@ Future<ReferralLink> fetchReferralLink() async {
     final d = resp.data as Map;
     return ReferralLink(
       shareUrl: '${Config.apiBase}${d['path']}',
+      gender: d['gender'] as String?,
       invited: (d['invited'] as num?)?.toInt() ?? 0,
       signedUp: (d['signedUp'] as num?)?.toInt() ?? 0,
+      cash: ReferralCash.fromJson(d['cash'] as Map?),
     );
   } on DioException catch (e) {
     if (e.response?.statusCode == 403) throw ReferralLinkDenied();

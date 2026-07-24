@@ -48,8 +48,9 @@ export const POST: RequestHandler = async ({ request }) => {
   let token: unknown;
   let email: unknown;
   let platform: unknown;
+  let mood: unknown;
   try {
-    ({ token, email, platform } = await request.json());
+    ({ token, email, platform, mood } = await request.json());
   } catch {
     return json({ error: 'Invalid request' }, { status: 400 });
   }
@@ -65,6 +66,10 @@ export const POST: RequestHandler = async ({ request }) => {
   }
   const normalized = email.trim().toLowerCase();
   const device = platform as Platform;
+  // Optional referral framing (women-invite flow), carried via /beta/<token>?m=.
+  // Stored for the landing/copy + reward record; never drives onboarding.
+  const MOODS = ['networking', 'casual', 'serious'];
+  const moodVal = typeof mood === 'string' && MOODS.includes(mood) ? mood : null;
 
   const db = getSupabase() as any;
 
@@ -111,6 +116,7 @@ export const POST: RequestHandler = async ({ request }) => {
     referrer_id: link.referrer_id,
     email: normalized,
     platform: device,
+    mood: moodVal,
     status: 'pending',
   });
 

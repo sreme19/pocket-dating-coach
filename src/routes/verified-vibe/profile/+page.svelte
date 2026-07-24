@@ -2232,7 +2232,7 @@
         <path d="M19 12H5M12 19l-7-7 7-7"/>
       </svg>
     </button>
-    {#if $user?.gender === 'woman'}
+    {#if $user?.gender === 'woman' || $user?.gender === 'man'}
       <button class="refer-pill" onclick={() => goto('/verified-vibe/refer')} aria-label="Refer and earn">
         <Gift size={14} />
         <span>Refer &amp; Earn</span>

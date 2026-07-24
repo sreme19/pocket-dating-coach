@@ -8,6 +8,11 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	// crawlers (WhatsApp/Telegram/iMessage/Slack) have a canonical target.
 	const pageUrl = url.href;
 
+	// Referral framing (women-invite flow): /beta/<token>?m=networking|casual|serious.
+	// Picks the landing variant + copy only; never drives onboarding.
+	const moodParam = url.searchParams.get('m');
+	const mood = ['networking', 'casual', 'serious'].includes(moodParam ?? '') ? moodParam : null;
+
 	const { data: link } = await db
 		.from('verified_vibe_referral_links')
 		.select('token, active, referrer_id')
@@ -17,7 +22,7 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	// Don't leak whether a token exists — an inactive or unknown token both
 	// render the same "not available" state.
 	if (!link || !link.active) {
-		return { valid: false, token: params.token, referrer: null, pageUrl, ogImage: null };
+		return { valid: false, token: params.token, referrer: null, pageUrl, ogImage: null, mood };
 	}
 
 	// The woman who owns the link — shown on a card so the visitor knows exactly
@@ -36,6 +41,7 @@ export const load: PageServerLoad = async ({ params, url }) => {
 
 	return {
 		valid: true,
+		mood,
 		token: link.token,
 		pageUrl,
 		ogImage,
