@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Archetype, Message, VerifiedVibeUser } from '$lib/verified-vibe/types';
+import { networkingEnforcementEnabled } from './networking-season';
 
 /**
  * Shared, auth-agnostic chat read logic.
@@ -40,6 +41,9 @@ export interface Conversation {
   expiredAt: string | null;
   /** True only for the WOMAN on an expired match — she alone gets the Reactivate control. */
   canReactivate: boolean;
+  /** Networking Season (Phase 4): true when this match was de-ranked (he kept pushing
+   *  romance after she went networking). Sinks him to the bottom of HER inbox. */
+  deranked: boolean;
 }
 
 export interface ConversationDetailData {
@@ -63,10 +67,16 @@ export async function buildConversations(
   supabase: SupabaseClient,
   userId: string
 ): Promise<Conversation[]> {
-  // 1. Fetch all mutual/expired matches (single query)
+  // 1. Fetch all mutual/expired matches (single query). The de-rank column is
+  //    only selected when Phase 4 enforcement is on, so with the flag off this
+  //    query has no dependency on the Phase 4 migration.
+  const enforce = networkingEnforcementEnabled();
+  const matchCols =
+    'id, user1_id, user2_id, status, created_at, user1_last_read_at, user2_last_read_at, ai_bestie_active, bestie_checklist, expired_at' +
+    (enforce ? ', deranked_at' : '');
   const { data: matches, error: matchesError } = await supabase
     .from('verified_vibe_matches')
-    .select('id, user1_id, user2_id, status, created_at, user1_last_read_at, user2_last_read_at, ai_bestie_active, bestie_checklist, expired_at')
+    .select(matchCols)
     .in('status', ['mutual', 'expired'])
     .or(`user1_id.eq.${userId},user2_id.eq.${userId}`);
 
@@ -170,11 +180,18 @@ export async function buildConversations(
       status: (match as any).status,
       handoffAt: windowOpen ? (checklist?.wrapped_at ?? null) : null,
       expiredAt: isExpired ? ((match as any).expired_at ?? null) : null,
-      canReactivate
+      canReactivate,
+      // De-rank applies only in HER inbox (partner is a man). Local-only signal.
+      deranked: enforce && !!(match as any).deranked_at && otherUser.gender === 'man'
     });
   }
 
-  return conversations.sort((a, b) => b.lastMessageTime.getTime() - a.lastMessageTime.getTime());
+  return conversations.sort((a, b) => {
+    // De-ranked matches (networking pushers) sink to the bottom of her inbox,
+    // still time-ordered among themselves.
+    if (a.deranked !== b.deranked) return a.deranked ? 1 : -1;
+    return b.lastMessageTime.getTime() - a.lastMessageTime.getTime();
+  });
 }
 
 /**

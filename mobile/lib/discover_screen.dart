@@ -278,7 +278,38 @@ class _DiscoverScreenState extends State<DiscoverScreen>
 
   Future<void> _setSeason(bool networking) async {
     AppLogger.instance.action('discover', 'set_season', meta: {'networking': networking});
-    await SeasonState.set(networking);
+    final res = await SeasonState.set(networking);
+    // Return-to-Date consent (Phase 4): if she just left a networking season and
+    // has contacts to tell, ASK before letting them know she's dating again.
+    if (!networking && res['returnedFromNetworking'] == true && mounted) {
+      final count = res['activeContacts'] is num ? (res['activeContacts'] as num).toInt() : 0;
+      if (count <= 0) return;
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Open to dating again?'),
+          content: Text(
+            "Want your AI Bestie to let your $count networking "
+            "${count == 1 ? 'contact' : 'contacts'} know you're open to dating again? "
+            "They'll get a warm heads-up — no one else is told.",
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Not now')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Yes, let them know')),
+          ],
+        ),
+      );
+      if (ok == true) {
+        int notified = 0;
+        try { notified = await notifyNetworkingReturn(); } catch (_) {}
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Let ${notified > 0 ? notified : count} '
+                '${(notified > 0 ? notified : count) == 1 ? 'contact' : 'contacts'} know 🌹')),
+          );
+        }
+      }
+    }
   }
 
   Widget _body() {

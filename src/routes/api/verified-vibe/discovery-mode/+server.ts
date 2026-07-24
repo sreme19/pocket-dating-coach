@@ -18,6 +18,8 @@ import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/publi
 import { createClient } from '@supabase/supabase-js';
 import { getSupabase } from '$lib/server/supabase';
 import { refreshPoolEntry } from '$lib/server/pool-registry';
+import { networkingEnforcementEnabled } from '$lib/server/networking-season';
+import { countReturnContacts } from '$lib/server/networking-return';
 
 const MODES = ['date', 'networking'] as const;
 type Mode = (typeof MODES)[number];
@@ -66,6 +68,15 @@ export const PUT: RequestHandler = async ({ request }) => {
   }
 
   const db = getSupabase() as any;
+
+  // Read the prior mode so we can detect a networking→date "return" (Phase 4).
+  const { data: prior } = await db
+    .from('verified_vibe_users')
+    .select('discovery_mode')
+    .eq('id', userId)
+    .maybeSingle();
+  const priorMode: Mode = prior?.discovery_mode === 'networking' ? 'networking' : 'date';
+
   const { error } = await db
     .from('verified_vibe_users')
     .update({ discovery_mode: mode })
@@ -76,5 +87,31 @@ export const PUT: RequestHandler = async ({ request }) => {
   // Keep vv_pool_profiles.discovery_mode in sync for the matcher/discovery path.
   await refreshPoolEntry(userId).catch(() => {});
 
-  return json({ saved: true, discoveryMode: mode });
+  // On a return to Date from a networking season, tell the client how many active
+  // contacts she could notify, so it can offer the consent prompt (Phase 4).
+  let returnedFromNetworking = false;
+  let activeContacts = 0;
+  if (networkingEnforcementEnabled() && priorMode === 'networking' && mode === 'date') {
+    returnedFromNetworking = true;
+    activeContacts = await countReturnContacts(db, userId).catch(() => 0);
+  }
+
+  return json({ saved: true, discoveryMode: mode, returnedFromNetworking, activeContacts });
+};
+
+/**
+ * POST /api/verified-vibe/discovery-mode/notify-return
+ * (handled here via ?action=notify-return on POST) — the woman consented to let
+ * her networking contacts know she's open to dating again. Sends the Bestie
+ * message to each active opposite-gender thread. Gated behind enforcement.
+ */
+export const POST: RequestHandler = async ({ request }) => {
+  const userId = await getUserId(request);
+  if (!userId) return json({ error: 'Unauthorized' }, { status: 401 });
+  if (!networkingEnforcementEnabled()) return json({ notified: 0 });
+
+  const db = getSupabase() as any;
+  const { notifyReturnToDate } = await import('$lib/server/networking-return');
+  const notified = await notifyReturnToDate(db, userId).catch(() => 0);
+  return json({ notified });
 };

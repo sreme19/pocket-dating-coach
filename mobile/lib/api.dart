@@ -650,12 +650,26 @@ Future<bool> getDiscoveryMode() async {
 }
 
 /// Persist the user's season. The server keeps vv_pool_profiles in sync.
-Future<void> setDiscoveryMode(bool networking) async {
-  await _dio.put(
+/// Returns the response body — includes `returnedFromNetworking` + `activeContacts`
+/// on a networking→date flip (Phase 4), so the caller can offer the consent prompt.
+Future<Map<String, dynamic>> setDiscoveryMode(bool networking) async {
+  final resp = await _dio.put(
     '${Config.apiBase}/api/verified-vibe/discovery-mode',
     data: {'mode': networking ? 'networking' : 'date'},
     options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
   );
+  return resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : <String, dynamic>{};
+}
+
+/// She consented to let her networking contacts know she's dating again.
+/// Returns how many were notified.
+Future<int> notifyNetworkingReturn() async {
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/discovery-mode',
+    options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
+  );
+  final d = resp.data is Map ? resp.data as Map : const {};
+  return d['notified'] is num ? (d['notified'] as num).toInt() : 0;
 }
 
 // ── Profile Strength (Scoring redesign Phase 2) ───────────────────────────────
@@ -1797,6 +1811,10 @@ class Conversation {
   /// True only for the woman on an expired match — she alone gets Reactivate.
   final bool canReactivate;
 
+  /// Networking Season (Phase 4): true when he was de-ranked for pushing romance
+  /// after she went networking. Sinks him to the bottom of her inbox.
+  final bool deranked;
+
   Conversation({
     required this.id,
     this.otherId,
@@ -1817,6 +1835,7 @@ class Conversation {
     this.handoffAt,
     this.expiredAt,
     this.canReactivate = false,
+    this.deranked = false,
   });
 
   bool get isExpired => status == 'expired';
@@ -1861,6 +1880,7 @@ Future<List<Conversation>> fetchConversations() async {
       handoffAt: _dt(c['handoffAt']),
       expiredAt: _dt(c['expiredAt']),
       canReactivate: c['canReactivate'] == true,
+      deranked: c['deranked'] == true,
     );
   }).toList();
 }

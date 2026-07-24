@@ -365,6 +365,7 @@ class _ChatListScreenState extends State<ChatListScreen>
       archetype: old.archetype,
       gender: old.gender,
       trustScore: old.trustScore,
+      deranked: old.deranked,
     );
     final newList = List<Conversation>.from(cached);
     newList[idx] = updated;
@@ -514,8 +515,12 @@ class _ChatListScreenState extends State<ChatListScreen>
           final conversations = _cachedConversations ?? data.conversations;
           final newMatches = conversations.where((c) => !c.hasMessages).toList();
           var active = conversations.where((c) => c.hasMessages).toList()
-            ..sort((a, b) => (b.lastMessageTime ?? DateTime(1970))
-                .compareTo(a.lastMessageTime ?? DateTime(1970)));
+            ..sort((a, b) {
+              // Networking Season (Phase 4): de-ranked matches sink to the bottom.
+              if (a.deranked != b.deranked) return a.deranked ? 1 : -1;
+              return (b.lastMessageTime ?? DateTime(1970))
+                  .compareTo(a.lastMessageTime ?? DateTime(1970));
+            });
           final unreadTotal = active.where((c) => c.unreadCount > 0 && !_clearedConvos.contains(c.id)).length;
           final totalBadge = active.where((c) => !_clearedConvos.contains(c.id)).fold<int>(0, (sum, c) => sum + c.unreadCount) + data.admirers.where((a) => !a.replied).length;
           if (ChatListScreen.unreadNotifier.value != totalBadge) {

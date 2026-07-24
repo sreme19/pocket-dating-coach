@@ -25,6 +25,36 @@ export function networkingSeasonEnabled(): boolean {
   return env.NETWORKING_SEASON_GATE === 'true';
 }
 
+/**
+ * Phase 4 ENFORCEMENT flag (de-rank, return-to-date consent, nudge cadence).
+ * Separate from the season gate and default OFF, so Phase 4 deploys inert — and
+ * every new-column read is guarded by this, so the code has no dependency on the
+ * Phase 4 migration until the flag is turned on.
+ */
+export function networkingEnforcementEnabled(): boolean {
+  return env.NETWORKING_ENFORCEMENT_GATE === 'true';
+}
+
+/** Post-disclosure romantic pushes that sink a man in HER inbox (local only). */
+export const DERANK_PRESSURE_THRESHOLD = 2;
+
+/** Minimum gap between switch-back nudges (~2 weeks). */
+export const NUDGE_COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000;
+
+/**
+ * Whether to include the "you can switch back to Date" nudge line this turn.
+ * Enforcement OFF → always true (Phase 3 behaviour, unchanged). ON → suppressed
+ * by a permanent opt-out and throttled to ~once / 2 weeks.
+ */
+export function shouldShowSwitchBackNudge(lastAtRaw: unknown, optedOut: unknown): boolean {
+  if (!networkingEnforcementEnabled()) return true;
+  if (optedOut === true) return false;
+  if (!lastAtRaw) return true;
+  const last = new Date(`${lastAtRaw}`).getTime();
+  if (Number.isNaN(last)) return true;
+  return Date.now() - last >= NUDGE_COOLDOWN_MS;
+}
+
 export function normalizeMode(v: unknown): DiscoveryMode {
   return v === 'networking' ? 'networking' : 'date';
 }
@@ -41,13 +71,23 @@ export function resolveConnectionMode(owner: unknown, partner: unknown): Discove
  * to an existing context block. Returns '' when the flag is off or the owner is
  * in a date season (no behaviour change).
  */
-export function seasonAdvisorBlock(ownerModeRaw: unknown): string {
+export function seasonAdvisorBlock(
+  ownerModeRaw: unknown,
+  opts: { includeSwitchBack?: boolean } = {}
+): string {
   if (!networkingSeasonEnabled() || normalizeMode(ownerModeRaw) !== 'networking') return '';
-  return `\n\nNETWORKING SEASON (ACTIVE — this changes how you advise):
-- They have switched Discover to "Networking" — a deliberate pause on dating. They're here to meet people, network, and make friends with zero romantic pressure.
-- Frame EVERYTHING as platonic networking, never dating. No flirting, no romance coaching, no "landing a date" or "winning her/him over" talk. Be their upbeat networking buddy — help them connect over shared interests, work, and goals.
-- Their matches include people of any gender who are also networking; treat all of them as potential friends/contacts, not romantic prospects.
-- At most ONCE, and only lightly, you may note they can switch back to "Date" anytime from Discover. Never push it, and drop it entirely if they don't bite.`;
+  const { includeSwitchBack = true } = opts;
+  const bullets = [
+    `- They have switched Discover to "Networking" — a deliberate pause on dating. They're here to meet people, network, and make friends with zero romantic pressure.`,
+    `- Frame EVERYTHING as platonic networking, never dating. No flirting, no romance coaching, no "landing a date" or "winning her/him over" talk. Be their upbeat networking buddy — help them connect over shared interests, work, and goals.`,
+    `- Their matches include people of any gender who are also networking; treat all of them as potential friends/contacts, not romantic prospects.`,
+  ];
+  if (includeSwitchBack) {
+    bullets.push(
+      `- At most ONCE, and only lightly, you may note they can switch back to "Date" anytime from Discover. Never push it, and drop it entirely if they don't bite.`,
+    );
+  }
+  return `\n\nNETWORKING SEASON (ACTIVE — this changes how you advise):\n${bullets.join('\n')}`;
 }
 
 /**

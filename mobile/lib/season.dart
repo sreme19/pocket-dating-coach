@@ -43,15 +43,21 @@ class SeasonState {
   /// the tester build even before the discovery-mode endpoint is live in
   /// production (the Flutter app always talks to the prod API). Once the backend
   /// ships, the same call persists server-side for matching/discovery.
-  static Future<void> set(bool value) async {
+  /// Returns the backend response (empty map on failure) — carries
+  /// `returnedFromNetworking` + `activeContacts` on a networking→date flip so the
+  /// caller can offer the return-to-Date consent prompt (Phase 4).
+  static Future<Map<String, dynamic>> set(bool value) async {
     networking.value = value;
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_prefsKey(), value);
     } catch (_) {}
     try {
-      await api.setDiscoveryMode(value);
-    } catch (_) {/* backend not deployed / offline — local state still holds */}
+      return await api.setDiscoveryMode(value);
+    } catch (_) {
+      // backend not deployed / offline — local state still holds
+      return <String, dynamic>{};
+    }
   }
 }
 
