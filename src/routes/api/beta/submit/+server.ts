@@ -30,7 +30,8 @@ const RATE_LIMIT_MAX = 10;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
 /** Fetch the referrer card and send the confirmation. Non-fatal: never throws. */
-async function sendConfirmation(db: any, referrerId: string, toEmail: string): Promise<void> {
+async function sendConfirmation(db: any, referrerId: string | null, toEmail: string): Promise<void> {
+  if (!referrerId) return; // Admin-attributed signup — no referrer card to send.
   try {
     const { data: referrer } = await db
       .from('verified_vibe_users')

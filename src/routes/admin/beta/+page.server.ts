@@ -11,7 +11,7 @@ export const load: PageServerLoad = async () => {
 			.order('first_name', { ascending: true }),
 		db
 			.from('verified_vibe_referral_links')
-			.select('referrer_id, token, active, created_at'),
+			.select('referrer_id, token, active, created_at, kind'),
 		db
 			.from('verified_vibe_beta_signups')
 			.select('id, email, platform, status, referrer_id, matched_user_id, created_at, matched_at, invited_at')
@@ -22,8 +22,15 @@ export const load: PageServerLoad = async () => {
 		(users ?? []).map((u: any) => [u.id, u.first_name])
 	);
 	const linkByReferrer = new Map<string, any>(
-		(links ?? []).map((l: any) => [l.referrer_id, l])
+		(links ?? []).filter((l: any) => l.referrer_id).map((l: any) => [l.referrer_id, l])
 	);
+	const linkByKind = new Map<string, any>(
+		(links ?? []).filter((l: any) => l.kind).map((l: any) => [l.kind, l])
+	);
+	const adminLinks = {
+		women: linkByKind.get('admin_invite_women')?.token ?? null,
+		men: linkByKind.get('admin_invite_men')?.token ?? null
+	};
 
 	// Female users = the ones who can own a share link.
 	const women = (users ?? [])
@@ -45,9 +52,9 @@ export const load: PageServerLoad = async () => {
 		invited_at: s.invited_at ?? null,
 		created_at: s.created_at,
 		matched_at: s.matched_at,
-		referrerName: nameById.get(s.referrer_id) ?? '—',
+		referrerName: s.referrer_id ? (nameById.get(s.referrer_id) ?? '—') : 'Admin',
 		matchedName: s.matched_user_id ? (nameById.get(s.matched_user_id) ?? '—') : null
 	}));
 
-	return { women, signups: signupRows };
+	return { women, signups: signupRows, adminLinks };
 };
