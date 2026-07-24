@@ -38,9 +38,11 @@ export const load: PageServerLoad = async ({ params, url }) => {
 
 	// Absolute, publicly reachable image for the link preview card. Crawlers
 	// don't run JS and won't follow relative paths, so resolve against origin.
+	// Falls back to the brand logo when there's no referrer photo to show
+	// (Admin-level links, or a real referrer without an avatar on file).
 	const ogImage = referrer?.avatar_url
 		? new URL(referrer.avatar_url, url.origin).href
-		: null;
+		: new URL('/og/riteangle-logo.png', url.origin).href;
 
 	return {
 		valid: true,

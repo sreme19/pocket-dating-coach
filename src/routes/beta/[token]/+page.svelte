@@ -70,6 +70,26 @@
 		{#if data.ogImage}
 			<meta name="twitter:image" content={data.ogImage} />
 		{/if}
+	{:else if data.valid}
+		<!-- Admin-level link: valid, but not attributed to any real person —
+		     generic brand card (logo image) instead of a referrer's photo. -->
+		{@const ogTitle = 'riteangle · private beta'}
+		{@const ogDesc = 'An identity-verified dating beta. Invite only.'}
+		<title>{ogTitle}</title>
+		<meta name="description" content={ogDesc} />
+
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="riteangle" />
+		<meta property="og:url" content={data.pageUrl} />
+		<meta property="og:title" content={ogTitle} />
+		<meta property="og:description" content={ogDesc} />
+		<meta property="og:image" content={data.ogImage} />
+		<meta property="og:image:alt" content="riteangle" />
+
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content={ogTitle} />
+		<meta name="twitter:description" content={ogDesc} />
+		<meta name="twitter:image" content={data.ogImage} />
 	{:else}
 		<title>riteangle · private beta</title>
 		<meta property="og:type" content="website" />
