@@ -1,21 +1,36 @@
 import type { PageServerLoad } from './$types';
 import { getSupabase } from '$lib/server/supabase';
 
-// Refer & Earn Flow 2 payout ledger. The /admin tree is gated by the admin
-// layout, so no auth check is needed here (mirrors /admin/beta). Reads are
-// service-role via getSupabase(); vv_referral_rewards is RLS deny-all otherwise.
+// Refer & Earn payout ledger, BOTH tracks: 'woman' (invite women — ₹100 for
+// #1-25 then ₹150, cap 100) and 'man' (invite men — flat ₹25, cap 1000). The
+// track column is what makes a ₹25 row legible next to a ₹150 one, so it is
+// surfaced in the table. The /admin tree is gated by the admin layout, so no
+// auth check is needed here (mirrors /admin/beta). Reads are service-role via
+// getSupabase(); vv_referral_rewards is RLS deny-all otherwise.
 export const load: PageServerLoad = async () => {
 	const db = getSupabase() as any;
 
-	const [{ data: rewards }, { data: users }] = await Promise.all([
+	const columns =
+		'id, referrer_id, referred_user_id, amount_inr, tier_rate, reward_index, status, mood, created_at, payable_at, paid_at, paid_by, payout_ref';
+
+	const [rewardsRes, { data: users }] = await Promise.all([
 		db
 			.from('vv_referral_rewards')
-			.select(
-				'id, referrer_id, referred_user_id, amount_inr, tier_rate, reward_index, status, mood, created_at, payable_at, paid_at, paid_by, payout_ref'
-			)
+			.select(`${columns}, track`)
 			.order('created_at', { ascending: false }),
 		db.from('verified_vibe_users').select('id, first_name')
 	]);
+
+	// Pre-migration fallback: `track` only exists after 20260725143000, and every
+	// row written before it is a women-flow referral.
+	let rewards = rewardsRes.data;
+	if (rewardsRes.error && `${rewardsRes.error.code}` === '42703') {
+		const retry = await db
+			.from('vv_referral_rewards')
+			.select(columns)
+			.order('created_at', { ascending: false });
+		rewards = (retry.data ?? []).map((r: any) => ({ ...r, track: 'woman' }));
+	}
 
 	const nameById = new Map<string, string>((users ?? []).map((u: any) => [u.id, u.first_name]));
 
@@ -26,6 +41,7 @@ export const load: PageServerLoad = async () => {
 		amountInr: r.amount_inr,
 		tierRate: r.tier_rate,
 		rewardIndex: r.reward_index,
+		track: (r.track ?? 'woman') as 'woman' | 'man',
 		status: r.status,
 		mood: r.mood ?? null,
 		createdAt: r.created_at,

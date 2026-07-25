@@ -12,12 +12,17 @@
    * Data comes from GET /api/verified-vibe/referral-link (client-side; the token
    * lives in the client Supabase session, there is no cookie session).
    *
-   * MOOD SKINS: on the Invite women flow the whole screen repaints to match the
-   * mood she picked — teal for Networking, warm black for Casual, dusty rose for
-   * Serious. Purely cosmetic: it does not touch matching, and it is NOT the
-   * Networking Season flag even though Networking borrows the same teal so that
-   * teal keeps meaning one thing to a user. Invite men has no mood, so it keeps
-   * the app accent. Kept in lockstep with mobile/lib/refer_screen.dart.
+   * SKINS: the whole screen repaints per flow/mood — teal for Networking, warm
+   * black for Casual, dusty rose for Serious, and violet for Invite men (which
+   * has no mood of its own). Purely cosmetic: it does not touch matching, and it
+   * is NOT the Networking Season flag even though Networking borrows the same
+   * teal so that teal keeps meaning one thing to a user.
+   *
+   * CASH: both flows pay, on separate ledger tracks (see beta-invite.ts) —
+   * invite women = ₹100 for #1-25 then ₹150, cap 100; invite men = flat ₹25,
+   * cap 1000. `cash` and `menCash` come back summed per track.
+   *
+   * Kept in lockstep with mobile/lib/refer_screen.dart.
    */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
@@ -41,6 +46,7 @@
   let invited = $state(0);
   let signedUp = $state(0);
   let cash = $state<Cash | null>(null);
+  let menCash = $state<Cash | null>(null);
   let gender = $state<string | null>(null);
   let copiedLink = $state(false);
   let copiedMsg = $state(false);
@@ -110,6 +116,7 @@
       invited = data.invited ?? 0;
       signedUp = data.signedUp ?? 0;
       cash = data.cash ?? null;
+      menCash = data.menCash ?? null;
       gender = data.gender ?? null;
       message = messageFor(shareUrl);
       womenMsg = msgSet()[mood](womenLink(mood));
@@ -136,11 +143,15 @@
 
   const prettyUrl = $derived(shareUrl.replace(/^https?:\/\//, ''));
   const capPct = $derived(cash ? Math.min(100, (cash.verifiedCount / cash.cap) * 100) : 0);
+  const menCapPct = $derived(
+    menCash ? Math.min(100, (menCash.verifiedCount / menCash.cap) * 100) : 0
+  );
 
-  // ── Mood skin ───────────────────────────────────────────────────────────────
-  // 'app' keeps the riteangle accent (and so still follows Networking Season via
-  // the layout tokens). Invite men has no mood, so it stays on 'app'.
-  const skin = $derived(tab === 'men' ? 'app' : mood);
+  // ── Skin ────────────────────────────────────────────────────────────────────
+  // The Invite women flow takes the mood she picked. Invite men has no mood, so
+  // it gets its own violet skin ('men') rather than the app accent — the flow is
+  // hers alone, and violet keeps it distinct from all three moods.
+  const skin = $derived(tab === 'men' ? 'men' : mood);
 
   /// Background line art per skin — one flat colour at low opacity, drawn against
   /// a 340x1200 reference box that `slice` scales to cover the page. Geometry is
@@ -154,7 +165,7 @@
   const W = 340;
   const H = 1200;
 
-  function buildArt(m: Mood | 'app'): Art {
+  function buildArt(m: Mood | 'app' | 'men'): Art {
     const art: Art = { paths: [], circles: [], lines: [], dots: [] };
 
     if (m === 'casual') {
@@ -179,6 +190,14 @@
       ];
       for (const c of centres) {
         for (let r = 40; r < 260; r += 19) art.circles.push({ cx: c.cx, cy: c.cy, r });
+      }
+    } else if (m === 'men') {
+      // Facets: a diamond lattice — the gems she is left with once her Bestie has
+      // screened the DMs. Two families of diagonals, nothing more.
+      const step = 46;
+      for (let i = -H; i < W + H; i += step) {
+        art.lines.push({ x1: i, y1: 0, x2: i + H, y2: H });
+        art.lines.push({ x1: i, y1: 0, x2: i - H, y2: H });
       }
     } else if (m === 'networking') {
       // Scattered nodes joined to their near neighbours. A fixed seed keeps the
@@ -261,7 +280,24 @@
           Most are creeps 🙄 but a few are genuine, successful, even high-earning.
           You don't have the time to text them all. So send them your link: your Bestie
           talks to every one of them, ranks them, and brings you only the ones worth your time.
+          You earn ₹{menCash?.currentTier ?? 25} for every guy who joins and gets verified.
         </p>
+
+        <!-- Earnings (men track: flat ₹25, cap 1000) -->
+        <div class="earn">
+          <div class="earn-top">
+            <span class="amt">₹{menCash?.earnedInr ?? 0}</span>
+            <span class="amtlbl">earned from the guys</span>
+          </div>
+          <span class="earn-tier">🎉 ₹{menCash?.currentTier ?? 25} per guy who verifies</span>
+          <div class="earn-pend">₹{menCash?.pendingInr ?? 0} pending · ₹{menCash?.paidInr ?? 0} paid · sent to your UPI once he's verified</div>
+        </div>
+
+        <!-- Cap progress -->
+        <div class="capwrap">
+          <div class="cap-lbl"><span>Rewarded invites</span><span>{menCash?.verifiedCount ?? 0} / {menCash?.cap ?? 1000}</span></div>
+          <div class="capbar"><i style="width:{menCapPct}%"></i></div>
+        </div>
 
         <!-- How it works -->
         <ol class="steps">
@@ -447,6 +483,29 @@
        card; a translucent white lifts off the gradient instead. */
     --tier-bg: rgba(255, 255, 255, 0.06);
     --art-op: 0.16;
+  }
+
+  /* Invite men — violet. Not one of the three moods: this flow is her own DMs
+     being screened, so it gets its own colour, distinct from all of them and
+     still inside the brand family (violet is pink's neighbour). */
+  .refer[data-skin='men'] {
+    --bg-1: #f3f0fb;
+    --bg-2: #ffffff;
+    --bg-3: #e7e1f8;
+    --text-1: #17102a;
+    --text-2: #605771;
+    --text-3: #978da9;
+    --text-4: #b3a9c2;
+    --border-1: #e4ddf4;
+    --border-2: #d5caec;
+    --accent: #6c4bc7;
+    --accent-bright: #56349f;
+    --accent-dim: #e9e2fb;
+    --accent-tint: rgba(108, 75, 199, 0.12);
+    --earn-a: #fbf8ff;
+    --earn-b: #e9e2fb;
+    --earn-edge: #e9e2fb;
+    --art-op: 0.075;
   }
 
   /* Serious — dusty rose quartz, pulled well off the riteangle hot pink so it

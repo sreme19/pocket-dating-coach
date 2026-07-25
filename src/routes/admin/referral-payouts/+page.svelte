@@ -10,6 +10,8 @@
 		amountInr: number;
 		tierRate: number;
 		rewardIndex: number;
+		/** Which flow earned it — 'woman' (invite women) or 'man' (invite men). */
+		track: 'woman' | 'man';
 		status: string;
 		mood: string | null;
 		createdAt: string;
@@ -78,9 +80,11 @@
 	<div class="mx-auto max-w-5xl">
 		<h1 class="text-xl font-bold text-white">Referral payouts</h1>
 		<p class="mt-1 text-sm text-slate-400">
-			Cash owed to women who invited other women (Flow 2). A reward becomes payable once the invited
-			woman completes verification. Pay it manually via UPI/bank, then mark it paid here — this page
-			never moves money.
+			Cash owed on both referral flows — <b class="text-pink-300">women</b> (₹100 for #1-25, then ₹150,
+			cap 100) and <b class="text-violet-300">men</b> (flat ₹25, cap 1000). The two caps and tiers are
+			counted separately, so a men reward never consumes a women slot. A reward becomes payable once
+			the invited person completes verification. Pay it manually via UPI/bank, then mark it paid here —
+			this page never moves money.
 		</p>
 
 		<!-- Summary -->
@@ -103,7 +107,7 @@
 		<section class="mt-8">
 			<h2 class="text-sm font-semibold text-white">Ledger ({rows.length})</h2>
 			{#if rows.length === 0}
-				<p class="mt-2 text-sm text-slate-500">No woman-to-woman referrals have been earned yet.</p>
+				<p class="mt-2 text-sm text-slate-500">No referral rewards have been earned yet.</p>
 			{:else}
 				<div class="mt-3 overflow-x-auto rounded-lg border border-white/[0.08]">
 					<table class="w-full text-left text-sm">
@@ -111,6 +115,7 @@
 							<tr>
 								<th class="px-4 py-2.5">Referrer</th>
 								<th class="px-4 py-2.5">Invited</th>
+								<th class="px-4 py-2.5">Flow</th>
 								<th class="px-4 py-2.5">#</th>
 								<th class="px-4 py-2.5">Amount</th>
 								<th class="px-4 py-2.5">Mood</th>
@@ -124,6 +129,17 @@
 								<tr>
 									<td class="px-4 py-2.5 text-slate-200">{r.referrerName}</td>
 									<td class="px-4 py-2.5 text-slate-300">{r.referredName}</td>
+									<td class="px-4 py-2.5">
+										{#if r.track === 'man'}
+											<span class="rounded-full bg-violet-500/15 px-2 py-0.5 text-xs text-violet-300" title="Invite men — flat ₹25, cap 1000">
+												men
+											</span>
+										{:else}
+											<span class="rounded-full bg-pink-500/15 px-2 py-0.5 text-xs text-pink-300" title="Invite women — ₹100 for #1-25 then ₹150, cap 100">
+												women
+											</span>
+										{/if}
+									</td>
 									<td class="px-4 py-2.5 text-slate-400">{r.rewardIndex}</td>
 									<td class="px-4 py-2.5 font-medium text-slate-100">₹{r.amountInr}</td>
 									<td class="px-4 py-2.5 text-slate-400">{r.mood ?? '—'}</td>
@@ -137,7 +153,10 @@
 												<div class="mt-0.5 text-xs text-slate-500">ref: {r.payoutRef}</div>
 											{/if}
 										{:else if r.status === 'void'}
-											<span class="rounded-full bg-slate-500/15 px-2 py-0.5 text-xs text-slate-400" title="Over the 100 cap — no payout.">
+											<span
+												class="rounded-full bg-slate-500/15 px-2 py-0.5 text-xs text-slate-400"
+												title="Over this flow's cap ({r.track === 'man' ? 1000 : 100}) — no payout."
+											>
 												void (over cap)
 											</span>
 										{:else}

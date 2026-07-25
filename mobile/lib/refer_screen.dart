@@ -34,14 +34,18 @@ import 'season.dart';
 /// WhatsApp keeps its `wa.me?text=` pre-fill — strictly better, and it sits in
 /// the minor row so the two behaviours never read as siblings.
 ///
-/// MOOD SKINS — on the Invite women flow the whole screen repaints to match the
-/// mood she picked: teal for Networking, warm black for Casual, dusty rose for
-/// Serious (see [_Skin]). Purely cosmetic — it does not touch matching, and it
-/// is NOT the Networking Season flag even though Networking borrows the same
-/// teal so that teal keeps meaning one thing to a user. Invite men has no mood,
-/// so it keeps the app accent (and still follows Networking Season via [Brand]).
-/// The channel buttons are the one thing a skin never touches: their colours are
-/// promises about where the tap lands.
+/// SKINS — the whole screen repaints per flow (see [_Skin]): Invite women takes
+/// the mood she picked (teal Networking / warm-black Casual / dusty-rose Serious)
+/// and Invite men gets its own violet, since it has no mood. Purely cosmetic — it
+/// does not touch matching, and it is NOT the Networking Season flag even though
+/// Networking borrows the same teal so that teal keeps meaning one thing to a
+/// user. The channel buttons are the one thing a skin never touches: their
+/// colours are promises about where the tap lands.
+///
+/// CASH — both flows pay, on SEPARATE ledger tracks (see beta-invite.ts):
+/// invite women = ₹100 for #1-25 then ₹150, cap 100; invite men = flat ₹25, cap
+/// 1000. [ReferralLink.cash] and [ReferralLink.menCash] are summed per track and
+/// must never be added into one balance.
 ///
 /// House style: display strings use DOUBLE quotes so straight apostrophes
 /// ("I've", "don't", "you're", "she'll") are safe without escaping. No curly quotes.
@@ -62,7 +66,7 @@ enum _Mood { networking, casual, serious }
 enum _Channel { instagram, snapchat, whatsapp, more }
 
 /// Background line art drawn behind a skin's content.
-enum _Motif { none, mesh, ribbons, rings }
+enum _Motif { none, mesh, ribbons, rings, facets }
 
 /// The full token set for one skin.
 ///
@@ -197,6 +201,29 @@ class _Skin {
     dark: false,
   );
 
+  /// Invite men — violet. Not one of the three moods: this flow is her own DMs
+  /// being screened, so it gets its own colour, distinct from all of them and
+  /// still inside the brand family (violet is pink's neighbour).
+  static const suitors = _Skin(
+    page: Color(0xFFF3F0FB),
+    card: Color(0xFFFFFFFF),
+    fill: Color(0xFFE7E1F8),
+    accent: Color(0xFF6C4BC7),
+    accentText: Color(0xFF56349F),
+    tint: Color(0xFFE9E2FB),
+    border1: Color(0xFFE4DDF4),
+    border2: Color(0xFFD5CAEC),
+    text1: Color(0xFF17102A),
+    text2: Color(0xFF605771),
+    text3: Color(0xFF978DA9),
+    earnFrom: Color(0xFFFBF8FF),
+    earnTo: Color(0xFFE9E2FB),
+    ctaText: Colors.white,
+    motif: _Motif.facets,
+    artOpacity: 0.075,
+    dark: false,
+  );
+
   static _Skin forMood(_Mood m) {
     switch (m) {
       case _Mood.networking:
@@ -230,7 +257,8 @@ class _ReferScreenState extends State<ReferScreen> {
   _Tab _tab = _Tab.women;
   _Mood _mood = _Mood.networking;
   ReferralLink? _link;
-  ReferralCash? _cash;
+  ReferralCash? _cash; // women track (₹100/₹150, cap 100)
+  ReferralCash? _menCash; // men track (flat ₹25, cap 1000)
   String? _gender;
   int _invited = 0;
   int _signedUp = 0;
@@ -273,6 +301,7 @@ class _ReferScreenState extends State<ReferScreen> {
       setState(() {
         _link = link;
         _cash = link.cash;
+        _menCash = link.menCash;
         _gender = link.gender;
         _invited = link.invited;
         _signedUp = link.signedUp;
@@ -287,11 +316,15 @@ class _ReferScreenState extends State<ReferScreen> {
     }
   }
 
-  /// Invite men has no mood, so it keeps the app accent. The loading / denied /
-  /// error states do too, so the screen never flashes a skin before we know
-  /// which flow she is even on.
   bool get _showMen => _gender == 'woman' && _tab == _Tab.men;
-  bool get _skinned => _view == _View.ready && !_showMen;
+
+  /// Invite men gets the violet [_Skin.suitors]; Invite women gets her mood. The
+  /// loading / denied / error states keep the app accent, so the screen never
+  /// flashes a skin before we know which flow she is even on.
+  _Skin get _activeSkin {
+    if (_view != _View.ready) return _Skin.appDefault();
+    return _showMen ? _Skin.suitors : _Skin.forMood(_mood);
+  }
 
   // ── Invite men copy ──────────────────────────────────────────────────────
   String _messageFor(String url) =>
@@ -424,7 +457,7 @@ class _ReferScreenState extends State<ReferScreen> {
 
   @override
   Widget build(BuildContext context) {
-    _s = _skinned ? _Skin.forMood(_mood) : _Skin.appDefault();
+    _s = _activeSkin;
 
     // Casual is a dark ground, so the OS status-bar icons have to flip to light.
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -540,6 +573,7 @@ class _ReferScreenState extends State<ReferScreen> {
 
   // ── Invite men (Flow 1) ──────────────────────────────────────────────────
   List<Widget> _menChildren() {
+    final mc = _menCash;
     return [
       Text('Turn your DMs into dates.',
           style: TextStyle(
@@ -556,9 +590,19 @@ class _ReferScreenState extends State<ReferScreen> {
         "Hundreds of guys sliding into your DMs on Instagram, WhatsApp and Tinder? "
         "Most are creeps 🙄 but a few are genuine, successful, even high-earning. "
         "You don't have the time to text them all. So send them your link: your Bestie "
-        "talks to every one of them, ranks them, and brings you only the ones worth your time.",
+        "talks to every one of them, ranks them, and brings you only the ones worth your time. "
+        "You earn ₹${mc?.currentTier ?? 25} for every guy who joins and gets verified.",
         style: TextStyle(fontSize: 14.5, color: _s.text2, height: 1.55),
       ),
+      const SizedBox(height: 20),
+      _earnCard(
+        c: mc,
+        earnedLabel: 'earned from the guys',
+        perLabel: 'per guy who verifies',
+        pendingTail: "sent to your UPI once he's verified",
+      ),
+      const SizedBox(height: 16),
+      _capBar(mc),
       const SizedBox(height: 22),
       _step(1, 'Share your link with the guys already chasing you.'),
       const SizedBox(height: 10),
@@ -602,9 +646,15 @@ class _ReferScreenState extends State<ReferScreen> {
       ),
       if (isMan) ...[const SizedBox(height: 12), _upsideBanner()],
       const SizedBox(height: 20),
-      _earnCard(),
+      _earnCard(
+        c: c,
+        earnedLabel: 'earned so far',
+        perLabel: 'per friend',
+        pendingTail: "sent to your UPI once she's verified",
+        firstTierNote: true,
+      ),
       const SizedBox(height: 16),
-      _capBar(),
+      _capBar(c),
       const SizedBox(height: 22),
       Text('HOW DO YOU WANT TO WORD IT?',
           style: TextStyle(
@@ -639,8 +689,15 @@ class _ReferScreenState extends State<ReferScreen> {
     );
   }
 
-  Widget _earnCard() {
-    final c = _cash;
+  /// Shared by both cash tracks — [c] is that track's ledger summary, so the
+  /// rate, cap and copy all come from it rather than being hardcoded here.
+  Widget _earnCard({
+    required ReferralCash? c,
+    required String earnedLabel,
+    required String perLabel,
+    required String pendingTail,
+    bool firstTierNote = false,
+  }) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 260),
       width: double.infinity,
@@ -664,8 +721,10 @@ class _ReferScreenState extends State<ReferScreen> {
               Text("₹${c?.earnedInr ?? 0}",
                   style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _s.text1)),
               const SizedBox(width: 8),
-              Text("earned so far",
-                  style: TextStyle(fontSize: 13, color: _s.text2, fontWeight: FontWeight.w600)),
+              Expanded(
+                child: Text(earnedLabel,
+                    style: TextStyle(fontSize: 13, color: _s.text2, fontWeight: FontWeight.w600)),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -678,13 +737,14 @@ class _ReferScreenState extends State<ReferScreen> {
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
-              "🎉 ₹${c?.currentTier ?? 100} per friend${(c?.verifiedCount ?? 0) < 25 ? ' · first 25' : ''}",
+              "🎉 ₹${c?.currentTier ?? 0} $perLabel"
+              "${firstTierNote && (c?.verifiedCount ?? 0) < 25 ? ' · first 25' : ''}",
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _s.accentText),
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            "₹${c?.pendingInr ?? 0} pending · ₹${c?.paidInr ?? 0} paid · sent to your UPI once she's verified",
+            "₹${c?.pendingInr ?? 0} pending · ₹${c?.paidInr ?? 0} paid · $pendingTail",
             style: TextStyle(fontSize: 12, color: _s.text2),
           ),
         ],
@@ -692,8 +752,7 @@ class _ReferScreenState extends State<ReferScreen> {
     );
   }
 
-  Widget _capBar() {
-    final c = _cash;
+  Widget _capBar(ReferralCash? c) {
     final pct = (c == null || c.cap == 0) ? 0.0 : (c.verifiedCount / c.cap).clamp(0.0, 1.0);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -703,7 +762,7 @@ class _ReferScreenState extends State<ReferScreen> {
           children: [
             Text("Rewarded invites",
                 style: TextStyle(fontSize: 12, color: _s.text2, fontWeight: FontWeight.w600)),
-            Text("${c?.verifiedCount ?? 0} / ${c?.cap ?? 100}",
+            Text("${c?.verifiedCount ?? 0} / ${c?.cap ?? 0}",
                 style: TextStyle(fontSize: 12, color: _s.text2, fontWeight: FontWeight.w600)),
           ],
         ),
@@ -1208,8 +1267,22 @@ class _SkinArtPainter extends CustomPainter {
         _rings(canvas, size, k, paint);
       case _Motif.mesh:
         _mesh(canvas, size, k, paint);
+      case _Motif.facets:
+        _facets(canvas, size, k, paint);
       case _Motif.none:
         break;
+    }
+  }
+
+  /// Invite men — a diamond lattice: the gems she is left with once her Bestie
+  /// has screened the DMs. Two families of diagonals, nothing more.
+  void _facets(Canvas canvas, Size size, double k, Paint paint) {
+    paint.strokeWidth = 0.7 * k;
+    final step = 46 * k;
+    final h = size.height;
+    for (var x = -h; x < size.width + h; x += step) {
+      canvas.drawLine(Offset(x, 0), Offset(x + h, h), paint);
+      canvas.drawLine(Offset(x, 0), Offset(x - h, h), paint);
     }
   }
 
