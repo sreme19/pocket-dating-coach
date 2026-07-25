@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'api.dart';
 import 'app_logger.dart';
@@ -7,7 +8,9 @@ import 'config.dart';
 import 'season.dart';
 
 /// Refer & Earn — one entry, two flows (toggle), in LOCKSTEP with the web screen
-/// src/routes/verified-vibe/refer/+page.svelte:
+/// src/routes/verified-vibe/refer/+page.svelte, EXCEPT the share row: the
+/// DM-first channel block below has not been ported to web yet, which still has
+/// the WhatsApp-primary row. Copy and flows stay in lockstep; keep them so.
 ///
 ///  - Invite women (Flow 2, Model B): CASH ambassador referral. She earns ₹100
 ///    per verified woman she brings (#1-25), then ₹150 (#26-100), cap 100. A
@@ -17,6 +20,17 @@ import 'season.dart';
 ///    her DMs and hands her the gems.
 ///
 /// Data comes from GET /api/verified-vibe/referral-link (see api.dart).
+///
+/// SHARE ROW — DM-first ordering. Instagram and Snapchat lead, WhatsApp and the
+/// OS share sheet sit in a minor row beneath them. Neither Instagram nor
+/// Snapchat can be handed a pre-filled message from outside their app (no public
+/// URL scheme or API does it), so those two buttons copy the message and then
+/// deep-link in, and she pastes. That is not a degraded path here: she is
+/// pasting the same message into twenty DMs in a row, so one copy serves the
+/// whole blast and she never has to come back between DMs. Hence [_copiedFor]
+/// is a PERSISTENT state chip, not the 1.6s "Copied ✓" flash used for the link.
+/// WhatsApp keeps its `wa.me?text=` pre-fill — strictly better, and it sits in
+/// the minor row so the two behaviours never read as siblings.
 ///
 /// House style: display strings use DOUBLE quotes so straight apostrophes
 /// ("I've", "don't", "you're", "she'll") are safe without escaping. No curly quotes.
@@ -33,9 +47,23 @@ enum _Tab { women, men }
 
 enum _Mood { networking, casual, serious }
 
+/// Where she is sending it. Order here is the order on screen.
+enum _Channel { instagram, snapchat, whatsapp, more }
+
 class _ReferScreenState extends State<ReferScreen> {
   static const _border1 = Color(0xFFF1E0E3);
   static const _border2 = Color(0xFFE7D2D7);
+
+  // Channel brand colours — the one place in the app that isn't riteangle pink,
+  // because these buttons are promises about where the tap lands.
+  static const _snapYellow = Color(0xFFFFFC00);
+  static const _waGreen = Color(0xFF25D366);
+  static const _igGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFFFEDA75), Color(0xFFFA7E1E), Color(0xFFD62976), Color(0xFF962FBF), Color(0xFF4F5BD5)],
+    stops: [0.0, 0.24, 0.58, 0.82, 1.0],
+  );
 
   _View _view = _View.loading;
   _Tab _tab = _Tab.women;
@@ -47,6 +75,15 @@ class _ReferScreenState extends State<ReferScreen> {
   int _signedUp = 0;
   bool _copiedLink = false;
   bool _copiedMsg = false;
+
+  /// The channel she last copied for, or null if she hasn't tapped one yet.
+  /// Deliberately never auto-cleared — it has to survive her leaving for
+  /// Instagram and coming back mid-blast.
+  _Channel? _copiedFor;
+
+  /// Set when the deep link wouldn't open, so the chip can say why instead of
+  /// leaving her staring at a screen that did nothing visible.
+  bool _appMissing = false;
   final _msg = TextEditingController(); // Invite men
   final _womenMsg = TextEditingController(); // Invite women
 
@@ -141,12 +178,56 @@ class _ReferScreenState extends State<ReferScreen> {
     });
   }
 
-  String get _prettyUrl => (_link?.shareUrl ?? '').replaceFirst(RegExp(r'^https?://'), '');
+  // ── Sharing ──────────────────────────────────────────────────────────────
+  static const _channelEvent = {
+    _Channel.instagram: 'share_instagram',
+    _Channel.snapchat: 'share_snapchat',
+    _Channel.whatsapp: 'share_whatsapp',
+    _Channel.more: 'share_more',
+  };
 
-  Future<void> _shareWhatsApp(String text) async {
-    AppLogger.instance.action('refer', 'share_whatsapp');
-    final uri = Uri.parse('https://wa.me/?text=${Uri.encodeComponent(text)}');
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  /// Deep links for the copy-and-paste channels. Both are undocumented:
+  /// `instagram://direct-inbox` lands on her DM list, `snapchat://` only gets as
+  /// far as the camera (Snapchat exposes no chat deep link). Verify both on real
+  /// handsets — neither is a contract.
+  static const _channelScheme = {
+    _Channel.instagram: 'instagram://direct-inbox',
+    _Channel.snapchat: 'snapchat://',
+  };
+
+  Future<void> _shareVia(_Channel c, String text) async {
+    AppLogger.instance.action('refer', _channelEvent[c]!);
+
+    if (c == _Channel.whatsapp) {
+      final uri = Uri.parse('https://wa.me/?text=${Uri.encodeComponent(text)}');
+      await _open(uri);
+      return;
+    }
+
+    if (c == _Channel.more) {
+      await SharePlus.instance.share(ShareParams(text: text));
+      return;
+    }
+
+    // Instagram / Snapchat: the message can only travel on the clipboard.
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    setState(() {
+      _copiedFor = c;
+      _appMissing = false;
+    });
+    final opened = await _open(Uri.parse(_channelScheme[c]!));
+    if (!opened && mounted) setState(() => _appMissing = true);
+  }
+
+  /// launchUrl throws rather than returning false when nothing can handle the
+  /// scheme, so both outcomes have to collapse to one bool.
+  Future<bool> _open(Uri uri) async {
+    try {
+      return await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      return false;
+    }
   }
 
   void _copy(String text, {required bool isLink}) {
@@ -299,18 +380,13 @@ class _ReferScreenState extends State<ReferScreen> {
       const SizedBox(height: 10),
       _step(3, 'The best ones get handed straight to you. You only meet the gems.'),
       const SizedBox(height: 22),
-      _linkCard(),
-      const SizedBox(height: 12),
-      _shareRow(
-        onShare: () => _shareWhatsApp(_msg.text),
-        onCopyLink: () => _copy(_link?.shareUrl ?? '', isLink: true),
-      ),
-      const SizedBox(height: 22),
       _messageBlock(
         controller: _msg,
-        label: 'WHAT LANDS IN HIS DM',
+        label: "WHAT YOU'RE SENDING",
         hint: 'Edit it to sound like you before you send.',
       ),
+      const SizedBox(height: 14),
+      ..._channelBlock(message: () => _msg.text, link: _link?.shareUrl ?? ''),
       const SizedBox(height: 22),
       _statusLine(),
     ];
@@ -350,16 +426,13 @@ class _ReferScreenState extends State<ReferScreen> {
       const SizedBox(height: 8),
       _moodChips(),
       const SizedBox(height: 20),
-      _shareRow(
-        onShare: () => _shareWhatsApp(_womenMsg.text),
-        onCopyLink: () => _copy(_womenLink(_mood), isLink: true),
-      ),
-      const SizedBox(height: 22),
       _messageBlock(
         controller: _womenMsg,
         label: "WHAT SHE'LL SEE",
         hint: 'Each mood also sends her to a matching page. Edit before you send.',
       ),
+      const SizedBox(height: 14),
+      ..._channelBlock(message: () => _womenMsg.text, link: _womenLink(_mood)),
     ];
   }
 
@@ -526,76 +599,267 @@ class _ReferScreenState extends State<ReferScreen> {
     );
   }
 
-  Widget _linkCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Brand.accentTint,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Brand.accent),
+  // ── Channel block (DM-first) ─────────────────────────────────────────────
+  /// [message] is a getter, not a value, so the buttons always send whatever is
+  /// in the text field at tap time rather than whatever it held at build time.
+  List<Widget> _channelBlock({required String Function() message, required String link}) {
+    return [
+      _copyChip(),
+      const SizedBox(height: 10),
+      _bigChannel(
+        channel: _Channel.instagram,
+        name: 'Instagram DMs',
+        sub: 'copy & open · paste into each chat',
+        gradient: _igGradient,
+        fg: Colors.white,
+        glyphBg: Colors.white.withValues(alpha: 0.22),
+        glyph: _igGlyph(Colors.white, 17),
+        onTap: () => _shareVia(_Channel.instagram, message()),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      const SizedBox(height: 8),
+      _bigChannel(
+        channel: _Channel.snapchat,
+        name: 'Snapchat',
+        sub: 'copy & open · paste into each chat',
+        color: _snapYellow,
+        fg: const Color(Config.text1),
+        glyphBg: const Color(Config.text1).withValues(alpha: 0.10),
+        glyph: _snapGlyph(const Color(Config.text1), 18),
+        onTap: () => _shareVia(_Channel.snapchat, message()),
+      ),
+      const SizedBox(height: 8),
+      Row(
         children: [
-          Text('YOUR LINK',
-              style: TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.0, color: Brand.accentBright)),
-          const SizedBox(height: 3),
-          Text(_prettyUrl,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+          Expanded(
+            child: _minorChannel(
+              name: 'WhatsApp',
+              glyphBg: _waGreen,
+              glyph: const Icon(Icons.call_rounded, size: 13, color: Colors.white),
+              onTap: () => _shareVia(_Channel.whatsapp, message()),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _minorChannel(
+              name: 'More',
+              glyphBg: const Color(Config.bg3),
+              glyph: const Icon(Icons.more_horiz_rounded, size: 14, color: Color(Config.text2)),
+              onTap: () => _shareVia(_Channel.more, message()),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      _linkStrip(link),
+    ];
+  }
+
+  /// Two states, both persistent: what will happen, then what did. The link's
+  /// own "Copied ✓" still flashes and clears — that one is a receipt, this one
+  /// is an instruction she may need after backgrounding the app.
+  Widget _copyChip() {
+    final copied = _copiedFor;
+    if (copied == null) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+        decoration: BoxDecoration(
+          color: const Color(Config.bg3),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.content_copy_rounded, size: 13, color: Color(Config.text2)),
+            SizedBox(width: 8),
+            Flexible(
+              child: Text("Tap an app below — we'll copy this first",
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(Config.text2))),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final app = copied == _Channel.instagram ? 'Instagram' : 'Snapchat';
+    final text = _appMissing
+        ? "Copied — $app isn't installed. Paste it wherever you like."
+        : (copied == _Channel.instagram
+            ? 'Copied. Long-press the DM box and paste.'
+            : 'Copied. Open Chat, long-press, paste.');
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+      decoration: BoxDecoration(
+        color: const Color(0xFF241A1E),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(_appMissing ? Icons.info_outline_rounded : Icons.check_rounded,
+              size: 14, color: _appMissing ? Colors.white70 : const Color(0xFF6EE7A8)),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(text,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+          ),
         ],
       ),
     );
   }
 
-  Widget _shareRow({required VoidCallback onShare, required VoidCallback onCopyLink}) {
-    return Row(
-      children: [
-        Expanded(child: _filledBtn(onTap: onShare, icon: Icons.send_rounded, label: 'Share on WhatsApp')),
-        const SizedBox(width: 8),
-        _outlinedBtn(onTap: onCopyLink, label: _copiedLink ? 'Copied ✓' : 'Copy link'),
-      ],
-    );
-  }
-
-  Widget _filledBtn({required VoidCallback onTap, required IconData icon, required String label}) {
+  Widget _bigChannel({
+    required _Channel channel,
+    required String name,
+    required String sub,
+    required Color fg,
+    required Color glyphBg,
+    required Widget glyph,
+    required VoidCallback onTap,
+    Color? color,
+    Gradient? gradient,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 48,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(color: Brand.accent, borderRadius: BorderRadius.circular(12)),
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          color: color,
+          gradient: gradient,
+          borderRadius: BorderRadius.circular(14),
+        ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 18, color: Colors.white),
-            const SizedBox(width: 8),
-            Text(label,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
+            Container(
+              width: 30,
+              height: 30,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: glyphBg, borderRadius: BorderRadius.circular(9)),
+              child: glyph,
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name,
+                      style: TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w800, color: fg, letterSpacing: -0.1)),
+                  const SizedBox(height: 1),
+                  Text(sub,
+                      style: TextStyle(
+                          fontSize: 10.5, fontWeight: FontWeight.w600, color: fg.withValues(alpha: 0.78))),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, size: 20, color: fg.withValues(alpha: 0.8)),
           ],
         ),
       ),
     );
   }
 
-  Widget _outlinedBtn({required VoidCallback onTap, required String label}) {
+  Widget _minorChannel({
+    required String name,
+    required Color glyphBg,
+    required Widget glyph,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
         decoration: BoxDecoration(
           color: const Color(Config.bg2),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: _border2),
         ),
-        child: Text(label,
-            style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700, fontSize: 14)),
+        child: Row(
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: glyphBg, borderRadius: BorderRadius.circular(7)),
+              child: glyph,
+            ),
+            const SizedBox(width: 9),
+            Flexible(
+              child: Text(name,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  /// The link on its own, for anywhere the message doesn't fit — a bio, a story
+  /// sticker, a comment.
+  Widget _linkStrip(String link) {
+    return GestureDetector(
+      onTap: () => _copy(link, isLink: true),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        decoration: BoxDecoration(
+          color: Brand.accentTint,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Brand.accent),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(link.replaceFirst(RegExp(r'^https?://'), ''),
+                  style: const TextStyle(
+                      fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+            ),
+            const SizedBox(width: 8),
+            Text(_copiedLink ? 'Copied ✓' : 'Copy link',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Brand.accentBright)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Channel glyphs ───────────────────────────────────────────────────────
+  Widget _igGlyph(Color c, double size) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: c, width: 1.7),
+              borderRadius: BorderRadius.circular(size * 0.28),
+            ),
+          ),
+          Container(
+            width: size * 0.44,
+            height: size * 0.44,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: c, width: 1.7),
+            ),
+          ),
+          Positioned(
+            top: size * 0.19,
+            right: size * 0.19,
+            child: Container(width: size * 0.12, height: size * 0.12,
+                decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _snapGlyph(Color c, double size) =>
+      SizedBox(width: size, height: size, child: CustomPaint(painter: _GhostPainter(c)));
 
   Widget _messageBlock({
     required TextEditingController controller,
@@ -684,4 +948,33 @@ class _ReferScreenState extends State<ReferScreen> {
       ],
     );
   }
+}
+
+/// Snapchat's ghost, drawn rather than shipped as an asset — a dome with a
+/// three-scallop hem, on a 24x24 grid scaled to fit.
+class _GhostPainter extends CustomPainter {
+  const _GhostPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width / 24.0;
+    final p = Path()
+      ..moveTo(5 * s, 18 * s)
+      ..lineTo(5 * s, 10 * s)
+      ..cubicTo(5 * s, 5.6 * s, 8.1 * s, 2.6 * s, 12 * s, 2.6 * s)
+      ..cubicTo(15.9 * s, 2.6 * s, 19 * s, 5.6 * s, 19 * s, 10 * s)
+      ..lineTo(19 * s, 18 * s)
+      ..cubicTo(19 * s, 19.5 * s, 17.6 * s, 20 * s, 16.7 * s, 19.1 * s)
+      ..cubicTo(15.9 * s, 18.3 * s, 14.7 * s, 18.3 * s, 13.9 * s, 19.1 * s)
+      ..cubicTo(13 * s, 20 * s, 11.6 * s, 20 * s, 10.7 * s, 19.1 * s)
+      ..cubicTo(9.9 * s, 18.3 * s, 8.7 * s, 18.3 * s, 7.9 * s, 19.1 * s)
+      ..cubicTo(7 * s, 20 * s, 5 * s, 19.5 * s, 5 * s, 18 * s)
+      ..close();
+    canvas.drawPath(p, Paint()..color = color..style = PaintingStyle.fill);
+  }
+
+  @override
+  bool shouldRepaint(_GhostPainter old) => old.color != color;
 }
