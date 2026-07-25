@@ -11,6 +11,13 @@
    *
    * Data comes from GET /api/verified-vibe/referral-link (client-side; the token
    * lives in the client Supabase session, there is no cookie session).
+   *
+   * MOOD SKINS: on the Invite women flow the whole screen repaints to match the
+   * mood she picked — teal for Networking, warm black for Casual, dusty rose for
+   * Serious. Purely cosmetic: it does not touch matching, and it is NOT the
+   * Networking Season flag even though Networking borrows the same teal so that
+   * teal keeps meaning one thing to a user. Invite men has no mood, so it keeps
+   * the app accent. Kept in lockstep with mobile/lib/refer_screen.dart.
    */
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
@@ -129,9 +136,72 @@
 
   const prettyUrl = $derived(shareUrl.replace(/^https?:\/\//, ''));
   const capPct = $derived(cash ? Math.min(100, (cash.verifiedCount / cash.cap) * 100) : 0);
+
+  // ── Mood skin ───────────────────────────────────────────────────────────────
+  // 'app' keeps the riteangle accent (and so still follows Networking Season via
+  // the layout tokens). Invite men has no mood, so it stays on 'app'.
+  const skin = $derived(tab === 'men' ? 'app' : mood);
+
+  /// Background line art per skin — one flat colour at low opacity, drawn against
+  /// a 340x1200 reference box that `slice` scales to cover the page. Geometry is
+  /// mirrored by _SkinArtPainter in the Flutter screen.
+  type Art = {
+    paths: { d: string; w: number }[];
+    circles: { cx: number; cy: number; r: number }[];
+    lines: { x1: number; y1: number; x2: number; y2: number }[];
+    dots: { cx: number; cy: number }[];
+  };
+  const W = 340;
+  const H = 1200;
+
+  function buildArt(m: Mood | 'app'): Art {
+    const art: Art = { paths: [], circles: [], lines: [], dots: [] };
+
+    if (m === 'casual') {
+      // Silk ribbons: long lazy sine sweeps drifting down the page.
+      for (let i = 0; i < 13; i++) {
+        const y0 = -80 + i * 106;
+        const amp = 52 + (i % 4) * 24;
+        const phase = i * 0.68;
+        let d = '';
+        for (let x = -30; x <= W + 30; x += 20) {
+          const y = y0 + Math.sin(x / 112 + phase) * amp + x * 0.16;
+          d += `${d ? ' L' : 'M'} ${x} ${y.toFixed(1)}`;
+        }
+        art.paths.push({ d, w: 1 + (i % 3) * 0.45 });
+      }
+    } else if (m === 'serious') {
+      // Concentric rings, centres pushed off-canvas — the 💍, barely there.
+      const centres = [
+        { cx: 305, cy: 120 },
+        { cx: 35, cy: 540 },
+        { cx: 260, cy: 980 },
+      ];
+      for (const c of centres) {
+        for (let r = 40; r < 260; r += 19) art.circles.push({ cx: c.cx, cy: c.cy, r });
+      }
+    } else if (m === 'networking') {
+      // Scattered nodes joined to their near neighbours. A fixed seed keeps the
+      // mesh stable across re-renders instead of reshuffling on every keystroke.
+      let seed = 7;
+      const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+      const pts: [number, number][] = [];
+      for (let i = 0; i < 62; i++) pts.push([rnd() * W, rnd() * H]);
+      pts.forEach(([x1, y1], i) => {
+        for (const [x2, y2] of pts.slice(i + 1)) {
+          if (Math.hypot(x2 - x1, y2 - y1) < 118) art.lines.push({ x1, y1, x2, y2 });
+        }
+        art.dots.push({ cx: x1, cy: y1 });
+      });
+    }
+
+    return art;
+  }
+
+  const art = $derived(buildArt(skin));
 </script>
 
-<div class="refer">
+<div class="refer" data-skin={skin}>
   <header class="bar">
     <button class="back" onclick={() => goto('/verified-vibe/profile')} aria-label="Back to profile">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -155,6 +225,25 @@
     </div>
   {:else}
     <div class="body" in:fade={{ duration: 200 }}>
+      <!-- .sheet spans the full scroll height, so the art layer can cover it. -->
+      <div class="sheet">
+        <div class="art" aria-hidden="true">
+          <svg viewBox="0 0 {W} {H}" preserveAspectRatio="xMidYMin slice">
+            {#each art.lines as l (`${l.x1}-${l.y1}-${l.x2}-${l.y2}`)}
+              <line x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke="currentColor" stroke-width="0.7" />
+            {/each}
+            {#each art.dots as d (`${d.cx}-${d.cy}`)}
+              <circle cx={d.cx} cy={d.cy} r="2.1" fill="currentColor" />
+            {/each}
+            {#each art.circles as c (`${c.cx}-${c.cy}-${c.r}`)}
+              <circle cx={c.cx} cy={c.cy} r={c.r} fill="none" stroke="currentColor" stroke-width="0.9" />
+            {/each}
+            {#each art.paths as p (p.d)}
+              <path d={p.d} fill="none" stroke="currentColor" stroke-width={p.w} stroke-linecap="round" />
+            {/each}
+          </svg>
+        </div>
+
       {#if gender === 'woman'}
         <div class="toggle">
           <button class:on={tab === 'women'} onclick={() => (tab = 'women')}>Invite women</button>
@@ -282,6 +371,7 @@
           <p class="hint">Each mood also sends her to a matching page. Edit before you send.</p>
         </div>
       {/if}
+      </div>
     </div>
   {/if}
 </div>
@@ -294,7 +384,110 @@
     background: var(--bg-1);
     color: var(--text-1);
     font-family: var(--font-serif);
+    transition: background-color 0.26s ease, color 0.26s ease;
+
+    /* Skin-only tokens. The default keeps today's look; each skin below
+       redefines these plus the layout tokens it needs to move. */
+    --earn-a: #fff6e8;
+    --earn-b: var(--accent-dim);
+    --earn-edge: var(--accent-dim);
+    --cta-txt: #fff;
+    --tier-bg: var(--bg-2);
+    --art-op: 0;
   }
+
+  /* ── Mood skins ──────────────────────────────────────────────────────────
+     A skin is NOT a single accent swap: Casual inverts the surface and text
+     ramps, and its --accent-bright has to be LIGHTER than --accent (the
+     opposite of both light skins) or the sublines and "Copy message" fall
+     below contrast on the black ground. */
+
+  /* Networking — the shipped Networking Season teal, reused. */
+  .refer[data-skin='networking'] {
+    --bg-1: #edf6f7;
+    --bg-2: #ffffff;
+    --bg-3: #ddeef0;
+    --text-1: #0c1f23;
+    --text-2: #5a7075;
+    --text-3: #8ca5a9;
+    --text-4: #a9bfc2;
+    --border-1: #d7e9eb;
+    --border-2: #c3dde1;
+    --accent: #0e9aae;
+    --accent-bright: #0a7c8c;
+    --accent-dim: #e1f4f6;
+    --accent-tint: rgba(14, 154, 174, 0.12);
+    --earn-a: #f4fbfc;
+    --earn-b: #e1f4f6;
+    --earn-edge: #e1f4f6;
+    --art-op: 0.085;
+  }
+
+  /* Casual — warm black with rose gold. Not pure black, and not a neon accent:
+     on black, saturated pink reads nightclub while gold reads low light. */
+  .refer[data-skin='casual'] {
+    --bg-1: #0d0a0c;
+    --bg-2: #171013;
+    --bg-3: #211619;
+    --text-1: #f7eeeb;
+    --text-2: #b8a3a5;
+    --text-3: #8b7478;
+    --text-4: #6d5a5e;
+    --border-1: #291d21;
+    --border-2: #3b292f;
+    --accent: #e3a07a;
+    --accent-bright: #f0bc98;
+    --accent-dim: #241619;
+    --accent-tint: rgba(227, 160, 122, 0.14);
+    --earn-a: #2a151e;
+    --earn-b: #170f12;
+    --earn-edge: #3b292f;
+    --cta-txt: #140d10;
+    /* A solid card fill here would read as a second card stacked on the earn
+       card; a translucent white lifts off the gradient instead. */
+    --tier-bg: rgba(255, 255, 255, 0.06);
+    --art-op: 0.16;
+  }
+
+  /* Serious — dusty rose quartz, pulled well off the riteangle hot pink so it
+     reads as its own mood rather than as the app's default. */
+  .refer[data-skin='serious'] {
+    --bg-1: #f7e8ec;
+    --bg-2: #fffdfd;
+    --bg-3: #f0dbe1;
+    --text-1: #22131a;
+    --text-2: #6b535b;
+    --text-3: #a38c93;
+    --text-4: #bda6ad;
+    --border-1: #ebd3da;
+    --border-2: #dfc0c9;
+    --accent: #b03b5e;
+    --accent-bright: #8e2b49;
+    --accent-dim: #f2d9e1;
+    --accent-tint: rgba(176, 59, 94, 0.12);
+    --earn-a: #fdf4f1;
+    --earn-b: #f2d9e1;
+    --earn-edge: #f2d9e1;
+    --art-op: 0.09;
+  }
+
+  /* Background line art — texture, not illustration. */
+  /* isolation:isolate makes .sheet a stacking context, so the art can sit at
+     z-index:-1 — behind every content block, without a rule on each one. */
+  .sheet {
+    position: relative;
+    isolation: isolate;
+  }
+  .art {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    color: var(--accent);
+    opacity: var(--art-op);
+    transition: opacity 0.26s ease, color 0.26s ease;
+  }
+  .art svg { width: 100%; height: 100%; display: block; }
 
   .bar {
     display: flex;
@@ -349,7 +542,7 @@
     color: var(--text-2);
     cursor: pointer;
   }
-  .toggle button.on { background: var(--accent); color: #fff; }
+  .toggle button.on { background: var(--accent); color: var(--cta-txt); }
 
   .hero {
     font-size: 27px;
@@ -407,7 +600,7 @@
     height: 24px;
     border-radius: 999px;
     background: var(--accent);
-    color: #fff;
+    color: var(--cta-txt);
     font-weight: 800;
     font-size: 13px;
     display: grid;
@@ -438,8 +631,9 @@
     border-radius: var(--r-md);
     padding: 16px;
     margin-bottom: 12px;
-    background: linear-gradient(135deg, #FFF6E8, var(--accent-dim));
-    border: 1px solid var(--accent-dim);
+    background: linear-gradient(135deg, var(--earn-a), var(--earn-b));
+    border: 1px solid var(--earn-edge);
+    transition: background 0.26s ease, border-color 0.26s ease;
   }
   .earn-top { display: flex; align-items: baseline; gap: 8px; }
   .earn-top .amt { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; color: var(--text-1); font-variant-numeric: tabular-nums; }
@@ -449,7 +643,7 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    background: var(--bg-2);
+    background: var(--tier-bg);
     color: var(--accent-bright);
     font-size: 12px;
     font-weight: 700;
@@ -500,7 +694,7 @@
     justify-content: center;
     gap: 8px;
   }
-  .btn.wa { background: var(--accent); color: #fff; }
+  .btn.wa { background: var(--accent); color: var(--cta-txt); transition: background-color 0.26s ease, color 0.26s ease; }
   .btn.ghost { background: var(--bg-2); color: var(--text-1); border: 1px solid var(--border-2); flex: 0 0 auto; padding-inline: 16px; }
 
   .msg { margin-bottom: 22px; }

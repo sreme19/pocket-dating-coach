@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
@@ -32,6 +34,15 @@ import 'season.dart';
 /// WhatsApp keeps its `wa.me?text=` pre-fill — strictly better, and it sits in
 /// the minor row so the two behaviours never read as siblings.
 ///
+/// MOOD SKINS — on the Invite women flow the whole screen repaints to match the
+/// mood she picked: teal for Networking, warm black for Casual, dusty rose for
+/// Serious (see [_Skin]). Purely cosmetic — it does not touch matching, and it
+/// is NOT the Networking Season flag even though Networking borrows the same
+/// teal so that teal keeps meaning one thing to a user. Invite men has no mood,
+/// so it keeps the app accent (and still follows Networking Season via [Brand]).
+/// The channel buttons are the one thing a skin never touches: their colours are
+/// promises about where the tap lands.
+///
 /// House style: display strings use DOUBLE quotes so straight apostrophes
 /// ("I've", "don't", "you're", "she'll") are safe without escaping. No curly quotes.
 class ReferScreen extends StatefulWidget {
@@ -50,12 +61,162 @@ enum _Mood { networking, casual, serious }
 /// Where she is sending it. Order here is the order on screen.
 enum _Channel { instagram, snapchat, whatsapp, more }
 
+/// Background line art drawn behind a skin's content.
+enum _Motif { none, mesh, ribbons, rings }
+
+/// The full token set for one skin.
+///
+/// A mood skin is deliberately NOT a single accent swap: on the Casual black
+/// ground the surface and text ramps invert, and [accentText] has to be LIGHTER
+/// than [accent] (the opposite of both light skins) or the sublines and
+/// "Copy message" fall below contrast.
+class _Skin {
+  const _Skin({
+    required this.page,
+    required this.card,
+    required this.fill,
+    required this.accent,
+    required this.accentText,
+    required this.tint,
+    required this.border1,
+    required this.border2,
+    required this.text1,
+    required this.text2,
+    required this.text3,
+    required this.earnFrom,
+    required this.earnTo,
+    required this.ctaText,
+    required this.motif,
+    required this.artOpacity,
+    required this.dark,
+  });
+
+  final Color page; // page background (bg1)
+  final Color card; // card / surface (bg2)
+  final Color fill; // subtle fill (bg3) — progress track, hint chip
+  final Color accent; // CTA fill, chip border, progress fill
+  final Color accentText; // the accent used AS TEXT on the page ground
+  final Color tint; // pale accent fill — selected chip, link strip
+  final Color border1;
+  final Color border2;
+  final Color text1;
+  final Color text2;
+  final Color text3;
+  final Color earnFrom; // earn-card gradient start
+  final Color earnTo; // earn-card gradient end
+  final Color ctaText; // label on top of [accent]
+  final _Motif motif;
+  final double artOpacity;
+  final bool dark; // drives the status-bar icon brightness
+
+  /// The app's own accent — season aware, so the Invite men flow still turns
+  /// teal during Networking Season. Non-const: [Brand] is resolved at build.
+  static _Skin appDefault() => _Skin(
+        page: const Color(Config.bg1),
+        card: const Color(Config.bg2),
+        fill: const Color(Config.bg3),
+        accent: Brand.accent,
+        accentText: Brand.accentBright,
+        tint: Brand.accentTint,
+        border1: const Color(0xFFF1E0E3),
+        border2: const Color(0xFFE7D2D7),
+        text1: const Color(Config.text1),
+        text2: const Color(Config.text2),
+        text3: const Color(Config.text3),
+        earnFrom: const Color(0xFFFFF6E8),
+        earnTo: Brand.accentTint,
+        ctaText: Colors.white,
+        motif: _Motif.none,
+        artOpacity: 0,
+        dark: false,
+      );
+
+  /// Networking — the shipped Networking Season teal, reused so that teal always
+  /// means the same thing to a user.
+  static const networking = _Skin(
+    page: Color(0xFFEDF6F7),
+    card: Color(0xFFFFFFFF),
+    fill: Color(0xFFDDEEF0),
+    accent: Color(0xFF0E9AAE),
+    accentText: Color(0xFF0A7C8C),
+    tint: Color(0xFFE1F4F6),
+    border1: Color(0xFFD7E9EB),
+    border2: Color(0xFFC3DDE1),
+    text1: Color(0xFF0C1F23),
+    text2: Color(0xFF5A7075),
+    text3: Color(0xFF8CA5A9),
+    earnFrom: Color(0xFFF4FBFC),
+    earnTo: Color(0xFFE1F4F6),
+    ctaText: Colors.white,
+    motif: _Motif.mesh,
+    artOpacity: 0.085,
+    dark: false,
+  );
+
+  /// Casual — warm black with rose gold. Not pure black, and not a neon accent:
+  /// on black, saturated pink reads nightclub while gold reads low light.
+  static const casual = _Skin(
+    page: Color(0xFF0D0A0C),
+    card: Color(0xFF171013),
+    fill: Color(0xFF211619),
+    accent: Color(0xFFE3A07A),
+    accentText: Color(0xFFF0BC98), // LIGHTER than accent — see class doc
+    tint: Color(0xFF241619),
+    border1: Color(0xFF291D21),
+    border2: Color(0xFF3B292F),
+    text1: Color(0xFFF7EEEB),
+    text2: Color(0xFFB8A3A5),
+    text3: Color(0xFF8B7478),
+    earnFrom: Color(0xFF2A151E),
+    earnTo: Color(0xFF170F12),
+    ctaText: Color(0xFF140D10),
+    motif: _Motif.ribbons,
+    artOpacity: 0.16,
+    dark: true,
+  );
+
+  /// Serious — dusty rose quartz, pulled well off the riteangle hot pink so it
+  /// reads as its own mood rather than as the app's default.
+  static const serious = _Skin(
+    page: Color(0xFFF7E8EC),
+    card: Color(0xFFFFFDFD),
+    fill: Color(0xFFF0DBE1),
+    accent: Color(0xFFB03B5E),
+    accentText: Color(0xFF8E2B49),
+    tint: Color(0xFFF2D9E1),
+    border1: Color(0xFFEBD3DA),
+    border2: Color(0xFFDFC0C9),
+    text1: Color(0xFF22131A),
+    text2: Color(0xFF6B535B),
+    text3: Color(0xFFA38C93),
+    earnFrom: Color(0xFFFDF4F1),
+    earnTo: Color(0xFFF2D9E1),
+    ctaText: Colors.white,
+    motif: _Motif.rings,
+    artOpacity: 0.09,
+    dark: false,
+  );
+
+  static _Skin forMood(_Mood m) {
+    switch (m) {
+      case _Mood.networking:
+        return networking;
+      case _Mood.casual:
+        return casual;
+      case _Mood.serious:
+        return serious;
+    }
+  }
+}
+
 class _ReferScreenState extends State<ReferScreen> {
-  static const _border1 = Color(0xFFF1E0E3);
-  static const _border2 = Color(0xFFE7D2D7);
+  /// Ink for text sitting ON a bright channel colour (Snapchat yellow). Fixed,
+  /// not skinned: on the Casual skin `text1` is near-white and would vanish.
+  static const _onBright = Color(0xFF1B1020);
 
   // Channel brand colours — the one place in the app that isn't riteangle pink,
-  // because these buttons are promises about where the tap lands.
+  // because these buttons are promises about where the tap lands. A mood skin
+  // never touches them.
   static const _snapYellow = Color(0xFFFFFC00);
   static const _waGreen = Color(0xFF25D366);
   static const _igGradient = LinearGradient(
@@ -86,6 +247,9 @@ class _ReferScreenState extends State<ReferScreen> {
   bool _appMissing = false;
   final _msg = TextEditingController(); // Invite men
   final _womenMsg = TextEditingController(); // Invite women
+
+  /// The active skin, resolved once per build and read by every widget below.
+  _Skin _s = _Skin.networking;
 
   @override
   void initState() {
@@ -122,6 +286,12 @@ class _ReferScreenState extends State<ReferScreen> {
       if (mounted) setState(() => _view = _View.error);
     }
   }
+
+  /// Invite men has no mood, so it keeps the app accent. The loading / denied /
+  /// error states do too, so the screen never flashes a skin before we know
+  /// which flow she is even on.
+  bool get _showMen => _gender == 'woman' && _tab == _Tab.men;
+  bool get _skinned => _view == _View.ready && !_showMen;
 
   // ── Invite men copy ──────────────────────────────────────────────────────
   String _messageFor(String url) =>
@@ -254,38 +424,48 @@ class _ReferScreenState extends State<ReferScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(Config.bg1),
-      appBar: AppBar(
-        backgroundColor: const Color(Config.bg1),
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Color(Config.text2)),
-        title: const Text('Refer & Earn',
-            style: TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
-        centerTitle: true,
+    _s = _skinned ? _Skin.forMood(_mood) : _Skin.appDefault();
+
+    // Casual is a dark ground, so the OS status-bar icons have to flip to light.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: _s.dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 260),
+        color: _s.page,
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            backgroundColor: _s.page,
+            elevation: 0,
+            iconTheme: IconThemeData(color: _s.text2),
+            title: Text('Refer & Earn',
+                style: TextStyle(fontWeight: FontWeight.w700, color: _s.text1)),
+            centerTitle: true,
+          ),
+          body: _content(),
+        ),
       ),
-      body: _content(),
     );
   }
 
   Widget _content() {
     switch (_view) {
       case _View.loading:
-        return Center(child: CircularProgressIndicator(color: Brand.accent));
+        return Center(child: CircularProgressIndicator(color: _s.accent));
       case _View.denied:
-        return _pad(const Text(
+        return _pad(Text(
           "Refer & Earn is for women inviting friends. It isn't available on your account.",
           textAlign: TextAlign.center,
-          style: TextStyle(color: Color(Config.text2), height: 1.5, fontSize: 15),
+          style: TextStyle(color: _s.text2, height: 1.5, fontSize: 15),
         ));
       case _View.error:
         return _pad(Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
+            Text(
               "Couldn't load your link. Check your connection and try again.",
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(Config.text2), height: 1.5, fontSize: 15),
+              style: TextStyle(color: _s.text2, height: 1.5, fontSize: 15),
             ),
             const SizedBox(height: 14),
             OutlinedButton(onPressed: _load, child: const Text('Retry')),
@@ -300,15 +480,21 @@ class _ReferScreenState extends State<ReferScreen> {
       Center(child: Padding(padding: const EdgeInsets.all(32), child: child));
 
   Widget _readyBody() {
-    final showMen = _gender == 'woman' && _tab == _Tab.men;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (_gender == 'woman') ...[_toggle(), const SizedBox(height: 20)],
-          ...(showMen ? _menChildren() : _womenChildren()),
-        ],
+      // CustomPaint paints its painter BEFORE the child and sizes to it, so the
+      // art covers the whole scroll extent and scrolls with the content.
+      child: CustomPaint(
+        painter: _SkinArtPainter(motif: _s.motif, color: _s.accent, opacity: _s.artOpacity),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 40),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_gender == 'woman') ...[_toggle(), const SizedBox(height: 20)],
+              ...(_showMen ? _menChildren() : _womenChildren()),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -318,9 +504,9 @@ class _ReferScreenState extends State<ReferScreen> {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(Config.bg3),
+        color: _s.fill,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: _border1),
+        border: Border.all(color: _s.border1),
       ),
       child: Row(
         children: [
@@ -339,14 +525,14 @@ class _ReferScreenState extends State<ReferScreen> {
           padding: const EdgeInsets.symmetric(vertical: 9),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: on ? Brand.accent : Colors.transparent,
+            color: on ? _s.accent : Colors.transparent,
             borderRadius: BorderRadius.circular(999),
           ),
           child: Text(label,
               style: TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 13,
-                  color: on ? Colors.white : const Color(Config.text2))),
+                  color: on ? _s.ctaText : _s.text2)),
         ),
       ),
     );
@@ -355,23 +541,23 @@ class _ReferScreenState extends State<ReferScreen> {
   // ── Invite men (Flow 1) ──────────────────────────────────────────────────
   List<Widget> _menChildren() {
     return [
-      const Text('Turn your DMs into dates.',
+      Text('Turn your DMs into dates.',
           style: TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w800,
-              color: Color(Config.text1),
+              color: _s.text1,
               height: 1.1,
               letterSpacing: -0.5)),
       const SizedBox(height: 6),
       Text('Your AI Bestie speaks to them. Not you.',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Brand.accentBright)),
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _s.accentText)),
       const SizedBox(height: 16),
-      const Text(
+      Text(
         "Hundreds of guys sliding into your DMs on Instagram, WhatsApp and Tinder? "
         "Most are creeps 🙄 but a few are genuine, successful, even high-earning. "
         "You don't have the time to text them all. So send them your link: your Bestie "
         "talks to every one of them, ranks them, and brings you only the ones worth your time.",
-        style: TextStyle(fontSize: 14.5, color: Color(Config.text2), height: 1.55),
+        style: TextStyle(fontSize: 14.5, color: _s.text2, height: 1.55),
       ),
       const SizedBox(height: 22),
       _step(1, 'Share your link with the guys already chasing you.'),
@@ -398,21 +584,21 @@ class _ReferScreenState extends State<ReferScreen> {
     final isMan = _gender == 'man';
     return [
       Text(isMan ? 'Invite women. Earn real cash.' : 'Invite your girls. Earn real cash.',
-          style: const TextStyle(
+          style: TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w800,
-              color: Color(Config.text1),
+              color: _s.text1,
               height: 1.1,
               letterSpacing: -0.5)),
       const SizedBox(height: 6),
       Text("₹${c?.currentTier ?? 100} for every friend who joins.",
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Brand.accentBright)),
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _s.accentText)),
       const SizedBox(height: 16),
       Text(
         isMan
             ? "Invite women you'd genuinely vouch for. You earn for each one who joins and gets verified, and she gets into a curated, safe circle."
             : "Bring the women you'd want in a genuinely good room. You earn for each one who joins and gets verified. She gets into a curated, safe circle. Everybody wins.",
-        style: const TextStyle(fontSize: 14.5, color: Color(Config.text2), height: 1.55),
+        style: TextStyle(fontSize: 14.5, color: _s.text2, height: 1.55),
       ),
       if (isMan) ...[const SizedBox(height: 12), _upsideBanner()],
       const SizedBox(height: 20),
@@ -420,9 +606,9 @@ class _ReferScreenState extends State<ReferScreen> {
       const SizedBox(height: 16),
       _capBar(),
       const SizedBox(height: 22),
-      const Text('HOW DO YOU WANT TO WORD IT?',
+      Text('HOW DO YOU WANT TO WORD IT?',
           style: TextStyle(
-              fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8, color: Color(Config.text3))),
+              fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8, color: _s.text3)),
       const SizedBox(height: 8),
       _moodChips(),
       const SizedBox(height: 20),
@@ -441,31 +627,32 @@ class _ReferScreenState extends State<ReferScreen> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Brand.accentTint,
+        color: _s.tint,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _border2),
+        border: Border.all(color: _s.border2),
       ),
       child: Text(
         "✨ When someone you invite joins and gets verified, she's matched with you.",
         style: TextStyle(
-            fontSize: 13.5, fontWeight: FontWeight.w600, color: Brand.accentBright, height: 1.4),
+            fontSize: 13.5, fontWeight: FontWeight.w600, color: _s.accentText, height: 1.4),
       ),
     );
   }
 
   Widget _earnCard() {
     final c = _cash;
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 260),
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFFFFF6E8), Brand.accentTint],
+          colors: [_s.earnFrom, _s.earnTo],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Brand.accentTint),
+        border: Border.all(color: _s.dark ? _s.border2 : _s.tint),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -475,25 +662,30 @@ class _ReferScreenState extends State<ReferScreen> {
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text("₹${c?.earnedInr ?? 0}",
-                  style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: Color(Config.text1))),
+                  style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _s.text1)),
               const SizedBox(width: 8),
-              const Text("earned so far",
-                  style: TextStyle(fontSize: 13, color: Color(Config.text2), fontWeight: FontWeight.w600)),
+              Text("earned so far",
+                  style: TextStyle(fontSize: 13, color: _s.text2, fontWeight: FontWeight.w600)),
             ],
           ),
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(color: const Color(Config.bg2), borderRadius: BorderRadius.circular(999)),
+            decoration: BoxDecoration(
+              // On the dark skin a solid card fill reads as a second card
+              // stacked on the earn card; a translucent white lifts instead.
+              color: _s.dark ? Colors.white.withValues(alpha: 0.06) : _s.card,
+              borderRadius: BorderRadius.circular(999),
+            ),
             child: Text(
               "🎉 ₹${c?.currentTier ?? 100} per friend${(c?.verifiedCount ?? 0) < 25 ? ' · first 25' : ''}",
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Brand.accentBright),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _s.accentText),
             ),
           ),
           const SizedBox(height: 8),
           Text(
             "₹${c?.pendingInr ?? 0} pending · ₹${c?.paidInr ?? 0} paid · sent to your UPI once she's verified",
-            style: const TextStyle(fontSize: 12, color: Color(Config.text2)),
+            style: TextStyle(fontSize: 12, color: _s.text2),
           ),
         ],
       ),
@@ -509,10 +701,10 @@ class _ReferScreenState extends State<ReferScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text("Rewarded invites",
-                style: TextStyle(fontSize: 12, color: Color(Config.text2), fontWeight: FontWeight.w600)),
+            Text("Rewarded invites",
+                style: TextStyle(fontSize: 12, color: _s.text2, fontWeight: FontWeight.w600)),
             Text("${c?.verifiedCount ?? 0} / ${c?.cap ?? 100}",
-                style: const TextStyle(fontSize: 12, color: Color(Config.text2), fontWeight: FontWeight.w600)),
+                style: TextStyle(fontSize: 12, color: _s.text2, fontWeight: FontWeight.w600)),
           ],
         ),
         const SizedBox(height: 6),
@@ -521,8 +713,8 @@ class _ReferScreenState extends State<ReferScreen> {
           child: LinearProgressIndicator(
             value: pct,
             minHeight: 8,
-            backgroundColor: const Color(Config.bg3),
-            valueColor: AlwaysStoppedAnimation(Brand.accent),
+            backgroundColor: _s.fill,
+            valueColor: AlwaysStoppedAnimation(_s.accent),
           ),
         ),
       ],
@@ -546,12 +738,13 @@ class _ReferScreenState extends State<ReferScreen> {
     return Expanded(
       child: GestureDetector(
         onTap: () => _selectMood(m),
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
           padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 6),
           decoration: BoxDecoration(
-            color: on ? Brand.accentTint : const Color(Config.bg2),
+            color: on ? _s.tint : _s.card,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: on ? Brand.accent : _border2),
+            border: Border.all(color: on ? _s.accent : _s.border2),
           ),
           child: Column(
             children: [
@@ -561,7 +754,7 @@ class _ReferScreenState extends State<ReferScreen> {
                   style: TextStyle(
                       fontSize: 11.5,
                       fontWeight: FontWeight.w700,
-                      color: on ? Brand.accentBright : const Color(Config.text2))),
+                      color: on ? _s.accentText : _s.text2)),
             ],
           ),
         ),
@@ -574,9 +767,9 @@ class _ReferScreenState extends State<ReferScreen> {
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: const Color(Config.bg2),
+        color: _s.card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _border1),
+        border: Border.all(color: _s.border1),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -585,14 +778,13 @@ class _ReferScreenState extends State<ReferScreen> {
             width: 24,
             height: 24,
             alignment: Alignment.center,
-            decoration: BoxDecoration(color: Brand.accent, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: _s.accent, shape: BoxShape.circle),
             child: Text('$n',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)),
+                style: TextStyle(color: _s.ctaText, fontWeight: FontWeight.w800, fontSize: 13)),
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(text,
-                style: const TextStyle(fontSize: 14, color: Color(Config.text1), height: 1.4)),
+            child: Text(text, style: TextStyle(fontSize: 14, color: _s.text1, height: 1.4)),
           ),
         ],
       ),
@@ -622,9 +814,9 @@ class _ReferScreenState extends State<ReferScreen> {
         name: 'Snapchat',
         sub: 'copy & open · paste into each chat',
         color: _snapYellow,
-        fg: const Color(Config.text1),
-        glyphBg: const Color(Config.text1).withValues(alpha: 0.10),
-        glyph: _snapGlyph(const Color(Config.text1), 18),
+        fg: _onBright,
+        glyphBg: _onBright.withValues(alpha: 0.10),
+        glyph: _snapGlyph(_onBright, 18),
         onTap: () => _shareVia(_Channel.snapchat, message()),
       ),
       const SizedBox(height: 8),
@@ -642,8 +834,8 @@ class _ReferScreenState extends State<ReferScreen> {
           Expanded(
             child: _minorChannel(
               name: 'More',
-              glyphBg: const Color(Config.bg3),
-              glyph: const Icon(Icons.more_horiz_rounded, size: 14, color: Color(Config.text2)),
+              glyphBg: _s.fill,
+              glyph: Icon(Icons.more_horiz_rounded, size: 14, color: _s.text2),
               onTap: () => _shareVia(_Channel.more, message()),
             ),
           ),
@@ -663,17 +855,17 @@ class _ReferScreenState extends State<ReferScreen> {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
         decoration: BoxDecoration(
-          color: const Color(Config.bg3),
+          color: _s.fill,
           borderRadius: BorderRadius.circular(999),
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.content_copy_rounded, size: 13, color: Color(Config.text2)),
-            SizedBox(width: 8),
+            Icon(Icons.content_copy_rounded, size: 13, color: _s.text2),
+            const SizedBox(width: 8),
             Flexible(
               child: Text("Tap an app below — we'll copy this first",
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(Config.text2))),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _s.text2)),
             ),
           ],
         ),
@@ -690,7 +882,9 @@ class _ReferScreenState extends State<ReferScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
       decoration: BoxDecoration(
-        color: const Color(0xFF241A1E),
+        // A dark chip on the light skins. On Casual the page is already dark, so
+        // it steps UP to a raised surface instead of down.
+        color: _s.dark ? _s.border2 : const Color(0xFF241A1E),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
@@ -771,9 +965,9 @@ class _ReferScreenState extends State<ReferScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
         decoration: BoxDecoration(
-          color: const Color(Config.bg2),
+          color: _s.card,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _border2),
+          border: Border.all(color: _s.border2),
         ),
         child: Row(
           children: [
@@ -788,8 +982,7 @@ class _ReferScreenState extends State<ReferScreen> {
             Flexible(
               child: Text(name,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _s.text1)),
             ),
           ],
         ),
@@ -805,20 +998,19 @@ class _ReferScreenState extends State<ReferScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         decoration: BoxDecoration(
-          color: Brand.accentTint,
+          color: _s.tint,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Brand.accent),
+          border: Border.all(color: _s.accent),
         ),
         child: Row(
           children: [
             Expanded(
               child: Text(link.replaceFirst(RegExp(r'^https?://'), ''),
-                  style: const TextStyle(
-                      fontSize: 11.5, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: _s.text1)),
             ),
             const SizedBox(width: 8),
             Text(_copiedLink ? 'Copied ✓' : 'Copy link',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Brand.accentBright)),
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _s.accentText)),
           ],
         ),
       ),
@@ -873,13 +1065,13 @@ class _ReferScreenState extends State<ReferScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(label,
-                style: const TextStyle(
-                    fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8, color: Color(Config.text3))),
+                style: TextStyle(
+                    fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.8, color: _s.text3)),
             GestureDetector(
               onTap: () => _copy(controller.text, isLink: false),
               child: Text(_copiedMsg ? 'Copied ✓' : 'Copy message',
                   style: TextStyle(
-                      fontSize: 12.5, fontWeight: FontWeight.w700, color: Brand.accentBright)),
+                      fontSize: 12.5, fontWeight: FontWeight.w700, color: _s.accentText)),
             ),
           ],
         ),
@@ -888,24 +1080,25 @@ class _ReferScreenState extends State<ReferScreen> {
           controller: controller,
           minLines: 4,
           maxLines: 8,
-          style: const TextStyle(fontSize: 14, color: Color(Config.text1), height: 1.5),
+          cursorColor: _s.accent,
+          style: TextStyle(fontSize: 14, color: _s.text1, height: 1.5),
           decoration: InputDecoration(
             filled: true,
-            fillColor: const Color(Config.bg2),
+            fillColor: _s.card,
             contentPadding: const EdgeInsets.all(12),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: _border2),
+              borderSide: BorderSide(color: _s.border2),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Brand.accent, width: 2),
+              borderSide: BorderSide(color: _s.accent, width: 2),
             ),
           ),
         ),
         Padding(
           padding: const EdgeInsets.only(top: 6, left: 2),
-          child: Text(hint, style: const TextStyle(fontSize: 12, color: Color(Config.text3))),
+          child: Text(hint, style: TextStyle(fontSize: 12, color: _s.text3)),
         ),
       ],
     );
@@ -916,21 +1109,21 @@ class _ReferScreenState extends State<ReferScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(Config.bg2),
+        color: _s.card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _border1),
+        border: Border.all(color: _s.border1),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _stat('$_invited', 'invited', const Color(Config.text1)),
+          _stat('$_invited', 'invited', _s.text1),
           Container(
             width: 4,
             height: 4,
             margin: const EdgeInsets.symmetric(horizontal: 12),
-            decoration: const BoxDecoration(color: Color(Config.text3), shape: BoxShape.circle),
+            decoration: BoxDecoration(color: _s.text3, shape: BoxShape.circle),
           ),
-          _stat('$_signedUp', 'signed up', Brand.accentBright),
+          _stat('$_signedUp', 'signed up', _s.accentText),
         ],
       ),
     );
@@ -944,7 +1137,7 @@ class _ReferScreenState extends State<ReferScreen> {
       children: [
         Text(k, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: kColor)),
         const SizedBox(width: 5),
-        Text(label, style: const TextStyle(fontSize: 14, color: Color(Config.text2))),
+        Text(label, style: TextStyle(fontSize: 14, color: _s.text2)),
       ],
     );
   }
@@ -977,4 +1170,110 @@ class _GhostPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_GhostPainter old) => old.color != color;
+}
+
+/// The skin's background line art — one flat colour, low opacity, sized to the
+/// full scroll extent. Kept quiet on purpose: it should read as texture, not as
+/// an illustration competing with the copy.
+///
+/// Geometry is expressed against a 340pt-wide reference (the width the motifs
+/// were designed at) and scaled, so they keep their proportions on any screen.
+/// In lockstep with the `buildArt` helper in the web screen.
+class _SkinArtPainter extends CustomPainter {
+  const _SkinArtPainter({
+    required this.motif,
+    required this.color,
+    required this.opacity,
+  });
+
+  final _Motif motif;
+  final Color color;
+  final double opacity;
+
+  static const _refWidth = 340.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (motif == _Motif.none || opacity <= 0 || size.isEmpty) return;
+    final k = size.width / _refWidth; // uniform scale
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..color = color.withValues(alpha: opacity)
+      ..strokeCap = StrokeCap.round;
+
+    switch (motif) {
+      case _Motif.ribbons:
+        _ribbons(canvas, size, k, paint);
+      case _Motif.rings:
+        _rings(canvas, size, k, paint);
+      case _Motif.mesh:
+        _mesh(canvas, size, k, paint);
+      case _Motif.none:
+        break;
+    }
+  }
+
+  /// Casual — long silk sweeps drifting down the page.
+  void _ribbons(Canvas canvas, Size size, double k, Paint paint) {
+    final rows = (size.height / (106 * k)).ceil() + 2;
+    for (var i = 0; i < rows; i++) {
+      final y0 = -80 * k + i * 106 * k;
+      final amp = (52 + (i % 4) * 24) * k;
+      final phase = i * 0.68;
+      final path = Path();
+      var first = true;
+      for (var x = -30 * k; x <= size.width + 30 * k; x += 20 * k) {
+        final y = y0 + math.sin((x / (112 * k)) + phase) * amp + x * 0.16;
+        if (first) {
+          path.moveTo(x, y);
+          first = false;
+        } else {
+          path.lineTo(x, y);
+        }
+      }
+      paint.strokeWidth = (1 + (i % 3) * 0.45) * k;
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  /// Serious — concentric rings, centres pushed off-canvas, picking up the 💍.
+  void _rings(Canvas canvas, Size size, double k, Paint paint) {
+    paint.strokeWidth = 0.9 * k;
+    final centres = [
+      Offset(size.width * 0.9, size.height * 0.1),
+      Offset(size.width * 0.1, size.height * 0.45),
+      Offset(size.width * 0.76, size.height * 0.82),
+    ];
+    for (final c in centres) {
+      for (var r = 40 * k; r < 260 * k; r += 19 * k) {
+        canvas.drawCircle(c, r, paint);
+      }
+    }
+  }
+
+  /// Networking — scattered nodes joined to their near neighbours.
+  void _mesh(Canvas canvas, Size size, double k, Paint paint) {
+    paint.strokeWidth = 0.7 * k;
+    // A fixed seed keeps the mesh stable across repaints (no drifting dots).
+    final rnd = math.Random(7);
+    final count = (62 * (size.height / (1200 * k))).round().clamp(24, 220);
+    final pts = List<Offset>.generate(
+      count,
+      (_) => Offset(rnd.nextDouble() * size.width, rnd.nextDouble() * size.height),
+    );
+    final reach = 118 * k;
+    for (var i = 0; i < pts.length; i++) {
+      for (var j = i + 1; j < pts.length; j++) {
+        if ((pts[i] - pts[j]).distance < reach) canvas.drawLine(pts[i], pts[j], paint);
+      }
+    }
+    final dot = Paint()..color = color.withValues(alpha: opacity);
+    for (final p in pts) {
+      canvas.drawCircle(p, 2.1 * k, dot);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SkinArtPainter old) =>
+      old.motif != motif || old.color != color || old.opacity != opacity;
 }
