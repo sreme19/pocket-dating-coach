@@ -15,6 +15,21 @@
  * (cap 1000) — see insertRewardRow and the `track` column. The man is never told
  * money changed hands; his framing stays "earn your way to her".
  *
+ * WHICH FLOW A SIGNUP BELONGS TO IS DECIDED BY THE JOINER'S GENDER, never by the
+ * link. There is only one referral link per referrer — the "invite women" and
+ * "invite men" variants are the same token, differing only by the ?m=<mood> copy
+ * — and a signup row stores no gender, because at invite time nobody knows it.
+ * So all four combinations resolve here and in awardReferralRewardIfEligible:
+ *
+ *   woman's link → man joins    → men flow:   25 INR (man track)  + match
+ *   woman's link → woman joins  → women flow: 100/150 (woman track), NO match
+ *   man's link   → woman joins  → women flow: 100/150 (woman track) + match to him
+ *   man's link   → man joins    → attribution only: no cash (men→men is
+ *                                 deferred) and NO match (same gender)
+ *
+ * A match is only ever formed across genders; a same-gender referral still signs
+ * up and is still attributed to the referrer.
+ *
  * Rules (per product decisions):
  *   - Only fires for men (women also enroll in the pool, as bestie — skipped).
  *   - Only fires once the man is actually in the pool (guaranteed by the call
@@ -167,6 +182,19 @@ export async function redeemBetaInviteIfEligible(userId: string): Promise<void> 
   const referrerId = signup.referrer_id as string;
   if (!referrerId || referrerId === userId) return;
 
+  // There is only ONE link per referrer — the "invite women" and "invite men"
+  // variants are the same token, differing only by the ?m=<mood> copy — and the
+  // signup captures no gender (nobody knows it at invite time). So the flow is
+  // decided HERE, by the joiner's real gender: a man landing on this function is
+  // the men flow whichever variant he was sent, and a woman is handled by
+  // awardReferralRewardIfEligible instead.
+  const { data: referrer } = await db
+    .from('verified_vibe_users')
+    .select('gender')
+    .eq('id', referrerId)
+    .maybeSingle();
+  const referrerIsWoman = referrer?.gender === 'woman';
+
   // Flow 1 cash (added 2026-07-25): a WOMAN earns 25 INR for every man she
   // brings who reaches this point — i.e. verified and in the pool, the same bar
   // the women flow uses. Awarded BEFORE the match work below so that a failed
@@ -175,22 +203,27 @@ export async function redeemBetaInviteIfEligible(userId: string): Promise<void> 
   //
   // The man himself is never told there was money: his framing stays "earn your
   // way to her" (see the /beta landing copy).
-  try {
-    const { data: referrer } = await db
-      .from('verified_vibe_users')
-      .select('gender')
-      .eq('id', referrerId)
-      .maybeSingle();
-    if (referrer?.gender === 'woman') {
+  if (referrerIsWoman) {
+    try {
       await insertRewardRow(db, {
         referrerId,
         referredUserId: userId,
         signupId: signup.id ?? null,
         track: 'man',
       });
+    } catch (e) {
+      console.error('[beta-invite] man-track reward failed (non-fatal):', e);
     }
-  } catch (e) {
-    console.error('[beta-invite] man-track reward failed (non-fatal):', e);
+  }
+
+  // A referral only forms a match across genders. A man arriving on another
+  // MAN's link still signs up and is still attributed to him, but no match is
+  // created — men→men is a deferred flow, and this used to mint a man↔man match
+  // because the guard only checked the joiner's gender. Mirrors the woman↔woman
+  // rule in awardReferralRewardIfEligible.
+  if (!referrerIsWoman) {
+    await closeSignup(db, signup.id, userId);
+    return;
   }
 
   // Don't duplicate an existing match in either orientation.
@@ -237,16 +270,30 @@ export async function redeemBetaInviteIfEligible(userId: string): Promise<void> 
     }
   }
 
-  // Mark the invite redeemed. Scoped to this signup id, so other people's
-  // pending invites are never affected.
+  await closeSignup(db, signup.id, userId);
+}
+
+/**
+ * Mark an invite redeemed. Scoped to the one signup id, so other people's pending
+ * invites for the same email are never affected.
+ *
+ * `status` distinguishes the flows for the funnel counts: 'matched' = a man
+ * joined (men flow), 'rewarded' = a woman joined (women flow).
+ */
+async function closeSignup(
+  db: any,
+  signupId: string,
+  userId: string,
+  status: 'matched' | 'rewarded' = 'matched'
+): Promise<void> {
   await db
     .from('verified_vibe_beta_signups')
     .update({
-      status: 'matched',
+      status,
       matched_user_id: userId,
       matched_at: new Date().toISOString(),
     })
-    .eq('id', signup.id);
+    .eq('id', signupId);
 }
 
 /**
@@ -312,6 +359,9 @@ export async function awardReferralRewardIfEligible(userId: string): Promise<voi
   // woman to him (his incentive to promote). She can unmatch if not interested,
   // and her Bestie screens him first, same as any match. Not surfaced to her as
   // "he referred you". Non-fatal — a failed match must not undo the reward.
+  //
+  // A WOMAN referrer gets the cash and the attribution but no match: two women
+  // are never matched to each other. Same cross-gender rule as the men flow.
   try {
     const { data: refProfile } = await db
       .from('verified_vibe_users')
@@ -358,12 +408,5 @@ export async function awardReferralRewardIfEligible(userId: string): Promise<voi
   }
 
   // Close out the signup so it is not reprocessed.
-  await db
-    .from('verified_vibe_beta_signups')
-    .update({
-      status: 'rewarded',
-      matched_user_id: userId,
-      matched_at: new Date().toISOString(),
-    })
-    .eq('id', signup.id);
+  await closeSignup(db, signup.id, userId, 'rewarded');
 }
