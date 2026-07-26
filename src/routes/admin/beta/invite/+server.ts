@@ -24,6 +24,7 @@ import {
   type Platform,
   type ReferrerCard,
 } from '$lib/server/beta-invite-email';
+import { signupLinkMode } from '$lib/server/referral-links';
 
 export const POST: RequestHandler = async ({ request, cookies }) => {
   if (!tokenIsValid(cookies.get(ADMIN_COOKIE))) {
@@ -44,7 +45,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 
   const { data: signup } = await db
     .from('verified_vibe_beta_signups')
-    .select('id, email, platform, referrer_id')
+    .select('id, email, platform, referrer_id, link_id')
     .eq('id', signupId)
     .maybeSingle();
   if (!signup) {
@@ -65,8 +66,13 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
   // The referrer card is a nice-to-have, never a gate. Admin recruiting links
   // carry no referrer_id at all, and a referrer row can be missing or fail to
   // load — in every one of those cases the invite still goes out, minus the card.
+  //
+  // A PRIVATE link (mode='private') suppresses the card on purpose: nothing about
+  // its owner travelled with the link, and this email must not undo that. The
+  // invite still goes out, with the card-less copy that promises no match.
+  const isPrivateLink = (await signupLinkMode(db, signup.link_id)) === 'private';
   let referrer: ReferrerCard | null = null;
-  if (signup.referrer_id) {
+  if (signup.referrer_id && !isPrivateLink) {
     const { data } = await db
       .from('verified_vibe_users')
       .select('first_name, age, city, avatar_url, about')

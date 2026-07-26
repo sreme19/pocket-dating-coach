@@ -9,7 +9,7 @@ import 'app_logger.dart';
 import 'config.dart';
 import 'season.dart';
 
-/// Refer & Earn — one entry, two flows (toggle), in LOCKSTEP with the web screen
+/// Refer & Earn — one entry, three flows (toggle), in LOCKSTEP with the web screen
 /// src/routes/verified-vibe/refer/+page.svelte, EXCEPT the share row: the
 /// DM-first channel block below has not been ported to web yet, which still has
 /// the WhatsApp-primary row. Copy and flows stay in lockstep; keep them so.
@@ -18,10 +18,16 @@ import 'season.dart';
 ///    per verified woman she brings (#1-25), then ₹150 (#26-100), cap 100. A
 ///    "mood" (networking / casual / serious) sets the share message + the landing
 ///    the invitee sees (via ?m=). Payout is manual (admin marks paid).
-///  - Invite men (Flow 1, Model A): no money — her AI Bestie screens the men in
-///    her DMs and hands her the gems.
+///  - Invite men (Flow 1, Model A): her AI Bestie screens the men in her DMs and
+///    hands her the gems, plus ₹25 per verified man.
+///  - Privately (Flow 3): a SECOND token whose /beta landing carries nothing
+///    about the sender and which never forms a match, in either direction. Same
+///    cash, same ledger. It can go to anyone, men or women, which is why it is
+///    the one extra tab men see too.
 ///
-/// Data comes from GET /api/verified-vibe/referral-link (see api.dart).
+/// Data comes from GET /api/verified-vibe/referral-link (see api.dart). The
+/// private link comes back null until migration 20260726170526 has been run, and
+/// the tab is then hidden rather than promising privacy the backend can't keep.
 ///
 /// SHARE ROW — DM-first ordering. Instagram and Snapchat lead, WhatsApp and the
 /// OS share sheet sit in a minor row beneath them. Neither Instagram nor
@@ -35,17 +41,20 @@ import 'season.dart';
 /// the minor row so the two behaviours never read as siblings.
 ///
 /// SKINS — the whole screen repaints per flow (see [_Skin]): Invite women takes
-/// the mood she picked (teal Networking / warm-black Casual / dusty-rose Serious)
-/// and Invite men gets its own violet, since it has no mood. Purely cosmetic — it
+/// the mood she picked (teal Networking / warm-black Casual / dusty-rose Serious),
+/// Invite men gets its own violet and Privately its own graphite, since neither
+/// has a mood. Purely cosmetic — it
 /// does not touch matching, and it is NOT the Networking Season flag even though
 /// Networking borrows the same teal so that teal keeps meaning one thing to a
 /// user. The channel buttons are the one thing a skin never touches: their
 /// colours are promises about where the tap lands.
 ///
-/// CASH — both flows pay, on SEPARATE ledger tracks (see beta-invite.ts):
+/// CASH — all three flows pay, on the SAME two ledger tracks (see beta-invite.ts):
 /// invite women = ₹100 for #1-25 then ₹150, cap 100; invite men = flat ₹25, cap
 /// 1000. [ReferralLink.cash] and [ReferralLink.menCash] are summed per track and
-/// must never be added into one balance.
+/// must never be added into one balance — except on the Privately tab, which has
+/// no track of its own (a private referral pays into the track the joiner's gender
+/// implies) and so headlines the total across every invite.
 ///
 /// House style: display strings use DOUBLE quotes so straight apostrophes
 /// ("I've", "don't", "you're", "she'll") are safe without escaping. No curly quotes.
@@ -58,7 +67,7 @@ class ReferScreen extends StatefulWidget {
 
 enum _View { loading, ready, denied, error }
 
-enum _Tab { women, men }
+enum _Tab { women, men, private }
 
 enum _Mood { networking, casual, serious }
 
@@ -66,7 +75,7 @@ enum _Mood { networking, casual, serious }
 enum _Channel { instagram, snapchat, whatsapp, more }
 
 /// Background line art drawn behind a skin's content.
-enum _Motif { none, mesh, ribbons, rings, facets }
+enum _Motif { none, mesh, ribbons, rings, facets, veil }
 
 /// The full token set for one skin.
 ///
@@ -224,6 +233,30 @@ class _Skin {
     dark: false,
   );
 
+  /// Privately — graphite. Deliberately the least romantic skin in the set: this
+  /// is the tab you open to keep your dating life out of a group chat, and a cool
+  /// neutral says discretion where any of the moods would say the opposite. Reads
+  /// as clearly distinct from [suitors] violet at a glance.
+  static const private = _Skin(
+    page: Color(0xFFEEF1F5),
+    card: Color(0xFFFFFFFF),
+    fill: Color(0xFFE2E7EE),
+    accent: Color(0xFF3F5872),
+    accentText: Color(0xFF2B3F56),
+    tint: Color(0xFFE3E9F1),
+    border1: Color(0xFFDFE5EC),
+    border2: Color(0xFFCBD4DE),
+    text1: Color(0xFF0F1720),
+    text2: Color(0xFF56606D),
+    text3: Color(0xFF8B95A3),
+    earnFrom: Color(0xFFF7F9FC),
+    earnTo: Color(0xFFE3E9F1),
+    ctaText: Colors.white,
+    motif: _Motif.veil,
+    artOpacity: 0.075,
+    dark: false,
+  );
+
   static _Skin forMood(_Mood m) {
     switch (m) {
       case _Mood.networking:
@@ -275,6 +308,7 @@ class _ReferScreenState extends State<ReferScreen> {
   bool _appMissing = false;
   final _msg = TextEditingController(); // Invite men
   final _womenMsg = TextEditingController(); // Invite women
+  final _privateMsg = TextEditingController(); // Privately
 
   /// The active skin, resolved once per build and read by every widget below.
   _Skin _s = _Skin.networking;
@@ -290,6 +324,7 @@ class _ReferScreenState extends State<ReferScreen> {
   void dispose() {
     _msg.dispose();
     _womenMsg.dispose();
+    _privateMsg.dispose();
     super.dispose();
   }
 
@@ -307,6 +342,8 @@ class _ReferScreenState extends State<ReferScreen> {
         _signedUp = link.signedUp;
         _msg.text = _messageFor(link.shareUrl);
         _womenMsg.text = _inviteMessageFor("${link.shareUrl}?m=${_moodStr(_mood)}", _mood);
+        final priv = link.private;
+        if (priv != null) _privateMsg.text = _privateMessageFor(priv.shareUrl);
         _view = _View.ready;
       });
     } on ReferralLinkDenied {
@@ -318,11 +355,22 @@ class _ReferScreenState extends State<ReferScreen> {
 
   bool get _showMen => _gender == 'woman' && _tab == _Tab.men;
 
-  /// Invite men gets the violet [_Skin.suitors]; Invite women gets her mood. The
-  /// loading / denied / error states keep the app accent, so the screen never
-  /// flashes a skin before we know which flow she is even on.
+  ReferralPrivateLink? get _private => _link?.private;
+
+  /// The Privately tab is only reachable once the server actually issues a
+  /// private token — see [ReferralLink.private].
+  bool get _showPrivate => _private != null && _tab == _Tab.private;
+
+  /// Men see one flow (invite women); Privately makes two.
+  bool get _showToggle => _gender == 'woman' || _private != null;
+
+  /// Invite men gets the violet [_Skin.suitors], Privately the graphite
+  /// [_Skin.private]; Invite women gets her mood. The loading / denied / error
+  /// states keep the app accent, so the screen never flashes a skin before we
+  /// know which flow she is even on.
   _Skin get _activeSkin {
     if (_view != _View.ready) return _Skin.appDefault();
+    if (_showPrivate) return _Skin.private;
     return _showMen ? _Skin.suitors : _Skin.forMood(_mood);
   }
 
@@ -373,6 +421,14 @@ class _ReferScreenState extends State<ReferScreen> {
 
   String _inviteMessageFor(String url, _Mood m) =>
       _gender == 'man' ? _menMessageFor(url, m) : _womenMessageFor(url, m);
+
+  // ── Privately copy ───────────────────────────────────────────────────────
+  // Same voice for men and women, and no mood: this one goes into group chats and
+  // to people who don't know the sender is dating, so it stays about the app.
+  String _privateMessageFor(String url) =>
+      "hey! I've got an invite to riteangle — it's invite-only and everyone's identity-verified "
+      "(dating if you want that, just good people if you don't). thought you'd like it in there. "
+      "here you go 👉 $url";
 
   void _selectMood(_Mood m) {
     setState(() {
@@ -523,8 +579,12 @@ class _ReferScreenState extends State<ReferScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (_gender == 'woman') ...[_toggle(), const SizedBox(height: 20)],
-              ...(_showMen ? _menChildren() : _womenChildren()),
+              if (_showToggle) ...[_toggle(), const SizedBox(height: 20)],
+              ...(_showPrivate
+                  ? _privateChildren()
+                  : _showMen
+                      ? _menChildren()
+                      : _womenChildren()),
             ],
           ),
         ),
@@ -543,14 +603,23 @@ class _ReferScreenState extends State<ReferScreen> {
       ),
       child: Row(
         children: [
-          _toggleBtn('Invite women', _tab == _Tab.women, () => setState(() => _tab = _Tab.women)),
-          _toggleBtn('Invite men', _tab == _Tab.men, () => setState(() => _tab = _Tab.men)),
+          // Three pills only fit on a narrow phone at a smaller type size.
+          _toggleBtn('Invite women', _tab == _Tab.women, () => setState(() => _tab = _Tab.women),
+              compact: _threePills),
+          if (_gender == 'woman')
+            _toggleBtn('Invite men', _tab == _Tab.men, () => setState(() => _tab = _Tab.men),
+                compact: _threePills),
+          if (_private != null)
+            _toggleBtn('Privately', _tab == _Tab.private, () => setState(() => _tab = _Tab.private),
+                compact: _threePills),
         ],
       ),
     );
   }
 
-  Widget _toggleBtn(String label, bool on, VoidCallback onTap) {
+  bool get _threePills => _gender == 'woman' && _private != null;
+
+  Widget _toggleBtn(String label, bool on, VoidCallback onTap, {bool compact = false}) {
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
@@ -562,9 +631,11 @@ class _ReferScreenState extends State<ReferScreen> {
             borderRadius: BorderRadius.circular(999),
           ),
           child: Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                   fontWeight: FontWeight.w700,
-                  fontSize: 13,
+                  fontSize: compact ? 12 : 13,
                   color: on ? _s.ctaText : _s.text2)),
         ),
       ),
@@ -620,6 +691,174 @@ class _ReferScreenState extends State<ReferScreen> {
       const SizedBox(height: 22),
       _statusLine(),
     ];
+  }
+
+  // ── Privately (Flow 3) ───────────────────────────────────────────────────
+  /// One link for anyone, with nothing about the sender attached to it. The three
+  /// [_fact] cards are the education: a privacy promise that isn't stated exactly
+  /// is worse than not making it, so each of the three things this mode changes is
+  /// spelled out rather than implied by the word "private".
+  List<Widget> _privateChildren() {
+    final p = _private!;
+    final womanRate = _cash?.currentTier ?? 100;
+    final manRate = _menCash?.currentTier ?? 25;
+    // A private referral pays into the track the joiner's gender implies, so there
+    // is no private-only balance to show — the honest headline is the total.
+    final earned = (_cash?.earnedInr ?? 0) + (_menCash?.earnedInr ?? 0);
+    final pending = (_cash?.pendingInr ?? 0) + (_menCash?.pendingInr ?? 0);
+    final paid = (_cash?.paidInr ?? 0) + (_menCash?.paidInr ?? 0);
+
+    return [
+      Text('Send it to anyone. Stay invisible.',
+          style: TextStyle(
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              color: _s.text1,
+              height: 1.1,
+              letterSpacing: -0.5)),
+      const SizedBox(height: 6),
+      Text('One link for men and women. Nothing about you travels with it.',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _s.accentText)),
+      const SizedBox(height: 16),
+      Text(
+        "Same invite, same money — but this link doesn't carry your photo, your name or your "
+        "profile, and nobody who joins through it lands in your matches. Use it for group chats, "
+        "your college batch, work folks, family: anyone you'd rather not have know your dating life.",
+        style: TextStyle(fontSize: 14.5, color: _s.text2, height: 1.55),
+      ),
+      const SizedBox(height: 20),
+      _fact("🕶️", "Your photo and profile stay here.",
+          "Whoever opens this link sees riteangle, not you — no picture, no name, no age or city. "
+          "Even the WhatsApp link preview shows only the app logo."),
+      const SizedBox(height: 10),
+      _fact("💸", "You still get paid for everyone who joins.",
+          "Every person who signs up through your private link and gets verified is still credited "
+          "to you — ₹$womanRate for a woman, ₹$manRate for a man, to your UPI, exactly like the "
+          "other tabs."),
+      const SizedBox(height: 10),
+      _fact("🚫", "Nobody you invite gets matched with you.",
+          "Not the men, not the women. Your matches don't change, and no one who joins through this "
+          "link is ever shown that you invited them."),
+      const SizedBox(height: 22),
+      // Earnings across every invite, for the reason above.
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [_s.earnFrom, _s.earnTo],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _s.tint),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text("₹$earned",
+                    style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _s.text1)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('earned across all your invites',
+                      style: TextStyle(fontSize: 13, color: _s.text2, fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(color: _s.card, borderRadius: BorderRadius.circular(999)),
+              child: Text("🔒 ₹$womanRate per woman · ₹$manRate per man",
+                  style:
+                      TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _s.accentText)),
+            ),
+            const SizedBox(height: 8),
+            Text("₹$pending pending · ₹$paid paid · sent to your UPI once they're verified",
+                style: TextStyle(fontSize: 12, color: _s.text2)),
+          ],
+        ),
+      ),
+      const SizedBox(height: 22),
+      _messageBlock(
+        controller: _privateMsg,
+        label: "WHAT THEY'LL SEE",
+        hint: 'Works in a group chat too. Edit before you send.',
+      ),
+      const SizedBox(height: 14),
+      ..._channelBlock(message: () => _privateMsg.text, link: p.shareUrl),
+      const SizedBox(height: 8),
+      Text(
+        "This is a different link from your other tabs — that one still shows your profile. Only "
+        "this one is private.",
+        style: TextStyle(fontSize: 12, color: _s.text3, height: 1.45),
+      ),
+      const SizedBox(height: 22),
+      // This link's own funnel — it forms no matches, so "joined" is the end state.
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _s.card,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: _s.border1),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _stat('${p.invited}', 'invited', _s.text1),
+            Container(
+              width: 4,
+              height: 4,
+              margin: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(color: _s.text3, shape: BoxShape.circle),
+            ),
+            _stat('${p.joined}', 'joined', _s.accentText),
+          ],
+        ),
+      ),
+    ];
+  }
+
+  /// A property of the private mode — same card rhythm as [_step], but an icon
+  /// instead of a number, because these are facts and not an order of operations.
+  Widget _fact(String icon, String lead, String body) {
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: _s.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _s.border1),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(color: _s.tint, shape: BoxShape.circle),
+            child: Text(icon, style: const TextStyle(fontSize: 14)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text.rich(
+              TextSpan(children: [
+                TextSpan(
+                    text: "$lead ",
+                    style: TextStyle(fontWeight: FontWeight.w700, color: _s.text1)),
+                TextSpan(text: body),
+              ]),
+              style: TextStyle(fontSize: 13.5, color: _s.text2, height: 1.5),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ── Invite women (Flow 2 · cash) ─────────────────────────────────────────
@@ -1269,8 +1508,21 @@ class _SkinArtPainter extends CustomPainter {
         _mesh(canvas, size, k, paint);
       case _Motif.facets:
         _facets(canvas, size, k, paint);
+      case _Motif.veil:
+        _veil(canvas, size, k, paint);
       case _Motif.none:
         break;
+    }
+  }
+
+  /// Privately — a veil: one family of close diagonals, frosted glass. A single
+  /// direction only, so it never reads as the diamond lattice of the men skin.
+  void _veil(Canvas canvas, Size size, double k, Paint paint) {
+    paint.strokeWidth = 0.7 * k;
+    final step = 22 * k;
+    final h = size.height;
+    for (var x = -h; x < size.width + h; x += step) {
+      canvas.drawLine(Offset(x, 0), Offset(x + h, h), paint);
     }
   }
 

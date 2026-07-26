@@ -11,8 +11,10 @@
  * existing row so a re-submit can correct it).
  *
  * On every accepted submit (new or duplicate) we send a confirmation email
- * with the referring woman's card. A light per-link rate limit caps how many
- * signups a single link can drive per hour, so the public endpoint can't be
+ * with the referring woman's card — EXCEPT on a private link (mode='private'),
+ * where the card is suppressed: that link carried nothing about its owner, and
+ * the email is not a back door around it. A light per-link rate limit caps how
+ * many signups a single link can drive per hour, so the public endpoint can't be
  * used to spray email at arbitrary addresses.
  */
 
@@ -20,6 +22,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getSupabase } from '$lib/server/supabase';
 import { sendBetaConfirmationEmail, type ReferrerCard } from '$lib/server/beta-invite-email';
+import { modeOf, selectReferralLinks } from '$lib/server/referral-links';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PLATFORMS = ['ios', 'android'] as const;
@@ -80,14 +83,18 @@ export const POST: RequestHandler = async ({ request }) => {
 
   const db = getSupabase() as any;
 
-  const { data: link } = await db
-    .from('verified_vibe_referral_links')
-    .select('id, referrer_id, active')
-    .eq('token', token)
-    .maybeSingle();
+  const { rows: linkRows } = await selectReferralLinks(db, 'id, referrer_id, active', (q) =>
+    q.eq('token', token).limit(1)
+  );
+  const link = linkRows[0] ?? null;
   if (!link || !link.active) {
     return json({ error: 'This invite link is no longer active.' }, { status: 404 });
   }
+
+  // A private link carries nothing about its owner — including in this email.
+  // Passing no referrer switches the confirmation to the card-less copy, which
+  // shows no photo and promises no match. The signup is still attributed.
+  const cardReferrerId = modeOf(link) === 'private' ? null : link.referrer_id;
 
   // First invite wins: if this email is already collected, keep the original
   // row — but still (re)send the confirmation so the person is acknowledged.
@@ -102,7 +109,7 @@ export const POST: RequestHandler = async ({ request }) => {
       .from('verified_vibe_beta_signups')
       .update({ platform: device })
       .eq('id', existing.id);
-    await sendConfirmation(db, link.referrer_id, normalized);
+    await sendConfirmation(db, cardReferrerId, normalized);
     return json({ success: true });
   }
 
@@ -130,10 +137,10 @@ export const POST: RequestHandler = async ({ request }) => {
   if (error) {
     // Unique-violation race (someone inserted the same email between our check
     // and insert) → still a success from the user's perspective. Confirm anyway.
-    await sendConfirmation(db, link.referrer_id, normalized);
+    await sendConfirmation(db, cardReferrerId, normalized);
     return json({ success: true });
   }
 
-  await sendConfirmation(db, link.referrer_id, normalized);
+  await sendConfirmation(db, cardReferrerId, normalized);
   return json({ success: true });
 };

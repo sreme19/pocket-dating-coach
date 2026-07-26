@@ -172,6 +172,16 @@
 					<span class="ico">💬</span>
 					<span class="ctxt"><b>She only meets the guys her Bestie clicks with.</b> Make your first impression count.</span>
 				</div>
+			{:else if data.isPrivate}
+				<!-- Private link: the loader never even fetched the referrer, so there is
+				     nothing to show. Say so plainly rather than letting it read as a
+				     faceless mass invite. -->
+				<h1 class="hl">You've got a private invite</h1>
+				<p class="hl-sub">riteangle is an identity-verified community — every profile is checked before anyone matches. Real people, no noise.</p>
+				<div class="callout">
+					<span class="ico">🔒</span>
+					<span class="ctxt"><b>Whoever invited you chose to stay private.</b> Their profile isn't shown here, and you won't be matched with them — you're joining the community, not their inbox.</span>
+				</div>
 			{:else}
 				<h1 class="hl">You've been invited to riteangle</h1>
 				<p class="hl-sub">An identity-verified dating community — every profile is checked before anyone matches. Real people, no noise.</p>

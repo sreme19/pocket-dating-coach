@@ -30,6 +30,13 @@
  * A match is only ever formed across genders; a same-gender referral still signs
  * up and is still attributed to the referrer.
  *
+ * PRIVATE LINKS (mode='private', migration 20260726170526) cut across all four
+ * rows above: the cash and the attribution are identical, but NO match is ever
+ * formed, in either direction. That is the deal the sender was shown — their
+ * profile never travelled with the link, so they cannot be handed the joiner (or
+ * vice versa) on the strength of it. Privacy is read from the LINK, not the
+ * signup row, so it cannot drift from what the invitee actually opened.
+ *
  * Rules (per product decisions):
  *   - Only fires for men (women also enroll in the pool, as bestie — skipped).
  *   - Only fires once the man is actually in the pool (guaranteed by the call
@@ -40,6 +47,7 @@
 
 import { getSupabase } from './supabase';
 import { sendMatchNotification } from './matchmaker-service';
+import { signupLinkMode } from './referral-links';
 
 /**
  * Cash reward rules per track. The two tracks are counted SEPARATELY — see the
@@ -171,7 +179,7 @@ export async function redeemBetaInviteIfEligible(userId: string): Promise<void> 
   // Earliest pending invite for this email — first invite wins.
   const { data: signup } = await db
     .from('verified_vibe_beta_signups')
-    .select('id, referrer_id, status')
+    .select('id, referrer_id, status, link_id')
     .eq('email', email) // stored normalized on insert
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
@@ -194,6 +202,10 @@ export async function redeemBetaInviteIfEligible(userId: string): Promise<void> 
     .eq('id', referrerId)
     .maybeSingle();
   const referrerIsWoman = referrer?.gender === 'woman';
+
+  // Did he arrive on her PRIVATE link? Then she gets the cash and the
+  // attribution, and no match is formed (see the header note).
+  const isPrivate = (await signupLinkMode(db, signup.link_id)) === 'private';
 
   // Flow 1 cash (added 2026-07-25): a WOMAN earns 25 INR for every man she
   // brings who reaches this point — i.e. verified and in the pool, the same bar
@@ -221,8 +233,13 @@ export async function redeemBetaInviteIfEligible(userId: string): Promise<void> 
   // created — men→men is a deferred flow, and this used to mint a man↔man match
   // because the guard only checked the joiner's gender. Mirrors the woman↔woman
   // rule in awardReferralRewardIfEligible.
-  if (!referrerIsWoman) {
-    await closeSignup(db, signup.id, userId);
+  //
+  // A private link stops here too, for the opposite reason: the pairing would be
+  // legal, but she shared a link that carried nothing about her precisely so it
+  // wouldn't put strangers in her matches. Closed as 'rewarded' when she was
+  // paid, so the funnel doesn't claim a match that was never made.
+  if (!referrerIsWoman || isPrivate) {
+    await closeSignup(db, signup.id, userId, isPrivate && referrerIsWoman ? 'rewarded' : 'matched');
     return;
   }
 
@@ -331,7 +348,7 @@ export async function awardReferralRewardIfEligible(userId: string): Promise<voi
   // Earliest pending invite for this email — first invite wins.
   const { data: signup } = await db
     .from('verified_vibe_beta_signups')
-    .select('id, referrer_id, status, mood')
+    .select('id, referrer_id, status, mood, link_id')
     .eq('email', email)
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
@@ -362,13 +379,18 @@ export async function awardReferralRewardIfEligible(userId: string): Promise<voi
   //
   // A WOMAN referrer gets the cash and the attribution but no match: two women
   // are never matched to each other. Same cross-gender rule as the men flow.
+  //
+  // A PRIVATE link also gets the cash and the attribution and no match — even
+  // man→woman, where a match is his usual upside. He chose the link that shows
+  // her nothing about him; it cannot then drop him into her matches.
   try {
+    const isPrivate = (await signupLinkMode(db, signup.link_id)) === 'private';
     const { data: refProfile } = await db
       .from('verified_vibe_users')
       .select('gender')
       .eq('id', referrerId)
       .maybeSingle();
-    if (refProfile?.gender === 'man') {
+    if (refProfile?.gender === 'man' && !isPrivate) {
       const { data: existingMatch } = await db
         .from('verified_vibe_matches')
         .select('id')

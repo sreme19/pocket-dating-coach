@@ -13,6 +13,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  *   man's link   → woman joins  → woman track (100/150)   + match to him
  *   man's link   → man joins    → attribution only: no cash, NO match
  *
+ * A PRIVATE link (verified_vibe_referral_links.mode) cuts across all four: same
+ * cash, same attribution, and NO match in either direction.
+ *
  * These tests drive the real functions against a fake Supabase client and assert
  * on what was written, so a regression in the gender routing fails here.
  */
@@ -26,6 +29,10 @@ function makeDb(opts: {
   email?: string;
   existingMatch?: Row | null;
   rewardCount?: number;
+  /** Mode of the link the signup came through (default 'public'). */
+  linkMode?: 'public' | 'private';
+  /** Simulate a database where migration 20260726170526 hasn't run yet. */
+  noModeColumn?: boolean;
 }) {
   const inserts: Record<string, Row[]> = {};
   const updates: Record<string, Row[]> = {};
@@ -45,8 +52,9 @@ function makeDb(opts: {
     from(table: string) {
       const state: Row = { table, filters: {} };
       const builder: any = {
-        select(_cols?: string, cfg?: { count?: string; head?: boolean }) {
+        select(cols?: string, cfg?: { count?: string; head?: boolean }) {
           state.counting = cfg?.count === 'exact';
+          state.cols = cols ?? '';
           return builder;
         },
         eq(col: string, val: unknown) {
@@ -80,8 +88,22 @@ function makeDb(opts: {
         async single() {
           return { data: { id: 'new-match-1' }, error: null };
         },
-        // `await`ing the builder itself (the count queries do this).
+        // `await`ing the builder itself (the count queries and the referral-link
+        // reads do this).
         then(resolve: (v: any) => void) {
+          if (table === 'verified_vibe_referral_links') {
+            // Pre-migration: selecting `mode` is an undefined_column error, and
+            // the caller is expected to retry without it.
+            if (opts.noModeColumn && `${state.cols}`.includes('mode')) {
+              resolve({ data: null, error: { code: '42703' } });
+              return;
+            }
+            resolve({
+              data: [{ id: state.filters.id ?? 'link-1', mode: opts.linkMode ?? 'public' }],
+              error: null,
+            });
+            return;
+          }
           if (state.counting) {
             resolve({ count: opts.rewardCount ?? 0, error: null });
           } else {
@@ -104,6 +126,7 @@ const JOINER = 'joiner-1';
 const signupFor = (referrerId: string): Row => ({
   id: 'signup-1',
   referrer_id: referrerId,
+  link_id: 'link-1',
   status: 'pending',
   mood: 'casual',
 });
@@ -205,6 +228,60 @@ describe('Refer & Earn attribution by joiner gender', () => {
     await awardReferralRewardIfEligible(JOINER);
 
     expect(rewards(currentDb)[0]).toMatchObject({ amount_inr: 150, reward_index: 26 });
+  });
+
+  it("a MAN joining a woman's PRIVATE link is paid for but NOT matched to her", async () => {
+    currentDb = makeDb({
+      users: { [JOINER]: { gender: 'man' }, [WOMAN_REFERRER]: { gender: 'woman' } },
+      signup: signupFor(WOMAN_REFERRER),
+      linkMode: 'private',
+    });
+    const { redeemBetaInviteIfEligible } = await import('./beta-invite');
+    await redeemBetaInviteIfEligible(JOINER);
+
+    // Cash and attribution are unchanged by privacy…
+    expect(rewards(currentDb)).toHaveLength(1);
+    expect(rewards(currentDb)[0]).toMatchObject({
+      track: 'man',
+      amount_inr: 25,
+      referrer_id: WOMAN_REFERRER,
+    });
+    // …but her private link never puts him in her matches.
+    expect(matches(currentDb)).toHaveLength(0);
+    expect(signupUpdates(currentDb)[0]).toMatchObject({
+      status: 'rewarded',
+      matched_user_id: JOINER,
+    });
+  });
+
+  it("a WOMAN joining a man's PRIVATE link is paid for but NOT matched to him", async () => {
+    currentDb = makeDb({
+      users: { [JOINER]: { gender: 'woman' }, [MAN_REFERRER]: { gender: 'man' } },
+      signup: signupFor(MAN_REFERRER),
+      rewardCount: 0,
+      linkMode: 'private',
+    });
+    const { awardReferralRewardIfEligible } = await import('./beta-invite');
+    await awardReferralRewardIfEligible(JOINER);
+
+    expect(rewards(currentDb)).toHaveLength(1);
+    expect(rewards(currentDb)[0]).toMatchObject({ amount_inr: 100, referrer_id: MAN_REFERRER });
+    // The man→woman auto-match is his usual upside; the private link forgoes it.
+    expect(matches(currentDb)).toHaveLength(0);
+  });
+
+  it('a database without the `mode` column behaves exactly as before (public)', async () => {
+    currentDb = makeDb({
+      users: { [JOINER]: { gender: 'man' }, [WOMAN_REFERRER]: { gender: 'woman' } },
+      signup: signupFor(WOMAN_REFERRER),
+      noModeColumn: true,
+    });
+    const { redeemBetaInviteIfEligible } = await import('./beta-invite');
+    await redeemBetaInviteIfEligible(JOINER);
+
+    expect(rewards(currentDb)).toHaveLength(1);
+    expect(matches(currentDb)).toHaveLength(1);
+    expect(signupUpdates(currentDb)[0]).toMatchObject({ status: 'matched' });
   });
 
   it('a referral past its track cap is recorded as a 0 INR void row', async () => {

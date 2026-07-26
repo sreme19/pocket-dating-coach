@@ -1,26 +1,34 @@
 <script lang="ts">
   /**
-   * Refer & Earn — one entry, two flows (toggle):
+   * Refer & Earn — one entry, three flows (toggle):
    *
    *  - Invite women (Flow 2, Model B): CASH ambassador referral. She earns ₹100
    *    for each verified woman she brings (#1-25), then ₹150 (#26-100), cap 100.
    *    A "mood" (networking / casual / serious) sets the share message + the
    *    landing the invitee sees (via ?m=). Money is paid MANUALLY by an admin.
-   *  - Invite men (Flow 1, Model A): no money — her AI Bestie screens the men in
-   *    her DMs and hands her the gems.
+   *  - Invite men (Flow 1, Model A): her AI Bestie screens the men in her DMs and
+   *    hands her the gems, plus ₹25 per verified man.
+   *  - Privately (Flow 3): a SECOND token whose landing carries nothing about the
+   *    sender and which never forms a match. Same cash, same ledger. Anyone can
+   *    be sent it — men or women — which is why it is the one tab men see too.
    *
    * Data comes from GET /api/verified-vibe/referral-link (client-side; the token
-   * lives in the client Supabase session, there is no cookie session).
+   * lives in the client Supabase session, there is no cookie session). `private`
+   * comes back null when migration 20260726170526 hasn't run, and the tab is then
+   * hidden rather than offering a privacy promise the server can't keep.
    *
    * SKINS: the whole screen repaints per flow/mood — teal for Networking, warm
-   * black for Casual, dusty rose for Serious, and violet for Invite men (which
-   * has no mood of its own). Purely cosmetic: it does not touch matching, and it
-   * is NOT the Networking Season flag even though Networking borrows the same
-   * teal so that teal keeps meaning one thing to a user.
+   * black for Casual, dusty rose for Serious, violet for Invite men and graphite
+   * for Privately (neither has a mood of its own). Purely cosmetic: it does not
+   * touch matching, and it is NOT the Networking Season flag even though
+   * Networking borrows the same teal so that teal keeps meaning one thing to a
+   * user.
    *
-   * CASH: both flows pay, on separate ledger tracks (see beta-invite.ts) —
-   * invite women = ₹100 for #1-25 then ₹150, cap 100; invite men = flat ₹25,
-   * cap 1000. `cash` and `menCash` come back summed per track.
+   * CASH: all three flows pay, on the same two ledger tracks (see beta-invite.ts)
+   * — invite women = ₹100 for #1-25 then ₹150, cap 100; invite men = flat ₹25,
+   * cap 1000. `cash` and `menCash` come back summed per track. A private referral
+   * is NOT a third track: it pays into whichever track the joiner's gender
+   * implies, so its earnings are already inside those two totals.
    *
    * Kept in lockstep with mobile/lib/refer_screen.dart.
    */
@@ -41,7 +49,7 @@
   };
 
   let view = $state<State>('loading');
-  let tab = $state<'women' | 'men'>('women');
+  let tab = $state<'women' | 'men' | 'private'>('women');
   let shareUrl = $state('');
   let invited = $state(0);
   let signedUp = $state(0);
@@ -50,6 +58,19 @@
   let gender = $state<string | null>(null);
   let copiedLink = $state(false);
   let copiedMsg = $state(false);
+
+  // ── Privately (Flow 3) ──────────────────────────────────────────────────────
+  // A different token from `shareUrl`, not the same one with a flag: the no-match
+  // rule is enforced days later when the invitee verifies, so it has to live in
+  // the token itself and survive the link being forwarded or re-typed.
+  let privateUrl = $state('');
+  let privateInvited = $state(0);
+  let privateJoined = $state(0);
+  let privateMsg = $state('');
+  const privateMessageFor = (url: string) =>
+    `hey! I've got an invite to riteangle — it's invite-only and everyone's identity-verified ` +
+    `(dating if you want that, just good people if you don't). thought you'd like it in there. ` +
+    `here you go 👉 ${url}`;
 
   // ── Invite men (Flow 1) ─────────────────────────────────────────────────────
   let message = $state('');
@@ -118,6 +139,12 @@
       cash = data.cash ?? null;
       menCash = data.menCash ?? null;
       gender = data.gender ?? null;
+      if (data.private?.path) {
+        privateUrl = `${window.location.origin}${data.private.path}`;
+        privateInvited = data.private.invited ?? 0;
+        privateJoined = data.private.signedUp ?? 0;
+        privateMsg = privateMessageFor(privateUrl);
+      }
       message = messageFor(shareUrl);
       womenMsg = msgSet()[mood](womenLink(mood));
       view = 'ready';
@@ -142,16 +169,28 @@
   }
 
   const prettyUrl = $derived(shareUrl.replace(/^https?:\/\//, ''));
+  const prettyPrivateUrl = $derived(privateUrl.replace(/^https?:\/\//, ''));
   const capPct = $derived(cash ? Math.min(100, (cash.verifiedCount / cash.cap) * 100) : 0);
   const menCapPct = $derived(
     menCash ? Math.min(100, (menCash.verifiedCount / menCash.cap) * 100) : 0
   );
 
+  // Private referrals pay into the two existing tracks by joiner gender, so the
+  // honest headline on that tab is everything earned across every invite — not a
+  // private-only figure, which the ledger deliberately doesn't keep.
+  const totalEarned = $derived((cash?.earnedInr ?? 0) + (menCash?.earnedInr ?? 0));
+  const totalPending = $derived((cash?.pendingInr ?? 0) + (menCash?.pendingInr ?? 0));
+  const totalPaid = $derived((cash?.paidInr ?? 0) + (menCash?.paidInr ?? 0));
+
+  // Men currently see one flow (invite women); Privately makes two. Hidden
+  // entirely until the server actually issues a private token.
+  const showToggle = $derived(gender === 'woman' || !!privateUrl);
+
   // ── Skin ────────────────────────────────────────────────────────────────────
-  // The Invite women flow takes the mood she picked. Invite men has no mood, so
-  // it gets its own violet skin ('men') rather than the app accent — the flow is
-  // hers alone, and violet keeps it distinct from all three moods.
-  const skin = $derived(tab === 'men' ? 'men' : mood);
+  // The Invite women flow takes the mood she picked. Invite men and Privately
+  // have no mood, so each gets its own skin rather than the app accent — violet
+  // for the DMs flow, graphite for the private one.
+  const skin = $derived(tab === 'men' ? 'men' : tab === 'private' ? 'private' : mood);
 
   /// Background line art per skin — one flat colour at low opacity, drawn against
   /// a 340x1200 reference box that `slice` scales to cover the page. Geometry is
@@ -165,7 +204,7 @@
   const W = 340;
   const H = 1200;
 
-  function buildArt(m: Mood | 'app' | 'men'): Art {
+  function buildArt(m: Mood | 'app' | 'men' | 'private'): Art {
     const art: Art = { paths: [], circles: [], lines: [], dots: [] };
 
     if (m === 'casual') {
@@ -198,6 +237,13 @@
       for (let i = -H; i < W + H; i += step) {
         art.lines.push({ x1: i, y1: 0, x2: i + H, y2: H });
         art.lines.push({ x1: i, y1: 0, x2: i - H, y2: H });
+      }
+    } else if (m === 'private') {
+      // Veil: a single family of close diagonals — frosted glass. One direction
+      // only, so it never crosses into the diamond lattice of the men skin.
+      const step = 22;
+      for (let i = -H; i < W + H; i += step) {
+        art.lines.push({ x1: i, y1: 0, x2: i + H, y2: H });
       }
     } else if (m === 'networking') {
       // Scattered nodes joined to their near neighbours. A fixed seed keeps the
@@ -263,14 +309,110 @@
           </svg>
         </div>
 
-      {#if gender === 'woman'}
-        <div class="toggle">
+      {#if showToggle}
+        <div class="toggle" class:three={gender === 'woman' && privateUrl}>
           <button class:on={tab === 'women'} onclick={() => (tab = 'women')}>Invite women</button>
-          <button class:on={tab === 'men'} onclick={() => (tab = 'men')}>Invite men</button>
+          {#if gender === 'woman'}
+            <button class:on={tab === 'men'} onclick={() => (tab = 'men')}>Invite men</button>
+          {/if}
+          {#if privateUrl}
+            <button class:on={tab === 'private'} onclick={() => (tab = 'private')}>Privately</button>
+          {/if}
         </div>
       {/if}
 
-      {#if tab === 'men'}
+      {#if tab === 'private'}
+        <!-- Privately — one link for anyone, nothing about her attached to it -->
+        <h1 class="hero">Send it to anyone. Stay invisible.</h1>
+        <p class="hero-sub">One link for men and women. Nothing about you travels with it.</p>
+
+        <p class="pitch">
+          Same invite, same money — but this link doesn't carry your photo, your name or your
+          profile, and nobody who joins through it lands in your matches. Use it for group chats,
+          your college batch, work folks, family: anyone you'd rather not have know your dating life.
+        </p>
+
+        <!-- The three things this mode changes. Spelled out, because a privacy
+             promise that isn't stated exactly is worse than not making it. -->
+        <ul class="facts">
+          <li>
+            <span class="fic">🕶️</span>
+            <span>
+              <b>Your photo and profile stay here.</b>
+              Whoever opens this link sees riteangle, not you — no picture, no name, no age or city.
+              Even the WhatsApp link preview shows only the app logo.
+            </span>
+          </li>
+          <li>
+            <span class="fic">💸</span>
+            <span>
+              <b>You still get paid for everyone who joins.</b>
+              Every person who signs up through your private link and gets verified is still credited
+              to you — ₹{cash?.currentTier ?? 100} for a woman, ₹{menCash?.currentTier ?? 25} for a
+              man, to your UPI, exactly like the other tabs.
+            </span>
+          </li>
+          <li>
+            <span class="fic">🚫</span>
+            <span>
+              <b>Nobody you invite gets matched with you.</b>
+              Not the men, not the women. Your matches don't change, and no one who joins through
+              this link is ever shown that you invited them.
+            </span>
+          </li>
+        </ul>
+
+        <!-- Earnings — across every invite, since private referrals pay into the
+             same two tracks rather than a track of their own. -->
+        <div class="earn">
+          <div class="earn-top">
+            <span class="amt">₹{totalEarned}</span>
+            <span class="amtlbl">earned across all your invites</span>
+          </div>
+          <span class="earn-tier">
+            🔒 ₹{cash?.currentTier ?? 100} per woman · ₹{menCash?.currentTier ?? 25} per man
+          </span>
+          <div class="earn-pend">₹{totalPending} pending · ₹{totalPaid} paid · sent to your UPI once they're verified</div>
+        </div>
+
+        <!-- Link -->
+        <div class="linkcard">
+          <span class="lbl">Your private link</span>
+          <span class="url">{prettyPrivateUrl}</span>
+        </div>
+        <p class="hint spaced">
+          This is a different link from your other tabs — that one still shows your profile. Only
+          this one is private.
+        </p>
+
+        <!-- Share -->
+        <div class="share">
+          <button class="btn wa" onclick={() => shareWhatsApp(privateMsg)}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4z" /><path d="M22 2 11 13" /></svg>
+            Share on WhatsApp
+          </button>
+          <button class="btn ghost" onclick={() => copy(privateUrl, 'link')}>
+            {copiedLink ? 'Copied ✓' : 'Copy link'}
+          </button>
+        </div>
+
+        <!-- Editable pre-filled message -->
+        <div class="msg">
+          <div class="msg-head">
+            <span class="lbl">What they'll see</span>
+            <button class="mini" onclick={() => copy(privateMsg, 'msg')}>{copiedMsg ? 'Copied ✓' : 'Copy message'}</button>
+          </div>
+          <textarea bind:value={privateMsg} rows="5" aria-label="Message to send"></textarea>
+          <p class="hint">Works in a group chat too. Edit before you send.</p>
+        </div>
+
+        <!-- Status line (private link only) -->
+        <div class="status">
+          <span class="stat"><span class="k">{privateInvited}</span> invited</span>
+          <span class="dot"></span>
+          <span class="stat"><span class="k up">{privateJoined}</span> joined</span>
+        </div>
+      {:else if tab === 'men'}
         <!-- Hero -->
         <h1 class="hero">Turn your DMs into dates.</h1>
         <p class="hero-sub">Your AI Bestie speaks to them. Not you.</p>
@@ -508,6 +650,30 @@
     --art-op: 0.075;
   }
 
+  /* Privately — graphite. Deliberately the least romantic skin in the set: this
+     tab is the one you open to keep your dating life out of a group chat, and a
+     cool neutral says discretion where any of the moods would say the opposite.
+     Distinct from the men skin's violet at a glance. */
+  .refer[data-skin='private'] {
+    --bg-1: #eef1f5;
+    --bg-2: #ffffff;
+    --bg-3: #e2e7ee;
+    --text-1: #0f1720;
+    --text-2: #56606d;
+    --text-3: #8b95a3;
+    --text-4: #a8b1bd;
+    --border-1: #dfe5ec;
+    --border-2: #cbd4de;
+    --accent: #3f5872;
+    --accent-bright: #2b3f56;
+    --accent-dim: #e3e9f1;
+    --accent-tint: rgba(63, 88, 114, 0.1);
+    --earn-a: #f7f9fc;
+    --earn-b: #e3e9f1;
+    --earn-edge: #e3e9f1;
+    --art-op: 0.075;
+  }
+
   /* Serious — dusty rose quartz, pulled well off the riteangle hot pink so it
      reads as its own mood rather than as the app's default. */
   .refer[data-skin='serious'] {
@@ -602,6 +768,8 @@
     cursor: pointer;
   }
   .toggle button.on { background: var(--accent); color: var(--cta-txt); }
+  /* Three pills only fit on a narrow phone at a smaller type size. */
+  .toggle.three button { font-size: 12px; padding-inline: 2px; }
 
   .hero {
     font-size: 27px;
@@ -632,6 +800,40 @@
     color: var(--accent-bright);
     line-height: 1.4;
     margin: 0 0 20px;
+  }
+
+  /* Privately — the three things the mode changes. Same card rhythm as .steps,
+     but an icon instead of a number: these are properties, not an order. */
+  .facts {
+    list-style: none;
+    margin: 0 0 22px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .facts li {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    background: var(--bg-2);
+    border: 1px solid var(--border-1);
+    border-radius: var(--r-md);
+    padding: 13px 14px;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: var(--text-2);
+  }
+  .facts b { color: var(--text-1); font-weight: 750; }
+  .facts .fic {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--accent-tint);
+    display: grid;
+    place-items: center;
+    font-size: 14px;
   }
 
   .steps {
@@ -684,6 +886,14 @@
     color: var(--accent-bright);
   }
   .linkcard .url { font-size: 14px; font-weight: 700; word-break: break-all; }
+
+  /* The "this is a different link" caveat, which sits outside a .msg block. */
+  .hint.spaced {
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-3);
+    margin: -4px 2px 18px;
+  }
 
   /* Women — earnings */
   .earn {

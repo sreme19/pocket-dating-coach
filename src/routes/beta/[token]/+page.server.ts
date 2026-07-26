@@ -1,5 +1,6 @@
 import type { PageServerLoad } from './$types';
 import { getSupabase } from '$lib/server/supabase';
+import { modeOf, selectReferralLinks } from '$lib/server/referral-links';
 
 export const load: PageServerLoad = async ({ params, url }) => {
 	const db = getSupabase() as any;
@@ -13,22 +14,35 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	const moodParam = url.searchParams.get('m');
 	const mood = ['networking', 'casual', 'serious'].includes(moodParam ?? '') ? moodParam : null;
 
-	const { data: link } = await db
-		.from('verified_vibe_referral_links')
-		.select('token, active, referrer_id')
-		.eq('token', params.token)
-		.maybeSingle();
+	const { rows } = await selectReferralLinks(db, 'token, active, referrer_id', (q) =>
+		q.eq('token', params.token).limit(1)
+	);
+	const link = rows[0] ?? null;
 
 	// Don't leak whether a token exists — an inactive or unknown token both
 	// render the same "not available" state.
 	if (!link || !link.active) {
-		return { valid: false, token: params.token, referrer: null, pageUrl, ogImage: null, mood };
+		return {
+			valid: false,
+			token: params.token,
+			referrer: null,
+			pageUrl,
+			ogImage: null,
+			mood,
+			isPrivate: false
+		};
 	}
 
-	// The woman who owns the link — shown on a card so the visitor knows exactly
-	// who they'll be matched with. Admin-level links (no referrer_id) skip this
-	// entirely and fall through to generic brand copy.
-	const { data: referrer } = link.referrer_id
+	// A PRIVATE link carries nothing about its owner: no photo, no name, no age
+	// or city, and the brand logo (not their face) in the link preview. That is
+	// the whole point of the mode, and it is enforced here — by never loading the
+	// referrer — rather than in the markup, so no future copy change can leak it.
+	const isPrivate = modeOf(link) === 'private';
+
+	// The person who owns the link — shown on a card so the visitor knows exactly
+	// who they'll be matched with. Admin-level links (no referrer_id) and private
+	// links skip this entirely and fall through to generic brand copy.
+	const { data: referrer } = link.referrer_id && !isPrivate
 		? await db
 				.from('verified_vibe_users')
 				.select('first_name, age, city, avatar_url, about')
@@ -47,6 +61,7 @@ export const load: PageServerLoad = async ({ params, url }) => {
 	return {
 		valid: true,
 		mood,
+		isPrivate,
 		token: link.token,
 		pageUrl,
 		ogImage,

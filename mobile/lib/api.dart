@@ -775,6 +775,25 @@ class ReferralCash {
       );
 }
 
+/// The PRIVATE link (Flow 3) — a second token whose /beta landing carries nothing
+/// about the sender (no photo, no name, brand logo in the link preview) and which
+/// never forms a match, in either direction.
+///
+/// Cash and attribution are identical to the public link: a private referral pays
+/// into whichever existing track the joiner's gender implies, so its earnings are
+/// already inside [ReferralLink.cash] / [ReferralLink.menCash] and there is no
+/// private-only balance to show. [invited] / [joined] are this link's own funnel.
+class ReferralPrivateLink {
+  final String shareUrl;
+  final int invited;
+  final int joined;
+  ReferralPrivateLink({
+    required this.shareUrl,
+    required this.invited,
+    required this.joined,
+  });
+}
+
 /// A member's self-serve referral link + funnel counts + BOTH cash tracks.
 ///
 /// The tracks are separate ledgers with their own rates and caps: [cash] is
@@ -787,6 +806,12 @@ class ReferralLink {
   final int signedUp;
   final ReferralCash cash; // women track
   final ReferralCash menCash; // men track
+
+  /// null on an older server, or before migration 20260726170526 has been run —
+  /// the Privately tab is then hidden rather than promising privacy the backend
+  /// cannot yet enforce.
+  final ReferralPrivateLink? private;
+
   ReferralLink({
     required this.shareUrl,
     required this.gender,
@@ -794,6 +819,7 @@ class ReferralLink {
     required this.signedUp,
     required this.cash,
     required this.menCash,
+    this.private,
   });
 }
 
@@ -808,6 +834,7 @@ Future<ReferralLink> fetchReferralLink() async {
       options: Options(headers: {'Authorization': _bearerToken()}),
     );
     final d = resp.data as Map;
+    final priv = d['private'] as Map?;
     return ReferralLink(
       shareUrl: '${Config.apiBase}${d['path']}',
       gender: d['gender'] as String?,
@@ -819,6 +846,13 @@ Future<ReferralLink> fetchReferralLink() async {
         fallbackTier: 25,
         fallbackCap: 1000,
       ),
+      private: priv?['path'] == null
+          ? null
+          : ReferralPrivateLink(
+              shareUrl: '${Config.apiBase}${priv!['path']}',
+              invited: (priv['invited'] as num?)?.toInt() ?? 0,
+              joined: (priv['signedUp'] as num?)?.toInt() ?? 0,
+            ),
     );
   } on DioException catch (e) {
     if (e.response?.statusCode == 403) throw ReferralLinkDenied();

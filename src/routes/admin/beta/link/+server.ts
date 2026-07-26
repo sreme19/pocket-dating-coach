@@ -20,6 +20,7 @@ import type { RequestHandler } from './$types';
 import { randomBytes } from 'node:crypto';
 import { getSupabase } from '$lib/server/supabase';
 import { ADMIN_COOKIE, REVIEWER_COOKIE, tokenIsValid } from '$lib/server/admin-auth';
+import { modeOf, selectReferralLinks } from '$lib/server/referral-links';
 
 const ADMIN_KINDS = ['admin_invite_women', 'admin_invite_men'] as const;
 type AdminKind = (typeof ADMIN_KINDS)[number];
@@ -96,36 +97,36 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
     return json({ error: 'Referral links can only be generated for female users' }, { status: 400 });
   }
 
-  // One link per female — return the existing token if there is one.
-  const { data: existing } = await db
-    .from('verified_vibe_referral_links')
-    .select('token')
-    .eq('referrer_id', referrerId)
-    .maybeSingle();
+  // One PUBLIC link per female — return the existing token if there is one. A
+  // member may also own a private link (mode='private'); this endpoint only ever
+  // issues and returns the public one, so it must select by mode rather than
+  // assume a single row per referrer.
+  const owned = await selectReferralLinks(db, 'token', (q) => q.eq('referrer_id', referrerId));
+  const publicOf = (rows: Array<Record<string, any>>) =>
+    rows.find((r) => modeOf(r) === 'public')?.token as string | undefined;
 
-  let token = existing?.token as string | undefined;
+  let token = publicOf(owned.rows);
 
   if (!token) {
     token = randomBytes(9).toString('base64url'); // 12-char url-safe slug
-    const { error } = await db
-      .from('verified_vibe_referral_links')
-      .insert({
-        referrer_id: referrerId,
-        token,
-        created_by: cookies.get(REVIEWER_COOKIE) ?? null,
-      });
+    const row: Record<string, unknown> = {
+      referrer_id: referrerId,
+      token,
+      created_by: cookies.get(REVIEWER_COOKIE) ?? null,
+    };
+    // Omitted pre-migration; the column default supplies 'public' afterwards.
+    if (owned.hasMode) row.mode = 'public';
+
+    const { error } = await db.from('verified_vibe_referral_links').insert(row);
 
     if (error) {
       // Likely a unique-violation race (link created concurrently) — re-read.
-      const { data: retry } = await db
-        .from('verified_vibe_referral_links')
-        .select('token')
-        .eq('referrer_id', referrerId)
-        .maybeSingle();
-      if (!retry?.token) {
+      const retry = await selectReferralLinks(db, 'token', (q) => q.eq('referrer_id', referrerId));
+      const retryToken = publicOf(retry.rows);
+      if (!retryToken) {
         return json({ error: 'Failed to create link' }, { status: 500 });
       }
-      token = retry.token;
+      token = retryToken;
     }
   }
 
