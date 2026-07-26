@@ -9,6 +9,11 @@
  *     woman's card (now framed as "you've been matched"), and gives a
  *     platform-specific store button.
  *
+ * The referrer card is OPTIONAL in both: signups from an admin recruiting link
+ * have no referrer (and a referrer row can always fail to load). A missing card
+ * must never block the email — we drop the card and swap in copy that promises
+ * a match after setup instead of naming one.
+ *
  * Both are no-reply messages (sent from hello@, footer says so, replies not
  * routed anywhere).
  */
@@ -49,8 +54,10 @@ function truncate(text: string, max: number): string {
   return t.length <= max ? t : `${t.slice(0, max - 1).trimEnd()}…`;
 }
 
-/** The woman's card — shared by both emails. */
-function referrerCardHtml(referrer: ReferrerCard): string {
+/** The woman's card — shared by both emails. Empty string when there's no referrer. */
+function referrerCardHtml(referrer: ReferrerCard | null): string {
+  if (!referrer) return '';
+
   const name = (referrer.first_name ?? '').trim() || 'your match';
   const safeName = escapeHtml(name);
   const nameAge = referrer.age ? `${safeName}, ${referrer.age}` : safeName;
@@ -99,8 +106,8 @@ function emailShell(innerHtml: string): string {
 
 // ── 1. Confirmation email (auto, on form submit) ──────────────────────────────
 
-export function buildBetaConfirmationHtml(referrer: ReferrerCard): string {
-  const name = (referrer.first_name ?? '').trim() || 'your match';
+export function buildBetaConfirmationHtml(referrer: ReferrerCard | null): string {
+  const name = (referrer?.first_name ?? '').trim() || 'your match';
   const safeName = escapeHtml(name);
 
   return emailShell(`
@@ -110,7 +117,7 @@ export function buildBetaConfirmationHtml(referrer: ReferrerCard): string {
         Thanks for dropping your email. You've been added to the riteangle beta list.
       </p>
       <p style="margin:16px 0 0;font-size:15px;line-height:1.55;color:#374151">
-        Here's who you'll be matched with once you're set up:
+        ${referrer ? "Here's who you'll be matched with once you're set up:" : 'We match on substance, not swipes — so the setup asks a little more of you, and gives back a lot more.'}
       </p>
     </div>
     ${referrerCardHtml(referrer)}
@@ -118,8 +125,11 @@ export function buildBetaConfirmationHtml(referrer: ReferrerCard): string {
       <h2 style="margin:16px 0 6px;font-size:15px;color:#111827">What happens next?</h2>
       <p style="margin:0;font-size:15px;line-height:1.55;color:#374151">
         Our team is rolling out invites in batches. You'll get a follow-up email from us with your
-        personal invite to sign up — once you complete a quick setup, you'll be matched with
-        ${safeName} straight away.
+        personal invite to sign up — ${
+          referrer
+            ? `once you complete a quick setup, you'll be matched with ${safeName} straight away.`
+            : "once you complete a quick setup, we'll introduce you to someone worth meeting."
+        }
       </p>
       <p style="margin:16px 0 0;font-size:15px;line-height:1.55;color:#374151">
         Sit tight — we'll be in touch soon.<br/>— The riteangle team
@@ -127,11 +137,14 @@ export function buildBetaConfirmationHtml(referrer: ReferrerCard): string {
     </div>`);
 }
 
-export async function sendBetaConfirmationEmail(toEmail: string, referrer: ReferrerCard): Promise<void> {
-  const name = (referrer.first_name ?? '').trim() || 'your match';
+export async function sendBetaConfirmationEmail(
+  toEmail: string,
+  referrer: ReferrerCard | null
+): Promise<void> {
+  const name = (referrer?.first_name ?? '').trim() || 'your match';
   await sendEmail({
     to: toEmail,
-    subject: `You're on the list — you'll be matched with ${name}`,
+    subject: referrer ? `You're on the list — you'll be matched with ${name}` : "You're on the riteangle beta list",
     html: buildBetaConfirmationHtml(referrer),
   });
 }
@@ -147,8 +160,12 @@ function storeButton(platform: Platform, url: string): string {
     </a>`;
 }
 
-export function buildEarlyAccessHtml(referrer: ReferrerCard, platform: Platform, storeUrl: string): string {
-  const name = (referrer.first_name ?? '').trim() || 'your match';
+export function buildEarlyAccessHtml(
+  referrer: ReferrerCard | null,
+  platform: Platform,
+  storeUrl: string
+): string {
+  const name = (referrer?.first_name ?? '').trim() || 'your match';
   const safeName = escapeHtml(name);
 
   return emailShell(`
@@ -158,12 +175,18 @@ export function buildEarlyAccessHtml(referrer: ReferrerCard, platform: Platform,
         You've been accepted as an <strong>early access member</strong> of riteangle. Welcome!
       </p>
       <p style="margin:16px 0 0;font-size:15px;line-height:1.55;color:#374151">
-        You've been matched with ${safeName} — she'll be waiting for you in the app:
+        ${
+          referrer
+            ? `You've been matched with ${safeName} — she'll be waiting for you in the app:`
+            : 'Set up your profile and we&rsquo;ll introduce you to someone worth meeting — real people, properly verified.'
+        }
       </p>
     </div>
     ${referrerCardHtml(referrer)}
     <div style="padding:8px 28px 28px">
-      <h2 style="margin:16px 0 10px;font-size:15px;color:#111827">Get the app to meet ${safeName}</h2>
+      <h2 style="margin:16px 0 10px;font-size:15px;color:#111827">
+        ${referrer ? `Get the app to meet ${safeName}` : 'Get the app to get started'}
+      </h2>
       <div style="text-align:center;margin:6px 0 10px">
         ${storeButton(platform, storeUrl)}
       </div>
@@ -180,17 +203,19 @@ export function buildEarlyAccessHtml(referrer: ReferrerCard, platform: Platform,
  */
 export async function sendEarlyAccessEmail(
   toEmail: string,
-  referrer: ReferrerCard,
+  referrer: ReferrerCard | null,
   platform: Platform
 ): Promise<void> {
   const storeUrl = storeUrlFor(platform);
   if (!storeUrl) {
     throw new Error(`No store link configured for platform "${platform}"`);
   }
-  const name = (referrer.first_name ?? '').trim() || 'your match';
+  const name = (referrer?.first_name ?? '').trim() || 'your match';
   await sendEmail({
     to: toEmail,
-    subject: `You're accepted! Get the app to meet ${name} 🎉`,
+    subject: referrer
+      ? `You're accepted! Get the app to meet ${name} 🎉`
+      : "You're accepted! Get early access to riteangle 🎉",
     html: buildEarlyAccessHtml(referrer, platform, storeUrl),
   });
 }

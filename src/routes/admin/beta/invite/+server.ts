@@ -2,7 +2,9 @@
  * POST /admin/beta/invite
  *   Send the early-access invite email to a collected beta signup, after a
  *   human has manually added them as an iOS/Android tester. Congratulates
- *   them, shows the matched woman's card, and links the right app store.
+ *   them, shows the matched woman's card when there is one (admin-link signups
+ *   have no referrer — they get the same invite without the card), and links
+ *   the right app store.
  *
  *   Body (JSON): { signupId: string }
  *   Returns:     { success: true, invited_at: string }
@@ -16,7 +18,12 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getSupabase } from '$lib/server/supabase';
 import { ADMIN_COOKIE, tokenIsValid } from '$lib/server/admin-auth';
-import { sendEarlyAccessEmail, storeUrlFor, type Platform } from '$lib/server/beta-invite-email';
+import {
+  sendEarlyAccessEmail,
+  storeUrlFor,
+  type Platform,
+  type ReferrerCard,
+} from '$lib/server/beta-invite-email';
 
 export const POST: RequestHandler = async ({ request, cookies }) => {
   if (!tokenIsValid(cookies.get(ADMIN_COOKIE))) {
@@ -55,13 +62,17 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
     );
   }
 
-  const { data: referrer } = await db
-    .from('verified_vibe_users')
-    .select('first_name, age, city, avatar_url, about')
-    .eq('id', signup.referrer_id)
-    .maybeSingle();
-  if (!referrer) {
-    return json({ error: 'Matched user not found' }, { status: 404 });
+  // The referrer card is a nice-to-have, never a gate. Admin recruiting links
+  // carry no referrer_id at all, and a referrer row can be missing or fail to
+  // load — in every one of those cases the invite still goes out, minus the card.
+  let referrer: ReferrerCard | null = null;
+  if (signup.referrer_id) {
+    const { data } = await db
+      .from('verified_vibe_users')
+      .select('first_name, age, city, avatar_url, about')
+      .eq('id', signup.referrer_id)
+      .maybeSingle();
+    referrer = (data as ReferrerCard | null) ?? null;
   }
 
   try {

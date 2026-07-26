@@ -19,7 +19,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getSupabase } from '$lib/server/supabase';
-import { sendBetaConfirmationEmail } from '$lib/server/beta-invite-email';
+import { sendBetaConfirmationEmail, type ReferrerCard } from '$lib/server/beta-invite-email';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PLATFORMS = ['ios', 'android'] as const;
@@ -29,16 +29,22 @@ type Platform = (typeof PLATFORMS)[number];
 const RATE_LIMIT_MAX = 10;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
-/** Fetch the referrer card and send the confirmation. Non-fatal: never throws. */
+/**
+ * Fetch the referrer card and send the confirmation. Non-fatal: never throws.
+ * No referrer (admin recruiting link) or an unloadable one is fine — the person
+ * still gets confirmed, with the card-less copy.
+ */
 async function sendConfirmation(db: any, referrerId: string | null, toEmail: string): Promise<void> {
-  if (!referrerId) return; // Admin-attributed signup — no referrer card to send.
   try {
-    const { data: referrer } = await db
-      .from('verified_vibe_users')
-      .select('first_name, age, city, avatar_url, about')
-      .eq('id', referrerId)
-      .maybeSingle();
-    if (!referrer) return;
+    let referrer: ReferrerCard | null = null;
+    if (referrerId) {
+      const { data } = await db
+        .from('verified_vibe_users')
+        .select('first_name, age, city, avatar_url, about')
+        .eq('id', referrerId)
+        .maybeSingle();
+      referrer = (data as ReferrerCard | null) ?? null;
+    }
     await sendBetaConfirmationEmail(toEmail, referrer);
   } catch (e) {
     console.error('[beta-submit] Confirmation email failed (non-fatal):', e);
