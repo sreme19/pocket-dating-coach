@@ -638,6 +638,40 @@ Future<void> savePreferenceWeights(Map<String, int> importance) async {
   );
 }
 
+// ── Networking Season (discovery mode) ─────────────────────────────────────────
+
+/// The user's current season: true = networking, false = date (default).
+Future<bool> getDiscoveryMode() async {
+  final resp = await _dio.get(
+    '${Config.apiBase}/api/verified-vibe/discovery-mode',
+    options: Options(headers: {'Authorization': _bearerToken()}),
+  );
+  return (resp.data as Map<String, dynamic>)['discoveryMode'] == 'networking';
+}
+
+/// Persist the user's season. The server keeps vv_pool_profiles in sync.
+/// Returns the response body — includes `returnedFromNetworking` + `activeContacts`
+/// on a networking→date flip (Phase 4), so the caller can offer the consent prompt.
+Future<Map<String, dynamic>> setDiscoveryMode(bool networking) async {
+  final resp = await _dio.put(
+    '${Config.apiBase}/api/verified-vibe/discovery-mode',
+    data: {'mode': networking ? 'networking' : 'date'},
+    options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
+  );
+  return resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : <String, dynamic>{};
+}
+
+/// She consented to let her networking contacts know she's dating again.
+/// Returns how many were notified.
+Future<int> notifyNetworkingReturn() async {
+  final resp = await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/discovery-mode',
+    options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
+  );
+  final d = resp.data is Map ? resp.data as Map : const {};
+  return d['notified'] is num ? (d['notified'] as num).toInt() : 0;
+}
+
 // ── Profile Strength (Scoring redesign Phase 2) ───────────────────────────────
 
 class PsAction {
@@ -717,7 +751,7 @@ class ReferralCash {
   final int earnedInr;
   final int paidInr;
   final int pendingInr;
-  final int currentTier; // rate her NEXT referral earns (100 or 150)
+  final int currentTier; // rate the NEXT referral on this track earns
   final int cap;
   ReferralCash({
     required this.verifiedCount,
@@ -727,30 +761,39 @@ class ReferralCash {
     required this.currentTier,
     required this.cap,
   });
-  factory ReferralCash.fromJson(Map? j) => ReferralCash(
+
+  /// [fallbackTier] / [fallbackCap] cover an older server that doesn't send this
+  /// track yet — the women track is 100/cap 100, the men track 25/cap 1000.
+  factory ReferralCash.fromJson(Map? j, {int fallbackTier = 100, int fallbackCap = 100}) =>
+      ReferralCash(
         verifiedCount: (j?['verifiedCount'] as num?)?.toInt() ?? 0,
         earnedInr: (j?['earnedInr'] as num?)?.toInt() ?? 0,
         paidInr: (j?['paidInr'] as num?)?.toInt() ?? 0,
         pendingInr: (j?['pendingInr'] as num?)?.toInt() ?? 0,
-        currentTier: (j?['currentTier'] as num?)?.toInt() ?? 100,
-        cap: (j?['cap'] as num?)?.toInt() ?? 100,
+        currentTier: (j?['currentTier'] as num?)?.toInt() ?? fallbackTier,
+        cap: (j?['cap'] as num?)?.toInt() ?? fallbackCap,
       );
 }
 
-/// A woman's self-serve referral link + her men-flow funnel counts + the
-/// women-flow cash state.
+/// A member's self-serve referral link + funnel counts + BOTH cash tracks.
+///
+/// The tracks are separate ledgers with their own rates and caps: [cash] is
+/// invite-women (₹100 for #1-25 then ₹150, cap 100), [menCash] is invite-men
+/// (flat ₹25, cap 1000). Never add them together as one balance.
 class ReferralLink {
   final String shareUrl; // full prod URL: https://www.riteangle.dating/beta/{token}
   final String? gender; // viewer's gender — tailors the refer UI (woman/man)
   final int invited;
   final int signedUp;
-  final ReferralCash cash;
+  final ReferralCash cash; // women track
+  final ReferralCash menCash; // men track
   ReferralLink({
     required this.shareUrl,
     required this.gender,
     required this.invited,
     required this.signedUp,
     required this.cash,
+    required this.menCash,
   });
 }
 
@@ -771,6 +814,11 @@ Future<ReferralLink> fetchReferralLink() async {
       invited: (d['invited'] as num?)?.toInt() ?? 0,
       signedUp: (d['signedUp'] as num?)?.toInt() ?? 0,
       cash: ReferralCash.fromJson(d['cash'] as Map?),
+      menCash: ReferralCash.fromJson(
+        d['menCash'] as Map?,
+        fallbackTier: 25,
+        fallbackCap: 1000,
+      ),
     );
   } on DioException catch (e) {
     if (e.response?.statusCode == 403) throw ReferralLinkDenied();
@@ -1071,6 +1119,7 @@ class DiscoveryProfile {
   final String? distance;
   final int verifiedCount;
   final String? gender;
+  final String? discoveryMode; // 'date' | 'networking' (Networking Season)
 
   DiscoveryProfile({
     required this.id,
@@ -1084,7 +1133,10 @@ class DiscoveryProfile {
     required this.distance,
     required this.verifiedCount,
     this.gender,
+    this.discoveryMode,
   });
+
+  bool get isNetworking => discoveryMode == 'networking';
 
   String get trustLabel {
     if (trustScore >= 80) return 'High Trust';
@@ -1133,6 +1185,7 @@ Future<List<DiscoveryProfile>> fetchDiscovery({int limit = 12}) async {
       distance: p['distance'] as String?,
       verifiedCount: (p['verified'] as List?)?.length ?? 0,
       gender: p['gender'] as String?,
+      discoveryMode: p['discoveryMode'] as String?,
     );
   }).toList();
 }
@@ -1772,6 +1825,10 @@ class Conversation {
   /// True only for the woman on an expired match — she alone gets Reactivate.
   final bool canReactivate;
 
+  /// Networking Season (Phase 4): true when he was de-ranked for pushing romance
+  /// after she went networking. Sinks him to the bottom of her inbox.
+  final bool deranked;
+
   Conversation({
     required this.id,
     this.otherId,
@@ -1792,6 +1849,7 @@ class Conversation {
     this.handoffAt,
     this.expiredAt,
     this.canReactivate = false,
+    this.deranked = false,
   });
 
   bool get isExpired => status == 'expired';
@@ -1836,6 +1894,7 @@ Future<List<Conversation>> fetchConversations() async {
       handoffAt: _dt(c['handoffAt']),
       expiredAt: _dt(c['expiredAt']),
       canReactivate: c['canReactivate'] == true,
+      deranked: c['deranked'] == true,
     );
   }).toList();
 }

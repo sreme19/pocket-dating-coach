@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'config.dart';
+import 'season.dart';
 
 /// Minimal front-facing selfie capture screen.
 ///
@@ -130,13 +130,13 @@ class _SelfieCameraScreenState extends State<SelfieCameraScreen> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.white,
-                border: Border.all(color: const Color(Config.accent), width: 4),
+                border: Border.all(color: Brand.accent, width: 4),
               ),
               child: _capturing
-                  ? const Padding(
+                  ? Padding(
                       padding: EdgeInsets.all(22),
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)))
-                  : const Icon(Icons.camera_alt_rounded, color: Color(Config.accent), size: 32),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accent))
+                  : Icon(Icons.camera_alt_rounded, color: Brand.accent, size: 32),
             ),
           ),
           const SizedBox(height: 12),

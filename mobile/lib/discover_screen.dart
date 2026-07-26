@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'api.dart';
 import 'app_logger.dart';
 import 'config.dart';
+import 'season.dart';
 import 'profile_body.dart';
 import 'engage_sheets.dart';
 
@@ -202,22 +203,113 @@ class _DiscoverScreenState extends State<DiscoverScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color(Config.bg1),
-        elevation: 0,
-        titleSpacing: 20,
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Discover', style: TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
-            Text('Find your match', style: TextStyle(fontSize: 12, color: Color(Config.text2), fontWeight: FontWeight.w400)),
+    return ValueListenableBuilder<bool>(
+      valueListenable: SeasonState.networking,
+      builder: (context, networking, __) {
+        return Scaffold(
+          appBar: AppBar(
+            backgroundColor: const Color(Config.bg1),
+            elevation: 0,
+            titleSpacing: 20,
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Discover', style: TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
+                Text(networking ? 'Find your people' : 'Find your match',
+                    style: const TextStyle(fontSize: 12, color: Color(Config.text2), fontWeight: FontWeight.w400)),
+              ],
+            ),
+            centerTitle: false,
+            actions: [
+              _seasonToggle(networking),
+              const SizedBox(width: 12),
+            ],
+          ),
+          body: _body(),
+        );
+      },
+    );
+  }
+
+  /// The Date ⇄ Networking flip. Writes the season globally (reskins the whole
+  /// app) and persists it to the backend.
+  Widget _seasonToggle(bool networking) {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: const Color(Config.bg2),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0x221B1020)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        _seasonSeg(label: 'Date', emoji: '🌹', on: !networking, onTap: () => _setSeason(false)),
+        _seasonSeg(label: 'Network', emoji: '💬', on: networking, onTap: () => _setSeason(true)),
+      ]),
+    );
+  }
+
+  Widget _seasonSeg({
+    required String label,
+    required String emoji,
+    required bool on,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: on ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: on ? Brand.accent : Colors.transparent,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Text(emoji, style: const TextStyle(fontSize: 11)),
+          const SizedBox(width: 4),
+          Text(label, style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+            color: on ? Colors.white : const Color(Config.text3),
+          )),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _setSeason(bool networking) async {
+    AppLogger.instance.action('discover', 'set_season', meta: {'networking': networking});
+    final res = await SeasonState.set(networking);
+    // Return-to-Date consent (Phase 4): if she just left a networking season and
+    // has contacts to tell, ASK before letting them know she's dating again.
+    if (!networking && res['returnedFromNetworking'] == true && mounted) {
+      final count = res['activeContacts'] is num ? (res['activeContacts'] as num).toInt() : 0;
+      if (count <= 0) return;
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Open to dating again?'),
+          content: Text(
+            "Want your AI Bestie to let your $count networking "
+            "${count == 1 ? 'contact' : 'contacts'} know you're open to dating again? "
+            "They'll get a warm heads-up — no one else is told.",
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Not now')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Yes, let them know')),
           ],
         ),
-        centerTitle: false,
-      ),
-      body: _body(),
-    );
+      );
+      if (ok == true) {
+        int notified = 0;
+        try { notified = await notifyNetworkingReturn(); } catch (_) {}
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Let ${notified > 0 ? notified : count} '
+                '${(notified > 0 ? notified : count) == 1 ? 'contact' : 'contacts'} know 🌹')),
+          );
+        }
+      }
+    }
   }
 
   Widget _body() {
@@ -228,8 +320,8 @@ class _DiscoverScreenState extends State<DiscoverScreen>
       return _centered(Icons.cloud_off, friendly, 'Retry', _load);
     }
     if (_feed == null) {
-      return const Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        CircularProgressIndicator(color: Color(Config.accent)),
+      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        CircularProgressIndicator(color: Brand.accent),
         SizedBox(height: 16),
         Text('Loading profiles…', style: TextStyle(color: Color(Config.text2))),
       ]));
@@ -259,7 +351,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
               children: [
                 _photo(avatar, trust, d?.heroIsAi ?? false),
                 if (loading)
-                  const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator(color: Color(Config.accent))))
+                  Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator(color: Brand.accent)))
                 else if (d == null && snap.hasError) ...[
                   _profileError(snap.error),
                 ]
@@ -333,6 +425,21 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                   style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
             ),
           ),
+        // Networking Season badge — always teal so it reads as "networking intent"
+        // even to a date-mode viewer (opposite-gender networkers still appear).
+        if (_current?.isNetworking == true)
+          Positioned(
+            right: 16, top: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0E9AAE),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: const Text('🌱 Networking',
+                  style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+            ),
+          ),
         const DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(begin: Alignment.center, end: Alignment.bottomCenter,
@@ -346,13 +453,13 @@ class _DiscoverScreenState extends State<DiscoverScreen>
               width: 64, height: 64,
               decoration: BoxDecoration(
                 color: const Color(0xE61B1020), shape: BoxShape.circle,
-                border: Border.all(color: const Color(Config.accent), width: 2),
+                border: Border.all(color: Brand.accent, width: 2),
               ),
               child: Center(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Text('$trust%', style: const TextStyle(color: Color(Config.accent), fontSize: 17, fontWeight: FontWeight.w800, height: 1)),
+                  Text('$trust%', style: TextStyle(color: Brand.accent, fontSize: 17, fontWeight: FontWeight.w800, height: 1)),
                   Text(trustLabel(trust).replaceAll(' Trust', '').replaceAll('Fully Verified', 'Verified'),
-                      style: const TextStyle(color: Color(Config.accent), fontSize: 8)),
+                      style: TextStyle(color: Brand.accent, fontSize: 8)),
                 ]),
               ),
             ),
@@ -402,9 +509,9 @@ class _DiscoverScreenState extends State<DiscoverScreen>
             ),
           ])
         else if (_bestieFlags.isEmpty)
-          const Text(
+          Text(
             '✓ Nothing suspicious — profile claims look consistent with what was verified.',
-            style: TextStyle(color: Color(Config.accent), fontSize: 13),
+            style: TextStyle(color: Brand.accent, fontSize: 13),
           )
         else
           for (final flag in _bestieFlags)
@@ -436,6 +543,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
 
   Widget _actionBar(DiscoveryProfile cur) {
     final g = _viewerGender;
+    final networking = SeasonState.isNetworking;
     final alreadySent = _sentAttentionIds.contains(cur.id);
     final alreadyTipped = _tippedIds.contains(cur.id);
     final alreadyMatched = _matchedUserIds.contains(cur.id);
@@ -495,11 +603,17 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                 },
                 icon: alreadySent
                     ? const Icon(Icons.check, size: 15)
-                    : Text(g == 'woman' ? '🌹' : '👀', style: const TextStyle(fontSize: 14)),
-                label: Text(alreadySent ? 'Sent ✓' : (g == 'woman' ? 'Admire' : 'Notice')),
+                    : Text(networking ? '🤝' : (g == 'woman' ? '🌹' : '👀'), style: const TextStyle(fontSize: 14)),
+                label: Text(alreadySent
+                    ? 'Sent ✓'
+                    : (networking ? 'Connect' : (g == 'woman' ? 'Admire' : 'Notice'))),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: alreadySent ? const Color(Config.text3) : const Color(0xFFEC4899),
-                  side: BorderSide(color: alreadySent ? const Color(0x221B1020) : const Color(0x55EC4899)),
+                  foregroundColor: alreadySent
+                      ? const Color(Config.text3)
+                      : (networking ? Brand.accent : Brand.accentAlpha(0xFF)),
+                  side: BorderSide(color: alreadySent
+                      ? const Color(0x221B1020)
+                      : (networking ? const Color(0x550E9AAE) : Brand.accentAlpha(0x55))),
                   padding: const EdgeInsets.symmetric(vertical: 13),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
@@ -567,7 +681,7 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                 icon: const Icon(Icons.replay, size: 18),
                 label: const Text('Start from the top', style: TextStyle(fontWeight: FontWeight.w700)),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(Config.accent),
+                  backgroundColor: Brand.accent,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

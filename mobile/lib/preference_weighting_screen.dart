@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'api.dart';
 import 'app_logger.dart';
 import 'config.dart';
+import 'season.dart';
 
 /// Explicit preference-weighting step (Scoring & Matching redesign §6a, Phase 0b).
 /// The user rates how much each value dimension matters to them in a partner;
@@ -102,7 +103,7 @@ class _PreferenceWeightingScreenState extends State<PreferenceWeightingScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: Color(Config.accent)))
+          ? Center(child: CircularProgressIndicator(color: Brand.accent))
           : ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
               children: [
@@ -139,7 +140,7 @@ class _PreferenceWeightingScreenState extends State<PreferenceWeightingScreen> {
                   child: FilledButton(
                     onPressed: _saving ? null : _save,
                     style: FilledButton.styleFrom(
-                      backgroundColor: const Color(Config.accent),
+                      backgroundColor: Brand.accent,
                       foregroundColor: Colors.white,
                       disabledBackgroundColor: const Color(Config.bg3),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
@@ -157,8 +158,8 @@ class _PreferenceWeightingScreenState extends State<PreferenceWeightingScreen> {
 
   Widget _pill(String t) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(color: const Color(Config.accentTint), borderRadius: BorderRadius.circular(999)),
-        child: Text(t, style: const TextStyle(color: Color(Config.accentBright), fontSize: 12, fontWeight: FontWeight.w600)),
+        decoration: BoxDecoration(color: Brand.accentTint, borderRadius: BorderRadius.circular(999)),
+        child: Text(t, style: TextStyle(color: Brand.accentBright, fontSize: 12, fontWeight: FontWeight.w600)),
       );
 
   Widget _sectionLabel(String t) => Padding(
@@ -192,16 +193,16 @@ class _PreferenceWeightingScreenState extends State<PreferenceWeightingScreen> {
               const SizedBox(width: 10),
               Text(
                 _labels[v.clamp(0, _labels.length - 1)],
-                style: const TextStyle(color: Color(Config.accentBright), fontSize: 12, fontWeight: FontWeight.w700),
+                style: TextStyle(color: Brand.accentBright, fontSize: 12, fontWeight: FontWeight.w700),
               ),
             ],
           ),
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
-              activeTrackColor: const Color(Config.accent),
+              activeTrackColor: Brand.accent,
               inactiveTrackColor: const Color(Config.bg3),
-              thumbColor: const Color(Config.accent),
-              overlayColor: const Color(Config.accentTint),
+              thumbColor: Brand.accent,
+              overlayColor: Brand.accentTint,
               trackHeight: 4,
             ),
             child: Slider(

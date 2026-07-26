@@ -9,6 +9,7 @@ import 'config.dart';
 import 'conversation_screen.dart';
 import 'advisor_screen.dart';
 import 'verification_screen.dart';
+import 'season.dart';
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
@@ -365,6 +366,7 @@ class _ChatListScreenState extends State<ChatListScreen>
       archetype: old.archetype,
       gender: old.gender,
       trustScore: old.trustScore,
+      deranked: old.deranked,
     );
     final newList = List<Conversation>.from(cached);
     newList[idx] = updated;
@@ -504,7 +506,7 @@ class _ChatListScreenState extends State<ChatListScreen>
         future: _future,
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: Color(Config.accent)));
+            return Center(child: CircularProgressIndicator(color: Brand.accent));
           }
           if (snap.hasError) return _error(snap.error.toString());
 
@@ -514,8 +516,12 @@ class _ChatListScreenState extends State<ChatListScreen>
           final conversations = _cachedConversations ?? data.conversations;
           final newMatches = conversations.where((c) => !c.hasMessages).toList();
           var active = conversations.where((c) => c.hasMessages).toList()
-            ..sort((a, b) => (b.lastMessageTime ?? DateTime(1970))
-                .compareTo(a.lastMessageTime ?? DateTime(1970)));
+            ..sort((a, b) {
+              // Networking Season (Phase 4): de-ranked matches sink to the bottom.
+              if (a.deranked != b.deranked) return a.deranked ? 1 : -1;
+              return (b.lastMessageTime ?? DateTime(1970))
+                  .compareTo(a.lastMessageTime ?? DateTime(1970));
+            });
           final unreadTotal = active.where((c) => c.unreadCount > 0 && !_clearedConvos.contains(c.id)).length;
           final totalBadge = active.where((c) => !_clearedConvos.contains(c.id)).fold<int>(0, (sum, c) => sum + c.unreadCount) + data.admirers.where((a) => !a.replied).length;
           if (ChatListScreen.unreadNotifier.value != totalBadge) {
@@ -853,14 +859,14 @@ class _FilterTabs extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: on ? const Color(0x22FF3B6B) : const Color(Config.bg3),
+          color: on ? Brand.accentAlpha(0x22) : const Color(Config.bg3),
           borderRadius: BorderRadius.circular(999),
-          border: on ? Border.all(color: const Color(0x4DFF3B6B)) : null,
+          border: on ? Border.all(color: Brand.accentAlpha(0x4D)) : null,
         ),
         child: Text(label,
             style: TextStyle(
               fontSize: 13,
-              color: on ? const Color(Config.accent) : const Color(Config.text2),
+              color: on ? Brand.accent : const Color(Config.text2),
               fontWeight: on ? FontWeight.w700 : FontWeight.w500,
             )),
       ),
@@ -879,7 +885,7 @@ class _AdvisorRow extends StatelessWidget {
       onTap: onTap,
       leading: CircleAvatar(
         radius: 24,
-        backgroundColor: const Color(0x22FF3B6B),
+        backgroundColor: Brand.accentAlpha(0x22),
         child: Text(wingman ? '🛡️' : '💚', style: const TextStyle(fontSize: 22)),
       ),
       title: Row(children: [
@@ -889,11 +895,11 @@ class _AdvisorRow extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
-            color: const Color(0x22FF3B6B),
+            color: Brand.accentAlpha(0x22),
             borderRadius: BorderRadius.circular(6),
           ),
-          child: const Text('ADVISOR',
-              style: TextStyle(color: Color(Config.accent), fontSize: 10, fontWeight: FontWeight.w700)),
+          child: Text('ADVISOR',
+              style: TextStyle(color: Brand.accent, fontSize: 10, fontWeight: FontWeight.w700)),
         ),
       ]),
       subtitle: Text(
@@ -935,7 +941,7 @@ class _AdmirerCard extends StatelessWidget {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: Color(Config.text2)))),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFFFFFFFF)),
+            style: FilledButton.styleFrom(backgroundColor: Brand.accent, foregroundColor: const Color(0xFFFFFFFF)),
             child: const Text('Send'),
           ),
         ],
@@ -986,13 +992,13 @@ class _AdmirerCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(Config.bg2),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0x33EC4899)),
+        border: Border.all(color: Brand.accentAlpha(0x33)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Container(
             padding: const EdgeInsets.all(2),
-            decoration: const BoxDecoration(shape: BoxShape.circle, border: Border.fromBorderSide(BorderSide(color: Color(0xFFEC4899), width: 2))),
+            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.fromBorderSide(BorderSide(color: Brand.accentAlpha(0xFF), width: 2))),
             child: CircleAvatar(
               radius: 22,
               backgroundColor: const Color(Config.bg3),
@@ -1008,7 +1014,7 @@ class _AdmirerCard extends StatelessWidget {
               Text(admirer.age != null ? '${admirer.name}, ${admirer.age}' : admirer.name,
                   style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700)),
               Text(isAdmirer ? '🌹 Secret admirer' : '👀 Wants your attention',
-                  style: const TextStyle(color: Color(0xFFEC4899), fontSize: 12)),
+                  style: TextStyle(color: Brand.accentAlpha(0xFF), fontSize: 12)),
             ]),
           ),
         ]),
@@ -1017,7 +1023,7 @@ class _AdmirerCard extends StatelessWidget {
         const SizedBox(height: 12),
         if (admirer.replied)
           Row(children: [
-            const Icon(Icons.check_circle, size: 16, color: Color(Config.accent)),
+            Icon(Icons.check_circle, size: 16, color: Brand.accent),
             const SizedBox(width: 6),
             const Text('You replied', style: TextStyle(color: Color(Config.text2), fontSize: 13)),
           ])
@@ -1027,8 +1033,8 @@ class _AdmirerCard extends StatelessWidget {
               child: FilledButton(
                 onPressed: () => _reply(context),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0x22EC4899),
-                  foregroundColor: const Color(0xFFE11D54),
+                  backgroundColor: Brand.accentAlpha(0x22),
+                  foregroundColor: Brand.accentBrightAlpha(0xFF),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: const Text('Reply', style: TextStyle(fontWeight: FontWeight.w700)),
@@ -1064,19 +1070,19 @@ class _MatchmakerCard extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0x22FF3B6B), Color(0x11A855F7)],
+        gradient: LinearGradient(
+          colors: [Brand.accentAlpha(0x22), Color(0x11A855F7)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0x33FF3B6B)),
+        border: Border.all(color: Brand.accentAlpha(0x33)),
       ),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
           width: 44, height: 44,
           decoration: BoxDecoration(
-            color: const Color(0x22FF3B6B),
+            color: Brand.accentAlpha(0x22),
             borderRadius: BorderRadius.circular(12),
           ),
           child: const Center(child: Text('✨', style: TextStyle(fontSize: 22))),
@@ -1138,7 +1144,7 @@ class _SentAdmirerCard extends StatelessWidget {
         color: const Color(Config.bg2),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: hasReplied ? const Color(0x3322C55E) : const Color(0x33FF3B6B),
+          color: hasReplied ? const Color(0x3322C55E) : Brand.accentAlpha(0x33),
         ),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1148,7 +1154,7 @@ class _SentAdmirerCard extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.fromBorderSide(
-                BorderSide(color: hasReplied ? const Color(0xFF22C55E) : const Color(Config.accent), width: 2),
+                BorderSide(color: hasReplied ? const Color(0xFF22C55E) : Brand.accent, width: 2),
               ),
             ),
             child: CircleAvatar(
@@ -1334,7 +1340,7 @@ class _ConversationTile extends StatelessWidget {
           icon: const Icon(Icons.refresh, size: 16),
           label: const Text('Reactivate'),
           style: TextButton.styleFrom(
-            foregroundColor: const Color(Config.accent),
+            foregroundColor: Brand.accent,
             padding: const EdgeInsets.symmetric(horizontal: 8),
             visualDensity: VisualDensity.compact,
           ),
@@ -1350,7 +1356,7 @@ class _ConversationTile extends StatelessWidget {
         const SizedBox(height: 4),
         CircleAvatar(
           radius: 10,
-          backgroundColor: const Color(Config.accent),
+          backgroundColor: Brand.accent,
           child: Text('${convo.unreadCount}',
               style: const TextStyle(color: Color(0xFFFFFFFF), fontSize: 11, fontWeight: FontWeight.w700)),
         ),
@@ -1455,11 +1461,11 @@ class _FindMatchButton extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFFFF3B6B), Color(0xFFFF7A4D)],
+          gradient: LinearGradient(
+            colors: [Brand.accentAlpha(0xFF), Color(0xFFFF7A4D)],
           ),
           borderRadius: BorderRadius.circular(999),
-          boxShadow: [BoxShadow(color: const Color(0xFFFF3B6B).withOpacity(0.35), blurRadius: 10, offset: const Offset(0, 3))],
+          boxShadow: [BoxShadow(color: Brand.accentAlpha(0xFF).withOpacity(0.35), blurRadius: 10, offset: const Offset(0, 3))],
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (loading)
@@ -1637,7 +1643,7 @@ class _Avatar extends StatelessWidget {
       width: 80, height: 80,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: const Color(Config.accent), width: 2.5),
+        border: Border.all(color: Brand.accent, width: 2.5),
       ),
       child: ClipOval(child: url != null
         ? CachedNetworkImage(imageUrl: url!, fit: BoxFit.cover, width: 80, height: 80)
@@ -1645,7 +1651,7 @@ class _Avatar extends StatelessWidget {
             color: const Color(Config.bg3),
             alignment: Alignment.center,
             child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
-                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: Color(Config.accent))),
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: Brand.accent)),
           ),
       ),
     );
@@ -1663,7 +1669,7 @@ class _PrimaryBtn extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 13),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFFFF3B6B), Color(0xFFFF7A4D)]),
+        gradient: LinearGradient(colors: [Brand.accentAlpha(0xFF), Color(0xFFFF7A4D)]),
         borderRadius: BorderRadius.circular(999),
       ),
       alignment: Alignment.center,

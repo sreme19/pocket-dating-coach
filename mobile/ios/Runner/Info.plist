@@ -61,6 +61,13 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<!-- Refer & Earn deep links. iOS refuses to open a custom scheme that isn't
+	     declared here, so without these the Instagram/Snapchat buttons no-op. -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>instagram</string>
+		<string>snapchat</string>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

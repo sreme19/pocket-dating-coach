@@ -11,6 +11,27 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <!-- Image picker: Android 12 and below -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+    <!-- Package visibility (Android 11+). Without these, url_launcher cannot see
+         the target apps and Refer & Earn's Instagram/Snapchat buttons do nothing. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="instagram"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="snapchat"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+        <!-- share_plus: the OS share sheet ("More") -->
+        <intent>
+            <action android:name="android.intent.action.SEND"/>
+            <data android:mimeType="text/plain"/>
+        </intent>
+    </queries>
     <application
         android:label="riteangle"
         android:name="${applicationName}"

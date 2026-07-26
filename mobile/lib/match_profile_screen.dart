@@ -4,6 +4,7 @@ import 'api.dart';
 import 'app_logger.dart';
 import 'config.dart';
 import 'profile_body.dart';
+import 'season.dart';
 
 class MatchProfileScreen extends StatefulWidget {
   final String userId;
@@ -32,7 +33,7 @@ class _MatchProfileScreenState extends State<MatchProfileScreen> {
         future: _future,
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: Color(Config.accent)));
+            return Center(child: CircularProgressIndicator(color: Brand.accent));
           }
           if (snap.hasError || snap.data == null) {
             return Center(
@@ -95,13 +96,13 @@ class _MatchProfileScreenState extends State<MatchProfileScreen> {
                           decoration: BoxDecoration(
                             color: const Color(0xE61B1020),
                             shape: BoxShape.circle,
-                            border: Border.all(color: const Color(Config.accent), width: 2),
+                            border: Border.all(color: Brand.accent, width: 2),
                           ),
                           child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
                             Text('${d.trustScore}%',
-                                style: const TextStyle(color: Color(Config.accent), fontSize: 17, fontWeight: FontWeight.w800, height: 1)),
+                                style: TextStyle(color: Brand.accent, fontSize: 17, fontWeight: FontWeight.w800, height: 1)),
                             Text(trustLabel(d.trustScore).replaceAll(' Trust', '').replaceAll('Fully Verified', 'Verified'),
-                                style: const TextStyle(color: Color(Config.accent), fontSize: 8)),
+                                style: TextStyle(color: Brand.accent, fontSize: 8)),
                           ])),
                         ),
                       ),

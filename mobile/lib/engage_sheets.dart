@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'api.dart';
 import 'app_logger.dart';
 import 'config.dart';
+import 'season.dart';
 
 const _womanViewerTags = [
   'handsome', 'charming', 'successful-vibes', 'trustworthy', 'well-spoken',
@@ -49,11 +50,11 @@ Future<bool> showTipSheet(BuildContext context, {required String targetUserId, r
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: on ? const Color(0x22FF3B6B) : const Color(Config.bg3),
+                  color: on ? Brand.accentAlpha(0x22) : const Color(Config.bg3),
                   borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: on ? const Color(Config.accent) : const Color(0x181B1020)),
+                  border: Border.all(color: on ? Brand.accent : const Color(0x181B1020)),
                 ),
-                child: Text(_pretty(t), style: TextStyle(color: on ? const Color(Config.accent) : const Color(Config.text2), fontSize: 13, fontWeight: FontWeight.w600)),
+                child: Text(_pretty(t), style: TextStyle(color: on ? Brand.accent : const Color(Config.text2), fontSize: 13, fontWeight: FontWeight.w600)),
               ),
             );
           }).toList()),
@@ -88,7 +89,7 @@ Future<bool> showTipSheet(BuildContext context, {required String targetUserId, r
                         if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Failed: $e')));
                       }
                     },
-              style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFFFFFFFF), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+              style: FilledButton.styleFrom(backgroundColor: Brand.accent, foregroundColor: const Color(0xFFFFFFFF), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
               child: sending
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFFFFFF)))
                   : const Text('Send tip', style: TextStyle(fontWeight: FontWeight.w700)),
@@ -136,11 +137,11 @@ Future<bool> showAdmireSheet(BuildContext context, {required String recipientId,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: tone == t.$1 ? const Color(0x22FF3B6B) : const Color(Config.bg3),
+                    color: tone == t.$1 ? Brand.accentAlpha(0x22) : const Color(Config.bg3),
                     borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: tone == t.$1 ? const Color(Config.accent) : const Color(0x181B1020)),
+                    border: Border.all(color: tone == t.$1 ? Brand.accent : const Color(0x181B1020)),
                   ),
-                  child: Text(t.$2, style: TextStyle(color: tone == t.$1 ? const Color(Config.accent) : const Color(Config.text2), fontSize: 13, fontWeight: FontWeight.w600)),
+                  child: Text(t.$2, style: TextStyle(color: tone == t.$1 ? Brand.accent : const Color(Config.text2), fontSize: 13, fontWeight: FontWeight.w600)),
                 ),
               ),
           ]),
@@ -164,13 +165,13 @@ Future<bool> showAdmireSheet(BuildContext context, {required String recipientId,
                       }
                     },
               icon: generating
-                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Color(Config.accent)))
+                  ? SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Brand.accent))
                   : const Text('✨', style: TextStyle(fontSize: 14)),
               label: Text(generating ? 'Generating…' : (textCtrl.text.trim().isEmpty ? 'Auto-generate' : 'Regenerate'),
                   style: const TextStyle(fontWeight: FontWeight.w700)),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(Config.accent),
-                side: const BorderSide(color: Color(0x55FF3B6B)),
+                foregroundColor: Brand.accent,
+                side: BorderSide(color: Brand.accentAlpha(0x55)),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
             ),
@@ -215,7 +216,7 @@ Future<bool> showAdmireSheet(BuildContext context, {required String recipientId,
                         }
                       }
                     },
-              style: FilledButton.styleFrom(backgroundColor: const Color(Config.accent), foregroundColor: const Color(0xFFFFFFFF), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+              style: FilledButton.styleFrom(backgroundColor: Brand.accent, foregroundColor: const Color(0xFFFFFFFF), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
               child: sending
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFFFFFF)))
                   : const Text('Send', style: TextStyle(fontWeight: FontWeight.w700)),

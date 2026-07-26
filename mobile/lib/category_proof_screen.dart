@@ -9,6 +9,7 @@ import 'api.dart';
 import 'app_logger.dart';
 import 'config.dart';
 import 'selfie_camera.dart';
+import 'season.dart';
 
 String _friendlyError(Object e) {
   final s = e.toString();
@@ -642,8 +643,8 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
               label: const Text('Choose ID photo'),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                foregroundColor: const Color(Config.accent),
-                side: const BorderSide(color: Color(Config.accent)),
+                foregroundColor: Brand.accent,
+                side: BorderSide(color: Brand.accent),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ))
@@ -700,7 +701,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
               }
             },
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(Config.accent),
+              backgroundColor: Brand.accent,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
@@ -756,8 +757,8 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
               label: const Text('Take selfie'),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                foregroundColor: const Color(Config.accent),
-                side: const BorderSide(color: Color(Config.accent)),
+                foregroundColor: Brand.accent,
+                side: BorderSide(color: Brand.accent),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ))
@@ -796,7 +797,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
               }
             },
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(Config.accent),
+              backgroundColor: Brand.accent,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
@@ -824,7 +825,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
               // Step indicator
               Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 _StepDot(active: step == 1, done: step > 1, label: '1'),
-                Container(width: 24, height: 2, color: step > 1 ? const Color(Config.accent) : const Color(Config.text3)),
+                Container(width: 24, height: 2, color: step > 1 ? Brand.accent : const Color(Config.text3)),
                 _StepDot(active: step == 2, done: false, label: '2'),
               ]),
               const SizedBox(height: 20),
@@ -1165,15 +1166,15 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
         width: double.infinity,
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
         decoration: BoxDecoration(
-          color: const Color(0x14FF3B6B),
+          color: Brand.accentAlpha(0x14),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0x66FF3B6B), width: 1.5),
+          border: Border.all(color: Brand.accentAlpha(0x66), width: 1.5),
         ),
         child: Column(children: [
           Container(
             width: 52, height: 52,
             decoration: BoxDecoration(
-              color: const Color(Config.accent),
+              color: Brand.accent,
               borderRadius: BorderRadius.circular(14),
             ),
             child: const Icon(Icons.add_photo_alternate_rounded, color: Colors.white, size: 27),
@@ -1200,9 +1201,9 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
           icon: Icon(icon, size: 18),
           label: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
           style: OutlinedButton.styleFrom(
-            foregroundColor: const Color(Config.accent),
+            foregroundColor: Brand.accent,
             backgroundColor: const Color(Config.bg2),
-            side: const BorderSide(color: Color(0x4DFF3B6B)),
+            side: BorderSide(color: Brand.accentAlpha(0x4D)),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
@@ -1324,12 +1325,12 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
               margin: const EdgeInsets.only(right: 16),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: const Color(0x22FF3B6B),
+                color: Brand.accentAlpha(0x22),
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text('+${cfg.points} pts',
-                  style: const TextStyle(
-                      color: Color(Config.accent), fontWeight: FontWeight.w700, fontSize: 13)),
+                  style: TextStyle(
+                      color: Brand.accent, fontWeight: FontWeight.w700, fontSize: 13)),
             ),
         ],
       ),
@@ -1385,7 +1386,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                 children: [
                   for (final ex in cfg.examples) ...[
                     Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Icon(Icons.check, size: 15, color: Color(Config.accent)),
+                      Icon(Icons.check, size: 15, color: Brand.accent),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(ex,
@@ -1398,8 +1399,8 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                   if (cfg.hintLine.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     Text(cfg.hintLine,
-                        style: const TextStyle(
-                            color: Color(Config.accent),
+                        style: TextStyle(
+                            color: Brand.accent,
                             fontSize: 13,
                             fontStyle: FontStyle.italic,
                             height: 1.4)),
@@ -1420,7 +1421,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                   if (url != null) await launchUrl(url, mode: LaunchMode.externalApplication);
                 },
                 style: FilledButton.styleFrom(
-                  backgroundColor: cfg.connectColor ?? const Color(Config.accent),
+                  backgroundColor: cfg.connectColor ?? Brand.accent,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
@@ -1469,7 +1470,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(Config.accent)),
+                  borderSide: BorderSide(color: Brand.accent),
                 ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               ),
@@ -1481,11 +1482,11 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                 Builder(builder: (_) {
                   final username = _extractLinkedInUsername(_urlController.text.trim());
                   if (username == null) {
-                    return const Row(children: [
-                      Icon(Icons.check_circle, size: 14, color: Color(Config.accent)),
+                    return Row(children: [
+                      Icon(Icons.check_circle, size: 14, color: Brand.accent),
                       SizedBox(width: 4),
                       Text('URL captured',
-                          style: TextStyle(color: Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w600)),
+                          style: TextStyle(color: Brand.accent, fontSize: 12, fontWeight: FontWeight.w600)),
                     ]);
                   }
                   return Container(
@@ -1518,11 +1519,11 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                   );
                 }),
               ] else ...[
-                const Row(children: [
-                  Icon(Icons.check_circle, size: 14, color: Color(Config.accent)),
+                Row(children: [
+                  Icon(Icons.check_circle, size: 14, color: Brand.accent),
                   SizedBox(width: 4),
                   Text('URL captured',
-                      style: TextStyle(color: Color(Config.accent), fontSize: 12, fontWeight: FontWeight.w600)),
+                      style: TextStyle(color: Brand.accent, fontSize: 12, fontWeight: FontWeight.w600)),
                 ]),
               ],
             ],
@@ -1545,18 +1546,18 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
                 decoration: BoxDecoration(
-                  color: _resumeImages.isNotEmpty ? const Color(0x08FF3B6B) : const Color(Config.bg2),
+                  color: _resumeImages.isNotEmpty ? Brand.accentAlpha(0x08) : const Color(Config.bg2),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: _resumeImages.isNotEmpty
-                        ? const Color(Config.accent).withOpacity(0.4)
+                        ? Brand.accent.withOpacity(0.4)
                         : const Color(0x221B1020),
                     width: _resumeImages.isNotEmpty ? 1.5 : 1,
                   ),
                 ),
                 child: _resumeImages.isNotEmpty
                     ? Row(children: [
-                        const Icon(Icons.description_outlined, color: Color(Config.accent), size: 22),
+                        Icon(Icons.description_outlined, color: Brand.accent, size: 22),
                         const SizedBox(width: 10),
                         Expanded(child: Text('${_resumeImages.length} page${_resumeImages.length > 1 ? 's' : ''} uploaded',
                             style: const TextStyle(fontSize: 13, color: Color(Config.text1), fontWeight: FontWeight.w500))),
@@ -1595,7 +1596,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                     decoration: BoxDecoration(
                       color: const Color(Config.bg2),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0x33FF3B6B), width: 1.5),
+                      border: Border.all(color: Brand.accentAlpha(0x33), width: 1.5),
                     ),
                     child: Column(children: [
                       Container(
@@ -1624,7 +1625,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                 decoration: BoxDecoration(
                   color: const Color(Config.bg2),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0x4DFF3B6B), width: 1.5),
+                  border: Border.all(color: Brand.accentAlpha(0x4D), width: 1.5),
                 ),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   // Header row
@@ -1690,7 +1691,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                             decoration: BoxDecoration(
                               color: const Color(Config.bg3),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: const Color(0x33FF3B6B)),
+                              border: Border.all(color: Brand.accentAlpha(0x33)),
                             ),
                             child: const Column(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -1734,7 +1735,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8),
                           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            const Icon(Icons.check, size: 15, color: Color(Config.accent)),
+                            Icon(Icons.check, size: 15, color: Brand.accent),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(ex,
@@ -1766,7 +1767,7 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                   decoration: BoxDecoration(
                     color: const Color(Config.bg2),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0x33FF3B6B), width: 1.5),
+                    border: Border.all(color: Brand.accentAlpha(0x33), width: 1.5),
                   ),
                   child: const Column(children: [
                     Icon(Icons.picture_as_pdf_outlined, color: Color(Config.text2), size: 28),
@@ -1786,15 +1787,15 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                 decoration: BoxDecoration(
                   color: const Color(Config.bg2),
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0x4DFF3B6B), width: 1.5),
+                  border: Border.all(color: Brand.accentAlpha(0x4D), width: 1.5),
                 ),
                 child: Column(children: [
                   for (final pdf in _pdfFiles)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Row(children: [
-                        const Icon(Icons.picture_as_pdf_outlined,
-                            color: Color(Config.accent), size: 20),
+                        Icon(Icons.picture_as_pdf_outlined,
+                            color: Brand.accent, size: 20),
                         const SizedBox(width: 10),
                         Expanded(child: Text(pdf.name,
                             style: const TextStyle(color: Color(Config.text1), fontSize: 13),
@@ -1809,11 +1810,11 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                     ),
                   GestureDetector(
                     onTap: _analysing ? null : _pickPdf,
-                    child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Icon(Icons.add, color: Color(Config.accent), size: 16),
+                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Icon(Icons.add, color: Brand.accent, size: 16),
                       SizedBox(width: 4),
                       Text('Add more PDFs',
-                          style: TextStyle(color: Color(Config.accent), fontSize: 13,
+                          style: TextStyle(color: Brand.accent, fontSize: 13,
                               fontWeight: FontWeight.w600)),
                     ]),
                   ),
@@ -1828,18 +1829,18 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
               margin: const EdgeInsets.only(bottom: 16),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: _result!.verified ? const Color(0x22FF3B6B) : const Color(0x22F87171),
+                color: _result!.verified ? Brand.accentAlpha(0x22) : const Color(0x22F87171),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                     color: _result!.verified
-                        ? const Color(Config.accent)
+                        ? Brand.accent
                         : const Color(0xFFF87171)),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(_result!.text,
                     style: TextStyle(
                         color: _result!.verified
-                            ? const Color(Config.accent)
+                            ? Brand.accent
                             : const Color(0xFFF87171),
                         height: 1.4)),
                 if (_result!.chips.isNotEmpty) ...[
@@ -1866,18 +1867,18 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
             child: FilledButton(
               onPressed: _canAnalyse ? _analyse : null,
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(Config.accent),
-                disabledBackgroundColor: const Color(0x33FF3B6B),
+                backgroundColor: Brand.accent,
+                disabledBackgroundColor: Brand.accentAlpha(0x33),
                 foregroundColor: Colors.white,
-                disabledForegroundColor: const Color(0x66FF3B6B),
+                disabledForegroundColor: Brand.accentAlpha(0x66),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               child: _analysing
-                  ? const Row(mainAxisSize: MainAxisSize.min, children: [
+                  ? Row(mainAxisSize: MainAxisSize.min, children: [
                       SizedBox(
                         width: 18, height: 18,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Color(Config.accent)),
+                            strokeWidth: 2, color: Brand.accent),
                       ),
                       SizedBox(width: 10),
                       Text('Analysing…', style: TextStyle(fontWeight: FontWeight.w700)),
@@ -1958,27 +1959,27 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
                   decoration: BoxDecoration(
                     color: _isRecordingVoice
-                        ? const Color(0x22FF3B6B)
+                        ? Brand.accentAlpha(0x22)
                         : (_voicePath != null ? const Color(0x1A22C55E) : const Color(Config.bg2)),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: _isRecordingVoice
-                          ? const Color(Config.accent)
+                          ? Brand.accent
                           : (_voicePath != null ? const Color(0xFF22C55E) : const Color(0x181B1020)),
                       width: 1.5,
                     ),
                   ),
                   child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     if (_isRecordingVoice) ...[
-                      const SizedBox(
+                      SizedBox(
                         width: 24, height: 24,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2.5, color: Color(Config.accent)),
+                            strokeWidth: 2.5, color: Brand.accent),
                       ),
                       const SizedBox(height: 10),
                       Text(_fmtSec(_voiceSeconds),
-                          style: const TextStyle(
-                              color: Color(Config.accent),
+                          style: TextStyle(
+                              color: Brand.accent,
                               fontWeight: FontWeight.w800,
                               fontSize: 22)),
                       const SizedBox(height: 6),
@@ -2078,18 +2079,18 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
               margin: const EdgeInsets.only(bottom: 16),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: _result!.verified ? const Color(0x22FF3B6B) : const Color(0x22F87171),
+                color: _result!.verified ? Brand.accentAlpha(0x22) : const Color(0x22F87171),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                     color: _result!.verified
-                        ? const Color(Config.accent)
+                        ? Brand.accent
                         : const Color(0xFFF87171)),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(_result!.text,
                     style: TextStyle(
                         color: _result!.verified
-                            ? const Color(Config.accent)
+                            ? Brand.accent
                             : const Color(0xFFF87171),
                         height: 1.4)),
                 if (_result!.chips.isNotEmpty) ...[
@@ -2115,17 +2116,17 @@ class _CategoryProofScreenState extends State<CategoryProofScreen> {
             child: FilledButton(
               onPressed: _canAnalyse ? _analyse : null,
               style: FilledButton.styleFrom(
-                backgroundColor: const Color(Config.accent),
-                disabledBackgroundColor: const Color(0x33FF3B6B),
+                backgroundColor: Brand.accent,
+                disabledBackgroundColor: Brand.accentAlpha(0x33),
                 foregroundColor: Colors.white,
-                disabledForegroundColor: const Color(0x66FF3B6B),
+                disabledForegroundColor: Brand.accentAlpha(0x66),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               child: _analysing
-                  ? const Row(mainAxisSize: MainAxisSize.min, children: [
+                  ? Row(mainAxisSize: MainAxisSize.min, children: [
                       SizedBox(width: 18, height: 18,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Color(Config.accent))),
+                              strokeWidth: 2, color: Brand.accent)),
                       SizedBox(width: 10),
                       Text('Submitting…', style: TextStyle(fontWeight: FontWeight.w700)),
                     ])
@@ -2165,9 +2166,9 @@ class _StepDot extends StatelessWidget {
       width: 28, height: 28,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: filled ? const Color(Config.accent) : const Color(Config.bg3),
+        color: filled ? Brand.accent : const Color(Config.bg3),
         border: Border.all(
-          color: filled ? const Color(Config.accent) : const Color(Config.text3),
+          color: filled ? Brand.accent : const Color(Config.text3),
         ),
       ),
       child: Center(

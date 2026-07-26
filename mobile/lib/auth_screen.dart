@@ -7,6 +7,7 @@ import 'config.dart';
 import 'app_logger.dart';
 import 'onboarding_flow.dart' show GateStep, pendingSignupGender, pendingSignupArchetype;
 import 'pre_auth_lane_screen.dart';
+import 'season.dart';
 
 /// Email one-time-code sign-in, mirroring the web flow:
 /// signInWithOtp(email) → verifyOtp(email, code). On success the auth state
@@ -153,7 +154,7 @@ class _AuthScreenState extends State<AuthScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Got it', style: TextStyle(color: Color(Config.accent), fontWeight: FontWeight.w700)),
+            child: Text('Got it', style: TextStyle(color: Brand.accent, fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -291,9 +292,9 @@ class _AuthScreenState extends State<AuthScreen> {
                                       _code.clear();
                                       _error = null;
                                     }),
-                            child: const Text(
+                            child: Text(
                               'Use a different email',
-                              style: TextStyle(color: Color(Config.accent)),
+                              style: TextStyle(color: Brand.accent),
                             ),
                           ),
                         ],
@@ -332,7 +333,7 @@ class _AuthScreenState extends State<AuthScreen> {
           const TextSpan(text: 'By continuing you agree to our '),
           TextSpan(
             text: 'Privacy Policy',
-            style: const TextStyle(color: Color(Config.accent)),
+            style: TextStyle(color: Brand.accent),
             recognizer: TapGestureRecognizer()..onTap = () {
               launchUrl(Uri.parse('https://www.riteangle.dating/privacy-policy'),
                   mode: LaunchMode.externalApplication);
@@ -353,8 +354,8 @@ class _AuthScreenState extends State<AuthScreen> {
           TextSpan(text: _signUp ? 'Already have an account? ' : 'New here? '),
           TextSpan(
             text: _signUp ? 'Sign in →' : 'Create an account →',
-            style: const TextStyle(
-              color: Color(Config.accent),
+            style: TextStyle(
+              color: Brand.accent,
               fontWeight: FontWeight.w600,
             ),
             recognizer: TapGestureRecognizer()..onTap = () => _setMode(!_signUp),
@@ -381,7 +382,7 @@ class _AuthScreenState extends State<AuthScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(Config.accent), width: 1.5),
+          borderSide: BorderSide(color: Brand.accent, width: 1.5),
         ),
       ),
     );
@@ -393,7 +394,7 @@ class _AuthScreenState extends State<AuthScreen> {
       child: FilledButton(
         onPressed: onTap,
         style: FilledButton.styleFrom(
-          backgroundColor: const Color(Config.accent),
+          backgroundColor: Brand.accent,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(50)),
           elevation: 0,
@@ -451,7 +452,7 @@ class BrandLockup extends StatelessWidget {
           width: 72,
           height: 72,
           decoration: BoxDecoration(
-            color: const Color(Config.accentTint),
+            color: Brand.accentTint,
             borderRadius: BorderRadius.circular(20),
           ),
           child: CustomPaint(
@@ -465,7 +466,7 @@ class BrandLockup extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             RichText(
-              text: const TextSpan(
+              text: TextSpan(
                 style: TextStyle(
                   fontFamily: 'Gabarito',
                   fontSize: 28,
@@ -481,7 +482,7 @@ class BrandLockup extends StatelessWidget {
                   TextSpan(
                     text: 'angle',
                     style: TextStyle(
-                      color: Color(Config.accent),
+                      color: Brand.accent,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -489,11 +490,11 @@ class BrandLockup extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'Trust-first dating',
               style: TextStyle(
                 fontSize: 14,
-                color: Color(Config.accent),
+                color: Brand.accent,
                 fontStyle: FontStyle.italic,
                 fontWeight: FontWeight.w500,
               ),
@@ -526,7 +527,7 @@ class RiteMarkPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     final horizPaint = Paint()
-      ..color = const Color(0xFFFF3B6B)
+      ..color = Brand.accentAlpha(0xFF)
       ..strokeWidth = 13
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
@@ -553,7 +554,7 @@ class RiteMarkPainter extends CustomPainter {
     canvas.drawPath(
       heartPath,
       Paint()
-        ..color = const Color(0xFFE11D54)
+        ..color = Brand.accentBrightAlpha(0xFF)
         ..style = PaintingStyle.fill,
     );
     canvas.restore();

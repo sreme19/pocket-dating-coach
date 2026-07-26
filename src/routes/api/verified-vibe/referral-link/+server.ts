@@ -12,9 +12,14 @@
  * Auth: Bearer token (the caller only ever gets their OWN link). Referral links
  * are for women only (they invite men) — mirrors the admin gender guard.
  *
- * Response: { token, path: "/beta/{token}", invited: number, signedUp: number }
+ * Response: { token, path, gender, invited, signedUp, cash, menCash }
  *   invited  = everyone who submitted their email via her link
  *   signedUp = those who then joined and were auto-matched to her (status 'matched')
+ *   cash     = the WOMEN track (invite women): 100 INR for #1-25, then 150, cap 100
+ *   menCash  = the MEN track (invite men): flat 25 INR, cap 1000
+ *
+ * The two cash tracks are summed independently — their rates and caps are
+ * per track, so one shared total would misreport both.
  */
 
 import { json } from '@sveltejs/kit';
@@ -84,7 +89,7 @@ export const GET: RequestHandler = async ({ request }) => {
     }
   }
 
-  // Funnel counts (men flow) + cash ledger rows (women flow), one round-trip.
+  // Funnel counts (men flow) + cash ledger rows (both tracks), one round-trip.
   const [invitedRes, signedUpRes, rewardsRes] = await Promise.all([
     db
       .from('verified_vibe_beta_signups')
@@ -95,21 +100,44 @@ export const GET: RequestHandler = async ({ request }) => {
       .select('id', { count: 'exact', head: true })
       .eq('referrer_id', userId)
       .eq('status', 'matched'),
-    db
-      .from('vv_referral_rewards')
-      .select('amount_inr, status')
-      .eq('referrer_id', userId),
+    db.from('vv_referral_rewards').select('amount_inr, status, track').eq('referrer_id', userId),
   ]);
 
-  // Women-flow cash: sum the ledger client-side (a referrer has <= 100 rows).
-  const rewardRows = (rewardsRes.data ?? []) as Array<{ amount_inr: number; status: string }>;
-  const verifiedCount = rewardRows.filter((r) => r.status !== 'void').length;
-  const paidInr = rewardRows
-    .filter((r) => r.status === 'paid')
-    .reduce((sum, r) => sum + (r.amount_inr ?? 0), 0);
-  const pendingInr = rewardRows
-    .filter((r) => r.status === 'payable')
-    .reduce((sum, r) => sum + (r.amount_inr ?? 0), 0);
+  type RewardRow = { amount_inr: number; status: string; track?: string | null };
+  let rewardRows = (rewardsRes.data ?? []) as RewardRow[];
+
+  // Pre-migration fallback: `track` only exists after 20260725143000. Without it
+  // every row is a woman referral, which is exactly what the default backfills.
+  if (rewardsRes.error && `${rewardsRes.error.code}` === '42703') {
+    const retry = await db
+      .from('vv_referral_rewards')
+      .select('amount_inr, status')
+      .eq('referrer_id', userId);
+    rewardRows = ((retry.data ?? []) as RewardRow[]).map((r) => ({ ...r, track: 'woman' }));
+  }
+
+  // Sum each track separately — the caps and rates are per track, so a shared
+  // total would misreport both. A referrer holds <= 1100 rows, so client-side is fine.
+  const summarise = (rows: RewardRow[]) => {
+    const paidInr = rows
+      .filter((r) => r.status === 'paid')
+      .reduce((sum, r) => sum + (r.amount_inr ?? 0), 0);
+    const pendingInr = rows
+      .filter((r) => r.status === 'payable')
+      .reduce((sum, r) => sum + (r.amount_inr ?? 0), 0);
+    return {
+      verifiedCount: rows.filter((r) => r.status !== 'void').length,
+      earnedInr: paidInr + pendingInr,
+      paidInr,
+      pendingInr,
+    };
+  };
+
+  // Rows written before the migration have no track and are women referrals.
+  const womanRows = rewardRows.filter((r) => (r.track ?? 'woman') === 'woman');
+  const manRows = rewardRows.filter((r) => r.track === 'man');
+  const woman = summarise(womanRows);
+  const man = summarise(manRows);
 
   return json({
     token,
@@ -117,13 +145,17 @@ export const GET: RequestHandler = async ({ request }) => {
     gender: user.gender ?? null,
     invited: invitedRes.count ?? 0,
     signedUp: signedUpRes.count ?? 0,
+    // `cash` = the women track, unchanged shape so older app builds keep working.
     cash: {
-      verifiedCount,
-      earnedInr: paidInr + pendingInr,
-      paidInr,
-      pendingInr,
-      currentTier: verifiedCount < 25 ? 100 : 150, // rate her next referral earns
+      ...woman,
+      currentTier: woman.verifiedCount < 25 ? 100 : 150, // rate her next referral earns
       cap: 100,
+    },
+    // `menCash` = the women-invite-MEN track: flat 25 INR, cap 1000.
+    menCash: {
+      ...man,
+      currentTier: 25,
+      cap: 1000,
     },
   });
 };
