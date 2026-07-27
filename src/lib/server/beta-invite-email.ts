@@ -210,33 +210,46 @@ export function buildEarlyAccessHtml(
 // ── 3. Hand-copied invite (for pasting into WhatsApp) ─────────────────────────
 
 /**
+ * Canonical public origin for links we hand to a human to paste. Hardcoded
+ * rather than taken from the request, because an admin might be working on a
+ * preview deployment and a tester must never receive a dev.riteangle URL.
+ */
+export const PUBLIC_ORIGIN = 'https://www.riteangle.dating';
+
+/** The web twin of this email: /beta/{token}/app, device baked into ?d=. */
+export function inviteUrlFor(token: string, platform: Platform): string {
+  return `${PUBLIC_ORIGIN}/beta/${encodeURIComponent(token)}/app?d=${platform}`;
+}
+
+/**
  * The same invite as a message a human can paste into WhatsApp, now that the
  * /beta form collects a number. Returns BOTH clipboard flavours:
  *
- *   text — what WhatsApp (and every plain composer) will actually take. Her
- *          photo URL leads, because WhatsApp previews the FIRST link in a
- *          message and seeing her is the hook; the store link follows and is
- *          still tappable, just without its own preview card.
- *   html — the real card markup, so pasting into a rich composer (Gmail,
- *          WhatsApp Desktop, Notion) renders her photo inline instead of a URL.
+ *   text — what WhatsApp (and every plain composer) will actually take.
+ *   html — the same thing with her card rendered inline, for a rich composer
+ *          (Gmail, WhatsApp Desktop, Notion).
  *
- * Both are built here rather than in the admin component so they reuse the
- * card, the store links and escapeHtml — one definition of the invite, not two
- * that drift. The caller is responsible for suppressing `referrer` on a private
- * link, exactly as the email paths do.
+ * ONE link, and it's a riteangle URL. An earlier version pasted her raw Supabase
+ * storage URL to win the photo preview plus the bare store URL — two long ugly
+ * links in a message meant to feel personal. /beta/{token}/app carries the photo
+ * itself via og:image and puts the store button on the page, so the message needs
+ * exactly one short link and the preview still shows her.
+ *
+ * The link goes LAST: WhatsApp renders the preview card above the bubble text
+ * wherever the URL sits, so trailing it means the message opens on words rather
+ * than on a URL.
+ *
+ * Both flavours are built here rather than in the admin component so they reuse
+ * the card, the store links and escapeHtml — one definition of the invite, not
+ * two that drift. The caller is responsible for suppressing `referrer` on a
+ * private link, exactly as the email paths do.
  */
 export function buildWhatsappInvite(
   referrer: ReferrerCard | null,
   platform: Platform,
-  storeUrl: string
+  inviteUrl: string
 ): { text: string; html: string } {
   const name = (referrer?.first_name ?? '').trim();
-  const storeLabel = platform === 'ios' ? 'iPhone — TestFlight' : 'Android — Google Play';
-
-  const photoUrl =
-    typeof referrer?.avatar_url === 'string' && /^https?:\/\//.test(referrer.avatar_url)
-      ? referrer.avatar_url
-      : '';
 
   // Her name, age and city on one line — the same summary the card shows.
   const bits = [name, referrer?.age ? `${referrer.age}` : '', referrer?.city ?? '']
@@ -245,7 +258,6 @@ export function buildWhatsappInvite(
   const summary = bits.join(' · ');
 
   const lines: string[] = [];
-  if (photoUrl) lines.push(photoUrl, '');
   lines.push("Congratulations — you're in! 🎉");
   lines.push('');
   lines.push("You've been accepted as an early access member of riteangle.");
@@ -258,8 +270,8 @@ export function buildWhatsappInvite(
     );
   }
   lines.push('');
-  lines.push(`Get the app (${storeLabel}):`);
-  lines.push(storeUrl);
+  lines.push('Tap to get the app:');
+  lines.push(inviteUrl);
   lines.push('');
   lines.push('See you inside — the riteangle team');
 
@@ -274,8 +286,8 @@ export function buildWhatsappInvite(
           : 'Set up your profile and we&rsquo;ll introduce you to someone worth meeting — real people, properly verified.'
       }</p>
       ${referrerCardHtml(referrer)}
-      <p style="margin:10px 0 0">Get the app (${escapeHtml(storeLabel)}):<br/>
-        <a href="${escapeHtml(storeUrl)}">${escapeHtml(storeUrl)}</a></p>
+      <p style="margin:10px 0 0">Tap to get the app:<br/>
+        <a href="${escapeHtml(inviteUrl)}">${escapeHtml(inviteUrl)}</a></p>
       <p style="margin:10px 0 0">See you inside — the riteangle team</p>
     </div>`;
 

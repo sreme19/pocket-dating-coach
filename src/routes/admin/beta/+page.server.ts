@@ -4,6 +4,7 @@ import { modeOf, selectReferralLinks } from '$lib/server/referral-links';
 import { formatPhone } from '$lib/phone';
 import {
 	buildWhatsappInvite,
+	inviteUrlFor,
 	storeUrlFor,
 	type Platform,
 	type ReferrerCard
@@ -75,6 +76,12 @@ export const load: PageServerLoad = async () => {
 			}
 		])
 	);
+	// Token per link id, so a signup can be pointed at /beta/{token}/app. Private
+	// links are included: the invitee still gets a working link, and that page
+	// suppresses her card on its own (it reads the mode from the link, not from us).
+	const linkTokenById = new Map<string, string>(
+		(links ?? []).filter((l: any) => l.token).map((l: any) => [l.id, l.token])
+	);
 	// A PRIVATE link carries nothing about its owner — so the copyable invite
 	// shows no card either, the same suppression the two email paths apply.
 	const privateLinkIds = new Set<string>(
@@ -132,13 +139,18 @@ export const load: PageServerLoad = async () => {
 		// configured yet — which is exactly when the Send-invite button is
 		// disabled too, so the two controls agree.
 		const platform = (s.platform ?? null) as Platform | null;
-		const storeUrl = platform ? storeUrlFor(platform) : '';
+		const linkToken = linkTokenById.get(s.link_id) ?? null;
 		const inviteCard =
 			s.referrer_id && !privateLinkIds.has(s.link_id)
 				? cardById.get(s.referrer_id) ?? null
 				: null;
+		// Needs a device (to pick the store) AND a token (to address the page). The
+		// store link must also be configured, since /app would otherwise render a
+		// button with nowhere to go.
 		const invite =
-			platform && storeUrl ? buildWhatsappInvite(inviteCard, platform, storeUrl) : null;
+			platform && linkToken && storeUrlFor(platform)
+				? buildWhatsappInvite(inviteCard, platform, inviteUrlFor(linkToken, platform))
+				: null;
 
 		return {
 			id: s.id,

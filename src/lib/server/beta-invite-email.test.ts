@@ -14,7 +14,8 @@ const {
   buildBetaConfirmationHtml,
   sendEarlyAccessEmail,
   sendBetaConfirmationEmail,
-  buildWhatsappInvite
+  buildWhatsappInvite,
+  inviteUrlFor
 } = await import('./beta-invite-email');
 
 const REFERRER = {
@@ -72,68 +73,80 @@ describe('early-access invite recipients', () => {
 });
 
 /**
- * The copyable invite in /admin/beta. Two flavours, one source of truth with the
- * emails — so these lock the device-specific store link, the card, and the fact
- * that the plain-text flavour leads with her photo URL (WhatsApp previews the
- * FIRST link, and her photo is the hook).
+ * The copyable invite in /admin/beta. It carries ONE link — the riteangle
+ * /beta/{token}/app page — because an earlier version pasted her raw storage URL
+ * plus the bare store URL and read like spam. These lock that: exactly one URL,
+ * on our domain, with the device baked in, and no raw store or photo URL leaking
+ * back into the text.
  */
+describe('inviteUrlFor', () => {
+  it('builds a riteangle /app link with the device baked in', () => {
+    expect(inviteUrlFor('rvVN59Tk41yM', 'ios')).toBe(
+      'https://www.riteangle.dating/beta/rvVN59Tk41yM/app?d=ios'
+    );
+    expect(inviteUrlFor('rvVN59Tk41yM', 'android')).toBe(
+      'https://www.riteangle.dating/beta/rvVN59Tk41yM/app?d=android'
+    );
+  });
+
+  it('escapes a token so it cannot break out of the path', () => {
+    expect(inviteUrlFor('a/b?c', 'ios')).toBe(
+      'https://www.riteangle.dating/beta/a%2Fb%3Fc/app?d=ios'
+    );
+  });
+});
+
 describe('buildWhatsappInvite', () => {
-  it('uses the Android store link and labels the platform', () => {
-    const { text, html } = buildWhatsappInvite(REFERRER, 'android', 'https://play.example');
-    expect(text).toContain('https://play.example');
-    expect(text).toContain('Android — Google Play');
-    expect(html).toContain('https://play.example');
-    expect(text).not.toContain('TestFlight');
+  const URL_IOS = 'https://www.riteangle.dating/beta/tok123/app?d=ios';
+
+  it('contains exactly one link, and it is the invite page', () => {
+    const { text } = buildWhatsappInvite(REFERRER, 'ios', URL_IOS);
+    const urls = text.match(/https?:\/\/\S+/g) ?? [];
+    expect(urls).toEqual([URL_IOS]);
   });
 
-  it('uses the TestFlight link and label for iOS', () => {
-    const { text } = buildWhatsappInvite(REFERRER, 'ios', 'https://testflight.example');
-    expect(text).toContain('https://testflight.example');
-    expect(text).toContain('iPhone — TestFlight');
-    expect(text).not.toContain('Google Play');
+  it('no longer pastes her raw photo URL or a raw store URL', () => {
+    const { text } = buildWhatsappInvite(REFERRER, 'ios', URL_IOS);
+    expect(text).not.toContain('example.com/p.jpg');
+    expect(text).not.toContain('testflight.apple.com');
+    expect(text).not.toContain('play.google.com');
   });
 
-  it('leads the text with her photo URL so WhatsApp previews it', () => {
-    const { text } = buildWhatsappInvite(REFERRER, 'android', 'https://play.example');
-    expect(text.split('\n')[0]).toBe('https://example.com/p.jpg');
+  it('opens on words, not on a URL, and ends with the link', () => {
+    const { text } = buildWhatsappInvite(REFERRER, 'ios', URL_IOS);
+    expect(text.startsWith('Congratulations')).toBe(true);
+    // Trailing sign-off aside, the link is the last thing of substance.
+    expect(text.indexOf(URL_IOS)).toBeGreaterThan(text.indexOf('matched with'));
   });
 
-  it('renders her card in the html flavour and names her in both', () => {
-    const { text, html } = buildWhatsappInvite(REFERRER, 'android', 'https://play.example');
+  it('names her with age and city in the text', () => {
+    const { text } = buildWhatsappInvite(REFERRER, 'ios', URL_IOS);
+    expect(text).toContain('Priya · 27 · Bengaluru');
+  });
+
+  it('renders her card in the html flavour and links the same URL', () => {
+    const { html } = buildWhatsappInvite(REFERRER, 'ios', URL_IOS);
     expect(html).toContain('<img src="https://example.com/p.jpg"');
     expect(html).toContain('Priya');
-    expect(text).toContain('Priya');
-    expect(text).toContain('Bengaluru');
+    expect(html).toContain(`href="${URL_IOS}"`);
   });
 
   it('drops the card and the name when there is no referrer (admin or private link)', () => {
-    const { text, html } = buildWhatsappInvite(null, 'android', 'https://play.example');
-    expect(text).toContain('https://play.example');
+    const { text, html } = buildWhatsappInvite(null, 'android', URL_IOS);
+    expect(text).toContain(URL_IOS);
     expect(text).not.toContain('matched with');
     expect(text).not.toContain('your match');
     expect(html).not.toContain('<img');
-    // With no photo the text must not open on a blank line.
-    expect(text.startsWith('Congratulations')).toBe(true);
   });
 
   it('escapes a referrer name that contains markup', () => {
     const { html } = buildWhatsappInvite(
       { ...REFERRER, first_name: '<script>x</script>' },
-      'android',
-      'https://play.example'
+      'ios',
+      URL_IOS
     );
     expect(html).not.toContain('<script>');
     expect(html).toContain('&lt;script&gt;');
-  });
-
-  it('ignores a non-absolute avatar url rather than pasting a broken link', () => {
-    const { text } = buildWhatsappInvite(
-      { ...REFERRER, avatar_url: '/local/p.jpg' },
-      'android',
-      'https://play.example'
-    );
-    expect(text.startsWith('Congratulations')).toBe(true);
-    expect(text).not.toContain('/local/p.jpg');
   });
 });
 
