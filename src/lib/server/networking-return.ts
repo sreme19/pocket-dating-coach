@@ -37,10 +37,16 @@ export async function listReturnContacts(
     // Opposite gender only — skip same-gender networking contacts.
     const { data: p } = await db
       .from('verified_vibe_users')
-      .select('gender')
+      .select('gender, discovery_mode')
       .eq('id', partnerId)
       .maybeSingle();
     if (selfGender && p?.gender && p.gender === selfGender) continue;
+
+    // Never announce "open to dating again" into a thread where the CONTACT is
+    // themselves in a networking season — they've paused dating, so a "if there's
+    // a spark here" nudge is exactly the romantic pressure the season exists to
+    // prevent (and their own Bestie may read it as the contact pressuring them).
+    if (p?.discovery_mode === 'networking') continue;
 
     // Active thread only (≥1 message exchanged).
     const { count } = await db
@@ -57,6 +63,12 @@ export async function countReturnContacts(db: any, userId: string): Promise<numb
   return (await listReturnContacts(db, userId)).length;
 }
 
+/**
+ * Stable opening of the return-to-date notice. Used to detect an already-sent
+ * notice so a double-submit can't send the same announcement twice.
+ */
+const RETURN_NOTICE_PREFIX = 'Quick update —';
+
 /** Send the "open to dating again" Bestie message to each active contact. */
 export async function notifyReturnToDate(db: any, userId: string): Promise<number> {
   const { data: self } = await db
@@ -65,17 +77,27 @@ export async function notifyReturnToDate(db: any, userId: string): Promise<numbe
     .eq('id', userId)
     .maybeSingle();
   const name: string = self?.first_name || 'They';
-  const possessive = self?.gender === 'male' ? 'his' : self?.gender === 'female' ? 'her' : 'their';
-  const subject = self?.gender === 'male' ? 'He' : self?.gender === 'female' ? 'She' : 'They';
+  const possessive = self?.gender === 'man' ? 'his' : self?.gender === 'woman' ? 'her' : 'their';
+  const subject = self?.gender === 'man' ? 'He' : self?.gender === 'woman' ? 'She' : 'They';
 
   const contacts = await listReturnContacts(db, userId);
   let sent = 0;
   for (const c of contacts) {
     try {
+      // Idempotent per thread: a retry or double-submit must not re-announce.
+      const { count: already } = await db
+        .from('verified_vibe_messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('match_id', c.matchId)
+        .eq('sender_id', userId)
+        .eq('is_ai', true)
+        .like('content', `${RETURN_NOTICE_PREFIX}%networking season%`);
+      if ((already ?? 0) > 0) continue;
+
       await db.from('verified_vibe_messages').insert({
         match_id: c.matchId,
         sender_id: userId,
-        content: `Quick update — ${name} has come out of ${possessive} networking season and is open to dating again 🌹 ${subject}'s loved connecting; if there's a spark here, this is a lovely moment to explore it.`,
+        content: `${RETURN_NOTICE_PREFIX} ${name} has come out of ${possessive} networking season and is open to dating again 🌹 ${subject}'s loved connecting; if there's a spark here, this is a lovely moment to explore it.`,
         is_ai: true,
       });
       sent++;

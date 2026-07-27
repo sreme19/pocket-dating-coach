@@ -85,10 +85,15 @@ export function assessHandoffReadiness(args: {
 	// in-chat 📎 surface, which is picture-upload only. Document/ID-gated categories
 	// (income, ownership papers) are skipped; a dim she values that has only doc
 	// proofs (e.g. financial) simply can't gate the hand-off from chat.
-	const available = (d: DimensionId): string | null =>
-		(DIM_TO_PROOF[d] ?? []).find(
-			(cat) => !verified.has(cat) && !refused.has(cat) && !isDocumentProofCategory(cat)
-		) ?? null;
+	// A refusal takes out the whole DIMENSION, not just the one category. Every
+	// category in a dimension shares a single ASK_PHRASE, so falling through to a
+	// sibling category re-sends a word-for-word identical ask he already declined
+	// (refuse "wealth" → ask "assets" → same "verify your income" sentence).
+	const available = (d: DimensionId): string | null => {
+		const cats = DIM_TO_PROOF[d] ?? [];
+		if (cats.some((cat) => refused.has(cat))) return null;
+		return cats.find((cat) => !verified.has(cat) && !isDocumentProofCategory(cat)) ?? null;
+	};
 
 	// PASS 1 — specific gaps: a dimension she values that he CLAIMS (v≥45) but hasn't
 	// PROVEN. The income case: "claims a good salary, c stuck at the floor."

@@ -266,7 +266,7 @@ export async function generateBestieReply(
 		loadPreferences(userId).catch(() => null),
 		supabase
 			.from('verified_vibe_messages')
-			.select('content, sender_id, created_at')
+			.select('content, sender_id, created_at, is_ai')
 			.eq('match_id', matchId)
 			.order('created_at', { ascending: false })
 			.limit(12)
@@ -368,7 +368,14 @@ export async function generateBestieReply(
 	let transcript = '';
 	const msgs = (recent ?? []).slice().reverse();
 	if (msgs.length > 0) {
-		const lines = msgs.map((m: any) => `${m.sender_id === userId ? userName : matchName}: ${m.content}`);
+		// An is_ai message under HIS id is a system notice sent into the thread on
+		// his behalf (e.g. the return-to-date broadcast), not something he said.
+		// Labelling it as him makes the model attribute its wording to him.
+		const lines = msgs.map((m: any) => {
+			if (m.sender_id === userId) return `${userName}: ${m.content}`;
+			if (m.is_ai) return `[automated system notice, NOT ${matchName}'s own words]: ${m.content}`;
+			return `${matchName}: ${m.content}`;
+		});
 		transcript = `\n\nCONVERSATION SO FAR (most recent last) — do NOT repeat questions already asked or re-raise topics already settled:\n${lines.join('\n')}\n`;
 	}
 

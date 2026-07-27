@@ -100,6 +100,11 @@ export const POST: RequestHandler = async ({ request }) => {
             autoMatchId = newMatch.id;
 
             // Seed the conversation with the two messages from the admirer exchange
+            // Both rows must set created_at explicitly: in a multi-row insert
+            // PostgREST uses the union of keys across the array, so a row that
+            // omits created_at gets an explicit NULL instead of the column
+            // default. A NULL created_at sorts last in every transcript query,
+            // making an old message look like the newest one forever.
             await supabase.from('verified_vibe_messages').insert([
               {
                 match_id:   newMatch.id,
@@ -108,10 +113,10 @@ export const POST: RequestHandler = async ({ request }) => {
                 created_at: attnMsg.created_at, // preserve original timestamp
               },
               {
-                match_id:  newMatch.id,
-                sender_id: recipient,
-                content:   replyContent,
-                // created_at defaults to now()
+                match_id:   newMatch.id,
+                sender_id:  recipient,
+                content:    replyContent,
+                created_at: new Date().toISOString(),
               },
             ]);
           }

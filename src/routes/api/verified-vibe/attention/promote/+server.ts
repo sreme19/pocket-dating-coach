@@ -24,7 +24,7 @@ export const POST: RequestHandler = async ({ request }) => {
     // Load the attention message
     const { data: attnMsg, error: fetchErr } = await (supabase as any)
       .from('attention_messages')
-      .select('id, sender_id, recipient_id, content, reply_content, created_at')
+      .select('id, sender_id, recipient_id, content, reply_content, created_at, reply_sent_at')
       .eq('id', messageId)
       .single();
 
@@ -78,7 +78,11 @@ export const POST: RequestHandler = async ({ request }) => {
       return json({ error: 'Failed to create match' }, { status: 500 });
     }
 
-    // Seed the conversation with the admirer exchange
+    // Seed the conversation with the admirer exchange. Both rows must set
+    // created_at explicitly: in a multi-row insert PostgREST uses the union of
+    // keys across the array, so a row that omits created_at gets an explicit
+    // NULL instead of the column default. A NULL created_at sorts last in every
+    // transcript query, making an old message look like the newest one forever.
     await supabase.from('verified_vibe_messages').insert([
       {
         match_id:   newMatch.id,
@@ -87,9 +91,10 @@ export const POST: RequestHandler = async ({ request }) => {
         created_at: attnMsg.created_at,
       },
       {
-        match_id:  newMatch.id,
-        sender_id: recipient,
-        content:   attnMsg.reply_content,
+        match_id:   newMatch.id,
+        sender_id:  recipient,
+        content:    attnMsg.reply_content,
+        created_at: attnMsg.reply_sent_at ?? new Date().toISOString(),
       },
     ]);
 
