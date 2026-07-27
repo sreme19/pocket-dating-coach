@@ -88,6 +88,18 @@
 		});
 	});
 
+	let summaryTotals = $derived(
+		summaryGroups.reduce(
+			(acc, owner) => ({
+				male: acc.male + owner.male,
+				female: acc.female + owner.female,
+				pending: acc.pending + owner.pending,
+				total: acc.total + owner.total
+			}),
+			{ male: 0, female: 0, pending: 0, total: 0 }
+		)
+	);
+
 	let expandedOwner = $state<string | null>(null);
 	let expandedLinkType = $state<string | null>(null);
 
@@ -381,6 +393,14 @@
 								</tr>
 							{/if}
 						{/each}
+						<tr class="bg-white/[0.03] font-semibold">
+							<td class="px-4 py-2.5 text-slate-200">Grand total</td>
+							<td class="px-4 py-2.5 text-slate-200">{summaryTotals.male}</td>
+							<td class="px-4 py-2.5 text-slate-200">{summaryTotals.female}</td>
+							<td class="px-4 py-2.5 text-slate-300">{summaryTotals.pending}</td>
+							<td class="px-4 py-2.5 text-white">{summaryTotals.total}</td>
+							<td class="px-4 py-2.5"></td>
+						</tr>
 					</tbody>
 				</table>
 			</div>
