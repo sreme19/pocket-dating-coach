@@ -30,6 +30,17 @@ export interface ReferrerCard {
 
 export type Platform = 'ios' | 'android';
 
+/**
+ * Everyone who gets a blind copy of each early-access invite, so the team has a
+ * record of exactly what each tester was sent (including the referrer card and
+ * the store link they actually got). BCC, not To — the invitee must never see
+ * that a copy went anywhere, and this must not read as a group email.
+ *
+ * Confirmation emails are NOT copied: they fire automatically on every /beta
+ * form submit and would flood the inbox. Only the manual invite is.
+ */
+const INVITE_BCC = ['chris@wardrobeofamonk.com'];
+
 // App store links. iOS is pending — leave '' until we have it; sendEarlyAccessEmail
 // refuses to send an iOS invite while it's blank so we never mail a dead link.
 export const STORE_LINKS: Record<Platform, string> = {
@@ -213,6 +224,7 @@ export async function sendEarlyAccessEmail(
   const name = (referrer?.first_name ?? '').trim() || 'your match';
   await sendEmail({
     to: toEmail,
+    bcc: INVITE_BCC,
     subject: referrer
       ? `You're accepted! Get the app to meet ${name} 🎉`
       : "You're accepted! Get early access to riteangle 🎉",

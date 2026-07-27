@@ -27,6 +27,8 @@ export interface SendEmailArgs {
   from?: string;
   /** Address replies go to. Omit for a no-reply message. */
   replyTo?: string;
+  /** Blind copies. Never visible to the `to` recipient. */
+  bcc?: string | string[];
   /** Optional file attachments (base64 content). */
   attachments?: EmailAttachment[];
 }
@@ -37,6 +39,7 @@ export async function sendEmail({
   html,
   from,
   replyTo,
+  bcc,
   attachments,
 }: SendEmailArgs): Promise<void> {
   const apiKey = env.RESEND_API_KEY;
@@ -49,6 +52,7 @@ export async function sendEmail({
     html,
   };
   if (replyTo) body.reply_to = replyTo;
+  if (bcc) body.bcc = Array.isArray(bcc) ? bcc : [bcc];
   if (attachments && attachments.length) body.attachments = attachments;
 
   const resp = await fetch('https://api.resend.com/emails', {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 /**
  * The referrer card is optional in both beta emails. Signups from an admin
@@ -9,7 +9,8 @@ import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('$env/dynamic/private', () => ({ env: { RESEND_API_KEY: 'test' } }));
 
-const { buildEarlyAccessHtml, buildBetaConfirmationHtml } = await import('./beta-invite-email');
+const { buildEarlyAccessHtml, buildBetaConfirmationHtml, sendEarlyAccessEmail, sendBetaConfirmationEmail } =
+  await import('./beta-invite-email');
 
 const REFERRER = {
   first_name: 'Priya',
@@ -34,6 +35,34 @@ describe('buildEarlyAccessHtml', () => {
     expect(html).toContain('Get it on Google Play');
     expect(html).not.toContain('your match');
     expect(html).not.toContain("You've been matched with");
+  });
+});
+
+/**
+ * The team keeps a record of every invite that goes out, but it must stay a
+ * blind copy — the invitee may never see that anyone else was on the message.
+ */
+describe('early-access invite recipients', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn(async () => new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const sentBody = () => JSON.parse(fetchMock.mock.calls[0]![1]!.body as string);
+
+  it('bccs the team on the invite and leaves the invitee the only visible recipient', async () => {
+    await sendEarlyAccessEmail('tester@example.com', REFERRER, 'android');
+    const body = sentBody();
+    expect(body.to).toEqual(['tester@example.com']);
+    expect(body.bcc).toEqual(['chris@wardrobeofamonk.com']);
+  });
+
+  it('does not copy anyone on the auto confirmation email', async () => {
+    await sendBetaConfirmationEmail('tester@example.com', REFERRER);
+    expect(sentBody().bcc).toBeUndefined();
   });
 });
 
