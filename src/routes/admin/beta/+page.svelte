@@ -276,9 +276,11 @@
 		}
 	}
 
-	// Which row last had its invite copied, so the button can confirm it.
-	let copiedId = $state<string | null>(null);
-	let copyError = $state<string | null>(null);
+	// Which row last had its invite copied, so the button can confirm it. Kept
+	// separate from `copiedId` above (the woman-link Copy buttons) so the two
+	// features can't flip each other's label.
+	let copiedInviteId = $state<string | null>(null);
+	let copyInviteError = $state<string | null>(null);
 
 	/**
 	 * Put the invite on the clipboard in BOTH flavours: rich HTML for composers
@@ -291,7 +293,7 @@
 	 */
 	async function copyInvite(s: Signup) {
 		if (!s.inviteText) return;
-		copyError = null;
+		copyInviteError = null;
 		try {
 			if (s.inviteHtml && typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
 				await navigator.clipboard.write([
@@ -303,12 +305,12 @@
 			} else {
 				await navigator.clipboard.writeText(s.inviteText);
 			}
-			copiedId = s.id;
+			copiedInviteId = s.id;
 			setTimeout(() => {
-				if (copiedId === s.id) copiedId = null;
+				if (copiedInviteId === s.id) copiedInviteId = null;
 			}, 2000);
 		} catch (e) {
-			copyError = s.id;
+			copyInviteError = s.id;
 			console.error('[admin/beta] copy failed', e);
 		}
 	}
@@ -618,12 +620,12 @@
 						<tr>
 							<th class="px-4 py-2.5">Email</th>
 							<th class="px-4 py-2.5">WhatsApp</th>
+							<th class="px-4 py-2.5">Message</th>
 							<th class="px-4 py-2.5">Device</th>
 							<th class="px-4 py-2.5">Referred by</th>
 							<th class="px-4 py-2.5">Status</th>
 							<th class="px-4 py-2.5">Submitted</th>
 							<th class="px-4 py-2.5">Invite</th>
-							<th class="px-4 py-2.5">Copy</th>
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-white/[0.05]">
@@ -640,6 +642,30 @@
 										>{s.whatsapp}</a>
 									{:else}
 										<span class="text-slate-500">—</span>
+									{/if}
+								</td>
+								<td class="px-4 py-2.5">
+									{#if !s.inviteText}
+										<span
+											class="text-xs text-slate-500"
+											title="Needs a device on file (and a configured store link) before an invite can be addressed."
+										>—</span>
+									{:else}
+										<div class="flex flex-col gap-1">
+											<button
+												onclick={() => copyInvite(s)}
+												title="Copy the invite for {fmtDevice(s.platform)}{s.referrerName &&
+												s.referrerName !== 'Admin'
+													? ` · card for ${s.referrerName}`
+													: ' · no card'} — paste into WhatsApp"
+												class="w-fit rounded border border-white/[0.1] px-2.5 py-1 text-xs text-slate-200 transition-colors hover:bg-white/[0.06]"
+											>
+												{copiedInviteId === s.id ? '✓ Copied' : 'Copy invite'}
+											</button>
+											{#if copyInviteError === s.id}
+												<span class="text-xs text-red-400">Copy failed — click the page, then retry.</span>
+											{/if}
+										</div>
 									{/if}
 								</td>
 								<td class="px-4 py-2.5 text-slate-300">{fmtDevice(s.platform)}</td>
@@ -677,30 +703,6 @@
 											{/if}
 											{#if inviteError && inviteError.id === s.id}
 												<span class="text-xs text-red-400">{inviteError.msg}</span>
-											{/if}
-										</div>
-									{/if}
-								</td>
-								<td class="px-4 py-2.5">
-									{#if !s.inviteText}
-										<span
-											class="text-xs text-slate-500"
-											title="Needs a device on file (and a configured store link) before an invite can be addressed."
-										>—</span>
-									{:else}
-										<div class="flex flex-col gap-1">
-											<button
-												onclick={() => copyInvite(s)}
-												title="Copy the invite for {fmtDevice(s.platform)}{s.referrerName &&
-												s.referrerName !== 'Admin'
-													? ` · card for ${s.referrerName}`
-													: ' · no card'} — paste into WhatsApp"
-												class="w-fit rounded border border-white/[0.1] px-2.5 py-1 text-xs text-slate-200 transition-colors hover:bg-white/[0.06]"
-											>
-												{copiedId === s.id ? '✓ Copied' : 'Copy invite'}
-											</button>
-											{#if copyError === s.id}
-												<span class="text-xs text-red-400">Copy failed — click the page, then retry.</span>
 											{/if}
 										</div>
 									{/if}
