@@ -293,6 +293,12 @@
 	 */
 	async function copyInvite(s: Signup) {
 		if (!s.inviteText) return;
+		// Gated on the invite email having actually gone out: this message opens
+		// with "you've been accepted", so sending it before the invite would tell
+		// someone they're in before anything says so. The button is disabled too —
+		// this is the guard for a stale render (the row unlocks as soon as
+		// sendInvite patches invited_at, with no reload).
+		if (!s.invited_at) return;
 		copyInviteError = null;
 		try {
 			if (s.inviteHtml && typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
@@ -654,14 +660,21 @@
 										<div class="flex flex-col gap-1">
 											<button
 												onclick={() => copyInvite(s)}
-												title="Copy the invite for {fmtDevice(s.platform)}{s.referrerName &&
-												s.referrerName !== 'Admin'
-													? ` · card for ${s.referrerName}`
-													: ' · no card'} — paste into WhatsApp"
-												class="w-fit rounded border border-white/[0.1] px-2.5 py-1 text-xs text-slate-200 transition-colors hover:bg-white/[0.06]"
+												disabled={!s.invited_at}
+												title={s.invited_at
+													? `Copy the invite for ${fmtDevice(s.platform)}${
+															s.referrerName && s.referrerName !== 'Admin'
+																? ` · card for ${s.referrerName}`
+																: ' · no card'
+														} — paste into WhatsApp`
+													: 'Send the invite email first — this message tells them they have been accepted.'}
+												class="w-fit rounded border border-white/[0.1] px-2.5 py-1 text-xs text-slate-200 transition-colors hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
 											>
 												{copiedInviteId === s.id ? '✓ Copied' : 'Copy invite'}
 											</button>
+											{#if !s.invited_at}
+												<span class="text-xs text-slate-500">Send the invite first</span>
+											{/if}
 											{#if copyInviteError === s.id}
 												<span class="text-xs text-red-400">Copy failed — click the page, then retry.</span>
 											{/if}
