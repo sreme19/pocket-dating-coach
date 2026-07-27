@@ -207,6 +207,81 @@ export function buildEarlyAccessHtml(
     </div>`);
 }
 
+// ── 3. Hand-copied invite (for pasting into WhatsApp) ─────────────────────────
+
+/**
+ * The same invite as a message a human can paste into WhatsApp, now that the
+ * /beta form collects a number. Returns BOTH clipboard flavours:
+ *
+ *   text — what WhatsApp (and every plain composer) will actually take. Her
+ *          photo URL leads, because WhatsApp previews the FIRST link in a
+ *          message and seeing her is the hook; the store link follows and is
+ *          still tappable, just without its own preview card.
+ *   html — the real card markup, so pasting into a rich composer (Gmail,
+ *          WhatsApp Desktop, Notion) renders her photo inline instead of a URL.
+ *
+ * Both are built here rather than in the admin component so they reuse the
+ * card, the store links and escapeHtml — one definition of the invite, not two
+ * that drift. The caller is responsible for suppressing `referrer` on a private
+ * link, exactly as the email paths do.
+ */
+export function buildWhatsappInvite(
+  referrer: ReferrerCard | null,
+  platform: Platform,
+  storeUrl: string
+): { text: string; html: string } {
+  const name = (referrer?.first_name ?? '').trim();
+  const storeLabel = platform === 'ios' ? 'iPhone — TestFlight' : 'Android — Google Play';
+
+  const photoUrl =
+    typeof referrer?.avatar_url === 'string' && /^https?:\/\//.test(referrer.avatar_url)
+      ? referrer.avatar_url
+      : '';
+
+  // Her name, age and city on one line — the same summary the card shows.
+  const bits = [name, referrer?.age ? `${referrer.age}` : '', referrer?.city ?? '']
+    .map((b) => b.trim())
+    .filter(Boolean);
+  const summary = bits.join(' · ');
+
+  const lines: string[] = [];
+  if (photoUrl) lines.push(photoUrl, '');
+  lines.push("Congratulations — you're in! 🎉");
+  lines.push('');
+  lines.push("You've been accepted as an early access member of riteangle.");
+  lines.push('');
+  if (name) {
+    lines.push(`You've been matched with ${summary || name} — she'll be waiting for you in the app.`);
+  } else {
+    lines.push(
+      'Set up your profile and we’ll introduce you to someone worth meeting — real people, properly verified.'
+    );
+  }
+  lines.push('');
+  lines.push(`Get the app (${storeLabel}):`);
+  lines.push(storeUrl);
+  lines.push('');
+  lines.push('See you inside — the riteangle team');
+
+  const text = lines.join('\n');
+
+  const html = `<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#1f2937;font-size:15px;line-height:1.55">
+      <p style="margin:0 0 10px"><strong>Congratulations — you're in! 🎉</strong></p>
+      <p style="margin:0 0 10px">You've been accepted as an <strong>early access member</strong> of riteangle.</p>
+      <p style="margin:0 0 10px">${
+        name
+          ? `You've been matched with ${escapeHtml(name)} — she'll be waiting for you in the app:`
+          : 'Set up your profile and we&rsquo;ll introduce you to someone worth meeting — real people, properly verified.'
+      }</p>
+      ${referrerCardHtml(referrer)}
+      <p style="margin:10px 0 0">Get the app (${escapeHtml(storeLabel)}):<br/>
+        <a href="${escapeHtml(storeUrl)}">${escapeHtml(storeUrl)}</a></p>
+      <p style="margin:10px 0 0">See you inside — the riteangle team</p>
+    </div>`;
+
+  return { text, html };
+}
+
 /**
  * Send the early-access invite. Throws on a bad/blank store link or a send
  * failure so the admin endpoint can report it (this email is admin-triggered,

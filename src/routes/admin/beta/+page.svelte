@@ -21,6 +21,9 @@
 		platform: 'ios' | 'android' | null;
 		/** Pre-formatted "+91 98765 43210", or '' for rows collected before capture. */
 		whatsapp: string;
+		/** Paste-ready invite, prebuilt server-side. Null when there's no device/store link. */
+		inviteText: string | null;
+		inviteHtml: string | null;
 		status: string;
 		invited_at: string | null;
 		ownerKey: string;
@@ -270,6 +273,43 @@
 			}, 1500);
 		} catch {
 			// Clipboard blocked — no-op; the link is visible for manual copy.
+		}
+	}
+
+	// Which row last had its invite copied, so the button can confirm it.
+	let copiedId = $state<string | null>(null);
+	let copyError = $state<string | null>(null);
+
+	/**
+	 * Put the invite on the clipboard in BOTH flavours: rich HTML for composers
+	 * that accept it (the card renders inline), plain text for WhatsApp, which
+	 * takes the text and previews her photo from the leading URL.
+	 *
+	 * ClipboardItem isn't everywhere (older Safari, non-secure origins), and the
+	 * whole call rejects if the tab isn't focused — so fall back to plain text,
+	 * and surface a failure rather than showing a false "Copied".
+	 */
+	async function copyInvite(s: Signup) {
+		if (!s.inviteText) return;
+		copyError = null;
+		try {
+			if (s.inviteHtml && typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+				await navigator.clipboard.write([
+					new ClipboardItem({
+						'text/html': new Blob([s.inviteHtml], { type: 'text/html' }),
+						'text/plain': new Blob([s.inviteText], { type: 'text/plain' })
+					})
+				]);
+			} else {
+				await navigator.clipboard.writeText(s.inviteText);
+			}
+			copiedId = s.id;
+			setTimeout(() => {
+				if (copiedId === s.id) copiedId = null;
+			}, 2000);
+		} catch (e) {
+			copyError = s.id;
+			console.error('[admin/beta] copy failed', e);
 		}
 	}
 
@@ -583,6 +623,7 @@
 							<th class="px-4 py-2.5">Status</th>
 							<th class="px-4 py-2.5">Submitted</th>
 							<th class="px-4 py-2.5">Invite</th>
+							<th class="px-4 py-2.5">Copy</th>
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-white/[0.05]">
@@ -636,6 +677,30 @@
 											{/if}
 											{#if inviteError && inviteError.id === s.id}
 												<span class="text-xs text-red-400">{inviteError.msg}</span>
+											{/if}
+										</div>
+									{/if}
+								</td>
+								<td class="px-4 py-2.5">
+									{#if !s.inviteText}
+										<span
+											class="text-xs text-slate-500"
+											title="Needs a device on file (and a configured store link) before an invite can be addressed."
+										>—</span>
+									{:else}
+										<div class="flex flex-col gap-1">
+											<button
+												onclick={() => copyInvite(s)}
+												title="Copy the invite for {fmtDevice(s.platform)}{s.referrerName &&
+												s.referrerName !== 'Admin'
+													? ` · card for ${s.referrerName}`
+													: ' · no card'} — paste into WhatsApp"
+												class="w-fit rounded border border-white/[0.1] px-2.5 py-1 text-xs text-slate-200 transition-colors hover:bg-white/[0.06]"
+											>
+												{copiedId === s.id ? '✓ Copied' : 'Copy invite'}
+											</button>
+											{#if copyError === s.id}
+												<span class="text-xs text-red-400">Copy failed — click the page, then retry.</span>
 											{/if}
 										</div>
 									{/if}

@@ -2,6 +2,12 @@ import type { PageServerLoad } from './$types';
 import { getSupabase } from '$lib/server/supabase';
 import { modeOf, selectReferralLinks } from '$lib/server/referral-links';
 import { formatPhone } from '$lib/phone';
+import {
+	buildWhatsappInvite,
+	storeUrlFor,
+	type Platform,
+	type ReferrerCard
+} from '$lib/server/beta-invite-email';
 
 const SIGNUP_COLUMNS =
 	'id, email, platform, status, referrer_id, link_id, matched_user_id, created_at, matched_at, invited_at';
@@ -40,7 +46,7 @@ export const load: PageServerLoad = async () => {
 	const [{ data: users }, { rows: links }, { data: signups }] = await Promise.all([
 		db
 			.from('verified_vibe_users')
-			.select('id, first_name, age, city, gender, is_seed')
+			.select('id, first_name, age, city, gender, is_seed, avatar_url, about')
 			.order('first_name', { ascending: true }),
 		// Members can own a private link too (mode='private'). This tab is about
 		// the public share links, so drop the private rows — otherwise a private
@@ -55,6 +61,24 @@ export const load: PageServerLoad = async () => {
 	);
 	const genderById = new Map<string, string>(
 		(users ?? []).map((u: any) => [u.id, u.gender])
+	);
+	// Everything the invite card needs, per referrer.
+	const cardById = new Map<string, ReferrerCard>(
+		(users ?? []).map((u: any) => [
+			u.id,
+			{
+				first_name: u.first_name ?? null,
+				age: u.age ?? null,
+				city: u.city ?? null,
+				avatar_url: u.avatar_url ?? null,
+				about: u.about ?? null
+			}
+		])
+	);
+	// A PRIVATE link carries nothing about its owner — so the copyable invite
+	// shows no card either, the same suppression the two email paths apply.
+	const privateLinkIds = new Set<string>(
+		(links ?? []).filter((l: any) => modeOf(l) === 'private').map((l: any) => l.id)
 	);
 	const linkKindById = new Map<string, string | null>(
 		(links ?? []).map((l: any) => [l.id, l.kind ?? null])
@@ -102,11 +126,27 @@ export const load: PageServerLoad = async () => {
 		const genderBucket: 'male' | 'female' | 'pending' =
 			matchedGender === 'man' ? 'male' : matchedGender === 'woman' ? 'female' : 'pending';
 
+		// The paste-into-WhatsApp invite, prebuilt here so the browser never needs
+		// the store links, the card markup or an HTML escaper. Null whenever we
+		// couldn't address it — no device on file, or that store link isn't
+		// configured yet — which is exactly when the Send-invite button is
+		// disabled too, so the two controls agree.
+		const platform = (s.platform ?? null) as Platform | null;
+		const storeUrl = platform ? storeUrlFor(platform) : '';
+		const inviteCard =
+			s.referrer_id && !privateLinkIds.has(s.link_id)
+				? cardById.get(s.referrer_id) ?? null
+				: null;
+		const invite =
+			platform && storeUrl ? buildWhatsappInvite(inviteCard, platform, storeUrl) : null;
+
 		return {
 			id: s.id,
 			email: s.email,
 			platform: s.platform ?? null,
 			whatsapp: formatPhone(s.whatsapp_country_code ?? null, s.whatsapp_number ?? null),
+			inviteText: invite?.text ?? null,
+			inviteHtml: invite?.html ?? null,
 			status: s.status,
 			invited_at: s.invited_at ?? null,
 			created_at: s.created_at,
