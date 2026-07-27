@@ -21,14 +21,97 @@
 		platform: 'ios' | 'android' | null;
 		status: string;
 		invited_at: string | null;
+		ownerKey: string;
 		referrerName: string;
 		matchedName: string | null;
 		created_at: string;
 		matched_at: string | null;
+		linkTypeLabel: string;
+		genderBucket: 'male' | 'female' | 'pending';
 	};
 
 	// Local copy so an invite send flips the row to "invited" without a reload.
 	let signups = $state<Signup[]>(data.signups.map((s: Signup) => ({ ...s })));
+
+	// --- Summary dashboard: owner -> link type -> gender counts -------------
+	type LinkTypeGroup = {
+		linkTypeLabel: string;
+		male: number;
+		female: number;
+		pending: number;
+		total: number;
+		rows: Signup[];
+	};
+	type OwnerGroup = {
+		ownerKey: string;
+		ownerName: string;
+		male: number;
+		female: number;
+		pending: number;
+		total: number;
+		linkTypes: LinkTypeGroup[];
+	};
+
+	let summaryGroups = $derived.by(() => {
+		const owners = new Map<string, OwnerGroup>();
+		for (const s of signups) {
+			let owner = owners.get(s.ownerKey);
+			if (!owner) {
+				owner = {
+					ownerKey: s.ownerKey,
+					ownerName: s.referrerName,
+					male: 0,
+					female: 0,
+					pending: 0,
+					total: 0,
+					linkTypes: []
+				};
+				owners.set(s.ownerKey, owner);
+			}
+			owner[s.genderBucket]++;
+			owner.total++;
+
+			let linkType = owner.linkTypes.find((lt) => lt.linkTypeLabel === s.linkTypeLabel);
+			if (!linkType) {
+				linkType = { linkTypeLabel: s.linkTypeLabel, male: 0, female: 0, pending: 0, total: 0, rows: [] };
+				owner.linkTypes.push(linkType);
+			}
+			linkType[s.genderBucket]++;
+			linkType.total++;
+			linkType.rows.push(s);
+		}
+		// Admin first (recruiting, not a real member), then by volume.
+		return Array.from(owners.values()).sort((a, b) => {
+			if (a.ownerKey === 'admin') return -1;
+			if (b.ownerKey === 'admin') return 1;
+			return b.total - a.total;
+		});
+	});
+
+	let expandedOwner = $state<string | null>(null);
+	let expandedLinkType = $state<string | null>(null);
+
+	function toggleOwner(ownerKey: string) {
+		expandedOwner = expandedOwner === ownerKey ? null : ownerKey;
+		expandedLinkType = null;
+	}
+
+	function toggleLinkType(ownerKey: string, linkTypeLabel: string) {
+		const key = `${ownerKey}::${linkTypeLabel}`;
+		expandedLinkType = expandedLinkType === key ? null : key;
+	}
+
+	// --- Collected emails pagination -----------------------------------------
+	const PAGE_SIZE = 20;
+	let emailPage = $state(1);
+	let emailPageCount = $derived(Math.max(1, Math.ceil(signups.length / PAGE_SIZE)));
+	let pagedSignups = $derived(
+		signups.slice((emailPage - 1) * PAGE_SIZE, (emailPage - 1) * PAGE_SIZE + PAGE_SIZE)
+	);
+
+	function goToPage(p: number) {
+		emailPage = Math.min(Math.max(1, p), emailPageCount);
+	}
 
 	let selectedId = $state('');
 	let generating = $state(false);
@@ -204,6 +287,105 @@
 		added to the beta list, and is instantly matched with her once they finish onboarding and enter
 		the matchmaker pool.
 	</p>
+
+	<!-- Summary dashboard: profile owner -> link type -> gender breakdown -->
+	<section class="mt-6">
+		<h2 class="text-sm font-semibold text-white">Invite summary ({summaryGroups.length})</h2>
+		<p class="mt-1 text-sm text-slate-400">
+			Grouped by profile owner. Expand a row to see which link type brought the invites in, and
+			expand a link type to see the individual signups.
+		</p>
+		{#if summaryGroups.length === 0}
+			<p class="mt-2 text-sm text-slate-500">No invites collected yet.</p>
+		{:else}
+			<div class="mt-3 overflow-x-auto rounded-lg border border-white/[0.08]">
+				<table class="w-full text-left text-sm">
+					<thead class="bg-white/[0.03] text-xs uppercase tracking-wide text-slate-400">
+						<tr>
+							<th class="px-4 py-2.5">Profile owner</th>
+							<th class="px-4 py-2.5">Male</th>
+							<th class="px-4 py-2.5">Female</th>
+							<th class="px-4 py-2.5">Pending</th>
+							<th class="px-4 py-2.5">Total</th>
+							<th class="px-4 py-2.5"></th>
+						</tr>
+					</thead>
+					<tbody class="divide-y divide-white/[0.05]">
+						{#each summaryGroups as owner (owner.ownerKey)}
+							<tr
+								class="cursor-pointer hover:bg-white/[0.03]"
+								onclick={() => toggleOwner(owner.ownerKey)}
+							>
+								<td class="px-4 py-2.5 font-medium text-slate-200">{owner.ownerName}</td>
+								<td class="px-4 py-2.5 text-slate-300">{owner.male}</td>
+								<td class="px-4 py-2.5 text-slate-300">{owner.female}</td>
+								<td class="px-4 py-2.5 text-slate-400">{owner.pending}</td>
+								<td class="px-4 py-2.5 text-slate-200">{owner.total}</td>
+								<td class="px-4 py-2.5 text-right text-xs text-slate-500">
+									{expandedOwner === owner.ownerKey ? '▲ collapse' : '▼ link types'}
+								</td>
+							</tr>
+							{#if expandedOwner === owner.ownerKey}
+								<tr>
+									<td colspan="6" class="bg-black/20 px-4 py-3">
+										<table class="w-full text-left text-xs">
+											<thead class="uppercase tracking-wide text-slate-500">
+												<tr>
+													<th class="py-1.5 pr-3">Link type</th>
+													<th class="py-1.5 pr-3">Male</th>
+													<th class="py-1.5 pr-3">Female</th>
+													<th class="py-1.5 pr-3">Pending</th>
+													<th class="py-1.5 pr-3">Total</th>
+													<th class="py-1.5"></th>
+												</tr>
+											</thead>
+											<tbody class="divide-y divide-white/[0.05]">
+												{#each owner.linkTypes as lt (lt.linkTypeLabel)}
+													{@const ltKey = `${owner.ownerKey}::${lt.linkTypeLabel}`}
+													<tr
+														class="cursor-pointer hover:bg-white/[0.04]"
+														onclick={() => toggleLinkType(owner.ownerKey, lt.linkTypeLabel)}
+													>
+														<td class="py-1.5 pr-3 text-slate-300">{lt.linkTypeLabel}</td>
+														<td class="py-1.5 pr-3 text-slate-300">{lt.male}</td>
+														<td class="py-1.5 pr-3 text-slate-300">{lt.female}</td>
+														<td class="py-1.5 pr-3 text-slate-400">{lt.pending}</td>
+														<td class="py-1.5 pr-3 text-slate-200">{lt.total}</td>
+														<td class="py-1.5 text-right text-slate-500">
+															{expandedLinkType === ltKey ? '▲ collapse' : '▼ signups'}
+														</td>
+													</tr>
+													{#if expandedLinkType === ltKey}
+														<tr>
+															<td colspan="6" class="py-2">
+																<ul class="space-y-1">
+																	{#each lt.rows as row (row.id)}
+																		<li class="flex items-center gap-2 text-slate-400">
+																			<span class="text-slate-300">{row.email}</span>
+																			<span class="text-slate-600">·</span>
+																			<span>{row.genderBucket}</span>
+																			<span class="text-slate-600">·</span>
+																			<span>{row.status}</span>
+																			<span class="text-slate-600">·</span>
+																			<span>{fmtDate(row.created_at)}</span>
+																		</li>
+																	{/each}
+																</ul>
+															</td>
+														</tr>
+													{/if}
+												{/each}
+											</tbody>
+										</table>
+									</td>
+								</tr>
+							{/if}
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		{/if}
+	</section>
 
 	<!-- Generate -->
 	<section class="mt-6 rounded-lg border border-white/[0.08] bg-[#0b1120] p-5">
@@ -381,7 +563,7 @@
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-white/[0.05]">
-						{#each signups as s (s.id)}
+						{#each pagedSignups as s (s.id)}
 							<tr>
 								<td class="px-4 py-2.5 text-slate-200">{s.email}</td>
 								<td class="px-4 py-2.5 text-slate-300">{fmtDevice(s.platform)}</td>
@@ -428,6 +610,32 @@
 					</tbody>
 				</table>
 			</div>
+
+			{#if emailPageCount > 1}
+				<div class="mt-3 flex items-center justify-between text-sm text-slate-400">
+					<span>
+						Showing {(emailPage - 1) * PAGE_SIZE + 1}–{Math.min(emailPage * PAGE_SIZE, signups.length)}
+						of {signups.length}
+					</span>
+					<div class="flex items-center gap-2">
+						<button
+							onclick={() => goToPage(emailPage - 1)}
+							disabled={emailPage === 1}
+							class="rounded border border-white/[0.1] px-2.5 py-1 text-xs text-slate-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+						>
+							Prev
+						</button>
+						<span class="text-xs text-slate-500">Page {emailPage} of {emailPageCount}</span>
+						<button
+							onclick={() => goToPage(emailPage + 1)}
+							disabled={emailPage === emailPageCount}
+							class="rounded border border-white/[0.1] px-2.5 py-1 text-xs text-slate-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+						>
+							Next
+						</button>
+					</div>
+				</div>
+			{/if}
 		{/if}
 	</section>
 	</div>
