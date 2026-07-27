@@ -1,18 +1,18 @@
 /**
  * Networking Season — Phase 4, "return to Date" consent notify.
  *
- * When a woman flips back to Date after a networking season, she may (with her
- * explicit consent) let the people she networked with know she's open to dating
- * again. We only message OPPOSITE-gender contacts on active threads — telling a
- * same-gender networking contact "she's open to dating again" makes no sense in
- * the straight-only MVP.
+ * When a user flips back to Date after a networking season, they may (with
+ * explicit consent) let the people they networked with know they're open to
+ * dating again. We only message OPPOSITE-gender contacts on active threads —
+ * telling a same-gender networking contact "they're open to dating again"
+ * makes no sense in the straight-only MVP.
  *
- * The message is a templated Bestie (is_ai) line, sent on her behalf — the same
- * mechanism as the Bestie hand-off messages. Gated by NETWORKING_ENFORCEMENT_GATE
- * at the call sites.
+ * The message is a templated Bestie (is_ai) line, sent on their behalf — the
+ * same mechanism as the Bestie hand-off messages. Gated by
+ * NETWORKING_ENFORCEMENT_GATE at the call sites.
  */
 
-/** Her active, opposite-gender mutual matches (threads with ≥1 message). */
+/** Their active, opposite-gender mutual matches (threads with ≥1 message). */
 export async function listReturnContacts(
   db: any,
   userId: string,
@@ -61,10 +61,12 @@ export async function countReturnContacts(db: any, userId: string): Promise<numb
 export async function notifyReturnToDate(db: any, userId: string): Promise<number> {
   const { data: self } = await db
     .from('verified_vibe_users')
-    .select('first_name')
+    .select('first_name, gender')
     .eq('id', userId)
     .maybeSingle();
-  const name: string = self?.first_name || 'She';
+  const name: string = self?.first_name || 'They';
+  const possessive = self?.gender === 'male' ? 'his' : self?.gender === 'female' ? 'her' : 'their';
+  const subject = self?.gender === 'male' ? 'He' : self?.gender === 'female' ? 'She' : 'They';
 
   const contacts = await listReturnContacts(db, userId);
   let sent = 0;
@@ -73,7 +75,7 @@ export async function notifyReturnToDate(db: any, userId: string): Promise<numbe
       await db.from('verified_vibe_messages').insert({
         match_id: c.matchId,
         sender_id: userId,
-        content: `Quick update — ${name} has come out of her networking season and is open to dating again 🌹 She's loved connecting; if there's a spark here, this is a lovely moment to explore it.`,
+        content: `Quick update — ${name} has come out of ${possessive} networking season and is open to dating again 🌹 ${subject}'s loved connecting; if there's a spark here, this is a lovely moment to explore it.`,
         is_ai: true,
       });
       sent++;

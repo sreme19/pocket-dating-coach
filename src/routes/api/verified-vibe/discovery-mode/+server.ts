@@ -88,7 +88,7 @@ export const PUT: RequestHandler = async ({ request }) => {
   await refreshPoolEntry(userId).catch(() => {});
 
   // On a return to Date from a networking season, tell the client how many active
-  // contacts she could notify, so it can offer the consent prompt (Phase 4).
+  // contacts they could notify, so it can offer the consent prompt (Phase 4).
   let returnedFromNetworking = false;
   let activeContacts = 0;
   if (networkingEnforcementEnabled() && priorMode === 'networking' && mode === 'date') {
@@ -101,8 +101,8 @@ export const PUT: RequestHandler = async ({ request }) => {
 
 /**
  * POST /api/verified-vibe/discovery-mode/notify-return
- * (handled here via ?action=notify-return on POST) — the woman consented to let
- * her networking contacts know she's open to dating again. Sends the Bestie
+ * (handled here via ?action=notify-return on POST) — the user consented to let
+ * their networking contacts know they're open to dating again. Sends the Bestie
  * message to each active opposite-gender thread. Gated behind enforcement.
  */
 export const POST: RequestHandler = async ({ request }) => {
