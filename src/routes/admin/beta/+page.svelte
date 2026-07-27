@@ -19,6 +19,8 @@
 		id: string;
 		email: string;
 		platform: 'ios' | 'android' | null;
+		/** Pre-formatted "+91 98765 43210", or '' for rows collected before capture. */
+		whatsapp: string;
 		status: string;
 		invited_at: string | null;
 		ownerKey: string;
@@ -575,6 +577,7 @@
 					<thead class="bg-white/[0.03] text-xs uppercase tracking-wide text-slate-400">
 						<tr>
 							<th class="px-4 py-2.5">Email</th>
+							<th class="px-4 py-2.5">WhatsApp</th>
 							<th class="px-4 py-2.5">Device</th>
 							<th class="px-4 py-2.5">Referred by</th>
 							<th class="px-4 py-2.5">Status</th>
@@ -586,6 +589,18 @@
 						{#each pagedSignups as s (s.id)}
 							<tr>
 								<td class="px-4 py-2.5 text-slate-200">{s.email}</td>
+								<td class="px-4 py-2.5 whitespace-nowrap text-slate-300">
+									{#if s.whatsapp}
+										<a
+											href={`https://wa.me/${s.whatsapp.replace(/[^0-9]/g, '')}`}
+											target="_blank"
+											rel="noreferrer"
+											class="text-slate-300 underline decoration-white/20 hover:text-white"
+										>{s.whatsapp}</a>
+									{:else}
+										<span class="text-slate-500">—</span>
+									{/if}
+								</td>
 								<td class="px-4 py-2.5 text-slate-300">{fmtDevice(s.platform)}</td>
 								<td class="px-4 py-2.5 text-slate-300">{s.referrerName}</td>
 								<td class="px-4 py-2.5">

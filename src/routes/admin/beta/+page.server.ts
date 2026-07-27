@@ -1,6 +1,38 @@
 import type { PageServerLoad } from './$types';
 import { getSupabase } from '$lib/server/supabase';
 import { modeOf, selectReferralLinks } from '$lib/server/referral-links';
+import { formatPhone } from '$lib/phone';
+
+const SIGNUP_COLUMNS =
+	'id, email, platform, status, referrer_id, link_id, matched_user_id, created_at, matched_at, invited_at';
+
+/**
+ * Signups, with the WhatsApp columns when they exist. Migration
+ * 20260728013000 is applied by hand in the SQL editor, so this page can load
+ * against a database that predates it — PostgREST fails the WHOLE select on an
+ * unknown column, which would blank the tab rather than just the new field.
+ * Falling back keeps every other column working; the numbers show as "—".
+ */
+async function loadSignups(db: any) {
+	const withPhone = await db
+		.from('verified_vibe_beta_signups')
+		.select(`${SIGNUP_COLUMNS}, whatsapp_country_code, whatsapp_number`)
+		.order('created_at', { ascending: false });
+	if (!withPhone.error) return withPhone;
+
+	if (`${withPhone.error.code}` === '42703') {
+		console.error(
+			'[admin/beta] whatsapp_* columns missing — run migration ' +
+				'20260728013000_add_whatsapp_to_beta_signups.sql. Numbers hidden for now.'
+		);
+	} else {
+		console.error('[admin/beta] signup load failed:', withPhone.error);
+	}
+	return db
+		.from('verified_vibe_beta_signups')
+		.select(SIGNUP_COLUMNS)
+		.order('created_at', { ascending: false });
+}
 
 export const load: PageServerLoad = async () => {
 	const db = getSupabase() as any;
@@ -15,12 +47,7 @@ export const load: PageServerLoad = async () => {
 		// token could win the per-referrer slot below and be handed out as if it
 		// were her shareable link.
 		selectReferralLinks(db, 'id, referrer_id, token, active, created_at, kind'),
-		db
-			.from('verified_vibe_beta_signups')
-			.select(
-				'id, email, platform, status, referrer_id, link_id, matched_user_id, created_at, matched_at, invited_at'
-			)
-			.order('created_at', { ascending: false })
+		loadSignups(db)
 	]);
 
 	const nameById = new Map<string, string>(
@@ -79,6 +106,7 @@ export const load: PageServerLoad = async () => {
 			id: s.id,
 			email: s.email,
 			platform: s.platform ?? null,
+			whatsapp: formatPhone(s.whatsapp_country_code ?? null, s.whatsapp_number ?? null),
 			status: s.status,
 			invited_at: s.invited_at ?? null,
 			created_at: s.created_at,

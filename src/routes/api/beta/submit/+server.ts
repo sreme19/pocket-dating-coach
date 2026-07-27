@@ -3,7 +3,7 @@
  *   Public endpoint behind the /beta/{token} landing page. Collects a
  *   prospective beta tester's email against a woman's referral link.
  *
- *   Body (JSON): { token: string, email: string, platform: 'ios' | 'android' }
+ *   Body (JSON): { token, email, platform: 'ios'|'android', countryCode, phone }
  *
  * No auth (public), service-role write. First invite wins: if the email is
  * already on the list, the original referrer is kept and we report success
@@ -23,6 +23,7 @@ import type { RequestHandler } from './$types';
 import { getSupabase } from '$lib/server/supabase';
 import { sendBetaConfirmationEmail, type ReferrerCard } from '$lib/server/beta-invite-email';
 import { modeOf, selectReferralLinks } from '$lib/server/referral-links';
+import { parsePhone } from '$lib/phone';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PLATFORMS = ['ios', 'android'] as const;
@@ -31,6 +32,16 @@ type Platform = (typeof PLATFORMS)[number];
 // Abuse guard: at most this many signups per link within the rolling window.
 const RATE_LIMIT_MAX = 10;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+/** Postgres: column does not exist — i.e. the WhatsApp migration hasn't run. */
+const UNDEFINED_COLUMN = '42703';
+
+function warnMissingWhatsappColumns(): void {
+  console.error(
+    '[beta-submit] verified_vibe_beta_signups.whatsapp_* is missing — run migration ' +
+      '20260728013000_add_whatsapp_to_beta_signups.sql. The signup was saved WITHOUT the number.'
+  );
+}
 
 /**
  * Fetch the referrer card and send the confirmation. Non-fatal: never throws.
@@ -59,8 +70,10 @@ export const POST: RequestHandler = async ({ request }) => {
   let email: unknown;
   let platform: unknown;
   let mood: unknown;
+  let countryCode: unknown;
+  let phone: unknown;
   try {
-    ({ token, email, platform, mood } = await request.json());
+    ({ token, email, platform, mood, countryCode, phone } = await request.json());
   } catch {
     return json({ error: 'Invalid request' }, { status: 400 });
   }
@@ -74,6 +87,20 @@ export const POST: RequestHandler = async ({ request }) => {
   if (typeof platform !== 'string' || !PLATFORMS.includes(platform as Platform)) {
     return json({ error: 'Please select your phone type.' }, { status: 400 });
   }
+  // WhatsApp number. Re-validated here with the same helper the form uses — the
+  // client check is only for instant feedback, and a caps/shape guarantee this
+  // endpoint needs (the column CHECKs assume normalized input) cannot come from
+  // a value the browser supplied. Length-capped before parsing so a megabyte of
+  // digits can't be handed to the regexes.
+  const rawPhone = typeof phone === 'string' ? phone.slice(0, 32) : '';
+  const parsedPhone = parsePhone(typeof countryCode === 'string' ? countryCode : '', rawPhone);
+  if (!parsedPhone.ok) {
+    return json({ error: parsedPhone.error }, { status: 400 });
+  }
+  const whatsapp = {
+    whatsapp_country_code: countryCode as string,
+    whatsapp_number: parsedPhone.national,
+  };
   const normalized = email.trim().toLowerCase();
   const device = platform as Platform;
   // Optional referral framing (women-invite flow), carried via /beta/<token>?m=.
@@ -104,11 +131,20 @@ export const POST: RequestHandler = async ({ request }) => {
     .eq('email', normalized)
     .maybeSingle();
   if (existing) {
-    // Keep the original referrer, but refresh the device in case they corrected it.
-    await db
+    // Keep the original referrer, but refresh the device and number in case they
+    // corrected either. Pre-migration, fall back to the device alone rather than
+    // losing the correction entirely.
+    const { error: updateError } = await db
       .from('verified_vibe_beta_signups')
-      .update({ platform: device })
+      .update({ platform: device, ...whatsapp })
       .eq('id', existing.id);
+    if (updateError && `${updateError.code}` === UNDEFINED_COLUMN) {
+      warnMissingWhatsappColumns();
+      await db
+        .from('verified_vibe_beta_signups')
+        .update({ platform: device })
+        .eq('id', existing.id);
+    }
     await sendConfirmation(db, cardReferrerId, normalized);
     return json({ success: true });
   }
@@ -125,14 +161,26 @@ export const POST: RequestHandler = async ({ request }) => {
     return json({ error: 'Too many signups right now. Please try again later.' }, { status: 429 });
   }
 
-  const { error } = await db.from('verified_vibe_beta_signups').insert({
+  const row = {
     link_id: link.id,
     referrer_id: link.referrer_id,
     email: normalized,
     platform: device,
     mood: moodVal,
     status: 'pending',
-  });
+  };
+
+  let { error } = await db.from('verified_vibe_beta_signups').insert({ ...row, ...whatsapp });
+
+  // Code can reach production before the migration is run by hand (Vercel
+  // deploys from main; migrations are applied in the SQL editor). Without this
+  // retry, the undefined-column error would fall into the branch below and
+  // report success to the user while collecting nobody — so save the signup
+  // number-less and shout in the logs instead.
+  if (error && `${error.code}` === UNDEFINED_COLUMN) {
+    warnMissingWhatsappColumns();
+    ({ error } = await db.from('verified_vibe_beta_signups').insert(row));
+  }
 
   if (error) {
     // Unique-violation race (someone inserted the same email between our check

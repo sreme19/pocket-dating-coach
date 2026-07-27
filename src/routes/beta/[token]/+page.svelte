@@ -2,11 +2,14 @@
 	import type { PageData } from './$types';
 	import { fade, slide } from 'svelte/transition';
 	import RiteLogo from '$lib/verified-vibe/components/RiteLogo.svelte';
+	import { COUNTRY_CODES, DEFAULT_COUNTRY_CODE, digitsOnly, parsePhone } from '$lib/phone';
 
 	let { data }: { data: PageData } = $props();
 
 	let email = $state('');
 	let platform = $state<'' | 'ios' | 'android'>('');
+	let countryCode = $state(DEFAULT_COUNTRY_CODE);
+	let phone = $state('');
 	let busy = $state(false);
 	let error = $state('');
 	let done = $state(false);
@@ -26,12 +29,26 @@
 			error = 'Please select your phone type.';
 			return;
 		}
+		// Client-side check is for instant feedback; the server re-validates with
+		// the same helper and is the actual gate.
+		const parsed = parsePhone(countryCode, phone);
+		if (!parsed.ok) {
+			error = parsed.error;
+			return;
+		}
 		busy = true;
 		try {
 			const res = await fetch('/api/beta/submit', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ token: data.token, email: email.trim(), platform, mood: data.mood })
+				body: JSON.stringify({
+					token: data.token,
+					email: email.trim(),
+					platform,
+					countryCode,
+					phone: parsed.national,
+					mood: data.mood
+				})
 			});
 			const body = await res.json().catch(() => ({}));
 			if (!res.ok) {
@@ -223,6 +240,33 @@
 				</select>
 			</div>
 
+			<div class="field">
+				<label class="label" for="beta-phone">Your WhatsApp number</label>
+				<div class="phone-row">
+					<select
+						id="beta-country"
+						class="input select code"
+						aria-label="Country code"
+						bind:value={countryCode}
+					>
+						{#each COUNTRY_CODES as c (c.code)}
+							<option value={c.code}>{c.label}</option>
+						{/each}
+					</select>
+					<input
+						id="beta-phone"
+						type="tel"
+						inputmode="numeric"
+						class="input"
+						placeholder={countryCode === '+91' ? '98765 43210' : 'Phone number'}
+						bind:value={phone}
+						oninput={(e) => (phone = digitsOnly(e.currentTarget.value).slice(0, 14))}
+						onkeydown={(e) => e.key === 'Enter' && submit()}
+						autocomplete="tel-national"
+					/>
+				</div>
+			</div>
+
 			{#if error}
 				<p class="error" transition:fade={{ duration: 150 }}>{error}</p>
 			{/if}
@@ -231,7 +275,9 @@
 				{busy ? 'Sending…' : 'Claim my invite →'}
 			</button>
 
-			<p class="legal">We'll only use your email to send your beta invite. No spam, ever.</p>
+			<p class="legal">
+				We'll only use your email and WhatsApp number to send your beta invite. No spam, ever.
+			</p>
 		{/if}
 	</div>
 </div>
@@ -466,6 +512,25 @@
 
 	.select.placeholder {
 		color: var(--text-4);
+	}
+
+	/* Dial code + number on one line. The code box is sized to its content so
+	   the number field — the part people actually type into — takes the rest. */
+	.phone-row {
+		display: flex;
+		gap: 8px;
+	}
+
+	.phone-row .code {
+		flex: 0 0 auto;
+		width: 106px;
+		padding-right: 30px;
+		background-position: right 10px center;
+	}
+
+	.phone-row .input:not(.code) {
+		flex: 1 1 auto;
+		min-width: 0;
 	}
 
 	.error {
