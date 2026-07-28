@@ -588,22 +588,21 @@ class _VerificationScreenState extends State<VerificationScreen> {
             'city': _cityCtrl.text.trim(),
             'openToTravel': _openToTravel,
           });
-          // Partial rejection: the server keeps only photos that match the
-          // verification selfie. If it dropped some, say so — otherwise the user
-          // finds a shorter photo set later with no explanation. (A FULL rejection
-          // throws a 422 and is handled by the catch below, keeping them on this step.)
+          // Partial rejection: the server publishes only photos that are actually the
+          // owner, so it may have dropped some. Say so — otherwise the user finds a
+          // shorter photo set later with no explanation. (A FULL refusal — nothing is
+          // her, or no face was clear enough to compare — throws a 422 handled by the
+          // catch below, which keeps her on this step with the server's own message.)
           final gate = photoResult['identityGate'];
           if (gate is Map) {
-            final checked = (gate['checked'] as num?)?.toInt() ?? 0;
-            final accepted = (gate['accepted'] as num?)?.toInt() ?? checked;
-            if (mounted && accepted < checked) {
-              final dropped = checked - accepted;
+            final rejected = (gate['rejectedIndexes'] as List?)?.length ?? 0;
+            if (mounted && rejected > 0) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   duration: const Duration(seconds: 6),
                   content: Text(
-                    'We removed $dropped photo${dropped == 1 ? '' : 's'} that '
-                    "didn't match your verification selfie. You can add more from your profile.",
+                    "We removed $rejected photo${rejected == 1 ? '' : 's'} that ${rejected == 1 ? "wasn't" : "weren't"} "
+                    'you. Your other photos are live — add more any time from your profile.',
                   ),
                 ),
               );

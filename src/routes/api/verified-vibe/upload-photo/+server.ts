@@ -75,6 +75,11 @@ export const POST: RequestHandler = async ({ request }) => {
 			// quietly swap in a poster or someone else from the profile screen. Only an
 			// authoritative 'rejected' verdict blocks (see photo-identity-gate for the
 			// fail-open posture), and it happens BEFORE the bytes reach Storage.
+			//
+			// 'unconfirmed' deliberately does NOT block here: this is one ADDITIONAL photo
+			// on a profile that already proved its owner at onboarding, so a back-turned or
+			// distant shot is a perfectly good gallery photo. Only "provably not you" stops
+			// an edit.
 			const gate = await screenProfilePhotos(user.id, [{ data: match[2], mime }]);
 			if (gate.status === 'rejected') {
 				console.warn(`[upload-photo] rejected photo for ${user.id}: not the verified owner`);

@@ -38,14 +38,29 @@ import {
 } from '$lib/verified-vibe/server/verification';
 import { loadAnchorSelfie } from '$lib/verified-vibe/server/anchor-selfie';
 
-/** Minimum same-person confidence for a photo to be publishable. */
+// ── Thresholds ────────────────────────────────────────────────────────────────
+// `confidence` from the vision pass is a SAME-PERSON score, 0–100 (see the prompt
+// in matchPhotosToAnchorWithClaude: a genuine photo of the owner scores 70+, a
+// different person or no person scores below 40). The band between the two is
+// genuine uncertainty and must not be read as either answer.
+
+/** At or above → this photo is confirmed to be the owner. */
 export const MATCH_CONFIDENCE = 60;
+/** Strictly below → this is confidently a DIFFERENT person. */
+export const MISMATCH_CONFIDENCE = 40;
 
 export type PhotoGateStatus =
-  /** Compared against the anchor selfie; at least one photo is the verified owner. */
+  /** Compared against the anchor selfie; at least one photo is confirmed as the owner. */
   | 'passed'
-  /** Compared against the anchor selfie; NOTHING publishable. The step must be refused. */
+  /** Compared against the anchor selfie; nothing is the owner AND something is provably not. */
   | 'rejected'
+  /**
+   * An anchor selfie existed but NO photo could be compared to it (every face was
+   * turned away, distant, or obscured) — and nothing was disproven either. Not proof
+   * of wrongdoing: the write path asks for a clearer photo, the read path leaves the
+   * profile alone.
+   */
+  | 'unconfirmed'
   /** No anchor selfie to compare against — only the weaker real-person test ran. */
   | 'unverified'
   /** The vision check could not run (API/infra). Failed open; not proof of anything. */
@@ -57,6 +72,8 @@ export interface PhotoGateDecision {
   status: PhotoGateStatus;
   /** Indexes (into the input array) of photos that may be published. */
   acceptedIndexes: number[];
+  /** Photos we could not compare to the anchor. Publishable, but never proof of identity. */
+  unverifiableIndexes: number[];
   /** Rejected photos with a user-facing reason each. */
   rejected: Array<{ index: number; reason: string }>;
   /** One short message summarising the outcome, safe to show the user. */
@@ -68,6 +85,8 @@ export interface PhotoGateRecord {
   status: PhotoGateStatus;
   checked: number;
   accepted: number;
+  /** How many photos were published without being confirmed (no comparable face). */
+  unverifiable: number;
   rejectedIndexes: number[];
   checkedAt: string;
 }
@@ -81,8 +100,23 @@ const NOT_A_PERSON = 'This photo is not a photo of you.';
 const NOT_YOU = "This photo doesn't match your verification selfie.";
 
 /**
- * Pure decision step — turns per-photo verdicts into accept/reject.
+ * Pure decision step — turns per-photo verdicts into publish / can't-confirm / reject.
  * Split out from the I/O so it can be unit-tested without Claude or Supabase.
+ *
+ * THE THREE-WAY SPLIT MATTERS. An early version of this only asked "is this
+ * confirmed to be the owner?" and removed everything else — which quietly deleted
+ * back-turned shots, distant travel photos and heavily filtered photos from real
+ * users' galleries ("person is facing away; no face visible" is not evidence of
+ * anything). "I cannot tell" is now its own outcome:
+ *
+ *   - not a real person (poster, celebrity, screenshot, graphic) → REJECT
+ *   - a confidently different person                            → REJECT
+ *   - a real person whose face can't be compared                → keep, but it
+ *     never counts as proof of identity
+ *
+ * A profile is publishable when at least ONE photo is confirmed to be the owner;
+ * the unconfirmable ones then ride along, which is exactly the real-world rule
+ * ("prove it's you once, then your artistic shots are fine").
  *
  * @param verdicts - One verdict per candidate photo, in upload order
  * @param hasAnchor - Whether the verdicts were produced against a verified anchor
@@ -92,46 +126,79 @@ export function decidePhotoGate(
   verdicts: AnchorPhotoVerdict[],
   hasAnchor: boolean
 ): PhotoGateDecision {
-  const acceptedIndexes: number[] = [];
+  const confirmed: number[] = [];
+  const unverifiableIndexes: number[] = [];
   const rejected: Array<{ index: number; reason: string }> = [];
 
   verdicts.forEach((v, index) => {
+    // Not a person at all — the poster / celebrity / screenshot case. Unambiguous.
     if (!v.isRealPerson) {
       rejected.push({ index, reason: v.reason || NOT_A_PERSON });
       return;
     }
-    // Without an anchor we can only confirm "a real person" — accept and mark the
+    // Without an anchor we can only confirm "a real person" — publish and mark the
     // whole set unverified rather than guess at identity.
     if (!hasAnchor) {
-      acceptedIndexes.push(index);
+      unverifiableIndexes.push(index);
       return;
     }
-    if (v.sameAsAnchor !== true || v.confidence < MATCH_CONFIDENCE) {
+    if (v.sameAsAnchor === true && v.confidence >= MATCH_CONFIDENCE) {
+      confirmed.push(index);
+      return;
+    }
+    // Confidently a different person → reject.
+    if (v.sameAsAnchor === false && v.confidence < MISMATCH_CONFIDENCE) {
       rejected.push({ index, reason: v.reason || NOT_YOU });
       return;
     }
-    acceptedIndexes.push(index);
+    // Everything else — no comparable face, or a score in the uncertain band — is
+    // "cannot tell". Never delete a real person's photo on a maybe.
+    unverifiableIndexes.push(index);
   });
 
-  if (acceptedIndexes.length === 0) {
+  const acceptedIndexes = [...confirmed, ...unverifiableIndexes].sort((a, b) => a - b);
+
+  // Nothing confirmed, and something provably not the owner → refuse the set.
+  if (confirmed.length === 0 && rejected.length > 0) {
     return {
       status: 'rejected',
-      acceptedIndexes,
-      rejected,
+      acceptedIndexes: [],
+      unverifiableIndexes: [],
+      rejected: [
+        ...rejected,
+        ...unverifiableIndexes.map((index) => ({
+          index,
+          reason: verdicts[index].reason || 'We could not see your face clearly enough to confirm it is you.',
+        })),
+      ],
       message: hasAnchor
         ? "None of these photos match your verification selfie. Please upload a photo of yourself — the same face you used for your selfie check."
         : "None of these look like a photo of a person. Please upload a clear photo of yourself.",
     };
   }
 
+  // Nothing confirmed but nothing disproven either: real people, no comparable face.
+  // Ask for a clearer photo rather than accusing them of anything.
+  if (confirmed.length === 0 && hasAnchor) {
+    return {
+      status: 'unconfirmed',
+      acceptedIndexes,
+      unverifiableIndexes,
+      rejected,
+      message:
+        "We couldn't see your face clearly enough in these to confirm it's you. Add one photo where your face is clearly visible — after that, photos like these are fine.",
+    };
+  }
+
   return {
     status: hasAnchor ? 'passed' : 'unverified',
     acceptedIndexes,
+    unverifiableIndexes,
     rejected,
     message:
       rejected.length === 0
         ? ''
-        : `We kept ${acceptedIndexes.length} photo${acceptedIndexes.length === 1 ? '' : 's'} and removed ${rejected.length} that ${rejected.length === 1 ? "doesn't" : "don't"} match your verification selfie.`,
+        : `We removed ${rejected.length} photo${rejected.length === 1 ? '' : 's'} that ${rejected.length === 1 ? "isn't" : "aren't"} you. Your other photos are unchanged.`,
   };
 }
 
@@ -149,6 +216,8 @@ export async function screenProfilePhotos(
   const passthrough = (status: PhotoGateStatus, message = ''): PhotoGateDecision => ({
     status,
     acceptedIndexes: allIndexes,
+    // Nothing was compared, so nothing is confirmed — the whole set is unproven.
+    unverifiableIndexes: allIndexes,
     rejected: [],
     message,
   });
@@ -186,6 +255,7 @@ export function gateRecord(decision: PhotoGateDecision, checkedAt: string): Phot
     status: decision.status,
     checked: decision.acceptedIndexes.length + decision.rejected.length,
     accepted: decision.acceptedIndexes.length,
+    unverifiable: decision.unverifiableIndexes.length,
     rejectedIndexes: decision.rejected.map((r) => r.index),
     checkedAt,
   };

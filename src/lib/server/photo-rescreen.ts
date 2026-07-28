@@ -38,6 +38,8 @@ export interface RescreenUserResult {
   checked: number;
   kept: number;
   removed: number;
+  /** Kept but never confirmed as the owner (no comparable face in the shot). */
+  unconfirmed: number;
   reasons: string[];
   /** True when this user's stored profile was actually changed. */
   repaired: boolean;
@@ -96,6 +98,7 @@ export async function runPhotoRescreen(opts: {
       checked: 0,
       kept: 0,
       removed: 0,
+      unconfirmed: 0,
       reasons: [],
       repaired: false,
     };
@@ -149,18 +152,25 @@ export async function runPhotoRescreen(opts: {
     // Map the decision's positions back onto `photos` indexes.
     const acceptedPhotoIdx = new Set(decision.acceptedIndexes.map((k) => screenable[k].i));
     const rejectedReasons = decision.rejected.map((r) => `#${screenable[r.index].i}: ${r.reason}`);
+    const unconfirmedCount = decision.unverifiableIndexes.length;
 
     base.status = decision.status;
     base.checked = screenable.length;
     base.kept = acceptedPhotoIdx.size;
     base.removed = decision.rejected.length;
+    base.unconfirmed = unconfirmedCount;
     base.reasons = rejectedReasons;
     if (unscreenedTail > 0) {
       base.note = `${unscreenedTail} photo(s) beyond the ${MAX_PHOTOS}-photo window were not screened`;
     }
 
-    // Only an authoritative verdict may strip photos. 'unverified' (no anchor selfie
-    // to compare against), 'error' and 'off' leave the profile exactly as it is.
+    // Only an authoritative verdict may strip photos:
+    //  - 'passed'   → at least one photo IS the owner; any rejects are safe to remove
+    //  - 'rejected' → nothing is the owner and something is provably not
+    // Everything else leaves the profile exactly as it is: 'unconfirmed' (real person,
+    // no comparable face — a back-turned or distant shot proves nothing either way),
+    // 'unverified' (no anchor selfie), 'error', 'off'. Retro-actively deleting a real
+    // user's gallery on "I can't tell" would be worse than the problem being fixed.
     const authoritative = decision.status === 'passed' || decision.status === 'rejected';
     if (!authoritative || decision.rejected.length === 0) {
       if (!dryRun && authoritative && stepRow?.id) {
@@ -169,7 +179,12 @@ export async function runPhotoRescreen(opts: {
           .update({ data: { ...(stepRow.data ?? {}), identityGate: gateRecord(decision, new Date().toISOString()) } })
           .eq('id', stepRow.id);
       }
-      results.push({ ...base, note: authoritative ? 'all photos are the owner' : `not authoritative (${decision.status})` });
+      results.push({
+        ...base,
+        note: authoritative
+          ? 'all photos are the owner or unconfirmable — nothing removed'
+          : `left alone (${decision.status})`,
+      });
       continue;
     }
 

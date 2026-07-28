@@ -505,12 +505,17 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
           }))
         );
 
-    if (gate?.status === 'rejected') {
-      console.warn(`[verify-step] photos rejected for ${userId ?? 'anon'}: no photo matched the anchor selfie`);
+    // Two distinct refusals. 'rejected' = something here is provably not you (poster,
+    // someone else). 'unconfirmed' = you're a real person but no face was comparable
+    // (all turned away / distant / obscured) — not an accusation, just ask for one
+    // clear photo. Publishing an unconfirmable-only set would leave a profile whose
+    // owner was never actually shown, which is the thing this gate exists to prevent.
+    if (gate?.status === 'rejected' || gate?.status === 'unconfirmed') {
+      console.warn(`[verify-step] photos ${gate.status} for ${userId ?? 'anon'}`);
       return json(
         {
           error: gate.message,
-          code: 'photo_identity_mismatch',
+          code: gate.status === 'rejected' ? 'photo_identity_mismatch' : 'photo_face_unclear',
           photoGate: { status: gate.status, rejected: gate.rejected },
         },
         { status: 422 }
