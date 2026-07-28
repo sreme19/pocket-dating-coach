@@ -664,6 +664,30 @@ export const POOL_REQUIRED_STEPS = ['liveness', 'photos'] as const;
 // Called from verify-step endpoint after each step; no-ops until the required
 // steps (POOL_REQUIRED_STEPS) are all complete.
 
+/**
+ * Pool status for a profile whose photos were screened and found NOT to be its owner.
+ * Every matcher selects on availability_status = 'active', so this takes the profile
+ * out of matching without deleting anything; it clears when the owner uploads a photo
+ * that passes the identity gate.
+ */
+export const POOL_STATUS_PHOTO_REVIEW = 'photo_review';
+
+/**
+ * True when this user's photos verification step carries a 'rejected' identity-gate
+ * verdict — i.e. the photos on the profile were screened and none of them is the
+ * owner. Such a profile must not be served to anyone until it has a real photo.
+ */
+export async function photoGateRejected(userId: string): Promise<boolean> {
+  const db = getSupabase() as any;
+  const { data } = await db
+    .from('verified_vibe_verification')
+    .select('data')
+    .eq('user_id', userId)
+    .eq('step', 'photos')
+    .maybeSingle();
+  return (data?.data as any)?.identityGate?.status === 'rejected';
+}
+
 export async function enrollInPoolIfVerified(userId: string): Promise<void> {
   const db = getSupabase() as any;
 
@@ -678,6 +702,15 @@ export async function enrollInPoolIfVerified(userId: string): Promise<void> {
   const allDone = POOL_REQUIRED_STEPS.every((s) => completedSteps.has(s));
 
   if (!allDone) return;
+
+  // The photos step can be COMPLETE and still carry photos that are not the owner
+  // (screened after the fact by the rescreen task). refreshPoolEntry force-sets
+  // availability_status='active', so without this guard any later verification
+  // activity would quietly put such a profile back in front of people.
+  if (await photoGateRejected(userId)) {
+    console.warn(`[pool-registry] not enrolling ${userId}: photos rejected by the identity gate`);
+    return;
+  }
 
   await refreshPoolEntry(userId);
 

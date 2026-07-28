@@ -26,7 +26,7 @@
 
 import { getSupabase } from './supabase';
 import { screenProfilePhotos, gateRecord, type PhotoGateStatus } from './photo-identity-gate';
-import { refreshPoolEntry } from './pool-registry';
+import { refreshPoolEntry, POOL_STATUS_PHOTO_REVIEW } from './pool-registry';
 
 /** Max photos screened per user (one vision call), matching the display cap. */
 const MAX_PHOTOS = 6;
@@ -244,6 +244,18 @@ export async function runPhotoRescreen(opts: {
 
       // Keep the distilled pool entry in step with the repaired photo set.
       await refreshPoolEntry(u.id).catch(() => {});
+
+      // ...but a profile with NOTHING left that is its owner must not be served to
+      // anyone. refreshPoolEntry force-sets availability_status='active', so this has
+      // to come after it. Every matcher selects on 'active', so this is what actually
+      // takes the profile out of matching — hiding it from Discover is not enough on
+      // its own, since the nightly matcher would otherwise still pair it with someone.
+      if (decision.status === 'rejected') {
+        await db
+          .from('vv_pool_profiles')
+          .update({ availability_status: POOL_STATUS_PHOTO_REVIEW, last_updated: new Date().toISOString() })
+          .eq('user_id', u.id);
+      }
     }
 
     results.push(base);
