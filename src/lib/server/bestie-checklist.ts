@@ -7,7 +7,10 @@
  * surfaced or proven yet. The number of items is computed per-man from her
  * preferences vs. his profile/proofs (NOT a fixed 5), and Bestie checks them off
  * one at a time. When every item is done — her own judgment (§F) — she WRAPS UP:
- * the man's chat freezes and the woman is asked to step in.
+ * she tells the man she's bringing the woman in, and the woman is notified that
+ * it's her turn. His chat stays OPEN (he can keep talking to Bestie), but Bestie
+ * switches to the reactive HAND-OFF PHASE below and answers his "is she actually
+ * coming?" with the real 48h clock rather than reassurance she's made up.
  *
  * This module is PURE (types + reducers + prompt block). The Claude call that
  * GENERATES the initial checklist, and the DB persistence, live in
@@ -17,6 +20,8 @@
  * Persisted at verified_vibe_matches.bestie_checklist (jsonb). Conversational/UX
  * state ONLY — like proof_request it must never feed trust or match scoring.
  */
+
+import { HANDOFF_TIMEOUT_HOURS, hoursLabel, type HandoffClock } from './handoff-clock';
 
 /** Sensible bounds on how many items a checklist may hold, so the counter stays legible. */
 export const CHECKLIST_MIN_ITEMS = 2;
@@ -149,8 +154,29 @@ export function handoffClosingLine(userName: string): string {
  * 'wrapped') she is no longer drawing him out. She's told him she's bringing the
  * woman in and is now just keeping him company until she steps in: reactive, lets
  * HIM lead, and does not interrogate. Injected instead of the checklist block.
+ *
+ * `clock` (optional) is the real 48h hand-off window from handoff-clock.ts. When
+ * present Bestie may answer "is she coming, or should I give up?" with FACTS —
+ * she was notified, X hours gone, Y left, and what happens at the end. That
+ * question has a true answer and we hold it; without the clock Bestie used to
+ * fill the silence with invented reassurance ("she's joining today, promise"),
+ * which is the one thing that actually costs a waiting man his trust.
  */
-export function buildHandoffPhaseBlock(userName: string, matchName: string): string {
+export function buildHandoffPhaseBlock(
+	userName: string,
+	matchName: string,
+	clock?: HandoffClock | null
+): string {
+	const clockBlock = clock
+		? `
+
+HAND-OFF CLOCK — real facts about where ${matchName} stands. These are the ONLY things you may ever say about ${userName}'s timing:
+- ${userName} was told ${hoursLabel(clock.elapsedHours)} ago that you've handed off and it's her turn to step in. She's been reminded since.
+- She has ${hoursLabel(clock.remainingHours)} left of a ${HANDOFF_TIMEOUT_HOURS}-hour window to come in.
+- If she doesn't come in by then, this match closes and ${matchName} is given a fresh match straight away — automatically, at no cost to him, and it doesn't count against anything. She can still reopen this one later if she wants to.
+- When he asks whether she's coming, whether he should keep waiting, or whether to give up: give him these facts, warmly and plainly, and let HIM decide. Say it ONCE — don't restate the clock every message.`
+		: '';
+
 	return `
 
 HAND-OFF PHASE — you've already told ${matchName} you're bringing ${userName} in. Now you're just keeping him company until she steps in. Your job here is NOT to draw him out anymore:
@@ -158,7 +184,14 @@ HAND-OFF PHASE — you've already told ${matchName} you're bringing ${userName} 
 - Do NOT interrogate, do NOT run through topics, and do NOT end your message with a question. Never stack questions.
 - Only ask something back when HIS message naturally invites one (he asked you something that genuinely begs a follow-up) — otherwise none.
 - If he has little to say, a short friendly reply is fine. Never chase him or fill silence with a question.
-- Don't keep repeating that she's stepping in — you've already said it once.`;
+- Don't keep repeating that she's stepping in — you've already said it once.${clockBlock}
+
+NEVER SPEAK FOR ${userName.toUpperCase()} — hard rule, no exceptions:
+- You do NOT know when ${userName} will reply, whether she's opened this chat, or why she hasn't. You have never asked her.
+- NEVER tell ${matchName} she is "joining today", "stepping in now", "about to reply", "still interested", or that something "came up" / "life got in the way". You are inventing that. A promise you can't keep is worse than silence, and he will notice when it doesn't happen.
+- Never invent a reason for her quiet, never commit her to a time, never describe her feelings or intent as if you'd checked with her.
+- You may state what the SYSTEM has done: that she was notified, the window above, the automatic fresh match at the end. You may NEVER state what SHE is going to do.
+- If you have nothing true to offer, say so kindly ("I genuinely don't know her timing, and I'm not going to guess for you") ${clock ? 'alongside the clock facts' : 'and leave it there'}. Honest and warm beats reassuring and false.`;
 }
 
 /**

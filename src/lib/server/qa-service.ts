@@ -6,13 +6,19 @@
  *   - the full message thread (verified_vibe_messages), with AI-sent messages
  *     flagged (is_ai) and the AI Bestie's coaching signal/read shown inline,
  *   - any AI coaching conversations tied to the match (ai_assistant_conversations),
- *   - the owners' thumbs feedback on AI replies (ai_bestie_feedback).
+ *   - the owners' thumbs feedback on AI replies (ai_bestie_feedback),
+ *   - where the Bestie → woman HAND-OFF stands (see HandoffState): without it a
+ *     reviewer reads a transcript blind to whether a waiting man is inside a live
+ *     48h window, already expired, or being strung along.
  *
  * All access is server-side via the service-role client.
  */
 
 import type { getSupabase } from '$lib/server/supabase';
 import { RUBRIC, type RubricKey } from '$lib/qa-rubric';
+import { computeHandoffClock, HANDOFF_TIMEOUT_HOURS } from '$lib/server/handoff-clock';
+
+export { HANDOFF_TIMEOUT_HOURS };
 
 type SB = ReturnType<typeof getSupabase>;
 
@@ -117,6 +123,36 @@ export interface FeedbackItem {
 	createdAt: string;
 }
 
+/**
+ * Where the Bestie → woman HAND-OFF stands for this match. The QA console used to
+ * show a transcript with no indication that a hand-off was mid-flight, so a reviewer
+ * couldn't tell whether a man asking "is she joining?" was being answered honestly
+ * or left hanging. All of it is read-only conversational state.
+ */
+export interface HandoffState {
+	/** 'none' = Bestie still vetting (or no checklist), 'held' = proof gate holding the wrap. */
+	phase: 'none' | 'active' | 'held' | 'wrapped' | 'expired';
+	itemsDone: number;
+	itemsTotal: number;
+	wrappedAt: string | null;
+	/** Whole hours since the hand-off, and left in the 48h window. Null before wrap. */
+	elapsedHours: number | null;
+	remainingHours: number | null;
+	expiresAt: string | null;
+	/** 0 = none sent, 1/2/3 = ladder progress (see the handoff-timeout cron). */
+	nudgeStage: number;
+	/** Is Bestie still speaking for her? Flips false the moment she replies herself. */
+	bestieActive: boolean;
+	/** Has she opened his thread since the hand-off? The tell for "notified but never saw it". */
+	ownerReadSinceHandoff: boolean | null;
+	ownerLastReadAt: string | null;
+	/** Can she be reached by push at all? False → nudges are invisible without the email fallback. */
+	ownerHasPush: boolean;
+	proofRequest: Record<string, unknown> | null;
+	expiredAt: string | null;
+	replacedByMatchId: string | null;
+}
+
 export interface MatchReview {
 	matchId: string;
 	status: string;
@@ -126,6 +162,7 @@ export interface MatchReview {
 	messages: ThreadMessage[];
 	coachingThreads: CoachingThread[];
 	feedback: FeedbackItem[];
+	handoff: HandoffState;
 	existingReview: ReviewRecord | null;
 }
 
@@ -317,10 +354,86 @@ export async function listReviewQueue(sb: SB): Promise<QueueRow[]> {
 }
 
 /** Full reconstruction of one match's AI interaction for the detail view. */
+/**
+ * Reconstruct the hand-off picture for the QA console. Read-only; every field is
+ * either already on the match row or one cheap lookup (her push tokens). Degrades
+ * to a 'none' phase on a match that never got a checklist.
+ */
+async function buildHandoffState(
+	sb: SB,
+	match: Record<string, unknown>,
+	a: Participant,
+	b: Participant
+): Promise<HandoffState> {
+	const checklist = (match.bestie_checklist ?? null) as {
+		items?: { status?: string }[];
+		status?: string;
+		wrapped_at?: string | null;
+		hold?: boolean;
+	} | null;
+
+	const items = Array.isArray(checklist?.items) ? checklist!.items! : [];
+	const wrappedAt = checklist?.wrapped_at ?? null;
+	const clock = computeHandoffClock(wrappedAt);
+
+	// Bestie's owner = the woman. Her last-read column tells us whether she ever
+	// actually LOOKED at the thread after being told it was her turn.
+	const woman = a.gender === 'woman' ? a : b.gender === 'woman' ? b : null;
+	const ownerLastReadAt = woman
+		? ((woman.id === match.user1_id ? match.user1_last_read_at : match.user2_last_read_at) as
+				| string
+				| null) ?? null
+		: null;
+
+	let ownerHasPush = false;
+	if (woman) {
+		try {
+			const { data } = await sb.from('device_tokens').select('token').eq('user_id', woman.id).limit(1);
+			ownerHasPush = Array.isArray(data) && data.length > 0;
+		} catch {
+			ownerHasPush = false;
+		}
+	}
+
+	const phase: HandoffState['phase'] =
+		match.status === 'expired'
+			? 'expired'
+			: !checklist
+				? 'none'
+				: checklist.status === 'wrapped'
+					? 'wrapped'
+					: checklist.hold === true
+						? 'held'
+						: 'active';
+
+	return {
+		phase,
+		itemsDone: items.filter((i) => i?.status === 'done').length,
+		itemsTotal: items.length,
+		wrappedAt,
+		elapsedHours: clock?.elapsedHours ?? null,
+		remainingHours: clock?.remainingHours ?? null,
+		expiresAt: clock?.expiresAt ?? null,
+		nudgeStage: Number(match.handoff_nudge_stage ?? 0) || 0,
+		bestieActive: match.ai_bestie_active !== false,
+		ownerReadSinceHandoff:
+			wrappedAt == null
+				? null
+				: ownerLastReadAt != null && Date.parse(ownerLastReadAt) >= Date.parse(wrappedAt),
+		ownerLastReadAt,
+		ownerHasPush,
+		proofRequest: (match.proof_request ?? null) as Record<string, unknown> | null,
+		expiredAt: (match.expired_at ?? null) as string | null,
+		replacedByMatchId: (match.replaced_by_match_id ?? null) as string | null
+	};
+}
+
 export async function getMatchReview(sb: SB, matchId: string): Promise<MatchReview | null> {
 	const { data: match } = await sb
 		.from('verified_vibe_matches')
-		.select('id, user1_id, user2_id, status, created_at')
+		// Single string literal, not a concatenation — the typed client resolves column
+		// types from the literal and silently degrades to `GenericStringError` otherwise.
+		.select('id, user1_id, user2_id, status, created_at, ai_bestie_active, bestie_checklist, proof_request, handoff_nudge_stage, expired_at, replaced_by_match_id, user1_last_read_at, user2_last_read_at')
 		.eq('id', matchId)
 		.maybeSingle();
 	if (!match) return null;
@@ -393,6 +506,8 @@ export async function getMatchReview(sb: SB, matchId: string): Promise<MatchRevi
 	const existing = (review ?? [])[0] as ReviewRecord | undefined;
 	if (existing) existing.flagged_message_ids = normalizeFlags(existing.flagged_message_ids);
 
+	const handoff = await buildHandoffState(sb, match as Record<string, unknown>, a, b);
+
 	return {
 		matchId: match.id,
 		status: match.status,
@@ -402,6 +517,7 @@ export async function getMatchReview(sb: SB, matchId: string): Promise<MatchRevi
 		messages,
 		coachingThreads,
 		feedback,
+		handoff,
 		existingReview: existing ?? null
 	};
 }

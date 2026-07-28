@@ -4,6 +4,12 @@ import { getSupabase } from '$lib/server/supabase';
 import { getTrustScoreBand } from '$lib/server/pool-registry';
 import { runMatchmakerForUser } from '$lib/server/matchmaker-service';
 import { sendPushNotification } from '$lib/verified-vibe/server/notifications';
+import {
+	HANDOFF_TIMEOUT_HOURS,
+	HANDOFF_NUDGE_24H_HOURS,
+	HANDOFF_NUDGE_FINAL_HOURS
+} from '$lib/server/handoff-clock';
+import { sendHandoffNudgeEmail } from '$lib/server/handoff-nudge-email';
 
 /**
  * Hand-off timeout, nudge cadence, expiry, replacement & purge sweep (spec B2, revised).
@@ -15,6 +21,10 @@ import { sendPushNotification } from '$lib/verified-vibe/server/notifications';
  *   nudge stage 1 (@ hand-off)  → advisor nudge: "he cleared the bar, your move"
  *   nudge stage 2 (@ 24h)       → advisor nudge: reminder
  *   nudge stage 3 (@ 45h)       → advisor nudge + ONE push: final-hours warning
+ *
+ * Stages 2 and 3 also fall back to EMAIL when she has no device token — otherwise
+ * the whole ladder is invisible to a web-only woman while the man waits out the
+ * window (see handoff-nudge-email.ts).
  *   expiry        (@ 48h)       → status='expired' (REVERSIBLE), Bestie off, and:
  *       · his side  → he's given a fresh replacement match (system-initiated,
  *                     no quota charge); the expired row links to it.
@@ -31,9 +41,10 @@ import { sendPushNotification } from '$lib/verified-vibe/server/notifications';
  * Auth: Authorization: Bearer <CRON_SECRET>. See vercel.json for the schedule.
  */
 
-const HANDOFF_TIMEOUT_HOURS = 48;
-const NUDGE_24H_HOURS = 24;
-const NUDGE_FINAL_HOURS = 45; // ~3h before expiry
+// The window itself lives in handoff-clock.ts — AI Bestie quotes the SAME numbers
+// to the waiting man, so they must never drift apart.
+const NUDGE_24H_HOURS = HANDOFF_NUDGE_24H_HOURS;
+const NUDGE_FINAL_HOURS = HANDOFF_NUDGE_FINAL_HOURS; // ~3h before expiry
 const EXPIRED_PURGE_DAYS = 30;
 
 function authorized(request: Request): boolean {
@@ -58,6 +69,33 @@ function wrappedAt(m: MatchRow): number | null {
 	if (!raw) return null;
 	const t = Date.parse(raw);
 	return Number.isNaN(t) ? null : t;
+}
+
+/** Can she be reached by push at all? No token → the nudge ladder is invisible to her. */
+async function hasPush(supabase: any, userId: string): Promise<boolean> {
+	try {
+		const { data } = await supabase
+			.from('device_tokens')
+			.select('token')
+			.eq('user_id', userId)
+			.limit(1);
+		return Array.isArray(data) && data.length > 0;
+	} catch {
+		// Unknown → assume she IS reachable, so a transient read error can't turn
+		// into a surprise burst of email.
+		return true;
+	}
+}
+
+/** Her auth email, for the fallback nudge. Null when the lookup fails or she has none. */
+async function emailFor(supabase: any, userId: string): Promise<string | null> {
+	try {
+		const { data } = await supabase.auth.admin.getUserById(userId);
+		return data?.user?.email ?? null;
+	} catch (e) {
+		console.warn('[handoff-timeout] email lookup failed (non-fatal):', e);
+		return null;
+	}
 }
 
 /** Which nudge stage this elapsed time (hours) is due for, before expiry. */
@@ -124,6 +162,7 @@ async function sweep() {
 
 	const toExpire: MatchRow[] = [];
 	let nudged = 0;
+	let nudgeEmails = 0;
 
 	for (const m of rows) {
 		const w = wrappedAt(m);
@@ -155,6 +194,19 @@ async function sweep() {
 						body: copy.push.body,
 						data: { type: 'handoff_nudge', matchId: m.id }
 					}).catch(() => {});
+				}
+				// Email fallback: with no device token the whole ladder above is
+				// invisible until she happens to open the app — which is exactly the
+				// case where a man sits waiting out the window for nothing.
+				if (!(await hasPush(supabase, s.woman.id))) {
+					const emailed = await sendHandoffNudgeEmail({
+						to: await emailFor(supabase, s.woman.id),
+						womanName: s.woman.first_name ?? 'there',
+						manName: s.man.first_name ?? 'your match',
+						stage,
+						hoursLeft: Math.max(0, Math.floor(HANDOFF_TIMEOUT_HOURS - hours))
+					});
+					if (emailed) nudgeEmails++;
 				}
 				await supabase
 					.from('verified_vibe_matches')
@@ -227,7 +279,7 @@ async function sweep() {
 		purged = ids.length;
 	}
 
-	return { nudged, expired, purged };
+	return { nudged, nudgeEmails, expired, purged };
 }
 
 const handle: RequestHandler = async ({ request }) => {

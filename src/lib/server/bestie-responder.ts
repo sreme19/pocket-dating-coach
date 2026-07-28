@@ -34,6 +34,7 @@ import {
 } from '$lib/server/bestie-checklist';
 import { buildNotificationPayload, sendNotification } from '$lib/server/notifications';
 import { assessHandoffReadiness, handoffProofAskLine } from '$lib/server/handoff-gate';
+import { computeHandoffClock } from '$lib/server/handoff-clock';
 import { appeal, type Vec } from '$lib/server/vector-scoring';
 import { buildProofInviteContext } from '$lib/server/proof-invite-context';
 import { seasonProxyBlock, networkingEnforcementEnabled, DERANK_PRESSURE_THRESHOLD } from '$lib/server/networking-season';
@@ -52,7 +53,7 @@ export interface BestieReply {
 	 * When set, the Bestie's turn changed the CHECKLIST — either it was just created
 	 * (opener turn), items were marked done, or she wrapped up. Callers that SEND the
 	 * reply must persist this to verified_vibe_matches.bestie_checklist, and on a
-	 * transition to `wrapped` must run the hand-off (freeze the man + notify her).
+	 * transition to `wrapped` must run the hand-off (closing line + notify her).
 	 */
 	checklistUpdate?: BestieChecklist;
 	/**
@@ -447,8 +448,17 @@ export async function generateBestieReply(
 	// reactive mode (she's already handed off, now just answers his questions). These
 	// are mutually exclusive.
 	const { block: checklistContext } = buildChecklistBlock(existingChecklist);
+	// Post-wrap, Bestie gets the REAL hand-off window (notified when, how long left,
+	// what happens at the end) so "is she joining or should I give up?" is answered
+	// with facts. Without it she used to invent a timeline on the woman's behalf.
 	const handoffContext =
-		existingChecklist?.status === 'wrapped' ? buildHandoffPhaseBlock(userName, matchName) : '';
+		existingChecklist?.status === 'wrapped'
+			? buildHandoffPhaseBlock(
+					userName,
+					matchName,
+					computeHandoffClock(existingChecklist.wrapped_at)
+			  )
+			: '';
 	// Generate a checklist whenever one is MISSING — not only on the opener turn.
 	// This makes gap-vetting repeatable (spec §F): on reactivation we clear the
 	// checklist to re-vet against her current preferences (see the reactivate
@@ -737,9 +747,9 @@ export async function generateAndSendBestieReply(
 
 	// Persist any checklist change (items done / wrap-up) with concurrency-safe CAS.
 	// When this turn is the one that WRAPPED UP the checklist (§F), run the hand-off:
-	// the man's chat freezes (send route reads bestie_checklist) and the woman is
-	// notified. justWrapped comes from the persist so it reflects the ACTUAL DB
-	// transition, not this turn's possibly-stale snapshot.
+	// Bestie drops into reactive HAND-OFF PHASE mode and the woman is notified.
+	// justWrapped comes from the persist so it reflects the ACTUAL DB transition,
+	// not this turn's possibly-stale snapshot.
 	let justWrapped = false;
 	if (reply.checklistUpdate) {
 		try {
@@ -815,8 +825,9 @@ export async function generateAndSendBestieReply(
 	}
 
 	// Hand-off (spec §F/§K, Option A): Bestie has wrapped up. Her reply above already
-	// told the man she'll bring the woman in; the man's chat is now frozen server-side
-	// (send route reads bestie_checklist.status). Notify the woman so she comes to step in.
+	// told the man she'll bring the woman in. His chat stays OPEN — Bestie keeps him
+	// company in reactive HAND-OFF PHASE mode, bounded by the 48h window that the
+	// handoff-timeout cron enforces. Notify the woman so she comes to step in.
 	if (justWrapped) {
 		await notifyWomanToStepIn(supabase, matchId, userId);
 	}
