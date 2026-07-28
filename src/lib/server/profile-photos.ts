@@ -8,9 +8,11 @@
  *    un-enhanced upload is NEVER surfaced to anyone — not even as an avatar
  *    fallback — so until his AI portraits exist he has no public photo.
  *  - Women are shown their real photos (cap 6); none are AI-enhanced.
- *  - The hero is auto-selected by the app, not the owner: the photo tagged
- *    `lead` is the designated hero ("most flattering"); otherwise the first
- *    photo in the set. The hero is element [0] of the returned list.
+ *  - The hero is auto-selected by the app, not the owner: a woman's hero is the
+ *    photo her ranked `data.heroPick` names (photo-hero.ts scores her uploads on
+ *    hero appeal, so the strongest photo leads regardless of upload order);
+ *    otherwise the photo tagged `lead`, otherwise the first photo in the set.
+ *    The hero is element [0] of the returned list.
  *  - Every photo carries an `ai` flag so viewers can be shown a clear
  *    "generated from verified photos" label on AI imagery.
  *
@@ -41,6 +43,8 @@ export function ownHostedPhotosOnly<T>(photos: T[] | unknown, supabaseUrl: strin
     return false;
   });
 }
+
+import { heroUrlFromPick } from './photo-hero';
 
 export interface PublicPhoto {
   url: string;
@@ -81,8 +85,15 @@ export function buildPublicPhotos(
     }
   }
 
-  // App-selected hero: float the `lead`-tagged photo to the front.
-  const heroIdx = out.findIndex((p) => p.role === 'lead');
+  // App-selected hero. A woman's ranked pick wins over the `lead` tag, because the
+  // tag only records which photo the client uploaded first — and the ranked pick is
+  // the whole point of photo-hero.ts. Falls through to `lead` whenever there is no
+  // pick, the pick is stale (its photo has since been removed / re-screened out), or
+  // nothing cleared the hero floor: this may improve the hero, never worsen it.
+  const rankedHero = isMan ? null : heroUrlFromPick(masterData.heroPick, out.map((p) => p.url));
+  const heroIdx = rankedHero
+    ? out.findIndex((p) => p.url === rankedHero)
+    : out.findIndex((p) => p.role === 'lead');
   if (heroIdx > 0) {
     const [hero] = out.splice(heroIdx, 1);
     out.unshift(hero);

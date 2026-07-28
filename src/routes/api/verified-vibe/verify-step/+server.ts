@@ -619,6 +619,21 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
           await updateMasterProfile(userId, { photos: allPhotoItems });
         }
 
+        // Women: rank the uploads and let the strongest photo lead, instead of
+        // whichever one she happened to upload first. Synchronous so her card is
+        // right the moment onboarding finishes (she has no AI generation step to
+        // wait on), and it re-points avatar_url at the winner itself. Non-fatal:
+        // if the ranking can't run, the `lead` label set above still stands.
+        if (!isMan && allPhotoItems.length > 1) {
+          try {
+            const { pickHeroPhoto } = await import('$lib/server/photo-hero');
+            const hero = await pickHeroPhoto(userId, { knownGender: 'woman' });
+            if (hero.heroUrl) avatarUrl = hero.heroUrl;
+          } catch (heroErr) {
+            console.warn('[verify-step] hero photo pick skipped (non-fatal):', heroErr);
+          }
+        }
+
         // Men only: generate the AI portraits synchronously from the uploaded
         // reference photos and make the AI lead his avatar. This is the single
         // server-side trigger both web and mobile funnel through, so it no longer

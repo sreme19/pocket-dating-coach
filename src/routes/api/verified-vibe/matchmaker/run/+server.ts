@@ -24,6 +24,7 @@ import { refreshPoolEntry } from '$lib/server/pool-registry';
 import { runAnonymizeDeleted } from '$lib/server/anonymize-deleted';
 import { runPhotoSignalBackfill } from '$lib/server/photo-signal-capture';
 import { runPhotoRescreen } from '$lib/server/photo-rescreen';
+import { runHeroPickBackfill } from '$lib/server/photo-hero';
 import { getSupabase } from '$lib/server/supabase';
 import { MATCHMAKER_RUN_SECRET } from '$env/static/private';
 import { env } from '$env/dynamic/private';
@@ -40,7 +41,7 @@ export const POST: RequestHandler = async ({ request }) => {
       task?: 'trust-normalize' | 'match-scores' | 'build-vectors' | 'inspect-vectors'
         | 'score-vectors-shadow' | 'diff-scores' | 'match-v2-dryrun' | 'match-v2'
         | 'backfill-profile-fields' | 'anonymize-deleted' | 'capture-photo-signals'
-        | 'rescreen-profile-photos';
+        | 'rescreen-profile-photos' | 'pick-hero-photos';
       userId?: string;
       userIds?: string[];
       includeSeed?: boolean;
@@ -81,6 +82,22 @@ export const POST: RequestHandler = async ({ request }) => {
         force: body.force,
       });
       return json({ task: 'rescreen-profile-photos', ...result });
+    }
+
+    // Retro-fit the ranked hero photo onto women who onboarded before it existed —
+    // their card still leads with whatever they uploaded first. Ranks each woman's
+    // photos and promotes the strongest (see photo-hero.ts). Synchronous, one Claude
+    // vision call per woman with 2+ photos, hash-guarded; dryRun:true reports the
+    // ranking without touching the profile.
+    if (body.task === 'pick-hero-photos') {
+      const result = await runHeroPickBackfill({
+        userIds: body.userIds,
+        limit: body.limit,
+        dryRun: body.dryRun,
+        force: body.force,
+        includeSeed: body.includeSeed,
+      });
+      return json({ task: 'pick-hero-photos', ...result });
     }
 
     // Phase 0 (shadow): backfill per-user value vectors into vv_user_vectors.

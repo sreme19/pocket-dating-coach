@@ -320,6 +320,21 @@ export const POST: RequestHandler = async ({ request }: { request: Request }) =>
         console.warn('[master-profile] photo-signal capture skipped:', e);
       }
     })();
+
+    // Re-rank the hero: a woman's lead photo is the app's pick, so adding, removing
+    // or replacing a photo has to re-open the question of which one leads. Women
+    // only, hash-guarded (a pure re-order costs nothing), and off the response path
+    // — the new hero lands a moment after the save, like the photo signals above.
+    (async () => {
+      try {
+        const { pickHeroPhoto } = await import('$lib/server/photo-hero');
+        const { waitUntil } = await import('@vercel/functions');
+        const t = pickHeroPhoto(userId).then(() => undefined).catch(() => undefined);
+        try { waitUntil(t); } catch { /* not in a Vercel request ctx — let it run */ }
+      } catch (e) {
+        console.warn('[master-profile] hero photo pick skipped:', e);
+      }
+    })();
   }
 
   return json({ synced: true, countriesTraveled: mergedCountries });
