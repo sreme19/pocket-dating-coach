@@ -669,8 +669,16 @@ export const POOL_REQUIRED_STEPS = ['liveness', 'photos'] as const;
  * Every matcher selects on availability_status = 'active', so this takes the profile
  * out of matching without deleting anything; it clears when the owner uploads a photo
  * that passes the identity gate.
+ *
+ * It is 'paused' and not a descriptive 'photo_review' because the column carries a
+ * CHECK constraint of ('active','paused','deleted') — see the migration
+ * 20260719141219, which exists because the soft-delete write had been silently
+ * failing that same constraint and leaving deleted users matchable. Nothing else in
+ * the codebase ever writes 'paused', so it unambiguously means "held out of matching
+ * by us". Widening the constraint would need a migration run by hand in the SQL
+ * editor, and this must not depend on a manual step to take effect.
  */
-export const POOL_STATUS_PHOTO_REVIEW = 'photo_review';
+export const POOL_STATUS_PHOTO_REVIEW = 'paused';
 
 /**
  * True when this user's photos verification step carries a 'rejected' identity-gate

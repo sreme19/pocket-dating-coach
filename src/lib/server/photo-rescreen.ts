@@ -251,10 +251,17 @@ export async function runPhotoRescreen(opts: {
       // takes the profile out of matching — hiding it from Discover is not enough on
       // its own, since the nightly matcher would otherwise still pair it with someone.
       if (decision.status === 'rejected') {
-        await db
+        const { error: poolErr } = await db
           .from('vv_pool_profiles')
           .update({ availability_status: POOL_STATUS_PHOTO_REVIEW, last_updated: new Date().toISOString() })
           .eq('user_id', u.id);
+        // Never let this abort the repair — the photos are already stripped, and a
+        // silently-swallowed failure here is exactly how soft-deleted users stayed
+        // matchable before migration 20260719141219. Surfaced in the result instead.
+        if (poolErr) {
+          console.error(`[photo-rescreen] could not pause pool entry for ${u.id}:`, poolErr);
+          base.note = `PHOTOS STRIPPED BUT STILL MATCHABLE — pool update failed: ${poolErr.message ?? poolErr}`;
+        }
       }
     }
 
