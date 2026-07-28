@@ -118,7 +118,32 @@ export async function runPhotoRescreen(opts: {
       .eq('step', 'photos')
       .maybeSingle();
 
-    if (photos.length === 0) {
+    // Candidates = the master-profile photo list, PLUS avatar_url when it isn't
+    // already in that list. A legacy profile can carry a displayed avatar with an
+    // EMPTY photos array (pickHeroUrl falls back to avatar_url for women), so
+    // screening only `data.photos` would skip the one image such a profile actually
+    // shows. `photoIndex: null` marks the avatar-only candidate — it must never be
+    // written back into data.photos, only cleared off the user row.
+    const photoUrl = (p: Record<string, any>): string | null =>
+      typeof p?.dataUrl === 'string' ? p.dataUrl : typeof p?.url === 'string' ? p.url : null;
+
+    // Screening window. Every client caps a woman at 6 photos, so this normally
+    // covers the whole set; if a legacy row somehow holds more, say so rather than
+    // let the extras look screened.
+    const slice = photos.slice(0, MAX_PHOTOS);
+    const unscreenedTail = photos.length - slice.length;
+
+    const candidates: Array<{ url: string; photoIndex: number | null }> = [];
+    slice.forEach((p, i) => {
+      const url = photoUrl(p);
+      if (url) candidates.push({ url, photoIndex: i });
+    });
+    const avatarUrl = typeof u.avatar_url === 'string' ? u.avatar_url : null;
+    if (avatarUrl && !candidates.some((c) => c.url === avatarUrl)) {
+      candidates.push({ url: avatarUrl, photoIndex: null });
+    }
+
+    if (candidates.length === 0) {
       results.push({ ...base, note: 'no stored photos' });
       continue;
     }
@@ -127,21 +152,10 @@ export async function runPhotoRescreen(opts: {
       continue;
     }
 
-    // Download the stored photos, keeping the index alignment with `photos`.
-    // Screening window. Every client caps a woman at 6 photos, so this normally
-    // covers the whole set; if a legacy row somehow holds more, say so rather than
-    // let the extras look screened.
-    const slice = photos.slice(0, MAX_PHOTOS);
-    const unscreenedTail = photos.length - slice.length;
-    const fetched = await Promise.all(
-      slice.map((p) => {
-        const url = typeof p?.dataUrl === 'string' ? p.dataUrl : typeof p?.url === 'string' ? p.url : null;
-        return url ? fetchAsBase64(url) : Promise.resolve(null);
-      })
-    );
+    const fetched = await Promise.all(candidates.map((c) => fetchAsBase64(c.url)));
     const screenable = fetched
-      .map((f, i) => (f ? { f, i } : null))
-      .filter((x): x is { f: { data: string; mime: string }; i: number } => x !== null);
+      .map((f, k) => (f ? { f, i: candidates[k].photoIndex, url: candidates[k].url } : null))
+      .filter((x): x is { f: { data: string; mime: string }; i: number | null; url: string } => x !== null);
 
     if (screenable.length === 0) {
       results.push({ ...base, note: 'photos unreachable' });
@@ -149,9 +163,14 @@ export async function runPhotoRescreen(opts: {
     }
 
     const decision = await screenProfilePhotos(u.id, screenable.map((s) => s.f));
-    // Map the decision's positions back onto `photos` indexes.
-    const acceptedPhotoIdx = new Set(decision.acceptedIndexes.map((k) => screenable[k].i));
-    const rejectedReasons = decision.rejected.map((r) => `#${screenable[r.index].i}: ${r.reason}`);
+    // Map the decision's positions back onto `photos` indexes (null = the avatar-only
+    // candidate, which has no slot in the photos array).
+    const acceptedPhotoIdx = new Set(
+      decision.acceptedIndexes.map((k) => screenable[k].i).filter((i): i is number => i !== null)
+    );
+    const rejectedReasons = decision.rejected.map(
+      (r) => `${screenable[r.index].i === null ? 'avatar' : `#${screenable[r.index].i}`}: ${r.reason}`
+    );
     const unconfirmedCount = decision.unverifiableIndexes.length;
 
     base.status = decision.status;
@@ -192,12 +211,14 @@ export async function runPhotoRescreen(opts: {
     // Only photos we actually screened AND rejected are removed. A photo we couldn't
     // download is left alone (unreachable ≠ mismatched), and anything past the
     // screening window is left alone too rather than being silently condemned.
-    const rejectedPhotoIdx = new Set(decision.rejected.map((r) => screenable[r.index].i));
+    const rejectedPhotoIdx = new Set(
+      decision.rejected.map((r) => screenable[r.index].i).filter((i): i is number => i !== null)
+    );
     const keptPhotos = photos.filter((_, i) => !rejectedPhotoIdx.has(i));
     const removedPhotos = photos.filter((_, i) => rejectedPhotoIdx.has(i));
-    const rejectedUrls = new Set(
-      removedPhotos.map((p) => String(p?.dataUrl ?? p?.url ?? '')).filter(Boolean)
-    );
+    // Every rejected URL, including the avatar-only candidate that has no photos slot.
+    const rejectedUrls = new Set(decision.rejected.map((r) => screenable[r.index].url));
+    const reasonByUrl = new Map(decision.rejected.map((r) => [screenable[r.index].url, r.reason]));
     const clearAvatar = typeof u.avatar_url === 'string' && rejectedUrls.has(u.avatar_url);
 
     base.repaired = true;
@@ -211,10 +232,12 @@ export async function runPhotoRescreen(opts: {
             photos: keptPhotos,
             rejectedPhotos: [
               ...(Array.isArray(masterData.rejectedPhotos) ? masterData.rejectedPhotos : []),
-              ...removedPhotos.map((p, i) => ({
+              // Reason looked up BY URL: the rejected list can include the avatar-only
+              // candidate, so positional pairing would attach the wrong explanation.
+              ...removedPhotos.map((p) => ({
                 ...p,
                 rejectedAt: new Date().toISOString(),
-                reason: rejectedReasons[i] ?? 'does not match verification selfie',
+                reason: reasonByUrl.get(String(photoUrl(p) ?? '')) ?? 'does not match verification selfie',
               })),
             ],
           },
