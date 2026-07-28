@@ -23,6 +23,7 @@ import { runVectorMatchmaker } from '$lib/server/vector-matchmaker';
 import { refreshPoolEntry } from '$lib/server/pool-registry';
 import { runAnonymizeDeleted } from '$lib/server/anonymize-deleted';
 import { runPhotoSignalBackfill } from '$lib/server/photo-signal-capture';
+import { runPhotoRescreen } from '$lib/server/photo-rescreen';
 import { getSupabase } from '$lib/server/supabase';
 import { MATCHMAKER_RUN_SECRET } from '$env/static/private';
 import { env } from '$env/dynamic/private';
@@ -38,7 +39,8 @@ export const POST: RequestHandler = async ({ request }) => {
       cityScoped?: boolean;
       task?: 'trust-normalize' | 'match-scores' | 'build-vectors' | 'inspect-vectors'
         | 'score-vectors-shadow' | 'diff-scores' | 'match-v2-dryrun' | 'match-v2'
-        | 'backfill-profile-fields' | 'anonymize-deleted' | 'capture-photo-signals';
+        | 'backfill-profile-fields' | 'anonymize-deleted' | 'capture-photo-signals'
+        | 'rescreen-profile-photos';
       userId?: string;
       userIds?: string[];
       includeSeed?: boolean;
@@ -64,6 +66,21 @@ export const POST: RequestHandler = async ({ request }) => {
         force: body.force,
       });
       return json({ task: 'capture-photo-signals', ...result });
+    }
+
+    // Retro-fit the profile-photo identity gate onto profiles that were published
+    // before it existed: re-screens each woman's stored photos against her verification
+    // selfie, moves any photo that is NOT her out of the displayed set, and records the
+    // verdict so the feed hides a card with nothing genuine left. Synchronous, one
+    // Claude vision call per user. dryRun:true reports without writing.
+    if (body.task === 'rescreen-profile-photos') {
+      const result = await runPhotoRescreen({
+        userIds: body.userIds,
+        limit: body.limit,
+        dryRun: body.dryRun,
+        force: body.force,
+      });
+      return json({ task: 'rescreen-profile-photos', ...result });
     }
 
     // Phase 0 (shadow): backfill per-user value vectors into vv_user_vectors.

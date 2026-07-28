@@ -69,7 +69,10 @@ class _PhotoManagerScreenState extends State<_PhotoManagerScreen> {
       setState(() => _busy = false);
     } catch (e) {
       AppLogger.instance.error(e, screen: 'profile_edit', action: 'upload_photo');
-      setState(() { _busy = false; _error = 'Upload failed: $e'; });
+      // uploadPhoto throws the server's own message as a String when the photo was
+      // refused for a reason the user can act on (e.g. it isn't them) — show that
+      // verbatim rather than burying it behind "Upload failed:".
+      setState(() { _busy = false; _error = e is String ? e : 'Upload failed: $e'; });
     }
   }
 

@@ -197,6 +197,14 @@
       </div>
     </div>
 
+    <!-- Identity notice — every uploaded photo is matched against the selfie from
+         the identity check, so say so BEFORE they pick, not after we reject it. -->
+    <p class="identity-notice">
+      ⚠️ <strong>Photos of you only.</strong> We check every photo against your
+      verification selfie. Posters, celebrities, screenshots or photos of someone
+      else are removed automatically.
+    </p>
+
     <!-- Consent notice — men only -->
     {#if showAiStrip}
       <p class="consent-notice">
@@ -587,6 +595,19 @@
     border-radius: 10px;
     line-height: 1.4;
   }
+
+  .identity-notice {
+    font-size: 11.5px;
+    color: var(--text-2);
+    margin: 0 0 10px;
+    padding: 9px 12px;
+    background: var(--accent-tint);
+    border: 1px solid var(--accent-glow);
+    border-radius: 10px;
+    line-height: 1.45;
+  }
+
+  .identity-notice strong { color: var(--text-1); font-weight: 700; }
 
   /* Optional row label */
   .optional-row-label {

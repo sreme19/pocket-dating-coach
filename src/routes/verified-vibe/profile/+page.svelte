@@ -1212,8 +1212,13 @@
     }
   }
 
+  // Reason the last upload was refused, when the server gave us one worth showing
+  // (e.g. the photo isn't the account owner). Consumed by the caller's alert.
+  let lastUploadError: string | null = null;
+
   // Upload a base64 dataURL to Supabase Storage; returns the hosted URL.
   async function uploadPhotoToStorage(dataUrl: string, label: string): Promise<string | null> {
+    lastUploadError = null;
     try {
       const supabase = getSupabaseClient();
       const { data: { session } } = await supabase.auth.getSession();
@@ -1227,7 +1232,14 @@
         body: JSON.stringify({ dataUrl, label })
       });
       if (!res.ok) {
-        console.error('Photo upload failed:', await res.text());
+        const body = await res.text();
+        console.error('Photo upload failed:', body);
+        // The identity gate refuses photos that aren't the account owner — that's a
+        // fixable, user-facing reason, not a generic failure, so pass it through.
+        try {
+          const parsed = JSON.parse(body) as { error?: string; code?: string };
+          if (res.status === 422 && parsed.error) lastUploadError = parsed.error;
+        } catch { /* not JSON — fall back to the generic message */ }
         return null;
       }
       const { url } = await res.json() as { url: string };
@@ -1282,7 +1294,7 @@
           // Upload to Storage first — store the hosted URL, never base64.
           const url = await uploadPhotoToStorage(dataUrl, label);
           uploadingPhoto = false;
-          if (!url) { alert('Photo upload failed. Please try again.'); return; }
+          if (!url) { alert(lastUploadError ?? 'Photo upload failed. Please try again.'); return; }
 
           photos = [...photos, { dataUrl: url, label }];
           localStorage.setItem('vv_photos', JSON.stringify(photos));

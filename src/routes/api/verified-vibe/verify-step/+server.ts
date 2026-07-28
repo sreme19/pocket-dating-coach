@@ -16,6 +16,7 @@ import { enrollInPoolIfVerified, redeemBetaInviteIfProfileReady } from '$lib/ser
 import { recomputeAndNormalize } from '$lib/server/trust-normalize';
 import { scheduleVectorRebuild } from '$lib/server/vector-rebuild';
 import { storeAnchorSelfie, loadAnchorSelfie } from '$lib/verified-vibe/server/anchor-selfie';
+import { screenProfilePhotos, gateRecord } from '$lib/server/photo-identity-gate';
 import { captureUploads, type CaptureItem } from '$lib/server/upload-audit';
 import { enhanceAndHostPhotos } from '$lib/photo-enhance/server';
 import { waitUntil } from '@vercel/functions';
@@ -486,15 +487,50 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
       );
     }
 
-    // Photo consistency check — informational only, never blocks the user.
-    // The liveness step already verified the user's real face; if someone
-    // uploads mismatched photos their profile quality suffers but we don't
-    // hard-reject them here.
     const skipVerification = import.meta.env.VITE_SKIP_VERIFICATION === 'true';
+
+    // ── Identity gate: the photos on a profile must BE the profile owner ────────
+    // Every candidate is compared against the anchor selfie captured at liveness.
+    // A photo that isn't a real person, or is a different person, is DROPPED and
+    // never reaches Storage / the avatar / the feed. If nothing survives, the step
+    // is refused (422) with a per-photo reason so the client can ask for a re-upload.
+    // See $lib/server/photo-identity-gate for the fail-open/kill-switch posture.
+    const gate = skipVerification
+      ? null
+      : await screenProfilePhotos(
+          userId,
+          data.images.map((b64: string, i: number) => ({
+            data: b64,
+            mime: data.mimeTypes[i] ?? 'image/jpeg',
+          }))
+        );
+
+    if (gate?.status === 'rejected') {
+      console.warn(`[verify-step] photos rejected for ${userId ?? 'anon'}: no photo matched the anchor selfie`);
+      return json(
+        {
+          error: gate.message,
+          code: 'photo_identity_mismatch',
+          photoGate: { status: gate.status, rejected: gate.rejected },
+        },
+        { status: 422 }
+      );
+    }
+
+    // Keep only the photos that cleared the gate, preserving upload order.
+    const accepted: number[] = gate?.acceptedIndexes ?? data.images.map((_: string, i: number) => i);
+    const acceptedImages: string[] = accepted.map((i) => data.images[i]);
+    const acceptedMimes: string[] = accepted.map((i) => data.mimeTypes[i] ?? 'image/jpeg');
+
+    // Photo consistency (uploads vs each other) — informational only, and now only
+    // a fallback: when the anchor comparison ran it is strictly stronger, so we
+    // skip the extra Claude call. Kept for the no-anchor / gate-off / gate-error
+    // paths, where it's the only same-person signal we have.
     let consistencyResult = { consistent: true, confidence: 0.99 };
-    if (!skipVerification && data.images.length >= 2) {
+    // ('rejected' already returned above, so only passed/unverified/error/off reach here.)
+    if (!skipVerification && gate?.status !== 'passed' && acceptedImages.length >= 2) {
       try {
-        consistencyResult = await checkPhotoConsistencyWithClaude(data.images, data.mimeTypes[0] || 'image/jpeg');
+        consistencyResult = await checkPhotoConsistencyWithClaude(acceptedImages, acceptedMimes[0]);
         if (!consistencyResult.consistent) {
           console.warn('[verify-step] photo consistency low — proceeding anyway (non-blocking)');
         }
@@ -529,17 +565,25 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
         const isMan = (userRow as any)?.gender === 'man';
         const archetype = (userRow as any)?.archetype ?? 'casual_man';
 
-        // Find which index is the 'lead' photo (fall back to index 0).
-        // Mobile sends 'main' as the first label so also match that.
+        // Find which ACCEPTED photo is the 'lead' (mobile sends 'main' as the first
+        // label, web sends 'lead'). The client's labels are keyed by the ORIGINAL
+        // upload index, so resolve against that — then fall back to the first
+        // accepted photo, since the client's lead may have failed the identity gate.
         const labels: Record<string, string> = data.labels ?? {};
-        const leadIndex = Object.entries(labels)
+        const clientLeadIndex = Object.entries(labels)
           .find(([, v]) => v === 'lead' || v === 'main')?.[0] ?? '0';
+        const leadOriginalIndex = accepted.includes(Number(clientLeadIndex))
+          ? Number(clientLeadIndex)
+          : accepted[0];
 
-        for (let i = 0; i < data.images.length; i++) {
-          const mime = data.mimeTypes[i] ?? 'image/jpeg';
+        // Store under a fresh 0..n-1 sequence so the saved set is exactly the
+        // accepted set (a rejected photo never occupies a displayed slot).
+        for (let slot = 0; slot < accepted.length; slot++) {
+          const originalIndex = accepted[slot];
+          const mime = acceptedMimes[slot];
           const ext = mimeToExt[mime] ?? 'jpg';
-          const path = `users/${userId}/photo_${i}.${ext}`;
-          const buffer = Buffer.from(data.images[i], 'base64');
+          const path = `users/${userId}/photo_${slot}.${ext}`;
+          const buffer = Buffer.from(acceptedImages[slot], 'base64');
 
           const { error: uploadErr } = await supabase.storage
             .from('profiles')
@@ -548,7 +592,7 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
           if (!uploadErr) {
             const { data: urlData } = supabase.storage.from('profiles').getPublicUrl(path);
             const publicUrl = urlData.publicUrl;
-            const isLead = String(i) === String(leadIndex);
+            const isLead = originalIndex === leadOriginalIndex;
             allPhotoItems.push({ dataUrl: publicUrl, label: isLead ? 'lead' : 'photo' });
             if (isLead) avatarUrl = publicUrl;
           }
@@ -576,8 +620,10 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
         // depends on a client firing generation (and surviving) after upload.
         if (isMan) {
           try {
-            const refs = data.images.map(
-              (b64: string, i: number) => `data:${data.mimeTypes[i] ?? 'image/jpeg'};base64,${b64}`
+            // Only gate-approved references — generating from a photo of someone
+            // else would mint an AI portrait of the wrong person.
+            const refs = acceptedImages.map(
+              (b64: string, i: number) => `data:${acceptedMimes[i]};base64,${b64}`
             );
             const gen = await enhanceAndHostPhotos({ refs, archetype, count: 3 });
 
@@ -613,7 +659,10 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
     const stepData = {
       confidence: consistencyResult.confidence,
       consistent: true,
-      photoCount: data.images.length,
+      // The count of PUBLISHED photos, not of everything uploaded — rejected
+      // photos don't exist as far as the profile is concerned.
+      photoCount: acceptedImages.length,
+      ...(gate && { identityGate: gateRecord(gate, new Date().toISOString()) }),
       ...(avatarUrl && { avatarUrl })
     };
 
@@ -634,6 +683,12 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
       status: 'completed',
       data: stepData,
       trustPoints,
+      // Partial rejection: the step succeeded but some photos were dropped. The
+      // client shows `photoNotice` so the user isn't surprised by a shorter set.
+      ...(gate && gate.rejected.length > 0 && {
+        photoNotice: gate.message,
+        photoGate: { status: gate.status, rejected: gate.rejected },
+      }),
       createdAt: new Date().toISOString()
     };
 

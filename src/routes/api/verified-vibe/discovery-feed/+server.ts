@@ -4,6 +4,7 @@ import type { DiscoveryProfile } from '$lib/verified-vibe/types';
 import { getSupabase } from '$lib/server/supabase';
 import { MATCH_MATRIX } from '$lib/verified-vibe/constants';
 import { analyzeAbout, profileHideReason } from '$lib/server/profile-moderation';
+import { buildPublicPhotos, pickHeroUrl } from '$lib/server/profile-photos';
 
 interface DiscoveryFeedRequest {
   limit?: number;
@@ -240,13 +241,23 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
       );
     }
 
-    // Fetch verification steps for all profiles to calculate trust scores
-    const { data: verificationSteps } = await (supabase as any)
-      .from('verified_vibe_verification')
-      .select('user_id, step, status');
+    // Fetch verification steps for all profiles to calculate trust scores.
+    // `data` is fetched only for the photos step (small blob, carries the identity-gate
+    // verdict) — pulling every step's data would drag whole Q&A payloads into the feed.
+    const [{ data: verificationSteps }, { data: photoStepRows }] = await Promise.all([
+      (supabase as any).from('verified_vibe_verification').select('user_id, step, status'),
+      (supabase as any).from('verified_vibe_verification').select('user_id, data').eq('step', 'photos'),
+    ]);
 
     const trustScoreMap = new Map<string, number>();
     const verificationMap = new Map<string, Set<string>>();
+    // Photo identity-gate verdict per user (from the photos step) — 'rejected'
+    // means the displayed photos were screened and are NOT the profile owner.
+    const photoGateMap = new Map<string, string>();
+    for (const row of photoStepRows || []) {
+      const status = (row?.data as any)?.identityGate?.status;
+      if (typeof status === 'string') photoGateMap.set(row.user_id, status);
+    }
 
     if (verificationSteps) {
       verificationSteps.forEach((step: any) => {
@@ -316,7 +327,14 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
     // candidate set so we can hide profiles whose about is abusive section-overload.
     const candidateIds = candidates.map((p: any) => p.id);
     const aboutByUser = new Map<string, string>();
+    // Hero photo per candidate, built with the SAME gender-aware rules the detail
+    // views use (men: AI portraits only; women: real uploads) so "has a photo" in
+    // the feed means exactly "has something we would actually display".
+    const heroByUser = new Map<string, string>();
     if (candidateIds.length > 0) {
+      const genderById = new Map<string, string | null>(
+        candidates.map((p: any) => [p.id, p.gender ?? null])
+      );
       const { data: masterRows } = await (supabase as any)
         .from('user_master_profile')
         .select('user_id, data')
@@ -324,6 +342,9 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
       for (const row of masterRows || []) {
         const genAbout = (row?.data as any)?.generatedProfile?.about;
         if (typeof genAbout === 'string' && genAbout.trim()) aboutByUser.set(row.user_id, genAbout);
+        const gender = genderById.get(row.user_id) ?? null;
+        const photos = buildPublicPhotos((row?.data as any) ?? {}, gender);
+        if (photos.length > 0) heroByUser.set(row.user_id, photos[0].url);
       }
     }
 
@@ -336,11 +357,20 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
         // Drop bad-faith / abused profiles (garbage name, absurd age, repeated-spam
         // about) from the feed entirely. Identity fields are written client-side
         // straight to Supabase, so this read-gate is the only chokepoint.
+        // Hero the viewer would actually see: the gender-aware photo set, falling
+        // back to avatar_url for women only (a man's avatar could be a raw upload).
+        const heroUrl = pickHeroUrl(
+          heroByUser.has(p.id) ? [{ url: heroByUser.get(p.id)!, ai: false, role: 'lead' }] : [],
+          p.gender,
+          p.avatar_url
+        );
         const hideReason = profileHideReason({
           firstName: p.first_name,
           age: p.age,
           city: p.city,
           about: effectiveAbout,
+          hasPhoto: !!heroUrl,
+          photoGateStatus: photoGateMap.get(p.id),
         });
         if (hideReason) {
           console.warn(`[discovery-feed] hiding profile ${p.id}: ${hideReason}`);
@@ -366,7 +396,7 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
           firstName: p.first_name || 'User',
           age: p.age || 25,
           city: p.city || 'Unknown',
-          avatar: p.avatar_url || null,
+          avatar: heroUrl,
           about: aboutVerdict.cleaned || null,
           looking: 'Looking for connection',
           trustScore,

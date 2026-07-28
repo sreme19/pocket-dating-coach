@@ -18,6 +18,30 @@
  * their photo array from this helper so web + Flutter render an identical set.
  */
 
+/**
+ * Keep only photos hosted in OUR Supabase Storage.
+ *
+ * A displayed photo must have come through upload-photo or the photos verify-step,
+ * because those are the paths that screen the bytes against the owner's verification
+ * selfie before hosting them (see $lib/server/photo-identity-gate). An externally
+ * hosted URL has been through no such check, so accepting one in a profile save
+ * would be a way around the gate entirely.
+ *
+ * @param photos - Raw `photos` array from a client save (`{ dataUrl }` or `{ url }`)
+ * @param supabaseUrl - Our Supabase project URL (PUBLIC_SUPABASE_URL)
+ */
+export function ownHostedPhotosOnly<T>(photos: T[] | unknown, supabaseUrl: string): T[] {
+  if (!Array.isArray(photos)) return [];
+  const prefix = `${supabaseUrl.replace(/\/+$/, '')}/storage/v1/object/`;
+  return (photos as T[]).filter((p) => {
+    const url = (p as Record<string, unknown> | null)?.dataUrl ?? (p as Record<string, unknown> | null)?.url;
+    if (typeof url !== 'string') return false;
+    if (url.startsWith(prefix)) return true;
+    console.warn('[profile-photos] dropped photo not hosted by us:', url.slice(0, 80));
+    return false;
+  });
+}
+
 export interface PublicPhoto {
   url: string;
   /** true = AI-enhanced portrait (men); false = real uploaded photo (women). */

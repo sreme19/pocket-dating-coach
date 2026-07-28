@@ -12,6 +12,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
 import { captureUploads } from '$lib/server/upload-audit';
+import { screenProfilePhotos } from '$lib/server/photo-identity-gate';
 
 const MIME_TO_EXT: Record<string, string> = {
 	'image/jpeg': 'jpg',
@@ -68,6 +69,25 @@ export const POST: RequestHandler = async ({ request }) => {
 			const ext = MIME_TO_EXT[mime] ?? 'jpg';
 			const buffer = Buffer.from(match[2], 'base64');
 			const path = `photos/${user.id}/${label}.${ext}`;
+
+			// Identity gate — the same rule onboarding enforces, applied to photo EDITS.
+			// Without this a user could clear onboarding with a genuine photo and then
+			// quietly swap in a poster or someone else from the profile screen. Only an
+			// authoritative 'rejected' verdict blocks (see photo-identity-gate for the
+			// fail-open posture), and it happens BEFORE the bytes reach Storage.
+			const gate = await screenProfilePhotos(user.id, [{ data: match[2], mime }]);
+			if (gate.status === 'rejected') {
+				console.warn(`[upload-photo] rejected photo for ${user.id}: not the verified owner`);
+				return json(
+					{
+						error: gate.rejected[0]?.reason
+							? `${gate.rejected[0].reason} Please upload a photo of yourself — the same face as your verification selfie.`
+							: gate.message,
+						code: 'photo_identity_mismatch',
+					},
+					{ status: 422 }
+				);
+			}
 
 			const { error: uploadErr } = await supabase.storage
 				.from('profiles')

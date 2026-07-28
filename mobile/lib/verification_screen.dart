@@ -581,13 +581,34 @@ class _VerificationScreenState extends State<VerificationScreen> {
           } catch (_) {
             AppLogger.instance.error('parse_age failed', screen: 'verification', action: 'parse_age');
           }
-          await verifyStep('photos', {
+          final photoResult = await verifyStep('photos', {
             'images': imgs,
             'mimeTypes': List.filled(imgs.length, 'image/jpeg'),
             'labels': {for (var i = 0; i < imgs.length; i++) '$i': i == 0 ? 'main' : 'photo'},
             'city': _cityCtrl.text.trim(),
             'openToTravel': _openToTravel,
           });
+          // Partial rejection: the server keeps only photos that match the
+          // verification selfie. If it dropped some, say so — otherwise the user
+          // finds a shorter photo set later with no explanation. (A FULL rejection
+          // throws a 422 and is handled by the catch below, keeping them on this step.)
+          final gate = photoResult['identityGate'];
+          if (gate is Map) {
+            final checked = (gate['checked'] as num?)?.toInt() ?? 0;
+            final accepted = (gate['accepted'] as num?)?.toInt() ?? checked;
+            if (mounted && accepted < checked) {
+              final dropped = checked - accepted;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  duration: const Duration(seconds: 6),
+                  content: Text(
+                    'We removed $dropped photo${dropped == 1 ? '' : 's'} that '
+                    "didn't match your verification selfie. You can add more from your profile.",
+                  ),
+                ),
+              );
+            }
+          }
           // Door A: a man's raw photo is never shown — only an AI portrait
           // generated from it. Generation now happens SERVER-SIDE, synchronously,
           // inside the verifyStep('photos') call above (verify-step generates for
@@ -681,12 +702,23 @@ class _VerificationScreenState extends State<VerificationScreen> {
           // Step 3 (name / age / city / photos) is mandatory — no skip. The
           // 36-wide box is kept so the centered title stays balanced against the
           // back button on the left.
+          //
+          // Skipping from an EARLIER step jumps to step 3, it does NOT leave
+          // onboarding: exiting here used to create a live profile with no photo
+          // at all (name still 'New member'), which is the one thing a profile
+          // cannot be. The Q&A steps stay optional; the photo does not.
           SizedBox(
             width: 36,
             child: _step == 3
                 ? null
                 : TextButton(
-                    onPressed: () => _showSkipDialog(onConfirm: widget.onDone),
+                    onPressed: () => _showSkipDialog(
+                      onConfirm: () {
+                        // Photos already done on a previous run → nothing left to force.
+                        if (widget.skipSteps.contains(3)) { widget.onDone(); return; }
+                        setState(() { _step = 3; _error = null; });
+                      },
+                    ),
                     style: TextButton.styleFrom(
                       padding: EdgeInsets.zero,
                       minimumSize: Size.zero,
@@ -975,6 +1007,24 @@ class _VerificationScreenState extends State<VerificationScreen> {
         const Text('Your photos',
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(Config.text2))),
         const SizedBox(height: 8),
+        // Identity notice — shown to everyone, BEFORE they pick. Every photo is
+        // matched against the selfie from the identity check, so set the
+        // expectation up front instead of rejecting them after the fact.
+        Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            color: Brand.accentBright.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Brand.accentBright.withValues(alpha: 0.28)),
+          ),
+          child: const Text(
+            '⚠️ Photos of you only. We check every photo against your verification '
+            'selfie — posters, celebrities, screenshots or photos of someone else '
+            'are removed automatically.',
+            style: TextStyle(fontSize: 11.5, color: Color(Config.text2), height: 1.45),
+          ),
+        ),
         // Consent notice — men only
         if (!_isWoman)
           Container(

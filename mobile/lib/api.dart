@@ -863,11 +863,22 @@ Future<ReferralLink> fetchReferralLink() async {
 /// Upload a profile photo (base64 data URL) → returns the hosted URL. When
 /// label == 'lead' the backend also sets verified_vibe_users.avatar_url.
 Future<String> uploadPhoto(String dataUrl, String label) async {
-  final resp = await _dio.post(
-    '${Config.apiBase}/api/verified-vibe/upload-photo',
-    data: {'dataUrl': dataUrl, 'label': label},
-    options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
-  );
+  final Response resp;
+  try {
+    resp = await _dio.post(
+      '${Config.apiBase}/api/verified-vibe/upload-photo',
+      data: {'dataUrl': dataUrl, 'label': label},
+      options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
+    );
+  } on DioException catch (e) {
+    // 422 = the identity gate refused this photo (not the account owner). That
+    // reason is fixable and user-facing, so surface it instead of "Upload failed".
+    final body = e.response?.data;
+    if (e.response?.statusCode == 422 && body is Map && body['error'] is String) {
+      throw body['error'] as String;
+    }
+    rethrow;
+  }
   final url = (resp.data is Map) ? resp.data['url'] : null;
   if (url is! String || url.isEmpty) throw 'Upload failed';
   return url;

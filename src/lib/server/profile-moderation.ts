@@ -194,11 +194,25 @@ export function profileHideReason(p: {
   age?: unknown;
   city?: unknown;
   about?: unknown;
+  /** True when the profile has at least one displayable photo. Pass undefined to skip the check. */
+  hasPhoto?: boolean;
+  /** Status recorded by the photo identity gate on the photos verification step. */
+  photoGateStatus?: unknown;
 }): string | null {
   if (isAbusiveName(p.firstName)) return 'abusive name';
   if (typeof p.firstName === 'string' && DEFAULT_PLACEHOLDER_NAMES.includes(p.firstName.toLowerCase().trim())) return 'default name not updated';
   if (isAbusiveAge(p.age)) return 'invalid age';
   if (isAbusiveCity(p.city)) return 'abusive city';
   if (analyzeAbout(p.about).verdict === 'reject') return 'abusive about';
+  // A profile with no picture is not a profile — never surface it. (Men are shown
+  // an AI portrait rather than their upload, so this is about the DISPLAYED photo
+  // in both cases.)
+  if (p.hasPhoto === false) return 'no photo';
+  // The photos on the card were screened against the owner's verification selfie
+  // and none of them was the owner (poster / celebrity / someone else). Hide until
+  // they upload a photo that is actually them. Only an explicit 'rejected' verdict
+  // hides — 'unverified'/'error'/'off' mean we never got proof either way, and a
+  // vision outage must not empty the feed.
+  if (p.photoGateStatus === 'rejected') return 'photos do not match verification selfie';
   return null;
 }

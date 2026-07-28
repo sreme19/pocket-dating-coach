@@ -681,6 +681,139 @@ Do not include any other text.`
   return { faceFound: faces.some(Boolean), faces };
 }
 
+/** Per-photo verdict from {@link matchPhotosToAnchorWithClaude}. */
+export interface AnchorPhotoVerdict {
+  /** A real photograph of a real human being (not a poster, screenshot, deity/celebrity image, pet, meme, landscape, drawing or AI render). */
+  isRealPerson: boolean;
+  /** The SAME person as the verified anchor selfie. Null when there's no face to compare. */
+  sameAsAnchor: boolean | null;
+  /** 0–100 confidence in `sameAsAnchor` (0 when there's no face). */
+  confidence: number;
+  /** ≤14-word reason, surfaced to the user when the photo is rejected. */
+  reason: string;
+}
+
+/**
+ * Compare each candidate profile photo against the user's verified anchor selfie.
+ *
+ * This is the identity gate for DISPLAYED profile photos: onboarding proves a live
+ * face once (liveness step → anchor selfie), and every photo a user then puts on
+ * their public card must be that same person. One Claude Vision call covers the
+ * whole set — the anchor first, then the candidates in order.
+ *
+ * Deliberately different from {@link checkLivenessWithClaude} (ID-vs-selfie, decades
+ * apart, bone-structure only) and from {@link checkPhotoConsistencyWithClaude}
+ * (candidates vs each other, no ground truth): here we have a recent, verified
+ * reference face, so the bar is ordinary same-person recognition.
+ *
+ * @param anchorBase64 - The verified anchor selfie (base64, no data: prefix)
+ * @param photos - Candidate profile photos as { data: base64, mime }
+ * @param anchorMime - MIME type of the anchor selfie
+ * @returns One verdict per candidate, aligned to `photos` order
+ * @throws ClaudeServiceError / Error if the call itself fails (caller decides fail-open)
+ */
+export async function matchPhotosToAnchorWithClaude(
+  anchorBase64: string,
+  photos: Array<{ data: string; mime: string }>,
+  anchorMime: string = 'image/jpeg'
+): Promise<AnchorPhotoVerdict[]> {
+  if (!CLAUDE_API_KEY) {
+    throw new Error('ANTHROPIC_API_KEY environment variable not set');
+  }
+  if (photos.length === 0) return [];
+
+  const messageContent: any[] = [
+    {
+      type: 'text',
+      text: `You are screening the photos a user wants to show on their public dating profile.
+
+The FIRST image is their VERIFIED SELFIE — captured live during identity verification. It is the ground truth for who this person is.
+
+The following ${photos.length} image(s) are the profile photos they uploaded, indexed 0 to ${photos.length - 1} in the order shown.
+
+For EACH uploaded photo decide two things:
+
+1. isRealPerson — is it an ordinary photograph of a real human being? FALSE for: religious/deity posters or artwork, celebrity or model images, screenshots of other apps, memes, text/quote graphics, logos, cars, food, pets, landscapes, cartoons/drawings/CGI, and fully AI-generated faces. A real person photographed with a filter, makeup, sunglasses, or in a group IS still a real person (true).
+
+2. sameAsAnchor — is the person shown the SAME person as the verified selfie? Compare face shape, eye spacing, nose, jaw and overall facial geometry. Hair, makeup, weight, lighting, angle, age difference of a few years and image quality may all differ — ignore those. For a group photo, answer true if the verified person is clearly one of the people in it. Use null when the photo contains no usable human face at all.`
+    },
+    { type: 'text', text: 'Verified selfie (ground truth):' },
+    { type: 'image', source: { type: 'base64', media_type: anchorMime, data: anchorBase64 } }
+  ];
+
+  photos.forEach((p, i) => {
+    messageContent.push({ type: 'text', text: `Uploaded profile photo ${i}:` });
+    messageContent.push({ type: 'image', source: { type: 'base64', media_type: p.mime, data: p.data } });
+  });
+
+  messageContent.push({
+    type: 'text',
+    text: `Return ONLY a JSON object with a "photos" array of exactly ${photos.length} entries, in the order shown:
+{
+  "photos": [
+    {
+      "isRealPerson": <boolean>,
+      "sameAsAnchor": <boolean or null>,
+      "confidence": <number 0-100, your confidence in sameAsAnchor; 0 when null>,
+      "reason": "<at most 14 words, plain language, addressed to the user>"
+    }
+  ]
+}
+
+Be strict about identity but fair about presentation: a genuine photo of the verified person in different lighting, makeup or years should score 70+. A different person, or no person at all, should score below 40.
+
+Do not include any other text.`
+  });
+
+  const response = await fetch(CLAUDE_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': CLAUDE_API_KEY,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: messageContent }]
+    })
+  });
+
+  if (!response.ok) throw await claudeServiceError(response);
+
+  const data = await response.json();
+  const content = data.content?.[0]?.text;
+  if (!content) throw new Error('No response from Claude API');
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim());
+  } catch {
+    console.error('Failed to parse Claude response:', content);
+    throw new Error('Invalid response format from Claude API');
+  }
+
+  // Normalise to exactly one verdict per input photo. A missing/malformed entry
+  // becomes "not a real person, no match" so a mangled response can never smuggle
+  // an unscreened photo onto a public profile.
+  const raw: any[] = Array.isArray(parsed.photos) ? parsed.photos : [];
+  return photos.map((_, i) => {
+    const v = raw[i];
+    if (!v || typeof v !== 'object') {
+      return { isRealPerson: false, sameAsAnchor: null, confidence: 0, reason: 'We could not read this photo.' };
+    }
+    const confidence = Number.isFinite(Number(v.confidence))
+      ? Math.max(0, Math.min(100, Math.round(Number(v.confidence))))
+      : 0;
+    return {
+      isRealPerson: v.isRealPerson === true,
+      sameAsAnchor: v.sameAsAnchor === true ? true : v.sameAsAnchor === false ? false : null,
+      confidence,
+      reason: typeof v.reason === 'string' ? v.reason.slice(0, 120) : ''
+    };
+  });
+}
+
 /**
  * Analyze spending pattern from bank statement or screenshot using Claude Vision
  *

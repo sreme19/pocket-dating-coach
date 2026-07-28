@@ -19,6 +19,7 @@ import { getSupabase } from '$lib/server/supabase';
 import { refreshPoolEntry } from '$lib/server/pool-registry';
 import { scheduleVectorRebuild } from '$lib/server/vector-rebuild';
 import { analyzeAbout } from '$lib/server/profile-moderation';
+import { ownHostedPhotosOnly } from '$lib/server/profile-photos';
 
 // ── Auth helper ───────────────────────────────────────────────────────────────
 
@@ -252,8 +253,12 @@ export const POST: RequestHandler = async ({ request }: { request: Request }) =>
   if (body.moneyMatters          !== undefined) updated.moneyMatters          = body.moneyMatters;
   if (body.personalityPortraitUrl !== undefined) updated.personalityPortraitUrl = body.personalityPortraitUrl;
   if (body.garagePortraitUrl      !== undefined) updated.garagePortraitUrl      = body.garagePortraitUrl;
-  // Photos: full-replace (client owns the canonical ordered list of hosted URLs)
-  if (body.photos                !== undefined) updated.photos                = body.photos;
+  // Photos: full-replace (client owns the canonical ordered list of hosted URLs).
+  // Only URLs we host are accepted: every real photo arrives via upload-photo /
+  // verify-step, which screen it against the owner's verification selfie. Taking an
+  // arbitrary URL here would let a caller point their profile at any image on the
+  // internet and walk straight around that gate.
+  if (body.photos                !== undefined) updated.photos                = ownHostedPhotosOnly(body.photos, PUBLIC_SUPABASE_URL);
   if (body.aiPhotos              !== undefined) {
     updated.aiPhotos = body.aiPhotos;
     // Durable archive for human tagging: regenerating replaces the canonical

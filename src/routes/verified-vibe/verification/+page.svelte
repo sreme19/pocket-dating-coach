@@ -1732,9 +1732,11 @@
       currentStep++;
       verificationStep.set(currentStep);
     } else {
-      // All steps processed (some skipped)
-      setPhase('app');
-      goto('/verified-vibe/settings/preferences?onboarding=1');
+      // The last step is Photos & place, which has no skip button — a profile
+      // cannot go live without at least one photo of its owner. Reaching here
+      // would mean skipping into the app photo-less, so hold on the step instead.
+      currentStep = totalSteps;
+      verificationStep.set(currentStep);
     }
   }
 
@@ -1861,13 +1863,14 @@
           onSkip={handleSkipClick}
         />
       {:else if currentStep === 4}
+        <!-- No onSkip: a profile cannot exist without at least one photo of its
+             owner, so this step is mandatory (matches the Flutter onboarding). -->
         <PhotosPlaceStep
           gender={viewerGender === 'woman' ? 'woman' : viewerGender === 'man' ? 'man' : null}
           initialFirstName={$user?.firstName ?? ''}
           initialAge={$user?.age && $user.age > 0 ? $user.age : null}
           onSubmit={handlePhotosPlaceSubmit}
           onCancel={handleBack}
-          onSkip={handleSkipClick}
         />
       {/if}
     </div>
