@@ -14,6 +14,8 @@ const {
   buildBetaConfirmationHtml,
   sendEarlyAccessEmail,
   sendBetaConfirmationEmail,
+  sendNewSignupAlert,
+  buildNewSignupAlertHtml,
   buildWhatsappInvite,
   inviteUrlFor
 } = await import('./beta-invite-email');
@@ -156,5 +158,73 @@ describe('buildBetaConfirmationHtml', () => {
     expect(html).toContain('riteangle beta list');
     expect(html).toContain('What happens next?');
     expect(html).not.toContain('your match');
+  });
+});
+
+/**
+ * The new-signup alert. It goes to the TEAM, not the invitee — so it may name
+ * the referrer even on a private link, and it must carry the same fields the
+ * admin table shows so nobody has to open the tab just to see who signed up.
+ */
+describe('new-signup alert', () => {
+  const SIGNUP = {
+    email: 'tester@example.com',
+    whatsapp: '+91 90680 48277',
+    platform: 'android' as const,
+    referrerName: 'Priya',
+    linkLabel: 'Personal link',
+    mood: null,
+    total: 40,
+  };
+
+  it('carries every field the admin row shows, plus the list position', () => {
+    const html = buildNewSignupAlertHtml(SIGNUP);
+    expect(html).toContain('tester@example.com');
+    expect(html).toContain('+91 90680 48277');
+    expect(html).toContain('Android');
+    expect(html).toContain('Priya');
+    expect(html).toContain('Personal link');
+    expect(html).toContain('#40');
+  });
+
+  it('links the admin tab so the invite is one click away', () => {
+    expect(buildNewSignupAlertHtml(SIGNUP)).toContain(
+      'https://www.riteangle.dating/admin/beta'
+    );
+  });
+
+  it('marks the blanks rather than lying about them', () => {
+    const html = buildNewSignupAlertHtml({
+      ...SIGNUP,
+      whatsapp: '',
+      platform: null,
+      referrerName: null,
+      linkLabel: 'Admin recruiting link',
+      total: null,
+    });
+    expect(html).toContain('not provided');
+    expect(html).toContain('Admin link');
+    expect(html).not.toContain('on the list');
+  });
+
+  it('escapes a referrer name that contains markup', () => {
+    const html = buildNewSignupAlertHtml({ ...SIGNUP, referrerName: '<script>x</script>' });
+    expect(html).not.toContain('<script>');
+  });
+
+  it('is replyable to the signup, and says so instead of "do not reply"', async () => {
+    const fetchMock = vi.fn(async () => new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      await sendNewSignupAlert(SIGNUP);
+      const body = JSON.parse(fetchMock.mock.calls[0]![1]!.body as string);
+      expect(body.to).toEqual(['chris@wardrobeofamonk.com']);
+      expect(body.reply_to).toBe('tester@example.com');
+      expect(body.subject).toContain('tester@example.com');
+      expect(body.subject).toContain('Priya');
+      expect(body.html).not.toContain("please don't reply");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

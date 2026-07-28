@@ -8,6 +8,9 @@
  *     added the person as an iOS/Android tester: congratulates them, shows the
  *     woman's card (now framed as "you've been matched"), and gives a
  *     platform-specific store button.
+ *  3. New-signup alert — sent to the team (not the invitee) the moment a new row
+ *     lands in the Collected emails list, so nobody has to poll the admin tab to
+ *     notice that someone is waiting for their invite. See section 4 below.
  *
  * The referrer card is OPTIONAL in both: signups from an admin recruiting link
  * have no referrer (and a referrer row can always fail to load). A missing card
@@ -39,7 +42,10 @@ export type Platform = 'ios' | 'android';
  * Confirmation emails are NOT copied: they fire automatically on every /beta
  * form submit and would flood the inbox. Only the manual invite is.
  */
-const INVITE_BCC = ['chris@wardrobeofamonk.com'];
+/** Where team-facing beta mail goes — invite copies and new-signup alerts. */
+export const TEAM_INBOX = 'chris@wardrobeofamonk.com';
+
+const INVITE_BCC = [TEAM_INBOX];
 
 // App store links. iOS is pending — leave '' until we have it; sendEarlyAccessEmail
 // refuses to send an iOS invite while it's blank so we never mail a dead link.
@@ -98,8 +104,16 @@ function referrerCardHtml(referrer: ReferrerCard | null): string {
     </div>`;
 }
 
-/** Full HTML document shell — shared container + no-reply footer. */
-function emailShell(innerHtml: string): string {
+const NO_REPLY_NOTE = "This is an automated message — please don't reply to this email.";
+
+/**
+ * Full HTML document shell — shared container + footer.
+ *
+ * `footerNote` defaults to the no-reply line the invitee-facing emails need. The
+ * team alert overrides it: that one IS replyable (reply-to is the signup), so
+ * telling the reader not to reply would be a lie.
+ */
+function emailShell(innerHtml: string, footerNote: string = NO_REPLY_NOTE): string {
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
@@ -107,7 +121,7 @@ function emailShell(innerHtml: string): string {
   <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.08)">
     ${innerHtml}
     <div style="padding:14px 28px;border-top:1px solid #f1e7de;color:#9ca3af;font-size:12px;line-height:1.5">
-      This is an automated message — please don't reply to this email.<br/>
+      ${footerNote}<br/>
       riteangle · <a href="https://riteangle.dating" style="color:#ec4899;text-decoration:none">riteangle.dating</a>
     </div>
   </div>
@@ -316,5 +330,90 @@ export async function sendEarlyAccessEmail(
       ? `You're accepted! Get the app to meet ${name} 🎉`
       : "You're accepted! Get early access to riteangle 🎉",
     html: buildEarlyAccessHtml(referrer, platform, storeUrl),
+  });
+}
+
+// ── 4. New-signup alert (internal, to the team) ───────────────────────────────
+
+/**
+ * One new row in the Collected emails list, as the team needs to read it. The
+ * fields mirror the admin table's columns so the alert and the tab agree.
+ *
+ * `whatsapp` is the already-formatted number ('' when none is on file) and
+ * `referrerName` is null for an admin recruiting link — the same "Admin" case
+ * the tab shows. This is a TEAM email, so unlike the invitee-facing paths a
+ * private link does NOT suppress the referrer: the admin tab already names her,
+ * and an alert that hid who drove the signup would be useless for follow-up.
+ */
+export interface NewSignupAlert {
+  email: string;
+  whatsapp: string;
+  platform: Platform | null;
+  referrerName: string | null;
+  linkLabel: string;
+  mood: string | null;
+  /** Position in the list (1-based), when we could count it. */
+  total: number | null;
+}
+
+const DEVICE_LABEL: Record<Platform, string> = { ios: 'iOS', android: 'Android' };
+
+function alertRow(label: string, value: string): string {
+  return `<tr>
+      <td style="padding:4px 16px 4px 0;color:#6b7280;font-size:14px;white-space:nowrap">${label}</td>
+      <td style="padding:4px 0;font-size:15px;color:#111827">${value}</td>
+    </tr>`;
+}
+
+export function buildNewSignupAlertHtml(signup: NewSignupAlert): string {
+  const missing = '<span style="color:#9ca3af">not provided</span>';
+  const referrer = signup.referrerName ? escapeHtml(signup.referrerName) : 'Admin link';
+  const adminUrl = `${PUBLIC_ORIGIN}/admin/beta`;
+
+  return emailShell(`
+    <div style="padding:28px 28px 4px">
+      <h1 style="margin:0;font-size:20px;color:#111827">New beta signup — invite them 📥</h1>
+      <p style="margin:12px 0 0;font-size:15px;line-height:1.55;color:#374151">
+        Someone just left their email on a /beta link${
+          signup.total ? ` — that's <strong>#${signup.total}</strong> on the list` : ''
+        }. They've had the automatic confirmation; the early-access invite still needs a human.
+      </p>
+      <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:18px 0 0">
+        ${alertRow('Email', `<strong>${escapeHtml(signup.email)}</strong>`)}
+        ${alertRow('WhatsApp', signup.whatsapp ? escapeHtml(signup.whatsapp) : missing)}
+        ${alertRow('Device', signup.platform ? DEVICE_LABEL[signup.platform] : missing)}
+        ${alertRow('Referred by', referrer)}
+        ${alertRow('Link', escapeHtml(signup.linkLabel))}
+        ${signup.mood ? alertRow('Looking for', escapeHtml(signup.mood)) : ''}
+      </table>
+    </div>
+    <div style="padding:8px 28px 28px">
+      <div style="text-align:center;margin:14px 0 6px">
+        <a href="${adminUrl}"
+           style="display:inline-block;background:#ec4899;color:#fff;text-decoration:none;
+                  font-size:15px;font-weight:700;padding:13px 26px;border-radius:12px">
+          Open Beta Invites →
+        </a>
+      </div>
+    </div>`,
+    'Automatic alert for the riteangle team · replies go to the signup.');
+}
+
+/**
+ * Alert the team about a brand-new signup. Fire-and-forget from the caller's
+ * point of view: throws are the caller's to swallow, because a Resend failure
+ * must never fail the person's signup (the row is already saved, and the admin
+ * tab remains the source of truth).
+ *
+ * Replies go to the signup itself, so the team can answer the person directly
+ * from the alert.
+ */
+export async function sendNewSignupAlert(signup: NewSignupAlert): Promise<void> {
+  const via = signup.referrerName ? `via ${signup.referrerName}` : 'via admin link';
+  await sendEmail({
+    to: TEAM_INBOX,
+    subject: `New beta signup — ${signup.email} (${via})`,
+    html: buildNewSignupAlertHtml(signup),
+    replyTo: signup.email,
   });
 }

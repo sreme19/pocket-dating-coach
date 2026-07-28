@@ -16,14 +16,24 @@
  * the email is not a back door around it. A light per-link rate limit caps how
  * many signups a single link can drive per hour, so the public endpoint can't be
  * used to spray email at arbitrary addresses.
+ *
+ * A NEW row also alerts the team inbox, so a signup waiting for its manual
+ * early-access invite is noticed without anyone watching the admin tab. Only new
+ * rows: a duplicate re-submit adds nothing to the Collected emails list, so
+ * alerting on one would just be noise.
  */
 
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getSupabase } from '$lib/server/supabase';
-import { sendBetaConfirmationEmail, type ReferrerCard } from '$lib/server/beta-invite-email';
+import {
+  sendBetaConfirmationEmail,
+  sendNewSignupAlert,
+  type NewSignupAlert,
+  type ReferrerCard,
+} from '$lib/server/beta-invite-email';
 import { modeOf, selectReferralLinks } from '$lib/server/referral-links';
-import { parsePhone } from '$lib/phone';
+import { formatPhone, parsePhone } from '$lib/phone';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PLATFORMS = ['ios', 'android'] as const;
@@ -44,24 +54,55 @@ function warnMissingWhatsappColumns(): void {
 }
 
 /**
- * Fetch the referrer card and send the confirmation. Non-fatal: never throws.
- * No referrer (admin recruiting link) or an unloadable one is fine — the person
- * still gets confirmed, with the card-less copy.
+ * The referrer's card, or null. No referrer (admin recruiting link) and an
+ * unloadable one are both fine — every caller has card-less copy to fall back on.
  */
-async function sendConfirmation(db: any, referrerId: string | null, toEmail: string): Promise<void> {
+async function loadReferrerCard(db: any, referrerId: string | null): Promise<ReferrerCard | null> {
+  if (!referrerId) return null;
   try {
-    let referrer: ReferrerCard | null = null;
-    if (referrerId) {
-      const { data } = await db
-        .from('verified_vibe_users')
-        .select('first_name, age, city, avatar_url, about')
-        .eq('id', referrerId)
-        .maybeSingle();
-      referrer = (data as ReferrerCard | null) ?? null;
-    }
+    const { data } = await db
+      .from('verified_vibe_users')
+      .select('first_name, age, city, avatar_url, about')
+      .eq('id', referrerId)
+      .maybeSingle();
+    return (data as ReferrerCard | null) ?? null;
+  } catch (e) {
+    console.error('[beta-submit] Referrer load failed (non-fatal):', e);
+    return null;
+  }
+}
+
+/** Send the confirmation. Non-fatal: never throws. */
+async function sendConfirmation(toEmail: string, referrer: ReferrerCard | null): Promise<void> {
+  try {
     await sendBetaConfirmationEmail(toEmail, referrer);
   } catch (e) {
     console.error('[beta-submit] Confirmation email failed (non-fatal):', e);
+  }
+}
+
+/**
+ * Alert the team that a new row landed in the Collected emails list. Non-fatal:
+ * never throws. The row is already saved and the admin tab stays the source of
+ * truth, so a Resend hiccup must not turn a good signup into an error for the
+ * person who just typed their email.
+ *
+ * The list position is a nicety on top — if the count fails, the alert still goes.
+ */
+async function alertTeam(db: any, signup: Omit<NewSignupAlert, 'total'>): Promise<void> {
+  let total: number | null = null;
+  try {
+    const { count } = await db
+      .from('verified_vibe_beta_signups')
+      .select('id', { count: 'exact', head: true });
+    total = count ?? null;
+  } catch (e) {
+    console.error('[beta-submit] Signup count failed (alert still sent):', e);
+  }
+  try {
+    await sendNewSignupAlert({ ...signup, total });
+  } catch (e) {
+    console.error('[beta-submit] New-signup alert failed (non-fatal):', e);
   }
 }
 
@@ -118,10 +159,18 @@ export const POST: RequestHandler = async ({ request }) => {
     return json({ error: 'This invite link is no longer active.' }, { status: 404 });
   }
 
-  // A private link carries nothing about its owner — including in this email.
-  // Passing no referrer switches the confirmation to the card-less copy, which
-  // shows no photo and promises no match. The signup is still attributed.
-  const cardReferrerId = modeOf(link) === 'private' ? null : link.referrer_id;
+  // Loaded once and used two ways. A private link carries nothing about its
+  // owner — including in the invitee's email, where passing no referrer switches
+  // to the card-less copy (no photo, no promised match). The signup is still
+  // attributed, and the TEAM alert still names her: the admin tab does too, and
+  // an alert that hid who drove the signup couldn't be followed up.
+  const referrer = await loadReferrerCard(db, link.referrer_id);
+  const cardReferrer = modeOf(link) === 'private' ? null : referrer;
+  const linkLabel = !link.referrer_id
+    ? 'Admin recruiting link'
+    : modeOf(link) === 'private'
+      ? 'Personal link (private)'
+      : 'Personal link';
 
   // First invite wins: if this email is already collected, keep the original
   // row — but still (re)send the confirmation so the person is acknowledged.
@@ -145,7 +194,9 @@ export const POST: RequestHandler = async ({ request }) => {
         .update({ platform: device })
         .eq('id', existing.id);
     }
-    await sendConfirmation(db, cardReferrerId, normalized);
+    // No team alert here on purpose: the list is unchanged, so an alert would be
+    // a reminder about a row somebody was already told about.
+    await sendConfirmation(normalized, cardReferrer);
     return json({ success: true });
   }
 
@@ -185,10 +236,24 @@ export const POST: RequestHandler = async ({ request }) => {
   if (error) {
     // Unique-violation race (someone inserted the same email between our check
     // and insert) → still a success from the user's perspective. Confirm anyway.
-    await sendConfirmation(db, cardReferrerId, normalized);
+    // No alert: whoever won the race collected the row, and alerted for it.
+    await sendConfirmation(normalized, cardReferrer);
     return json({ success: true });
   }
 
-  await sendConfirmation(db, cardReferrerId, normalized);
+  // A genuinely new row: confirm the person AND remind the team to invite them.
+  // In parallel — the person is waiting on this response, and neither send can
+  // reject (both swallow their own failures).
+  await Promise.all([
+    sendConfirmation(normalized, cardReferrer),
+    alertTeam(db, {
+      email: normalized,
+      whatsapp: formatPhone(whatsapp.whatsapp_country_code, whatsapp.whatsapp_number),
+      platform: device,
+      referrerName: referrer?.first_name?.trim() || null,
+      linkLabel,
+      mood: moodVal,
+    }),
+  ]);
   return json({ success: true });
 };
