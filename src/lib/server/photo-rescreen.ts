@@ -147,7 +147,22 @@ export async function runPhotoRescreen(opts: {
       results.push({ ...base, note: 'no stored photos' });
       continue;
     }
-    if (!opts.force && (stepRow?.data as any)?.identityGate?.status) {
+    const priorGate = (stepRow?.data as any)?.identityGate;
+
+    // NEVER re-litigate photos the gate itself approved at upload time — not even
+    // under force. This is a hard rule, learned the expensive way: a user whose
+    // fake photos had been removed did exactly what we asked, uploaded two real
+    // photos, had them individually accepted by the gate on upload... and a forced
+    // re-run then deleted them, because the same vision comparison came back
+    // differently on a second look. Removing what we already approved is worse
+    // than leaving an uncertain photo up. This task's job is legacy profiles that
+    // were published BEFORE the gate existed; anything the gate has passed
+    // judgement on belongs to human review, not to another model roll.
+    if (priorGate?.clearedBy === 'profile-photo-upload') {
+      results.push({ ...base, note: 'photos were approved by the gate on upload — human review only' });
+      continue;
+    }
+    if (!opts.force && priorGate?.status) {
       results.push({ ...base, note: 'already screened (pass force to redo)' });
       continue;
     }
