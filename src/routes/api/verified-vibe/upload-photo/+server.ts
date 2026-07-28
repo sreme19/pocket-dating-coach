@@ -94,6 +94,38 @@ export const POST: RequestHandler = async ({ request }) => {
 				);
 			}
 
+			// This photo IS the owner, confirmed against the verification selfie. If the
+			// profile was carrying a 'rejected' verdict from an earlier screening, that
+			// verdict is now stale and must be cleared — otherwise a user who does exactly
+			// what we asked (remove the fakes, upload a real photo of yourself) stays hidden
+			// from Discover forever. Observed live: the profile that started this work
+			// re-uploaded two genuine photos and would have remained invisible.
+			if (gate.status === 'passed') {
+				const { data: stepRow } = await (supabase as any)
+					.from('verified_vibe_verification')
+					.select('id, data')
+					.eq('user_id', user.id)
+					.eq('step', 'photos')
+					.maybeSingle();
+				const prev = (stepRow as any)?.data ?? {};
+				if (prev?.identityGate?.status === 'rejected') {
+					await (supabase as any)
+						.from('verified_vibe_verification')
+						.update({
+							data: {
+								...prev,
+								identityGate: {
+									...prev.identityGate,
+									status: 'passed',
+									clearedAt: new Date().toISOString(),
+									clearedBy: 'profile-photo-upload',
+								},
+							},
+						})
+						.eq('id', (stepRow as any).id);
+				}
+			}
+
 			const { error: uploadErr } = await supabase.storage
 				.from('profiles')
 				.upload(path, buffer, { contentType: mime, upsert: true });

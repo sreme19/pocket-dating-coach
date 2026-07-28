@@ -622,6 +622,23 @@ export async function refreshPoolEntry(userId: string): Promise<void> {
   const preferences  = distillPreferences(masterData, a, user.archetype, hardNos);
   const city         = (masterData.identity as any)?.city ?? user.city ?? null;
 
+  // Availability. This is the ONLY place that writes availability_status on the
+  // happy path, and it used to hard-code 'active' — which meant any ordinary
+  // profile edit (master-profile POST calls straight through to here) silently put
+  // a profile back into matching after it had been pulled out for showing photos
+  // that were not its owner. Observed live: a photo-less rejected profile was
+  // re-activated ~50 minutes after being paused.
+  //
+  // The condition is deliberately "rejected AND still has nothing to show" rather
+  // than "rejected", so a user who FIXES her photos comes back automatically —
+  // which is what happens in practice: the poster profile that started all this
+  // re-uploaded two genuine photos through the gated endpoint and must not stay
+  // pinned out of the pool by a now-stale verdict.
+  const hasDisplayablePhoto =
+    (Array.isArray(masterData.photos) && masterData.photos.length > 0) ||
+    (Array.isArray(masterData.aiPhotos) && masterData.aiPhotos.length > 0);
+  const heldForPhotoReview = !hasDisplayablePhoto && (await photoGateRejected(userId));
+
   await db.from('vv_pool_profiles').upsert(
     {
       user_id:             userId,
@@ -632,7 +649,7 @@ export async function refreshPoolEntry(userId: string): Promise<void> {
       match_profile:       matchProfile,
       preferences:         preferences,
       discovery_mode:      user.discovery_mode ?? 'date',
-      availability_status: 'active',
+      availability_status: heldForPhotoReview ? POOL_STATUS_PHOTO_REVIEW : 'active',
       last_updated:        new Date().toISOString(),
     },
     { onConflict: 'user_id' }
