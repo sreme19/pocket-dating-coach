@@ -733,9 +733,26 @@ The following ${photos.length} image(s) are the profile photos they uploaded, in
 
 For EACH uploaded photo decide two things:
 
-1. isRealPerson — is it an ordinary photograph of a real human being? FALSE for: religious/deity posters or artwork, celebrity or model images, screenshots of other apps, memes, text/quote graphics, logos, cars, food, pets, landscapes, cartoons/drawings/CGI, and fully AI-generated faces. A real person photographed with a filter, makeup, sunglasses, or in a group IS still a real person (true).
+1. isRealPerson — is it an ordinary photograph of a real human being? FALSE for: religious/deity posters or artwork, celebrity or model images, screenshots of other apps, memes, text/quote graphics, logos, cars, food, pets, landscapes, cartoons/drawings/CGI, and AI-GENERATED images — including any image carrying an AI watermark or label such as "Meta AI", "Made with AI", Sora, Midjourney or similar. A real person photographed with a filter, makeup, sunglasses, or in a group IS still a real person (true).
 
-2. sameAsAnchor — is the person shown the SAME person as the verified selfie? Compare face shape, eye spacing, nose, jaw and overall facial geometry. Hair, makeup, weight, lighting, angle, age difference of a few years and image quality may all differ — ignore those. For a group photo, answer true if the verified person is clearly one of the people in it. Use null when the photo contains no usable human face at all.`
+2. identity — exactly one of these three values. The distinction between the last two is the most important judgement you will make here:
+
+   "owner"            — you can see this person's face and it IS the person in the verified selfie.
+   "different_person" — you can CLEARLY see a face, it is good enough to compare, and it belongs to
+                        SOMEBODY ELSE. Only use this when you are genuinely confident. Compare face
+                        shape, eye spacing, nose, jaw and overall facial geometry. Hair, makeup,
+                        weight, lighting, angle, expression, a few years of age difference and image
+                        quality may ALL differ on the same person — none of those make it a different
+                        person.
+   "cannot_compare"   — you cannot make the comparison. Use this whenever the face is turned away,
+                        too distant, too small, cropped, blurred, in shadow, behind sunglasses, a
+                        mask or a camera, heavily filtered, or otherwise not clear enough to judge
+                        with confidence. This is a normal, acceptable answer for ordinary dating
+                        photos, and it is ALWAYS the right answer when your honest reasoning would be
+                        "I can't tell" or "not visible enough to confirm". Never say
+                        "different_person" when what you mean is "I could not confirm it".
+
+For a group photo, answer "owner" if the verified person is clearly one of the people in it.`
     },
     { type: 'text', text: 'Verified selfie (ground truth):' },
     { type: 'image', source: { type: 'base64', media_type: anchorMime, data: anchorBase64 } }
@@ -753,14 +770,14 @@ For EACH uploaded photo decide two things:
   "photos": [
     {
       "isRealPerson": <boolean>,
-      "sameAsAnchor": <boolean or null>,
-      "confidence": <number 0-100, your confidence in sameAsAnchor; 0 when null>,
+      "identity": "owner" | "different_person" | "cannot_compare",
+      "confidence": <number 0-100 — how likely this IS the verified person>,
       "reason": "<at most 14 words, plain language, addressed to the user>"
     }
   ]
 }
 
-Be strict about identity but fair about presentation: a genuine photo of the verified person in different lighting, makeup or years should score 70+. A different person, or no person at all, should score below 40.
+Score honestly: a genuine photo of the verified person in different lighting, makeup or years should score 70+; somebody else should score below 40; a face you could not properly compare belongs in between, with "cannot_compare".
 
 Do not include any other text.`
   });
@@ -794,8 +811,15 @@ Do not include any other text.`
   }
 
   // Normalise to exactly one verdict per input photo. A missing/malformed entry
-  // becomes "not a real person, no match" so a mangled response can never smuggle
-  // an unscreened photo onto a public profile.
+  // becomes "not a real person, cannot compare" so a mangled response can never
+  // smuggle an unscreened photo onto a public profile.
+  //
+  // The three-way `identity` enum is mapped onto the nullable `sameAsAnchor` the
+  // caller consumes. An UNRECOGNISED value maps to null ("cannot compare"), never to
+  // false: a garbled answer must not read as an accusation. (The enum replaced a
+  // nullable boolean precisely because the model kept answering `false` for photos its
+  // own reason field described as "cannot confirm" — a distant or turned-away shot was
+  // being reported as a different person.)
   const raw: any[] = Array.isArray(parsed.photos) ? parsed.photos : [];
   return photos.map((_, i) => {
     const v = raw[i];
@@ -805,9 +829,12 @@ Do not include any other text.`
     const confidence = Number.isFinite(Number(v.confidence))
       ? Math.max(0, Math.min(100, Math.round(Number(v.confidence))))
       : 0;
+    const identity = typeof v.identity === 'string' ? v.identity.trim().toLowerCase() : '';
+    const sameAsAnchor =
+      identity === 'owner' ? true : identity === 'different_person' ? false : null;
     return {
       isRealPerson: v.isRealPerson === true,
-      sameAsAnchor: v.sameAsAnchor === true ? true : v.sameAsAnchor === false ? false : null,
+      sameAsAnchor,
       confidence,
       reason: typeof v.reason === 'string' ? v.reason.slice(0, 120) : ''
     };

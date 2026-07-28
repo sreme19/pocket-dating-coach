@@ -10,6 +10,7 @@ import {
 	gateRecord,
 	MATCH_CONFIDENCE,
 	MISMATCH_CONFIDENCE,
+	applyAdjudication,
 } from '../photo-identity-gate';
 import type { AnchorPhotoVerdict } from '$lib/verified-vibe/server/verification';
 
@@ -172,5 +173,43 @@ describe('gateRecord', () => {
 			rejectedIndexes: [0, 2],
 			checkedAt: '2026-07-28T00:00:00.000Z',
 		});
+	});
+});
+
+// Guards the "never delete a photo on one model's opinion" rule.
+describe('applyAdjudication — a second opinion before condemning anyone', () => {
+	it('keeps the mismatch only when the adjudicator agrees it is someone else', () => {
+		const out = applyAdjudication([someoneElse()], new Map([[0, MISMATCH_CONFIDENCE - 1]]));
+		expect(out[0].sameAsAnchor).toBe(false);
+		expect(decidePhotoGate(out, true).status).toBe('rejected');
+	});
+
+	it('downgrades to "cannot tell" when the adjudicator is not convinced', () => {
+		const out = applyAdjudication([someoneElse()], new Map([[0, MISMATCH_CONFIDENCE + 10]]));
+		expect(out[0].sameAsAnchor).toBeNull();
+		expect(decidePhotoGate(out, true).status).toBe('unconfirmed'); // not rejected
+	});
+
+	it('downgrades when no second opinion could be obtained', () => {
+		const out = applyAdjudication([someoneElse()], new Map([[0, null]]));
+		expect(out[0].sameAsAnchor).toBeNull();
+		expect(decidePhotoGate(out, true).rejected).toEqual([]);
+	});
+
+	it('leaves confirmed, unconfirmable and not-a-person verdicts untouched', () => {
+		const input = [owner(), cannotTell(), notAPerson()];
+		expect(applyAdjudication(input, new Map())).toEqual(input);
+	});
+
+	it('adjudicates each flagged photo independently', () => {
+		// Photo 1 is confirmed a stranger; photo 2 is spared by the second opinion.
+		const out = applyAdjudication(
+			[owner(), someoneElse(), someoneElse()],
+			new Map([[1, 10], [2, 55]])
+		);
+		const d = decidePhotoGate(out, true);
+		expect(d.rejected.map((r) => r.index)).toEqual([1]);
+		expect(d.acceptedIndexes).toEqual([0, 2]);
+		expect(d.status).toBe('passed');
 	});
 });

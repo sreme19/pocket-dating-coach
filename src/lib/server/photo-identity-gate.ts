@@ -34,6 +34,7 @@ import { env } from '$env/dynamic/private';
 import {
   matchPhotosToAnchorWithClaude,
   detectFaceInPhotosWithClaude,
+  checkLivenessWithClaude,
   type AnchorPhotoVerdict,
 } from '$lib/verified-vibe/server/verification';
 import { loadAnchorSelfie } from '$lib/verified-vibe/server/anchor-selfie';
@@ -203,6 +204,43 @@ export function decidePhotoGate(
 }
 
 /**
+ * Second-opinion pass over the photos the set-level screen called a DIFFERENT PERSON.
+ *
+ * Removing a real user's photo is the one action here we cannot take back gracefully,
+ * and face comparison is exactly where vision models are least reliable — the first
+ * pass over the live pool produced four "different person" verdicts on one user whose
+ * other photos it confirmed. So a single opinion is never enough to condemn: each
+ * flagged photo is re-compared by checkLivenessWithClaude, a DIFFERENT prompt built
+ * for one-to-one structural face matching, and the photo survives unless that
+ * adjudicator independently agrees it is not the owner.
+ *
+ * Disagreement (or an adjudication that errors) downgrades the photo to
+ * "cannot compare" — kept, but never counted as proof of identity.
+ *
+ * Pure so it can be tested without Claude.
+ *
+ * @param verdicts - Verdicts from the set-level screen
+ * @param adjudications - index → same-person score 0-100, or null when unavailable
+ */
+export function applyAdjudication(
+  verdicts: AnchorPhotoVerdict[],
+  adjudications: Map<number, number | null>
+): AnchorPhotoVerdict[] {
+  return verdicts.map((v, i) => {
+    if (v.sameAsAnchor !== false) return v;
+    const score = adjudications.get(i);
+    // No second opinion available → do not condemn on one.
+    if (score == null) {
+      return { ...v, sameAsAnchor: null, reason: v.reason || 'We could not confirm this is you.' };
+    }
+    // Both passes agree it is somebody else.
+    if (score < MISMATCH_CONFIDENCE) return { ...v, confidence: Math.min(v.confidence, score) };
+    // The adjudicator is not convinced → treat as unconfirmable, not as an impostor.
+    return { ...v, sameAsAnchor: null, confidence: score, reason: 'We could not confirm this is you.' };
+  });
+}
+
+/**
  * Screen a user's candidate profile photos against their verified anchor selfie.
  *
  * @param userId - Owner of the photos (null → nothing to compare against)
@@ -230,7 +268,28 @@ export async function screenProfilePhotos(
   try {
     if (anchor) {
       const verdicts = await matchPhotosToAnchorWithClaude(anchor, photos);
-      return decidePhotoGate(verdicts, true);
+
+      // Anything called a different person gets a second, independent opinion before
+      // we act on it (see applyAdjudication). Only the flagged photos cost a call.
+      const flagged = verdicts
+        .map((v, i) => (v.sameAsAnchor === false ? i : -1))
+        .filter((i) => i >= 0);
+      if (flagged.length === 0) return decidePhotoGate(verdicts, true);
+
+      const adjudications = new Map<number, number | null>(
+        await Promise.all(
+          flagged.map(async (i): Promise<[number, number | null]> => {
+            try {
+              const r = await checkLivenessWithClaude(anchor, photos[i].data, photos[i].mime);
+              return [i, r.confidence];
+            } catch (e) {
+              console.warn(`[photo-identity-gate] adjudication failed for photo ${i}:`, e);
+              return [i, null];
+            }
+          })
+        )
+      );
+      return decidePhotoGate(applyAdjudication(verdicts, adjudications), true);
     }
 
     // No verified face on file — fall back to "is there a real person here at all".
