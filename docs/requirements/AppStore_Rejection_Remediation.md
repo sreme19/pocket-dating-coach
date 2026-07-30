@@ -1,6 +1,10 @@
-# App Store Rejection Remediation — Requirements v1.2
+# App Store Rejection Remediation — Requirements v1.3
 
-> **v1.2 — all blocking questions answered by Sree, 2026-07-29. This document is hand-off ready.** Decisions recorded in §8. Scope now covers iOS, Android and web (see §1.3). Nothing in here has been implemented — every change below is still to be written.
+> **v1.3 — WS-1 (1.1.4 copy purge), WS-2 (referral cash) and WS-4 (paywall language) are IMPLEMENTED** on `development` in commit `e20d376`, 39 files, both codebases. Decisions in §8 were answered by Sree on 2026-07-29 and are reflected in the code.
+>
+> **Still outstanding — see §10 for the handover list:** WS-3 (2.5.4 background-audio verification + device recording), the demo-account seeding in §4.2, and all of WS-6 (App Store Connect notes, reply, description). Nothing has been pushed, deployed or resubmitted.
+>
+> Five surfaces were found during implementation that this document did not originally capture. They are marked **FOUND DURING IMPLEMENTATION** in place and summarised in §10.
 
 **Submission:** 3a44802f-5ff0-4445-b8b1-b54111a45b41 · App ID 6777096281 · riteangle (iOS)
 **Status:** Rejected, "Unresolved Issues". No other submitted items can be accepted until this version is resubmitted and accepted.
@@ -383,3 +387,36 @@ Owned by whoever holds ASC access, but sequenced with the build.
 9. **Android release** — build the app bundle and upload to Play using the documented release process. Sequence this so the transactional copy is not live on Play while iOS is under review. Note the CI detection quirk: mobile changes are detected by diffing `origin/main...origin/development`, so push `development`, wait for the detect job, *then* push `main` — pushing the same SHA to `main` first makes the mobile job skip.
 
 Do not resubmit until every item in §6.2 passes on the build being submitted. This app has been rejected twice, and round 2 introduced issues round 1 never raised — a third round is likely to surface something new again, so the goal is to leave nothing reachable that a reviewer can misread.
+
+---
+
+## 10. Implementation record & handover (added v1.3)
+
+Commit `e20d376` on `development` — 39 files, +842/−468. Flutter: 62/62 tests pass, `flutter analyze` clean on every edited file (all remaining errors are in vendored `mobile/build/` SDK examples, pre-existing). Web: 258 unit tests pass across the affected suites; `svelte-check` introduced no new errors against a pre-existing baseline of 202. `scripts/check-banned-strings.sh` is green. Web verified in-browser: the pre-auth screen now reads "Earn your profile, verify your intent." with no purchase language, and "We verify ID, photos, lifestyle & intent."
+
+### 10.1 Five surfaces this document originally missed
+
+Manual review found the archetype sheet. These five were found only by the banned-string gate and by walking the running app — which is the argument for keeping the gate in CI.
+
+| # | Surface | Why it mattered |
+| --- | --- | --- |
+| 1 | **Income + net worth on the public profile** — `profile_body.dart` rendered both as 22px hero numbers in the reviewed binary; `PublicProfileBody.svelte` showed "Annual Income · Self declared" plus wealth tiles and "✓ AI verified via bank statement". | The most direct violation in the product, and a flat contradiction of decision Q6. Now career-only on both platforms. |
+| 2 | **Per-date spend band** — `SpendingQAStep.svelte` asked a man's "comfort level with spending on dates" in ₹ bands including "Generous spender ₹8,000–20,000", and `profile/+page.svelte` published the answer as an "On dates 💸" chip. | Advertising a price per date. Web-only, so not in the reviewed binary, but live on the site. |
+| 3 | **"Pay later." on web** — `verified-vibe/home/+page.svelte` carried the same string as the app's pre-auth screen. | Fixing only the app would have left it one link away. |
+| 4 | **The `_drawnToCasual` option set** — `onboarding_questions.dart` offered Luxury hotels · VIP nightlife · High-end social · Exotic cars · Financial generosity · Thoughtful gifting · Luxury treatment. | **In the reviewed binary**, two screens past the sheet Apple photographed. |
+| 5 | **"Provider mindset"** and a wider luxury vocabulary across `DrawnToStep`, `CasualGenerousProfileStep`, `SpendingQAStep`, and the `public-profile` API's `brings` list (`Financial stability` / `Generosity on dates` returned straight to a viewer). | The API list is what a profile viewer actually receives, regardless of client. |
+
+### 10.2 What is left — nothing here is code
+
+1. **§4.1 — verify background audio on a physical device.** Unstarted, and it is the only open item that could reverse a locked decision. `voice_call_screen.dart` still has no lifecycle handling and no explicit audio-session configuration; background continuation is riding on the plist key alone. Verify before filming.
+2. **§4.2 — seed the review demo account** with a live Bestie-proxy thread. Without it the "Call Bestie" pill never renders and the reviewer cannot reach the feature, which is why Apple could not find it the first time.
+3. **§4.3 — record the recording**, host it at a stable no-login URL.
+4. **§6.2 — run the manual checklist** on iPad, iPhone and an Android device against the actual TestFlight build.
+5. **§7 — App Store Connect**: review notes, the store description, and the reply. Reply process is fixed: developer drafts → Sree approves → send. It must correct the paid-"Notice Me" claim; Apple's file currently says in our own words that we sell access to women.
+6. **Wire `scripts/check-banned-strings.sh` into CI** so it runs on every push rather than by hand.
+7. **Android release** per §9 step 9, minding the `origin/main...origin/development` detect quirk.
+8. **Q10/Q11/Q15/Q16/Q17 in §8** remain open but unblocking. Note Q9 is closed: with Android in scope there is no platform gate to build.
+
+### 10.3 One thing to watch
+
+`lifestyleSignals` (was `generositySignals`) is a pure rename and weights are unchanged, so computed trust totals should be identical. That was verified by unit tests, **not** against production data. Trust is cohort-percentile normalised, so before deploying, diff computed scores for a sample of real users and confirm they are byte-identical — §6.3.
