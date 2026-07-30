@@ -9,21 +9,20 @@ import 'app_logger.dart';
 import 'config.dart';
 import 'season.dart';
 
-/// Refer & Earn — one entry, three flows (toggle), in LOCKSTEP with the web screen
-/// src/routes/verified-vibe/refer/+page.svelte, EXCEPT the share row: the
-/// DM-first channel block below has not been ported to web yet, which still has
-/// the WhatsApp-primary row. Copy and flows stay in lockstep; keep them so.
+/// Invite — one entry, three flows (toggle). Kept in step with the web screen
+/// src/routes/verified-vibe/refer/+page.svelte for flows and tone, with TWO
+/// deliberate divergences: the share row (the DM-first channel block below has not
+/// been ported to web, which still has the WhatsApp-primary row), and cash (see
+/// below).
 ///
-///  - Invite women (Flow 2, Model B): CASH ambassador referral. She earns ₹100
-///    per verified woman she brings (#1-25), then ₹150 (#26-100), cap 100. A
-///    "mood" (networking / casual / serious) sets the share message + the landing
-///    the invitee sees (via ?m=). Payout is manual (admin marks paid).
+///  - Invite women (Flow 2, Model B): ambassador referral. A "mood" (networking /
+///    casual / serious) sets the share message + the landing the invitee sees
+///    (via ?m=).
 ///  - Invite men (Flow 1, Model A): her AI Bestie screens the men in her DMs and
-///    hands her the gems, plus ₹25 per verified man.
+///    hands her the gems.
 ///  - Privately (Flow 3): a SECOND token whose /beta landing carries nothing
-///    about the sender and which never forms a match, in either direction. Same
-///    cash, same ledger. It can go to anyone, men or women, which is why it is
-///    the one extra tab men see too.
+///    about the sender and which never forms a match, in either direction. It can
+///    go to anyone, men or women, which is why it is the one extra tab men see too.
 ///
 /// Data comes from GET /api/verified-vibe/referral-link (see api.dart). The
 /// private link comes back null until migration 20260726170526 has been run, and
@@ -49,12 +48,16 @@ import 'season.dart';
 /// user. The channel buttons are the one thing a skin never touches: their
 /// colours are promises about where the tap lands.
 ///
-/// CASH — all three flows pay, on the SAME two ledger tracks (see beta-invite.ts):
-/// invite women = ₹100 for #1-25 then ₹150, cap 100; invite men = flat ₹25, cap
-/// 1000. [ReferralLink.cash] and [ReferralLink.menCash] are summed per track and
-/// must never be added into one balance — except on the Privately tab, which has
-/// no track of its own (a private referral pays into the track the joiner's gender
-/// implies) and so headlines the total across every invite.
+/// CASH — NOT SHOWN HERE, on either platform, and this is deliberate. The server
+/// ledger (see beta-invite.ts) still accrues for every verified signup, including
+/// ones that originate in the app, so nobody loses what they have earned, and the
+/// web screen still displays balances and rates. But no rupee amount, rate, cap,
+/// earnings total or UPI reference may appear in this file: App Review rejected the
+/// app under Guideline 1.1.4 (compensated dating), and per-signup cash rewards for
+/// recruiting women is the hardest thing to defend in that context. There is no
+/// platform gate — one code path, both platforms, nothing to regress.
+/// [ReferralLink.cash] and [ReferralLink.menCash] are intentionally left unread.
+/// See docs/requirements/AppStore_Rejection_Remediation.md §3.
 ///
 /// House style: display strings use DOUBLE quotes so straight apostrophes
 /// ("I've", "don't", "you're", "she'll") are safe without escaping. No curly quotes.
@@ -290,8 +293,11 @@ class _ReferScreenState extends State<ReferScreen> {
   _Tab _tab = _Tab.women;
   _Mood _mood = _Mood.networking;
   ReferralLink? _link;
-  ReferralCash? _cash; // women track (₹100/₹150, cap 100)
-  ReferralCash? _menCash; // men track (flat ₹25, cap 1000)
+  // NOTE: the referral cash ledger (ReferralCash) is deliberately NOT read or
+  // rendered in the app on either platform. The server keeps accruing it and the web
+  // surface still shows it; showing per-signup cash rewards inside a dating app that
+  // App Review flagged under Guideline 1.1.4 is the risk we removed.
+  // See docs/requirements/AppStore_Rejection_Remediation.md §3.
   String? _gender;
   int _invited = 0;
   int _signedUp = 0;
@@ -335,8 +341,6 @@ class _ReferScreenState extends State<ReferScreen> {
       if (!mounted) return;
       setState(() {
         _link = link;
-        _cash = link.cash;
-        _menCash = link.menCash;
         _gender = link.gender;
         _invited = link.invited;
         _signedUp = link.signedUp;
@@ -394,7 +398,7 @@ class _ReferScreenState extends State<ReferScreen> {
             "it's first come first serve. (some people use it to meet someone too, no pressure) 👉 $url";
       case _Mood.casual:
         return "ok this one's actually not like the other dating apps, everyone's identity-verified, "
-            "skews high-earning tech/finance, and an AI weeds out the creeps before they reach you. "
+            "and an AI weeds out the creeps before they reach you. "
             "come make trouble with me 👉 $url";
       case _Mood.serious:
         return "found a dating app that's actually for people who want something real, verified, serious, "
@@ -527,7 +531,7 @@ class _ReferScreenState extends State<ReferScreen> {
             backgroundColor: _s.page,
             elevation: 0,
             iconTheme: IconThemeData(color: _s.text2),
-            title: Text('Refer & Earn',
+            title: Text('Invite',
                 style: TextStyle(fontWeight: FontWeight.w700, color: _s.text1)),
             centerTitle: true,
           ),
@@ -543,7 +547,7 @@ class _ReferScreenState extends State<ReferScreen> {
         return Center(child: CircularProgressIndicator(color: _s.accent));
       case _View.denied:
         return _pad(Text(
-          "Refer & Earn is for women inviting friends. It isn't available on your account.",
+          "Invite is for women inviting friends. It isn't available on your account.",
           textAlign: TextAlign.center,
           style: TextStyle(color: _s.text2, height: 1.5, fontSize: 15),
         ));
@@ -644,7 +648,6 @@ class _ReferScreenState extends State<ReferScreen> {
 
   // ── Invite men (Flow 1) ──────────────────────────────────────────────────
   List<Widget> _menChildren() {
-    final mc = _menCash;
     return [
       Text('Turn your DMs into dates.',
           style: TextStyle(
@@ -659,21 +662,11 @@ class _ReferScreenState extends State<ReferScreen> {
       const SizedBox(height: 16),
       Text(
         "Hundreds of guys sliding into your DMs on Instagram, WhatsApp and Tinder? "
-        "Most are creeps 🙄 but a few are genuine, successful, even high-earning. "
+        "Most are creeps 🙄 but a few are genuine. "
         "You don't have the time to text them all. So send them your link: your Bestie "
-        "talks to every one of them, ranks them, and brings you only the ones worth your time. "
-        "You earn ₹${mc?.currentTier ?? 25} for every guy who joins and gets verified.",
+        "talks to every one of them, ranks them, and brings you only the ones worth your time.",
         style: TextStyle(fontSize: 14.5, color: _s.text2, height: 1.55),
       ),
-      const SizedBox(height: 20),
-      _earnCard(
-        c: mc,
-        earnedLabel: 'earned from the guys',
-        perLabel: 'per guy who verifies',
-        pendingTail: "sent to your UPI once he's verified",
-      ),
-      const SizedBox(height: 16),
-      _capBar(mc),
       const SizedBox(height: 22),
       _step(1, 'Share your link with the guys already chasing you.'),
       const SizedBox(height: 10),
@@ -700,13 +693,6 @@ class _ReferScreenState extends State<ReferScreen> {
   /// spelled out rather than implied by the word "private".
   List<Widget> _privateChildren() {
     final p = _private!;
-    final womanRate = _cash?.currentTier ?? 100;
-    final manRate = _menCash?.currentTier ?? 25;
-    // A private referral pays into the track the joiner's gender implies, so there
-    // is no private-only balance to show — the honest headline is the total.
-    final earned = (_cash?.earnedInr ?? 0) + (_menCash?.earnedInr ?? 0);
-    final pending = (_cash?.pendingInr ?? 0) + (_menCash?.pendingInr ?? 0);
-    final paid = (_cash?.paidInr ?? 0) + (_menCash?.paidInr ?? 0);
 
     return [
       Text('Send it to anyone. Stay invisible.',
@@ -721,7 +707,7 @@ class _ReferScreenState extends State<ReferScreen> {
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _s.accentText)),
       const SizedBox(height: 16),
       Text(
-        "Same invite, same money — but this link doesn't carry your photo, your name or your "
+        "Same invite — but this link doesn't carry your photo, your name or your "
         "profile, and nobody who joins through it lands in your matches. Use it for group chats, "
         "your college batch, work folks, family: anyone you'd rather not have know your dating life.",
         style: TextStyle(fontSize: 14.5, color: _s.text2, height: 1.55),
@@ -731,58 +717,13 @@ class _ReferScreenState extends State<ReferScreen> {
           "Whoever opens this link sees riteangle, not you — no picture, no name, no age or city. "
           "Even the WhatsApp link preview shows only the app logo."),
       const SizedBox(height: 10),
-      _fact("💸", "You still get paid for everyone who joins.",
-          "Every person who signs up through your private link and gets verified is still credited "
-          "to you — ₹$womanRate for a woman, ₹$manRate for a man, to your UPI, exactly like the "
-          "other tabs."),
+      _fact("✅", "Everyone who joins is still credited to you.",
+          "A person who signs up through your private link and gets verified is recorded against "
+          "your invites, exactly like the other tabs."),
       const SizedBox(height: 10),
       _fact("🚫", "Nobody you invite gets matched with you.",
           "Not the men, not the women. Your matches don't change, and no one who joins through this "
           "link is ever shown that you invited them."),
-      const SizedBox(height: 22),
-      // Earnings across every invite, for the reason above.
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [_s.earnFrom, _s.earnTo],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _s.tint),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Text("₹$earned",
-                    style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _s.text1)),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text('earned across all your invites',
-                      style: TextStyle(fontSize: 13, color: _s.text2, fontWeight: FontWeight.w600)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(color: _s.card, borderRadius: BorderRadius.circular(999)),
-              child: Text("🔒 ₹$womanRate per woman · ₹$manRate per man",
-                  style:
-                      TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _s.accentText)),
-            ),
-            const SizedBox(height: 8),
-            Text("₹$pending pending · ₹$paid paid · sent to your UPI once they're verified",
-                style: TextStyle(fontSize: 12, color: _s.text2)),
-          ],
-        ),
-      ),
       const SizedBox(height: 22),
       _messageBlock(
         controller: _privateMsg,
@@ -863,10 +804,9 @@ class _ReferScreenState extends State<ReferScreen> {
 
   // ── Invite women (Flow 2 · cash) ─────────────────────────────────────────
   List<Widget> _womenChildren() {
-    final c = _cash;
     final isMan = _gender == 'man';
     return [
-      Text(isMan ? 'Invite women. Earn real cash.' : 'Invite your girls. Earn real cash.',
+      Text(isMan ? 'Invite women you vouch for.' : 'Invite your girls.',
           style: TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w800,
@@ -874,26 +814,16 @@ class _ReferScreenState extends State<ReferScreen> {
               height: 1.1,
               letterSpacing: -0.5)),
       const SizedBox(height: 6),
-      Text("₹${c?.currentTier ?? 100} for every friend who joins.",
+      Text('A curated circle is only as good as who’s in it.',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _s.accentText)),
       const SizedBox(height: 16),
       Text(
         isMan
-            ? "Invite women you'd genuinely vouch for. You earn for each one who joins and gets verified, and she gets into a curated, safe circle."
-            : "Bring the women you'd want in a genuinely good room. You earn for each one who joins and gets verified. She gets into a curated, safe circle. Everybody wins.",
+            ? "Invite women you'd genuinely vouch for. Each one who joins gets into a curated, safe circle."
+            : "Bring the women you'd want in a genuinely good room. She gets into a curated, safe circle, and the circle gets better. Everybody wins.",
         style: TextStyle(fontSize: 14.5, color: _s.text2, height: 1.55),
       ),
       if (isMan) ...[const SizedBox(height: 12), _upsideBanner()],
-      const SizedBox(height: 20),
-      _earnCard(
-        c: c,
-        earnedLabel: 'earned so far',
-        perLabel: 'per friend',
-        pendingTail: "sent to your UPI once she's verified",
-        firstTierNote: true,
-      ),
-      const SizedBox(height: 16),
-      _capBar(c),
       const SizedBox(height: 22),
       Text('HOW DO YOU WANT TO WORD IT?',
           style: TextStyle(
@@ -925,97 +855,6 @@ class _ReferScreenState extends State<ReferScreen> {
         style: TextStyle(
             fontSize: 13.5, fontWeight: FontWeight.w600, color: _s.accentText, height: 1.4),
       ),
-    );
-  }
-
-  /// Shared by both cash tracks — [c] is that track's ledger summary, so the
-  /// rate, cap and copy all come from it rather than being hardcoded here.
-  Widget _earnCard({
-    required ReferralCash? c,
-    required String earnedLabel,
-    required String perLabel,
-    required String pendingTail,
-    bool firstTierNote = false,
-  }) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 260),
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [_s.earnFrom, _s.earnTo],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: _s.dark ? _s.border2 : _s.tint),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text("₹${c?.earnedInr ?? 0}",
-                  style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: _s.text1)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(earnedLabel,
-                    style: TextStyle(fontSize: 13, color: _s.text2, fontWeight: FontWeight.w600)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              // On the dark skin a solid card fill reads as a second card
-              // stacked on the earn card; a translucent white lifts instead.
-              color: _s.dark ? Colors.white.withValues(alpha: 0.06) : _s.card,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              "🎉 ₹${c?.currentTier ?? 0} $perLabel"
-              "${firstTierNote && (c?.verifiedCount ?? 0) < 25 ? ' · first 25' : ''}",
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _s.accentText),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "₹${c?.pendingInr ?? 0} pending · ₹${c?.paidInr ?? 0} paid · $pendingTail",
-            style: TextStyle(fontSize: 12, color: _s.text2),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _capBar(ReferralCash? c) {
-    final pct = (c == null || c.cap == 0) ? 0.0 : (c.verifiedCount / c.cap).clamp(0.0, 1.0);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text("Rewarded invites",
-                style: TextStyle(fontSize: 12, color: _s.text2, fontWeight: FontWeight.w600)),
-            Text("${c?.verifiedCount ?? 0} / ${c?.cap ?? 0}",
-                style: TextStyle(fontSize: 12, color: _s.text2, fontWeight: FontWeight.w600)),
-          ],
-        ),
-        const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(999),
-          child: LinearProgressIndicator(
-            value: pct,
-            minHeight: 8,
-            backgroundColor: _s.fill,
-            valueColor: AlwaysStoppedAnimation(_s.accent),
-          ),
-        ),
-      ],
     );
   }
 

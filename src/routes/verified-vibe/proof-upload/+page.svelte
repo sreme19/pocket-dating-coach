@@ -215,11 +215,11 @@
     },
     wealth: {
       icon: '💰',
-      title: 'Wealth Proof',
+      title: 'Financial Verification',
       subtitle: 'Verify income, savings and investments privately',
       examples: [
         'Bank statement (PDF or screenshot) — name + balance visible',
-        'Credit card statement — shows spending patterns & lifestyle',
+        'Credit card statement — confirms your lifestyle is real',
         'Salary slip or payslip — name, employer, net pay shown',
         'Investment portfolio screenshot (Zerodha, Groww, etc.)',
         'Tax return (ITR) or Form 16 — income section visible',

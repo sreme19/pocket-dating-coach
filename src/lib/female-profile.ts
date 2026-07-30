@@ -5,6 +5,10 @@ import type {
 	FemalePreferenceModel
 } from './types';
 
+// Guard list — these terms are DETECTED so a transactional answer can be neutralised
+// before it reaches a profile (see hasSensitiveProviderFantasy). This is a control, not
+// user-facing copy, and it is deliberately exempt from the banned-string CI gate.
+// See docs/requirements/AppStore_Rejection_Remediation.md §2.9.
 const GENEROUS_PROVIDER_TERMS = [
 	'sugar daddy',
 	'spoil',
@@ -56,7 +60,7 @@ export function buildFemalePreferenceModel(answers: FemaleJourneyAnswer[]): Fema
 		.map((raw) => ({
 			raw,
 			translated:
-				'Drawn to emotionally mature, established men who are generous, intentional, financially steady, and enjoy creating beautiful experiences without making the dynamic transactional.'
+				'Drawn to emotionally mature, established men who are intentional and consistent, and who enjoy creating memorable experiences together.'
 		}));
 
 	const fantasySignals = fantasyAnswers.flatMap(splitSignals);
@@ -67,7 +71,7 @@ export function buildFemalePreferenceModel(answers: FemaleJourneyAnswer[]): Fema
 		emotionalSignals: [
 			'emotional steadiness',
 			'intentional pursuit',
-			'generous attention',
+			'undivided attention',
 			...fantasySignals.filter((signal) => /safe|kind|protect|calm|gentle|listen|respect/i.test(signal))
 		].slice(0, 6),
 		lifestyleSignals: [

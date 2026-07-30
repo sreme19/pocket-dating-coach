@@ -100,7 +100,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late Future<ProfileData> _future;
   ProfileStrength? _profileStrength;
   EnhanceStatus _lastEnhanceStatus = EnhanceStatus.idle;
-  String? _gender; // drives the women-only "Refer & Earn" pill in the app bar
+  String? _gender; // drives the women-only "Invite" pill in the app bar
 
   @override
   void initState() {
@@ -149,7 +149,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await _future;
   }
 
-  /// Women-only "Refer & Earn" pill, top-left of the profile app bar. Opens the
+  /// Women-only "Invite" pill, top-left of the profile app bar. Opens the
   /// Refer screen (invite the men in your DMs; your Bestie screens them).
   Widget _buildReferPill(BuildContext context) {
     return Padding(
@@ -178,7 +178,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 Icon(Icons.card_giftcard, size: 14, color: Colors.white),
                 SizedBox(width: 6),
-                Text('Refer & Earn',
+                Text('Invite',
                     style: TextStyle(
                         color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12.5)),
               ],

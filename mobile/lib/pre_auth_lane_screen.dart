@@ -126,14 +126,14 @@ class _PreAuthLaneScreenState extends State<PreAuthLaneScreen> {
                       ],
                     ),
                     const SizedBox(height: 6),
-                    RichText(
-                      text: TextSpan(
-                        style: TextStyle(fontSize: 13, color: Color(Config.text3), height: 1.45),
-                        children: [
-                          TextSpan(text: 'Earn your profile, verify your intent. '),
-                          TextSpan(text: 'Pay later.', style: TextStyle(color: Brand.accentBright, fontWeight: FontWeight.w600, fontStyle: FontStyle.italic)),
-                        ],
-                      ),
+                    // NOTE: the trailing "Pay later." span was removed deliberately.
+                    // There is no in-app purchase anywhere in this app, and App Review
+                    // read that line — pre-auth, on this exact screen — as evidence of a
+                    // paid mechanic. Do not re-add purchase language until an IAP exists.
+                    // See docs/requirements/AppStore_Rejection_Remediation.md §2.0.
+                    Text(
+                      'Earn your profile, verify your intent.',
+                      style: TextStyle(fontSize: 13, color: Color(Config.text3), height: 1.45),
                     ),
                   ],
                 ),
@@ -150,7 +150,7 @@ class _PreAuthLaneScreenState extends State<PreAuthLaneScreen> {
               // Trust note
               const Center(
                 child: Text(
-                  'We verify ID, photos, spending pattern & intent.\nNo one sees the raw files — only the signals you allow.',
+                  'We verify ID, photos, lifestyle & intent.\nNo one sees the raw files — only the signals you allow.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: Color(Config.text3), height: 1.6),
                 ),

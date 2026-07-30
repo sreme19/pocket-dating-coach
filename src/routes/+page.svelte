@@ -215,7 +215,7 @@
             <a class="store store--soon" href="#"><svg><use href="#ic-apple"/></svg><span><small>Coming to</small><strong>App Store</strong></span></a>
             <a class="store" href="#"><svg><use href="#ic-play"/></svg><span><small>Get it on</small><strong>Google Play</strong></span></a>
           </div>
-          <p class="hero__note reveal d4"><svg><use href="#ic-lock"/></svg> We verify ID, photos, spending &amp; intent. You see the signals — never the raw files.</p>
+          <p class="hero__note reveal d4"><svg><use href="#ic-lock"/></svg> We verify ID, photos, lifestyle &amp; intent. You see the signals — never the raw files.</p>
         </div>
 
         <div class="hero__stage reveal d2">

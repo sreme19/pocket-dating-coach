@@ -30,14 +30,13 @@
       type: 'multi-select',
       question: '💋 What kind of chemistry and intimacy are you open to exploring?',
       subtitle: 'Select all that apply · Private',
+      // NOTE: roleplay / power_dynamics / bdsm_friendly / group_experiences were
+      // removed deliberately — see docs/requirements/AppStore_Rejection_Remediation.md §2.4.
+      // Keep this set in lockstep with mobile/lib/onboarding_questions.dart.
       options: [
         { value: 'pda',                        label: '💋 PDA' },
         { value: 'teasing_flirtation',         label: '😏 Teasing & flirtation' },
         { value: 'sensual_connection',         label: '🌹 Sensual connection' },
-        { value: 'roleplay',                   label: '🕯 Roleplay' },
-        { value: 'power_dynamics',             label: '⛓ Power dynamics' },
-        { value: 'bdsm_friendly',              label: '🖤 BDSM-friendly' },
-        { value: 'group_experiences',          label: '🔥 Group experiences' },
         { value: 'open_relationships',         label: '💫 Open relationships' },
         { value: 'exploring_fantasies',        label: '✨ Exploring fantasies together' },
         { value: 'prefer_discretion',          label: '🔒 Prefer discretion' }
@@ -49,16 +48,17 @@
       question: '💼 Which best reflects your current lifestyle?',
       options: [
         { value: 'comfortable_established',    label: '✅ Comfortable & established' },
-        { value: 'high_income',                label: '💰 High-income lifestyle' },
+        { value: 'high_income',                label: '📈 Career-focused' },
         { value: 'executive_founder',          label: '🏢 Executive / founder lifestyle' },
-        { value: 'luxury_oriented',            label: '💎 Luxury-oriented lifestyle' },
-        { value: 'financially_confident',      label: '🤝 Financially confident & generous' }
+        { value: 'luxury_oriented',            label: '🎨 Creative / independent' },
+        { value: 'financially_confident',      label: '🌿 Steady & grounded' }
       ]
     },
     {
       id: 'income_range',
       type: 'multiple-choice',
       question: '💰 What\'s your approximate annual income?',
+      subtitle: 'Optional · private · used only to refine matches, never shown on your profile',
       options: [
         { value: 'under_25l',                  label: 'Under ₹25L' },
         { value: '25l_50l',                    label: '₹25L – ₹50L' },

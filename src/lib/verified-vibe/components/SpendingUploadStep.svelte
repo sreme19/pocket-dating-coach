@@ -136,7 +136,7 @@
           <li>Bank statement screenshot or PDF (last 3 months)</li>
           <li>Credit card statement (screenshot or PDF)</li>
           <li>Payment app screenshot (Venmo, PayPal, etc.)</li>
-          <li>Any proof of spending pattern</li>
+          <li>Any receipt that shows your lifestyle is real</li>
         </ul>
         <p class="info-note">
           Personal information will be analyzed by AI and not stored.

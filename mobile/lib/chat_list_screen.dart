@@ -1583,7 +1583,10 @@ class _FindMatchDialog extends StatelessWidget {
           const SizedBox(height: 12),
           const Text("You've used all your matches", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(Config.text1))),
           const SizedBox(height: 10),
-          Text("You've used all $fmRunsLimit AI match searches. More will be available to unlock soon.",
+          // No "unlock" wording: there is no in-app purchase in this app, and a
+          // paywall a reviewer cannot test is what App Review read as a paid mechanic.
+          // See docs/requirements/AppStore_Rejection_Remediation.md §5.1.
+          Text("You've used all $fmRunsLimit AI match searches on your account. New matches still come to you on their own — you don't have to search for them.",
               textAlign: TextAlign.center, style: const TextStyle(fontSize: 14, color: Color(Config.text2), height: 1.5)),
           const SizedBox(height: 22),
           _PrimaryBtn(label: 'Got it', onTap: () => Navigator.pop(context)),

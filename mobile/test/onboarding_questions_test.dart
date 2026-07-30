@@ -92,7 +92,7 @@ void main() {
       ));
       expect(find.text("Energy you're drawn to"), findsOneWidget);
       expect(find.text('Confident'), findsOneWidget);
-      expect(find.text('International travel'), findsOneWidget);
+      expect(find.text('Travelling together'), findsOneWidget);
       expect(find.text('+ more options'), findsWidgets);
     });
 

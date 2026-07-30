@@ -9,12 +9,12 @@ export const ARCHETYPES: Record<string, ArchetypeDefinition> = {
   casual_generous_man: {
     id: 'casual_generous_man',
     gender: 'man',
-    emoji: '💸',
-    name: 'Casual-Generous',
-    tag: 'Confident, generous, experiences over labels',
-    longTag: 'You date well and you show it. Experiences over labels — dinners, weekends, no strings attached to who picks up the bill.',
+    emoji: '💫',
+    name: 'Experience-Led',
+    tag: 'Confident, present, experiences over labels',
+    longTag: 'You like dating to feel easy and well-planned. Experiences over labels — good dinners, weekends away, no pressure to define it.',
     matchTraits: [
-      { tier: 'best', lead: true, label: 'Spoiled-Casual Women' },
+      { tier: 'best', lead: true, label: 'Experience-Led Women' },
       { tier: 'good', label: 'Rebound-Healing Women' },
       { tier: 'good', label: 'Hopeless-Romantic Women' },
     ],
@@ -23,17 +23,16 @@ export const ARCHETYPES: Record<string, ArchetypeDefinition> = {
       { label: 'Traditional-Matrimony' },
     ],
     brings: [
-      'Financial confidence',
-      'Upscale experiences',
+      'Plans that actually happen',
+      'Consistency without pressure',
       'No-pressure energy',
       'Privacy & discretion',
-      'Generosity as a love language',
       'Clarity of intent',
     ],
     needs: [
       'Government ID (prove you\'re real)',
       '5+ photos (prove it\'s really you)',
-      'Spending pattern (prove you\'re solid)',
+      'Lifestyle proof (prove you\'re solid)',
       'Q&A responses (prove your intent)',
     ],
     timeMins: 10,
@@ -53,7 +52,7 @@ export const ARCHETYPES: Record<string, ArchetypeDefinition> = {
       { tier: 'good', label: 'Traditional-Matrimony Women' },
     ],
     avoidTraits: [
-      { label: 'Spoiled-Casual' },
+      { label: 'Experience-Led' },
       { label: 'Rebound-Healing' },
     ],
     brings: [
@@ -81,7 +80,7 @@ export const ARCHETYPES: Record<string, ArchetypeDefinition> = {
     matchTraits: [
       { tier: 'best', lead: true, label: 'Rebound-Healing Women' },
       { tier: 'good', label: 'Untouched-Heart Women' },
-      { tier: 'good', label: 'Spoiled-Casual Women' },
+      { tier: 'good', label: 'Experience-Led Women' },
     ],
     avoidTraits: [
       { label: 'Forever-Focused' },
@@ -115,7 +114,7 @@ export const ARCHETYPES: Record<string, ArchetypeDefinition> = {
       { tier: 'good', label: 'Forever-Focused Women' },
     ],
     avoidTraits: [
-      { label: 'Spoiled-Casual' },
+      { label: 'Experience-Led' },
       { label: 'Rebound-Healing' },
     ],
     brings: [
@@ -147,12 +146,12 @@ export const ARCHETYPES: Record<string, ArchetypeDefinition> = {
       { tier: 'good', label: 'Hopeless-Romantic Women' },
     ],
     avoidTraits: [
-      { label: 'Spoiled-Casual' },
+      { label: 'Experience-Led' },
       { label: 'Rebound-Healing' },
     ],
     brings: [
       'Long-term commitment',
-      'Financial stability',
+      'Dependability',
       'Partnership mindset',
       'Clear communication',
       'Emotional maturity',
@@ -161,7 +160,7 @@ export const ARCHETYPES: Record<string, ArchetypeDefinition> = {
     needs: [
       'Government ID (prove you\'re real)',
       '5+ photos (prove it\'s really you)',
-      'Spending pattern (prove you\'re solid)',
+      'Lifestyle proof (prove you\'re solid)',
       'Q&A responses (prove your intent)',
     ],
     timeMins: 12,
@@ -181,7 +180,7 @@ export const ARCHETYPES: Record<string, ArchetypeDefinition> = {
       { tier: 'good', label: 'Hopeless-Romantic Women' },
     ],
     avoidTraits: [
-      { label: 'Spoiled-Casual' },
+      { label: 'Experience-Led' },
       { label: 'Rebound-Healing' },
     ],
     brings: [
@@ -195,7 +194,7 @@ export const ARCHETYPES: Record<string, ArchetypeDefinition> = {
     needs: [
       'Government ID (prove you\'re real)',
       '5+ photos (prove it\'s really you)',
-      'Spending pattern (prove you\'re solid)',
+      'Lifestyle proof (prove you\'re solid)',
       'Q&A responses (prove your values)',
     ],
     timeMins: 12,
@@ -207,11 +206,11 @@ export const ARCHETYPES: Record<string, ArchetypeDefinition> = {
     id: 'spoiled_casual_woman',
     gender: 'woman',
     emoji: '✨',
-    name: 'Spoiled-Casual',
-    tag: 'Luxury vibes, treated well, no pressure',
-    longTag: 'You want to be wined, dined and genuinely enjoyed — without labels and without apology. Life is short; experience it at full quality.',
+    name: 'Experience-Led',
+    tag: 'Easy chemistry, good company, no pressure',
+    longTag: 'You want dating to feel enjoyable and unhurried — real chemistry, good company, no pressure to define it.',
     matchTraits: [
-      { tier: 'best', lead: true, label: 'Casual-Generous Men' },
+      { tier: 'best', lead: true, label: 'Experience-Led Men' },
       { tier: 'good', label: 'Rebound-Healing Men' },
     ],
     avoidTraits: [
@@ -248,7 +247,7 @@ export const ARCHETYPES: Record<string, ArchetypeDefinition> = {
       { tier: 'good', label: 'Forever-Focused Men' },
     ],
     avoidTraits: [
-      { label: 'Casual-Generous' },
+      { label: 'Experience-Led' },
       { label: 'Rebound-Healing' },
     ],
     brings: [
@@ -276,7 +275,7 @@ export const ARCHETYPES: Record<string, ArchetypeDefinition> = {
     matchTraits: [
       { tier: 'best', lead: true, label: 'Rebound-Healing Men' },
       { tier: 'good', label: 'Untouched-Heart Men' },
-      { tier: 'good', label: 'Casual-Generous Men' },
+      { tier: 'good', label: 'Experience-Led Men' },
     ],
     avoidTraits: [
       { label: 'Traditional-Matrimony' },
@@ -310,7 +309,7 @@ export const ARCHETYPES: Record<string, ArchetypeDefinition> = {
       { tier: 'good', label: 'Forever-Focused Men' },
     ],
     avoidTraits: [
-      { label: 'Casual-Generous' },
+      { label: 'Experience-Led' },
       { label: 'Rebound-Healing' },
     ],
     brings: [
@@ -342,7 +341,7 @@ export const ARCHETYPES: Record<string, ArchetypeDefinition> = {
       { tier: 'good', label: 'Hopeless-Romantic Men' },
     ],
     avoidTraits: [
-      { label: 'Casual-Generous' },
+      { label: 'Experience-Led' },
       { label: 'Rebound-Healing' },
     ],
     brings: [
@@ -373,7 +372,7 @@ export const ARCHETYPES: Record<string, ArchetypeDefinition> = {
       { tier: 'good', label: 'Hopeless-Romantic Men' },
     ],
     avoidTraits: [
-      { label: 'Casual-Generous' },
+      { label: 'Experience-Led' },
       { label: 'Rebound-Healing' },
       { label: 'Untouched-Heart' },
     ],
@@ -407,7 +406,7 @@ export const ARCHETYPES: Record<string, ArchetypeDefinition> = {
       { tier: 'good', label: 'Forever-Focused Women' },
     ],
     avoidTraits: [
-      { label: 'Casual-Generous' },
+      { label: 'Experience-Led' },
       { label: 'Rebound-Healing' },
     ],
     brings: [
@@ -438,7 +437,7 @@ export const ARCHETYPES: Record<string, ArchetypeDefinition> = {
       { tier: 'good', label: 'Forever-Focused Men' },
     ],
     avoidTraits: [
-      { label: 'Spoiled-Casual' },
+      { label: 'Experience-Led' },
       { label: 'Rebound-Healing' },
     ],
     brings: [
@@ -698,7 +697,7 @@ export const UI_TEXT = {
     photosSuccess: 'Photos verified',
     
     // Step 4: Spending/Q&A
-    spendingTitle: 'Spending Pattern',
+    spendingTitle: 'Lifestyle Proof',
     spendingDescription: 'Upload a bank statement or spending screenshot',
     qaTitle: 'Q&A',
     qaDescription: 'Answer a few questions about your dating intent',

@@ -35,8 +35,8 @@ export interface DimensionDef {
 
 // ── Open dimensions (§4a) — count in local appeal AND Profile Strength ──────────
 export const OPEN_DIMENSIONS: DimensionDef[] = [
-	{ id: 'financial',        label: 'Financial standing & generosity', cls: 'open', kind: 'measured', avgWeight: 0.16,
-	  blurb: 'Income, assets, and how generously someone shows up.' },
+	{ id: 'financial',        label: 'Financial standing', cls: 'open', kind: 'measured', avgWeight: 0.16,
+	  blurb: 'Verified income and assets — used to confirm someone is real and solvent.' },
 	{ id: 'ambition',         label: 'Ambition & drive',                cls: 'open', kind: 'soft',     avgWeight: 0.12,
 	  blurb: 'Career trajectory, goals, hustle.' },
 	{ id: 'lifestyle',        label: 'Lifestyle & adventure',           cls: 'open', kind: 'soft',     avgWeight: 0.11,

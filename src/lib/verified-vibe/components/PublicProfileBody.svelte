@@ -256,24 +256,19 @@
 
   {@render photoReveal(4)}
 
-  <!-- Money Matters -->
-  {#if profile.moneyMatters}
+  <!--
+    Career. Income and wealth-insight tiles are NOT rendered to a profile viewer, and
+    the "AI verified via bank statement" footer went with them. Financial documents are
+    still verified — that result stays an internal trust input, never shown to the other
+    party. Showing a man's income to a woman reading his profile is the framing App
+    Review cited under Guideline 1.1.4. Do not re-add.
+    See docs/requirements/AppStore_Rejection_Remediation.md §2.6.
+  -->
+  {#if profile.moneyMatters && profile.moneyMatters.careerLines.length > 0}
     {@const mm = profile.moneyMatters}
     <section class="section money-section">
-      <div class="section-label"><span>💰</span> Money Matters</div>
+      <div class="section-label"><span>💼</span> Career</div>
       <div class="money-card">
-        {#if mm.annualIncome}
-          <div class="money-stats-row">
-            <div class="money-stat">
-              <span class="money-stat-icon">💼</span>
-              <div>
-                <p class="money-stat-label">Annual Income</p>
-                <p class="money-stat-value">{mm.annualIncome}</p>
-                <p class="money-stat-declared">Self declared</p>
-              </div>
-            </div>
-          </div>
-        {/if}
         {#if mm.careerLines.length > 0}
           <div class="money-career-lines">
             {#each mm.careerLines as ins}
@@ -281,20 +276,6 @@
             {/each}
           </div>
         {/if}
-        {#if mm.wealthInsights.length > 0}
-          <div class="money-wealth-block">
-            <div class="signal-grid">
-              {#each mm.wealthInsights as ins}
-                <div class="signal-tile {ins.inferred ? 'inferred' : ''}" title={ins.inferred ? inferredTitle(ins.from) : ''}>
-                  <span class="signal-tile-emoji">{ins.emoji}</span>
-                  <span class="signal-tile-label">{ins.label}</span>
-                  {#if ins.inferred}<span class="inferred-mark">✦</span>{/if}
-                </div>
-              {/each}
-            </div>
-          </div>
-        {/if}
-        <p class="money-verified">✓ AI verified via bank statement / financial document</p>
       </div>
     </section>
   {/if}
@@ -435,15 +416,8 @@
     border: 1px solid rgba(212,160,23,0.25); border-radius: 14px; padding: 16px;
     display: flex; flex-direction: column; gap: 12px;
   }
-  .money-stats-row { display: flex; gap: 16px; }
-  .money-stat { display: flex; align-items: flex-start; gap: 10px; }
-  .money-stat-icon { font-size: 26px; }
-  .money-stat-label { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(212,160,23,0.8); margin: 0; }
-  .money-stat-value { font-size: 20px; font-weight: 800; color: #f0d590; margin: 2px 0; }
-  .money-stat-declared { font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255,255,255,0.35); margin: 0; }
   .money-career-lines { display: flex; flex-direction: column; gap: 3px; }
   .money-career-line { font-size: 13px; color: #d0d0d0; font-weight: 500; }
-  .money-verified { font-size: 11px; color: #FF3B6B; margin: 0; }
 
   /* AI Portraits */
   .portrait-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }

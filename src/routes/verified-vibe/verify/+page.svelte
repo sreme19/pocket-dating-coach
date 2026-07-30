@@ -98,7 +98,7 @@
       Start with Government ID →
     </button>
     <p class="privacy-note">
-      We verify ID, photos, spending pattern &amp; intent.<br />
+      We verify ID, photos, lifestyle &amp; intent.<br />
       No one sees the raw files — only the signals you allow.
     </p>
   </div>

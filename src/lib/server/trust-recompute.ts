@@ -35,8 +35,8 @@ const PROOF_BOOST_MAP: Record<string, { key: keyof CGTrustSubscores; boost: numb
 	twitter:      { key: 'socialLegitimacy',  boost: 15 },
 	habit_tracker:{ key: 'socialLegitimacy',  boost: 20 },
 	intro:        { key: 'emotionalSafety',   boost: 45 },
-	spending:     { key: 'generositySignals', boost: 30 },
-	assets:       { key: 'generositySignals', boost: 35 },
+	spending:     { key: 'lifestyleSignals', boost: 30 },
+	assets:       { key: 'lifestyleSignals', boost: 35 },
 };
 
 const SHOW_OFF_CATS = new Set(['lifestyle', 'hosting', 'discipline', 'social_proof']);
@@ -61,8 +61,8 @@ const CROSS_SECTION_BOOST_MAP: Record<string, { key: keyof CGTrustSubscores; boo
 	health:    { key: 'emotionalSafety',   boost: 35 },
 	social:    { key: 'socialLegitimacy',  boost: 30 },
 	career:    { key: 'socialLegitimacy',  boost: 50 },
-	money:     { key: 'generositySignals', boost: 30 },
-	garage:    { key: 'generositySignals', boost: 35 },
+	money:     { key: 'lifestyleSignals', boost: 30 },
+	garage:    { key: 'lifestyleSignals', boost: 35 },
 };
 
 // 📎 artifact claim_tag → CG dimension. Mirrors the closest proof category so
@@ -70,7 +70,7 @@ const CROSS_SECTION_BOOST_MAP: Record<string, { key: keyof CGTrustSubscores; boo
 // proofs. Each artifact is a single item, so no photo multiplier is applied.
 // Exported so the what-if simulator can predict the effect of a 📎 upload.
 export const ARTIFACT_BOOST_MAP: Record<string, { key: keyof CGTrustSubscores; boost: number }> = {
-	wealthy:       { key: 'generositySignals', boost: 30 }, // like spending/assets
+	wealthy:       { key: 'lifestyleSignals', boost: 30 }, // like spending/assets
 	well_traveled: { key: 'lifestyleDepth',    boost: 30 }, // like lifestyle
 	fitness:       { key: 'emotionalSafety',   boost: 35 }, // like discipline
 	general:       { key: 'socialLegitimacy',  boost: 20 },
@@ -87,7 +87,7 @@ function photoMultiplier(count: number): number {
 export function proofScoreFromSubscores(s: CGTrustSubscores): number {
 	return Math.min(100, Math.round(
 		(s.lifestyleDepth    * 0.25 +
-		 s.generositySignals * 0.30 +
+		 s.lifestyleSignals * 0.30 +
 		 s.emotionalSafety   * 0.15 +
 		 s.socialLegitimacy  * 0.10) / 0.80
 	));
@@ -109,7 +109,7 @@ export interface SubscoreResult {
  */
 export async function computeSubscores(userId: string): Promise<SubscoreResult> {
 	const subscores: CGTrustSubscores = {
-		identity: 0, lifestyleDepth: 0, generositySignals: 0, emotionalSafety: 0, socialLegitimacy: 0,
+		identity: 0, lifestyleDepth: 0, lifestyleSignals: 0, emotionalSafety: 0, socialLegitimacy: 0,
 	};
 	let idDone = false, livDone = false;
 
@@ -157,7 +157,7 @@ export async function computeSubscores(userId: string): Promise<SubscoreResult> 
 			livDone = !!livRec;
 			subscores.identity          = Math.round((idScore + livScore) / 2);
 			subscores.lifestyleDepth     = phScore;
-			subscores.generositySignals  = qaRec ? 100 : 0;
+			subscores.lifestyleSignals  = qaRec ? 100 : 0;
 		}
 
 		// Proof boosts. Track which CG dimensions get DIRECT credit so cross-signals

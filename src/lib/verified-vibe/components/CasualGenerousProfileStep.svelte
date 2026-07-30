@@ -50,18 +50,15 @@
       question: '✨ What kind of experiences do you enjoy sharing with a partner?',
       subtitle: 'Select all that apply',
       options: [
-        { value: 'international_travel',       label: '🌍 International travel' },
-        { value: 'luxury_getaways',            label: '🛥 Luxury getaways' },
-        { value: 'fine_dining',                label: '🍷 Fine dining' },
-        { value: 'vip_nightlife',              label: '🎭 VIP nightlife & events' },
-        { value: 'luxury_hotels',              label: '🏨 Luxury hotels & resorts' },
+        { value: 'international_travel',       label: '🌍 Travelling together' },
+        { value: 'luxury_getaways',            label: '🛥 Weekend getaways' },
+        { value: 'fine_dining',                label: '🍷 Good food and long dinners' },
+        { value: 'vip_nightlife',              label: '🎭 Nightlife & events' },
         { value: 'spontaneous_trips',          label: '✈️ Spontaneous trips' },
-        { value: 'high_end_social',            label: '🥂 High-end social experiences' },
-        { value: 'thoughtful_gifting',         label: '🎁 Thoughtful gifting' },
+        { value: 'high_end_social',            label: '🥂 Social occasions' },
         { value: 'memorable_experiences',      label: '📸 Memorable experiences together' },
         { value: 'art_culture_fashion',        label: '🎨 Art, culture & fashion' },
-        { value: 'relaxing_escapes',           label: '🌴 Relaxing escapes' },
-        { value: 'exotic_cars',                label: '🚘 Exotic cars & experiences' }
+        { value: 'relaxing_escapes',           label: '🌴 Relaxing escapes' }
       ]
     },
     {
@@ -75,10 +72,8 @@
         { value: 'shared_experiences',         label: '✈️ Shared experiences' },
         { value: 'attention_communication',    label: '💬 Attention & communication' },
         { value: 'quality_time',               label: '❤️ Quality time' },
-        { value: 'financial_generosity',       label: '💎 Financial generosity' },
         { value: 'romance_affection',          label: '🌹 Romance & affection' },
-        { value: 'elevated_experiences',       label: '🥂 Elevated experiences' },
-        { value: 'luxury_treatment',           label: '🛍 Luxury treatment' },
+        { value: 'elevated_experiences',       label: '🥂 Special occasions' },
         { value: 'consistency_reliability',    label: '🕰 Consistency & reliability' },
         { value: 'supporting_ambitious',       label: '💼 Supporting ambitious partners' }
       ]

@@ -47,18 +47,20 @@
       title: 'Experiences to share',
       sub: 'Pick up to 3',
       max: 3,
+      // Material-benefit options removed — see §2.3 of
+      // docs/requirements/AppStore_Rejection_Remediation.md. Keep in lockstep with
+      // mobile/lib/onboarding_questions.dart.
       chips: [
-        { emoji: '🌍', label: 'International travel' },
-        { emoji: '🍷', label: 'Fine dining' },
+        { emoji: '🌍', label: 'Travelling together' },
+        { emoji: '🍷', label: 'Good food and long dinners' },
         { emoji: '✈️', label: 'Spontaneous trips' },
-        { emoji: '🏨', label: 'Luxury hotels' },
+        { emoji: '🛥', label: 'Weekend getaways' },
         { emoji: '🎨', label: 'Art & culture' },
       ],
       more: [
-        { emoji: '🍾', label: 'High-end social' },
-        { emoji: '🎭', label: 'VIP nightlife' },
+        { emoji: '🎭', label: 'Live music & events' },
         { emoji: '🌴', label: 'Relaxing escapes' },
-        { emoji: '🚗', label: 'Exotic cars' },
+        { emoji: '🚗', label: 'Long drives' },
       ],
     },
     {
@@ -67,18 +69,19 @@
       title: 'How appreciation lands',
       sub: 'Pick up to 3',
       max: 3,
+      // NOTE: 'Financial generosity' / 'Thoughtful gifting' / 'Elevated experiences' /
+      // 'Luxury treatment' removed — material-benefit framing cited under Guideline
+      // 1.1.4. See docs/requirements/AppStore_Rejection_Remediation.md §2.3.
       chips: [
         { emoji: '❤️', label: 'Quality time' },
         { emoji: '💬', label: 'Attention & words' },
-        { emoji: '💎', label: 'Financial generosity' },
-        { emoji: '🎁', label: 'Thoughtful gifting' },
+        { emoji: '🫶', label: 'Emotional presence' },
         { emoji: '🕰', label: 'Consistency' },
       ],
       more: [
-        { emoji: '🥂', label: 'Elevated experiences' },
-        { emoji: '🛍', label: 'Luxury treatment' },
         { emoji: '🌹', label: 'Romance & affection' },
         { emoji: '💼', label: 'Supporting my ambitions' },
+        { emoji: '✨', label: 'Being remembered in the details' },
       ],
     },
     {

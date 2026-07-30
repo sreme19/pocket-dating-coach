@@ -60,8 +60,12 @@ const ARCHETYPE_BRINGS: Record<string, Array<{ emoji: string; text: string }>> =
     { emoji: '✌️', text: 'Easy energy' }, { emoji: '🤝', text: 'Honest intentions' },
     { emoji: '💬', text: 'Good conversation' }, { emoji: '🌱', text: 'Low pressure' }, { emoji: '⏱️', text: 'Quality time' },
   ],
+  // NOTE: this list is returned to a PROFILE VIEWER. 'Financial stability' and
+  // 'Generosity on dates' were removed — advertising money as a benefit the other
+  // party receives is the framing App Review cited under Guideline 1.1.4.
+  // See docs/requirements/AppStore_Rejection_Remediation.md §2.2.
   casual_generous_man: [
-    { emoji: '💰', text: 'Financial stability' }, { emoji: '🍾', text: 'Generosity on dates' },
+    { emoji: '🎭', text: 'Plans he actually makes' }, { emoji: '🌿', text: 'No-pressure energy' },
     { emoji: '🗓️', text: 'Time he actually gives you' }, { emoji: '🔒', text: 'Privacy & discretion' }, { emoji: '💭', text: 'Real opinions, gently held' },
   ],
   forever_focused_man: [

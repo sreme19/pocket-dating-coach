@@ -155,7 +155,7 @@
 			case 'networking':
 				return `riteangle is an invite-only network of high-functioning people — tech, finance, founders, creatives, sport. The circle is genuinely impressive and it's first come, first served. (Some people use it to meet someone too — no pressure.) 👉 ${url}`;
 			case 'casual':
-				return `Not like the other dating apps — everyone's identity-verified, skews high-earning tech/finance, and an AI weeds out the creeps before they reach you. 👉 ${url}`;
+				return `Not like the other dating apps — everyone's identity-verified, skews established tech/finance professionals, and an AI weeds out the creeps before they reach you. 👉 ${url}`;
 			case 'serious':
 				return `A dating app for people who actually want something real — verified, serious, a lot of tech/finance types. Here's an invite 👉 ${url}`;
 		}

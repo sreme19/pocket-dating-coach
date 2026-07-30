@@ -89,17 +89,21 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
             ]),
           ),
       ])),
-    if (d.annualIncome != null || d.netWorth != null || d.careerLines.isNotEmpty || d.wealthInsights.isNotEmpty)
-      pSection('💰 MONEY MATTERS', moneyMattersCard(
-        income: d.annualIncome,
-        netWorth: d.netWorth,
+    // Career only. Income, net worth and wealth-insight tiles are NOT rendered to a
+    // profile viewer, and the "AI verified via bank statement" footer is gone with
+    // them. Financial documents are still verified — that result stays an internal
+    // trust input and is never shown to the other party. Displaying a man's income
+    // or net worth to a woman reading his profile is the framing App Review cited
+    // under Guideline 1.1.4. Do not re-add.
+    // See docs/requirements/AppStore_Rejection_Remediation.md §2.6.
+    if (d.careerLines.isNotEmpty)
+      pSection('💼 CAREER', moneyMattersCard(
+        income: null,
+        netWorth: null,
         tiles: [
           for (final c in d.careerLines) (c.emoji, c.label, c.inferred, c.from),
-          for (final c in d.wealthInsights) (c.emoji, c.label, c.inferred, c.from),
         ],
-        footer: d.annualIncome != null || d.netWorth != null
-            ? '✓ AI verified via bank statement / financial document'
-            : null,
+        footer: null,
       )),
     if (revealAt(2) != null) revealAt(2)!,
     if (d.personalityPortraitUrl != null)
@@ -435,7 +439,7 @@ Widget moneyMattersCard({
           onTap: onUpload,
           child: const Row(children: [
             Text('🧾  ', style: TextStyle(fontSize: 14)),
-            Expanded(child: Text('Upload receipts to show spending patterns →',
+            Expanded(child: Text('Upload receipts to verify your lifestyle →',
                 style: TextStyle(color: Color(0xFFF59E0B), fontSize: 13, fontWeight: FontWeight.w600))),
           ]),
         ),

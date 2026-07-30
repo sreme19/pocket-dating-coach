@@ -127,21 +127,23 @@
       key: 'how_you_like_to_be_treated',
       kind: 'multi',
       icon: '💎',
-      title: 'How you like to be treated',
+      // NOTE: `key` is DB-persisted and must not change. Material-benefit options
+      // (gifting, upgrades, hotels, being driven around) removed — see
+      // docs/requirements/AppStore_Rejection_Remediation.md §2.3. Keep in lockstep
+      // with mobile/lib/onboarding_questions.dart.
+      title: 'What makes you feel valued',
       sub: 'Pick up to 4',
       max: 4,
       chips: [
-        { emoji: '🎁', label: 'Thoughtful gifting' },
         { emoji: '🌹', label: 'Consistent romance' },
         { emoji: '💬', label: 'Undivided attention' },
-        { emoji: '✈️', label: 'Elevated experiences' },
-        { emoji: '🛍', label: 'Generous without being asked' },
+        { emoji: '💐', label: 'Thoughtful gestures' },
+        { emoji: '🗓️', label: 'Planned time together' },
+        { emoji: '✅', label: 'Effort that shows up' },
       ],
       more: [
-        { emoji: '🍾', label: 'Surprise upgrades' },
-        { emoji: '🚗', label: 'Picked up & dropped off' },
-        { emoji: '🏨', label: 'Nice hotels, no questions' },
-        { emoji: '💐', label: 'Small gestures that show effort' },
+        { emoji: '✨', label: 'Being remembered in the details' },
+        { emoji: '🕯', label: 'Slow, unhurried evenings' },
       ],
     },
     {

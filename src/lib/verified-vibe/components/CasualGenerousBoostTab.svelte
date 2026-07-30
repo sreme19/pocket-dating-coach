@@ -44,7 +44,7 @@
   const hiddenCount   = $derived(allInsightChips.length - CHIPS_PREVIEW);
 
   // Scores derived from localStorage onboarding completion (fallback when DB records missing)
-  let lsBaseScores = $state({ identity: 0, lifestyleDepth: 0, generositySignals: 0 });
+  let lsBaseScores = $state({ identity: 0, lifestyleDepth: 0, lifestyleSignals: 0 });
 
   onMount(async () => {
     // Load proof insights from localStorage immediately
@@ -63,7 +63,7 @@
       lsBaseScores = {
         identity:          hasUser ? 65 : 0,
         lifestyleDepth:    hasPhotos ? 60 : 0,
-        generositySignals: (qaData.spending_comfort || hasCGProfile) ? 75 : (Object.keys(qaData).length > 2 ? 50 : 0),
+        lifestyleSignals: (qaData.spending_comfort || hasCGProfile) ? 75 : (Object.keys(qaData).length > 2 ? 50 : 0),
       };
     } catch { /* ignore */ }
 
@@ -114,8 +114,8 @@
     twitter:      { key: 'socialLegitimacy',  boost: 15 },
     habit_tracker:{ key: 'socialLegitimacy',  boost: 20 },
     intro:        { key: 'emotionalSafety',   boost: 45 },
-    spending:     { key: 'generositySignals', boost: 30 },
-    assets:       { key: 'generositySignals', boost: 35 },
+    spending:     { key: 'lifestyleSignals', boost: 30 },
+    assets:       { key: 'lifestyleSignals', boost: 35 },
   };
 
   // Show-off categories scale boost by photo count
@@ -134,7 +134,7 @@
     return {
       identity:          Math.max(fromRecords.identity,          lsBaseScores.identity),
       lifestyleDepth:    Math.max(fromRecords.lifestyleDepth,    lsBaseScores.lifestyleDepth),
-      generositySignals: Math.max(fromRecords.generositySignals, lsBaseScores.generositySignals),
+      lifestyleSignals: Math.max(fromRecords.lifestyleSignals, lsBaseScores.lifestyleSignals),
       emotionalSafety:   fromRecords.emotionalSafety,
       socialLegitimacy:  fromRecords.socialLegitimacy,
     };
@@ -200,7 +200,7 @@
 
   const ic = $derived(scoreColor(subscores.identity));
   const lc = $derived(scoreColor(subscores.lifestyleDepth));
-  const gc = $derived(scoreColor(subscores.generositySignals));
+  const gc = $derived(scoreColor(subscores.lifestyleSignals));
   const ec = $derived(scoreColor(subscores.emotionalSafety));
   const sc = $derived(scoreColor(subscores.socialLegitimacy));
 

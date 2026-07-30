@@ -307,7 +307,7 @@ const _configs = <String, _CatConfig>{
     icon: '🧾',
     title: 'Spending Proof',
     subtitle: 'Restaurant bills, travel receipts, event tickets',
-    privacyCopy: 'Your uploads stay private. AI reads spend amounts to verify generosity — shown as a lifestyle signal on your profile.',
+    privacyCopy: 'Your uploads stay private. AI reads amounts to verify your lifestyle is real — your receipts are never shown to anyone, only the verified result.',
     examples: [
       'Restaurant or bar receipt (amount and venue visible)',
       'Hotel or travel booking confirmation',
@@ -320,7 +320,7 @@ const _configs = <String, _CatConfig>{
   'wealth': _CatConfig(
     id: 'wealth',
     icon: '🏦',
-    title: 'Wealth Proof',
+    title: 'Financial Verification',
     subtitle: 'Bank statement, investment or financial document',
     privacyCopy: 'Documents are private and never shown to anyone. The AI reads only balance ranges — viewers see the verified result, never your statements or exact figures.',
     examples: [

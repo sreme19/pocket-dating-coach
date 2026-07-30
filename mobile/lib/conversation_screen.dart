@@ -1825,7 +1825,7 @@ const Map<String, String> _kProofCategoryShort = {
   'discipline': 'a fitness photo (you training)',
   'social_proof': 'a photo with your people',
   'assets': 'proof of what you own (car or ownership papers)',
-  'wealth': 'wealth proof (bank statement or payslip)',
+  'wealth': 'financial verification (bank statement or payslip)',
   'spending': 'spending proof (receipts or bills)',
 };
 

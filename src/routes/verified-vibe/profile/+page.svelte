@@ -763,8 +763,8 @@
       { emoji: '⏱️', text: 'Quality time' },
     ],
     casual_generous_man: [
-      { emoji: '💰', text: 'Financial stability' },
-      { emoji: '🍾', text: 'Generosity on dates' },
+      { emoji: '🎭', text: 'Plans he actually makes' },
+      { emoji: '🌿', text: 'No-pressure energy' },
       { emoji: '🗓️', text: 'Time he actually gives you' },
       { emoji: '🔒', text: 'Privacy & discretion' },
       { emoji: '💭', text: 'Real opinions, gently held' },
@@ -846,7 +846,7 @@
     intimate: 'Intimate ceremony', destination: 'Destination wedding', big: 'Grand event',
     // relationship energy
     romantic: 'Romantic', caring_present: 'Caring & present', confident: 'Confident',
-    provider_mindset: 'Provider mindset', playful_fun: 'Playful & fun', deep_connection: 'Deep connection',
+    provider_mindset: 'Dependable', playful_fun: 'Playful & fun', deep_connection: 'Deep connection',
     // connection pace
     slow_deep: 'Slow & deep', casual_fun: 'Casual & fun', open_see: 'Open — see where it goes',
     // dating experience
@@ -895,7 +895,10 @@
 
     switch (archetype) {
       case 'casual_man':
-        push('💸', 'On dates', qa.spending_comfort);
+        // NOTE: the "On dates 💸" chip (qa.spending_comfort) was removed deliberately —
+        // rendering a man's per-date spend band on a profile a woman can read is what
+        // Apple cited under Guideline 1.1.4. Do not re-add it. See
+        // docs/requirements/AppStore_Rejection_Remediation.md §2.6.
         push('🎯', 'Here for', qa.dating_intent);
         push('🌿', 'What I value', qa.lifestyle_values, 'text');
         push('🗓️', 'Timeline', qa.relationship_timeline);
@@ -2644,7 +2647,7 @@
               {#if spendingData.length > 0}
                 {@const hasReceipts = spendingData.some(s => s.verified)}
                 <div class="money-spend-header">
-                  <span class="money-spend-title">Spending patterns</span>
+                  <span class="money-spend-title">Lifestyle</span>
                   <span class="money-spend-verified">{hasReceipts ? '✅ Receipt verified' : '🏦 Bank statement'}</span>
                 </div>
                 <div class="money-spend-list">
@@ -2666,7 +2669,7 @@
                 </div>
               {:else if wealthInsights}
                 <a class="money-spend-nudge" href="/verified-vibe/proof-upload?category=spending">
-                  <span>🧾</span><span>Upload receipts to show spending patterns →</span>
+                  <span>🧾</span><span>Upload receipts to verify your lifestyle →</span>
                 </a>
               {/if}
             {:else}
@@ -6477,7 +6480,7 @@
     margin: 2px 0 0;
   }
 
-  /* Wealth proof signals block */
+  /* Financial-verification signals block (owner's own view only) */
   .money-wealth-block {
     display: flex;
     flex-direction: column;

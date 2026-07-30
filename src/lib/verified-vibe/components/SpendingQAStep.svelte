@@ -84,8 +84,8 @@
       options: [
         { value: 'chemistry', label: '☕ Simple chemistry first' },
         { value: 'intentional', label: '🌸 Intentional & thoughtful' },
-        { value: 'premium', label: '🍷 Premium experiences' },
-        { value: 'spoiled', label: '✨ Spoiled & celebrated' }
+        { value: 'premium', label: '🍷 Considered and well-planned' },
+        { value: 'spoiled', label: '✨ Made to feel special' }
       ]
     },
     {
@@ -93,13 +93,11 @@
       type: 'multi-select',
       question: '✨ Describe the energy you want in a relationship',
       options: [
-        { value: 'generous', label: '💎 Generous' },
         { value: 'well_traveled', label: '🌍 Well-traveled' },
         { value: 'affectionate', label: '❤️ Affectionate' },
         { value: 'calm_energy', label: '🧘 Calm energy' },
         { value: 'respectful', label: '🤝 Respectful' },
         { value: 'confident', label: '🧲 Confident' },
-        { value: 'provider_mindset', label: '🌹 Provider mindset' },
         { value: 'spontaneous', label: '🎉 Spontaneous' },
         { value: 'discreet', label: '🔒 Discreet' },
         { value: 'high_standards', label: '🏆 High standards' },
@@ -145,14 +143,10 @@
       type: 'multi-select',
       question: '✨ What kind of experiences do you enjoy most?',
       options: [
-        { value: 'international_travel', label: '🌍 International travel' },
-        { value: 'luxury_getaways', label: '🛥️ Luxury getaways' },
-        { value: 'fine_dining', label: '🍷 Fine dining' },
-        { value: 'designer_shopping', label: '🛍️ Designer shopping' },
-        { value: 'premium_lifestyle', label: '💎 Premium lifestyle' },
-        { value: 'thoughtful_gifts', label: '🎁 Thoughtful gifts' },
-        { value: 'luxury_hotels', label: '🏨 Luxury hotels & resorts' },
-        { value: 'vip_events', label: '🎭 VIP events & nightlife' },
+        { value: 'international_travel', label: '🌍 Travelling together' },
+        { value: 'luxury_getaways', label: '🛥️ Weekend getaways' },
+        { value: 'fine_dining', label: '🍷 Good food and long dinners' },
+        { value: 'vip_events', label: '🎭 Events & nightlife' },
         { value: 'spontaneous_trips', label: '✈️ Spontaneous trips' },
         { value: 'relaxing_escapes', label: '🌴 Relaxing escapes' },
         { value: 'wellness_spa', label: '🧘 Wellness & spa experiences' },
@@ -166,11 +160,8 @@
       options: [
         { value: 'quality_time', label: '❤️ Quality time' },
         { value: 'attention', label: '💬 Attention & communication' },
-        { value: 'gifts_surprises', label: '🎁 Gifts & surprises' },
         { value: 'shared_experiences', label: '✈️ Shared experiences' },
-        { value: 'financial_generosity', label: '💎 Financial generosity' },
         { value: 'romance_affection', label: '🌹 Romance & affection' },
-        { value: 'luxury_treatment', label: '🥂 Luxury treatment' },
         { value: 'consistency', label: '🕰️ Consistency & effort' }
       ]
     },
@@ -221,7 +212,7 @@
         { value: 'spontaneous_getaways', label: '✈️ Spontaneous getaways' },
         { value: 'traveling_together', label: '🌍 Traveling together' },
         { value: 'luxury_experiences', label: '🛥️ Luxury experiences' },
-        { value: 'vip_nightlife', label: '🎭 VIP nightlife & events' },
+        { value: 'vip_nightlife', label: '🎭 Events & nightlife' },
         { value: 'chemistry_dates', label: '🥂 Chemistry-focused dates' },
         { value: 'companionship', label: '❤️ Meaningful companionship' },
         { value: 'making_feel_special', label: '💎 Making my partner feel special' },
@@ -249,7 +240,7 @@
         { value: 'passionate', label: '🔥 Passionate' },
         { value: 'chemistry_driven', label: '💫 Chemistry-driven' },
         { value: 'drama_free', label: '🧘 Drama-free' },
-        { value: 'elevated_experiences', label: '🛍️ Enjoys elevated experiences' },
+        { value: 'elevated_experiences', label: '🛍️ Enjoys a proper occasion' },
         { value: 'spontaneous', label: '🎉 Spontaneous' },
         { value: 'magnetic', label: '🧲 Magnetic presence' },
         { value: 'discreet', label: '🔒 Discreet' },
@@ -264,7 +255,6 @@
       type: 'multi-select',
       question: '✨ How would you describe your approach in a relationship?',
       options: [
-        { value: 'generous', label: '💎 Generous' },
         { value: 'protective', label: '🛡️ Protective' },
         { value: 'romantic', label: '🌹 Romantic' },
         { value: 'thoughtful', label: '🎁 Thoughtful' },
@@ -303,18 +293,17 @@
       type: 'multi-select',
       question: '✨ What kind of experiences do you enjoy sharing with a partner?',
       options: [
-        { value: 'international_travel', label: '🌍 International travel' },
-        { value: 'luxury_getaways', label: '🛥️ Luxury getaways' },
-        { value: 'fine_dining', label: '🍷 Fine dining' },
-        { value: 'vip_events', label: '🎭 VIP events & nightlife' },
-        { value: 'luxury_hotels', label: '🏨 Luxury hotels & resorts' },
+        { value: 'international_travel', label: '🌍 Travelling together' },
+        { value: 'luxury_getaways', label: '🛥️ Weekend getaways' },
+        { value: 'fine_dining', label: '🍷 Good food and long dinners' },
+        { value: 'vip_events', label: '🎭 Events & nightlife' },
         { value: 'spontaneous_trips', label: '✈️ Spontaneous trips' },
-        { value: 'high_end_social', label: '🥂 High-end social experiences' },
+        { value: 'high_end_social', label: '🥂 Social occasions' },
         { value: 'luxury_gifting', label: '🎁 Luxury gifting' },
         { value: 'memorable_experiences', label: '📸 Creating memorable experiences' },
         { value: 'art_culture', label: '🎨 Art, culture & fashion' },
         { value: 'relaxing_escapes', label: '🌴 Relaxing escapes' },
-        { value: 'exotic_cars', label: '🚗 Exotic cars & experiences' },
+        { value: 'exotic_cars', label: '🚗 Long drives' },
         { value: 'wellness_spa', label: '🧘 Wellness & spa experiences' }
       ]
     },
@@ -327,12 +316,10 @@
         { value: 'shared_experiences', label: '✈️ Shared experiences' },
         { value: 'attention_communication', label: '💬 Attention & communication' },
         { value: 'quality_time', label: '❤️ Quality time' },
-        { value: 'financial_generosity', label: '💎 Financial generosity' },
         { value: 'romance_affection', label: '🌹 Romance & affection' },
         { value: 'consistency', label: '🕰️ Consistency & reliability' },
-        { value: 'elevated_experiences', label: '🥂 Elevated experiences' },
-        { value: 'thoughtful_luxury', label: '🛍️ Thoughtful luxury' },
-        { value: 'providing_support', label: '💼 Providing support' }
+        { value: 'elevated_experiences', label: '🥂 Special occasions' },
+        { value: 'providing_support', label: '💼 Being someone you can rely on' }
       ]
     },
     {
@@ -468,12 +455,12 @@
       {
         id: 'spending_comfort',
         type: 'multiple-choice',
-        question: "💸 What's your comfort level with spending on dates?",
+        question: '🗓️ What kind of dates do you enjoy planning?',
         options: [
-          { value: 'budget', label: '🪙 Budget-conscious (₹1,000–3,000)' },
-          { value: 'moderate', label: '💳 Moderate spender (₹3,000–8,000)' },
-          { value: 'generous', label: '🥂 Generous spender (₹8,000–20,000)' },
-          { value: 'luxury', label: '💎 Luxury spender (₹20,000+)' }
+          { value: 'budget', label: '☕ Low-key and casual' },
+          { value: 'moderate', label: '🍜 A mix, depending on the day' },
+          { value: 'generous', label: '🎟️ Planned, with a bit of occasion' },
+          { value: 'luxury', label: '🎭 Big experiences and proper outings' }
         ]
       },
       {
@@ -515,7 +502,7 @@
           { value: 'casual', label: '☕ Casual hangout' },
           { value: 'thoughtful', label: '🌸 Thoughtful & planned' },
           { value: 'upscale', label: '🥂 Upscale experience' },
-          { value: 'luxury', label: '💎 Luxury treatment' }
+          { value: 'luxury', label: '💎 Being made to feel special' }
         ]
       },
       {
@@ -575,12 +562,12 @@
       {
         id: 'spending_comfort',
         type: 'multiple-choice',
-        question: "💸 What's your comfort level with spending on dates?",
+        question: '🗓️ What kind of dates do you enjoy planning?',
         options: [
-          { value: 'budget', label: '🪙 Budget-conscious' },
-          { value: 'moderate', label: '💳 Moderate spender' },
-          { value: 'generous', label: '🥂 Generous spender' },
-          { value: 'luxury', label: '💎 Luxury spender' }
+          { value: 'budget', label: '☕ Low-key and casual' },
+          { value: 'moderate', label: '🍜 A mix, depending on the day' },
+          { value: 'generous', label: '🎟️ Planned, with a bit of occasion' },
+          { value: 'luxury', label: '🎭 Big experiences and proper outings' }
         ]
       },
       {

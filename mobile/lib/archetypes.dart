@@ -40,16 +40,16 @@ class LaneSection {
 
 const _man = <String, Archetype>{
   'casual_generous_man': Archetype(
-    'casual_generous_man', '💸', 'Casual-Generous',
-    'Confident, generous, experiences over labels',
-    longTag: 'You date well and you show it. Experiences over labels — dinners, weekends, no strings attached to who picks up the bill.',
+    'casual_generous_man', '💫', 'Experience-Led',
+    'Confident, present, experiences over labels',
+    longTag: 'You like dating to feel easy and well-planned. Experiences over labels — good dinners, weekends away, no pressure to define it.',
     matchTraits: [
-      MatchTrait('best', 'Spoiled-Casual Women', lead: true),
+      MatchTrait('best', 'Experience-Led Women', lead: true),
       MatchTrait('good', 'Rebound-Healing Women'),
       MatchTrait('good', 'Hopeless-Romantic Women'),
     ],
     avoidTraits: [AvoidTrait('Forever-Focused'), AvoidTrait('Traditional-Matrimony')],
-    brings: ['Financial confidence', 'Upscale experiences', 'No-pressure energy', 'Privacy & discretion', 'Generosity as a love language', 'Clarity of intent'],
+    brings: ['Plans that actually happen', 'Consistency without pressure', 'No-pressure energy', 'Privacy & discretion', 'Clarity of intent'],
   ),
   'hopeless_romantic_man': Archetype(
     'hopeless_romantic_man', '💞', 'Hopeless-Romantic',
@@ -61,7 +61,7 @@ const _man = <String, Archetype>{
       MatchTrait('good', 'Forever-Focused Women'),
       MatchTrait('good', 'Traditional-Matrimony Women'),
     ],
-    avoidTraits: [AvoidTrait('Spoiled-Casual'), AvoidTrait('Rebound-Healing')],
+    avoidTraits: [AvoidTrait('Experience-Led'), AvoidTrait('Rebound-Healing')],
     brings: ['Deep emotional availability', 'Fierce loyalty', 'Romantic intentionality', 'Vulnerability without weakness', 'Warmth & presence'],
   ),
   'rebound_healing_man': Archetype(
@@ -71,7 +71,7 @@ const _man = <String, Archetype>{
     matchTraits: [
       MatchTrait('best', 'Rebound-Healing Women', lead: true),
       MatchTrait('good', 'Untouched-Heart Women'),
-      MatchTrait('good', 'Spoiled-Casual Women'),
+      MatchTrait('good', 'Experience-Led Women'),
     ],
     avoidTraits: [AvoidTrait('Forever-Focused'), AvoidTrait('Traditional-Matrimony')],
     brings: ['Hard-won emotional intelligence', 'Radical honesty', 'No-games energy', 'Self-awareness', 'Appreciation for real connection'],
@@ -85,7 +85,7 @@ const _man = <String, Archetype>{
       MatchTrait('good', 'Hopeless-Romantic Women'),
       MatchTrait('good', 'Forever-Focused Women'),
     ],
-    avoidTraits: [AvoidTrait('Spoiled-Casual'), AvoidTrait('Rebound-Healing')],
+    avoidTraits: [AvoidTrait('Experience-Led'), AvoidTrait('Rebound-Healing')],
     brings: ['Genuine curiosity', 'Open heart', 'Zero emotional baggage', 'Slow, intentional approach', 'Sincerity in every step'],
   ),
   'forever_focused_man': Archetype(
@@ -98,8 +98,8 @@ const _man = <String, Archetype>{
       MatchTrait('good', 'Untouched-Heart Women'),
       MatchTrait('good', 'Hopeless-Romantic Women'),
     ],
-    avoidTraits: [AvoidTrait('Spoiled-Casual'), AvoidTrait('Rebound-Healing')],
-    brings: ['Long-term commitment', 'Financial stability', 'Partnership mindset', 'Clear communication', 'Emotional maturity', 'Settled, grounded lifestyle'],
+    avoidTraits: [AvoidTrait('Experience-Led'), AvoidTrait('Rebound-Healing')],
+    brings: ['Long-term commitment', 'Dependability', 'Partnership mindset', 'Clear communication', 'Emotional maturity', 'Settled, grounded lifestyle'],
   ),
   'traditional_matrimony_man': Archetype(
     'traditional_matrimony_man', '🏛️', 'Traditional-Matrimony',
@@ -111,7 +111,7 @@ const _man = <String, Archetype>{
       MatchTrait('good', 'Untouched-Heart Women'),
       MatchTrait('good', 'Hopeless-Romantic Women'),
     ],
-    avoidTraits: [AvoidTrait('Spoiled-Casual'), AvoidTrait('Rebound-Healing')],
+    avoidTraits: [AvoidTrait('Experience-Led'), AvoidTrait('Rebound-Healing')],
     brings: ['Family-first values', 'Cultural alignment', 'Long-term commitment', 'Clear expectations', 'Stability & structure', 'Respect for tradition'],
   ),
   'second_chapter_man': Archetype(
@@ -123,7 +123,7 @@ const _man = <String, Archetype>{
       MatchTrait('good', 'Traditional-Matrimony Women'),
       MatchTrait('good', 'Forever-Focused Women'),
     ],
-    avoidTraits: [AvoidTrait('Casual-Generous'), AvoidTrait('Rebound-Healing')],
+    avoidTraits: [AvoidTrait('Experience-Led'), AvoidTrait('Rebound-Healing')],
     brings: ['Hard-won emotional wisdom', 'Maturity without cynicism', 'Deep appreciation for real love', 'Patience built from experience', 'Clarity on what actually matters'],
   ),
   'just_friends_man': Archetype(
@@ -144,11 +144,11 @@ const _man = <String, Archetype>{
 
 const _woman = <String, Archetype>{
   'spoiled_casual_woman': Archetype(
-    'spoiled_casual_woman', '✨', 'Spoiled-Casual',
-    'Luxury vibes, treated well, no pressure',
-    longTag: 'You want to be wined, dined and genuinely enjoyed — without labels and without apology. Life is short; experience it at full quality.',
+    'spoiled_casual_woman', '✨', 'Experience-Led',
+    'Easy chemistry, good company, no pressure',
+    longTag: 'You want dating to feel enjoyable and unhurried — real chemistry, good company, no pressure to define it.',
     matchTraits: [
-      MatchTrait('best', 'Casual-Generous Men', lead: true),
+      MatchTrait('best', 'Experience-Led Men', lead: true),
       MatchTrait('good', 'Rebound-Healing Men'),
     ],
     avoidTraits: [AvoidTrait('Forever-Focused'), AvoidTrait('Traditional-Matrimony'), AvoidTrait('Hopeless-Romantic')],
@@ -163,7 +163,7 @@ const _woman = <String, Archetype>{
       MatchTrait('good', 'Untouched-Heart Men'),
       MatchTrait('good', 'Forever-Focused Men'),
     ],
-    avoidTraits: [AvoidTrait('Casual-Generous'), AvoidTrait('Rebound-Healing')],
+    avoidTraits: [AvoidTrait('Experience-Led'), AvoidTrait('Rebound-Healing')],
     brings: ['Deep emotional availability', 'Fierce loyalty', 'Romantic intentionality', 'Warmth & unwavering presence', 'The kind of love that lingers'],
   ),
   'rebound_healing_woman': Archetype(
@@ -173,7 +173,7 @@ const _woman = <String, Archetype>{
     matchTraits: [
       MatchTrait('best', 'Rebound-Healing Men', lead: true),
       MatchTrait('good', 'Untouched-Heart Men'),
-      MatchTrait('good', 'Casual-Generous Men'),
+      MatchTrait('good', 'Experience-Led Men'),
     ],
     avoidTraits: [AvoidTrait('Traditional-Matrimony'), AvoidTrait('Forever-Focused')],
     brings: ['Hard-won self-awareness', 'Empathy without co-dependence', 'Emotional authenticity', 'No baggage disguised as personality', 'Perspective that makes you a better partner'],
@@ -187,7 +187,7 @@ const _woman = <String, Archetype>{
       MatchTrait('good', 'Hopeless-Romantic Men'),
       MatchTrait('good', 'Forever-Focused Men'),
     ],
-    avoidTraits: [AvoidTrait('Casual-Generous'), AvoidTrait('Rebound-Healing')],
+    avoidTraits: [AvoidTrait('Experience-Led'), AvoidTrait('Rebound-Healing')],
     brings: ['Genuine curiosity', 'Zero emotional baggage', 'Completely open heart', 'Slow, intentional pace', 'Sincerity at every stage'],
   ),
   'forever_focused_woman': Archetype(
@@ -200,7 +200,7 @@ const _woman = <String, Archetype>{
       MatchTrait('good', 'Untouched-Heart Men'),
       MatchTrait('good', 'Hopeless-Romantic Men'),
     ],
-    avoidTraits: [AvoidTrait('Casual-Generous'), AvoidTrait('Rebound-Healing')],
+    avoidTraits: [AvoidTrait('Experience-Led'), AvoidTrait('Rebound-Healing')],
     brings: ['Clarity of intent', 'Ambition in life and love', 'Partnership-first mindset', 'Long-term thinking', 'Emotional intelligence under pressure'],
   ),
   'traditional_matrimony_woman': Archetype(
@@ -212,7 +212,7 @@ const _woman = <String, Archetype>{
       MatchTrait('best', 'Traditional-Matrimony Men'),
       MatchTrait('good', 'Hopeless-Romantic Men'),
     ],
-    avoidTraits: [AvoidTrait('Casual-Generous'), AvoidTrait('Rebound-Healing'), AvoidTrait('Untouched-Heart')],
+    avoidTraits: [AvoidTrait('Experience-Led'), AvoidTrait('Rebound-Healing'), AvoidTrait('Untouched-Heart')],
     brings: ['Family-first values', 'Cultural alignment', 'Commitment with zero ambiguity', 'Clear expectations upfront', 'Stability & long-term partnership'],
   ),
   'second_chapter_woman': Archetype(
@@ -224,7 +224,7 @@ const _woman = <String, Archetype>{
       MatchTrait('good', 'Traditional-Matrimony Men'),
       MatchTrait('good', 'Forever-Focused Men'),
     ],
-    avoidTraits: [AvoidTrait('Spoiled-Casual'), AvoidTrait('Rebound-Healing')],
+    avoidTraits: [AvoidTrait('Experience-Led'), AvoidTrait('Rebound-Healing')],
     brings: ['Emotional maturity', 'Clarity on what she needs', 'No games — only real', 'Appreciation without desperation', 'Strength that comes from having survived'],
   ),
   'just_friends_woman': Archetype(
@@ -259,7 +259,7 @@ const Map<String, List<BringsItem>> archetypeBrings = {
     BringsItem('⏱️', 'Quality time'),
   ],
   'casual_generous_man': [
-    BringsItem('💰', 'Financial stability'), BringsItem('🍾', 'Generosity on dates'),
+    BringsItem('🎭', 'Plans he actually makes'), BringsItem('🌿', 'No-pressure energy'),
     BringsItem('🗓️', 'Time he actually gives you'), BringsItem('🔒', 'Privacy & discretion'),
     BringsItem('💭', 'Real opinions, gently held'),
   ],

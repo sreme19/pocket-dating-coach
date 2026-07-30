@@ -244,7 +244,7 @@ export function getNextIncompleteStep(
 export interface CGTrustSubscores {
   identity: number;         // ID + liveness average
   lifestyleDepth: number;   // photo consistency
-  generositySignals: number; // spending proof
+  lifestyleSignals: number; // spending proof
   emotionalSafety: number;  // behavioural — always 0 until messaging data exists
   socialLegitimacy: number; // proof connections — 0 until connected
 }
@@ -259,7 +259,7 @@ export function calculateCGSubscores(verificationRecords: VerificationRecord[]):
   return {
     identity: Math.round((idScore + livenessScore) / 2),
     lifestyleDepth: photoScore,
-    generositySignals: qaScore,
+    lifestyleSignals: qaScore,
     emotionalSafety: 0,
     socialLegitimacy: 0,
   };
@@ -267,13 +267,18 @@ export function calculateCGSubscores(verificationRecords: VerificationRecord[]):
 
 /**
  * Weighted CG total — different weight distribution than the generic score.
- * Identity 20% · Lifestyle 25% · Generosity 30% · Safety 15% · Social 10%
+ * Identity 20% · Lifestyle depth 25% · Lifestyle signals 30% · Safety 15% · Social 10%
+ *
+ * NOTE: `lifestyleSignals` was named `generositySignals` until 2026-07-29. Pure
+ * rename — weights are unchanged and computed totals are identical. The old name
+ * described a man's spend as generosity toward a partner, which is the framing App
+ * Review cited under Guideline 1.1.4. Do not reintroduce it.
  */
 export function calculateCGTotal(subscores: CGTrustSubscores): number {
   return Math.min(100, Math.round(
     subscores.identity        * 0.20 +
     subscores.lifestyleDepth  * 0.25 +
-    subscores.generositySignals * 0.30 +
+    subscores.lifestyleSignals * 0.30 +
     subscores.emotionalSafety * 0.15 +
     subscores.socialLegitimacy * 0.10
   ));

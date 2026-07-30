@@ -137,8 +137,13 @@
         <span class="urgency-timer">{timerDisplay()}</span>
         <span class="urgency-label">minutes.</span>
       </div>
+      <!-- The "Pay later." span was removed deliberately: there is no in-app
+           purchase in this product, and App Review read that line on the equivalent
+           pre-auth screen in the app as evidence of a paid mechanic. Do not re-add
+           purchase language until an IAP exists.
+           See docs/requirements/AppStore_Rejection_Remediation.md §2.0. -->
       <p class="urgency-sub">
-        Earn your profile, verify your intent. <em class="pay-later-inline">Pay later.</em>
+        Earn your profile, verify your intent.
       </p>
     </div>
   </div>
@@ -191,7 +196,7 @@
     {/if}
 
     <p class="trust-note">
-      We verify ID, photos, spending pattern &amp; intent.<br />
+      We verify ID, photos, lifestyle &amp; intent.<br />
       No one sees the raw files — only the signals you allow.
     </p>
   </div>

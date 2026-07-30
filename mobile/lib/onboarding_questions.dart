@@ -63,33 +63,35 @@ const List<QSection> _drawnToCasual = [
   QSection(
     key: 'experiences', kind: QKind.multi, icon: '🌍',
     title: 'Experiences to share', sub: 'Pick up to 3', max: 3,
+    // NOTE: 'Luxury hotels' / 'High-end social' / 'VIP nightlife' / 'Exotic cars'
+    // removed — a menu of material benefits is the framing App Review cited under
+    // Guideline 1.1.4. See docs/requirements/AppStore_Rejection_Remediation.md §2.3.
     options: [
-      QOption('International travel', emoji: '🌍'),
-      QOption('Fine dining', emoji: '🍷'),
+      QOption('Travelling together', emoji: '🌍'),
+      QOption('Good food and long dinners', emoji: '🍷'),
       QOption('Spontaneous trips', emoji: '✈️'),
-      QOption('Luxury hotels', emoji: '🏨'),
+      QOption('Weekend getaways', emoji: '🛥'),
       QOption('Art & culture', emoji: '🎨'),
     ],
     more: [
-      QOption('High-end social', emoji: '🍾'),
-      QOption('VIP nightlife', emoji: '🎭'),
+      QOption('Live music & events', emoji: '🎭'),
       QOption('Relaxing escapes', emoji: '🌴'),
-      QOption('Exotic cars', emoji: '🚗'),
+      QOption('Long drives', emoji: '🚗'),
     ],
   ),
   QSection(
+    // NOTE: 'Financial generosity' / 'Thoughtful gifting' / 'Luxury treatment' /
+    // 'Elevated experiences' removed for the same reason as above.
     key: 'appreciation', kind: QKind.multi, icon: '💎',
     title: 'How appreciation lands', sub: 'Pick up to 3', max: 3,
     options: [
       QOption('Quality time', emoji: '❤️'),
       QOption('Attention & words', emoji: '💬'),
-      QOption('Financial generosity', emoji: '💎'),
-      QOption('Thoughtful gifting', emoji: '🎁'),
+      QOption('Emotional presence', emoji: '🫶'),
       QOption('Consistency', emoji: '🕰'),
     ],
     more: [
-      QOption('Elevated experiences', emoji: '🥂'),
-      QOption('Luxury treatment', emoji: '🛍'),
+      QOption('Special occasions', emoji: '🥂'),
       QOption('Romance & affection', emoji: '🌹'),
       QOption('Supporting my ambitions', emoji: '💼'),
     ],
@@ -625,10 +627,11 @@ const List<QSection> _howCasualMan = [
       QOption('Exploring fantasies', emoji: '✨'),
       QOption('Prefer discretion', emoji: '🔒'),
     ],
+    // NOTE: Roleplay / Power dynamics / BDSM-friendly were removed deliberately.
+    // Survivable alone at 18+, but alongside the lifestyle and income questions in
+    // this same flow they completed the picture App Review cited under 1.1.4.
+    // See docs/requirements/AppStore_Rejection_Remediation.md §2.4.
     more: [
-      QOption('Roleplay', emoji: '🕯'),
-      QOption('Power dynamics', emoji: '🎭'),
-      QOption('BDSM-friendly', emoji: '🖤'),
       QOption('Open relationships', emoji: '💫'),
     ],
   ),
@@ -636,16 +639,18 @@ const List<QSection> _howCasualMan = [
     key: 'lifestyle', kind: QKind.card, icon: '💼',
     title: 'Your current lifestyle', sub: 'Pick the closest match',
     options: [
-      QOption('Comfortable & established', emoji: '✅', sub: 'Stable income, settled into life'),
-      QOption('High-income lifestyle', emoji: '💰', sub: 'Strong earner, comfortable spending'),
+      QOption('Comfortable & established', emoji: '✅', sub: 'Settled into life'),
+      QOption('Career-focused', emoji: '📈', sub: 'Driven, building momentum'),
       QOption('Executive / founder', emoji: '🏢', sub: 'Senior leadership, building something'),
-      QOption('Luxury-oriented', emoji: '💎', sub: 'Quality over quantity, premium tastes'),
-      QOption('Confident & generous', emoji: '🤝', sub: 'Financially open with people you care about'),
+      QOption('Creative / independent', emoji: '🎨', sub: 'Making your own path'),
+      QOption('Steady & grounded', emoji: '🌿', sub: 'Consistent, low-drama, present'),
     ],
   ),
   QSection(
     key: 'income', kind: QKind.single, icon: '💰',
-    title: 'Approximate annual income', sub: 'Optional · only used to refine matches', private: true,
+    title: 'Approximate annual income',
+    sub: 'Optional · private · used only to refine matches, never shown on your profile',
+    private: true,
     options: [
       QOption('Under ₹25L'),
       QOption('₹25L – ₹50L'),
@@ -683,7 +688,7 @@ const List<QSection> _howSpoiledCasual = [
     key: 'vibe', kind: QKind.card, icon: '✨',
     title: 'Your day-to-day vibe', sub: 'Pick the closest match',
     options: [
-      QOption('Low-key luxury', emoji: '💅', sub: 'Selective, private, effortlessly elevated'),
+      QOption('Low-key & selective', emoji: '💅', sub: 'Private, understated, particular about company'),
       QOption('Social & spontaneous', emoji: '🌸', sub: 'Love going out, meeting people, staying active'),
       QOption('Homebody at heart', emoji: '🏠', sub: 'Comfort-first — cosy > chaotic'),
       QOption('Always on the move', emoji: '✈️', sub: 'Travel, events, never really settling in one place'),
@@ -691,20 +696,22 @@ const List<QSection> _howSpoiledCasual = [
     ],
   ),
   QSection(
+    // NOTE: the section `key` is DB-persisted and must not change. The option set
+    // was rewritten to remove material-benefit framing (gifting, upgrades, hotels,
+    // being driven around) — that framing is what App Review cited under Guideline
+    // 1.1.4. See docs/requirements/AppStore_Rejection_Remediation.md §2.3.
     key: 'how_you_like_to_be_treated', kind: QKind.multi, icon: '💎',
-    title: 'How you like to be treated', sub: 'Pick up to 4', max: 4,
+    title: 'What makes you feel valued', sub: 'Pick up to 4', max: 4,
     options: [
-      QOption('Thoughtful gifting', emoji: '🎁'),
       QOption('Consistent romance', emoji: '🌹'),
       QOption('Undivided attention', emoji: '💬'),
-      QOption('Elevated experiences', emoji: '✈️'),
-      QOption('Generous without being asked', emoji: '🛍'),
+      QOption('Thoughtful gestures', emoji: '💐'),
+      QOption('Planned time together', emoji: '🗓️'),
+      QOption('Effort that shows up', emoji: '✅'),
     ],
     more: [
-      QOption('Surprise upgrades', emoji: '🍾'),
-      QOption('Picked up & dropped off', emoji: '🚗'),
-      QOption('Nice hotels, no questions', emoji: '🏨'),
-      QOption('Small gestures that show effort', emoji: '💐'),
+      QOption('Being remembered in the details', emoji: '✨'),
+      QOption('Slow, unhurried evenings', emoji: '🕯'),
     ],
   ),
   QSection(
@@ -903,7 +910,9 @@ const List<QSection> _howMatrimony = [
   ),
   QSection(
     key: 'income', kind: QKind.single, icon: '💰',
-    title: 'Annual income (optional)', sub: 'Helps with serious matrimony matching', private: true,
+    title: 'Annual income (optional)',
+    sub: 'Private · helps with serious matrimony matching, never shown on your profile',
+    private: true,
     options: [
       QOption('Under ₹5L'),
       QOption('₹5L – ₹10L'),

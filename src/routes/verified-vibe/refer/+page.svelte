@@ -90,8 +90,8 @@
       `(tech, finance, founders, creatives, sport). the circle is genuinely impressive and it's first ` +
       `come first serve. (some people use it to meet someone too, no pressure) 👉 ${url}`,
     casual: (url) =>
-      `ok this one's actually not like the other dating apps, everyone's identity-verified, skews ` +
-      `high-earning tech/finance, and an AI weeds out the creeps before they reach you. come make ` +
+      `ok this one's actually not like the other dating apps, everyone's identity-verified, ` +
+      `and an AI weeds out the creeps before they reach you. come make ` +
       `trouble with me 👉 ${url}`,
     serious: (url) =>
       `found a dating app that's actually for people who want something real, verified, serious, ` +
@@ -419,7 +419,7 @@
 
         <p class="pitch">
           Hundreds of guys sliding into your DMs on Instagram, WhatsApp and Tinder?
-          Most are creeps 🙄 but a few are genuine, successful, even high-earning.
+          Most are creeps 🙄 but a few are genuine.
           You don't have the time to text them all. So send them your link: your Bestie
           talks to every one of them, ranks them, and brings you only the ones worth your time.
           You earn ₹{menCash?.currentTier ?? 25} for every guy who joins and gets verified.

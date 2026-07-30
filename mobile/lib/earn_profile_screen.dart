@@ -145,7 +145,7 @@ class _EarnProfileScreenState extends State<EarnProfileScreen> {
                   ),
                   const SizedBox(height: 12),
                   const Text(
-                    'We verify ID, photos, spending pattern & intent.\nNo one sees the raw files — only the signals you allow.',
+                    'We verify ID, photos, lifestyle & intent.\nNo one sees the raw files — only the signals you allow.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 11,

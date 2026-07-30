@@ -170,7 +170,7 @@
 				</div>
 			{:else if data.mood === 'casual'}
 				<h1 class="hl">{#if name}<em>{name}</em> thinks you'd love it here{:else}You're going to love it here{/if}</h1>
-				<p class="hl-sub">Not like the other apps: everyone's identity-verified, it skews high-earning (tech, finance, founders), and an AI filters out the creeps before they reach you.</p>
+				<p class="hl-sub">Not like the other apps: everyone's identity-verified, it skews established professionals (tech, finance, founders), and an AI filters out the creeps before they reach you.</p>
 				<div class="callout">
 					<span class="ico">✨</span>
 					<span class="ctxt"><b>Come have fun with it.</b> No pressure, just genuinely good people.</span>

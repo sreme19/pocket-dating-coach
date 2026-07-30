@@ -33,13 +33,13 @@
     spoilt_woman:        { emoji: '💎', label: 'Spoilt Woman',     color: '#ec4899', bg: 'rgba(236,72,153,0.13)'  },
     safety_first_woman:  { emoji: '🛡️', label: 'Safety-First',    color: '#FF3B6B', bg: 'rgba(255,59,107,0.13)'  },
     // New archetypes (PDC-48)
-    casual_generous_man:       { emoji: '💸', label: 'Casual-Generous',    color: '#FF3B6B', bg: 'rgba(255,59,107,0.13)' },
+    casual_generous_man:       { emoji: '💫', label: 'Experience-Led',     color: '#FF3B6B', bg: 'rgba(255,59,107,0.13)' },
     hopeless_romantic_man:     { emoji: '💞', label: 'Hopeless-Romantic',  color: '#FF7A4D', bg: 'rgba(255,122,77,0.13)' },
     rebound_healing_man:       { emoji: '🌱', label: 'Rebound-Healing',    color: '#84cc16', bg: 'rgba(132,204,22,0.13)'  },
     untouched_heart_man:       { emoji: '🕊️', label: 'Untouched-Heart',   color: '#3b82f6', bg: 'rgba(59,130,246,0.13)'  },
     forever_focused_man:       { emoji: '🎯', label: 'Forever-Focused',    color: '#14b8a6', bg: 'rgba(20,184,166,0.13)'  },
     traditional_matrimony_man: { emoji: '🏛️', label: 'Traditional',       color: '#f59e0b', bg: 'rgba(245,158,11,0.13)'  },
-    spoiled_casual_woman:        { emoji: '✨', label: 'Spoiled-Casual',     color: '#f59e0b', bg: 'rgba(245,158,11,0.13)'  },
+    spoiled_casual_woman:        { emoji: '✨', label: 'Experience-Led',     color: '#f59e0b', bg: 'rgba(245,158,11,0.13)'  },
     hopeless_romantic_woman:     { emoji: '🌹', label: 'Hopeless-Romantic', color: '#ec4899', bg: 'rgba(236,72,153,0.13)'  },
     rebound_healing_woman:       { emoji: '🌿', label: 'Rebound-Healing',   color: '#84cc16', bg: 'rgba(132,204,22,0.13)'  },
     untouched_heart_woman:       { emoji: '🌸', label: 'Untouched-Heart',   color: '#3b82f6', bg: 'rgba(59,130,246,0.13)'  },
@@ -494,7 +494,7 @@
           class="find-match-btn"
           onclick={runFindMatches}
           disabled={fmLoading}
-          title={fmEligible ? `AI matchmaker · ${fmRemaining} left` : 'Finish verification to unlock'}
+          title={fmEligible ? `AI matchmaker · ${fmRemaining} left` : 'Finish verification to use this'}
           aria-label="Find a match with the AI matchmaker"
         >
           {#if fmLoading}
@@ -997,7 +997,9 @@
       {:else if fmPopup === 'limit'}
         <div class="fm-emoji">✨</div>
         <h2 class="fm-title">You've used all your matches</h2>
-        <p class="fm-sub">You've used all {fmRunsLimit} AI match searches. More will be available to unlock soon.</p>
+        <!-- No "unlock" wording — there is no IAP in this product. See
+             docs/requirements/AppStore_Rejection_Remediation.md §5.1. -->
+        <p class="fm-sub">You've used all {fmRunsLimit} AI match searches on your account. New matches still come to you on their own — you don't have to search for them.</p>
         <div class="fm-actions">
           <button class="fm-btn fm-btn-primary" onclick={fmClosePopup}>Got it</button>
         </div>
