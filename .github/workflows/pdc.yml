@@ -94,6 +94,24 @@ jobs:
         run: npm audit --audit-level=high --omit=dev
 
   # ════════════════════════════════════════════════════════════════════════════
+  # BANNED STRINGS — Guideline 1.1.4 regression gate  (push/PR → main, development)
+  # ════════════════════════════════════════════════════════════════════════════
+  # Blocks every deploy/distribution job below. App Store submission 3a44802f was
+  # rejected twice under 1.1.4 for compensated-dating copy; this is the gate that
+  # stops that vocabulary shipping again. See scripts/check-banned-strings.sh.
+
+  banned-strings-check:
+    name: Guideline 1.1.4 — Banned Strings
+    if: |
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development')) ||
+      github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run banned-string regression gate
+        run: bash scripts/check-banned-strings.sh
+
+  # ════════════════════════════════════════════════════════════════════════════
   # WEB — Notify Failure  (after web-test fails)
   # ════════════════════════════════════════════════════════════════════════════
 
@@ -157,7 +175,7 @@ jobs:
 
   web-deploy-production:
     name: Web — Deploy Production
-    needs: [web-test, web-security]
+    needs: [web-test, web-security, banned-strings-check]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     continue-on-error: true  # Non-blocking until Vercel secrets are set
@@ -414,7 +432,7 @@ jobs:
 
   android-distribute:
     name: Android — Firebase Distribute
-    needs: mobile-changes
+    needs: [mobile-changes, banned-strings-check]
     if: needs.mobile-changes.outputs.changed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -477,7 +495,7 @@ jobs:
 
   ios-distribute:
     name: iOS — TestFlight (dev)
-    needs: mobile-changes
+    needs: [mobile-changes, banned-strings-check]
     if: needs.mobile-changes.outputs.changed == 'true'
     runs-on: macos-26
     timeout-minutes: 60
@@ -582,7 +600,7 @@ jobs:
 
   ios-testflight:
     name: iOS — TestFlight (prod)
-    needs: mobile-changes-main
+    needs: [mobile-changes-main, banned-strings-check]
     if: needs.mobile-changes-main.outputs.changed == 'true'
     runs-on: macos-26
     timeout-minutes: 60
