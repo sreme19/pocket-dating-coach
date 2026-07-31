@@ -94,8 +94,15 @@ PATTERNS_REFER=(
 )
 
 # Strip comment lines and the exempt guard file from any hit list.
+#
+# The line-number anchor accepts both `file:55:` and a bare `55:`. grep only
+# prints the filename when it is scanning more than one file, so a single-file
+# scan (the refer_screen.dart pass below) yields the bare form on Linux while
+# macOS prints the filename — which silently un-stripped every comment in CI and
+# failed the gate on its own explanatory notes. scan() now forces -H as well, so
+# this is belt and braces rather than the only defence.
 filter() {
-  grep -vE ':[0-9]+:[[:space:]]*(//|///|#|\*|<!--)' \
+  grep -vE '(^|:)[0-9]+:[[:space:]]*(//|///|#|\*|<!--)' \
     | grep -v 'female-profile.ts' \
     | grep -v 'check-banned-strings.sh' \
     || true
@@ -104,7 +111,9 @@ filter() {
 scan() {
   local flags="$1" pattern="$2"; shift 2
   local hits
-  hits=$(grep -rn $flags --binary-files=without-match -- "$pattern" "$@" 2>/dev/null | filter)
+  # -H: always print the filename, even for a single-file scan, so `filter`'s
+  # comment stripping behaves identically on macOS and on the CI runner.
+  hits=$(grep -rnH $flags --binary-files=without-match -- "$pattern" "$@" 2>/dev/null | filter)
   if [ -n "$hits" ]; then
     echo "✗ BANNED: \"$pattern\""
     echo "$hits" | sed 's/^/    /'
