@@ -26,6 +26,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import type { ReportReason } from '$lib/verified-vibe/types';
 import { getSupabase } from '$lib/server/supabase';
+import { recordIssueReport } from '$lib/server/issue-report';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { createClient } from '@supabase/supabase-js';
 
@@ -103,6 +104,24 @@ export const POST: RequestHandler = async ({ request }) => {
     if (insertError) {
       console.error('[report-user] insert failed', insertError);
       return json({ error: 'Internal server error' }, { status: 500 });
+    }
+
+    // Also notify the team. The row alone is a queue nobody is watching in
+    // real time, and we promise a 24-hour review — so the report has to reach a
+    // human inbox as well. Non-fatal: the durable row is the record of truth,
+    // and a Resend outage must not make the user think their report was lost.
+    try {
+      await recordIssueReport({
+        reporterId,
+        category: body.reason === 'inappropriate_content' ? 'nudity' : 'other',
+        surface: 'report-user',
+        description: `Reported a user for "${body.reason}".${description ? ` They said: ${description}` : ''}`,
+        subjectUserId: reportedUserId,
+        subjectUrl: '',
+        context: { reason: body.reason, matchId: matchId || null, reportId: inserted.id },
+      });
+    } catch (e) {
+      console.error('[report-user] team notification failed (report itself is saved)', e);
     }
 
     return json({

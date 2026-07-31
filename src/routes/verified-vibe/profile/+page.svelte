@@ -8,6 +8,7 @@
   import { unregisterPushNotifications } from '$lib/push-notifications';
   import { ShieldCheck, Pencil, Check, X, MapPin, Sparkles, Wand2, LogOut, Heart, Zap, Share2, Gift } from 'lucide-svelte';
   import CasualGenerousBoostTab from '$lib/verified-vibe/components/CasualGenerousBoostTab.svelte';
+  import ReportIssueButton from '$lib/verified-vibe/components/ReportIssueButton.svelte';
   import { ARCHETYPES, ARCHETYPES_BY_GENDER } from '$lib/verified-vibe/constants';
   import type { Archetype } from '$lib/verified-vibe/types';
   import type { ProfileIntakeData } from '$lib/verified-vibe/components/ProfileIntakeStep.svelte';
@@ -50,6 +51,9 @@
   let aiPhotos = $state<PhotoEnhanceResult[]>([]);
   // Photos the user marked as "not the right representation" — fed back as negative prompt
   let rejectedPhotos = $state<Array<{ role: string; scene: string }>>([]);
+  // One-shot notice handed over by the onboarding photos step (which uploads in the
+  // background and navigates here before the gate's answer arrives).
+  let photoNotice = $state<string | null>(null);
   let enhancing = $state(false);
   let enhanceError = $state<string | null>(null);
   let generationProgress = $state(0); // 0-5 for number of photos generated
@@ -1530,6 +1534,13 @@
       return;
     }
 
+    // Read-and-clear: the photo gate's notice is shown once, then forgotten.
+    const handedOverNotice = localStorage.getItem('vv_photo_notice');
+    if (handedOverNotice) {
+      photoNotice = handedOverNotice;
+      localStorage.removeItem('vv_photo_notice');
+    }
+
     const rawDraft = localStorage.getItem('vv_profile_draft');
     const rawGenerated = localStorage.getItem('vv_profile');
     const rawPhotos = localStorage.getItem('vv_photos');
@@ -2240,6 +2251,22 @@
       </div>
     </div>
   {:else}
+  <!-- What the photo gate did to the set just uploaded during onboarding: some
+       photos dropped, or published without a confirmable face. Dismissible, and
+       already cleared from storage so it never reappears. -->
+  {#if photoNotice}
+    <div class="photo-notice" role="status">
+      <span class="photo-notice-icon">📸</span>
+      <span class="photo-notice-text">
+        {photoNotice}
+        <!-- The gate errs toward publishing and can get a photo wrong in either
+             direction, so the moment we tell someone what we did to their photos
+             is exactly when they need a way to tell us we were wrong. -->
+        <ReportIssueButton surface="own-profile-photos" context={{ notice: photoNotice }} />
+      </span>
+      <button class="photo-notice-close" onclick={() => (photoNotice = null)} aria-label="Dismiss">×</button>
+    </div>
+  {/if}
   <!-- Header -->
   <div class="profile-header">
     <button class="back-btn" onclick={() => goto('/verified-vibe/discover')} aria-label="Go to discover">
@@ -7601,6 +7628,30 @@
   }
 
   /* ── Generic boost tab premium styles ── */
+  .photo-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 10px 16px 0;
+    padding: 10px 13px;
+    background: rgba(255,59,107,0.09);
+    border: 1px solid rgba(255,59,107,0.22);
+    border-radius: 12px;
+  }
+  .photo-notice-icon { font-size: 13px; flex-shrink: 0; margin-top: 1px; }
+  .photo-notice-text { font-size: 12px; line-height: 1.5; font-weight: 500; flex: 1; }
+  .photo-notice-close {
+    background: none;
+    border: 0;
+    padding: 0 2px;
+    font-size: 17px;
+    line-height: 1;
+    color: inherit;
+    opacity: 0.55;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
   .gen-privacy-banner {
     display: flex;
     align-items: flex-start;

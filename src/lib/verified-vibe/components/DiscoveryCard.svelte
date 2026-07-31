@@ -2,6 +2,7 @@
   import { Heart, X, MapPin, CheckCircle2, ChevronLeft, ChevronRight, MessageCircle, Flag } from 'lucide-svelte';
   import { fade, scale } from 'svelte/transition';
   import TrustScoreBadge from './TrustScoreBadge.svelte';
+  import ReportIssueButton from './ReportIssueButton.svelte';
   import type { DiscoveryProfile, VerificationStep } from '../types';
   import { ARCHETYPE_COLORS } from '../constants';
 
@@ -348,6 +349,19 @@
           <Flag size={20} aria-hidden="true" />
           <span class="action-label">Report</span>
         </button>
+
+        <!-- Separate from "Report profile": this one is about the CONTENT on
+             screen (a photo that shouldn't have passed our screen), not an
+             accusation about the person. Discover is where published photos are
+             actually seen, so it needs the fastest possible path to a human. -->
+        <div class="quick-action-button report-issue">
+          <ReportIssueButton
+            surface="discover"
+            subjectUserId={profile.id}
+            subjectUrl={currentPhoto ?? null}
+            context={{ name: profile.firstName }}
+          />
+        </div>
       </div>
 
       <!-- Toggle Quick Actions -->

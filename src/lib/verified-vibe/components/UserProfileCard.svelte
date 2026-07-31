@@ -2,6 +2,7 @@
   import { Heart, X, MapPin, Shield, CheckCircle2, Flag, Ban } from 'lucide-svelte';
   import { fade, scale } from 'svelte/transition';
   import TrustScoreBadge from './TrustScoreBadge.svelte';
+  import ReportIssueButton from './ReportIssueButton.svelte';
   import type { DiscoveryProfile, VerificationStep } from '../types';
   import { ARCHETYPE_COLORS } from '../constants';
 
@@ -360,6 +361,18 @@
             <Flag size={16} />
             <span>Report</span>
           </button>
+          <!-- Reporting the PERSON and reporting the CONTENT are different acts:
+               a photo that should never have passed our content screen isn't
+               necessarily a bad actor, and someone who won't accuse a person will
+               still flag an image. Both, deliberately. -->
+          <div class="menu-item report-issue-item">
+            <ReportIssueButton
+              surface="profile-card"
+              subjectUserId={profile.id}
+              subjectUrl={profile.avatar ?? null}
+              context={{ name: profile.firstName }}
+            />
+          </div>
         </div>
       {/if}
     </div>
