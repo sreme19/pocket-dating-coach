@@ -111,7 +111,8 @@ class _MatchProfileScreenState extends State<MatchProfileScreen> {
               ),
               SliverList(
                 delegate: SliverChildListDelegate([
-                  ...richProfileBody(context, d),
+                  ...richProfileBody(context, d,
+                      subjectUserId: widget.userId, surface: 'match-profile'),
                   const SizedBox(height: 32),
                 ]),
               ),

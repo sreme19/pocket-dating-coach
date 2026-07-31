@@ -572,7 +572,11 @@
 
 
         <div class="profile-body-wrap">
-          <PublicProfileBody profile={richProfile} />
+          <!-- subjectUserId comes from currentProfile, not richProfile: the rich
+               payload is the rendered read, currentProfile is the feed entry that
+               actually carries the id. It also gates the Report footer, so it must
+               be the id we'd act on. -->
+          <PublicProfileBody profile={richProfile} subjectUserId={currentProfile?.id ?? null} surface="discover" />
         </div>
 
         <!-- AI Bestie flags — female viewer + male profile only -->

@@ -350,7 +350,9 @@
     </div>
 
     <div class="profile-sections">
-      <PublicProfileBody {profile} />
+      <!-- This is also the page the team's join-alert email opens, so the Report
+           footer is reachable from a shared link and from admin preview too. -->
+      <PublicProfileBody {profile} subjectUserId={profileId} surface="shared-profile" />
 
       <!-- AI Bestie flags — female viewer + male profile only -->
       {#if effectiveViewerGender === 'woman' && profile.gender === 'man'}

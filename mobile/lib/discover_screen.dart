@@ -356,7 +356,14 @@ class _DiscoverScreenState extends State<DiscoverScreen>
                   _profileError(snap.error),
                 ]
                 else ...[
-                  if (d != null) ...richProfileBody(context, d),
+                  // _current carries the id; MatchDetail does not. Seed profiles
+                  // have synthetic ids and no real owner, so they get no footer.
+                  if (d != null)
+                    ...richProfileBody(context, d,
+                        subjectUserId: (_current != null && !_current!.id.startsWith('seed-'))
+                            ? _current!.id
+                            : null,
+                        surface: 'discover'),
                   if (_viewerGender == 'woman' && _current?.gender == 'man')
                     _bestieTake(),
                 ],

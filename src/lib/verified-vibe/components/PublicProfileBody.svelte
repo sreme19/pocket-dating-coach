@@ -1,4 +1,6 @@
 <script lang="ts">
+  import ReportIssueButton from './ReportIssueButton.svelte';
+
   interface Insight { emoji: string; label: string; inferred?: boolean; from?: string; }
   interface SignalGroup { key: string; label: string; icon: string; insights: Insight[]; aggregated: string; }
   interface GarageCar { make: string; model: string; year?: string; color?: string; vehicleType?: string; inferred?: boolean; from?: string; }
@@ -18,7 +20,17 @@
     photos?: Array<{ url: string; ai: boolean; role: string }>;
   }
 
-  let { profile }: { profile: Profile } = $props();
+  let {
+    profile,
+    /**
+     * Id of the profile being viewed. Drives the Report issue footer — without it
+     * a report can't name who it's about, so the footer is hidden rather than
+     * sending a subject-less report. Omitted when the owner views their own read.
+     */
+    subjectUserId = null,
+    /** Where the viewer is, recorded on the report (e.g. 'discover'). */
+    surface = 'profile',
+  }: { profile: Profile; subjectUserId?: string | null; surface?: string } = $props();
 
   // The hero (photos[0]) is rendered by the page header; the rest are woven
   // through the sections below so photos and personality unfold together as the
@@ -290,6 +302,22 @@
       </div>
     </section>
   {/if}
+
+  <!-- Report issue — the human backstop behind the automated photo content
+       screen, which errs toward publishing. This lives in PublicProfileBody
+       rather than on a card component because this is what Discover AND the
+       shared profile link actually render, so one placement covers both. Gender
+       plays no part: it shows on every profile a viewer can open. -->
+  {#if subjectUserId}
+    <div class="report-footer">
+      <ReportIssueButton
+        {surface}
+        {subjectUserId}
+        subjectUrl={profile.photos?.[0]?.url ?? null}
+        context={{ name: profile.firstName, gender: profile.gender }}
+      />
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -422,6 +450,14 @@
   /* AI Portraits */
   .portrait-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .portrait-img { width: 100%; aspect-ratio: 3/4; object-fit: cover; border-radius: 14px; }
+
+  /* Report issue — quiet footer, findable without implying the profile is suspect */
+  .report-footer {
+    display: flex; justify-content: center;
+    padding: 4px 0 8px; margin-top: 4px;
+    border-top: 1px solid rgba(27,16,32,0.08);
+    color: #1B1020;
+  }
 
   /* Photos woven through the read (revealed on scroll, not a grid) */
   .photo-reveal { position: relative; border-radius: 18px; overflow: hidden; line-height: 0; }

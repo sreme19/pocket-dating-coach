@@ -2266,6 +2266,34 @@ Future<void> reportUser(
   );
 }
 
+/// Report an ISSUE with something on screen — a photo that should never have
+/// passed the content screen, a broken surface — as opposed to reporting the
+/// PERSON (see [reportUser]). The server emails the team AND stores a row on two
+/// independent channels, so one outage can't silently lose a safety report.
+///
+/// [category] is one of: nudity, disturbing, wrong_person, bug, other.
+Future<void> reportIssue({
+  required String category,
+  String? description,
+  String? surface,
+  String? subjectUserId,
+  String? subjectUrl,
+  Map<String, dynamic>? context,
+}) async {
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/report-issue',
+    data: {
+      'category': category,
+      if (description != null && description.trim().isNotEmpty) 'description': description.trim(),
+      if (surface != null) 'surface': surface,
+      if (subjectUserId != null) 'subjectUserId': subjectUserId,
+      if (subjectUrl != null) 'subjectUrl': subjectUrl,
+      if (context != null) 'context': context,
+    },
+    options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
+  );
+}
+
 /// A received secret-admirer / craving-attention message (inbox).
 class Admirer {
   final String id;

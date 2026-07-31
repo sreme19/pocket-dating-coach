@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'api.dart';
 import 'config.dart';
+import 'report_issue.dart';
 import 'season.dart';
 
 // ── Inferred (cross-section) signal styling ──────────────────────────────────
@@ -23,7 +24,16 @@ String _inferredTip(String? from) =>
 /// Shared rich "Public Read" body for a [MatchDetail] — used inline on Discover
 /// (and anywhere a full profile is shown). Renders everything below the photo,
 /// in the same section order as the web.
-List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
+///
+/// [subjectUserId] / [surface] drive the Report issue footer, mirroring the web's
+/// PublicProfileBody. MatchDetail carries no id of its own, so the caller passes
+/// it; without one the footer is hidden rather than sending a subject-less report.
+List<Widget> richProfileBody(
+  BuildContext context,
+  MatchDetail d, {
+  String? subjectUserId,
+  String surface = 'profile',
+}) {
   // Non-hero photos, woven through the sections so they reveal on scroll rather
   // than sitting in a grid (MVP "Layout in the Public Read").
   final reveal = d.photos.length > 1 ? d.photos.sublist(1) : const <({String url, bool ai})>[];
@@ -146,6 +156,17 @@ List<Widget> richProfileBody(BuildContext context, MatchDetail d) {
     if (revealAt(4) != null) revealAt(4)!,
     if (d.travel.isNotEmpty)
       pSection('✈️ TRAVEL MAGNETS', travelMagnets(d.travel), hint: 'detected from uploads'),
+    // Report issue — the human backstop behind the automated photo content
+    // screen, which errs toward publishing. Lives here (not on a card) so
+    // Discover and the match profile both get it, on every profile regardless
+    // of gender. Web twin: PublicProfileBody's .report-footer.
+    if (subjectUserId != null)
+      ReportIssueFooter(
+        subjectUserId: subjectUserId,
+        surface: surface,
+        subjectUrl: d.photos.isNotEmpty ? d.photos.first.url : null,
+        subjectName: d.name,
+      ),
   ];
 }
 
