@@ -250,6 +250,69 @@ describe('shouldReanchor — "the rest" means the majority, not the first photo'
 	});
 });
 
+// Nudity and distressing imagery are a separate question from "is this you", and
+// they win: being yourself doesn't make a photo publishable.
+describe('decidePhotoGate — content safety', () => {
+	const ok = () => ({ category: 'ok' as const, reason: '' });
+	const unsafe = (category: 'sexual' | 'graphic' | 'self_harm' | 'hateful' | 'minor_safety') => ({
+		category,
+		reason: 'model reason',
+	});
+
+	it('drops a nude even when it is confirmed to be the owner', () => {
+		const d = decidePhotoGate([owner(), owner()], true, [unsafe('sexual'), ok()]);
+		expect(d.acceptedIndexes).toEqual([1]);
+		expect(d.rejected.map((r) => r.index)).toEqual([0]);
+		expect(d.unsafeIndexes).toEqual([0]);
+		expect(d.status).toBe('passed'); // photo 1 still proves who she is
+	});
+
+	it('drops distressing imagery on the no-anchor path too', () => {
+		const inCluster = { isRealPerson: true, sameAsAnchor: true, confidence: 90, reason: '' };
+		const d = decidePhotoGate([inCluster, inCluster], false, [ok(), unsafe('graphic')]);
+		expect(d.acceptedIndexes).toEqual([0]);
+		expect(d.unsafeIndexes).toEqual([1]);
+	});
+
+	it('never describes the imagery back at the user', () => {
+		const d = decidePhotoGate([owner()], true, [unsafe('sexual')]);
+		expect(d.rejected[0].reason).toMatch(/without nudity/i);
+		expect(d.rejected[0].reason).not.toContain('model reason');
+	});
+
+	it('does not talk about the selfie check when content was the only problem', () => {
+		const d = decidePhotoGate([owner()], true, [unsafe('sexual')]);
+		expect(d.status).toBe('rejected');
+		expect(d.message).not.toMatch(/selfie/i);
+		expect(d.message).toMatch(/can't publish these photos/i);
+	});
+
+	it('counts identity and content drops separately in the notice', () => {
+		const d = decidePhotoGate([owner(), someoneElse(), owner()], true, [ok(), ok(), unsafe('graphic')]);
+		expect(d.message).toMatch(/removed 1 photo that isn't you/);
+		expect(d.message).toMatch(/couldn't publish 1 photo/);
+	});
+
+	it('publishes normally when the safety pass did not run at all', () => {
+		const d = decidePhotoGate([owner(), owner()], true, undefined);
+		expect(d.acceptedIndexes).toEqual([0, 1]);
+		expect(d.unsafeIndexes).toEqual([]);
+	});
+
+	it('treats a missing per-photo entry as ok rather than guessing', () => {
+		const d = decidePhotoGate([owner(), owner()], true, [ok()]);
+		expect(d.acceptedIndexes).toEqual([0, 1]);
+	});
+
+	it('records content drops on the persisted gate record', () => {
+		const d = decidePhotoGate([owner(), owner()], true, [unsafe('sexual'), ok()]);
+		expect(gateRecord(d, '2026-07-31T00:00:00.000Z')).toMatchObject({
+			rejectedIndexes: [0],
+			unsafeIndexes: [0],
+		});
+	});
+});
+
 describe('gateRecord', () => {
 	it('summarises the decision for the verification row', () => {
 		const d = decidePhotoGate([notAPerson(), owner(), someoneElse(), cannotTell()], true);

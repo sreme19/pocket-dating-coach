@@ -588,25 +588,28 @@ class _VerificationScreenState extends State<VerificationScreen> {
             'city': _cityCtrl.text.trim(),
             'openToTravel': _openToTravel,
           });
-          // Partial rejection: the server publishes only photos that are actually the
-          // owner, so it may have dropped some. Say so — otherwise the user finds a
-          // shorter photo set later with no explanation. (A FULL refusal — nothing is
-          // her, or no face was clear enough to compare — throws a 422 handled by the
-          // catch below, which keeps her on this step with the server's own message.)
+          // The gate may have something to say even though the step succeeded:
+          // photos were dropped, or the set went live without a confirmable face
+          // (allowed once the selfie check is done — see photo-identity-gate).
+          // Prefer the server's own wording; it owns this copy and knows which of
+          // the two happened. (A FULL refusal — nothing at all was publishable —
+          // throws a 422 handled by the catch below, which keeps her on this step.)
+          final notice = photoResult['photoNotice'];
           final gate = photoResult['identityGate'];
-          if (gate is Map) {
+          var text = notice is String ? notice.trim() : '';
+          if (text.isEmpty && gate is Map) {
+            // Older server that sent no notice: compose from the rejection count.
             final rejected = (gate['rejectedIndexes'] as List?)?.length ?? 0;
-            if (mounted && rejected > 0) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  duration: const Duration(seconds: 6),
-                  content: Text(
-                    "We removed $rejected photo${rejected == 1 ? '' : 's'} that ${rejected == 1 ? "wasn't" : "weren't"} "
-                    'you. Your other photos are live — add more any time from your profile.',
-                  ),
-                ),
-              );
+            if (rejected > 0) {
+              text =
+                  "We removed $rejected photo${rejected == 1 ? '' : 's'} that ${rejected == 1 ? "wasn't" : "weren't"} "
+                  'you. Your other photos are live — add more any time from your profile.';
             }
+          }
+          if (mounted && text.isNotEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(duration: const Duration(seconds: 7), content: Text(text)),
+            );
           }
           // Door A: a man's raw photo is never shown — only an AI portrait
           // generated from it. Generation now happens SERVER-SIDE, synchronously,

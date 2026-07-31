@@ -681,6 +681,149 @@ Do not include any other text.`
   return { faceFound: faces.some(Boolean), faces };
 }
 
+/**
+ * Why a photo may not go on a public profile, independent of WHO is in it.
+ * 'ok' is the only publishable value.
+ */
+export type PhotoSafetyCategory =
+  /** Nothing here blocks publication. */
+  | 'ok'
+  /** Explicit nudity or sexual activity. */
+  | 'sexual'
+  /** Gore, injury, death, mutilation, cruelty — the "distressing to look at" bucket. */
+  | 'graphic'
+  /** Self-harm or suicide imagery. */
+  | 'self_harm'
+  /** Hate symbols, or a weapon used to threaten. */
+  | 'hateful'
+  /** Appears to sexualise a minor. Always rejected; flagged for human review. */
+  | 'minor_safety';
+
+export interface PhotoSafetyVerdict {
+  category: PhotoSafetyCategory;
+  /** ≤14-word reason. Never quotes the imagery back at the user. */
+  reason: string;
+}
+
+/**
+ * Screen candidate profile photos for content that may not be shown publicly at
+ * all — nudity and imagery that is distressing to look at — separately from the
+ * "is this you" question.
+ *
+ * WHY ITS OWN PASS. Identity and safety are different questions with different
+ * error costs, and safety applies whether or not there is an anchor selfie to
+ * compare against. Keeping it separate means one prompt does one job, and the
+ * gate can reject on safety without any identity signal at all.
+ *
+ * DELIBERATELY NOT PRUDISH. This is a dating app: swimwear, gym wear, lingerie,
+ * cleavage, a shirtless beach photo and body-con clothing are all normal profile
+ * photos and must come back 'ok'. The bar for 'sexual' is explicit nudity or
+ * sexual activity, not skin.
+ *
+ * FAIL OPEN, LIKE THE REST OF THE GATE. A thrown error here must not block
+ * onboarding; the caller records that the screen didn't run so the rescreen task
+ * can revisit, and users get a Report button as the backstop.
+ */
+export async function screenPhotoSafetyWithClaude(
+  images: Array<{ data: string; mime: string }>
+): Promise<PhotoSafetyVerdict[]> {
+  if (!CLAUDE_API_KEY) {
+    throw new Error('ANTHROPIC_API_KEY environment variable not set');
+  }
+  if (images.length === 0) return [];
+
+  const messageContent: any[] = [
+    {
+      type: 'text',
+      text: `You are the content-safety check for photos a user wants to show on their public dating profile. You will see ${images.length} photo(s), indexed 0 to ${images.length - 1} in the order shown.
+
+For EACH photo, assign exactly ONE category:
+
+"ok"            — publishable. THIS IS THE DEFAULT AND THE COMMON ANSWER.
+"sexual"        — explicit nudity or sexual activity: exposed genitals, exposed
+                  female nipples, a sex act, or an obviously pornographic image.
+"graphic"       — distressing to look at: blood, open wounds, injury, surgery,
+                  a corpse, animal cruelty, mutilation.
+"self_harm"     — self-harm wounds, or imagery promoting suicide or self-injury.
+"hateful"       — hate symbols (e.g. swastika, Klan imagery), or a weapon aimed
+                  at or held to a person.
+"minor_safety"  — a child or apparent minor shown in a sexualised way.
+
+This is a DATING app. Do NOT flag ordinary attractiveness or skin. All of the
+following are "ok": swimwear, bikinis, beachwear, a shirtless man, gym wear,
+lingerie, cleavage, bare shoulders, backs, legs and midriffs, tight or revealing
+clothing, an affectionate or flirtatious pose, a kiss, a tattoo, a person holding
+a drink or a cigarette, a legally-held weapon in a sport/hunting context, a
+family photo that simply contains a child.
+
+Judge only what is actually visible. Do not infer from clothing, pose or captions.
+When you are unsure, answer "ok" — a human review path exists downstream.`
+    }
+  ];
+  for (const img of images) {
+    messageContent.push({
+      type: 'image',
+      source: { type: 'base64', media_type: img.mime, data: img.data }
+    });
+  }
+  messageContent.push({
+    type: 'text',
+    text: `Return ONLY a JSON object with a "photos" array of ${images.length} entries, one per photo in the order shown:
+{
+  "photos": [
+    { "category": "ok" | "sexual" | "graphic" | "self_harm" | "hateful" | "minor_safety",
+      "reason": "<max 14 words, shown to the user; describe the RULE, never the imagery>" }
+  ]
+}
+
+Do not include any other text.`
+  });
+
+  const response = await fetch(CLAUDE_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': CLAUDE_API_KEY,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: CLAUDE_MODEL,
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: messageContent }]
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    console.error('Claude API error (photo safety):', error);
+    throw new Error(`Claude API error: ${(error as any).error?.message || 'Unknown error'}`);
+  }
+
+  const data = await response.json();
+  const content = data.content[0]?.text;
+  if (!content) throw new Error('No response from Claude API');
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim());
+  } catch {
+    console.error('Failed to parse Claude response (photo safety):', content);
+    throw new Error('Invalid response format from Claude API');
+  }
+
+  const valid: PhotoSafetyCategory[] = ['ok', 'sexual', 'graphic', 'self_harm', 'hateful', 'minor_safety'];
+  const raw = Array.isArray(parsed.photos) ? parsed.photos : [];
+  // Normalise to one verdict per input photo. An unrecognised or missing answer
+  // becomes 'ok': a malformed response is not evidence against a photo, and the
+  // identity gate still has to accept it separately.
+  return images.map((_, i) => {
+    const entry = raw[i];
+    const category = valid.includes(entry?.category) ? (entry.category as PhotoSafetyCategory) : 'ok';
+    const reason = typeof entry?.reason === 'string' ? entry.reason.trim().slice(0, 120) : '';
+    return { category, reason };
+  });
+}
+
 /** Per-photo verdict from {@link matchPhotosToAnchorWithClaude}. */
 export interface AnchorPhotoVerdict {
   /** A real photograph of a real human being (not a poster, screenshot, deity/celebrity image, pet, meme, landscape, drawing or AI render). */

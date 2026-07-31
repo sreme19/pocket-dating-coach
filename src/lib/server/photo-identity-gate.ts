@@ -35,7 +35,9 @@ import {
   matchPhotosToAnchorWithClaude,
   detectFaceInPhotosWithClaude,
   checkLivenessWithClaude,
+  screenPhotoSafetyWithClaude,
   type AnchorPhotoVerdict,
+  type PhotoSafetyVerdict,
 } from '$lib/verified-vibe/server/verification';
 import { loadAnchorSelfie } from '$lib/verified-vibe/server/anchor-selfie';
 
@@ -77,6 +79,8 @@ export interface PhotoGateDecision {
   unverifiableIndexes: number[];
   /** Rejected photos with a user-facing reason each. */
   rejected: Array<{ index: number; reason: string }>;
+  /** Of those, the ones blocked on CONTENT (nudity, graphic imagery) not identity. */
+  unsafeIndexes?: number[];
   /** One short message summarising the outcome, safe to show the user. */
   message: string;
 }
@@ -89,6 +93,8 @@ export interface PhotoGateRecord {
   /** How many photos were published without being confirmed (no comparable face). */
   unverifiable: number;
   rejectedIndexes: number[];
+  /** Subset of rejectedIndexes blocked on CONTENT — the admin-review signal. */
+  unsafeIndexes?: number[];
   checkedAt: string;
 }
 
@@ -105,10 +111,42 @@ const NOT_THE_SAME_PERSON = "This photo shows someone other than the person in y
 const NO_FACE_TO_CROSS_CHECK =
   'We need to see your face in this photo to confirm it is you. Finish the selfie check to post photos like this.';
 
-/** "We removed 2 photos that aren't you." — only ever said about dropped photos. */
-function removalNote(count: number): string {
-  if (count === 0) return '';
-  return `We removed ${count} photo${count === 1 ? '' : 's'} that ${count === 1 ? "isn't" : "aren't"} you. Your other photos are unchanged.`;
+/**
+ * User-facing copy for a photo blocked on content, not identity. Deliberately
+ * plain and non-graphic: it names the rule, never describes the imagery back at
+ * them, and never implies we think they are a bad person.
+ */
+const SAFETY_REASON: Record<Exclude<PhotoSafetyVerdict['category'], 'ok'>, string> = {
+  sexual: "This photo can't go on a public profile — please choose one without nudity.",
+  graphic: "This photo is too graphic for a public profile. Please choose a different one.",
+  self_harm: "We can't publish this photo. If you're going through something, please reach out to someone you trust.",
+  hateful: "This photo can't go on a public profile.",
+  minor_safety: "This photo can't go on a public profile.",
+};
+
+/**
+ * "We removed 2 photos that aren't you." Only ever said about dropped photos —
+ * and only about IDENTITY drops, since a photo blocked on content wasn't
+ * rejected for not being them.
+ *
+ * @param identity - Photos dropped because they are not the owner
+ * @param safety - Photos dropped on content (nudity, graphic imagery, …)
+ */
+function removalNote(identity: number, safety: number): string {
+  const parts: string[] = [];
+  if (identity > 0) {
+    parts.push(
+      `We removed ${identity} photo${identity === 1 ? '' : 's'} that ${identity === 1 ? "isn't" : "aren't"} you.`
+    );
+  }
+  if (safety > 0) {
+    parts.push(
+      `We couldn't publish ${safety} photo${safety === 1 ? '' : 's'} — the reason is shown next to ${safety === 1 ? 'it' : 'each'}.`
+    );
+  }
+  if (parts.length === 0) return '';
+  parts.push('Your other photos are unchanged.');
+  return parts.join(' ');
 }
 
 /**
@@ -144,19 +182,39 @@ function removalNote(count: number): string {
  * Either way the set is only REFUSED outright when nothing at all survives.
  * A single bad photo among good ones never costs the user the good ones.
  *
+ * CONTENT SAFETY SITS ABOVE ALL OF THIS. Nudity and imagery that is distressing
+ * to look at are rejected on both paths, before identity is even considered, and
+ * even when the photo is provably the owner — being yourself doesn't make a photo
+ * publishable. Note the deliberate asymmetry with identity: identity demands two
+ * independent opinions before condemning a photo, because deleting a real user's
+ * photo is the harm there. Here the harm runs the other way, so one confident
+ * flag is enough; the caution lives in the prompt, which answers 'ok' when unsure.
+ *
  * @param verdicts - One verdict per candidate photo, in upload order
  * @param hasAnchor - Whether the verdicts were produced against a verified anchor
  *                    selfie (true) or against the rest of the set (false)
+ * @param safety - Content verdict per photo, same order. Omitted when the safety
+ *                 pass could not run — which publishes, like the rest of the gate
+ *                 fails open, and is recorded so rescreen can revisit.
  */
 export function decidePhotoGate(
   verdicts: AnchorPhotoVerdict[],
-  hasAnchor: boolean
+  hasAnchor: boolean,
+  safety?: PhotoSafetyVerdict[]
 ): PhotoGateDecision {
   const confirmed: number[] = [];
   const unverifiableIndexes: number[] = [];
   const rejected: Array<{ index: number; reason: string }> = [];
+  const unsafeIndexes: number[] = [];
 
   verdicts.forEach((v, index) => {
+    // Content first: an unsafe photo is out regardless of who is in it.
+    const category = safety?.[index]?.category ?? 'ok';
+    if (category !== 'ok') {
+      unsafeIndexes.push(index);
+      rejected.push({ index, reason: SAFETY_REASON[category] });
+      return;
+    }
     // Not a person at all — the poster / celebrity / screenshot case. Unambiguous,
     // and the one rejection that applies on BOTH paths.
     if (!v.isRealPerson) {
@@ -196,18 +254,25 @@ export function decidePhotoGate(
   });
 
   const acceptedIndexes = [...confirmed, ...unverifiableIndexes].sort((a, b) => a - b);
+  const identityRejected = rejected.length - unsafeIndexes.length;
 
   // Only refuse when there is nothing left to publish. Anything that survived is
   // worth keeping, even if the batch also contained a poster or an impostor.
   if (acceptedIndexes.length === 0) {
+    // When content was the reason, say that instead of talking about the selfie
+    // check — telling someone their nude "doesn't match your selfie" is nonsense.
+    const allUnsafe = identityRejected === 0 && unsafeIndexes.length > 0;
     return {
       status: 'rejected',
       acceptedIndexes: [],
       unverifiableIndexes: [],
       rejected,
-      message: hasAnchor
-        ? 'None of these photos match your verification selfie. Please upload a photo of yourself — the same face you used for your selfie check.'
-        : 'None of these look like a clear photo of you. Please upload photos of yourself with your face visible.',
+      unsafeIndexes,
+      message: allUnsafe
+        ? "We can't publish these photos on a public profile. Please choose different ones."
+        : hasAnchor
+          ? 'None of these photos match your verification selfie. Please upload a photo of yourself — the same face you used for your selfie check.'
+          : 'None of these look like a clear photo of you. Please upload photos of yourself with your face visible.',
     };
   }
 
@@ -217,7 +282,8 @@ export function decidePhotoGate(
       acceptedIndexes,
       unverifiableIndexes,
       rejected,
-      message: removalNote(rejected.length),
+      unsafeIndexes,
+      message: removalNote(identityRejected, unsafeIndexes.length),
     };
   }
 
@@ -232,7 +298,11 @@ export function decidePhotoGate(
       acceptedIndexes,
       unverifiableIndexes,
       rejected,
-      message: rejected.length === 0 ? nudge : `${removalNote(rejected.length)} ${nudge}`,
+      unsafeIndexes,
+      message:
+        rejected.length === 0
+          ? nudge
+          : `${removalNote(identityRejected, unsafeIndexes.length)} ${nudge}`,
     };
   }
 
@@ -241,7 +311,8 @@ export function decidePhotoGate(
     acceptedIndexes,
     unverifiableIndexes,
     rejected,
-    message: removalNote(rejected.length),
+    unsafeIndexes,
+    message: removalNote(identityRejected, unsafeIndexes.length),
   };
 }
 
@@ -372,6 +443,15 @@ export async function screenProfilePhotos(
 
   const anchor = userId ? await loadAnchorSelfie(userId) : null;
 
+  // Content safety runs for every photo regardless of the identity path, and is
+  // independent of it — so start it now and let it run alongside. It fails open
+  // on its own: `undefined` means "the screen didn't run", which publishes,
+  // exactly like the identity side's 'error' posture.
+  const safetyPromise = screenPhotoSafetyWithClaude(photos).catch((e) => {
+    console.warn('[photo-identity-gate] safety screen failed (fail-open):', e);
+    return undefined;
+  });
+
   try {
     if (anchor) {
       const verdicts = await matchPhotosToAnchorWithClaude(anchor, photos);
@@ -381,7 +461,7 @@ export async function screenProfilePhotos(
       const flagged = verdicts
         .map((v, i) => (v.sameAsAnchor === false ? i : -1))
         .filter((i) => i >= 0);
-      if (flagged.length === 0) return decidePhotoGate(verdicts, true);
+      if (flagged.length === 0) return decidePhotoGate(verdicts, true, await safetyPromise);
 
       const adjudications = new Map<number, number | null>(
         await Promise.all(
@@ -396,7 +476,7 @@ export async function screenProfilePhotos(
           })
         )
       );
-      return decidePhotoGate(applyAdjudication(verdicts, adjudications), true);
+      return decidePhotoGate(applyAdjudication(verdicts, adjudications), true, await safetyPromise);
     }
 
     // ── No verified face on file ────────────────────────────────────────────────
@@ -410,7 +490,11 @@ export async function screenProfilePhotos(
     // Fewer than two faces: there is no "rest of the set" to cross-check against,
     // so the lone face defines the cluster on its own.
     if (faceIndexes.length < 2) {
-      return decidePhotoGate(clusterVerdicts(faces, faceIndexes[0] ?? null, new Map()), false);
+      return decidePhotoGate(
+        clusterVerdicts(faces, faceIndexes[0] ?? null, new Map()),
+        false,
+        await safetyPromise
+      );
     }
 
     /** Compare every other face against one photo's face. */
@@ -443,11 +527,34 @@ export async function screenProfilePhotos(
       pass = await compareAgainst(ref);
     }
 
-    return decidePhotoGate(clusterVerdicts(faces, ref, pass.byIndex), false);
+    return decidePhotoGate(clusterVerdicts(faces, ref, pass.byIndex), false, await safetyPromise);
   } catch (e) {
     // Fail OPEN on infra failure (see FAILURE POSTURE above) but never call it a pass.
     console.warn('[photo-identity-gate] screening failed (fail-open, status=error):', e);
-    return passthrough('error');
+    // The IDENTITY side failed, but the content screen is independent and may have
+    // succeeded — publishing known nudity because a face comparison timed out is
+    // not a trade we want. Honour any safety verdicts we do have, and nothing else:
+    // built by hand rather than through decidePhotoGate, because no identity
+    // verdict exists to feed it and every shape we could invent would lie.
+    const safety = await safetyPromise;
+    const unsafe = allIndexes.filter((i) => (safety?.[i]?.category ?? 'ok') !== 'ok');
+    if (unsafe.length === 0) return passthrough('error');
+    const kept = allIndexes.filter((i) => !unsafe.includes(i));
+    return {
+      // Still 'error', not 'rejected' — identity was never established, so nothing
+      // here is proven either way unless the whole set was unpublishable.
+      status: kept.length === 0 ? 'rejected' : 'error',
+      acceptedIndexes: kept,
+      unverifiableIndexes: kept,
+      rejected: unsafe.map((i) => ({
+        index: i,
+        reason: SAFETY_REASON[safety![i].category as Exclude<PhotoSafetyVerdict['category'], 'ok'>],
+      })),
+      message:
+        kept.length === 0
+          ? "We can't publish these photos on a public profile. Please choose different ones."
+          : removalNote(0, unsafe.length),
+    };
   }
 }
 
@@ -459,6 +566,7 @@ export function gateRecord(decision: PhotoGateDecision, checkedAt: string): Phot
     accepted: decision.acceptedIndexes.length,
     unverifiable: decision.unverifiableIndexes.length,
     rejectedIndexes: decision.rejected.map((r) => r.index),
+    ...(decision.unsafeIndexes?.length ? { unsafeIndexes: decision.unsafeIndexes } : {}),
     checkedAt,
   };
 }

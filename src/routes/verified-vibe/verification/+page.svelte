@@ -994,6 +994,15 @@
               completedAt: new Date(),
               createdAt: new Date()
             });
+            // The gate may have dropped photos, or published a set with no
+            // confirmable face. This upload is fire-and-forget and we have already
+            // navigated to the profile, so the notice can't be shown here — hand it
+            // over in localStorage for the profile page to show once.
+            if (typeof result.photoNotice === 'string' && result.photoNotice.trim()) {
+              try {
+                localStorage.setItem('vv_photo_notice', result.photoNotice.trim());
+              } catch { /* private mode / quota — the notice is not worth failing over */ }
+            }
           }
         } catch (e) {
           console.warn('[photos] background upload failed (non-critical):', e);

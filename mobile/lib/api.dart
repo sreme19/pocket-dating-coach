@@ -1829,7 +1829,12 @@ Future<Map> verifyStep(String step, Map<String, dynamic> data) async {
     ),
   );
   final body = resp.data is Map ? resp.data as Map : const {};
-  return (body['data'] as Map?) ?? body;
+  final out = Map<String, dynamic>.from((body['data'] as Map?) ?? body);
+  // The photo gate's user-facing notice sits at the TOP level of the response,
+  // but callers only ever see `data`. Carry it across so the photos step can
+  // show the server's own copy instead of composing its own.
+  if (body['photoNotice'] is String) out['photoNotice'] = body['photoNotice'];
+  return out;
 }
 
 // ── Chat ────────────────────────────────────────────────────────────────────

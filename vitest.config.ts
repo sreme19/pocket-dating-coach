@@ -11,7 +11,11 @@ export default defineConfig({
 		globals: true,
 		environment: 'jsdom',
 		setupFiles: ['./vitest.setup.ts'],
-		exclude: ['node_modules', '.claude/**', 'dist', '.svelte-kit'],
+		// '.git/**' matters: a git worktree lives under .git/ and its copy of the
+		// tree contains test files. Vitest globs them, then fails to load them
+		// because the checkout they belong to has moved on — dozens of phantom
+		// failures that have nothing to do with the code under test.
+		exclude: ['node_modules', '.claude/**', 'dist', '.svelte-kit', '.git/**'],
 		alias: {
 			$lib: '/src/lib',
 			'$app/navigation': '/src/app/navigation.ts',
