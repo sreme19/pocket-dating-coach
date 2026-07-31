@@ -116,6 +116,21 @@ export function memberHeadline(m: NewMember): string {
   return city ? `${nameAge} · ${city}` : nameAge;
 }
 
+/**
+ * Where "Open their profile" goes: the real member-facing profile, previewed as
+ * the gender that would actually see it — the same link the admin Users table
+ * builds. The raw /admin/users/[id] record page is a debugging view; the team
+ * wants to see what the member looks like to the other side of the app.
+ *
+ * Gender is often still unset seconds after signup, so an unknown gender
+ * previews as a man, matching /admin/analytics rather than dropping the `as`
+ * param (the profile page needs a viewer gender to pick a photo set).
+ */
+export function memberProfilePath(m: Pick<NewMember, 'id' | 'gender'>): string {
+  const viewer = (m.gender ?? '').trim().toLowerCase() === 'man' ? 'woman' : 'man';
+  return `/verified-vibe/profile/${encodeURIComponent(m.id)}?adminPreview=1&as=${viewer}`;
+}
+
 function alertRow(label: string, value: string): string {
   return `<tr>
       <td style="padding:4px 16px 4px 0;color:#6b7280;font-size:14px;white-space:nowrap">${label}</td>
@@ -129,7 +144,9 @@ export function buildNewMemberAlertHtml(m: NewMember, total: number | null): str
     const t = (v ?? '').toString().trim();
     return t ? escapeHtml(t) : missing;
   };
-  const userUrl = `${PUBLIC_ORIGIN}/admin/users/${encodeURIComponent(m.id)}`;
+  // escapeHtml so the two-param query string carries a literal `&amp;` — a bare
+  // `&` in an href is the classic way an email client eats the second param.
+  const userUrl = escapeHtml(`${PUBLIC_ORIGIN}${memberProfilePath(m)}`);
   const listUrl = `${PUBLIC_ORIGIN}/admin/analytics`;
   const footer = m.email
     ? 'Automatic alert for the riteangle team · replies go to the new member.'
