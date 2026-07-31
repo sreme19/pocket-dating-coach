@@ -99,29 +99,54 @@ export function photoIdentityGateEnabled(): boolean {
 
 const NOT_A_PERSON = 'This photo is not a photo of you.';
 const NOT_YOU = "This photo doesn't match your verification selfie.";
+/** No-anchor path only: this photo shows a different person from the rest of the set. */
+const NOT_THE_SAME_PERSON = "This photo shows someone other than the person in your other photos.";
+/** No-anchor path only: no face to cross-check, and no verified selfie to fall back on. */
+const NO_FACE_TO_CROSS_CHECK =
+  'We need to see your face in this photo to confirm it is you. Finish the selfie check to post photos like this.';
+
+/** "We removed 2 photos that aren't you." — only ever said about dropped photos. */
+function removalNote(count: number): string {
+  if (count === 0) return '';
+  return `We removed ${count} photo${count === 1 ? '' : 's'} that ${count === 1 ? "isn't" : "aren't"} you. Your other photos are unchanged.`;
+}
 
 /**
  * Pure decision step — turns per-photo verdicts into publish / can't-confirm / reject.
  * Split out from the I/O so it can be unit-tested without Claude or Supabase.
  *
- * THE THREE-WAY SPLIT MATTERS. An early version of this only asked "is this
- * confirmed to be the owner?" and removed everything else — which quietly deleted
- * back-turned shots, distant travel photos and heavily filtered photos from real
- * users' galleries ("person is facing away; no face visible" is not evidence of
- * anything). "I cannot tell" is now its own outcome:
+ * THE POLICY, AND WHY IT SPLITS ON THE SELFIE CHECK. What we can prove about a
+ * photo depends entirely on whether there is a verified face on file, so the two
+ * paths deliberately trade places on who gets the benefit of the doubt:
  *
- *   - not a real person (poster, celebrity, screenshot, graphic) → REJECT
- *   - a confidently different person                            → REJECT
- *   - a real person whose face can't be compared                → keep, but it
- *     never counts as proof of identity
+ * WITH an anchor selfie (they finished the selfie check) — identity is already
+ * proven once, so faceless photos are a feature, not a risk:
+ *   - not a real human (poster, celebrity, screenshot, graphic, pet) → REJECT
+ *   - a confidently different person                                → REJECT
+ *   - anything else, INCLUDING no comparable face at all            → keep
+ * A back-turned shot, a distant travel photo, a hands-and-bouquet shot are all
+ * fine here: "prove it's you once, then your artistic shots are fine". This
+ * publishes even when NOTHING in the batch could be matched — the status stays
+ * 'unconfirmed' so the read path and the rescreen task can still tell the
+ * difference, but it is never a reason to refuse the upload.
  *
- * A profile is publishable when at least ONE photo is confirmed to be the owner;
- * the unconfirmable ones then ride along, which is exactly the real-world rule
- * ("prove it's you once, then your artistic shots are fine").
+ * WITHOUT an anchor selfie — there is no verified face, so the only identity
+ * signal is whether the uploads agree with EACH OTHER. screenProfilePhotos
+ * clusters them and writes the answer into `sameAsAnchor` (true = in the
+ * cluster). Here a face is mandatory:
+ *   - not a real human                          → REJECT
+ *   - a different person from the rest of the set → REJECT
+ *   - no comparable face to cross-check against   → REJECT
+ *   - agrees with the rest of the set             → keep, still never proof
+ * This is the stricter side on purpose: the faceless-photo grace above is
+ * earned by doing the selfie check.
+ *
+ * Either way the set is only REFUSED outright when nothing at all survives.
+ * A single bad photo among good ones never costs the user the good ones.
  *
  * @param verdicts - One verdict per candidate photo, in upload order
  * @param hasAnchor - Whether the verdicts were produced against a verified anchor
- *                    selfie (true) or the weaker real-person-only test (false)
+ *                    selfie (true) or against the rest of the set (false)
  */
 export function decidePhotoGate(
   verdicts: AnchorPhotoVerdict[],
@@ -132,17 +157,30 @@ export function decidePhotoGate(
   const rejected: Array<{ index: number; reason: string }> = [];
 
   verdicts.forEach((v, index) => {
-    // Not a person at all — the poster / celebrity / screenshot case. Unambiguous.
+    // Not a person at all — the poster / celebrity / screenshot case. Unambiguous,
+    // and the one rejection that applies on BOTH paths.
     if (!v.isRealPerson) {
       rejected.push({ index, reason: v.reason || NOT_A_PERSON });
       return;
     }
-    // Without an anchor we can only confirm "a real person" — publish and mark the
-    // whole set unverified rather than guess at identity.
+
     if (!hasAnchor) {
+      // Outlier: a real person, but not the person in the rest of the photos.
+      if (v.sameAsAnchor === false) {
+        rejected.push({ index, reason: v.reason || NOT_THE_SAME_PERSON });
+        return;
+      }
+      // No face to cross-check and no verified selfie to fall back on, so this
+      // photo has nothing tying it to the account. Ask for the selfie check.
+      if (v.sameAsAnchor === null) {
+        rejected.push({ index, reason: v.reason || NO_FACE_TO_CROSS_CHECK });
+        return;
+      }
+      // In the cluster — publishable, but consistency is not identity.
       unverifiableIndexes.push(index);
       return;
     }
+
     if (v.sameAsAnchor === true && v.confidence >= MATCH_CONFIDENCE) {
       confirmed.push(index);
       return;
@@ -159,47 +197,51 @@ export function decidePhotoGate(
 
   const acceptedIndexes = [...confirmed, ...unverifiableIndexes].sort((a, b) => a - b);
 
-  // Nothing confirmed, and something provably not the owner → refuse the set.
-  if (confirmed.length === 0 && rejected.length > 0) {
+  // Only refuse when there is nothing left to publish. Anything that survived is
+  // worth keeping, even if the batch also contained a poster or an impostor.
+  if (acceptedIndexes.length === 0) {
     return {
       status: 'rejected',
       acceptedIndexes: [],
       unverifiableIndexes: [],
-      rejected: [
-        ...rejected,
-        ...unverifiableIndexes.map((index) => ({
-          index,
-          reason: verdicts[index].reason || 'We could not see your face clearly enough to confirm it is you.',
-        })),
-      ],
+      rejected,
       message: hasAnchor
-        ? "None of these photos match your verification selfie. Please upload a photo of yourself — the same face you used for your selfie check."
-        : "None of these look like a photo of a person. Please upload a clear photo of yourself.",
+        ? 'None of these photos match your verification selfie. Please upload a photo of yourself — the same face you used for your selfie check.'
+        : 'None of these look like a clear photo of you. Please upload photos of yourself with your face visible.',
     };
   }
 
-  // Nothing confirmed but nothing disproven either: real people, no comparable face.
-  // Ask for a clearer photo rather than accusing them of anything.
-  if (confirmed.length === 0 && hasAnchor) {
+  if (!hasAnchor) {
+    return {
+      status: 'unverified',
+      acceptedIndexes,
+      unverifiableIndexes,
+      rejected,
+      message: removalNote(rejected.length),
+    };
+  }
+
+  // Verified owner, but nothing in this batch could be matched to the selfie. The
+  // photos go live regardless (rule: a proven owner may post faceless photos) —
+  // this is a nudge, not a refusal.
+  if (confirmed.length === 0) {
+    const nudge =
+      "We couldn't match your face in these to your selfie check, so they're posted as-is. Adding one photo where your face is clearly visible helps people trust your profile.";
     return {
       status: 'unconfirmed',
       acceptedIndexes,
       unverifiableIndexes,
       rejected,
-      message:
-        "We couldn't see your face clearly enough in these to confirm it's you. Add one photo where your face is clearly visible — after that, photos like these are fine.",
+      message: rejected.length === 0 ? nudge : `${removalNote(rejected.length)} ${nudge}`,
     };
   }
 
   return {
-    status: hasAnchor ? 'passed' : 'unverified',
+    status: 'passed',
     acceptedIndexes,
     unverifiableIndexes,
     rejected,
-    message:
-      rejected.length === 0
-        ? ''
-        : `We removed ${rejected.length} photo${rejected.length === 1 ? '' : 's'} that ${rejected.length === 1 ? "isn't" : "aren't"} you. Your other photos are unchanged.`,
+    message: removalNote(rejected.length),
   };
 }
 
@@ -238,6 +280,71 @@ export function applyAdjudication(
     // The adjudicator is not convinced → treat as unconfirmable, not as an impostor.
     return { ...v, sameAsAnchor: null, confidence: score, reason: 'We could not confirm this is you.' };
   });
+}
+
+/**
+ * detectFaceInPhotosWithClaude answers one question — "is there a clearly
+ * identifiable real human face here" — and a `false` covers both "not a human"
+ * (poster, pet, landscape) and "a human whose face is too small or obscured to
+ * identify". On the no-anchor path both are rejections, so the conflation costs
+ * us nothing in the decision; it only means the reason has to be true of both.
+ */
+const NO_CLEAR_FACE = "We couldn't see a clear photo of a person's face here.";
+
+/**
+ * Turn a face sweep plus one round of same-person comparisons into per-photo
+ * verdicts for the no-anchor path. Pure, so the clustering rule is testable
+ * without Claude.
+ *
+ * `sameAsAnchor` means "in the cluster" here, not "is the verified owner" —
+ * there is no verified owner on this path.
+ *
+ * @param faces - Per photo: a clearly identifiable real human face was found
+ * @param reference - Index of the photo whose face defines the cluster (null → none)
+ * @param compared - Index → verdict from comparing that photo against the reference
+ */
+export function clusterVerdicts(
+  faces: boolean[],
+  reference: number | null,
+  compared: Map<number, AnchorPhotoVerdict>
+): AnchorPhotoVerdict[] {
+  return faces.map((hasFace, i) => {
+    if (hasFace !== true) {
+      return { isRealPerson: false, sameAsAnchor: null, confidence: 0, reason: NO_CLEAR_FACE };
+    }
+    // The reference face is the cluster by definition.
+    if (i === reference) {
+      return { isRealPerson: true, sameAsAnchor: true, confidence: 100, reason: '' };
+    }
+    const v = compared.get(i);
+    // A face we could not get a comparison for (short/failed vision response).
+    // Fail open — it has a real face, and a missing answer is not evidence.
+    if (!v) return { isRealPerson: true, sameAsAnchor: true, confidence: 0, reason: '' };
+    // An inconclusive score is not "a different person" — keep it in the cluster
+    // rather than deleting a real user's photo on a maybe.
+    if (v.sameAsAnchor === false && v.confidence >= MISMATCH_CONFIDENCE) {
+      return { ...v, sameAsAnchor: true, reason: '' };
+    }
+    if (v.sameAsAnchor === null) {
+      return { ...v, sameAsAnchor: true, reason: '' };
+    }
+    return v;
+  });
+}
+
+/**
+ * Which face should define "the rest of the set"? Comparing everything to
+ * whichever photo happened to be uploaded first is wrong when that photo is
+ * itself the odd one out — a set of five photos of Alice plus one of Bob must
+ * drop Bob, not the five. So: flip to the opposing camp when it is strictly
+ * larger than the reference's own.
+ *
+ * @param agreeCount - Photos that matched the current reference (excluding it)
+ * @param differIndexes - Photos confidently NOT the current reference
+ * @returns The index to re-run against, or null to keep the current reference
+ */
+export function shouldReanchor(agreeCount: number, differIndexes: number[]): number | null {
+  return differIndexes.length > agreeCount + 1 ? differIndexes[0] : null;
 }
 
 /**
@@ -292,15 +399,51 @@ export async function screenProfilePhotos(
       return decidePhotoGate(applyAdjudication(verdicts, adjudications), true);
     }
 
-    // No verified face on file — fall back to "is there a real person here at all".
+    // ── No verified face on file ────────────────────────────────────────────────
+    // We cannot ask "is this the owner", so we ask the next best thing: "is this
+    // the same person as the rest of these photos". A real face is required, and
+    // the odd one out is dropped. See decidePhotoGate for why this path is the
+    // stricter of the two.
     const { faces } = await detectFaceInPhotosWithClaude(photos);
-    const verdicts: AnchorPhotoVerdict[] = photos.map((_, i) => ({
-      isRealPerson: faces[i] === true,
-      sameAsAnchor: null,
-      confidence: 0,
-      reason: faces[i] === true ? '' : NOT_A_PERSON,
-    }));
-    return decidePhotoGate(verdicts, false);
+    const faceIndexes = photos.map((_, i) => i).filter((i) => faces[i] === true);
+
+    // Fewer than two faces: there is no "rest of the set" to cross-check against,
+    // so the lone face defines the cluster on its own.
+    if (faceIndexes.length < 2) {
+      return decidePhotoGate(clusterVerdicts(faces, faceIndexes[0] ?? null, new Map()), false);
+    }
+
+    /** Compare every other face against one photo's face. */
+    const compareAgainst = async (ref: number) => {
+      const others = faceIndexes.filter((i) => i !== ref);
+      const verdicts = await matchPhotosToAnchorWithClaude(
+        photos[ref].data,
+        others.map((i) => photos[i]),
+        photos[ref].mime
+      );
+      const byIndex = new Map<number, AnchorPhotoVerdict>();
+      others.forEach((original, i) => {
+        if (verdicts[i]) byIndex.set(original, verdicts[i]);
+      });
+      const differ = others.filter((i) => {
+        const v = byIndex.get(i);
+        return v?.sameAsAnchor === false && v.confidence < MISMATCH_CONFIDENCE;
+      });
+      const agree = others.filter((i) => byIndex.get(i)?.sameAsAnchor === true).length;
+      return { byIndex, differ, agree };
+    };
+
+    let ref = faceIndexes[0];
+    let pass = await compareAgainst(ref);
+
+    // The first photo may itself be the impostor — re-run from the larger camp.
+    const reanchor = shouldReanchor(pass.agree, pass.differ);
+    if (reanchor !== null) {
+      ref = reanchor;
+      pass = await compareAgainst(ref);
+    }
+
+    return decidePhotoGate(clusterVerdicts(faces, ref, pass.byIndex), false);
   } catch (e) {
     // Fail OPEN on infra failure (see FAILURE POSTURE above) but never call it a pass.
     console.warn('[photo-identity-gate] screening failed (fail-open, status=error):', e);

@@ -505,21 +505,29 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
           }))
         );
 
-    // Two distinct refusals. 'rejected' = something here is provably not you (poster,
-    // someone else). 'unconfirmed' = you're a real person but no face was comparable
-    // (all turned away / distant / obscured) — not an accusation, just ask for one
-    // clear photo. Publishing an unconfirmable-only set would leave a profile whose
-    // owner was never actually shown, which is the thing this gate exists to prevent.
-    if (gate?.status === 'rejected' || gate?.status === 'unconfirmed') {
-      console.warn(`[verify-step] photos ${gate.status} for ${userId ?? 'anon'}`);
+    // 'rejected' is the ONLY refusal: nothing in the batch was publishable. Note it
+    // means the whole set failed — a poster mixed in with real photos now costs the
+    // user only the poster (see decidePhotoGate).
+    //
+    // 'unconfirmed' deliberately does NOT refuse. A user who finished the selfie
+    // check has already proven their face once, so a batch of back-turned, distant
+    // or hands-only shots is a legitimate thing to post; the status is recorded for
+    // the read path and the rescreen task, and gate.message rides back as an
+    // advisory notice. This matches upload-photo, which never blocked on it.
+    // Blocking here is what left a verified user staring at a re-upload loop.
+    if (gate?.status === 'rejected') {
+      console.warn(`[verify-step] photos rejected for ${userId ?? 'anon'}`);
       return json(
         {
           error: gate.message,
-          code: gate.status === 'rejected' ? 'photo_identity_mismatch' : 'photo_face_unclear',
+          code: 'photo_identity_mismatch',
           photoGate: { status: gate.status, rejected: gate.rejected },
         },
         { status: 422 }
       );
+    }
+    if (gate?.status === 'unconfirmed') {
+      console.warn(`[verify-step] photos unconfirmed for ${userId ?? 'anon'} — publishing anyway`);
     }
 
     // Keep only the photos that cleared the gate, preserving upload order.
@@ -703,9 +711,11 @@ async function handlePhotoVerification(data: any, userId: string | null = null) 
       status: 'completed',
       data: stepData,
       trustPoints,
-      // Partial rejection: the step succeeded but some photos were dropped. The
-      // client shows `photoNotice` so the user isn't surprised by a shorter set.
-      ...(gate && gate.rejected.length > 0 && {
+      // The step succeeded, but the gate may still have something to say: photos
+      // were dropped, or the set went live without a confirmable face. Keyed off
+      // the message rather than the rejection count so the 'unconfirmed' nudge
+      // (which drops nothing) still reaches the client.
+      ...(gate && gate.message && {
         photoNotice: gate.message,
         photoGate: { status: gate.status, rejected: gate.rejected },
       }),

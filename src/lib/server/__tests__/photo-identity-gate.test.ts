@@ -11,6 +11,8 @@ import {
 	MATCH_CONFIDENCE,
 	MISMATCH_CONFIDENCE,
 	applyAdjudication,
+	clusterVerdicts,
+	shouldReanchor,
 } from '../photo-identity-gate';
 import type { AnchorPhotoVerdict } from '$lib/verified-vibe/server/verification';
 
@@ -63,7 +65,7 @@ describe('decidePhotoGate — with a verified anchor selfie', () => {
 		expect(d.rejected).toEqual([]);
 	});
 
-	it('rejects the whole set when nothing is the owner (the deity-poster case)', () => {
+	it('rejects the whole set when nothing at all is publishable (the deity-poster case)', () => {
 		const d = decidePhotoGate([notAPerson(), notAPerson(), someoneElse()], true);
 		expect(d.status).toBe('rejected');
 		expect(d.acceptedIndexes).toEqual([]);
@@ -106,12 +108,15 @@ describe('decidePhotoGate — "cannot tell" is not "not you"', () => {
 		expect(d.message).toBe(''); // nothing removed → nothing to apologise for
 	});
 
-	it('asks for a clearer photo when NOTHING could be compared', () => {
+	// A verified owner may post faceless photos: they proved their face once at the
+	// selfie check. This used to be a 422, which trapped real users (all six of one
+	// woman's photos were side-on / distant / hands-only) in a re-upload loop.
+	it('publishes a faceless set anyway once the selfie check is done', () => {
 		const d = decidePhotoGate([cannotTell(), cannotTell()], true);
-		expect(d.status).toBe('unconfirmed');
-		expect(d.rejected).toEqual([]);         // no accusation
+		expect(d.status).toBe('unconfirmed');    // recorded, but not a refusal
+		expect(d.rejected).toEqual([]);          // no accusation
 		expect(d.acceptedIndexes).toEqual([0, 1]); // and no deletion
-		expect(d.message).toMatch(/face is clearly visible/i);
+		expect(d.message).toMatch(/posted as-is/i);
 	});
 
 	it('treats the uncertain confidence band as "cannot tell", not as a mismatch', () => {
@@ -132,33 +137,116 @@ describe('decidePhotoGate — "cannot tell" is not "not you"', () => {
 		expect(decidePhotoGate([someoneElse(MISMATCH_CONFIDENCE)], true).status).toBe('unconfirmed');
 	});
 
-	it('still refuses a set that mixes unconfirmable photos with a proven impostor', () => {
-		// Nothing proves the owner, and something proves a stranger → refuse, and list
-		// the unconfirmable ones too so the client can ask for a full re-upload.
+	it('drops only the impostor from a set whose other photos are faceless', () => {
+		// One bad photo must not cost the user the good ones: the stranger goes, the
+		// unconfirmable-but-real photo stays.
 		const d = decidePhotoGate([cannotTell(), someoneElse()], true);
-		expect(d.status).toBe('rejected');
-		expect(d.rejected.map((r) => r.index).sort()).toEqual([0, 1]);
+		expect(d.status).toBe('unconfirmed');
+		expect(d.acceptedIndexes).toEqual([0]);
+		expect(d.rejected.map((r) => r.index)).toEqual([1]);
+		expect(d.message).toMatch(/removed 1 photo/);
+	});
+
+	it('keeps a faceless photo when a poster is mixed into the same batch', () => {
+		const d = decidePhotoGate([notAPerson(), cannotTell()], true);
+		expect(d.status).toBe('unconfirmed');
+		expect(d.acceptedIndexes).toEqual([1]);
+		expect(d.rejected.map((r) => r.index)).toEqual([0]);
 	});
 });
 
+// Without a verified selfie the only identity signal is whether the uploads agree
+// with each other, so this path is the stricter one: a face is mandatory and the
+// odd one out is dropped. `sameAsAnchor` means "in the cluster" here.
 describe('decidePhotoGate — no anchor selfie to compare against', () => {
-	it('accepts any real person but marks the set unverified', () => {
-		const d = decidePhotoGate([cannotTell('')], false);
+	/** A face that agrees with the rest of the set. */
+	const inCluster = (): AnchorPhotoVerdict => ({
+		isRealPerson: true,
+		sameAsAnchor: true,
+		confidence: 90,
+		reason: '',
+	});
+
+	it('keeps the photos that face-match one another, unverified', () => {
+		const d = decidePhotoGate([inCluster(), inCluster()], false);
 		expect(d.status).toBe('unverified');
-		expect(d.acceptedIndexes).toEqual([0]);
-		expect(d.unverifiableIndexes).toEqual([0]);
+		expect(d.acceptedIndexes).toEqual([0, 1]);
+		expect(d.unverifiableIndexes).toEqual([0, 1]); // consistency is not identity
+		expect(d.rejected).toEqual([]);
+	});
+
+	it('drops the one photo that is a different person from the rest', () => {
+		const d = decidePhotoGate([inCluster(), someoneElse(), inCluster()], false);
+		expect(d.status).toBe('unverified');
+		expect(d.acceptedIndexes).toEqual([0, 2]);
+		expect(d.rejected.map((r) => r.index)).toEqual([1]);
 	});
 
 	it('still rejects a set with no person in it at all', () => {
 		const d = decidePhotoGate([notAPerson()], false);
 		expect(d.status).toBe('rejected');
-		expect(d.message).toMatch(/photo of a person/i);
+		expect(d.message).toMatch(/clear photo of you/i);
 	});
 
-	it('does not penalise a real person for failing a comparison that never happened', () => {
-		const d = decidePhotoGate([someoneElse()], false);
-		expect(d.status).toBe('unverified');
+	it('drops a face it could not cross-check — that grace needs the selfie check', () => {
+		const d = decidePhotoGate([inCluster(), cannotTell()], false);
 		expect(d.acceptedIndexes).toEqual([0]);
+		expect(d.rejected.map((r) => r.index)).toEqual([1]);
+		expect(d.rejected[0].reason).toMatch(/facing away/i); // model reason preferred
+	});
+
+	it('refuses a set of nothing but uncomparable photos', () => {
+		const d = decidePhotoGate([cannotTell(), notAPerson()], false);
+		expect(d.status).toBe('rejected');
+		expect(d.acceptedIndexes).toEqual([]);
+	});
+});
+
+describe('clusterVerdicts — building the no-anchor verdicts', () => {
+	it('makes the reference photo the cluster and rejects the faceless ones', () => {
+		const out = clusterVerdicts([true, false], 0, new Map());
+		expect(out[0]).toMatchObject({ isRealPerson: true, sameAsAnchor: true });
+		expect(out[1]).toMatchObject({ isRealPerson: false });
+		const d = decidePhotoGate(out, false);
+		expect(d.acceptedIndexes).toEqual([0]);
+		expect(d.rejected.map((r) => r.index)).toEqual([1]);
+	});
+
+	it('passes a confident mismatch through so it gets dropped', () => {
+		const out = clusterVerdicts([true, true], 0, new Map([[1, someoneElse(5)]]));
+		expect(out[1].sameAsAnchor).toBe(false);
+		expect(decidePhotoGate(out, false).rejected.map((r) => r.index)).toEqual([1]);
+	});
+
+	it('keeps an inconclusive comparison in the cluster rather than deleting on a maybe', () => {
+		const weak = clusterVerdicts([true, true], 0, new Map([[1, someoneElse(MISMATCH_CONFIDENCE)]]));
+		expect(decidePhotoGate(weak, false).rejected).toEqual([]);
+
+		const noFace = clusterVerdicts([true, true], 0, new Map([[1, cannotTell()]]));
+		expect(decidePhotoGate(noFace, false).rejected).toEqual([]);
+	});
+
+	it('fails open when a comparison is missing from the vision response', () => {
+		const out = clusterVerdicts([true, true], 0, new Map());
+		expect(decidePhotoGate(out, false).acceptedIndexes).toEqual([0, 1]);
+	});
+});
+
+describe('shouldReanchor — "the rest" means the majority, not the first photo', () => {
+	it('re-runs from the other camp when it is strictly larger', () => {
+		// Reference + 1 agreeing vs 3 disagreeing → the reference is the odd one out.
+		expect(shouldReanchor(1, [2, 3, 4])).toBe(2);
+	});
+
+	it('keeps the reference when its own camp is as big or bigger', () => {
+		expect(shouldReanchor(1, [2, 3])).toBeNull();   // 2 vs 2 — no reason to flip
+		expect(shouldReanchor(4, [5])).toBeNull();
+		expect(shouldReanchor(0, [])).toBeNull();
+	});
+
+	it('flips on the lone-impostor-first case', () => {
+		// One photo of Bob uploaded first, five of Alice after it.
+		expect(shouldReanchor(0, [1, 2, 3, 4, 5])).toBe(1);
 	});
 });
 

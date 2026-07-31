@@ -199,13 +199,22 @@ export async function runPhotoRescreen(opts: {
     }
 
     // Only an authoritative verdict may strip photos:
-    //  - 'passed'   → at least one photo IS the owner; any rejects are safe to remove
-    //  - 'rejected' → nothing is the owner and something is provably not
-    // Everything else leaves the profile exactly as it is: 'unconfirmed' (real person,
-    // no comparable face — a back-turned or distant shot proves nothing either way),
-    // 'unverified' (no anchor selfie), 'error', 'off'. Retro-actively deleting a real
-    // user's gallery on "I can't tell" would be worse than the problem being fixed.
-    const authoritative = decision.status === 'passed' || decision.status === 'rejected';
+    //  - 'passed'      → at least one photo IS the owner; any rejects are safe to remove
+    //  - 'rejected'    → nothing here was publishable at all
+    //  - 'unconfirmed' → an anchor selfie exists, so a rejection here still rests on
+    //    it: either the photo is not a human, or two independent passes agreed it is
+    //    someone else. What 'unconfirmed' actually means is "no photo POSITIVELY
+    //    confirmed the owner", which doesn't weaken those verdicts. It only became
+    //    strippable when the gate stopped refusing faceless sets — before that, an
+    //    'unconfirmed' decision could never carry a rejection.
+    // 'unverified' (no anchor selfie), 'error' and 'off' still leave the profile
+    // exactly as it is. Retro-actively deleting a real user's gallery on "I can't
+    // tell" would be worse than the problem being fixed. The unconfirmable photos
+    // themselves are never stripped on any path — they are never in `rejected`.
+    const authoritative =
+      decision.status === 'passed' ||
+      decision.status === 'rejected' ||
+      decision.status === 'unconfirmed';
     if (!authoritative || decision.rejected.length === 0) {
       if (!dryRun && authoritative && stepRow?.id) {
         await db
