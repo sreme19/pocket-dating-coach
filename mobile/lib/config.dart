@@ -3,12 +3,11 @@
 /// that hosts the existing /api/verified-vibe/* routes. The native app reuses
 /// this backend unchanged — only the UI is rebuilt.
 ///
-/// Build with --dart-define=ENV=dev to point at the development project.
-/// Default (no flag) → production.
+/// Always points at production. An `ENV=dev` dart-define used to be read here,
+/// but the value was never used by anything — every URL below is a constant — so
+/// passing that flag has no effect. Removed rather than left as a switch that
+/// looks live and silently is not.
 class Config {
-  static const bool _isDev =
-      String.fromEnvironment('ENV', defaultValue: 'prod') == 'dev';
-
   static const String supabaseUrl = 'https://stikoktiaxqtcsohcxzp.supabase.co';
 
   static const String supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN0aWtva3RpYXhxdGNzb2hjeHpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MTk5MzUsImV4cCI6MjA5MzI5NTkzNX0.L-yF5jGPqP59RzqKfr8hnhByuTy4sx_xbjvAKcNtIKQ';

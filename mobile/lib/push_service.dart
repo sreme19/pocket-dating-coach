@@ -6,7 +6,6 @@ import 'firebase_options.dart';
 import 'advisor_screen.dart';
 import 'api.dart';
 import 'app_logger.dart';
-import 'config.dart';
 import 'conversation_screen.dart';
 
 @pragma('vm:entry-point')
