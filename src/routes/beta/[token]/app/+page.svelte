@@ -1,24 +1,18 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import RiteLogo from '$lib/verified-vibe/components/RiteLogo.svelte';
+	import { storeChoices } from '$lib/store-links';
 
 	let { data }: { data: PageData } = $props();
 
 	const name = $derived(data.referrer?.first_name ?? null);
 	const initial = $derived((data.referrer?.first_name ?? '?').charAt(0).toUpperCase());
 
-	// Which store buttons to show. When the device is unknown (no ?d= and an
-	// unrecognised User-Agent) we show both rather than guessing wrong.
-	const buttons = $derived(
-		data.platform === 'ios'
-			? [{ key: 'ios', label: 'Join the beta on TestFlight', url: data.storeLinks.ios }]
-			: data.platform === 'android'
-				? [{ key: 'android', label: 'Get it on Google Play', url: data.storeLinks.android }]
-				: [
-						{ key: 'ios', label: 'iPhone — TestFlight', url: data.storeLinks.ios },
-						{ key: 'android', label: 'Android — Google Play', url: data.storeLinks.android }
-					]
-	);
+	// BOTH stores, always — the detected device (?d= from the admin Copy button, or a
+	// User-Agent sniff) only decides which one leads. This used to filter down to
+	// one, which meant a device recorded weeks earlier on the /beta form, or a link
+	// forwarded to a different phone, was a dead end.
+	const buttons = $derived(storeChoices(data.platform));
 </script>
 
 <svelte:head>
@@ -100,8 +94,14 @@
 			</p>
 
 			<div class="cta">
-				{#each buttons as b (b.key)}
-					<a class="btn" href={b.url} target="_blank" rel="noreferrer">{b.label} →</a>
+				{#each buttons as b (b.platform)}
+					<a
+						class="btn"
+						class:secondary={b.platform !== data.platform}
+						href={b.url}
+						target="_blank"
+						rel="noreferrer">{b.label} →</a
+					>
 				{/each}
 			</div>
 
@@ -251,6 +251,18 @@
 
 	.btn:hover {
 		background: var(--accent-bright);
+	}
+
+	/* The store we don't think they're on — offered anyway, ranked second. */
+	.btn.secondary {
+		background: var(--bg-2);
+		color: var(--accent-bright);
+		border: 1px solid var(--accent-glow);
+		box-shadow: none;
+	}
+
+	.btn.secondary:hover {
+		background: var(--accent-tint);
 	}
 
 	.legal {

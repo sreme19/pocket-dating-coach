@@ -21,7 +21,7 @@
 		platform: 'ios' | 'android' | null;
 		/** Pre-formatted "+91 98765 43210", or '' for rows collected before capture. */
 		whatsapp: string;
-		/** Paste-ready invite, prebuilt server-side. Null when there's no device/store link. */
+		/** Paste-ready invite, prebuilt server-side. Null when the row has no link token. */
 		inviteText: string | null;
 		inviteHtml: string | null;
 		status: string;
@@ -203,9 +203,10 @@
 
 	async function sendInvite(s: Signup) {
 		if (sendingId) return;
-		if (!s.platform) return; // guarded in the UI too
-		const label = s.invited_at ? 'Re-send' : 'Send';
-		if (!confirm(`${label} the early-access invite to ${s.email} (${s.platform === 'ios' ? 'iOS' : 'Android'})?`)) {
+		// No device check: the email carries both store links, so a row collected
+		// before device capture is invitable like any other.
+		const device = s.platform ? fmtDevice(s.platform) : 'no device on file — both links';
+		if (!confirm(`Send the early-access invite to ${s.email} (${device})?`)) {
 			return;
 		}
 		sendingId = s.id;
@@ -293,12 +294,12 @@
 	 */
 	async function copyInvite(s: Signup) {
 		if (!s.inviteText) return;
-		// Gated on the invite email having actually gone out: this message opens
-		// with "you've been accepted", so sending it before the invite would tell
-		// someone they're in before anything says so. The button is disabled too —
-		// this is the guard for a stale render (the row unlocks as soon as
-		// sendInvite patches invited_at, with no reload).
-		if (!s.invited_at) return;
+		// No longer gated on the invite email having gone out. That gate existed
+		// because this message opens with "you've been accepted" and, under closed
+		// testing, nothing was true until an admin added the person as a tester.
+		// Open testing (2026-08-03) makes everyone accepted the moment they submit
+		// the form — their confirmation email already carried both store links — so
+		// the gate only blocked the WhatsApp follow-up the team actually uses.
 		copyInviteError = null;
 		try {
 			if (s.inviteHtml && typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
@@ -349,6 +350,15 @@
 		added to the beta list, and is instantly matched with her once they finish onboarding and enter
 		the matchmaker pool.
 	</p>
+
+	<div class="mt-4 rounded-lg border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
+		<strong class="font-semibold">Open testing since 3 Aug 2026 — nobody is waiting on you.</strong>
+		Every signup's confirmation email already carries both store links (Play listing + TestFlight),
+		and the landing page shows them the moment they submit. This tab is now for
+		<em>attribution and follow-up</em>: the row is what ties a joiner back to their referrer and
+		pays the referral, so the form still has to be filled in. <b>Re-send invite</b> is for someone
+		who lost the mail; <b>Copy invite</b> is the WhatsApp version, no longer gated on a send.
+	</div>
 
 	<!-- Summary dashboard: profile owner -> link type -> gender breakdown -->
 	<section class="mt-6">
@@ -654,27 +664,21 @@
 									{#if !s.inviteText}
 										<span
 											class="text-xs text-slate-500"
-											title="Needs a device on file (and a configured store link) before an invite can be addressed."
+											title="Needs a referral link token before the invite page can be addressed."
 										>—</span>
 									{:else}
 										<div class="flex flex-col gap-1">
 											<button
 												onclick={() => copyInvite(s)}
-												disabled={!s.invited_at}
-												title={s.invited_at
-													? `Copy the invite for ${fmtDevice(s.platform)}${
-															s.referrerName && s.referrerName !== 'Admin'
-																? ` · card for ${s.referrerName}`
-																: ' · no card'
-														} — paste into WhatsApp`
-													: 'Send the invite email first — this message tells them they have been accepted.'}
-												class="w-fit rounded border border-white/[0.1] px-2.5 py-1 text-xs text-slate-200 transition-colors hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+												title={`Copy the invite for ${fmtDevice(s.platform)}${
+													s.referrerName && s.referrerName !== 'Admin'
+														? ` · card for ${s.referrerName}`
+														: ' · no card'
+												} — paste into WhatsApp`}
+												class="w-fit rounded border border-white/[0.1] px-2.5 py-1 text-xs text-slate-200 transition-colors hover:bg-white/[0.06]"
 											>
 												{copiedInviteId === s.id ? '✓ Copied' : 'Copy invite'}
 											</button>
-											{#if !s.invited_at}
-												<span class="text-xs text-slate-500">Send the invite first</span>
-											{/if}
 											{#if copyInviteError === s.id}
 												<span class="text-xs text-red-400">Copy failed — click the page, then retry.</span>
 											{/if}
@@ -690,35 +694,36 @@
 										</span>
 									{:else if s.invited_at}
 										<span class="rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-400">
-											invite sent
+											invite re-sent
 										</span>
 									{:else}
-										<span class="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-400">
-											pending
+										<!-- Not "waiting on us": open testing means their confirmation
+										     email already carried both store links. They just have not
+										     joined yet. -->
+										<span class="rounded-full bg-sky-500/15 px-2 py-0.5 text-xs text-sky-300">
+											not joined yet
 										</span>
 									{/if}
 								</td>
 								<td class="px-4 py-2.5 text-slate-400">{fmtDate(s.created_at)}</td>
 								<td class="px-4 py-2.5">
-									{#if !s.platform}
-										<span class="text-xs text-slate-500" title="No device on file — this signup predates device capture.">no device</span>
-									{:else}
-										<div class="flex flex-col gap-1">
-											<button
-												onclick={() => sendInvite(s)}
-												disabled={sendingId === s.id}
-												class="w-fit rounded border border-white/[0.1] px-2.5 py-1 text-xs text-slate-200 transition-colors hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-40"
-											>
-												{sendingId === s.id ? 'Sending…' : s.invited_at ? 'Re-send invite' : 'Send invite'}
-											</button>
-											{#if s.invited_at}
-												<span class="text-xs text-emerald-400">✓ invited · {fmtDate(s.invited_at)}</span>
-											{/if}
-											{#if inviteError && inviteError.id === s.id}
-												<span class="text-xs text-red-400">{inviteError.msg}</span>
-											{/if}
-										</div>
-									{/if}
+									<!-- No device on file is no longer a blocker: the invite email carries
+									     both store links and only orders them by the device. -->
+									<div class="flex flex-col gap-1">
+										<button
+											onclick={() => sendInvite(s)}
+											disabled={sendingId === s.id}
+											class="w-fit rounded border border-white/[0.1] px-2.5 py-1 text-xs text-slate-200 transition-colors hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-40"
+										>
+											{sendingId === s.id ? 'Sending…' : 'Re-send invite'}
+										</button>
+										{#if s.invited_at}
+											<span class="text-xs text-emerald-400">✓ invited · {fmtDate(s.invited_at)}</span>
+										{/if}
+										{#if inviteError && inviteError.id === s.id}
+											<span class="text-xs text-red-400">{inviteError.msg}</span>
+										{/if}
+									</div>
 								</td>
 							</tr>
 						{/each}

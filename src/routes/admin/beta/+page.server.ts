@@ -5,7 +5,6 @@ import { formatPhone } from '$lib/phone';
 import {
 	buildWhatsappInvite,
 	inviteUrlFor,
-	storeUrlFor,
 	type Platform,
 	type ReferrerCard
 } from '$lib/server/beta-invite-email';
@@ -134,23 +133,21 @@ export const load: PageServerLoad = async () => {
 			matchedGender === 'man' ? 'male' : matchedGender === 'woman' ? 'female' : 'pending';
 
 		// The paste-into-WhatsApp invite, prebuilt here so the browser never needs
-		// the store links, the card markup or an HTML escaper. Null whenever we
-		// couldn't address it — no device on file, or that store link isn't
-		// configured yet — which is exactly when the Send-invite button is
-		// disabled too, so the two controls agree.
+		// the store links, the card markup or an HTML escaper. Null only when we
+		// can't address the page at all (no link token).
 		const platform = (s.platform ?? null) as Platform | null;
 		const linkToken = linkTokenById.get(s.link_id) ?? null;
 		const inviteCard =
 			s.referrer_id && !privateLinkIds.has(s.link_id)
 				? cardById.get(s.referrer_id) ?? null
 				: null;
-		// Needs a device (to pick the store) AND a token (to address the page). The
-		// store link must also be configured, since /app would otherwise render a
-		// button with nowhere to go.
-		const invite =
-			platform && linkToken && storeUrlFor(platform)
-				? buildWhatsappInvite(inviteCard, platform, inviteUrlFor(linkToken, platform))
-				: null;
+		// Needs only a token (to address the page). The device is no longer required:
+		// /beta/{token}/app offers BOTH stores and just orders them by ?d=, so a row
+		// collected before device capture is still invitable instead of showing a
+		// dash where the button should be.
+		const invite = linkToken
+			? buildWhatsappInvite(inviteCard, platform, inviteUrlFor(linkToken, platform))
+			: null;
 
 		return {
 			id: s.id,

@@ -1,10 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 /**
- * The referrer card is optional in both beta emails. Signups from an admin
- * recruiting link have no referrer_id at all, and a referrer row can always
- * fail to load — neither may block the email, so these assert that a null
- * referrer still renders a complete, name-free message with the store button.
+ * Two invariants, both learned the hard way:
+ *
+ *  - The referrer card is optional in both beta emails. Signups from an admin
+ *    recruiting link have no referrer_id at all, and a referrer row can always
+ *    fail to load — neither may block the email, so a null referrer must still
+ *    render a complete, name-free message with the store buttons.
+ *  - Since open testing (2026-08-03) every invitee-facing email carries BOTH
+ *    store links and promises no follow-up. A confirmation that told someone to
+ *    wait for a personal invite would be waiting on a step that no longer runs.
  */
 
 vi.mock('$env/dynamic/private', () => ({ env: { RESEND_API_KEY: 'test' } }));
@@ -19,6 +24,9 @@ const {
   buildWhatsappInvite,
   inviteUrlFor
 } = await import('./beta-invite-email');
+
+const PLAY = 'https://play.google.com/store/apps/details?id=com.riteangle.app';
+const TESTFLIGHT = 'https://testflight.apple.com/join/FxGV4VrC';
 
 const REFERRER = {
   first_name: 'Priya',
@@ -43,6 +51,20 @@ describe('buildEarlyAccessHtml', () => {
     expect(html).toContain('Get it on Google Play');
     expect(html).not.toContain('your match');
     expect(html).not.toContain("You've been matched with");
+  });
+
+  it('offers the other store too, so a wrong device is not a dead end', () => {
+    const android = buildEarlyAccessHtml(REFERRER, 'android', 'https://play.example');
+    expect(android).toContain(TESTFLIGHT);
+
+    const ios = buildEarlyAccessHtml(REFERRER, 'ios', TESTFLIGHT);
+    expect(ios).toContain(PLAY);
+  });
+
+  it('still renders both stores with no device on file at all', () => {
+    const html = buildEarlyAccessHtml(REFERRER, null);
+    expect(html).toContain(PLAY);
+    expect(html).toContain(TESTFLIGHT);
   });
 });
 
@@ -155,9 +177,32 @@ describe('buildWhatsappInvite', () => {
 describe('buildBetaConfirmationHtml', () => {
   it('sends without a referrer: no card, no placeholder name', () => {
     const html = buildBetaConfirmationHtml(null);
-    expect(html).toContain('riteangle beta list');
     expect(html).toContain('What happens next?');
     expect(html).not.toContain('your match');
+  });
+
+  it('is the invite: both store links, on every platform hint', () => {
+    for (const platform of ['android', 'ios', null] as const) {
+      const html = buildBetaConfirmationHtml(REFERRER, platform);
+      expect(html).toContain(PLAY);
+      expect(html).toContain(TESTFLIGHT);
+    }
+  });
+
+  it('leads with the store they picked', () => {
+    // The primary (filled, pink) button comes first in the markup.
+    const ios = buildBetaConfirmationHtml(REFERRER, 'ios');
+    expect(ios.indexOf(TESTFLIGHT)).toBeLessThan(ios.indexOf(PLAY));
+
+    const android = buildBetaConfirmationHtml(REFERRER, 'android');
+    expect(android.indexOf(PLAY)).toBeLessThan(android.indexOf(TESTFLIGHT));
+  });
+
+  it('does not promise a follow-up invite email — that step is gone', () => {
+    const html = buildBetaConfirmationHtml(REFERRER, 'android');
+    expect(html).not.toContain('follow-up email');
+    expect(html).not.toContain('rolling out invites');
+    expect(html).not.toContain('Sit tight');
   });
 });
 

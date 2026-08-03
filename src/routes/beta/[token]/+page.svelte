@@ -2,65 +2,76 @@
 	import type { PageData } from './$types';
 	import { fade, slide } from 'svelte/transition';
 	import RiteLogo from '$lib/verified-vibe/components/RiteLogo.svelte';
-	import { COUNTRY_CODES, DEFAULT_COUNTRY_CODE, digitsOnly, parsePhone } from '$lib/phone';
+	import { storeChoices, type Platform } from '$lib/store-links';
 
 	let { data }: { data: PageData } = $props();
 
+	/**
+	 * Open testing (2026-08-03). Play is a public listing and TestFlight a public
+	 * join link, so there is no tester allow-list and no admin in the loop: this
+	 * page hands over the download itself instead of collecting a lead and waiting
+	 * for a human to mail an invite.
+	 *
+	 * The email field survives that change on purpose, and it is the ONLY field
+	 * left. verified_vibe_beta_signups.email is the sole link between a joiner and
+	 * their referrer — redeemBetaInviteIfEligible and awardReferralRewardIfEligible
+	 * both look the signup up by the address the person later signs in with. No
+	 * row, no auto-match and no referral payout. The device dropdown and WhatsApp
+	 * number went: we now learn the device from the button they actually tap, which
+	 * is better data than a self-declared select, and the number was only ever for
+	 * the manual invite chase that no longer happens.
+	 */
 	let email = $state('');
-	let platform = $state<'' | 'ios' | 'android'>('');
-	let countryCode = $state(DEFAULT_COUNTRY_CODE);
-	let phone = $state('');
-	let busy = $state(false);
 	let error = $state('');
-	let done = $state(false);
+	/** Set once the lead has been recorded, so a second tap doesn't re-post. */
+	let captured = $state(false);
 
 	const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 	const name = $derived(data.referrer?.first_name ?? null);
 	const initial = $derived((data.referrer?.first_name ?? '?').charAt(0).toUpperCase());
 
-	async function submit() {
-		error = '';
-		if (!EMAIL_RE.test(email.trim())) {
-			error = 'Please enter a valid email address.';
-			return;
-		}
-		if (platform !== 'ios' && platform !== 'android') {
-			error = 'Please select your phone type.';
-			return;
-		}
-		// Client-side check is for instant feedback; the server re-validates with
-		// the same helper and is the actual gate.
-		const parsed = parsePhone(countryCode, phone);
-		if (!parsed.ok) {
-			error = parsed.error;
-			return;
-		}
-		busy = true;
-		try {
-			const res = await fetch('/api/beta/submit', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({
-					token: data.token,
-					email: email.trim(),
-					platform,
-					countryCode,
-					phone: parsed.national,
-					mood: data.mood
-				})
-			});
-			const body = await res.json().catch(() => ({}));
-			if (!res.ok) {
-				error = body?.error ?? 'Something went wrong. Please try again.';
-				return;
-			}
-			done = true;
-		} catch {
-			error = 'Network error. Please try again.';
-		} finally {
-			busy = false;
-		}
+	// Both stores, always. We have no device hint to order them by any more, so
+	// Android leads (see $lib/store-links) and the person picks.
+	const downloads = storeChoices(null);
+
+	/** Gate: the buttons stay inert until there's an address worth recording. */
+	const ready = $derived(EMAIL_RE.test(email.trim()));
+
+	/**
+	 * Record the lead, then let the anchor open the store.
+	 *
+	 * Fire-and-forget by design: the store is what the person asked for, and making
+	 * them wait on our POST (or blocking the tap if it fails) would trade the thing
+	 * they want for a row in our table. `keepalive` so the request survives the tab
+	 * losing focus to the store app.
+	 *
+	 * `platform` is the button they tapped — the device we're actually confident
+	 * about. Not awaited, and errors are swallowed: a lost row costs attribution,
+	 * never the download.
+	 */
+	function capture(platform: Platform) {
+		if (!ready) return;
+		if (captured) return;
+		captured = true;
+		void fetch('/api/beta/submit', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			keepalive: true,
+			body: JSON.stringify({
+				token: data.token,
+				email: email.trim(),
+				platform,
+				mood: data.mood
+			})
+		}).catch(() => {
+			/* Non-fatal: they're on their way to the store either way. */
+		});
+	}
+
+	/** Nudge, shown only if they reach for a button with no valid email yet. */
+	function nudge() {
+		if (!ready) error = 'Enter your email first — that\'s how we know the invite is yours.';
 	}
 </script>
 
@@ -128,15 +139,6 @@
 				<p class="sub">
 					The link you followed has expired or was turned off. Ask the person who shared it for a
 					fresh one.
-				</p>
-			</div>
-		{:else if done}
-			<div class="state">
-				<div class="success-mark" aria-hidden="true">✓</div>
-				<h1 class="title">You're on the list</h1>
-				<p class="sub">
-					Thanks! We'll email <strong>{email}</strong> the moment your spot opens up.{#if !data.mood && data.referrer} When you join,
-					{name} will already be waiting in your matches.{/if}
 				</p>
 			</div>
 		{:else}
@@ -216,67 +218,56 @@
 					class="input"
 					placeholder="you@example.com"
 					bind:value={email}
-					onkeydown={(e) => e.key === 'Enter' && submit()}
+					oninput={() => (error = '')}
 					autocomplete="email"
 				/>
-				{#if platform === 'ios'}
-					<p class="hint-ios" transition:fade={{ duration: 150 }}>
-						📧 Use the same email as your Apple ID — TestFlight will send the invite there.
-					</p>
-				{/if}
-			</div>
-
-			<div class="field">
-				<label class="label" for="beta-platform">Your phone</label>
-				<select
-					id="beta-platform"
-					class="input select"
-					class:placeholder={platform === ''}
-					bind:value={platform}
-				>
-					<option value="" disabled>Select your phone type…</option>
-					<option value="ios">iPhone (iOS)</option>
-					<option value="android">Android</option>
-				</select>
-			</div>
-
-			<div class="field">
-				<label class="label" for="beta-phone">Your WhatsApp number</label>
-				<div class="phone-row">
-					<select
-						id="beta-country"
-						class="input select code"
-						aria-label="Country code"
-						bind:value={countryCode}
-					>
-						{#each COUNTRY_CODES as c (c.code)}
-							<option value={c.code}>{c.label}</option>
-						{/each}
-					</select>
-					<input
-						id="beta-phone"
-						type="tel"
-						inputmode="numeric"
-						class="input"
-						placeholder={countryCode === '+91' ? '98765 43210' : 'Phone number'}
-						bind:value={phone}
-						oninput={(e) => (phone = digitsOnly(e.currentTarget.value).slice(0, 14))}
-						onkeydown={(e) => e.key === 'Enter' && submit()}
-						autocomplete="tel-national"
-					/>
-				</div>
 			</div>
 
 			{#if error}
 				<p class="error" transition:fade={{ duration: 150 }}>{error}</p>
 			{/if}
 
-			<button class="btn" onclick={submit} disabled={busy}>
-				{busy ? 'Sending…' : 'Claim my invite →'}
-			</button>
+			<!-- Both stores, dimmed until the email is valid. Kept as real anchors the
+			     whole time (never swapped for buttons) so long-press and open-in-new-tab
+			     still work once they're live; aria-disabled plus the preventDefault
+			     below is the gate. -->
+			<div class="dl">
+				{#each downloads as d (d.platform)}
+					<a
+						class="dl-btn"
+						class:locked={!ready}
+						href={d.url}
+						target="_blank"
+						rel="noreferrer"
+						aria-disabled={!ready}
+						onclick={(e) => {
+							if (!ready) {
+								e.preventDefault();
+								nudge();
+								return;
+							}
+							capture(d.platform);
+						}}
+					>
+						{d.label} →
+					</a>
+				{/each}
+			</div>
+
+			<p class="dl-note">
+				{#if ready}
+					Pick your phone. Sign in with <strong>{email.trim()}</strong> so we know the invite is
+					yours{#if !data.mood && name}{' '}— {name} will be waiting in your matches{/if}. On iPhone the
+					link opens TestFlight (Apple's beta app), which walks you through the rest.
+				{:else}
+					Enter your email to unlock the download. Use the same address when you sign in — that's how
+					we know the invite is yours.
+				{/if}
+			</p>
 
 			<p class="legal">
-				We'll only use your email and WhatsApp number to send your beta invite. No spam, ever.
+				We'll only use your email for your invite and to reach you if something goes wrong. No spam,
+				ever.
 			</p>
 		{/if}
 	</div>
@@ -499,40 +490,6 @@
 		color: var(--text-4);
 	}
 
-	/* Native select styled to match .input, with a custom caret. */
-	.select {
-		appearance: none;
-		-webkit-appearance: none;
-		cursor: pointer;
-		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%23b08' stroke-width='2' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
-		background-repeat: no-repeat;
-		background-position: right 14px center;
-		padding-right: 38px;
-	}
-
-	.select.placeholder {
-		color: var(--text-4);
-	}
-
-	/* Dial code + number on one line. The code box is sized to its content so
-	   the number field — the part people actually type into — takes the rest. */
-	.phone-row {
-		display: flex;
-		gap: 8px;
-	}
-
-	.phone-row .code {
-		flex: 0 0 auto;
-		width: 106px;
-		padding-right: 30px;
-		background-position: right 10px center;
-	}
-
-	.phone-row .input:not(.code) {
-		flex: 1 1 auto;
-		min-width: 0;
-	}
-
 	.error {
 		font-size: 13px;
 		color: var(--accent-bright);
@@ -543,50 +500,11 @@
 		margin: 0 0 12px;
 	}
 
-	.btn {
-		width: 100%;
-		padding: 14px 16px;
-		border: none;
-		border-radius: 14px;
-		background: var(--accent);
-		color: #fff;
-		font-size: 15px;
-		font-weight: 800;
-		font-family: inherit;
-		cursor: pointer;
-		box-shadow: 0 12px 24px -8px var(--accent-glow);
-		transition: background 200ms, transform 120ms;
-	}
-
-	.btn:hover:not(:disabled) {
-		background: var(--accent-bright);
-	}
-
-	.btn:active:not(:disabled) {
-		transform: translateY(1px);
-	}
-
-	.btn:disabled {
-		opacity: 0.55;
-		cursor: not-allowed;
-	}
-
 	.legal {
 		font-size: 12px;
 		color: var(--text-4);
 		text-align: center;
 		margin: 13px 0 0;
-		line-height: 1.5;
-	}
-
-	.hint-ios {
-		font-size: 12px;
-		color: #b45309;
-		background: #fef3c7;
-		border: 1px solid #fde68a;
-		border-radius: 8px;
-		padding: 8px 12px;
-		margin: 8px 0 0;
 		line-height: 1.5;
 	}
 
@@ -615,21 +533,53 @@
 		margin: 0;
 	}
 
-	.sub strong {
-		color: var(--text-1);
-		font-weight: 700;
+	/* ── Download buttons ─────────────────────────────────────────────────── */
+	.dl {
+		display: flex;
+		flex-direction: column;
+		gap: 9px;
+		margin: 4px 0 0;
 	}
 
-	.success-mark {
-		width: 52px;
-		height: 52px;
-		display: grid;
-		place-items: center;
-		border-radius: 50%;
-		background: var(--accent-tint);
-		color: var(--accent-bright);
-		font-size: 26px;
+	.dl-btn {
+		display: block;
+		padding: 14px 16px;
+		border: 1px solid transparent;
+		border-radius: 14px;
+		background: var(--accent);
+		color: #fff;
+		font-size: 14.5px;
 		font-weight: 800;
-		margin-bottom: 16px;
+		text-align: center;
+		text-decoration: none;
+		box-shadow: 0 12px 24px -8px var(--accent-glow);
 	}
+
+	.dl-btn:hover {
+		background: var(--accent-bright);
+	}
+
+	/* Pre-email state. Deliberately still legible — the point is to show what they
+	   are about to get, not to hide it — and the note underneath says what unlocks
+	   it. Kept clickable so the tap can explain itself (see nudge()). */
+	.dl-btn.locked {
+		background: var(--accent-tint);
+		color: var(--accent);
+		border-color: var(--accent-glow);
+		box-shadow: none;
+		cursor: not-allowed;
+		opacity: 0.6;
+	}
+
+	.dl-btn.locked:hover {
+		background: var(--accent-tint);
+	}
+
+	.dl-note {
+		font-size: 12px;
+		line-height: 1.5;
+		color: var(--text-4);
+		margin: 12px 0 0;
+	}
+
 </style>

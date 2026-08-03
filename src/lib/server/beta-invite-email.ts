@@ -2,15 +2,17 @@
  * Beta-invite emails.
  *
  *  1. Confirmation — sent automatically when someone submits their email on
- *     /beta/{token}: thanks them + shows the woman's card + sets the
- *     expectation that a personal invite follows.
- *  2. Early access — sent manually from the Beta Invites admin once a human has
- *     added the person as an iOS/Android tester: congratulates them, shows the
- *     woman's card (now framed as "you've been matched"), and gives a
- *     platform-specific store button.
+ *     /beta/{token}. Since open testing (2026-08-03) this IS the invite: it
+ *     shows the woman's card and hands over both store links straight away.
+ *     It used to promise that a personal invite would follow once an admin
+ *     added the address as a tester; that step no longer exists, so promising
+ *     it would leave people waiting for mail nobody is going to send.
+ *  2. Early access — the same congratulations, sent by hand from the Beta
+ *     Invites admin. Now a RE-SEND rather than the gate: everyone already got
+ *     their links at signup, and this is for someone who lost the mail.
  *  3. New-signup alert — sent to the team (not the invitee) the moment a new row
- *     lands in the Collected emails list, so nobody has to poll the admin tab to
- *     notice that someone is waiting for their invite. See section 4 below.
+ *     lands in the Collected emails list, so a referral shows up without anyone
+ *     polling the admin tab. See section 4 below.
  *
  * The referrer card is OPTIONAL in both: signups from an admin recruiting link
  * have no referrer (and a referrer row can always fail to load). A missing card
@@ -22,6 +24,7 @@
  */
 
 import { sendEmail, escapeHtml } from './email';
+import { STORE_LINKS, storeChoices, storeUrlFor, type Platform } from '$lib/store-links';
 
 export interface ReferrerCard {
   first_name: string | null;
@@ -31,7 +34,13 @@ export interface ReferrerCard {
   about: string | null;
 }
 
-export type Platform = 'ios' | 'android';
+/**
+ * The store links live in $lib/store-links (client-safe, so the Svelte invite
+ * pages share them). Re-exported here because the admin endpoints and the
+ * /beta/{token}/app loader have always imported them from this module.
+ */
+export { STORE_LINKS, storeUrlFor };
+export type { Platform };
 
 /**
  * Everyone who gets a blind copy of each early-access invite, so the team has a
@@ -46,17 +55,6 @@ export type Platform = 'ios' | 'android';
 export const TEAM_INBOX = 'chris@wardrobeofamonk.com';
 
 const INVITE_BCC = [TEAM_INBOX];
-
-// App store links. iOS is pending — leave '' until we have it; sendEarlyAccessEmail
-// refuses to send an iOS invite while it's blank so we never mail a dead link.
-export const STORE_LINKS: Record<Platform, string> = {
-  android: 'https://play.google.com/store/apps/details?id=com.riteangle.app',
-  ios: 'https://testflight.apple.com/join/FxGV4VrC',
-};
-
-export function storeUrlFor(platform: Platform): string {
-  return STORE_LINKS[platform] ?? '';
-}
 
 const ABOUT_MAX = 140;
 
@@ -129,17 +127,59 @@ function emailShell(innerHtml: string, footerNote: string = NO_REPLY_NOTE): stri
 </html>`;
 }
 
+// ── Store buttons (shared by both invitee-facing emails) ──────────────────────
+
+/**
+ * Both stores as buttons, with the device we believe they're on first.
+ *
+ * BOTH, always. An email is opened on a device this code never sees, and unlike
+ * a web page it cannot re-detect anything — so a platform we got wrong (a
+ * mis-tapped dropdown, a `platform` column captured weeks earlier) used to be a
+ * dead end. The likely one leads and is the filled button; the other sits below
+ * it as an outline, so the ordering still carries the guess.
+ *
+ * `primaryUrl` overrides the first button's href for callers that were handed a
+ * specific link they already validated (sendEarlyAccessEmail).
+ */
+function storeButtonsHtml(platform: Platform | null, primaryUrl?: string): string {
+  const [first, second] = storeChoices(platform);
+  return `<div style="text-align:center;margin:6px 0 0">
+      <a href="${escapeHtml(primaryUrl || first.url)}"
+        style="display:inline-block;background:#ec4899;color:#fff;text-decoration:none;
+               font-size:16px;font-weight:700;padding:14px 28px;border-radius:12px">
+        ${first.label} →
+      </a>
+    </div>
+    <div style="text-align:center;margin:10px 0 0">
+      <a href="${escapeHtml(second.url)}"
+        style="display:inline-block;background:#fff;color:#ec4899;text-decoration:none;
+               border:1px solid #f9c0dc;font-size:15px;font-weight:700;
+               padding:12px 24px;border-radius:12px">
+        ${second.label} →
+      </a>
+    </div>`;
+}
+
 // ── 1. Confirmation email (auto, on form submit) ──────────────────────────────
 
-export function buildBetaConfirmationHtml(referrer: ReferrerCard | null): string {
+/**
+ * `platform` is what they picked on the form — an ordering hint for the buttons,
+ * nothing more. Optional so the older two-argument call sites keep compiling;
+ * a null just puts Android first.
+ */
+export function buildBetaConfirmationHtml(
+  referrer: ReferrerCard | null,
+  platform: Platform | null = null
+): string {
   const name = (referrer?.first_name ?? '').trim() || 'your match';
   const safeName = escapeHtml(name);
 
   return emailShell(`
     <div style="padding:28px 28px 8px">
-      <h1 style="margin:0;font-size:22px;color:#111827">Thanks — you're in! 🎉</h1>
+      <h1 style="margin:0;font-size:22px;color:#111827">You're in — get the app 🎉</h1>
       <p style="margin:12px 0 0;font-size:15px;line-height:1.55;color:#374151">
-        Thanks for dropping your email. You've been added to the riteangle beta list.
+        Thanks for dropping your email. Your riteangle invite is live right now — nothing to wait
+        for, no second email to watch out for.
       </p>
       <p style="margin:16px 0 0;font-size:15px;line-height:1.55;color:#374151">
         ${referrer ? "Here's who you'll be matched with once you're set up:" : 'We match on substance, not swipes — so the setup asks a little more of you, and gives back a lot more.'}
@@ -147,48 +187,49 @@ export function buildBetaConfirmationHtml(referrer: ReferrerCard | null): string
     </div>
     ${referrerCardHtml(referrer)}
     <div style="padding:8px 28px 28px">
-      <h2 style="margin:16px 0 6px;font-size:15px;color:#111827">What happens next?</h2>
+      <h2 style="margin:16px 0 10px;font-size:15px;color:#111827">Download riteangle</h2>
+      ${storeButtonsHtml(platform)}
+      <h2 style="margin:22px 0 6px;font-size:15px;color:#111827">What happens next?</h2>
       <p style="margin:0;font-size:15px;line-height:1.55;color:#374151">
-        Our team is rolling out invites in batches. You'll get a follow-up email from us with your
-        personal invite to sign up — ${
+        Install the app, sign in with <strong>this same email address</strong>, and finish a short
+        setup — ${
           referrer
-            ? `once you complete a quick setup, you'll be matched with ${safeName} straight away.`
-            : "once you complete a quick setup, we'll introduce you to someone worth meeting."
+            ? `then you'll be matched with ${safeName} straight away.`
+            : "then we'll introduce you to someone worth meeting."
         }
       </p>
       <p style="margin:16px 0 0;font-size:15px;line-height:1.55;color:#374151">
-        Sit tight — we'll be in touch soon.<br/>— The riteangle team
+        See you inside.<br/>— The riteangle team
       </p>
     </div>`);
 }
 
 export async function sendBetaConfirmationEmail(
   toEmail: string,
-  referrer: ReferrerCard | null
+  referrer: ReferrerCard | null,
+  platform: Platform | null = null
 ): Promise<void> {
   const name = (referrer?.first_name ?? '').trim() || 'your match';
   await sendEmail({
     to: toEmail,
-    subject: referrer ? `You're on the list — you'll be matched with ${name}` : "You're on the riteangle beta list",
-    html: buildBetaConfirmationHtml(referrer),
+    subject: referrer
+      ? `You're in — get the app and meet ${name}`
+      : "You're in — get the riteangle app",
+    html: buildBetaConfirmationHtml(referrer, platform),
   });
 }
 
-// ── 2. Early-access email (manual, from admin) ────────────────────────────────
+// ── 2. Early-access email (manual re-send, from admin) ─────────────────────────
 
-function storeButton(platform: Platform, url: string): string {
-  const label = platform === 'ios' ? 'Join the beta on TestFlight' : 'Get it on Google Play';
-  return `<a href="${escapeHtml(url)}"
-      style="display:inline-block;background:#ec4899;color:#fff;text-decoration:none;
-             font-size:16px;font-weight:700;padding:14px 28px;border-radius:12px">
-      ${label} →
-    </a>`;
-}
-
+/**
+ * `platform` is an ordering hint and may be null (a signup collected before
+ * device capture). `storeUrl` overrides the leading button for callers that
+ * validated a link first; both stores are rendered either way.
+ */
 export function buildEarlyAccessHtml(
   referrer: ReferrerCard | null,
-  platform: Platform,
-  storeUrl: string
+  platform: Platform | null,
+  storeUrl?: string
 ): string {
   const name = (referrer?.first_name ?? '').trim() || 'your match';
   const safeName = escapeHtml(name);
@@ -212,9 +253,10 @@ export function buildEarlyAccessHtml(
       <h2 style="margin:16px 0 10px;font-size:15px;color:#111827">
         ${referrer ? `Get the app to meet ${safeName}` : 'Get the app to get started'}
       </h2>
-      <div style="text-align:center;margin:6px 0 10px">
-        ${storeButton(platform, storeUrl)}
-      </div>
+      ${storeButtonsHtml(platform, storeUrl)}
+      <p style="margin:20px 0 0;font-size:15px;line-height:1.55;color:#374151">
+        Sign in with <strong>this same email address</strong> so we can connect you to your invite.
+      </p>
       <p style="margin:16px 0 0;font-size:15px;line-height:1.55;color:#374151">
         See you inside.<br/>— The riteangle team
       </p>
@@ -230,9 +272,14 @@ export function buildEarlyAccessHtml(
  */
 export const PUBLIC_ORIGIN = 'https://www.riteangle.dating';
 
-/** The web twin of this email: /beta/{token}/app, device baked into ?d=. */
-export function inviteUrlFor(token: string, platform: Platform): string {
-  return `${PUBLIC_ORIGIN}/beta/${encodeURIComponent(token)}/app?d=${platform}`;
+/**
+ * The web twin of this email: /beta/{token}/app, device baked into ?d= when we
+ * know it. Without a device the page sniffs the User-Agent and offers both
+ * stores anyway, so a device-less signup still gets a working link.
+ */
+export function inviteUrlFor(token: string, platform: Platform | null): string {
+  const base = `${PUBLIC_ORIGIN}/beta/${encodeURIComponent(token)}/app`;
+  return platform ? `${base}?d=${platform}` : base;
 }
 
 /**
@@ -260,7 +307,7 @@ export function inviteUrlFor(token: string, platform: Platform): string {
  */
 export function buildWhatsappInvite(
   referrer: ReferrerCard | null,
-  platform: Platform,
+  platform: Platform | null,
   inviteUrl: string
 ): { text: string; html: string } {
   const name = (referrer?.first_name ?? '').trim();
@@ -309,19 +356,19 @@ export function buildWhatsappInvite(
 }
 
 /**
- * Send the early-access invite. Throws on a bad/blank store link or a send
- * failure so the admin endpoint can report it (this email is admin-triggered,
- * not fire-and-forget).
+ * Send the early-access invite. Throws on a send failure so the admin endpoint
+ * can report it (this email is admin-triggered, not fire-and-forget).
+ *
+ * A null `platform` is fine — the email carries both stores and the platform
+ * only orders them. It used to be a hard requirement, which meant a signup
+ * collected before device capture could not be invited at all.
  */
 export async function sendEarlyAccessEmail(
   toEmail: string,
   referrer: ReferrerCard | null,
-  platform: Platform
+  platform: Platform | null
 ): Promise<void> {
-  const storeUrl = storeUrlFor(platform);
-  if (!storeUrl) {
-    throw new Error(`No store link configured for platform "${platform}"`);
-  }
+  const storeUrl = platform ? storeUrlFor(platform) : undefined;
   const name = (referrer?.first_name ?? '').trim() || 'your match';
   await sendEmail({
     to: toEmail,
@@ -338,6 +385,10 @@ export async function sendEarlyAccessEmail(
 /**
  * One new row in the Collected emails list, as the team needs to read it. The
  * fields mirror the admin table's columns so the alert and the tab agree.
+ *
+ * Since open testing this is FYI, not a to-do: the signup already has both store
+ * links from their confirmation. It still goes out because a referral landing is
+ * worth knowing about, and because the team follows people up on WhatsApp.
  *
  * `whatsapp` is the already-formatted number ('' when none is on file) and
  * `referrerName` is null for an admin recruiting link — the same "Admin" case
@@ -372,11 +423,12 @@ export function buildNewSignupAlertHtml(signup: NewSignupAlert): string {
 
   return emailShell(`
     <div style="padding:28px 28px 4px">
-      <h1 style="margin:0;font-size:20px;color:#111827">New beta signup — invite them 📥</h1>
+      <h1 style="margin:0;font-size:20px;color:#111827">New beta signup 📥</h1>
       <p style="margin:12px 0 0;font-size:15px;line-height:1.55;color:#374151">
         Someone just left their email on a /beta link${
           signup.total ? ` — that's <strong>#${signup.total}</strong> on the list` : ''
-        }. They've had the automatic confirmation; the early-access invite still needs a human.
+        }. Open testing, so nothing is blocking them: the confirmation already carried both store
+        links. This is for the record and for follow-up.
       </p>
       <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin:18px 0 0">
         ${alertRow('Email', `<strong>${escapeHtml(signup.email)}</strong>`)}

@@ -3,7 +3,15 @@
  *   Public endpoint behind the /beta/{token} landing page. Collects a
  *   prospective beta tester's email against a woman's referral link.
  *
- *   Body (JSON): { token, email, platform: 'ios'|'android', countryCode, phone }
+ *   Body (JSON): { token, email, platform?, countryCode?, phone?, mood? }
+ *
+ * EMAIL is the only required field. `platform` is now the store button the person
+ * tapped on the landing page rather than a self-declared dropdown — better data,
+ * but still optional, because the row must land even if that tap is the last
+ * thing that happens (the client posts fire-and-forget with keepalive). The
+ * WhatsApp number is optional too: it existed for the manual invite chase, and
+ * since open testing there is no chase. Both are still accepted so the rows
+ * already collected, and any older client, keep working.
  *
  * No auth (public), service-role write. First invite wins: if the email is
  * already on the list, the original referrer is kept and we report success
@@ -17,10 +25,18 @@
  * many signups a single link can drive per hour, so the public endpoint can't be
  * used to spray email at arbitrary addresses.
  *
- * A NEW row also alerts the team inbox, so a signup waiting for its manual
- * early-access invite is noticed without anyone watching the admin tab. Only new
- * rows: a duplicate re-submit adds nothing to the Collected emails list, so
- * alerting on one would just be noise.
+ * Since open testing (2026-08-03) that confirmation IS the invite: it carries
+ * both store links, and the landing page shows them too. Nobody waits on an
+ * admin adding them as a tester any more.
+ *
+ * The row still matters, which is why this form still exists: the beta_signups
+ * email is the ONLY thing tying a joiner back to their referrer, and it is what
+ * redeemBetaInviteIfEligible / awardReferralRewardIfEligible look up to form the
+ * match and pay the referral. No row, no attribution.
+ *
+ * A NEW row also alerts the team inbox so a referral landing is noticed without
+ * anyone watching the admin tab. Only new rows: a duplicate re-submit adds
+ * nothing to the Collected emails list, so alerting on one would just be noise.
  */
 
 import { json } from '@sveltejs/kit';
@@ -32,12 +48,11 @@ import {
   type NewSignupAlert,
   type ReferrerCard,
 } from '$lib/server/beta-invite-email';
+import type { Platform } from '$lib/store-links';
 import { modeOf, selectReferralLinks } from '$lib/server/referral-links';
 import { formatPhone, parsePhone } from '$lib/phone';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PLATFORMS = ['ios', 'android'] as const;
-type Platform = (typeof PLATFORMS)[number];
 
 // Abuse guard: at most this many signups per link within the rolling window.
 const RATE_LIMIT_MAX = 10;
@@ -72,10 +87,19 @@ async function loadReferrerCard(db: any, referrerId: string | null): Promise<Ref
   }
 }
 
-/** Send the confirmation. Non-fatal: never throws. */
-async function sendConfirmation(toEmail: string, referrer: ReferrerCard | null): Promise<void> {
+/**
+ * Send the confirmation. Non-fatal: never throws.
+ *
+ * `device` only orders the two store buttons — the email carries both, so an
+ * unknown device costs a glance rather than the download.
+ */
+async function sendConfirmation(
+  toEmail: string,
+  referrer: ReferrerCard | null,
+  device: Platform | null
+): Promise<void> {
   try {
-    await sendBetaConfirmationEmail(toEmail, referrer);
+    await sendBetaConfirmationEmail(toEmail, referrer, device);
   } catch (e) {
     console.error('[beta-submit] Confirmation email failed (non-fatal):', e);
   }
@@ -125,25 +149,27 @@ export const POST: RequestHandler = async ({ request }) => {
   if (typeof email !== 'string' || !EMAIL_RE.test(email.trim())) {
     return json({ error: 'Please enter a valid email address.' }, { status: 400 });
   }
-  if (typeof platform !== 'string' || !PLATFORMS.includes(platform as Platform)) {
-    return json({ error: 'Please select your phone type.' }, { status: 400 });
-  }
-  // WhatsApp number. Re-validated here with the same helper the form uses — the
-  // client check is only for instant feedback, and a caps/shape guarantee this
-  // endpoint needs (the column CHECKs assume normalized input) cannot come from
-  // a value the browser supplied. Length-capped before parsing so a megabyte of
-  // digits can't be handed to the regexes.
+  // WhatsApp number — OPTIONAL since the landing page stopped asking for one.
+  // When a number IS supplied it is re-validated here with the same helper the
+  // old form used: the column CHECKs assume normalized input, and that guarantee
+  // can't come from a value the browser supplied. Length-capped before parsing so
+  // a megabyte of digits can't be handed to the regexes.
   const rawPhone = typeof phone === 'string' ? phone.slice(0, 32) : '';
-  const parsedPhone = parsePhone(typeof countryCode === 'string' ? countryCode : '', rawPhone);
-  if (!parsedPhone.ok) {
-    return json({ error: parsedPhone.error }, { status: 400 });
+  const rawCode = typeof countryCode === 'string' ? countryCode : '';
+  let whatsapp: { whatsapp_country_code: string; whatsapp_number: string } | null = null;
+  if (rawPhone) {
+    const parsedPhone = parsePhone(rawCode, rawPhone);
+    if (!parsedPhone.ok) {
+      return json({ error: parsedPhone.error }, { status: 400 });
+    }
+    whatsapp = {
+      whatsapp_country_code: rawCode,
+      whatsapp_number: parsedPhone.national,
+    };
   }
-  const whatsapp = {
-    whatsapp_country_code: countryCode as string,
-    whatsapp_number: parsedPhone.national,
-  };
   const normalized = email.trim().toLowerCase();
-  const device = platform as Platform;
+  const device: Platform | null =
+    platform === 'ios' || platform === 'android' ? platform : null;
   // Optional referral framing (women-invite flow), carried via /beta/<token>?m=.
   // Stored for the landing/copy + reward record; never drives onboarding.
   const MOODS = ['networking', 'casual', 'serious'];
@@ -180,23 +206,31 @@ export const POST: RequestHandler = async ({ request }) => {
     .eq('email', normalized)
     .maybeSingle();
   if (existing) {
-    // Keep the original referrer, but refresh the device and number in case they
-    // corrected either. Pre-migration, fall back to the device alone rather than
-    // losing the correction entirely.
-    const { error: updateError } = await db
-      .from('verified_vibe_beta_signups')
-      .update({ platform: device, ...whatsapp })
-      .eq('id', existing.id);
-    if (updateError && `${updateError.code}` === UNDEFINED_COLUMN) {
-      warnMissingWhatsappColumns();
-      await db
+    // Keep the original referrer, but refresh what they just told us. A null
+    // device would overwrite a good value with nothing, and a number we were not
+    // sent is not a correction — so only write the fields actually present.
+    // Pre-migration, fall back to the device alone rather than losing it too.
+    const patch: Record<string, unknown> = {};
+    if (device) patch.platform = device;
+    if (whatsapp) Object.assign(patch, whatsapp);
+    if (Object.keys(patch).length > 0) {
+      const { error: updateError } = await db
         .from('verified_vibe_beta_signups')
-        .update({ platform: device })
+        .update(patch)
         .eq('id', existing.id);
+      if (updateError && `${updateError.code}` === UNDEFINED_COLUMN) {
+        warnMissingWhatsappColumns();
+        if (device) {
+          await db
+            .from('verified_vibe_beta_signups')
+            .update({ platform: device })
+            .eq('id', existing.id);
+        }
+      }
     }
     // No team alert here on purpose: the list is unchanged, so an alert would be
     // a reminder about a row somebody was already told about.
-    await sendConfirmation(normalized, cardReferrer);
+    await sendConfirmation(normalized, cardReferrer, device);
     return json({ success: true });
   }
 
@@ -221,7 +255,9 @@ export const POST: RequestHandler = async ({ request }) => {
     status: 'pending',
   };
 
-  let { error } = await db.from('verified_vibe_beta_signups').insert({ ...row, ...whatsapp });
+  let { error } = await db
+    .from('verified_vibe_beta_signups')
+    .insert({ ...row, ...(whatsapp ?? {}) });
 
   // Code can reach production before the migration is run by hand (Vercel
   // deploys from main; migrations are applied in the SQL editor). Without this
@@ -237,7 +273,7 @@ export const POST: RequestHandler = async ({ request }) => {
     // Unique-violation race (someone inserted the same email between our check
     // and insert) → still a success from the user's perspective. Confirm anyway.
     // No alert: whoever won the race collected the row, and alerted for it.
-    await sendConfirmation(normalized, cardReferrer);
+    await sendConfirmation(normalized, cardReferrer, device);
     return json({ success: true });
   }
 
@@ -245,10 +281,12 @@ export const POST: RequestHandler = async ({ request }) => {
   // In parallel — the person is waiting on this response, and neither send can
   // reject (both swallow their own failures).
   await Promise.all([
-    sendConfirmation(normalized, cardReferrer),
+    sendConfirmation(normalized, cardReferrer, device),
     alertTeam(db, {
       email: normalized,
-      whatsapp: formatPhone(whatsapp.whatsapp_country_code, whatsapp.whatsapp_number),
+      whatsapp: whatsapp
+        ? formatPhone(whatsapp.whatsapp_country_code, whatsapp.whatsapp_number)
+        : '',
       platform: device,
       referrerName: referrer?.first_name?.trim() || null,
       linkLabel,

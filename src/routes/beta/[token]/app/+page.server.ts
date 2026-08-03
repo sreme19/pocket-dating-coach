@@ -6,24 +6,28 @@
  * previews her photo instead of pasting a raw storage URL) that opens on the
  * same congratulations + her card + store button the email carries.
  *
- * The token is HER referral link, not a per-signup one — so this page shows the
- * store button to anyone who has the link and appends /app. That is a deliberate
- * trade for shipping without a migration: the store links are already public
- * join URLs that go out in every invite email, and the real gate on becoming a
- * tester is the store's own tester cap, not the secrecy of this path. If that
- * stops being acceptable, the fix is a per-signup invite_token column and
- * resolving the device + referrer from the signup row instead of the query.
+ * The token is HER referral link, not a per-signup one, so this page shows the
+ * store buttons to anyone who has the link and appends /app. Since open testing
+ * (2026-08-03) that is not even a trade any more: both store links are public
+ * join URLs, the /beta landing hands them out directly, and there is no tester
+ * allow-list left to protect.
+ *
+ * NOTE this path collects no email, which the /beta landing does. A person who
+ * arrives here therefore has no verified_vibe_beta_signups row from us, so they
+ * are only attributed to their referrer if the team already collected them (the
+ * admin Copy button builds this URL from an existing signup row). Keep that in
+ * mind before repurposing this page as a general share target.
  *
  * Device: ?d=ios|android, written by the admin Copy button (which knows the
- * device on file). Falls back to sniffing the User-Agent so a link that lost its
- * query string still lands on the right store, and shows both buttons when we
- * genuinely cannot tell.
+ * device on file), else sniffed from the User-Agent. It only ORDERS the two store
+ * buttons — the page always offers both (see $lib/store-links), so a stale
+ * `platform` column or a forwarded link can't strand anyone on the wrong store.
  */
 
 import type { PageServerLoad } from './$types';
 import { getSupabase } from '$lib/server/supabase';
 import { modeOf, selectReferralLinks } from '$lib/server/referral-links';
-import { STORE_LINKS, type Platform } from '$lib/server/beta-invite-email';
+import type { Platform } from '$lib/store-links';
 
 /** Read the device from ?d=, else from the User-Agent, else null (show both). */
 function resolvePlatform(param: string | null, userAgent: string): Platform | null {
@@ -54,7 +58,6 @@ export const load: PageServerLoad = async ({ params, url, request }) => {
 			valid: false,
 			referrer: null,
 			platform,
-			storeLinks: STORE_LINKS,
 			ogImage: null,
 			pageUrl
 		};
@@ -78,7 +81,6 @@ export const load: PageServerLoad = async ({ params, url, request }) => {
 		valid: true,
 		referrer: referrer ?? null,
 		platform,
-		storeLinks: STORE_LINKS,
 		ogImage: referrer?.avatar_url ?? null,
 		pageUrl
 	};
