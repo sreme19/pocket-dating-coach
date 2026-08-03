@@ -1,4 +1,5 @@
-/**
+
+import { PROOF_CATEGORIES, PROOF_CATEGORY_IDS } from '$lib/verified-vibe/proof-categories';/**
  * proof-signals.ts — single read-side for "what has this user verifiably proven?"
  * plus the Bestie-driven in-chat proof-request state machine (spec §3 Step 3).
  *
@@ -21,33 +22,17 @@
  *   - fulfilled → verified proof landed; Bestie acknowledges once → closed.
  */
 
-export const PROOF_REQUEST_CATEGORIES = [
-	'linkedin',
-	'travel',
-	'discipline',
-	'lifestyle',
-	'social_proof',
-	'assets',
-	'wealth',
-	'spending',
-] as const;
-export type ProofRequestCategory = (typeof PROOF_REQUEST_CATEGORIES)[number];
+// DERIVED from the canonical taxonomy — this list used to omit hosting, intro,
+// instagram, twitter and habit_tracker, so the advisor could never ask for them.
+export const PROOF_REQUEST_CATEGORIES = PROOF_CATEGORY_IDS as readonly string[];
+export type ProofRequestCategory = string;
 
 /**
  * Priority order for what to invite first when several gaps are open — highest-
  * leverage and lowest-friction categories lead. Career (linkedin) and the photo
  * categories need no ID gate; wealth/spending/assets do, so they trail.
  */
-export const PROOF_CATEGORY_PRIORITY: ProofRequestCategory[] = [
-	'linkedin',
-	'discipline',
-	'travel',
-	'lifestyle',
-	'social_proof',
-	'assets',
-	'wealth',
-	'spending',
-];
+export const PROOF_CATEGORY_PRIORITY: ProofRequestCategory[] = [...PROOF_CATEGORY_IDS];
 
 /**
  * Document / ID-gated categories: proving these needs a name-bearing DOCUMENT
@@ -60,7 +45,8 @@ export const PROOF_CATEGORY_PRIORITY: ProofRequestCategory[] = [
  * /proof-upload screen, which has the ID-gate flow they need. See
  * `IN_CHAT_PROOF_CATEGORIES` for the set the chat surface may ask for.
  */
-export const DOCUMENT_PROOF_CATEGORIES = ['wealth', 'assets', 'spending'] as const;
+export const DOCUMENT_PROOF_CATEGORIES: readonly string[] =
+	PROOF_CATEGORIES.filter((c) => c.documentGated).map((c) => c.id);
 
 /** True when a category needs a document + ID gate rather than a picture upload. */
 export function isDocumentProofCategory(c: string): boolean {
@@ -72,16 +58,9 @@ export const IN_CHAT_PROOF_CATEGORIES: ProofRequestCategory[] =
 	PROOF_REQUEST_CATEGORIES.filter((c) => !isDocumentProofCategory(c));
 
 /** Friendly labels for prompts + UI copy. */
-export const PROOF_CATEGORY_LABELS: Record<ProofRequestCategory, string> = {
-	linkedin: 'career (a LinkedIn screenshot, or your résumé)',
-	travel: 'travel (passport stamps, boarding passes, trip photos with you in them)',
-	discipline: 'fitness / discipline (you at the gym, training, sport)',
-	lifestyle: 'lifestyle (photos of you living it — dining, events, experiences)',
-	social_proof: 'social life (you with friends, at events)',
-	assets: 'assets (ownership papers for your car or other big things — needs verified ID)',
-	wealth: 'wealth (bank statement, payslip — needs verified ID)',
-	spending: 'spending (receipts, bills — needs verified ID)',
-};
+export const PROOF_CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
+	PROOF_CATEGORIES.map((c) => [c.id, c.askPhrase])
+);
 
 export type ProofRequestStatus =
 	| 'pending'

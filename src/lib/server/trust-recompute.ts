@@ -22,24 +22,22 @@ import { getSupabase } from './supabase';
 import { calculateCGTotal, type CGTrustSubscores } from '$lib/verified-vibe/server/trustScore';
 import { refreshPoolEntry } from './pool-registry';
 import { photoSignalsEnabled, photoTrustContribution, type PhotoSignals } from './photo-signals';
+import { PROOF_CATEGORIES } from '$lib/verified-vibe/proof-categories';
 
-// Proof-category → CG dimension boost (mirrors CasualGenerousBoostTab / the old
-// inline map in proof-upload). Show-off categories get a photo-count multiplier.
-const PROOF_BOOST_MAP: Record<string, { key: keyof CGTrustSubscores; boost: number }> = {
-	lifestyle:    { key: 'lifestyleDepth',    boost: 30 },
-	hosting:      { key: 'lifestyleDepth',    boost: 20 },
-	discipline:   { key: 'emotionalSafety',   boost: 35 },
-	social_proof: { key: 'socialLegitimacy',  boost: 30 },
-	linkedin:     { key: 'socialLegitimacy',  boost: 50 },
-	instagram:    { key: 'socialLegitimacy',  boost: 25 },
-	twitter:      { key: 'socialLegitimacy',  boost: 15 },
-	habit_tracker:{ key: 'socialLegitimacy',  boost: 20 },
-	intro:        { key: 'emotionalSafety',   boost: 45 },
-	spending:     { key: 'lifestyleSignals', boost: 30 },
-	assets:       { key: 'lifestyleSignals', boost: 35 },
-};
+// Proof-category → CG dimension boost, DERIVED from the canonical taxonomy.
+//
+// This was a hand-maintained copy that had drifted: `travel` and `wealth` were
+// missing entirely, and the loop below skips any category it cannot find
+// (`if (!b) continue`), so those uploads silently earned nothing — six of them
+// across six real members, one of which (Travel Magnets) is its own product
+// section. Deriving the map means a category can no longer exist in the product
+// without a weight here.
+const PROOF_BOOST_MAP: Record<string, { key: keyof CGTrustSubscores; boost: number }> =
+	Object.fromEntries(
+		PROOF_CATEGORIES.map((c) => [c.id, { key: c.trust.key as keyof CGTrustSubscores, boost: c.trust.boost }])
+	);
 
-const SHOW_OFF_CATS = new Set(['lifestyle', 'hosting', 'discipline', 'social_proof']);
+const SHOW_OFF_CATS = new Set(PROOF_CATEGORIES.filter((c) => c.showOff).map((c) => c.id));
 
 // Garage ownership tier → fraction of the assets boost earned (mirrors
 // OWNERSHIP_TRUST_FACTOR in proof-upload). Missing tier (legacy assets proofs

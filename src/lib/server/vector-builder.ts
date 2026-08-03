@@ -29,6 +29,7 @@ import {
 	type DimensionId,
 } from '$lib/verified-vibe/dimensions';
 import { incomeToV, parseIncomeToLPA } from '$lib/verified-vibe/valuation';
+import { PROOF_CATEGORIES } from '$lib/verified-vibe/proof-categories';
 import {
 	photoSignalsEnabled,
 	photoConfidenceContribution,
@@ -43,26 +44,13 @@ export const VECTOR_BUILDER_VERSION = 1;
 // to 1, then becomes confidence:  c[d] = c_min + (1 - c_min) * strength[d].
 // Categories mirror the proof-upload taxonomy (mobile/lib/proof_upload_screen.dart)
 // and the verification steps (id/liveness/photos/spending_or_qa).
+// Proof-category → dimension confidence, DERIVED from the canonical taxonomy so a
+// new category cannot exist without vector confidence (this copy was missing
+// `travel`). `photos` is appended separately: it is a base verification step, not
+// a proof category.
 const PROOF_CONFIDENCE: Record<string, Partial<Record<DimensionId, number>>> = {
-	// Money tier
-	wealth:        { financial: 0.7 },
-	spending:      { financial: 0.5 },
-	assets:        { financial: 0.6 },
-	// Lifestyle / experiences
-	lifestyle:     { lifestyle: 0.6, presentation: 0.15 },
-	hosting:       { lifestyle: 0.4, warmth: 0.2 },
-	// Health / discipline
-	discipline:    { presentation: 0.6 },
-	habit_tracker: { presentation: 0.3 },
-	// Warmth / self-expression
-	intro:         { warmth: 0.4, presentation: 0.2 },
-	// Social & professional legitimacy
-	social_proof:  { social_legitimacy: 0.4, warmth: 0.1 },
-	linkedin:      { social_legitimacy: 0.7, ambition: 0.4 },
-	instagram:     { social_legitimacy: 0.3, lifestyle: 0.1 },
-	twitter:       { social_legitimacy: 0.2, intellect: 0.1 },
-	// Base verification steps
-	photos:        { presentation: 0.5, looks: 0.3 }, // recent, consistent photos = real, recent presentation
+	...Object.fromEntries(PROOF_CATEGORIES.map((c) => [c.id, c.dims])),
+	photos: { presentation: 0.5, looks: 0.3 }, // recent, consistent photos = real, recent presentation
 };
 
 // 📎 chat-artifact claim_tag → dimension confidence (mirrors trust-recompute's map).
