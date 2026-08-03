@@ -12,6 +12,7 @@ import {
 } from '$lib/server/advisor-thread';
 import { detectTaskIntent, createAdvisorTask } from '$lib/server/advisor-tasks';
 import { resolveUserId, reconcileBodyUserId } from '$lib/server/require-user';
+import { loadProofPayoffContext } from '$lib/server/proof-payoff';
 import { logAppError } from '$lib/server/logAppError';
 import { loadPreferences, updatePreferences } from '$lib/server/profile-service';
 import type { PreferencesProfile } from '$lib/server/profile-service';
@@ -189,7 +190,12 @@ export const POST: RequestHandler = async ({ request }) => {
 		const matchIntelligenceContext = await loadMatchIntelligenceContext(supabase, userId);
 
 		// ── Vector Profile Strength (Phase 4, flag-gated) — her own self-coaching ──
-		const profileStrengthContext = await loadVectorAdvisorContext(supabase, userId, { subject: 'woman' });
+		// Profile Strength band + what each remaining upload is actually worth. Both
+		// ride the same prompt slot so the shared prompt builder (which the admin Test
+		// Suite also uses) keeps its signature.
+		const profileStrengthContext =
+			(await loadVectorAdvisorContext(supabase, userId, { subject: 'woman' })) +
+			(await loadProofPayoffContext(supabase, userId, { subject: 'woman' }));
 		// ── Consent-unlock recommendations — matched men who cleared the bar (§11d) ──
 		const unlockContext = await loadUnlockRecommendations(supabase, userId);
 		// ── Targeted-pursuit path plan — how she raises her appeal to a man (§11i) ──

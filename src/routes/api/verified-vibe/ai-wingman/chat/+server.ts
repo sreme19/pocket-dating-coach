@@ -28,6 +28,7 @@ import {
 } from '$lib/server/advisor-thread';
 import { detectTaskIntent, createAdvisorTask } from '$lib/server/advisor-tasks';
 import { resolveUserId, reconcileBodyUserId } from '$lib/server/require-user';
+import { loadProofPayoffContext } from '$lib/server/proof-payoff';
 import { loadWingmanAdvisorContext } from '$lib/server/wingman-advisor-context';
 import { buildAIWingmanAdvisorSystemPrompt } from '$lib/prompts';
 import { touchLastActive } from '$lib/server/pool-registry';
@@ -175,7 +176,12 @@ export const POST: RequestHandler = async ({ request }) => {
 		// Deterministic band + verification-upside from the vector model. Empty
 		// string unless the flag is on AND the user has vectors, so this is inert
 		// by default.
-		const profileStrengthContext = await loadVectorAdvisorContext(supabase, userId);
+		// Profile Strength band + what each remaining upload is actually worth. Both
+		// ride the same prompt slot so the shared prompt builder (which the admin Test
+		// Suite also uses) keeps its signature.
+		const profileStrengthContext =
+			(await loadVectorAdvisorContext(supabase, userId)) +
+			(await loadProofPayoffContext(supabase, userId, { subject: 'man' }));
 		// Per-match path-plan levers (§11c) — flag-gated, empty otherwise.
 		const pathPlanContext = await loadPathPlanContext(supabase, userId);
 		// Cross-match portfolio (§10/§11a) — verify-actions ranked by breadth of impact.

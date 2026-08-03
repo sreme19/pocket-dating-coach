@@ -108,7 +108,7 @@ export async function loadMatchIntelligenceContext(
 			m.checklist.forEach((c) => lines.push(`  - ${c}`));
 		}
 		if (m.simulation.length) {
-			lines.push(`Predicted effect of concrete actions (these trust/standing numbers are EXACT — state them plainly):`);
+			lines.push(`Predicted effect of concrete actions (trust and standing are RELATIVE to other members — see the honesty rule below):`);
 			for (const a of m.simulation) {
 				const standing = (a.standingBefore != null && a.standingAfter != null && (a.standingPool ?? 0) > 1)
 					? `, standing #${a.standingBefore}→#${a.standingAfter} of ${a.standingPool}`
@@ -124,7 +124,8 @@ export async function loadMatchIntelligenceContext(
 		`\n\nMATCH INTELLIGENCE (precomputed by the Matchmaker — Standing, appeal, and the EXACT predicted effect of each action; this is the source of truth for "how do I improve / move up"):\n` +
 		blocks.join('\n\n') +
 		`\n\nRULES for using match intelligence:\n` +
-		`- The trust/percentile/standing deltas above are computed, not guessed — state them as concrete facts ("upload a fitness shot → your trust goes 86→90"). Items marked "(estimate)" are not guaranteed — hedge those.\n` +
+		`- HONESTY RULE on these numbers. Trust score, percentile and standing are COHORT-RELATIVE: they are a ranking against other active members, computed here against a snapshot of the pool as it is right now. They are the best available prediction, NOT a promise. Say "as things stand today that takes you to about 90" or "that should move you up a place" — never "your trust WILL be 90". If asked, be straight that a score can move when other people upload too, and can even dip through no fault of theirs. Items marked "(estimate)" are weaker still — hedge those harder.\n` +
+		`- What you CAN state flatly: the action itself and the proof it earns. Profile Strength, its band, and appeal to a specific match are absolute — they depend only on this member's own verified profile and that one person's preferences, so peers cannot erode them. Prefer leading with those when you want to be concrete.\n` +
 		`- If a "Verify your ID + selfie" action appears, lead with it — identity is unverified and is heavily penalising the score until done.\n` +
 		`- If standing is already #1 / the only match, don't manufacture competition — pivot to converting the match and to staying ahead.\n` +
 		`- Turn the checklist into warm, specific coaching; never read her private preferences back to him.`
