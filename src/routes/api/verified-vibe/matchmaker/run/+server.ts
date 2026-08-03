@@ -33,6 +33,17 @@ import { logAppError } from '$lib/server/logAppError';
 /** Phase 3 cutover flag — when 'true', the nightly run uses the vector matcher. */
 const MATCHMAKER_V2 = env.MATCHMAKER_V2 === 'true';
 
+/**
+ * Every branch in this endpoint is awaited and several are heavy (nightly match,
+ * match-scores, photo backfills). Vercel's default function ceiling is 10–15s,
+ * far under any real run, and blowing the ceiling kills the work mid-flight —
+ * exactly the failure that left every nightly run incomplete. 300s is the Pro
+ * ceiling; on Hobby the max accepted value is 60. Requires MATCHMAKER_V2=true to
+ * be realistic: the v2 vector matcher is pure arithmetic (no per-pair LLM), while
+ * the legacy path makes an LLM call per pair and will not finish inside any limit.
+ */
+export const config = { maxDuration: 300 };
+
 export const POST: RequestHandler = async ({ request }) => {
   try {
     const body = await request.json() as {
@@ -204,16 +215,25 @@ export const POST: RequestHandler = async ({ request }) => {
     // Nightly: re-normalize trust FIRST (trust still feeds the legacy path), then
     // run the matcher. When MATCHMAKER_V2 is on, use the vector matcher (cheap
     // arithmetic + min-cost-flow, no per-pair LLM); otherwise the legacy LLM
-    // batch + match-score refresh. Async — respond immediately.
-    runTrustNormalization()
-      .then(() => (MATCHMAKER_V2
-        ? runVectorMatchmaker({ dryRun: false }).then(() => undefined)
-        : runNightlyBatch(cityScoped).then(() => runAllMatchScores()).then(() => undefined)))
-      .catch((err) => {
-        console.error('[matchmaker/run] nightly run failed:', err);
-      });
-
-    return json({ started: true, cityScoped, matcher: MATCHMAKER_V2 ? 'v2' : 'legacy' });
+    // batch + match-score refresh.
+    //
+    // AWAITED, deliberately. This used to be fire-and-forget with an immediate
+    // `{ started: true }` response, which never once completed in production:
+    // Vercel freezes the invocation the moment the response is returned, killing
+    // the in-flight batch. Every `nightly` row in vv_matchmaker_runs between
+    // 2026-06-10 and 2026-07-28 has completed_at NULL and pairs_evaluated 0 —
+    // the run row is inserted at the top of runNightlyBatch and the empty-pool
+    // early-return does set completed_at, so NULL proves a mid-flight kill, not
+    // an empty pool. Every real match came from the synchronous on_demand path.
+    // Keep this awaited, and keep `maxDuration` above in step with it.
+    await runTrustNormalization();
+    if (MATCHMAKER_V2) {
+      const result = await runVectorMatchmaker({ dryRun: false });
+      return json({ ok: true, matcher: 'v2', cityScoped, ...result });
+    }
+    await runNightlyBatch(cityScoped);
+    await runAllMatchScores();
+    return json({ ok: true, matcher: 'legacy', cityScoped });
 
   } catch (err) {
     console.error('[matchmaker/run]', err);
