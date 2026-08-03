@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
 import 'app_logger.dart';
+import 'category_proof_screen.dart';
 import 'config.dart';
 import 'markdown.dart';
 import 'season.dart';
+import 'trust_boost_screen.dart';
 
 /// AI advisor chat — Wingman (men) or Bestie (women). Proactive greeting on
 /// open, quick-action intent chips, markdown replies, Bestie drafts, and
@@ -77,6 +79,10 @@ class _AdvisorScreenState extends State<AdvisorScreen> with WidgetsBindingObserv
   /// people sit and watch it, and they should see the answer land.
   Timer? _taskPoll;
   AppLifecycleState _lifecycle = AppLifecycleState.resumed;
+  /// Proof-portfolio state for the pinned card. Null until the first fetch lands
+  /// (or forever, if it fails) — the card is additive, so the thread must read
+  /// normally without it.
+  AdvisorPortfolio? _portfolio;
 
   bool get _wm => widget.wingman;
   String get _name => _wm ? 'AI Wingman' : 'AI Bestie';
@@ -95,7 +101,7 @@ class _AdvisorScreenState extends State<AdvisorScreen> with WidgetsBindingObserv
     AppLogger.instance.screen('advisor');
     AppLogger.instance.action('advisor', 'load_advisor');
     WidgetsBinding.instance.addObserver(this);
-    _loadHistory().then((_) => _loadGreeting()).then((_) => _loadHandoffNudge()).then((_) {
+    _loadHistory().then((_) => _loadPortfolio()).then((_) => _loadGreeting()).then((_) => _loadHandoffNudge()).then((_) {
       final seed = widget.initialMessage?.trim();
       if (seed != null && seed.isNotEmpty && mounted) _send(text: seed);
     });
@@ -106,6 +112,32 @@ class _AdvisorScreenState extends State<AdvisorScreen> with WidgetsBindingObserv
     _lifecycle = state;
     // Back in the foreground: check straight away rather than waiting out a tick.
     if (state == AppLifecycleState.resumed && _taskPending) _pollTaskOnce();
+    // The member may have uploaded a proof on the web (or in another tab of the
+    // app) while we were away — the card must not still be selling a done move.
+    if (state == AppLifecycleState.resumed) _loadPortfolio();
+  }
+
+  /// Refresh the pinned portfolio card. Non-fatal by construction: a null result
+  /// leaves the previous card in place rather than blanking it, so a single flaky
+  /// request does not make the card flicker away.
+  Future<void> _loadPortfolio() async {
+    final p = await fetchAdvisorPortfolio();
+    if (!mounted || p == null) return;
+    setState(() => _portfolio = p);
+  }
+
+  /// Deep-link into the proof-upload flow for one category, then re-read the
+  /// portfolio so the card reflects whatever they just uploaded.
+  Future<void> _openProof(String categoryId) async {
+    AppLogger.instance.action('advisor', 'tap_portfolio_action', meta: {'category': categoryId});
+    await Navigator.of(context).push(MaterialPageRoute(
+      // habit_tracker has no dedicated upload screen in the app yet; Trust &
+      // Boost is the surface that can still take it.
+      builder: (_) => categoryId == 'habit_tracker'
+          ? const TrustBoostScreen(scrollToShowOff: true)
+          : CategoryProofScreen(categoryId: categoryId),
+    ));
+    await _loadPortfolio();
   }
 
   /// Surface the AI Bestie's time-sensitive hand-off nudge (spec B2, point 4) —
@@ -414,6 +446,10 @@ class _AdvisorScreenState extends State<AdvisorScreen> with WidgetsBindingObserv
         ]),
       ),
       body: Column(children: [
+        // Pinned, not a message: it sits OUTSIDE the ListView so it cannot scroll
+        // away behind the thread. The whole point of this surface is the next
+        // move, and it should still be on screen after twenty turns of chat.
+        if (_portfolio != null) PortfolioCard(p: _portfolio!, onOpen: _openProof),
         Expanded(
           child: visible.isEmpty && !_thinking
               ? _Intro(wingman: _wm)
@@ -757,6 +793,310 @@ class _Feedback extends StatelessWidget {
         ),
       ]),
     );
+  }
+}
+
+// ── Pinned Trust & Boost portfolio card ─────────────────────────────────────
+// The median member has proven ZERO optional categories, so the advisor thread
+// leads with the portfolio rather than waiting to be asked about it. Pinned
+// above the ListView: progress, per-category chips, and the one highest-value
+// next move with its absolute payoff.
+
+/// One proof category as the card labels it. Mirrors
+/// src/lib/verified-vibe/proof-categories.ts — the server's source of truth for
+/// ids and labels — so a chip never disagrees with the payload it renders.
+class _ProofCat {
+  final String id;
+  final String emoji;
+  final String label;
+  /// Every dimension this proof evidences is a money dimension. These may be
+  /// shown as verification only, NEVER as an appeal or standing gain (App Store
+  /// guideline 1.1.4). The server already keeps them out of `actions`; this flag
+  /// is the client-side belt to that braces.
+  final bool money;
+  const _ProofCat(this.id, this.emoji, this.label, {this.money = false});
+}
+
+/// Catalog order is the server's ask-priority order: lowest friction and highest
+/// leverage first, ID-gated document categories trailing.
+const _proofCats = <_ProofCat>[
+  _ProofCat('linkedin', '💼', 'Career'),
+  _ProofCat('discipline', '💪', 'Fitness'),
+  _ProofCat('travel', '✈️', 'Travel'),
+  _ProofCat('lifestyle', '🌍', 'Lifestyle'),
+  _ProofCat('social_proof', '🤝', 'Social life'),
+  _ProofCat('hosting', '🍽️', 'Hosting'),
+  _ProofCat('intro', '🎙️', 'Intro video'),
+  _ProofCat('instagram', '📸', 'Instagram'),
+  _ProofCat('habit_tracker', '📈', 'Habits'),
+  _ProofCat('twitter', '🐦', 'X / Twitter'),
+  _ProofCat('assets', '🚗', 'Assets', money: true),
+  _ProofCat('wealth', '🏦', 'Financial', money: true),
+  _ProofCat('spending', '🧾', 'Spending', money: true),
+];
+
+_ProofCat? _proofCat(String id) {
+  for (final c in _proofCats) {
+    if (c.id == id) return c;
+  }
+  return null;
+}
+
+bool _isMoneyCat(String id) => _proofCat(id)?.money ?? false;
+
+/// Whole numbers stay whole ("+5"), fractions keep one place ("+0.5"). Values are
+/// printed as the server computed them — never rounded into a nicer story.
+String _fmtNum(num n) {
+  final d = n.toDouble();
+  return d == d.roundToDouble() ? d.toInt().toString() : d.toStringAsFixed(1);
+}
+
+/// Public (unlike the other cards in this file) so the App Store 1.1.4 money rule
+/// can be pinned down by a widget test — see test/portfolio_card_test.dart. That
+/// rule is not a preference, so it gets a guard rather than a comment.
+class PortfolioCard extends StatelessWidget {
+  final AdvisorPortfolio p;
+  final void Function(String categoryId) onOpen;
+  const PortfolioCard({super.key, required this.p, required this.onOpen});
+
+  /// Completed ids, normalised: callers upstream carry both bare ids (`travel`)
+  /// and verification steps (`proof_travel`).
+  Set<String> get _done => {
+        for (final c in p.completed)
+          c.startsWith('proof_') ? c.substring(6) : c,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final top = p.topAction;
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(Config.bg2),
+        border: Border(bottom: BorderSide(color: Brand.accentAlpha(0x22))),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _header(),
+          const SizedBox(height: 8),
+          _meter(),
+          if ((p.band ?? '').isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(_bandLine(), style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
+          ],
+          const SizedBox(height: 10),
+          _chips(top?.id),
+          if (top != null) ...[
+            const SizedBox(height: 10),
+            _nextMove(top),
+          ],
+        ]),
+      ),
+    );
+  }
+
+  Widget _header() => Row(children: [
+        const Text('🛡', style: TextStyle(fontSize: 13)),
+        const SizedBox(width: 6),
+        const Expanded(
+          child: Text('YOUR PROOF PORTFOLIO',
+              style: TextStyle(
+                  color: Color(Config.text2),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.8)),
+        ),
+        Text('${p.done} of ${p.total} proven',
+            style: TextStyle(color: Brand.accentBright, fontSize: 13, fontWeight: FontWeight.w800)),
+      ]);
+
+  /// A zero-proof member still gets a visible sliver of track, so the meter reads
+  /// as "not started" rather than as a rendering failure.
+  Widget _meter() => ClipRRect(
+        borderRadius: BorderRadius.circular(99),
+        child: LinearProgressIndicator(
+          value: p.done == 0 ? 0.02 : p.fraction,
+          minHeight: 7,
+          backgroundColor: Brand.accentAlpha(0x28),
+          color: Brand.accent,
+        ),
+      );
+
+  String _bandLine() {
+    final band = p.band ?? '';
+    final next = p.nextBand;
+    final pts = p.pointsToNextBand;
+    if (next == null || next.isEmpty || pts == null) return band;
+    return '$band - ${_fmtNum(pts)} to go to "$next"';
+  }
+
+  /// One horizontal row rather than a wrap: the card is pinned, so its height has
+  /// to stay bounded no matter how many categories exist. The highlighted next
+  /// move leads so it is always in view without scrolling.
+  Widget _chips(String? topId) {
+    final done = _done;
+    final ordered = <String>[
+      if (topId != null && topId.isNotEmpty) topId,
+      for (final c in _proofCats)
+        if (c.id != topId && done.contains(c.id)) c.id,
+      // Anything the server counts that this catalog does not know (e.g. photos)
+      // still shows as earned rather than silently vanishing.
+      for (final id in done)
+        if (id != topId && _proofCat(id) == null) id,
+      for (final c in _proofCats)
+        if (c.id != topId && !done.contains(c.id)) c.id,
+    ];
+    return SizedBox(
+      height: 30,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          for (final id in ordered)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: _chip(id, isTop: id == topId, isDone: done.contains(id)),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _chip(String id, {required bool isTop, required bool isDone}) {
+    final cat = _proofCat(id);
+    final label = cat?.label ?? _humanise(id);
+    final (Color bg, Color border, Color fg) = isTop
+        ? (Brand.accent, Brand.accent, const Color(0xFFFFFFFF))
+        : isDone
+            ? (const Color(0x1410B981), const Color(0x4010B981), const Color(Config.text2))
+            : (const Color(Config.bg3), const Color(0x141B1020), const Color(Config.text3));
+    return GestureDetector(
+      onTap: () => onOpen(id),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: border),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (isDone)
+            const Padding(
+              padding: EdgeInsets.only(right: 4),
+              child: Icon(Icons.check_rounded, size: 13, color: Color(Config.success)),
+            )
+          else if (cat != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Text(cat.emoji, style: const TextStyle(fontSize: 11)),
+            ),
+          Text(label,
+              style: TextStyle(
+                  color: fg, fontSize: 12, fontWeight: isTop ? FontWeight.w700 : FontWeight.w500)),
+        ]),
+      ),
+    );
+  }
+
+  /// 'social_proof' -> 'Social proof', for ids this build does not know about.
+  String _humanise(String id) {
+    final words = id.replaceAll('_', ' ');
+    return words.isEmpty ? id : '${words[0].toUpperCase()}${words.substring(1)}';
+  }
+
+  /// The single highest-value move. Money categories get verification language and
+  /// no payoff numbers at all; everything else states the server's absolute
+  /// figures plainly.
+  Widget _nextMove(PortfolioAction a) {
+    final money = _isMoneyCat(a.id);
+    final label = a.label.isEmpty ? (_proofCat(a.id)?.label ?? 'your next proof') : a.label;
+    return GestureDetector(
+      onTap: () => onOpen(a.id),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+        decoration: BoxDecoration(
+          color: Brand.accentTint,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Brand.accentAlpha(0x33)),
+        ),
+        child: Row(children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(money ? 'Next: verify ${label.toLowerCase()}' : 'Next: add ${label.toLowerCase()}',
+                  style: const TextStyle(
+                      color: Color(Config.text1), fontSize: 14.5, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 3),
+              if (money)
+                // No gain, no delta, no named match. Verification framing only.
+                const Text('Confirms you are real. It does not change how appealing you look.',
+                    style: TextStyle(color: Color(Config.text2), fontSize: 12.5, height: 1.35))
+              else ...[
+                Text(_payoffLine(a),
+                    style: const TextStyle(color: Color(Config.text2), fontSize: 12.5, height: 1.35)),
+                if (a.appealGains.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: _appealLine(a.appealGains),
+                  )
+                else if (a.matchesHelped > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(_matchesLine(a.matchesHelped),
+                        style: const TextStyle(color: Color(Config.text2), fontSize: 12.5)),
+                  ),
+              ],
+              if (a.askPhrase.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(a.askPhrase,
+                      style: const TextStyle(color: Color(Config.text3), fontSize: 11.5, height: 1.3)),
+                ),
+            ]),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(color: Brand.accent, borderRadius: BorderRadius.circular(999)),
+            child: const Row(mainAxisSize: MainAxisSize.min, children: [
+              Text('Add proof',
+                  style: TextStyle(color: Color(0xFFFFFFFF), fontSize: 12.5, fontWeight: FontWeight.w700)),
+              SizedBox(width: 2),
+              Icon(Icons.chevron_right_rounded, size: 16, color: Color(0xFFFFFFFF)),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  /// Fallback when the server gave a match count but no names to attach it to.
+  String _matchesLine(int n) =>
+      n == 1 ? 'Helps with 1 of your matches' : 'Helps with $n of your matches';
+
+  /// deltaPS is absolute, and crossing a band is the strongest thing we can
+  /// truthfully say about it.
+  String _payoffLine(PortfolioAction a) {
+    final delta = '+${_fmtNum(a.deltaPS)} profile strength';
+    final after = a.bandAfter;
+    if (a.crossesBand && after != null && after.isNotEmpty) {
+      return '$delta - moves you up to "$after"';
+    }
+    return delta;
+  }
+
+  /// "Lifts you with Aisha +3.2" — the named match in bold. Caps at two names so
+  /// the pinned card cannot grow a list.
+  Widget _appealLine(List<PortfolioAppealGain> gains) {
+    final shown = gains.length > 2 ? gains.sublist(0, 2) : gains;
+    const base = TextStyle(color: Color(Config.text2), fontSize: 12.5, height: 1.35);
+    final spans = <TextSpan>[const TextSpan(text: 'Lifts you with ')];
+    for (var i = 0; i < shown.length; i++) {
+      if (i > 0) spans.add(const TextSpan(text: ' and '));
+      spans.add(TextSpan(
+          text: shown[i].name,
+          style: const TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w700)));
+      spans.add(TextSpan(text: ' +${_fmtNum(shown[i].delta)}'));
+    }
+    return RichText(text: TextSpan(style: base, children: spans));
   }
 }
 

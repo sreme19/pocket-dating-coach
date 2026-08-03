@@ -144,7 +144,19 @@ export const GET: RequestHandler = async ({ request }) => {
 				crossesBand: p.crossesBand,
 				bandAfter: p.bandAfter,
 				appealGains: p.appealGains.map((g) => ({ name: g.name, delta: g.delta })),
-				matchesHelped: p.matchesHelped
+				matchesHelped: p.matchesHelped,
+				// Both clients asked for these, and both were right to.
+				//
+				// documentGated: the CTA would otherwise push someone into an upload
+				// screen that immediately blocks them for lacking a verified ID, with no
+				// warning on the card.
+				//
+				// isMoney: without it each client has to mirror the money set locally,
+				// which is exactly the four-way drift the canonical taxonomy just
+				// eliminated. `actions` excludes money today, so this is belt-and-braces
+				// — but it means a client never has to guess.
+				documentGated: p.category.documentGated,
+				isMoney: p.isMoney
 			}))
 		});
 	} catch (error) {

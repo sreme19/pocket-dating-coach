@@ -3,7 +3,12 @@
   import { goto } from '$app/navigation';
   import { getSupabaseClient } from '$lib/client/supabase';
 
-  type Category = 'lifestyle' | 'hosting' | 'discipline' | 'social_proof' | 'linkedin' | 'instagram' | 'twitter' | 'habit_tracker' | 'intro' | 'spending' | 'assets' | 'wealth';
+  // `travel` is in the canonical taxonomy (proof-categories.ts) and the upload API
+  // has had a travel prompt, a points weight and a face gate all along — this screen
+  // was the only place it was missing, so `?category=travel` silently fell back to
+  // Lifestyle and wrote proof_lifestyle. The advisor's Trust & Boost card deep-links
+  // per category, which made that fallback visible.
+  type Category = 'lifestyle' | 'travel' | 'hosting' | 'discipline' | 'social_proof' | 'linkedin' | 'instagram' | 'twitter' | 'habit_tracker' | 'intro' | 'spending' | 'assets' | 'wealth';
   type Step = 'upload' | 'analyzing' | 'id-gate' | 'relationship-gate' | 'success' | 'failed';
 
   interface CategoryConfig {
@@ -25,6 +30,7 @@
 
   const PRIVACY_COPY: Record<string, string> = {
     lifestyle:    '🔒 Your uploads stay private. They help confirm your profile is authentic and improve match quality.',
+    travel:       '🔒 Your photos stay private. We only read the places you have actually been, to build your Travel Magnets.',
     hosting:      '🔒 Nothing here is public. These signals confirm your lifestyle and improve compatibility.',
     discipline:   '🔒 Private by default. Your proofs strengthen trust, verify authenticity, and help you get better matches.',
     social_proof: '🔒 Nothing here is public. These signals confirm your lifestyle and improve compatibility.',
@@ -50,6 +56,20 @@
       ],
       maxFiles: 20,
       hintLine: 'Each photo is matched against your verified selfie — only photos that clearly show your face count. Screenshots without you are skipped.',
+      accept: 'image/*',
+    },
+    travel: {
+      icon: '✈️',
+      title: 'Travel Proof',
+      subtitle: 'Show the places you have actually been',
+      examples: [
+        'You in front of a recognisable landmark or skyline',
+        'Passport stamps or a boarding pass held in frame beside you',
+        'Street or shop signage that names the city or country',
+        'Trip photos where your face is clearly visible',
+      ],
+      maxFiles: 20,
+      hintLine: 'Each photo is matched against your verified selfie — a place only counts as yours if you are in the frame. Scenery-only shots are skipped.',
       accept: 'image/*',
     },
     hosting: {

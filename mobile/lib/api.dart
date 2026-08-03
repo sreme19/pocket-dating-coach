@@ -3024,6 +3024,125 @@ Future<({String id, String content})?> fetchHandoffNudge() async {
   }
 }
 
+// ── Advisor proof portfolio (pinned Trust & Boost card) ──────────────────────
+// Feeds the card pinned at the top of the advisor thread: how much of the proof
+// portfolio is done, and the single highest-value next action with its absolute
+// payoff. The server excludes money-only categories from `actions` (App Store
+// 1.1.4 — money is never a draw), so anything that arrives here may be named as
+// an appeal/standing gain.
+
+/// A named match this action would lift the member with. Absolute numbers,
+/// computed server-side — never scaled or extrapolated in the UI.
+class PortfolioAppealGain {
+  final String name;
+  final num delta;
+  const PortfolioAppealGain({required this.name, required this.delta});
+  factory PortfolioAppealGain.fromJson(Map<String, dynamic> j) => PortfolioAppealGain(
+        name: (j['name'] ?? '').toString(),
+        delta: (j['delta'] as num?) ?? 0,
+      );
+}
+
+/// One recommended proof category, ranked by the server (index 0 = best move).
+class PortfolioAction {
+  final String id;
+  final String label;
+  /// How the advisor phrases the ask in member language ("career (a LinkedIn
+  /// screenshot, or your resume)"). Used for the CTA subtitle.
+  final String askPhrase;
+  final num deltaPS;
+  final bool crossesBand;
+  final String? bandAfter;
+  final List<PortfolioAppealGain> appealGains;
+  final int matchesHelped;
+  const PortfolioAction({
+    required this.id,
+    required this.label,
+    this.askPhrase = '',
+    this.deltaPS = 0,
+    this.crossesBand = false,
+    this.bandAfter,
+    this.appealGains = const [],
+    this.matchesHelped = 0,
+  });
+  factory PortfolioAction.fromJson(Map<String, dynamic> j) => PortfolioAction(
+        id: (j['id'] ?? '').toString(),
+        label: (j['label'] ?? '').toString(),
+        askPhrase: (j['askPhrase'] ?? '').toString(),
+        deltaPS: (j['deltaPS'] as num?) ?? 0,
+        crossesBand: j['crossesBand'] == true,
+        bandAfter: j['bandAfter'] as String?,
+        appealGains: ((j['appealGains'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((g) => PortfolioAppealGain.fromJson(Map<String, dynamic>.from(g)))
+            .toList(),
+        matchesHelped: j['matchesHelped'] is num ? (j['matchesHelped'] as num).toInt() : 0,
+      );
+}
+
+/// Portfolio completion + ranked next actions. A member with no vectors yet gets
+/// counts only and an empty `actions` list, which the card renders as progress
+/// without a recommendation rather than hiding itself.
+class AdvisorPortfolio {
+  final int done;
+  final int total;
+  final List<String> completed;
+  final double? profileStrength;
+  final String? band;
+  final String? nextBand;
+  final num? pointsToNextBand;
+  final List<PortfolioAction> actions;
+  const AdvisorPortfolio({
+    required this.done,
+    required this.total,
+    this.completed = const [],
+    this.profileStrength,
+    this.band,
+    this.nextBand,
+    this.pointsToNextBand,
+    this.actions = const [],
+  });
+
+  /// The one move the card leads with.
+  PortfolioAction? get topAction => actions.isEmpty ? null : actions.first;
+
+  /// 0..1 for the meter. Guards total == 0 so a malformed payload cannot divide.
+  double get fraction => total <= 0 ? 0 : (done / total).clamp(0.0, 1.0);
+
+  factory AdvisorPortfolio.fromJson(Map<String, dynamic> j) => AdvisorPortfolio(
+        done: j['done'] is num ? (j['done'] as num).toInt() : 0,
+        total: j['total'] is num ? (j['total'] as num).toInt() : 0,
+        completed:
+            ((j['completed'] as List?) ?? const []).map((e) => e.toString()).toList(),
+        profileStrength: (j['profileStrength'] as num?)?.toDouble(),
+        band: j['band'] as String?,
+        nextBand: j['nextBand'] as String?,
+        pointsToNextBand: j['pointsToNextBand'] as num?,
+        actions: ((j['actions'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((a) => PortfolioAction.fromJson(Map<String, dynamic>.from(a)))
+            .toList(),
+      );
+}
+
+/// Proof-portfolio state for the pinned advisor card. Returns null when the fetch
+/// fails or the payload is unusable — the card then simply does not render, the
+/// same non-fatal contract the greeting and nudge fetches use.
+Future<AdvisorPortfolio?> fetchAdvisorPortfolio() async {
+  try {
+    final resp = await _dio.get(
+      '${Config.apiBase}/api/verified-vibe/advisor/portfolio',
+      options: Options(headers: {'Authorization': _bearer()}),
+    );
+    if (resp.data is! Map) return null;
+    final p = AdvisorPortfolio.fromJson(Map<String, dynamic>.from(resp.data as Map));
+    if (p.total <= 0) return null; // nothing meaningful to show
+    return p;
+  } catch (_) {
+    return null; // non-fatal — the thread works without the card
+  }
+}
+
 /// An AI Bestie flag shown when a woman views a man's profile on the discover screen.
 class BestieFlag {
   final String level; // 'orange' | 'red'

@@ -4,7 +4,8 @@
   import { fade, fly } from 'svelte/transition';
   import { user } from '$lib/verified-vibe/stores';
   import { getSupabaseClient } from '$lib/client/supabase';
-  import { accessToken, fetchAdvisorHistory, markAdvisorThreadRead, type AdvisorKind } from '$lib/client/advisor-thread';
+  import { accessToken, fetchAdvisorHistory, fetchAdvisorPortfolio, markAdvisorThreadRead, type AdvisorKind, type AdvisorPortfolio } from '$lib/client/advisor-thread';
+  import TrustBoostCard from '../TrustBoostCard.svelte';
   import VoiceDictation from '$lib/components/VoiceDictation.svelte';
   import BestieAvatar from '$lib/components/BestieAvatar.svelte';
   import EcosystemExplainer from '$lib/components/EcosystemExplainer.svelte';
@@ -377,6 +378,18 @@
     return kind === 'profile_audit' ? '🔍 Your profile audit is ready' : '📊 Your match scan is ready';
   }
 
+  // ── Trust & Boost card ─────────────────────────────────────────────────────
+  // Pinned above the thread rather than sent as a message: it's the standing state
+  // of her portfolio, not a turn in the conversation.
+  let portfolio = $state<AdvisorPortfolio | null>(null);
+
+  /** Keep the last good payload on a failed refresh — a flaky network must never
+   *  make the card vanish mid-read. */
+  async function refreshPortfolio() {
+    const next = await fetchAdvisorPortfolio();
+    if (next) portfolio = next;
+  }
+
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
   /**
@@ -445,6 +458,7 @@
     // against; both of these stay non-blocking.
     fetchGreeting();
     fetchStanding();
+    void refreshPortfolio();
     await scrollToBottom();
   });
 
@@ -455,6 +469,9 @@
       if (document.visibilityState !== 'visible') return;
       if (taskPending) void hydrateFromServer();
       else markReadIfVisible();
+      // Coming back here is usually coming back FROM the upload screen, so this is
+      // the moment the portfolio numbers have actually moved.
+      void refreshPortfolio();
     };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
@@ -736,6 +753,11 @@
   </div>
 
   <EcosystemExplainer open={showEcosystemExplainer} perspective="woman" onClose={() => showEcosystemExplainer = false} />
+
+  <!-- Pinned Trust & Boost portfolio — above the thread, not a turn in it -->
+  {#if portfolio}
+    <TrustBoostCard {portfolio} />
+  {/if}
 
   <!-- Messages -->
   <div class="messages-area">
