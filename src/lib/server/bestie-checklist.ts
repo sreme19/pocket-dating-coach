@@ -36,6 +36,18 @@ export interface ChecklistItem {
 	label: string;
 	status: ChecklistItemStatus;
 	done_at?: string | null;
+	/**
+	 * Canonical ledger topic this item probes (vv_ledger_topics.key), when the
+	 * generator could map it. This is the join between what a woman wants to know
+	 * and what the man has already answered elsewhere (§E) — the overlap is what
+	 * makes an item suppressible and what triggers the consent ask.
+	 *
+	 * Also the mechanism by which the topic set GROWS: an item that fits no
+	 * existing topic coins one, so the taxonomy follows what women actually probe
+	 * rather than what we guessed up front. Optional — absent on every checklist
+	 * written before this shipped, and absent whenever the map is genuinely unclear.
+	 */
+	topic?: string | null;
 }
 
 export type ChecklistStatus = 'active' | 'wrapped';
@@ -87,7 +99,7 @@ export function isWrapped(checklist: BestieChecklist | null | undefined): boolea
  * checklist-tracking rather than persist an empty one).
  */
 export function buildChecklist(
-	rawItems: Array<{ id?: unknown; label?: unknown }> | null | undefined,
+	rawItems: Array<{ id?: unknown; label?: unknown; topic?: unknown }> | null | undefined,
 	now: string = new Date().toISOString()
 ): BestieChecklist | null {
 	if (!Array.isArray(rawItems)) return null;
@@ -98,11 +110,23 @@ export function buildChecklist(
 		const label = `${raw?.label ?? ''}`.trim().slice(0, 80);
 		if (!id || !label || seen.has(id)) continue;
 		seen.add(id);
-		items.push({ id, label, status: 'open', done_at: null });
+		items.push({ id, label, status: 'open', done_at: null, ...topicField(raw?.topic) });
 		if (items.length >= CHECKLIST_MAX_ITEMS) break;
 	}
 	if (items.length < CHECKLIST_MIN_ITEMS) return null;
 	return { items, status: 'active', created_at: now, wrapped_at: null };
+}
+
+/**
+ * Normalise a model-supplied topic key to the same shape chat-intel-capture
+ * enforces on the write side. Both ends must agree or the join silently misses:
+ * "Career" and "career" forking into two topics defeats the suppression this
+ * whole mechanism exists for. Anything malformed is simply dropped — an item
+ * without a topic still works, it just cannot be suppressed.
+ */
+function topicField(raw: unknown): { topic?: string } {
+	const t = `${raw ?? ''}`.trim().toLowerCase();
+	return t && /^[a-z0-9_]{2,40}$/.test(t) ? { topic: t } : {};
 }
 
 /** Kebab-case an item id from a raw id or label. */

@@ -37,6 +37,20 @@ import { assessHandoffReadiness, handoffProofAskLine } from '$lib/server/handoff
 import { computeHandoffClock } from '$lib/server/handoff-clock';
 import { appeal, type Vec } from '$lib/server/vector-scoring';
 import { buildProofInviteContext } from '$lib/server/proof-invite-context';
+import {
+	loadLedger,
+	ledgerTopics,
+	overlappingTopics,
+	shouldAskConsent,
+	nextOpportunityCounters,
+	applyConsentAnswer,
+	buildLedgerBlock,
+	buildChecklistSuppressionBlock,
+	buildConsentAskBlock,
+	buildConsentNoticeBlock,
+	type LedgerEntry,
+	type ConsentState
+} from '$lib/server/bestie-ledger';
 import { seasonProxyBlock, networkingEnforcementEnabled, DERANK_PRESSURE_THRESHOLD } from '$lib/server/networking-season';
 
 export interface BestieReply {
@@ -68,6 +82,19 @@ export interface BestieReply {
 	 * counter and de-ranks him in HER inbox once it crosses the threshold.
 	 */
 	romanticPressure?: boolean;
+	/**
+	 * Cross-conversation memory (§E). Set when THIS turn had its one consent
+	 * moment — either she asked, or she told him she's caught up. The SENDER
+	 * stamps verified_vibe_matches.bestie_consent_asked_at so no Bestie in this
+	 * thread ever raises it twice, and applies `consentUpdate` when he answered.
+	 */
+	consentMoment?: boolean;
+	/** Columns to write on the MAN's user row when he answered the ask this turn. */
+	consentUpdate?: Record<string, unknown>;
+	/** The man's id — the consent columns live on his row, not the owner's. */
+	partnerId?: string;
+	/** Counters to write when an ask opportunity passed (drives the 1-in-5 cadence). */
+	consentCounters?: Record<string, unknown>;
 }
 
 // ── In-chat proof request context + state machine (spec §3 Step 3) ────────────
@@ -226,6 +253,56 @@ function formatStructuredPreferences(prefs: PreferencesProfile | null, hardNos: 
  * @param matchId the conversation/match id
  * @param lastMessage the message just received from the match
  */
+/**
+ * The canonical ledger topics, as a prompt menu plus the set of keys we already
+ * know. Non-fatal: with no topics the checklist prompt keeps its pre-§E shape and
+ * simply emits untopiced items, which suppress nothing but still work.
+ */
+async function loadTopicMenu(supabase: any): Promise<{ menu: string; known: Set<string> }> {
+	try {
+		const { data } = await supabase.from('vv_ledger_topics').select('key, label');
+		const rows = (data ?? []) as Array<{ key: string; label: string }>;
+		if (rows.length === 0) return { menu: '', known: new Set() };
+		return {
+			menu: rows.map((t) => `  ${t.key} — ${t.label}`).join('\n'),
+			known: new Set(rows.map((t) => t.key))
+		};
+	} catch {
+		return { menu: '', known: new Set() };
+	}
+}
+
+/**
+ * Persist topics a checklist invented, so the man's side can map his answers onto
+ * the same keys. origin='checklist' marks them as women-derived, which is the
+ * distinction worth keeping when reviewing whether the taxonomy is sprawling.
+ */
+async function registerChecklistTopics(
+	supabase: any,
+	checklist: BestieChecklist,
+	known: Set<string>
+): Promise<void> {
+	const fresh = [
+		...new Set(
+			checklist.items
+				.map((i) => i.topic ?? '')
+				.filter((t): t is string => !!t && !known.has(t))
+		)
+	];
+	if (fresh.length === 0) return;
+	try {
+		await supabase
+			.from('vv_ledger_topics')
+			.upsert(
+				fresh.map((key) => ({ key, label: key.replace(/_/g, ' '), origin: 'checklist' })),
+				{ onConflict: 'key' }
+			);
+	} catch (err) {
+		// A topic that fails to register just can't be matched yet — never fatal.
+		console.error('[bestie-ledger] topic register failed (non-critical):', err);
+	}
+}
+
 export async function generateBestieReply(
 	userId: string,
 	matchId: string,
@@ -295,22 +372,49 @@ export async function generateBestieReply(
 	// Her other matched men's appeal toward her — the "stack" his rank is measured
 	// against, for the concrete proof payoff ("proving X moves you from #4 to #2").
 	let rivalAppeals: number[] = [];
+	// Cross-conversation memory (§E): what he has already told us, and where he
+	// stands on letting a Bestie use it. Defaults mean "nothing known, never asked",
+	// which is exactly the pre-feature behaviour.
+	let ledgerEntries: LedgerEntry[] = [];
+	let consentState: ConsentState = { consent: 'unasked', declines: 0, opportunitiesSinceAsk: 0 };
 	if (matchRow) {
 		const partnerId = matchRow.user1_id === userId ? matchRow.user2_id : matchRow.user1_id;
 		otherUserId = partnerId;
-		const [otherUser, proofSignals, herVec, hisVec] = await Promise.all([
-			supabase
+		const [otherUser, proofSignals, herVec, hisVec, ledger] = await Promise.all([
+			(supabase as any)
 				.from('verified_vibe_users')
-				.select('first_name, about, discovery_mode')
+				.select('first_name, about, discovery_mode, ledger_consent, ledger_declines, ledger_opportunities_since_ask')
 				.eq('id', partnerId)
 				.single()
-				.then((r) => r.data),
+				.then(async (r: any) => {
+					if (r.data) return r.data;
+					// Deploy-before-migrate window: fall back to the legacy column set so a
+					// missing ledger migration degrades to "no consent state" rather than
+					// nulling the whole match context and breaking her reply.
+					const legacy = await supabase
+						.from('verified_vibe_users')
+						.select('first_name, about, discovery_mode')
+						.eq('id', partnerId)
+						.single();
+					return legacy.data;
+				}),
 			// Merged view of BOTH proof sources (pipeline verifiedProofs + legacy
 			// user_artifacts) — see proof-signals.ts.
 			loadProofSignals(supabase, partnerId),
 			supabase.from('vv_user_vectors').select('weights').eq('user_id', userId).maybeSingle().then((r: any) => r.data),
 			supabase.from('vv_user_vectors').select('attributes, confidence').eq('user_id', partnerId).maybeSingle().then((r: any) => r.data),
+			// Cross-conversation ledger (§E). Loaded unconditionally: the TOPICS are
+			// what tell us whether consent would buy him anything, and that check has
+			// to happen before he has consented. His ANSWERS are only ever put in a
+			// prompt once ledgerConsent === 'granted' (see the block build below).
+			loadLedger(supabase, partnerId),
 		]);
+		ledgerEntries = ledger;
+		consentState = {
+			consent: ((otherUser as any)?.ledger_consent ?? 'unasked') as ConsentState['consent'],
+			declines: Number((otherUser as any)?.ledger_declines ?? 0),
+			opportunitiesSinceAsk: Number((otherUser as any)?.ledger_opportunities_since_ask ?? 0)
+		};
 		matchName = otherUser?.first_name || 'him';
 		maleAbout = ((otherUser as any)?.about ?? '').toString().slice(0, 240);
 		seasonContext = seasonProxyBlock((user as any)?.discovery_mode, (otherUser as any)?.discovery_mode);
@@ -459,6 +563,50 @@ export async function generateBestieReply(
 					computeHandoffClock(existingChecklist.wrapped_at)
 			  )
 			: '';
+	// ── Cross-conversation memory + consent (§E) ──────────────────────────────
+	// The ask fires JUST IN TIME: only when her checklist is about to probe
+	// something he has already answered elsewhere. That is the one moment where
+	// saying yes visibly buys him something, and it is why we tolerate reading his
+	// ledger TOPICS before consent while his ANSWERS stay sealed.
+	const hisTopics = ledgerTopics(ledgerEntries);
+	const checklistTopics = (existingChecklist?.items ?? [])
+		.filter((i) => i.status === 'open')
+		.map((i) => i.topic ?? '')
+		.filter(Boolean) as string[];
+	const overlap = overlappingTopics(checklistTopics, ledgerEntries);
+	const consentGranted = consentState.consent === 'granted';
+	// A wrapped checklist means she's done vetting — raising consent then is noise.
+	const consentEligible = existingChecklist?.status !== 'wrapped';
+	const alreadyHadConsentMoment = !!(matchRow as any)?.bestie_consent_asked_at;
+
+	// An ask OPPORTUNITY is a property of the thread, not of the turn. Without this
+	// distinction every subsequent message in an overlapping conversation would
+	// count as a fresh opportunity and burn through the post-cap 1-in-5 cadence
+	// inside a single chat — he'd be back to being asked almost every thread.
+	// Spending it is what stamps the thread marker, whether she asks or stays quiet.
+	const consentOpportunity =
+		consentEligible && !consentGranted && !alreadyHadConsentMoment && overlap.length > 0;
+
+	const askConsent =
+		consentOpportunity &&
+		shouldAskConsent({
+			state: consentState,
+			hasOpportunity: true,
+			askedInThisThread: false
+		});
+	// He said yes elsewhere and this Bestie hasn't told him yet. He agreed to a
+	// general reuse, so this is a courtesy notice rather than a second ask — but
+	// he must never find out silently.
+	const noticeConsent =
+		consentEligible && consentGranted && !alreadyHadConsentMoment && ledgerEntries.length > 0;
+
+	const ledgerContext = consentGranted ? buildLedgerBlock(ledgerEntries, matchName) : '';
+	const consentContext = askConsent
+		? buildConsentAskBlock(matchName, overlap)
+		: noticeConsent
+			? buildConsentNoticeBlock(matchName)
+			: '';
+
 	// Generate a checklist whenever one is MISSING — not only on the opener turn.
 	// This makes gap-vetting repeatable (spec §F): on reactivation we clear the
 	// checklist to re-vet against her current preferences (see the reactivate
@@ -490,49 +638,76 @@ export async function generateBestieReply(
 					handoffContext,
 					proofAckCategory: opts?.proofAckCategory ?? '',
 					// Networking Season (Phase 4): adds the romanticPressure output field.
-					networking: seasonContext !== ''
+					networking: seasonContext !== '',
+					// Cross-conversation memory (§E): his prior answers, only once he has
+					// consented; plus the ask or the caught-up notice, never both.
+					ledgerContext,
+					consentContext,
+					consentAsk: askConsent
 				})
 			}
 		]
 	});
 
 	const checklistPromise: Promise<BestieChecklist | null> = shouldGenerateChecklist
-		? client.messages
-				.create({
-					model: CLAUDE_MODEL,
-					max_tokens: 300,
-					messages: [
-						{
-							role: 'user',
-							content: buildBestieChecklistPrompt({
-								userName,
-								matchName,
-								valued: (structuredPrefs
-									? [
-											...structuredPrefs.emotionalSignals,
-											...structuredPrefs.lifestyleSignals,
-											...structuredPrefs.maturitySignals
-									  ]
-									: []
-								).join(', ') || '(nothing specific recorded yet)',
-								proven: provenTags.length ? provenTags.join(', ') : 'nothing verified on his profile yet',
-								bio: maleAbout || '(no bio yet)',
-								maxItems: CHECKLIST_MAX_ITEMS
-							})
+		? (async () => {
+				// Topic menu for the mapping (§E). Read inside this branch, not in the
+				// batch above: a checklist is generated roughly once per thread, so the
+				// round-trip would otherwise be paid on every single reply. It runs
+				// concurrently with the reply call, so it costs no wall-clock either.
+				const topics = await loadTopicMenu(supabase);
+				return client.messages
+					.create({
+						model: CLAUDE_MODEL,
+						max_tokens: 400,
+						messages: [
+							{
+								role: 'user',
+								content: buildBestieChecklistPrompt({
+									userName,
+									matchName,
+									valued: (structuredPrefs
+										? [
+												...structuredPrefs.emotionalSignals,
+												...structuredPrefs.lifestyleSignals,
+												...structuredPrefs.maturitySignals
+										  ]
+										: []
+									).join(', ') || '(nothing specific recorded yet)',
+									proven: provenTags.length ? provenTags.join(', ') : 'nothing verified on his profile yet',
+									bio: maleAbout || '(no bio yet)',
+									maxItems: CHECKLIST_MAX_ITEMS,
+									topicMenu: topics.menu,
+									// Suppression requires CONSENT, unlike the ask itself. Dropping a
+									// question we cannot then read the answer to would leave her gap
+									// unfilled and tell her nothing — strictly worse than asking him.
+									// Pre-consent, his topics are used only to decide whether to ask.
+									suppression: consentGranted
+										? buildChecklistSuppressionBlock([...hisTopics], matchName)
+										: ''
+								})
+							}
+						]
+					})
+					.then(async (m) => {
+						const c = m.content[0];
+						if (c.type !== 'text') return null;
+						const txt = c.text.trim().replace(/^```json\s*/i, '').replace(/```$/, '');
+						try {
+							const p = JSON.parse(txt) as {
+								items?: Array<{ id?: unknown; label?: unknown; topic?: unknown }>;
+							};
+							const built = buildChecklist(p.items);
+							// Register any topic this checklist coined. THIS is how the taxonomy
+							// grows out of what women actually probe rather than what we guessed:
+							// the man's side then maps his answers onto the same keys.
+							if (built) await registerChecklistTopics(supabase, built, topics.known);
+							return built;
+						} catch {
+							return null;
 						}
-					]
-				})
-				.then((m) => {
-					const c = m.content[0];
-					if (c.type !== 'text') return null;
-					const txt = c.text.trim().replace(/^```json\s*/i, '').replace(/```$/, '');
-					try {
-						const p = JSON.parse(txt) as { items?: Array<{ id?: unknown; label?: unknown }> };
-						return buildChecklist(p.items);
-					} catch {
-						return null;
-					}
-				})
+					});
+		  })()
 				.catch(() => null)
 		: Promise.resolve(null);
 
@@ -552,7 +727,28 @@ export async function generateBestieReply(
 		itemsDone?: unknown;
 		wrapUp?: unknown;
 		romanticPressure?: boolean;
+		consentAnswer?: unknown;
 	};
+
+	// Cross-conversation consent (§E). Only read on a turn that actually asked —
+	// otherwise a stray field from a drifting model could flip a man's state
+	// without him having been asked anything.
+	const consentAnswer: 'granted' | 'declined' | null = askConsent
+		? parsed.consentAnswer === 'granted'
+			? 'granted'
+			: parsed.consentAnswer === 'declined'
+				? 'declined'
+				: null
+		: null;
+	const consentUpdate = applyConsentAnswer(consentState, consentAnswer);
+	// The counter advances whenever an opportunity passed, asked or not — that is
+	// what makes "every 5th opportunity" mean anything once he is past the cap.
+	const consentCounters = consentOpportunity
+		? {
+				ledger_opportunities_since_ask: nextOpportunityCounters(consentState, askConsent)
+					.opportunitiesSinceAsk
+		  }
+		: undefined;
 
 	const proofStateUpdate = nextProofState(proofState, parsed, invitable);
 
@@ -631,7 +827,14 @@ export async function generateBestieReply(
 		userName,
 		...(proofStateFinal ? { proofStateUpdate: proofStateFinal } : {}),
 		...(checklistUpdate ? { checklistUpdate } : {}),
-		...(parsed.romanticPressure === true ? { romanticPressure: true } : {})
+		...(parsed.romanticPressure === true ? { romanticPressure: true } : {}),
+		// §E consent. The thread marker is stamped whenever its one consent moment was
+		// SPENT — she asked, she gave the caught-up notice, or the cadence said stay
+		// quiet this time. Ignoring the ask counts too: silence is not a decline, but
+		// she still had her shot and does not get to re-open it later in this chat.
+		...(consentOpportunity || noticeConsent ? { consentMoment: true } : {}),
+		...(consentUpdate ? { consentUpdate, partnerId: otherUserId ?? undefined } : {}),
+		...(consentCounters ? { consentCounters, partnerId: otherUserId ?? undefined } : {})
 	};
 }
 
@@ -686,6 +889,44 @@ async function persistChecklist(
 }
 
 /**
+ * Persist the cross-conversation consent side effects of a turn (§E).
+ *
+ * Three independent writes, deliberately not one:
+ *  · the THREAD marker, so this Bestie never raises consent twice — stamped
+ *    whenever she raised it at all, including when he ignored her. Silence is
+ *    not a decline, but she still had her one moment.
+ *  · his ANSWER, on his own user row (global and retroactive: a yes here
+ *    switches on every Bestie, including ones he previously declined).
+ *  · the opportunity COUNTER, which moves even on turns we stayed quiet — that
+ *    is what makes "every 5th opportunity" mean anything past the decline cap.
+ *
+ * Entirely non-fatal. The worst case of a failed write here is that he gets
+ * asked again later, which is today's behaviour anyway.
+ */
+async function persistConsent(supabase: any, matchId: string, reply: BestieReply): Promise<void> {
+	if (reply.consentMoment) {
+		try {
+			await supabase
+				.from('verified_vibe_matches')
+				.update({ bestie_consent_asked_at: new Date().toISOString() })
+				.eq('id', matchId);
+		} catch (e) {
+			console.warn('[bestie-ledger] consent marker persist failed (non-fatal):', e);
+		}
+	}
+	if (!reply.partnerId) return;
+	// His answer wins over the counter: granting resets the cadence implicitly by
+	// taking him out of the ask path entirely.
+	const patch = { ...(reply.consentCounters ?? {}), ...(reply.consentUpdate ?? {}) };
+	if (Object.keys(patch).length === 0) return;
+	try {
+		await supabase.from('verified_vibe_users').update(patch).eq('id', reply.partnerId);
+	} catch (e) {
+		console.warn('[bestie-ledger] consent state persist failed (non-fatal):', e);
+	}
+}
+
+/**
  * Generate AND send a Bestie reply server-side: stores the coaching read/signal
  * on the triggering message, then inserts the reply as a message from the user
  * (is_ai = true). Safe to call fire-and-forget.
@@ -720,6 +961,11 @@ export async function generateAndSendBestieReply(
 			console.warn('[bestie] proof_request persist failed (non-fatal):', e);
 		}
 	}
+
+	// Cross-conversation consent (§E): thread marker + his answer + the cadence
+	// counter. Must run whether or not he answered — raising it at all is the
+	// event that spends this Bestie's one consent moment.
+	await persistConsent(supabase as any, matchId, reply);
 
 	// Networking Season (Phase 4): a man who keeps pushing romance AFTER being told
 	// she's networking gets de-ranked in HER inbox. Local only — never touches his
@@ -958,6 +1204,13 @@ export async function generateAndSendBestieOpener(matchId: string): Promise<void
 			.select('id, created_at')
 			.single();
 
+		// §E consent, only once the opener has actually been sent. She cannot ASK
+		// here (no checklist yet, so no overlap to act on), but a man who already
+		// granted is told she's caught up in her very first message. Stamping before
+		// the insert would let the double-open guard above burn his one moment on a
+		// message that never went out.
+		await persistConsent(supabase as any, matchId, reply);
+
 		// Best-effort latency record. No trigger message — this is proactive.
 		if (inserted?.id) {
 			try {
@@ -1026,6 +1279,8 @@ export async function generateAndSendBestieProofAck(matchId: string): Promise<vo
 					.eq('id', matchId);
 			} catch (e) { console.warn('[bestie-proof-ack] proof_request persist failed (non-fatal):', e); }
 		}
+		// §E consent, same as the main send path — a proof-ack turn can carry the ask.
+		await persistConsent(supabase as any, matchId, reply);
 		// A proof-ack turn can be the one that clears the last gap and wraps up
 		// (the proof he just uploaded was the thing she valued). Persist via CAS and
 		// hand off if it flips to wrapped.

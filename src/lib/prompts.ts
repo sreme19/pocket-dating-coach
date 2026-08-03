@@ -636,26 +636,55 @@ export function buildBestieChecklistPrompt(opts: {
 	bio: string;
 	/** Hard cap on items (keeps the counter legible). */
 	maxItems: number;
+	/**
+	 * Canonical ledger topics (`key — label` lines) each item should map onto, so
+	 * a woman's gap and a man's stored answer land on the same key. The set GROWS
+	 * from here: an item fitting none of them coins a new topic, which is how the
+	 * taxonomy ends up following what women actually probe. Empty = feature
+	 * dormant, and the output shape stays exactly as before.
+	 */
+	topicMenu?: string;
+	/**
+	 * Topics this man has ALREADY answered (from buildChecklistSuppressionBlock),
+	 * with his permission to reuse them. Suppressing here rather than in the reply
+	 * prompt is deliberate: an item that never exists cannot be asked.
+	 */
+	suppression?: string;
 }): string {
-	const { userName, matchName, valued, proven, bio, maxItems } = opts;
+	const { userName, matchName, valued, proven, bio, maxItems, topicMenu = '', suppression = '' } = opts;
+
+	const topicBlock = topicMenu
+		? `
+
+Map each item to the topic it probes, so we can tell when a man has answered it before. Known topics:
+${topicMenu}
+- Use the key of the closest fitting topic.
+- If an item genuinely fits none of them, invent a short snake_case key for it (e.g. "faith", "living_situation"). Prefer an existing topic whenever one is close; a new key should be rare.
+- If you truly cannot map an item, omit its "topic". That is better than a wrong one.`
+		: '';
+
+	const itemShape = topicMenu
+		? `    { "id": "kebab-case-id", "label": "short human label", "topic": "topic_key" }`
+		: `    { "id": "kebab-case-id", "label": "short human label" }`;
+
 	return `You are ${userName}'s AI bestie, planning how to get to know her match ${matchName} before she steps in.
 
 Compare what ${userName} values against what ${matchName} has ALREADY shown or proven, and list ONLY the genuine GAPS — the things she cares about that he has not surfaced or proven yet. These become your checklist: the topics you'll naturally draw out before bringing her in.
 
 What ${userName} values: ${valued}
 What ${matchName} has already shown/proven: ${proven}
-${matchName}'s bio: ${bio}
+${matchName}'s bio: ${bio}${suppression}
 
 Rules:
 - Return between 2 and ${maxItems} items. Fewer is better — only real, distinct gaps. If almost everything she values is already covered, return just 2 of the most meaningful remaining ones.
 - NEVER include something he has already shown or proven.
 - Each item is one specific, conversational topic (e.g. "how he spends his weekends", "what he's building toward"), never a demand for documents and never a yes/no.
-- Keep labels short and human. ids are kebab-case slugs of the label.
+- Keep labels short and human. ids are kebab-case slugs of the label.${topicBlock}
 
 Return ONLY this JSON, no other text:
 {
   "items": [
-    { "id": "kebab-case-id", "label": "short human label" }
+${itemShape}
   ]
 }`;
 }
@@ -723,8 +752,24 @@ export function buildBestieReplyPrompt(opts: {
 	 * pushing romance after being told she's networking.
 	 */
 	networking?: boolean;
+	/**
+	 * Pre-formatted CROSS-CONVERSATION LEDGER (from buildLedgerBlock): what this
+	 * man has already told us in his own words, injected ONLY once he has
+	 * consented (§E). Carries its own no-sources rule. Empty = no consent, no
+	 * entries, or the feature is dormant.
+	 */
+	ledgerContext?: string;
+	/**
+	 * Pre-formatted CONSENT block — either the one-time ask
+	 * (buildConsentAskBlock, which adds the `consentAnswer` output field) or the
+	 * one-time "I'm caught up" notice (buildConsentNoticeBlock, which doesn't).
+	 * Mutually exclusive; a Bestie gets one consent moment per thread.
+	 */
+	consentContext?: string;
+	/** True when consentContext is the ASK — requests the consentAnswer field. */
+	consentAsk?: boolean;
 }): string {
-	const { userName, matchName, contextBlock = '', transcript = '', lastMessage, isOpener = false, proofRequestContext = '', proofInviteContext = '', checklistContext = '', handoffContext = '', proofAckCategory = '', networking = false } = opts;
+	const { userName, matchName, contextBlock = '', transcript = '', lastMessage, isOpener = false, proofRequestContext = '', proofInviteContext = '', checklistContext = '', handoffContext = '', proofAckCategory = '', networking = false, ledgerContext = '', consentContext = '', consentAsk = false } = opts;
 
 	const openerBlock = isOpener
 		? `
@@ -754,6 +799,11 @@ How to behave:
 BESTIE CHECKLIST (what to learn about ${matchName} before ${userName} steps in):${checklistContext}`
 		: '';
 
+	// Cross-conversation memory (§E). Placed AFTER the checklist so that when the
+	// two disagree, what he actually said wins over what she planned to ask.
+	const ledgerBlock = ledgerContext || '';
+	const consentBlock = consentContext || '';
+
 	// Hand-off phase (checklist wrapped): reactive mode, no extra output fields.
 	const handoffBlock = handoffContext || '';
 
@@ -781,6 +831,11 @@ BESTIE CHECKLIST (what to learn about ${matchName} before ${userName} steps in):
 			`  "wrapUp": "true ONLY when every checklist item is done or you judge you have enough to bring her in (per the BESTIE CHECKLIST rules), otherwise false"`
 		);
 	}
+	if (consentAsk) {
+		jsonFields.push(
+			`  "consentAnswer": "\\"granted\\" if ${matchName}'s latest message clearly agrees to you reusing what he has already shared, \\"declined\\" if he clearly refuses or pushes back, otherwise null. Silence, a change of subject, or an ambiguous reply is null, NEVER granted."`
+		);
+	}
 	if (networking) {
 		jsonFields.push(
 			`  "romanticPressure": "true ONLY if ${matchName}'s CURRENT message (the one he 'just said', quoted below) itself literally contains romantic or dating language — flirting, pursuing, or asking ${userName} out — AFTER he was already told this thread is a networking season. Judge ONLY the literal text of THIS turn's message; never infer it from earlier turns or from an overall 'pattern' across the transcript. A neutral message this turn (small talk, a hobby, a question, banter, anything with no romantic content) is ALWAYS false, even if he pushed romance earlier in the thread. Default to false; false otherwise (a first, gracious romantic message is NOT pressure)"`
@@ -799,7 +854,7 @@ HARD RULES, never break these:
 - ONLY say things about ${userName} that appear in the context above. If he asks something you don't have (her job, hobbies, a specific detail), say she'll tell him herself, e.g. "she'll fill you in on that" — NEVER invent or guess facts about her. This includes NOT mirroring his answers back as hers: do not say she shares his job, interests, or background ("she's in tech too", "she loves that too", "same as you") unless the context above actually states it. Use her name EXACTLY as given (${userName}); never expand, complete, or substitute it, even if it's short or a single letter.
 - Read the conversation so far. Do NOT repeat a question already asked or answered, and do NOT re-raise a topic that's already settled. Build naturally on what was just said.
 - NEVER claim, quote, or paraphrase ${matchName} as having said something he didn't literally say. If you reference his latest message in "read" or "reply" (e.g. "you just said X" or "you keep pushing Y"), it must be grounded in the literal text of that message, not a summary of an overall pattern you inferred. When unsure whether he actually said something, don't assert it.
-- Don't drill. Look back at YOUR OWN past messages in the transcript: if you've already probed the same subject twice (e.g. asked about nice dinners / where he goes / his job twice) and his answers stayed vague or he deflected, you must NOT raise that subject a third time — no rephrase, no "just to get a sense", no giving-him-an-out version. Accept what he gave, note it privately in your read, and switch to a genuinely DIFFERENT subject or wrap up. A third question on the same point is an interrogation, which you never do.${transcript}${openerBlock}${proofRulesBlock}${checklistBlock}${handoffBlock}
+- Don't drill. Look back at YOUR OWN past messages in the transcript: if you've already probed the same subject twice (e.g. asked about nice dinners / where he goes / his job twice) and his answers stayed vague or he deflected, you must NOT raise that subject a third time — no rephrase, no "just to get a sense", no giving-him-an-out version. Accept what he gave, note it privately in your read, and switch to a genuinely DIFFERENT subject or wrap up. A third question on the same point is an interrogation, which you never do.${transcript}${openerBlock}${proofRulesBlock}${checklistBlock}${ledgerBlock}${consentBlock}${handoffBlock}
 
 ${proofAckCategory ? `${matchName} just uploaded a ${proofAckCategory} proof and it PASSED verification — it's now real on his profile. React in ONE short message: warm and specific about him actually backing it up (no gushing, don't restate the category like a form), then keep things flowing naturally. Do NOT ask him to upload anything else, and do NOT thank him mechanically.` : lastMessage && lastMessage.trim() ? `${matchName} just said: "${lastMessage}"` : `${matchName} hasn't messaged yet. You are reaching out FIRST to kick off the conversation, so there is nothing to react to, just open warmly per the rules above.`}
 
