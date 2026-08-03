@@ -192,6 +192,51 @@ export type Database = {
 				Update: Partial<Database['public']['Tables']['ai_assistant_advisor_chats']['Insert']>;
 				Relationships: [];
 			};
+			advisor_messages: {
+				Row: {
+					id: string;
+					user_id: string;
+					assistant_type: string;
+					role: string;
+					kind: string;
+					content: string;
+					payload: unknown | null;
+					greeting_id: string | null;
+					task_id: string | null;
+					created_at: string;
+					seq: number;
+				};
+				Insert: {
+					id?: string;
+					user_id: string;
+					assistant_type: string;
+					role: string;
+					kind?: string;
+					content: string;
+					payload?: unknown | null;
+					greeting_id?: string | null;
+					task_id?: string | null;
+					created_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['advisor_messages']['Insert']>;
+				Relationships: [];
+			};
+			advisor_read_state: {
+				Row: {
+					user_id: string;
+					assistant_type: string;
+					last_read_at: string;
+					updated_at: string;
+				};
+				Insert: {
+					user_id: string;
+					assistant_type: string;
+					last_read_at?: string;
+					updated_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['advisor_read_state']['Insert']>;
+				Relationships: [];
+			};
 			verified_vibe_typing_indicators: {
 				Row: {
 					id: string;

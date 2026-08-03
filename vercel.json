@@ -35,6 +35,10 @@
     {
       "path": "/api/cron/matchmaker-nightly",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/advisor-tasks",
+      "schedule": "*/2 * * * *"
     }
   ]
 }

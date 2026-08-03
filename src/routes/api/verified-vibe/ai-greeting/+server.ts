@@ -22,6 +22,7 @@ import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/publi
 import { createClient } from '@supabase/supabase-js';
 import { getSupabase } from '$lib/server/supabase';
 import { complianceGate, SAFE_FALLBACK } from '$lib/server/ai-compliance';
+import { appendAdvisorMessage } from '$lib/server/advisor-thread';
 
 const CLAUDE_MODEL  = 'claude-sonnet-4-6';
 const GREETING_GAP  = 8 * 60 * 60 * 1000; // 8 hours in ms
@@ -371,6 +372,28 @@ export const POST: RequestHandler = async ({ request }) => {
     .insert({ user_id: userId, assistant_type: assistantType, mode, content: finalContent, topic_tags: topicTags })
     .select('id')
     .single() as { data: { id: string } | null };
+
+  // Also land it in the advisor thread, so it survives the screen closing.
+  // Every one of these used to be thrown away: the client appended the greeting to
+  // its in-memory turns but the local-history writer only kept 'user'/'assistant'
+  // roles, so a greeting never made it even into the on-device cache.
+  //
+  // Deliberately NOT marked read — an unseen insight is the whole point of the
+  // badge. The one exception is a greeting the user is watching arrive right now,
+  // which the client clears by calling mark-read on open.
+  try {
+    await appendAdvisorMessage(supabase, {
+      userId,
+      assistantType,
+      role: 'assistant',
+      kind: 'greeting',
+      content: finalContent,
+      payload: { mode, topicTags },
+      greetingId: saved?.id ?? null
+    });
+  } catch (e) {
+    console.warn('[ai-greeting] advisor thread persist failed (non-fatal):', e);
+  }
 
   // Record the state we just greeted on, so the next session can skip if unchanged.
   try {

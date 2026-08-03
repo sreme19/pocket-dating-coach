@@ -29,4 +29,11 @@ class Config {
   // want a coral highlight or a faint pink tint fill).
   static const int coral = 0xFFFF7A4D; // secondary accent (coral)
   static const int accentTint = 0xFFFFE1EA; // subtle pink-tint fill
+
+  // Season-independent status colours — these must read as state, not as brand,
+  // so they stay put when Networking Season repaints the accent. Values match the
+  // literals already scattered through the app (hand-off urgency, trust cards).
+  static const int alert = 0xFFDC2626; // alert / unread red
+  static const int warn = 0xFFF59E0B; // in-progress amber
+  static const int success = 0xFF10B981; // done emerald
 }

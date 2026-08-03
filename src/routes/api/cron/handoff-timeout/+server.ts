@@ -3,13 +3,14 @@ import type { RequestHandler } from './$types';
 import { getSupabase } from '$lib/server/supabase';
 import { getTrustScoreBand } from '$lib/server/pool-registry';
 import { runMatchmakerForUser } from '$lib/server/matchmaker-service';
-import { sendPushNotification } from '$lib/verified-vibe/server/notifications';
+import { sendToUser } from '$lib/server/notifications';
 import {
 	HANDOFF_TIMEOUT_HOURS,
 	HANDOFF_NUDGE_24H_HOURS,
 	HANDOFF_NUDGE_FINAL_HOURS
 } from '$lib/server/handoff-clock';
 import { sendHandoffNudgeEmail } from '$lib/server/handoff-nudge-email';
+import { appendAdvisorMessage } from '$lib/server/advisor-thread';
 
 /**
  * Hand-off timeout, nudge cadence, expiry, replacement & purge sweep (spec B2, revised).
@@ -22,9 +23,11 @@ import { sendHandoffNudgeEmail } from '$lib/server/handoff-nudge-email';
  *   nudge stage 2 (@ 24h)       → advisor nudge: reminder
  *   nudge stage 3 (@ 45h)       → advisor nudge + ONE push: final-hours warning
  *
- * Stages 2 and 3 also fall back to EMAIL when she has no device token — otherwise
- * the whole ladder is invisible to a web-only woman while the man waits out the
- * window (see handoff-nudge-email.ts).
+ * Stage 3 falls back to EMAIL when the push does not actually land — otherwise the
+ * whole ladder is invisible to a web-only woman while the man waits out the window
+ * (see handoff-nudge-email.ts). It keys off delivery, not off whether a device
+ * token exists: a registered token is not a delivered notification, and the old
+ * token-existence check meant an app user got neither channel.
  *   expiry        (@ 48h)       → status='expired' (REVERSIBLE), Bestie off, and:
  *       · his side  → he's given a fresh replacement match (system-initiated,
  *                     no quota charge); the expired row links to it.
@@ -69,22 +72,6 @@ function wrappedAt(m: MatchRow): number | null {
 	if (!raw) return null;
 	const t = Date.parse(raw);
 	return Number.isNaN(t) ? null : t;
-}
-
-/** Can she be reached by push at all? No token → the nudge ladder is invisible to her. */
-async function hasPush(supabase: any, userId: string): Promise<boolean> {
-	try {
-		const { data } = await supabase
-			.from('device_tokens')
-			.select('token')
-			.eq('user_id', userId)
-			.limit(1);
-		return Array.isArray(data) && data.length > 0;
-	} catch {
-		// Unknown → assume she IS reachable, so a transient read error can't turn
-		// into a surprise burst of email.
-		return true;
-	}
 }
 
 /** Her auth email, for the fallback nudge. Null when the lookup fails or she has none. */
@@ -181,24 +168,55 @@ async function sweep() {
 			const s = sides(m);
 			if (s) {
 				const copy = nudgeCopy(stage, s.man.first_name ?? 'He');
-				await supabase.from('ai_assistant_greetings').insert({
-					user_id: s.woman.id,
-					assistant_type: 'bestie',
-					mode: 2,
+				const { data: nudgeRow } = (await supabase
+					.from('ai_assistant_greetings')
+					.insert({
+						user_id: s.woman.id,
+						assistant_type: 'bestie',
+						mode: 2,
+						content: copy.advisor,
+						topic_tags: ['handoff_nudge', `stage_${stage}`, m.id]
+					})
+					.select('id')
+					.single()) as { data: { id: string } | null };
+
+				// Land the nudge in her advisor thread too, so it is still there when she
+				// opens the tab hours later. The old path served it from a self-clearing
+				// endpoint on screen-open only: miss that moment and the deadline warning
+				// was simply gone.
+				await appendAdvisorMessage(supabase, {
+					userId: s.woman.id,
+					assistantType: 'bestie',
+					role: 'assistant',
+					kind: 'nudge',
 					content: copy.advisor,
-					topic_tags: ['handoff_nudge', `stage_${stage}`, m.id]
-				});
+					payload: { stage, matchId: m.id, manName: s.man.first_name ?? null },
+					greetingId: nudgeRow?.id ?? null
+				}).catch(() => {});
+				// The spec asks for exactly one push, on the final-hours stage. It has
+				// never actually fired: this called the console.log mock in
+				// $lib/verified-vibe/server/notifications. Now it goes to real FCM, to
+				// every device she has, and `handoff_nudge` is exempt from the daily
+				// cap and quiet hours — a deadline is not a marketing message.
+				let pushed = 0;
 				if (copy.push) {
-					await sendPushNotification(s.woman.id, {
+					const res = await sendToUser(s.woman.id, {
 						title: copy.push.title,
 						body: copy.push.body,
-						data: { type: 'handoff_nudge', matchId: m.id }
-					}).catch(() => {});
+						type: 'handoff_nudge',
+						deepLink: '/messages'
+					}).catch(() => ({ sent: 0, skipped: 'error' as string | null }));
+					pushed = res.sent;
 				}
-				// Email fallback: with no device token the whole ladder above is
-				// invisible until she happens to open the app — which is exactly the
-				// case where a man sits waiting out the window for nothing.
-				if (!(await hasPush(supabase, s.woman.id))) {
+
+				// Email fallback, driven by whether the push actually LANDED.
+				//
+				// This used to ask `hasPush()` — "does a token row exist" — which meant
+				// a woman with the app installed got neither the (mocked, undelivered)
+				// push nor the email, and the deadline warning reached her only if she
+				// happened to open the advisor tab. A registered token is not a
+				// delivered notification.
+				if (copy.push && pushed === 0) {
 					const emailed = await sendHandoffNudgeEmail({
 						to: await emailFor(supabase, s.woman.id),
 						womanName: s.woman.first_name ?? 'there',

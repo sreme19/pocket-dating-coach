@@ -15,7 +15,7 @@
 
 import { getSupabase } from './supabase';
 import { generatePerMatchRanking, generateFemaleCompetitiveReport } from './matchmaker-service';
-import { sendPushNotification } from '../verified-vibe/server/notifications';
+import { sendToUser } from './notifications';
 
 // ── Process a single pending report ──────────────────────────────────────────
 
@@ -73,12 +73,17 @@ export async function processIntelligenceReport(reportId: string): Promise<void>
       })
       .eq('id', reportId);
 
-    // Push notification
+    // Push notification. Previously routed to the console.log mock in
+    // $lib/verified-vibe/server/notifications, so no report ever announced itself.
+    // The old deepLink 'wingman_chat' was also not a valid relative path and the
+    // real sender rejects it.
     if (summary) {
-      await sendPushNotification(report.user_id, {
-        title: '💡 Your Competitive Intelligence Report is Ready',
+      const isBestie = report.report_type === 'female_competitive';
+      await sendToUser(report.user_id, {
+        title: '💡 Your intelligence report is ready',
         body:  summary,
-        data:  { type: 'intelligence_report', reportId, deepLink: 'wingman_chat' },
+        type:  'intelligence_report',
+        deepLink: isBestie ? '/verified-vibe/chat/ai-bestie' : '/verified-vibe/chat/ai-wingman',
       });
     }
 

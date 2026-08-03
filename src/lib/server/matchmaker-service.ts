@@ -17,7 +17,7 @@
 
 import { getSupabase } from './supabase';
 import { getClaudeClient, CLAUDE_MODEL } from '../claude';
-import { sendPushNotification } from '../verified-vibe/server/notifications';
+import { sendToUser } from './notifications';
 import { POOL_REQUIRED_STEPS } from './pool-registry';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -755,6 +755,14 @@ export async function queueIntelligenceReport(
 
 // ── Send match push notification (fire-and-forget) ────────────────────────────
 
+/**
+ * Tell someone they have a new match.
+ *
+ * This used to call `sendPushNotification` from $lib/verified-vibe/server, which
+ * is a console.log mock — so every match made since the feature shipped notified
+ * nobody. It now goes through the real FCM sender, and to ALL of the user's
+ * devices rather than one arbitrarily-chosen token.
+ */
 export async function sendMatchNotification(recipientId: string, matchedUserId: string): Promise<void> {
   try {
     const db = getSupabase() as any;
@@ -765,10 +773,11 @@ export async function sendMatchNotification(recipientId: string, matchedUserId: 
       .single();
 
     const name = matchedUser?.first_name ?? 'Someone';
-    await sendPushNotification(recipientId, {
-      title: '✨ New Match on Verified Vibe',
-      body:  `${name} and you have been matched. Open Wingman / Bestie for a full brief.`,
-      data:  { type: 'new_match', matchedUserId },
+    await sendToUser(recipientId, {
+      title: '✨ New match on riteangle',
+      body:  `${name} and you have been matched. Your advisor has a brief ready.`,
+      type:  'new_match',
+      deepLink: '/messages',
     });
   } catch {
     // Non-critical — match is already created even if push fails

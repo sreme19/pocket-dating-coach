@@ -1,6 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Archetype, Message, VerifiedVibeUser } from '$lib/verified-vibe/types';
 import { networkingEnforcementEnabled } from './networking-season';
+import {
+  countAdvisorUnread,
+  latestAdvisorHeadline,
+  resolveAssistantType
+} from './advisor-thread';
 
 /**
  * Shared, auth-agnostic chat read logic.
@@ -275,5 +280,46 @@ export async function buildConversationDetail(
       bestieChecklist: (match as any).bestie_checklist ?? null,
       selfGender: (selfUser as any)?.gender ?? null
     }
+  };
+}
+
+// ── Advisor row summary ──────────────────────────────────────────────────────
+
+/**
+ * What the chat list needs to render the pinned "AI Bestie / AI Wingman
+ * (advisor)" row: an unread count for its red badge, and the newest coaching
+ * line for its subtitle.
+ *
+ * Folded in here so the chat list learns about waiting advice in the round trip
+ * it already makes — the advisor row is the only entry point to that thread, so
+ * a badge it can't see is a message nobody reads.
+ */
+export interface AdvisorSummary {
+  assistantType: 'wingman' | 'bestie';
+  unreadCount: number;
+  /** Newest assistant turn, for the row subtitle. Null when the thread is empty. */
+  headline: string | null;
+  headlineAt: string | null;
+}
+
+export async function buildAdvisorSummary(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<AdvisorSummary> {
+  // chat-read is deliberately generic over the client so admin impersonation can
+  // reuse it; the advisor helpers are typed against the service-role client.
+  const sb = supabase as unknown as Parameters<typeof countAdvisorUnread>[0];
+
+  const assistantType = await resolveAssistantType(sb, userId);
+  const [unreadCount, latest] = await Promise.all([
+    countAdvisorUnread(sb, userId, assistantType),
+    latestAdvisorHeadline(sb, userId, assistantType)
+  ]);
+
+  return {
+    assistantType,
+    unreadCount,
+    headline: latest?.content ?? null,
+    headlineAt: latest?.createdAt ?? null
   };
 }

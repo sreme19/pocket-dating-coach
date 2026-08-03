@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,6 +11,9 @@ import 'season.dart';
 /// AI advisor chat — Wingman (men) or Bestie (women). Proactive greeting on
 /// open, quick-action intent chips, markdown replies, Bestie drafts, and
 /// thumbs feedback. Each send posts the running history to the chat endpoint.
+/// The transcript hydrates from the server thread (/advisor/history) so it
+/// survives a reinstall and follows the user to a second device; the local
+/// SharedPreferences copy is only an offline fallback.
 class AdvisorScreen extends StatefulWidget {
   final bool wingman;
   /// When set, this message is auto-sent once on open (e.g. the hand-off "Review"
@@ -26,15 +30,53 @@ class _Turn {
   final String content;
   final List<AdvisorDraft> drafts;
   final String? greetingId;
+  /// Server message id, when this turn came from (or was stored by) the backend.
+  final String? id;
+  /// Server kind: 'chat' | 'greeting' | 'nudge' | 'task_ack' | 'task_result'.
+  /// Drives which card renders this turn.
+  final String kind;
+  final Map<String, dynamic>? payload;
+  /// The async task this turn belongs to — ties an ack card to the result that
+  /// later supersedes it.
+  final String? taskId;
   int feedback = 0; // -1, 0, 1
-  _Turn(this.role, this.content, {this.drafts = const [], this.greetingId});
+  _Turn(
+    this.role,
+    this.content, {
+    this.drafts = const [],
+    this.greetingId,
+    this.id,
+    this.kind = 'chat',
+    this.payload,
+    this.taskId,
+  });
+
+  /// Greeting/nudge turns render with the accent border + "a note for you" label,
+  /// and route their thumbs to the greeting feedback endpoint.
+  bool get isGreeting => role == 'greeting' || kind == 'greeting' || kind == 'nudge';
+
+  /// Payload reads, all tolerant of a missing/short payload: the chat endpoint
+  /// hands back a queued task WITHOUT the ack payload, so the card has to render
+  /// on nothing until the next hydration fills it in.
+  List<String> get steps =>
+      ((payload?['steps'] as List?) ?? const []).map((e) => e.toString()).toList();
+  int get etaMinutes => payload?['etaMinutes'] is num ? (payload!['etaMinutes'] as num).toInt() : 2;
+  /// 'match_scan' | 'profile_audit' — the ack stores it as taskKind, the result as kind.
+  String get taskKind => (payload?['taskKind'] ?? payload?['kind'] ?? '').toString();
+  /// The runner gave up after its retries — an apology, not a result.
+  bool get taskFailed => payload?['failed'] == true;
 }
 
-class _AdvisorScreenState extends State<AdvisorScreen> {
+class _AdvisorScreenState extends State<AdvisorScreen> with WidgetsBindingObserver {
   final _composer = TextEditingController();
   final _scroll = ScrollController();
   final List<_Turn> _turns = [];
   bool _thinking = false;
+  /// Re-checks the thread while an async task is still out. Runs only while a
+  /// task_ack is unanswered; the card says "you can close this", but plenty of
+  /// people sit and watch it, and they should see the answer land.
+  Timer? _taskPoll;
+  AppLifecycleState _lifecycle = AppLifecycleState.resumed;
 
   bool get _wm => widget.wingman;
   String get _name => _wm ? 'AI Wingman' : 'AI Bestie';
@@ -52,10 +94,18 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
     super.initState();
     AppLogger.instance.screen('advisor');
     AppLogger.instance.action('advisor', 'load_advisor');
+    WidgetsBinding.instance.addObserver(this);
     _loadHistory().then((_) => _loadGreeting()).then((_) => _loadHandoffNudge()).then((_) {
       final seed = widget.initialMessage?.trim();
       if (seed != null && seed.isNotEmpty && mounted) _send(text: seed);
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _lifecycle = state;
+    // Back in the foreground: check straight away rather than waiting out a tick.
+    if (state == AppLifecycleState.resumed && _taskPending) _pollTaskOnce();
   }
 
   /// Surface the AI Bestie's time-sensitive hand-off nudge (spec B2, point 4) —
@@ -63,13 +113,52 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
   Future<void> _loadHandoffNudge() async {
     if (widget.wingman) return; // nudge is a Bestie-only, woman-facing message
     final n = await fetchHandoffNudge();
-    if (n != null && mounted) {
-      setState(() => _turns.add(_Turn('greeting', n.content, greetingId: n.id)));
-      _scrollToBottom();
-    }
+    if (n == null || !mounted) return;
+    if (_alreadyShown(n.id, n.content)) return; // hydration already has it
+    setState(() => _turns.add(_Turn('greeting', n.content, greetingId: n.id, kind: 'nudge')));
+    _scrollToBottom();
+    _markRead();
   }
 
+  /// The server thread is the source of truth — hydrate from it so a reinstall or
+  /// a second device shows the real conversation (proactive greetings included).
+  /// SharedPreferences survives only as an offline fallback.
   Future<void> _loadHistory() async {
+    final h = await fetchAdvisorHistory();
+    if (!mounted) return;
+    if (h == null || h.messages.isEmpty) {
+      await _loadCachedHistory(); // offline (or nothing stored yet)
+      return;
+    }
+    _applyHistory(h);
+    _scrollToBottom();
+    _saveHistory(); // keep the offline cache in step with the server
+    _markRead();
+    _syncTaskPoll();
+  }
+
+  /// Replace the thread with the server's copy.
+  void _applyHistory(AdvisorHistory h) {
+    setState(() {
+      _turns.clear();
+      for (final m in h.messages) {
+        _turns.add(_Turn(
+          // Proactive turns keep the local 'greeting' role so the bubble styling
+          // and the greeting-feedback route behave exactly as before.
+          (m.kind == 'greeting' || m.kind == 'nudge') ? 'greeting' : m.role,
+          m.content,
+          greetingId: m.greetingId,
+          id: m.id,
+          kind: m.kind,
+          payload: m.payload,
+          taskId: m.taskId,
+        ));
+      }
+    });
+  }
+
+  /// Offline fallback: the last 30 chat turns this device saw.
+  Future<void> _loadCachedHistory() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_historyKey);
     if (raw == null || !mounted) return;
@@ -86,10 +175,26 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
     }
   }
 
+  /// True when the thread already carries this proactive turn. The greeting and
+  /// hand-off-nudge endpoints hand back content the server now ALSO persists, so
+  /// without this check hydration + the POST would render it twice.
+  bool _alreadyShown(String id, String content) => _turns.any((t) =>
+      (id.isNotEmpty && (t.greetingId == id || t.id == id)) ||
+      (t.isGreeting && t.content == content));
+
+  /// Clear the advisor badge. Fetching history does not mark read — we do, once
+  /// the user is actually looking at the thread.
+  void _markRead() {
+    if (!mounted) return;
+    markAdvisorRead();
+  }
+
   Future<void> _saveHistory() async {
     final prefs = await SharedPreferences.getInstance();
     final toSave = _turns
-        .where((t) => t.role == 'user' || t.role == 'assistant')
+        // task_ack is UI state ("on it, close this"), not conversation — caching it
+        // would resurrect a dead spinner offline.
+        .where((t) => (t.role == 'user' || t.role == 'assistant') && t.kind != 'task_ack')
         .map((t) => {'role': t.role, 'content': t.content})
         .toList();
     final trimmed = toSave.length > 30 ? toSave.sublist(toSave.length - 30) : toSave;
@@ -98,18 +203,95 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
 
   Future<void> _loadGreeting() async {
     final g = await fetchGreeting();
-    if (g != null && mounted) {
-      setState(() => _turns.add(_Turn('greeting', g.content, greetingId: g.id)));
-      _scrollToBottom();
+    if (g == null || !mounted) return;
+    if (_alreadyShown(g.id, g.content)) return; // hydration already has it
+    setState(() => _turns.add(_Turn('greeting', g.content, greetingId: g.id, kind: 'greeting')));
+    _scrollToBottom();
+    _markRead();
+  }
+
+  /// History as role/content maps, excluding greeting + non-text turns. task_ack is
+  /// dropped for the same reason the server drops it when building the prompt: "on
+  /// it, I'll ping you" teaches the model to acknowledge instead of answer.
+  List<Map<String, String>> get _history => [
+        for (final t in _turns)
+          if ((t.role == 'user' || t.role == 'assistant') && t.kind != 'task_ack')
+            {'role': t.role == 'user' ? 'user' : 'assistant', 'content': t.content},
+      ];
+
+  /// Tasks whose result turn has already landed.
+  Set<String> get _answeredTasks => {
+        for (final t in _turns)
+          if (t.kind == 'task_result' && (t.taskId ?? '').isNotEmpty) t.taskId!,
+      };
+
+  /// Tasks with an ack but no result yet. A taskId-less ack is excluded on purpose:
+  /// nothing could ever match it, so it would keep the poll running forever.
+  Set<String> get _pendingTasks {
+    final answered = _answeredTasks;
+    return {
+      for (final t in _turns)
+        if (t.kind == 'task_ack' && (t.taskId ?? '').isNotEmpty && !answered.contains(t.taskId))
+          t.taskId!,
+    };
+  }
+
+  bool get _taskPending => _pendingTasks.isNotEmpty;
+
+  /// Turns to render. A task_ack is dropped once its task_result has landed — a
+  /// spinner still spinning beside a finished answer reads as a bug.
+  List<_Turn> get _visibleTurns {
+    final answered = _answeredTasks;
+    if (answered.isEmpty) return _turns;
+    return _turns.where((t) => !(t.kind == 'task_ack' && answered.contains(t.taskId))).toList();
+  }
+
+  /// Run the poll exactly while there's something to wait for. Idempotent, so it's
+  /// safe to call after anything that could queue or resolve a task.
+  void _syncTaskPoll() {
+    if (!mounted) return;
+    if (_taskPending) {
+      _taskPoll ??= Timer.periodic(const Duration(seconds: 20), (_) => _pollTaskOnce());
+    } else {
+      _taskPoll?.cancel();
+      _taskPoll = null;
     }
   }
 
-  /// History as role/content maps, excluding greeting + non-text turns.
-  List<Map<String, String>> get _history => [
-        for (final t in _turns)
-          if (t.role == 'user' || t.role == 'assistant')
-            {'role': t.role == 'user' ? 'user' : 'assistant', 'content': t.content},
-      ];
+  /// One tick: has the cron written the answer yet?
+  ///
+  /// Deliberately narrow — it re-applies the thread ONLY when a result for a task
+  /// we're waiting on has appeared. Re-applying on every tick would clobber
+  /// local-only turns (the Profile-tab tip from the chip) and fight the scroll
+  /// position for no gain.
+  Future<void> _pollTaskOnce() async {
+    if (!mounted) return;
+    final pending = _pendingTasks;
+    if (pending.isEmpty) {
+      _syncTaskPoll(); // resolved elsewhere — stop ticking
+      return;
+    }
+    if (_lifecycle != AppLifecycleState.resumed) return; // no work while backgrounded
+    final h = await fetchAdvisorHistory();
+    if (!mounted || h == null) return;
+    final landed = h.messages.any((m) => m.kind == 'task_result' && pending.contains(m.taskId));
+    if (!landed) return;
+    // Follow the thread down only if they were already at the bottom — someone
+    // scrolled up re-reading the ack should not get yanked.
+    final wasAtBottom = _atBottom();
+    _applyHistory(h);
+    _saveHistory();
+    _markRead();
+    if (wasAtBottom) _scrollToBottom();
+    _syncTaskPoll();
+  }
+
+  /// Within about a bubble's height of the end of the list.
+  bool _atBottom() {
+    if (!_scroll.hasClients) return true;
+    final p = _scroll.position;
+    return p.pixels >= p.maxScrollExtent - 80;
+  }
 
   Future<void> _chip(String intent, String label) async {
     if (_thinking) return;
@@ -145,10 +327,22 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
       final history = _history.where((m) => m['content'] != message).toList();
       final r = await askAdvisor(wingman: _wm, message: message, history: history, intent: intent);
       setState(() {
-        _turns.add(_Turn('assistant', r.reply, drafts: r.drafts));
+        _turns.add(_Turn('assistant', r.reply,
+            drafts: r.drafts,
+            id: r.messageId,
+            kind: r.taskQueued ? 'task_ack' : 'chat',
+            taskId: r.taskId));
         _thinking = false;
       });
       _saveHistory();
+      _markRead(); // the server stored this turn as unread; we just showed it
+      // The ack card's steps + ETA live in the turn the server just wrote, not in
+      // the chat response — re-hydrate so the card renders whole rather than bare.
+      if (r.taskQueued) {
+        await _loadHistory();
+        // Also covers a re-hydrate that failed and left only the local ack turn.
+        _syncTaskPoll();
+      }
     } catch (e) {
       AppLogger.instance.error(e, screen: 'advisor', action: 'run_advisor');
       final err = e.toString();
@@ -178,7 +372,7 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
   Future<void> _feedback(_Turn t, bool positive) async {
     setState(() => t.feedback = positive ? 1 : -1);
     try {
-      if (t.role == 'greeting' && t.greetingId != null && t.greetingId!.isNotEmpty) {
+      if (t.isGreeting && t.greetingId != null && t.greetingId!.isNotEmpty) {
         await submitGreetingFeedback(t.greetingId!, positive ? 1 : -1);
       } else {
         await submitMessageFeedback(wingman: _wm, messageContent: t.content, positive: positive);
@@ -200,6 +394,8 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _taskPoll?.cancel();
     _composer.dispose();
     _scroll.dispose();
     super.dispose();
@@ -207,6 +403,7 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final visible = _visibleTurns;
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(Config.bg1),
@@ -218,15 +415,20 @@ class _AdvisorScreenState extends State<AdvisorScreen> {
       ),
       body: Column(children: [
         Expanded(
-          child: _turns.isEmpty && !_thinking
+          child: visible.isEmpty && !_thinking
               ? _Intro(wingman: _wm)
               : ListView.builder(
                   controller: _scroll,
                   padding: const EdgeInsets.all(12),
-                  itemCount: _turns.length + (_thinking ? 1 : 0),
+                  itemCount: visible.length + (_thinking ? 1 : 0),
                   itemBuilder: (context, i) {
-                    if (i >= _turns.length) return const _Thinking();
-                    return _Bubble(turn: _turns[i], onSendDraft: _sendDraft, onFeedback: _feedback);
+                    if (i >= visible.length) return const _Thinking();
+                    final t = visible[i];
+                    if (t.kind == 'task_ack') return _TaskAckCard(turn: t);
+                    if (t.kind == 'task_result') {
+                      return _TaskResultCard(turn: t, onFeedback: _feedback);
+                    }
+                    return _Bubble(turn: t, onSendDraft: _sendDraft, onFeedback: _feedback);
                   },
                 ),
         ),
@@ -326,7 +528,7 @@ class _Bubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mine = turn.role == 'user';
-    final greeting = turn.role == 'greeting';
+    final greeting = turn.isGreeting;
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -391,6 +593,140 @@ class _DraftCard extends StatelessWidget {
         ),
       ]),
     );
+  }
+}
+
+// ── Async task cards ────────────────────────────────────────────────────────
+// Task-shaped asks ("help me get matches", "audit my profile") queue real work
+// server-side: an ack turn lands immediately and the cron writes the answer back
+// into the thread later. Both arrive as ordinary hydrated turns, distinguished
+// only by `kind`, so they get their own card shapes rather than plain bubbles.
+
+/// Shared shell: left accent stripe + white card. IntrinsicHeight is what lets a
+/// 4px stripe match the card's height inside a vertically unbounded list.
+class _StripeCard extends StatelessWidget {
+  final Color stripe;
+  final List<Widget> children;
+  const _StripeCard({required this.stripe, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.92),
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: const Color(Config.bg2),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0x221B1020)),
+        ),
+        child: IntrinsicHeight(
+          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Container(width: 4, color: stripe),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: children,
+                ),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Working on it" — the task was accepted and the answer lands later.
+///
+/// The step ticks are static: first done, second running, the rest queued. The
+/// server does not report per-step progress yet, and for a ~2 minute task that
+/// read is honest enough while staying truthful about the order of the work.
+class _TaskAckCard extends StatelessWidget {
+  final _Turn turn;
+  const _TaskAckCard({required this.turn});
+
+  @override
+  Widget build(BuildContext context) {
+    const amber = Color(Config.warn);
+    // Respect the OS reduce-motion setting — an indefinite spinner is exactly the
+    // thing that switch exists to stop.
+    final still = MediaQuery.of(context).disableAnimations;
+    final steps = turn.steps;
+    final eta = turn.etaMinutes;
+    return _StripeCard(stripe: amber, children: [
+      Row(children: [
+        SizedBox(
+          width: 14,
+          height: 14,
+          child: still
+              ? const Icon(Icons.hourglass_top_rounded, size: 14, color: amber)
+              : const CircularProgressIndicator(strokeWidth: 2, color: amber),
+        ),
+        const SizedBox(width: 8),
+        Text('Working on it — about $eta ${eta == 1 ? 'minute' : 'minutes'}',
+            style: const TextStyle(color: amber, fontSize: 12, fontWeight: FontWeight.w700)),
+      ]),
+      const SizedBox(height: 8),
+      buildMarkdown(turn.content, color: const Color(Config.text1)),
+      // Steps are absent on the turn the chat response hands back; they arrive with
+      // the next hydration, so the card has to read fine without them.
+      for (var i = 0; i < steps.length; i++) _step(steps[i], i),
+    ]);
+  }
+
+  Widget _step(String label, int i) {
+    final (IconData icon, int color, FontWeight weight) = i == 0
+        ? (Icons.check_circle, Config.success, FontWeight.w500)
+        : i == 1
+            ? (Icons.autorenew, Config.warn, FontWeight.w600)
+            : (Icons.circle_outlined, Config.text3, FontWeight.w400);
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 15, color: Color(color)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(label,
+              style: TextStyle(
+                color: Color(i > 1 ? Config.text3 : Config.text2),
+                fontSize: 13,
+                fontWeight: weight,
+              )),
+        ),
+      ]),
+    );
+  }
+}
+
+/// The finished answer. Green stripe when it delivered; muted when the runner gave
+/// up after its retries — an apology should not wear a success colour.
+class _TaskResultCard extends StatelessWidget {
+  final _Turn turn;
+  final void Function(_Turn, bool) onFeedback;
+  const _TaskResultCard({required this.turn, required this.onFeedback});
+
+  String get _headline => turn.taskFailed
+      ? "That one didn't finish"
+      : turn.taskKind == 'profile_audit'
+          ? 'Your profile audit is ready'
+          : '📊 Your match scan is ready';
+
+  @override
+  Widget build(BuildContext context) {
+    final stripe = Color(turn.taskFailed ? Config.text3 : Config.success);
+    return _StripeCard(stripe: stripe, children: [
+      Text(_headline, style: TextStyle(color: stripe, fontSize: 13, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 8),
+      // content already carries the summary + numbered action list as markdown.
+      buildMarkdown(turn.content, color: const Color(Config.text1)),
+      _Feedback(turn: turn, onFeedback: onFeedback),
+    ]);
   }
 }
 

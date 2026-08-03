@@ -1,10 +1,10 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
-import { buildConversations } from '$lib/server/chat-read';
+import { buildConversations, buildAdvisorSummary } from '$lib/server/chat-read';
 
 // Re-exported for existing importers (e.g. the chat-list page).
-export type { Conversation } from '$lib/server/chat-read';
+export type { Conversation, AdvisorSummary } from '$lib/server/chat-read';
 
 export const GET: RequestHandler = async ({ request }) => {
   try {
@@ -21,8 +21,17 @@ export const GET: RequestHandler = async ({ request }) => {
     const { data: { user }, error: userError } = await userClient.auth.getUser();
     if (userError || !user?.id) return json({ error: 'Unauthorized' }, { status: 401 });
 
-    const conversations = await buildConversations(getSupabase(), user.id);
-    return json({ data: { conversations } });
+    const sb = getSupabase();
+    // The advisor summary must never take the chat list down with it — a failure
+    // here should cost the badge, not the inbox.
+    const [conversations, advisor] = await Promise.all([
+      buildConversations(sb, user.id),
+      buildAdvisorSummary(sb, user.id).catch((e) => {
+        console.error('[conversations] advisor summary failed (non-fatal):', e);
+        return null;
+      })
+    ]);
+    return json({ data: { conversations, advisor } });
   } catch (error) {
     console.error('Conversations fetch error:', error);
     return json({ error: 'Internal server error' }, { status: 500 });

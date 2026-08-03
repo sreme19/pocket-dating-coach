@@ -3,6 +3,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'firebase_options.dart';
+import 'advisor_screen.dart';
 import 'api.dart';
 import 'app_logger.dart';
 import 'config.dart';
@@ -89,6 +90,19 @@ class PushService {
     final link = (data['deepLink'] ?? data['deep_link'])?.toString();
     if (link == null || link.isEmpty) return;
 
+    // Advisor thread → Chat tab, then the advisor itself. This MUST come before
+    // the conversation match below: the async-task push points at
+    // /verified-vibe/chat/ai-bestie, which that pattern would otherwise read as a
+    // conversation whose id is "ai-bestie" and open an empty thread.
+    final advisor = RegExp(r'^(?:/verified-vibe)?/chat/ai-(bestie|wingman)$').firstMatch(link);
+    if (advisor != null || data['type'] == 'advisor_task_ready') {
+      onSwitchTab?.call(1);
+      final named = advisor?.group(1);
+      // The link already names the assistant; only a type-only push needs a lookup.
+      _openAdvisor(wingman: named == null ? null : named == 'wingman');
+      return;
+    }
+
     // Conversation thread → switch to Chat tab first, then open conversation.
     // Switching tab first ensures the back button returns to Chat (not Discover).
     final convo = RegExp(r'^(?:/verified-vibe)?/(?:chat|conversations)/([^/?#]+)').firstMatch(link);
@@ -105,9 +119,11 @@ class PushService {
       return;
     }
 
-    // AI Wingman / intelligence report → Chat tab (advisor lives there).
+    // AI Wingman / intelligence report → Chat tab (the advisor row lives there),
+    // then push the advisor thread itself so the tap lands on what was announced.
     if (link == 'wingman_chat' || link.startsWith('/wingman') || data['type'] == 'intelligence_report') {
       onSwitchTab?.call(1);
+      _openAdvisor();
       return;
     }
 
@@ -121,6 +137,38 @@ class PushService {
     }
 
     // Anything else just brings the app forward.
+  }
+
+  /// Push the advisor thread — Wingman for men, Bestie for women. [wingman] comes
+  /// from the deep link when it names the assistant; null means resolve it from the
+  /// user's own profile, the same way the chat list resolves its advisor row.
+  static void _openAdvisor({bool? wingman}) {
+    if (wingman != null) {
+      // Same frame hop as the conversation branch: onSwitchTab's setState has
+      // already scheduled a frame, so waiting for it puts Chat under the advisor.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _pushAdvisor(wingman));
+      return;
+    }
+    _resolveAndPushAdvisor();
+  }
+
+  static Future<void> _resolveAndPushAdvisor() async {
+    try {
+      final gender = await fetchCurrentUserGender();
+      if (gender != 'man' && gender != 'woman') return; // unknown → tab switch only
+      // The lookup's await is itself the wait for HomeShell to rebuild with Chat
+      // active, so popping the advisor returns to Chat (not Discover).
+      _pushAdvisor(gender == 'man');
+    } catch (e) {
+      AppLogger.instance.error(e, screen: 'push_service', action: 'open_advisor');
+      // non-fatal — the Chat tab is already showing
+    }
+  }
+
+  static void _pushAdvisor(bool wingman) {
+    navKey?.currentState?.push(
+      MaterialPageRoute(builder: (_) => AdvisorScreen(wingman: wingman)),
+    );
   }
 
   /// Clear the once-flag on sign-out so the next user re-registers.

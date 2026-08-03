@@ -32,6 +32,7 @@ class _ChatListScreenState extends State<ChatListScreen>
   RealtimeChannel? _verificationChannel;
   final _onlineUsers = <String>{};
   final _clearedConvos = <String>{}; // optimistic read-clear before server confirms
+  bool _advisorCleared = false; // same, for the advisor row (thread has no id here)
   List<Conversation>? _cachedConversations; // updated in-place on realtime events
   final Set<String> _shownHandoff = {}; // matches whose "your turn to step in" popup already showed this session
   bool _handoffDialogOpen = false;      // guard: never stack a second hand-off popup
@@ -376,7 +377,8 @@ class _ChatListScreenState extends State<ChatListScreen>
   Future<_ChatData> _load() async {
     try {
       final gender = await fetchCurrentUserGender();
-      final convos = await fetchConversations();
+      final bundle = await fetchConversationsBundle();
+      final convos = bundle.conversations;
       List<Admirer> admirers = const [];
       List<SentAdmirer> sentAdmirers = const [];
       TipSummary? tipSummary;
@@ -391,7 +393,7 @@ class _ChatListScreenState extends State<ChatListScreen>
       }
       _cachedConversations = convos;
       _maybeShowHandoff(convos);
-      return _ChatData(gender: gender, conversations: convos, admirers: admirers, sentAdmirers: sentAdmirers, tipSummary: tipSummary);
+      return _ChatData(gender: gender, conversations: convos, admirers: admirers, sentAdmirers: sentAdmirers, tipSummary: tipSummary, advisor: bundle.advisor);
     } catch (e) {
       AppLogger.instance.error(e, screen: 'chat_list', action: 'load');
       final msg = e.toString();
@@ -453,6 +455,19 @@ class _ChatListScreenState extends State<ChatListScreen>
     await markConversationRead(c.id).catchError((_) {});
     await _refresh();
     if (mounted) setState(() => _clearedConvos.remove(c.id));
+  }
+
+  /// Open the advisor thread. Mirrors _open(): clear the badge optimistically on
+  /// tap (the advisor screen stamps mark-read server-side), then drop the flag
+  /// once the refresh on return is carrying the server's own count.
+  Future<void> _openAdvisor(bool wingman) async {
+    AppLogger.instance.action('chat_list', 'open_advisor');
+    setState(() => _advisorCleared = true);
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => AdvisorScreen(wingman: wingman),
+    ));
+    await _refresh();
+    if (mounted) setState(() => _advisorCleared = false);
   }
 
   Future<void> _reactivate(Conversation c) async {
@@ -523,7 +538,10 @@ class _ChatListScreenState extends State<ChatListScreen>
                   .compareTo(a.lastMessageTime ?? DateTime(1970));
             });
           final unreadTotal = active.where((c) => c.unreadCount > 0 && !_clearedConvos.contains(c.id)).length;
-          final totalBadge = active.where((c) => !_clearedConvos.contains(c.id)).fold<int>(0, (sum, c) => sum + c.unreadCount) + data.admirers.where((a) => !a.replied).length;
+          // Unread advisor turns (proactive greetings, nudges) count toward the
+          // bottom-nav pill too — they're the same "someone said something" signal.
+          final advisorUnread = _advisorCleared ? 0 : (data.advisor?.unreadCount ?? 0);
+          final totalBadge = active.where((c) => !_clearedConvos.contains(c.id)).fold<int>(0, (sum, c) => sum + c.unreadCount) + data.admirers.where((a) => !a.replied).length + advisorUnread;
           if (ChatListScreen.unreadNotifier.value != totalBadge) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               ChatListScreen.unreadNotifier.value = totalBadge;
@@ -566,9 +584,9 @@ class _ChatListScreenState extends State<ChatListScreen>
                 if ((isMan || isWoman) && _filter != 3)
                   _AdvisorRow(
                     wingman: isMan,
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => AdvisorScreen(wingman: isMan),
-                    )),
+                    unreadCount: advisorUnread,
+                    headline: data.advisor?.headline,
+                    onTap: () => _openAdvisor(isMan),
                   ),
                 if (newMatches.isNotEmpty && _filter != 2 && _filter != 3) _NewMatches(matches: newMatches, onTap: _open, onlineUsers: _onlineUsers),
                 _FilterTabs(
@@ -675,7 +693,10 @@ class _ChatData {
   final List<Admirer> admirers;
   final List<SentAdmirer> sentAdmirers;
   final TipSummary? tipSummary;
-  _ChatData({required this.gender, required this.conversations, required this.admirers, required this.sentAdmirers, this.tipSummary});
+  /// Advisor row state (unread + headline). Null when the server's summary
+  /// failed — the row then falls back to its static subtitle and no badge.
+  final AdvisorSummary? advisor;
+  _ChatData({required this.gender, required this.conversations, required this.admirers, required this.sentAdmirers, this.tipSummary, this.advisor});
 }
 
 /// Shows anonymous tip feedback received on the user's profile.
@@ -877,10 +898,20 @@ class _FilterTabs extends StatelessWidget {
 class _AdvisorRow extends StatelessWidget {
   final bool wingman;
   final VoidCallback onTap;
-  const _AdvisorRow({required this.wingman, required this.onTap});
+  /// Unread advisor turns — already zeroed by the caller's optimistic clear.
+  final int unreadCount;
+  /// Teaser from the newest unread turn; null falls back to the static subtitle.
+  final String? headline;
+  const _AdvisorRow({
+    required this.wingman,
+    required this.onTap,
+    this.unreadCount = 0,
+    this.headline,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final teaser = (headline != null && headline!.trim().isNotEmpty) ? headline!.trim() : null;
     return ListTile(
       onTap: onTap,
       leading: CircleAvatar(
@@ -903,10 +934,25 @@ class _AdvisorRow extends StatelessWidget {
         ),
       ]),
       subtitle: Text(
-        wingman ? 'Match reads, approach tips & fresh insights' : 'Tips, match summaries & fresh insights',
-        style: const TextStyle(color: Color(Config.text2), fontSize: 13),
+        teaser ??
+            (wingman ? 'Match reads, approach tips & fresh insights' : 'Tips, match summaries & fresh insights'),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: const Color(Config.text2),
+          fontSize: 13,
+          // A real headline is something the advisor said — weight it like unread.
+          fontWeight: teaser != null && unreadCount > 0 ? FontWeight.w600 : FontWeight.w400,
+        ),
       ),
-      trailing: const Icon(Icons.chevron_right, color: Color(Config.text3)),
+      trailing: unreadCount > 0
+          ? CircleAvatar(
+              radius: 10,
+              backgroundColor: const Color(Config.alert),
+              child: Text('$unreadCount',
+                  style: const TextStyle(color: Color(0xFFFFFFFF), fontSize: 11, fontWeight: FontWeight.w700)),
+            )
+          : const Icon(Icons.chevron_right, color: Color(Config.text3)),
     );
   }
 }

@@ -3,6 +3,14 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
 import { getSupabase } from '$lib/server/supabase';
 import { appendAdvisorChat } from '$lib/server/advisor-chat';
+import {
+	appendAdvisorExchange,
+	loadAdvisorThread,
+	buildClaudeHistory,
+	markAdvisorRead,
+	CLAUDE_HISTORY_TURNS
+} from '$lib/server/advisor-thread';
+import { detectTaskIntent, createAdvisorTask } from '$lib/server/advisor-tasks';
 import { logAppError } from '$lib/server/logAppError';
 import { loadPreferences, updatePreferences } from '$lib/server/profile-service';
 import type { PreferencesProfile } from '$lib/server/profile-service';
@@ -73,9 +81,28 @@ export const POST: RequestHandler = async ({ request }) => {
 		if (rawMessage.length > 1000) {
 			return json({ error: 'Message exceeds maximum length of 1000 characters' }, { status: 400 });
 		}
-		const history = body.history ?? [];
-
 		const supabase = getSupabase();
+
+		// ── History: server-side and canonical ────────────────────────────────
+		// The client used to POST its own transcript, which went straight into the
+		// prompt — so a tampered client could rewrite what Bestie "previously said".
+		// The stored thread is authoritative now.
+		//
+		// The client's copy is still honoured as a fallback for exactly one case: the
+		// stored thread is empty. That covers the window between this deploy and the
+		// advisor_messages migration being applied, where dropping it outright would
+		// make Bestie lose her memory mid-conversation. Capped on both length and
+		// turn count so the fallback can't be used to flood the prompt.
+		const storedThread = await loadAdvisorThread(supabase, userId, 'bestie');
+		const history =
+			storedThread.length > 0
+				? buildClaudeHistory(storedThread)
+				: (body.history ?? [])
+						.slice(-CLAUDE_HISTORY_TURNS)
+						.map((h) => ({
+							role: h.role === 'user' ? ('user' as const) : ('assistant' as const),
+							content: String(h.content ?? '').slice(0, 2000)
+						}));
 
 		// ── Load advisor context (shared with the admin Test Suite) ─────────────
 		// Name, preferences, and current matches (+ bios/messages/proofs) are all
@@ -95,6 +122,39 @@ export const POST: RequestHandler = async ({ request }) => {
 					"What's new across my matches? Any fresh things I should pay attention to?";
 			} else {
 				return json({ error: 'message is required for chat intent' }, { status: 400 });
+			}
+		}
+
+		// ── Task-shaped asks go async ─────────────────────────────────────────
+		// Some questions want real work behind them, which takes longer than a chat
+		// reply should sit spinning. Queue it, acknowledge immediately, and let her
+		// close the app — the sweeper writes the answer back into this thread and
+		// pushes when it lands.
+		//
+		// Only free-form messages qualify: the quick-action chips are answered
+		// synchronously from precomputed data and are already fast.
+		if (rawMessage) {
+			const taskKind = detectTaskIntent(rawMessage);
+			if (taskKind) {
+				const queued = await createAdvisorTask(supabase, {
+					userId,
+					assistantType: 'bestie',
+					kind: taskKind,
+					requestText: rawMessage,
+					userMessage
+				});
+				// A null here means an identical task is already in flight, so fall
+				// through and answer normally rather than acknowledging twice.
+				if (queued) {
+					return json({
+						reply: queued.ackContent,
+						userMessage,
+						prefsUpdated: false,
+						drafts: [],
+						taskId: queued.taskId,
+						taskQueued: true
+					});
+				}
 			}
 		}
 
@@ -213,16 +273,43 @@ export const POST: RequestHandler = async ({ request }) => {
 			}
 		}
 
-		// Persist the exchange server-side for QA review. Awaited (not fire-and-forget):
-		// on serverless the function is frozen once the response is sent, so an un-awaited
-		// write never completes. try/catch keeps the guarantee that it can't break the reply.
+		// Persist the exchange. Awaited (not fire-and-forget): on serverless the
+		// function is frozen once the response is sent, so an un-awaited write never
+		// completes. try/catch keeps the guarantee that it can't break the reply.
+		//
+		// Two destinations on purpose. advisor_messages is the thread the app reads
+		// back. ai_assistant_advisor_chats is the legacy QA aggregate that the QA
+		// console, admin analytics and ai_qa_reviews' foreign key still depend on.
+		let replyMessageId: string | null = null;
+		try {
+			const { replyTurn } = await appendAdvisorExchange(supabase, {
+				userId,
+				assistantType: 'bestie',
+				userMessage,
+				reply,
+				replyPayload: drafts.length > 0 ? { drafts } : null
+			});
+			replyMessageId = replyTurn?.id ?? null;
+
+			// She is looking at this reply as it lands, so it must not arrive already
+			// counted as unread — otherwise every chat leaves a badge behind.
+			await markAdvisorRead(supabase, userId, 'bestie');
+		} catch (e) {
+			console.warn('[AI Bestie chat] advisor thread persist failed:', e);
+		}
 		try {
 			await appendAdvisorChat(supabase, userId, 'bestie', userMessage, reply, new Date().toISOString());
 		} catch (e) {
-			console.warn('[AI Bestie chat] advisor persist failed:', e);
+			console.warn('[AI Bestie chat] QA aggregate persist failed:', e);
 		}
 
-		return json({ reply, userMessage, prefsUpdated: detectedPrefs.length > 0, drafts });
+		return json({
+			reply,
+			userMessage,
+			prefsUpdated: detectedPrefs.length > 0,
+			drafts,
+			messageId: replyMessageId
+		});
 	} catch (err) {
 		console.error('[AI Bestie chat]', err);
 		logAppError(err, {

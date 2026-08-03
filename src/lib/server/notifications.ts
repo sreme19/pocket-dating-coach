@@ -15,13 +15,30 @@ export const MAX_TITLE_LENGTH = 65;
 /** Maximum allowed characters for notification body */
 export const MAX_BODY_LENGTH = 240;
 
-/** Valid notification type discriminators */
+/**
+ * Valid notification type discriminators.
+ *
+ * This list is a gate, not documentation: buildNotificationPayload rejects
+ * anything absent from it. Three of the app's most important events were calling
+ * a console.log mock in $lib/verified-vibe/server/notifications and would have
+ * been rejected here too — hence the additions below.
+ */
 export const NOTIFICATION_TYPES = [
 	'conversation_reminder',
 	'follow_up_prompt',
 	'profile_tip',
 	'secret_admirer',
-	'craving_attention'
+	'craving_attention',
+	/** A new mutual match. Previously sent to the mock and never delivered. */
+	'new_match',
+	/** Async advisor work the user asked for has finished. */
+	'advisor_task_ready',
+	/** Proactive coaching insight — the type the daily cap governs. */
+	'advisor_insight',
+	/** Final-hours warning on the 48h hand-off window. Spec asks for exactly one. */
+	'handoff_nudge',
+	/** A competitive-intelligence report finished generating. */
+	'intelligence_report'
 ] as const;
 
 /** Union type for notification categories */
@@ -268,4 +285,80 @@ export async function sendNotification(payload: NotificationPayload): Promise<Se
 	}
 
 	return { success: false, error: `FCM V1 error ${fcmRes.status}: ${errCode || fcmRes.statusText}` };
+}
+
+// ── Per-user delivery ────────────────────────────────────────────────────────
+
+/**
+ * Send one notification to every device a user has registered, subject to the
+ * notification budget.
+ *
+ * Two gaps this closes.
+ *
+ * First, `sendNotification` takes a single token, so every existing call site
+ * hand-rolls a `.limit(1)` / `.maybeSingle()` lookup — meaning a user with both an
+ * Android phone and an iPad gets told on whichever row came back first. Roughly a
+ * third of registered users are on iOS, so that is not a rounding error.
+ *
+ * Second, nothing consulted quiet hours or a cap, because neither existed.
+ *
+ * Returns what happened rather than throwing: notification delivery is never
+ * allowed to fail the operation that triggered it.
+ */
+export async function sendToUser(
+	userId: string,
+	opts: {
+		title: string;
+		body: string;
+		type: NotificationType;
+		deepLink?: string;
+		/** Skip the budget for a genuinely unmissable send. Use sparingly. */
+		force?: boolean;
+	}
+): Promise<{ sent: number; skipped: string | null }> {
+	const supabase = getSupabase();
+
+	if (!opts.force) {
+		const { checkBudget } = await import('$lib/server/notification-budget');
+		const decision = await checkBudget(supabase, userId, opts.type);
+		if (!decision.allowed) return { sent: 0, skipped: decision.reason };
+	}
+
+	const { data: tokens } = await supabase
+		.from('device_tokens')
+		.select('token')
+		.eq('user_id', userId);
+
+	const rows = (tokens ?? []) as Array<{ token: string }>;
+	if (rows.length === 0) return { sent: 0, skipped: 'no_token' };
+
+	let sent = 0;
+	for (const { token } of rows) {
+		try {
+			// buildNotificationPayload THROWS on an unknown type or a deepLink that
+			// isn't a relative path — both are programming errors, so they must not
+			// take down the caller that triggered this notification.
+			const payload = buildNotificationPayload({
+				token,
+				title: opts.title,
+				body: opts.body,
+				type: opts.type,
+				deepLink: opts.deepLink
+			});
+			const result = await sendNotification(payload);
+			if (result.success) sent++;
+			else console.warn(`[notifications] ${opts.type} send failed:`, result.error);
+		} catch (e) {
+			console.error(`[notifications] invalid ${opts.type} payload:`, e);
+		}
+	}
+
+	// Log once per notification, not once per device — the cap counts messages the
+	// person received, and they only perceive one.
+	if (sent > 0) {
+		const { logNotification } = await import('$lib/server/notification-budget');
+		await logNotification(supabase, userId, opts.type, { title: opts.title });
+	}
+
+	return { sent, skipped: sent === 0 ? 'all_sends_failed' : null };
 }

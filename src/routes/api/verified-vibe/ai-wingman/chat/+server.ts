@@ -19,6 +19,14 @@ import type { RequestHandler } from './$types';
 import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
 import { getSupabase } from '$lib/server/supabase';
 import { appendAdvisorChat } from '$lib/server/advisor-chat';
+import {
+	appendAdvisorExchange,
+	loadAdvisorThread,
+	buildClaudeHistory,
+	markAdvisorRead,
+	CLAUDE_HISTORY_TURNS
+} from '$lib/server/advisor-thread';
+import { detectTaskIntent, createAdvisorTask } from '$lib/server/advisor-tasks';
 import { loadWingmanAdvisorContext } from '$lib/server/wingman-advisor-context';
 import { buildAIWingmanAdvisorSystemPrompt } from '$lib/prompts';
 import { touchLastActive } from '$lib/server/pool-registry';
@@ -58,8 +66,6 @@ export const POST: RequestHandler = async ({ request }) => {
 		if (rawMessage.length > 1000) {
 			return json({ error: 'Message exceeds maximum length of 1000 characters' }, { status: 400 });
 		}
-		const history = body.history ?? [];
-
 		let userMessage = rawMessage;
 		if (!userMessage) {
 			if (intent === 'summary') {
@@ -82,6 +88,60 @@ export const POST: RequestHandler = async ({ request }) => {
 			: '';
 
 		const supabase = getSupabase();
+
+		// ── History: server-side and canonical ────────────────────────────────
+		// The client used to POST its own transcript, which went straight into the
+		// prompt — so a tampered client could rewrite what Wingman "previously said".
+		// The stored thread is authoritative now.
+		//
+		// The client's copy is still honoured as a fallback for exactly one case: the
+		// stored thread is empty. That covers the window between this deploy and the
+		// advisor_messages migration being applied, where dropping it outright would
+		// make Wingman lose his memory mid-conversation. Capped on both length and
+		// turn count so the fallback can't be used to flood the prompt.
+		const storedThread = await loadAdvisorThread(supabase, userId, 'wingman');
+		const history =
+			storedThread.length > 0
+				? buildClaudeHistory(storedThread)
+				: (body.history ?? [])
+						.slice(-CLAUDE_HISTORY_TURNS)
+						.map((h) => ({
+							role: h.role === 'user' ? ('user' as const) : ('assistant' as const),
+							content: String(h.content ?? '').slice(0, 2000)
+						}));
+
+		// ── Task-shaped asks go async ─────────────────────────────────────────
+		// Some questions want real work behind them, which takes longer than a chat
+		// reply should sit spinning. Queue it, acknowledge immediately, and let him
+		// close the app — the sweeper writes the answer back into this thread and
+		// pushes when it lands.
+		//
+		// Only free-form messages qualify: the quick-action chips are answered
+		// synchronously from precomputed data and are already fast.
+		if (rawMessage) {
+			const taskKind = detectTaskIntent(rawMessage);
+			if (taskKind) {
+				const queued = await createAdvisorTask(supabase, {
+					userId,
+					assistantType: 'wingman',
+					kind: taskKind,
+					requestText: rawMessage,
+					userMessage
+				});
+				// A null here means an identical task is already in flight, so fall
+				// through and answer normally rather than acknowledging twice.
+				if (queued) {
+					return json({
+						reply: queued.ackContent,
+						replyMessageId: null,
+						generatedAt: new Date().toISOString(),
+						responseType: 'wingman',
+						taskId: queued.taskId,
+						taskQueued: true
+					});
+				}
+			}
+		}
 
 		// ── Load advisor context (shared with the admin Test Suite) ─────────────
 		// All profile/match/artifact/admirer assembly lives in one place so the
@@ -149,20 +209,41 @@ export const POST: RequestHandler = async ({ request }) => {
 		const compliance = await complianceGate({ text: rawReply, userId, assistantType: 'wingman', context: 'advisor' });
 		const reply = compliance.text;
 
-		// Reply is ready — stamp the server half of the latency record. The advisor
-		// chat keeps no per-message DB row, so we mint the join key here and hand it
-		// back to the client, which fills the delivery/render half via /ai-render.
+		// Reply is ready — stamp the server half of the latency record. This id stays
+		// the latency join key (vv_ai_response_timings.reply_message_id) even though
+		// the advisor thread now has real per-message rows: the AI Latency dashboard
+		// keys off it, and the client fills the delivery/render half via /ai-render.
+		// It rides along in the stored turn's payload so the two can be correlated.
 		const replyMessageId = crypto.randomUUID();
 		const generatedAt = new Date().toISOString();
 		const generationMs = Date.now() - t0;
 
-		// Persist the exchange server-side for QA review. Awaited (not fire-and-forget):
-		// on serverless the function is frozen once the response is sent, so an un-awaited
-		// write never completes. try/catch keeps the guarantee that it can't break the reply.
+		// Persist the exchange. Awaited (not fire-and-forget): on serverless the
+		// function is frozen once the response is sent, so an un-awaited write never
+		// completes. try/catch keeps the guarantee that it can't break the reply.
+		//
+		// Two destinations on purpose. advisor_messages is the thread the app reads
+		// back. ai_assistant_advisor_chats is the legacy QA aggregate that the QA
+		// console, admin analytics and ai_qa_reviews' foreign key still depend on.
+		try {
+			await appendAdvisorExchange(supabase, {
+				userId,
+				assistantType: 'wingman',
+				userMessage,
+				reply,
+				replyPayload: { latencyId: replyMessageId }
+			});
+
+			// He is looking at this reply as it lands, so it must not arrive already
+			// counted as unread — otherwise every chat leaves a badge behind.
+			await markAdvisorRead(supabase, userId, 'wingman');
+		} catch (e) {
+			console.warn('[AI Wingman VV chat] advisor thread persist failed:', e);
+		}
 		try {
 			await appendAdvisorChat(supabase, userId, 'wingman', userMessage, reply, generatedAt, replyMessageId);
 		} catch (e) {
-			console.warn('[AI Wingman VV chat] advisor persist failed:', e);
+			console.warn('[AI Wingman VV chat] QA aggregate persist failed:', e);
 		}
 
 		// Record server-side latency, keyed by replyMessageId. match_id holds the

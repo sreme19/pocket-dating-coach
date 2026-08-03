@@ -5,7 +5,7 @@
   import { fade, scale } from 'svelte/transition';
   import { user } from '$lib/verified-vibe/stores';
   import BestieAvatar from '$lib/components/BestieAvatar.svelte';
-  import type { Conversation } from '../../api/verified-vibe/chat/conversations/+server';
+  import type { Conversation, AdvisorSummary } from '../../api/verified-vibe/chat/conversations/+server';
 
   // ── Admin "view-as-user" mode ────────────────────────────────────────────
   // /verified-vibe/chat?adminAs=<userId> — an admin inspecting this user's chats
@@ -80,6 +80,9 @@
 
   // ── State ──────────────────────────────────────────────────────────────────
   let conversations    = $state<Conversation[]>([]);
+  // Unread count + newest headline for the pinned advisor row. Null when the summary
+  // failed server-side — that means no badge and the static subtitle, never a zero.
+  let advisor          = $state<AdvisorSummary | null>(null);
   let attentionMsgs    = $state<AttentionMessage[]>([]);
   let sentAdmirerMsgs  = $state<SentAdmirerMessage[]>([]);
   let isLoading        = $state(true);
@@ -210,6 +213,24 @@
   ));
   let admUnread    = $derived(attentionMsgs.filter(m => !m.isRead).length);
 
+  // ── Pinned advisor row ─────────────────────────────────────────────────────
+  let advisorUnread = $derived(advisor?.unreadCount ?? 0);
+
+  // The headline is a raw coaching turn, so it can carry markdown and line breaks.
+  // Flatten both — the subtitle is plain text on a single clipped line.
+  let advisorHeadline = $derived(
+    advisor?.headline
+      ? advisor.headline.replace(/\*\*/g, '').replace(/^[-•]\s+/gm, '').replace(/\s+/g, ' ').trim()
+      : null
+  );
+
+  // Opening the thread marks it read server-side, so clear the badge on the way out
+  // rather than leaving a stale count on screen through the navigation.
+  function openAdvisor(path: string) {
+    if (advisor) advisor = { ...advisor, unreadCount: 0 };
+    goto(path);
+  }
+
   // Map: otherUserId → matchId — used to link admirer cards to their chat thread
   // once a match has been auto-created from the admirer exchange.
   let userToMatchId = $derived.by(() => {
@@ -314,6 +335,7 @@
 
       const data = await response.json();
       conversations = data.data.conversations;
+      advisor = data.data.advisor ?? null;
 
       if (attnRes?.ok) {
         const attnData = await attnRes.json().catch(() => ({}));
@@ -524,30 +546,44 @@
 
     <!-- AI Bestie pinned row — female users only (hidden in admin view: advisor threads are out of scope) -->
     {#if !adminView && ($user?.gender === 'woman' || $user?.archetype?.endsWith('_woman'))}
-      <button class="bestie-row" onclick={() => goto('/verified-vibe/chat/ai-bestie')}>
+      <button class="bestie-row" onclick={() => openAdvisor('/verified-vibe/chat/ai-bestie')}>
         <BestieAvatar size={48} />
         <div class="bestie-text">
           <div class="bestie-name-row">
             <span class="bestie-name">AI Bestie</span>
             <span class="bestie-badge">ADVISOR</span>
           </div>
-          <p class="bestie-sub">Tips, match summaries &amp; fresh insights</p>
+          {#if advisorHeadline}
+            <p class="bestie-sub bestie-sub-headline">{advisorHeadline}</p>
+          {:else}
+            <p class="bestie-sub">Tips, match summaries &amp; fresh insights</p>
+          {/if}
         </div>
+        {#if advisorUnread > 0}
+          <span class="advisor-badge">{advisorUnread}</span>
+        {/if}
       </button>
       <div class="band-divider"></div>
     {/if}
 
     <!-- AI Wingman pinned row — male users only (hidden in admin view: advisor threads are out of scope) -->
     {#if !adminView && ($user?.gender === 'man' || $user?.archetype?.endsWith('_man'))}
-      <button class="bestie-row wingman-row" onclick={() => goto('/verified-vibe/chat/ai-wingman')}>
+      <button class="bestie-row wingman-row" onclick={() => openAdvisor('/verified-vibe/chat/ai-wingman')}>
         <div class="wingman-avatar">🛡️</div>
         <div class="bestie-text">
           <div class="bestie-name-row">
             <span class="bestie-name">AI Wingman</span>
             <span class="bestie-badge wingman-badge">ADVISOR</span>
           </div>
-          <p class="bestie-sub">Match reads, approach tips &amp; fresh insights</p>
+          {#if advisorHeadline}
+            <p class="bestie-sub bestie-sub-headline">{advisorHeadline}</p>
+          {:else}
+            <p class="bestie-sub">Match reads, approach tips &amp; fresh insights</p>
+          {/if}
         </div>
+        {#if advisorUnread > 0}
+          <span class="advisor-badge">{advisorUnread}</span>
+        {/if}
       </button>
       <div class="band-divider"></div>
     {/if}
@@ -1199,6 +1235,34 @@
     font-size: 13px;
     color: var(--text-3);
     margin: 0;
+  }
+  /* Live headline — the newest advisor turn, clipped to one line so a long coaching
+     line can't grow the pinned row. */
+  .bestie-sub-headline {
+    color: var(--text-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  /* Advisor unread badge — deliberately RED, not the accent green of .unread-badge.
+     Approved break from the convention: the advisor row is pinned above the list, and
+     a green count there reads as just another conversation instead of your coach
+     waiting on you. */
+  .advisor-badge {
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 10px;
+    background: #DC2626;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    margin-left: auto;
   }
 
   .wingman-row {

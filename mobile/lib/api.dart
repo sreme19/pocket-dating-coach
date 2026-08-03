@@ -1911,7 +1911,26 @@ class Conversation {
 
 DateTime? _dt(dynamic v) => v == null ? null : DateTime.tryParse(v.toString());
 
-Future<List<Conversation>> fetchConversations() async {
+/// The advisor row's live state, ridden along on the conversations payload so the
+/// chat list needs no extra round-trip. Null when the server's summary failed —
+/// treat that as "no badge, keep the static subtitle".
+class AdvisorSummary {
+  final String assistantType; // 'wingman' | 'bestie'
+  final int unreadCount;
+  /// One-line teaser from the latest unread advisor turn, else null.
+  final String? headline;
+  final DateTime? headlineAt;
+  AdvisorSummary({
+    required this.assistantType,
+    required this.unreadCount,
+    this.headline,
+    this.headlineAt,
+  });
+}
+
+/// The chat list in one call: conversations plus the advisor row's summary.
+Future<({List<Conversation> conversations, AdvisorSummary? advisor})>
+    fetchConversationsBundle() async {
   final resp = await _dio.get(
     '${Config.apiBase}/api/verified-vibe/chat/conversations',
     options: Options(
@@ -1921,7 +1940,27 @@ Future<List<Conversation>> fetchConversations() async {
   );
   final body = resp.data is Map ? resp.data as Map : const {};
   final data = body['data'] is Map ? body['data'] as Map : const {};
-  final convos = (data['conversations'] as List?) ?? const [];
+  final a = data['advisor'] is Map ? data['advisor'] as Map : null;
+  final headline = (a?['headline'] ?? '').toString();
+  return (
+    conversations: _parseConversations(data['conversations']),
+    advisor: a == null
+        ? null
+        : AdvisorSummary(
+            assistantType: (a['assistantType'] ?? 'bestie').toString(),
+            unreadCount: a['unreadCount'] is num ? (a['unreadCount'] as num).toInt() : 0,
+            headline: headline.isEmpty ? null : headline,
+            headlineAt: _dt(a['headlineAt']),
+          ),
+  );
+}
+
+/// Conversations only — for callers that don't render the advisor row.
+Future<List<Conversation>> fetchConversations() async =>
+    (await fetchConversationsBundle()).conversations;
+
+List<Conversation> _parseConversations(dynamic raw) {
+  final convos = (raw as List?) ?? const [];
   return convos.whereType<Map>().map((c) {
     final u = (c['matchedUser'] as Map?) ?? const {};
     return Conversation(
@@ -2740,7 +2779,15 @@ class AdvisorDraft {
 class AdvisorReply {
   final String reply;
   final List<AdvisorDraft> drafts;
-  AdvisorReply(this.reply, this.drafts);
+  /// Id of the stored assistant turn, so the client can carry the same identity
+  /// the persisted thread will hand back on the next hydration. May be empty.
+  final String? messageId;
+  /// True when the ask was task-shaped: the server queued real work and `reply` is
+  /// only the acknowledgement. The answer lands in the thread later, via cron.
+  final bool taskQueued;
+  /// The queued task's id — ties the ack card to the result turn that supersedes it.
+  final String? taskId;
+  AdvisorReply(this.reply, this.drafts, {this.messageId, this.taskQueued = false, this.taskId});
 }
 
 /// One turn with the advisor. `intent` is 'chat' | 'summary' | 'insights'
@@ -2775,7 +2822,16 @@ Future<AdvisorReply> askAdvisor({
       }
     }
   }
-  return AdvisorReply((body['reply'] ?? body['error'] ?? '…').toString(), drafts);
+  // bestie returns `messageId`, wingman `replyMessageId` — same thing.
+  final mid = (body['messageId'] ?? body['replyMessageId'] ?? '').toString();
+  final tid = (body['taskId'] ?? '').toString();
+  return AdvisorReply(
+    (body['reply'] ?? body['error'] ?? '…').toString(),
+    drafts,
+    messageId: mid.isEmpty ? null : mid,
+    taskQueued: body['taskQueued'] == true,
+    taskId: tid.isEmpty ? null : tid,
+  );
 }
 
 /// A "what-if" lever in the match-intelligence panel (trust/standing deltas).
@@ -2836,6 +2892,94 @@ Future<List<MatchIntel>> fetchMatchIntelligence() async {
       simulation: sim,
     );
   }).toList();
+}
+
+/// One persisted turn in the advisor thread (GET /advisor/history). Mirrors the
+/// server row: `kind` distinguishes an ordinary chat turn from a proactive
+/// greeting/nudge or a task card, and `payload` carries whatever that kind needs.
+class AdvisorHistoryMessage {
+  final String id;
+  final String role; // 'user' | 'assistant'
+  final String kind; // 'chat' | 'greeting' | 'nudge' | 'task_ack' | 'task_result'
+  final String content;
+  final Map<String, dynamic>? payload;
+  /// Set on greeting/nudge turns — routes thumbs feedback to the greeting endpoint.
+  final String? greetingId;
+  final String? taskId;
+  final DateTime? createdAt;
+
+  AdvisorHistoryMessage({
+    required this.id,
+    required this.role,
+    required this.kind,
+    required this.content,
+    this.payload,
+    this.greetingId,
+    this.taskId,
+    this.createdAt,
+  });
+}
+
+/// The advisor thread as the server sees it, plus the unread state.
+class AdvisorHistory {
+  final String assistantType; // 'wingman' | 'bestie'
+  final List<AdvisorHistoryMessage> messages; // oldest → newest (display order)
+  final int unreadCount;
+  final DateTime? lastReadAt;
+  AdvisorHistory({
+    required this.assistantType,
+    required this.messages,
+    required this.unreadCount,
+    required this.lastReadAt,
+  });
+}
+
+/// The canonical advisor thread. Returns null when the fetch fails so the caller
+/// can fall back to its offline cache — non-fatal, like fetchGreeting().
+Future<AdvisorHistory?> fetchAdvisorHistory({int? limit}) async {
+  try {
+    final resp = await _dio.get(
+      '${Config.apiBase}/api/verified-vibe/advisor/history',
+      queryParameters: limit == null ? null : {'limit': limit},
+      options: Options(
+        headers: {'Authorization': _bearer()},
+        receiveTimeout: const Duration(seconds: 30),
+      ),
+    );
+    final b = resp.data is Map ? resp.data as Map : const {};
+    final msgs = (b['messages'] as List?) ?? const [];
+    return AdvisorHistory(
+      assistantType: (b['assistantType'] ?? 'bestie').toString(),
+      messages: msgs.whereType<Map>().map((m) => AdvisorHistoryMessage(
+            id: (m['id'] ?? '').toString(),
+            role: (m['role'] ?? 'assistant').toString(),
+            kind: (m['kind'] ?? 'chat').toString(),
+            content: (m['content'] ?? '').toString(),
+            payload: m['payload'] is Map ? Map<String, dynamic>.from(m['payload'] as Map) : null,
+            greetingId: m['greetingId'] as String?,
+            taskId: m['taskId'] as String?,
+            createdAt: _dt(m['createdAt']),
+          )).toList(),
+      unreadCount: b['unreadCount'] is num ? (b['unreadCount'] as num).toInt() : 0,
+      lastReadAt: _dt(b['lastReadAt']),
+    );
+  } catch (_) {
+    return null; // non-fatal — the advisor falls back to its local cache
+  }
+}
+
+/// Stamp the advisor thread read (clears the badge). Fetching history alone does
+/// NOT mark read — the screen decides when. Non-fatal.
+Future<void> markAdvisorRead() async {
+  try {
+    await _dio.post(
+      '${Config.apiBase}/api/verified-vibe/advisor/mark-read',
+      data: const {},
+      options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
+    );
+  } catch (_) {
+    /* non-fatal — the badge just clears on the next successful call */
+  }
 }
 
 /// Proactive advisor greeting. Returns (id, content) or null if nothing new.
