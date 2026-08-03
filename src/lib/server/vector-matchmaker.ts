@@ -113,17 +113,66 @@ export interface VectorMatchResult {
 	sample: Array<{ manId: string; womanId: string; value: number; phase: 1 | 2; isNew: boolean }>;
 }
 
-export async function runVectorMatchmaker(opts: { dryRun?: boolean; caps?: MatchCaps } = {}): Promise<VectorMatchResult> {
+/**
+ * Write the vv_matchmaker_runs audit row. Non-fatal by design: a failure to log
+ * must never take down a real matching run. Returns the row id, or null.
+ *
+ * The v2 path had no audit trail at all until 2026-08-03 — an on-demand v2 run
+ * fired 85 matches that quite literally left no trace in this table, so the
+ * "did the nightly work?" check silently reported nothing rather than success.
+ */
+async function logRunStart(db: any, runType: 'nightly' | 'on_demand'): Promise<string | null> {
+	try {
+		const { data } = await db
+			.from('vv_matchmaker_runs')
+			.insert({
+				run_type: runType,
+				city: null,
+				pairs_evaluated: 0, hard_filtered: 0, soft_scored: 0, matches_fired: 0, soft_overrides: 0,
+			})
+			.select('id')
+			.single();
+		return data?.id ?? null;
+	} catch (err) {
+		console.error('[vector-matchmaker] failed to open audit row:', err);
+		return null;
+	}
+}
+
+/**
+ * Close the audit row. Sets completed_at ONLY on success, preserving the
+ * invariant that completed_at IS NULL means "this run did not finish" — the
+ * exact signal that exposed the fire-and-forget nightly bug. On failure we
+ * record `error` and deliberately leave completed_at NULL.
+ */
+async function logRunEnd(db: any, runId: string | null, fields: Record<string, unknown>): Promise<void> {
+	if (!runId) return;
+	try {
+		await db.from('vv_matchmaker_runs').update(fields).eq('id', runId);
+	} catch (err) {
+		console.error('[vector-matchmaker] failed to close audit row:', err);
+	}
+}
+
+export async function runVectorMatchmaker(
+	opts: { dryRun?: boolean; caps?: MatchCaps; runType?: 'nightly' | 'on_demand' } = {},
+): Promise<VectorMatchResult> {
 	const db = getSupabase() as any;
 	const caps = opts.caps ?? DEFAULT_CAPS;
 	const dryRun = opts.dryRun ?? false;
 
+	// Dry runs never touch the audit trail — the table means "real runs".
+	const runId = dryRun ? null : await logRunStart(db, opts.runType ?? 'nightly');
+
+	try {
 	const [menIds, womenIds] = await Promise.all([loadActive(db, 'wingman'), loadActive(db, 'bestie')]);
 	const vectors = await ensureVectors(db, [...menIds, ...womenIds]);
 	const men = menIds.map((id) => vectors.get(id)).filter(Boolean) as ActiveUser[];
 	const women = womenIds.map((id) => vectors.get(id)).filter(Boolean) as ActiveUser[];
 
 	if (!men.length || !women.length) {
+		// Empty pool is a legitimate completed run, not a failure.
+		await logRunEnd(db, runId, { completed_at: new Date().toISOString() });
 		return { dryRun, men: men.length, women: women.length, proposed: 0, fired: 0, alreadyMatched: 0, caps, sample: [] };
 	}
 
@@ -174,8 +223,28 @@ export async function runVectorMatchmaker(opts: { dryRun?: boolean; caps?: Match
 		}
 	}
 
+	// Field semantics mirror the legacy runNightlyBatch so both matchers land in
+	// one comparable history: pairs_evaluated = every man×woman pair considered,
+	// soft_scored = pairs that survived top-K candidate filtering, soft_overrides
+	// = phase-2 assignments (matched outside stated preferences).
+	await logRunEnd(db, runId, {
+		completed_at: new Date().toISOString(),
+		pairs_evaluated: men.length * women.length,
+		hard_filtered: Math.max(0, men.length * women.length - candidates.length),
+		soft_scored: candidates.length,
+		matches_fired: fired,
+		soft_overrides: assignments.filter((a) => a.phase === 2).length,
+	});
+
 	return {
 		dryRun, men: men.length, women: women.length,
 		proposed: assignments.length, fired, alreadyMatched, caps, sample,
 	};
+	} catch (err: any) {
+		// Record the failure but leave completed_at NULL: an unfinished run must
+		// stay visibly unfinished, so a killed or crashed batch can never be
+		// mistaken for a successful one.
+		await logRunEnd(db, runId, { error: err?.message ?? String(err) });
+		throw err;
+	}
 }

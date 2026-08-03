@@ -150,7 +150,9 @@ export const POST: RequestHandler = async ({ request }) => {
     }
     // Phase 3: vector matchmaker for real (fires new matches, hysteresis-preserving).
     if (body.task === 'match-v2') {
-      const result = await runVectorMatchmaker({ dryRun: false });
+      // Manually triggered, so it logs as on_demand — keeps the nightly rows in
+      // vv_matchmaker_runs meaning "the cron actually ran".
+      const result = await runVectorMatchmaker({ dryRun: false, runType: 'on_demand' });
       return json({ task: 'match-v2', ...result });
     }
 
@@ -228,7 +230,7 @@ export const POST: RequestHandler = async ({ request }) => {
     // Keep this awaited, and keep `maxDuration` above in step with it.
     await runTrustNormalization();
     if (MATCHMAKER_V2) {
-      const result = await runVectorMatchmaker({ dryRun: false });
+      const result = await runVectorMatchmaker({ dryRun: false, runType: 'nightly' });
       return json({ ok: true, matcher: 'v2', cityScoped, ...result });
     }
     await runNightlyBatch(cityScoped);

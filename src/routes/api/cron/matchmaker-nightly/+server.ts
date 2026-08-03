@@ -52,7 +52,9 @@ const handle: RequestHandler = async ({ request }) => {
 		await runTrustNormalization();
 
 		if (MATCHMAKER_V2) {
-			const result = await runVectorMatchmaker({ dryRun: false });
+			// runType 'nightly' is what makes this run visible in vv_matchmaker_runs
+			// as the nightly success signal — see logRunStart in vector-matchmaker.
+			const result = await runVectorMatchmaker({ dryRun: false, runType: 'nightly' });
 			return json({ ok: true, matcher: 'v2', ...result });
 		}
 
