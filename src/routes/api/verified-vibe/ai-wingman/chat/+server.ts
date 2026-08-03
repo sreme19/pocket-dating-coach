@@ -27,6 +27,7 @@ import {
 	CLAUDE_HISTORY_TURNS
 } from '$lib/server/advisor-thread';
 import { detectTaskIntent, createAdvisorTask } from '$lib/server/advisor-tasks';
+import { resolveUserId, reconcileBodyUserId } from '$lib/server/require-user';
 import { loadWingmanAdvisorContext } from '$lib/server/wingman-advisor-context';
 import { buildAIWingmanAdvisorSystemPrompt } from '$lib/prompts';
 import { touchLastActive } from '$lib/server/pool-registry';
@@ -51,8 +52,16 @@ export const POST: RequestHandler = async ({ request }) => {
 			history?: { role: 'user' | 'assistant'; content: string }[];
 		};
 
-		userId = (body.userId ?? '').trim();
-		if (!userId) return json({ error: 'userId is required' }, { status: 400 });
+		// ── Identity comes from the token, never the body ─────────────────────
+		// This route used to take `body.userId` on trust. It is a public URL, so
+		// anyone could POST any member's id and read his private coaching context —
+		// trust score, standing, band, and his matches by name — as well as spend
+		// Anthropic credits without an account.
+		const authedUserId = await resolveUserId(request);
+		if (!authedUserId) return json({ error: 'Unauthorized' }, { status: 401 });
+		const reconciled = reconcileBodyUserId(authedUserId, body.userId);
+		if (!reconciled.ok) return json({ error: reconciled.reason }, { status: 403 });
+		userId = reconciled.userId;
 
 		// Touch last_active and check for pending intelligence reports (fire-and-forget for active touch)
 		touchLastActive(userId).catch(() => {});

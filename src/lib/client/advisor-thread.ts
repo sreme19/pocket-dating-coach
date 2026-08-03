@@ -34,7 +34,7 @@ export interface AdvisorHistory {
   lastReadAt: string | null;
 }
 
-async function accessToken(): Promise<string | null> {
+export async function accessToken(): Promise<string | null> {
   try {
     const { data: { session } } = await getSupabaseClient().auth.getSession();
     return session?.access_token ?? null;

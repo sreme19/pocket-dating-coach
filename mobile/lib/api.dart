@@ -2805,7 +2805,10 @@ Future<AdvisorReply> askAdvisor({
     '${Config.apiBase}/api/verified-vibe/$path/chat',
     data: {'userId': uid, 'message': message, 'intent': intent, 'history': history},
     options: Options(
-      headers: {'Content-Type': 'application/json'},
+      // The bearer is REQUIRED now: the endpoint derives identity from the token
+      // and rejects a body userId that disagrees with it. Sending uid as well is
+      // harmless (it is cross-checked, not trusted).
+      headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'},
       receiveTimeout: const Duration(seconds: 60),
     ),
   );
@@ -3078,7 +3081,9 @@ Future<void> submitMessageFeedback({
       'messageContent': messageContent,
       if (reasonChip != null) 'reasonChip': reasonChip,
     },
-    options: Options(headers: {'Content-Type': 'application/json'}),
+    // The endpoint derives identity from the token now and rejects a body userId
+    // that disagrees with it, so the bearer is required.
+    options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
   );
 }
 

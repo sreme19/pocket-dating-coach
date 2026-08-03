@@ -11,6 +11,7 @@ import {
 	CLAUDE_HISTORY_TURNS
 } from '$lib/server/advisor-thread';
 import { detectTaskIntent, createAdvisorTask } from '$lib/server/advisor-tasks';
+import { resolveUserId, reconcileBodyUserId } from '$lib/server/require-user';
 import { logAppError } from '$lib/server/logAppError';
 import { loadPreferences, updatePreferences } from '$lib/server/profile-service';
 import type { PreferencesProfile } from '$lib/server/profile-service';
@@ -63,11 +64,20 @@ export const POST: RequestHandler = async ({ request }) => {
 			history?: { role: 'user' | 'assistant'; content: string }[];
 		};
 
-		// ── Validate userId ───────────────────────────────────────────────────
-		userId = (body.userId ?? '').trim();
-		if (!userId) {
-			return json({ error: 'userId is required' }, { status: 400 });
+		// ── Identity comes from the token, never the body ─────────────────────
+		// This route used to take `body.userId` on trust. It is a public URL, so
+		// anyone could POST any member's id and read her private coaching context —
+		// trust score, standing, band, and her matches by name — as well as spend
+		// Anthropic credits without an account.
+		const authedUserId = await resolveUserId(request);
+		if (!authedUserId) {
+			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
+		const reconciled = reconcileBodyUserId(authedUserId, body.userId);
+		if (!reconciled.ok) {
+			return json({ error: reconciled.reason }, { status: 403 });
+		}
+		userId = reconciled.userId;
 
 		// Touch last_active
 		touchLastActive(userId).catch(() => {});

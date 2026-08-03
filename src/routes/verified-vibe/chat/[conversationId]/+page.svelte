@@ -162,9 +162,17 @@
   ) {
     if (adminView) return; // read-only admin view
     try {
+      // Dynamic import, matching how this file already reaches the client elsewhere.
+      const { getSupabaseClient } = await import('$lib/client/supabase');
+      const token = (await getSupabaseClient().auth.getSession()).data.session?.access_token ?? null;
       await fetch('/api/verified-vibe/ai-bestie/feedback', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        // The endpoint derives identity from the token now and rejects a body
+        // userId that disagrees with it, so this header is required.
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({
           userId: currentUserId ?? $user?.id ?? '',
           assistantType: 'bestie',

@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
+import { resolveUserId, reconcileBodyUserId } from '$lib/server/require-user';
 
 /**
  * POST /api/verified-vibe/ai-bestie/feedback
@@ -36,14 +37,22 @@ export const POST: RequestHandler = async ({ request }) => {
 			feedbackText?: string | null;
 		};
 
-		const userId         = (body.userId ?? '').trim();
+		// Identity comes from the token, never the body — this route used to accept
+		// any userId, letting anyone file feedback in another member's name and skew
+		// the QA review queue.
+		const authedUserId = await resolveUserId(request);
+		if (!authedUserId) {
+			return json({ error: 'Unauthorized' }, { status: 401 });
+		}
+		const reconciled = reconcileBodyUserId(authedUserId, body.userId);
+		if (!reconciled.ok) {
+			return json({ error: reconciled.reason }, { status: 403 });
+		}
+		const userId = reconciled.userId;
+
 		const assistantType  = (body.assistantType ?? 'bestie').trim();
 		const feedbackType   = (body.feedbackType ?? '').trim();
 		const messageContent = (body.messageContent ?? '').trim().slice(0, 2000); // cap at 2 k chars
-
-		if (!userId) {
-			return json({ error: 'userId is required' }, { status: 400 });
-		}
 		if (!['bestie', 'wingman'].includes(assistantType)) {
 			return json({ error: 'assistantType must be "bestie" or "wingman"' }, { status: 400 });
 		}

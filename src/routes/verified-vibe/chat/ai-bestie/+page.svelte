@@ -4,10 +4,22 @@
   import { fade, fly } from 'svelte/transition';
   import { user } from '$lib/verified-vibe/stores';
   import { getSupabaseClient } from '$lib/client/supabase';
-  import { fetchAdvisorHistory, markAdvisorThreadRead, type AdvisorKind } from '$lib/client/advisor-thread';
+  import { accessToken, fetchAdvisorHistory, markAdvisorThreadRead, type AdvisorKind } from '$lib/client/advisor-thread';
   import VoiceDictation from '$lib/components/VoiceDictation.svelte';
   import BestieAvatar from '$lib/components/BestieAvatar.svelte';
   import EcosystemExplainer from '$lib/components/EcosystemExplainer.svelte';
+
+  /**
+   * Bearer header for the advisor endpoints. They derive identity from the token
+   * now and reject a body userId that disagrees, so a request without this gets a
+   * 401. Returns {} when there is no session, letting the call fail cleanly as
+   * unauthorized rather than throwing here.
+   */
+  async function authHeader(): Promise<Record<string, string>> {
+    const token = await accessToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
+
 
   // ── Proactive greeting ────────────────────────────────────────────────────
   interface Greeting {
@@ -291,7 +303,7 @@
     try {
       await fetch('/api/verified-vibe/ai-bestie/feedback', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
         body: JSON.stringify({
           userId: $user?.id ?? '',
           assistantType: 'bestie',
@@ -519,7 +531,7 @@
     try {
       const res = await fetch('/api/verified-vibe/ai-bestie/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeader()) },
         body: JSON.stringify({
           userId: $user?.id ?? '',
           message: opts.intent ? '' : text,
