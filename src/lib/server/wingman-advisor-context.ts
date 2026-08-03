@@ -47,8 +47,12 @@ export interface WingmanAdvisorContext {
 }
 
 export interface LoadWingmanAdvisorContextOpts {
-	/** 'insights' applies a 48h recency window to flag freshly-active matches. */
-	intent?: 'chat' | 'summary' | 'insights';
+	/**
+	 * 'insights' applies a 48h recency window to flag freshly-active matches.
+	 * Every other intent — including 'shared', which answers from his own ledger
+	 * (§E) rather than from match state — behaves like 'chat' here.
+	 */
+	intent?: 'chat' | 'summary' | 'insights' | 'shared';
 }
 
 /**

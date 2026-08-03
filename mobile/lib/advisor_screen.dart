@@ -92,6 +92,10 @@ class _AdvisorScreenState extends State<AdvisorScreen> with WidgetsBindingObserv
         (label: 'Summarize matches', intent: 'summary'),
         (label: _wm ? 'New insights' : 'Fresh insights', intent: 'insights'),
         (label: 'Better matches', intent: 'better_matches'),
+        // Wingman only: his own view of the cross-conversation ledger (§E) — what
+        // he has told besties and whether it is being reused. There is no women's
+        // equivalent (the ledger is a man's answers), so Bestie must not show it.
+        if (_wm) (label: "What I've shared", intent: 'shared'),
         (label: 'Update profile', intent: 'update_profile'),
       ];
 
@@ -338,7 +342,8 @@ class _AdvisorScreenState extends State<AdvisorScreen> with WidgetsBindingObserv
       await _send(text: 'How can I get better matches?');
       return;
     }
-    // summary / insights — empty message + intent
+    // summary / insights / shared — empty message + intent; the server supplies
+    // the question text for each so the phrasing lives in one place.
     setState(() => _turns.add(_Turn('user', label)));
     await _run(message: '', intent: intent);
   }

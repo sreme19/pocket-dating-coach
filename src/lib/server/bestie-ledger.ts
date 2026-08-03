@@ -246,6 +246,75 @@ ASK HIM ABOUT REUSING WHAT HE HAS ALREADY SHARED — do this in THIS message, on
 }
 
 /**
+ * HIS OWN view of the ledger, for the Wingman "what have I shared" chip.
+ *
+ * Deliberately available whatever his consent state. He may have said no and
+ * still want to know what is sitting there — and being able to see it is what
+ * turns the consent question from an abstraction into a decision. Reading it
+ * back to him is also the only place the ledger is ever shown to a person; a
+ * Bestie only ever gets it woven into her own context.
+ *
+ * Handed to Wingman as raw material to summarise rather than as a script, so it
+ * lands in his voice like the rest of the advisor surface.
+ */
+export async function loadOwnLedgerContext(supabase: any, userId: string): Promise<string> {
+	let entries: LedgerEntry[] = [];
+	let consent: LedgerConsent = 'unasked';
+	try {
+		const [ledger, user] = await Promise.all([
+			loadLedger(supabase, userId),
+			supabase
+				.from('verified_vibe_users')
+				.select('ledger_consent')
+				.eq('id', userId)
+				.maybeSingle()
+				.then((r: any) => r.data)
+		]);
+		entries = ledger;
+		consent = (user?.ledger_consent ?? 'unasked') as LedgerConsent;
+	} catch {
+		return '';
+	}
+
+	const status =
+		consent === 'granted'
+			? 'He HAS agreed that besties can use this, so they are being spared the repeat questions. He can switch that off in his settings whenever he wants.'
+			: consent === 'declined'
+				? 'He has NOT agreed to besties using this, so nobody is reading it. It is only stored. If he changes his mind he can turn it on in his settings, and he would stop being asked the same things twice.'
+				: 'Nobody has used this yet. A bestie will ask him at some point whether she can, so he does not have to repeat himself. He can also turn it on in his settings.';
+
+	if (entries.length === 0) {
+		return `
+
+WHAT HE HAS SHARED SO FAR (§E — answer his "what do you know about me" / "what have I shared" question from THIS, and nothing else):
+- Nothing has been saved yet. Things he says about himself in chats get noted so he does not have to repeat them to every match.
+- ${status}
+Tell him plainly that there is nothing stored yet, and why that is normal rather than a problem. Do not invent entries.`;
+	}
+
+	const byTopic = new Map<string, string[]>();
+	for (const e of entries) {
+		const list = byTopic.get(e.topic) ?? [];
+		if (list.length < 4) list.push(e.answer);
+		byTopic.set(e.topic, list);
+	}
+	const lines = [...byTopic.entries()]
+		.map(([topic, answers]) => `  - ${topic.replace(/_/g, ' ')}: ${answers.map((a) => `"${a}"`).join('; ')}`)
+		.join('\n');
+
+	return `
+
+WHAT HE HAS SHARED SO FAR (§E — answer his "what do you know about me" / "what have I shared" question from THIS, and nothing else):
+${lines}
+- ${status}
+How to answer:
+- Summarise it back warmly and briefly, grouped the way it is grouped above. These are HIS words, so quoting a fragment is fine.
+- Be straight about the status above. If he has not agreed yet, say what agreeing would save him, once, without pushing.
+- Never mention which match or conversation anything came from. We do not store that, so you genuinely do not know.
+- Do not add anything that is not listed above, and never guess at what else we might know.`;
+}
+
+/**
  * Told once per Bestie, when he has already said yes elsewhere: she is caught up,
  * and he can switch it off. He agreed to a general reuse, so this is a courtesy
  * notice rather than a second ask — but he should never discover it silently.

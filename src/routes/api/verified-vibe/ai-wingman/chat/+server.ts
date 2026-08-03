@@ -7,8 +7,8 @@
  *
  * Body:
  *   userId   string
- *   message  string   (empty for summary/insights intents)
- *   intent?  'chat' | 'summary' | 'insights'
+ *   message  string   (empty for summary/insights/shared intents)
+ *   intent?  'chat' | 'summary' | 'insights' | 'shared'
  *   history? { role: 'user'|'assistant', content: string }[]
  *
  * Response: { reply: string }
@@ -36,6 +36,7 @@ import { popPendingChatMessage } from '$lib/server/intelligence-report-processor
 import { buildCompetitiveSnapshot } from '$lib/server/competitive-snapshot';
 import { loadMatchIntelligenceContext } from '$lib/server/match-intelligence';
 import { loadVectorAdvisorContext, loadPathPlanContext, loadPortfolioContext } from '$lib/server/vector-advisor-context';
+import { loadOwnLedgerContext } from '$lib/server/bestie-ledger';
 import { complianceGate } from '$lib/server/ai-compliance';
 import { logAppError } from '$lib/server/logAppError';
 
@@ -49,7 +50,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		const body = await request.json() as {
 			userId?: string;
 			message?: string;
-			intent?: 'chat' | 'summary' | 'insights';
+			intent?: 'chat' | 'summary' | 'insights' | 'shared';
 			history?: { role: 'user' | 'assistant'; content: string }[];
 		};
 
@@ -82,6 +83,8 @@ export const POST: RequestHandler = async ({ request }) => {
 				userMessage = "Give me a quick read of my matches. Who deserves my attention right now?";
 			} else if (intent === 'insights') {
 				userMessage = "What's new across my matches? Any fresh moves I should make?";
+			} else if (intent === 'shared') {
+				userMessage = "What have I already shared about myself, and who can see it?";
 			} else {
 				return json({ error: 'message is required for chat intent' }, { status: 400 });
 			}
@@ -187,6 +190,13 @@ export const POST: RequestHandler = async ({ request }) => {
 		// Cross-match portfolio (§10/§11a) — verify-actions ranked by breadth of impact.
 		const portfolioContext = await loadPortfolioContext(supabase, userId);
 
+		// ── What HE has shared (§E cross-conversation ledger) ───────────────────
+		// Only on the dedicated intent: it's two extra reads that every other turn
+		// would pay for nothing. Loaded regardless of his consent state — it is his
+		// own data, and seeing it is what makes the consent choice concrete.
+		const ledgerContext =
+			intent === 'shared' ? await loadOwnLedgerContext(supabase, userId) : '';
+
 		// ── Build system prompt ────────────────────────────────────────────────
 		const systemPrompt = buildAIWingmanAdvisorSystemPrompt({
 			personalityContext,
@@ -200,6 +210,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			profileStrengthContext,
 			pathPlanContext,
 			portfolioContext,
+			ledgerContext,
 			pendingReportContext
 		});
 

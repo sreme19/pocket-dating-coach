@@ -397,6 +397,13 @@ export interface WingmanAdvisorPromptContext {
 	pathPlanContext?: string;
 	/** Cross-match portfolio — verify-actions ranked by how many of his matches they lift (§10/§11a). */
 	portfolioContext?: string;
+	/**
+	 * What HE has told besties, in his own words, plus whether it is currently
+	 * being reused (§E). Loaded only for the "what have I shared" intent, and
+	 * shown regardless of his consent state — it is his own data, and seeing it
+	 * is what makes the consent question concrete rather than abstract.
+	 */
+	ledgerContext?: string;
 }
 
 /**
@@ -440,7 +447,7 @@ Your role:
 
 Tone: like your most trusted, insightful friend who genuinely believes in you and wants to see you win. Warm and uplifting first, tactical second. Never dismissive or cold. Short paragraphs. Practical but encouraging.
 Format: use **bold** for names and key points. Use bullets (- item) for multi-point info. Use emoji warmly — 🟢 going well, 💡 tip, ⚡ opportunity, ✨ highlight, 💪 strength. Keep it mobile-friendly and motivating.
-${ctx.personalityContext}${ctx.masterProfileContext}${ctx.artifactsContext}${ctx.verificationContext ?? ''}${ctx.admirerContext}${ctx.matchContext}${ctx.competitiveContext ?? ''}${ctx.matchIntelligenceContext ?? ''}${ctx.profileStrengthContext ?? ''}${ctx.pathPlanContext ?? ''}${ctx.portfolioContext ?? ''}${ctx.pendingReportContext}`;
+${ctx.personalityContext}${ctx.masterProfileContext}${ctx.artifactsContext}${ctx.verificationContext ?? ''}${ctx.admirerContext}${ctx.matchContext}${ctx.competitiveContext ?? ''}${ctx.matchIntelligenceContext ?? ''}${ctx.profileStrengthContext ?? ''}${ctx.pathPlanContext ?? ''}${ctx.portfolioContext ?? ''}${ctx.ledgerContext ?? ''}${ctx.pendingReportContext}`;
 }
 
 /**

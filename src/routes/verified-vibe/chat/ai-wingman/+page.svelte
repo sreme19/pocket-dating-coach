@@ -99,10 +99,14 @@
     }).filter(Boolean).join('');
   }
 
-  const CHIPS: { label: string; icon: string; intent: 'summary' | 'insights' | 'upload' | 'update_profile' | 'better_matches' }[] = [
+  const CHIPS: { label: string; icon: string; intent: 'summary' | 'insights' | 'upload' | 'update_profile' | 'better_matches' | 'shared' }[] = [
     { label: 'Summarize matches', icon: '📋', intent: 'summary' },
     { label: 'New insights', icon: '⚡', intent: 'insights' },
     { label: 'How can I get better matches', icon: '💡', intent: 'better_matches' },
+    // His own view of the cross-conversation ledger (§E): what he has told
+    // besties and whether it is being reused. Shown whatever his consent state —
+    // it is his own data, and seeing it is what makes the choice concrete.
+    { label: "What I've shared", icon: '🗂️', intent: 'shared' },
     { label: 'Update profile', icon: '✏️', intent: 'update_profile' },
     { label: 'Upload proof', icon: '📸', intent: 'upload' }
   ];
@@ -519,7 +523,7 @@
     }
   }
 
-  function handleChip(intent: 'summary' | 'insights' | 'upload' | 'update_profile' | 'better_matches') {
+  function handleChip(intent: 'summary' | 'insights' | 'upload' | 'update_profile' | 'better_matches' | 'shared') {
     if (intent === 'upload') {
       showUploadSuggestions = !showUploadSuggestions;
       return;
@@ -611,7 +615,7 @@
     }));
   }
 
-  async function send(opts: { text?: string; intent?: 'summary' | 'insights' }) {
+  async function send(opts: { text?: string; intent?: 'summary' | 'insights' | 'shared' }) {
     if (sending) return;
     const text = (opts.text ?? input).trim();
     if (!text && !opts.intent) return;
@@ -622,6 +626,7 @@
     const userContent =
       opts.intent === 'summary' ? '📋 Summarize matches'
       : opts.intent === 'insights' ? '⚡ Any new insights?'
+      : opts.intent === 'shared' ? "🗂️ What have I shared?"
       : text;
 
     messages = [...messages, { role: 'user', content: userContent, timestamp: new Date() }];
