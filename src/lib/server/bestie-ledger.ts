@@ -278,10 +278,10 @@ export async function loadOwnLedgerContext(supabase: any, userId: string): Promi
 
 	const status =
 		consent === 'granted'
-			? 'He HAS agreed that besties can use this, so they are being spared the repeat questions. He can switch that off in his settings whenever he wants.'
+			? 'He HAS agreed that besties can use this, so they are being spared the repeat questions. He can switch it off any time under Settings > Safety > "Reuse what I have shared", and switching it off keeps what he said rather than deleting it.'
 			: consent === 'declined'
-				? 'He has NOT agreed to besties using this, so nobody is reading it. It is only stored. If he changes his mind he can turn it on in his settings, and he would stop being asked the same things twice.'
-				: 'Nobody has used this yet. A bestie will ask him at some point whether she can, so he does not have to repeat himself. He can also turn it on in his settings.';
+				? 'He has NOT agreed to besties using this, so nobody is reading it. It is only stored. He can turn it on any time under Settings > Safety > "Reuse what I have shared", and he would stop being asked the same things twice.'
+				: 'Nobody has used this yet. A bestie will ask him at some point whether she can, so he does not have to repeat himself. He can also turn it on himself under Settings > Safety > "Reuse what I have shared".';
 
 	if (entries.length === 0) {
 		return `
@@ -324,7 +324,7 @@ export function buildConsentNoticeBlock(matchName: string): string {
 
 TELL HIM ONCE, IN THIS MESSAGE, THAT YOU ARE CAUGHT UP:
 - ${matchName} previously agreed that riteangle can reuse what he has already shared, so you have been caught up and will not make him repeat himself.
-- Say it in ONE short, warm clause inside your reply, and mention he can turn that off in his settings whenever he likes. Not a paragraph, not a disclaimer.
+- Say it in ONE short, warm clause inside your reply, and mention he can switch it off in his settings whenever he likes (it lives under Safety, called "Reuse what I have shared" — only name the exact path if he asks). Not a paragraph, not a disclaimer.
 - Do NOT list what you know, do NOT say where it came from, and never mention other matches or conversations.
 - Then carry on normally. Do not raise it again in this conversation.`;
 }

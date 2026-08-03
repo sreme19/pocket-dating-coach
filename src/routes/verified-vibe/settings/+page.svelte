@@ -14,6 +14,7 @@
   import PreferencesSettings from '$lib/verified-vibe/components/PreferencesSettings.svelte';
   import PrivacySettings from '$lib/verified-vibe/components/PrivacySettings.svelte';
   import BlockedUsers from '$lib/verified-vibe/components/BlockedUsers.svelte';
+  import LedgerConsentSetting from '$lib/verified-vibe/components/LedgerConsentSetting.svelte';
   import NotificationPreferencesSettings from '$lib/verified-vibe/components/NotificationPreferencesSettings.svelte';
   import {
     settingsStore,
@@ -148,6 +149,13 @@
           onSave={handlePrivacySave}
           onCancel={() => settingsStore.clearError()}
         />
+
+        <div class="divider"></div>
+
+        <!-- Cross-conversation memory (§E). Self-contained against the real
+             endpoint — this is the control a Bestie's message tells him about,
+             so it must not depend on the placeholder userId above. -->
+        <LedgerConsentSetting />
 
         <div class="divider"></div>
 

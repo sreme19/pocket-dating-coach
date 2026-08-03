@@ -16,10 +16,53 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  /// Cross-conversation memory (§E). Null until loaded — the row stays hidden
+  /// rather than flashing a wrong state, and stays hidden entirely if the read
+  /// fails, since a toggle that lies about what it controls is worse than none.
+  LedgerConsentState? _ledger;
+  bool _ledgerBusy = false;
+
   @override
   void initState() {
     super.initState();
     AppLogger.instance.screen('settings');
+    _loadLedgerConsent();
+  }
+
+  Future<void> _loadLedgerConsent() async {
+    try {
+      final s = await getLedgerConsent();
+      if (mounted) setState(() => _ledger = s);
+    } catch (_) {
+      // Leave it hidden. Nothing here is worth an error banner.
+    }
+  }
+
+  Future<void> _setLedgerConsent(bool enabled) async {
+    if (_ledgerBusy) return;
+    final prev = _ledger;
+    // Optimistic: a settings switch that lags behind the finger feels broken.
+    setState(() {
+      _ledgerBusy = true;
+      _ledger = LedgerConsentState(
+        enabled: enabled,
+        consent: enabled ? 'granted' : 'declined',
+        entryCount: prev?.entryCount ?? 0,
+      );
+    });
+    AppLogger.instance.action('settings', enabled ? 'ledger_consent_on' : 'ledger_consent_off');
+    try {
+      await setLedgerConsent(enabled);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _ledger = prev);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not save that. Try again in a moment.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _ledgerBusy = false);
+    }
   }
 
   Future<void> _signOut(BuildContext context, {bool localOnly = false}) async {
@@ -72,6 +115,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'Review and unblock people you’ve blocked',
             const BlockedUsersScreen(),
           ),
+          // Cross-conversation memory (§E). Hidden until we know the real state:
+          // a bestie's message tells him this control exists, so it must show the
+          // truth or not appear at all.
+          if (_ledger != null) _ledgerRow(),
           _header('APP'),
           _row('Version', '1.0.1 (9)'),
           _row('Build', 'Flutter · riteangle'),
@@ -134,6 +181,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       );
+
+  /// The one control over cross-conversation memory (§E). The subtitle states
+  /// plainly that turning it off keeps rather than deletes what he has said —
+  /// otherwise "off" reads as "erase", and a man who wanted to pause sharing
+  /// would think he had wiped it.
+  Widget _ledgerRow() {
+    final s = _ledger!;
+    final count = s.entryCount;
+    final sub = s.enabled
+        ? (count > 0
+            ? 'Besties can use the $count ${count == 1 ? 'thing' : 'things'} you have already shared, so you do not repeat yourself'
+            : 'Besties can use what you have already shared, so you do not repeat yourself')
+        : (count > 0
+            ? 'Off. Your $count saved ${count == 1 ? 'answer is' : 'answers are'} kept but unused, so you may be asked the same things again'
+            : 'Off. Besties will not reuse anything you have shared');
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Reuse what I have shared',
+                  style: TextStyle(color: Color(Config.text1), fontSize: 15, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 2),
+              Text(sub, style: const TextStyle(color: Color(Config.text3), fontSize: 12, height: 1.35)),
+            ]),
+          ),
+          const SizedBox(width: 12),
+          Switch(
+            value: s.enabled,
+            onChanged: _ledgerBusy ? null : _setLedgerConsent,
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _row(String label, String value, {bool mono = false}) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),

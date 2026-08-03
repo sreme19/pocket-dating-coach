@@ -638,6 +638,40 @@ Future<void> savePreferenceWeights(Map<String, int> importance) async {
   );
 }
 
+// ── Cross-conversation memory consent (§E) ────────────────────────────────────
+
+/// What a man has shared across conversations, and whether besties may use it.
+/// `entryCount` lets Settings say something concrete instead of an abstract toggle.
+class LedgerConsentState {
+  final bool enabled;
+  final String consent; // unasked | granted | declined
+  final int entryCount;
+  const LedgerConsentState({required this.enabled, required this.consent, required this.entryCount});
+}
+
+Future<LedgerConsentState> getLedgerConsent() async {
+  final resp = await _dio.get(
+    '${Config.apiBase}/api/verified-vibe/ledger-consent',
+    options: Options(headers: {'Authorization': _bearerToken()}),
+  );
+  final d = resp.data is Map ? resp.data as Map : const {};
+  return LedgerConsentState(
+    enabled: d['enabled'] == true,
+    consent: (d['consent'] ?? 'unasked').toString(),
+    entryCount: d['entryCount'] is num ? (d['entryCount'] as num).toInt() : 0,
+  );
+}
+
+/// Turn reuse on or off. Off LOCKS the stored answers rather than deleting them,
+/// so turning it back on restores the value instead of starting from empty.
+Future<void> setLedgerConsent(bool enabled) async {
+  await _dio.post(
+    '${Config.apiBase}/api/verified-vibe/ledger-consent',
+    data: {'enabled': enabled},
+    options: Options(headers: {'Authorization': _bearerToken(), 'Content-Type': 'application/json'}),
+  );
+}
+
 // ── Networking Season (discovery mode) ─────────────────────────────────────────
 
 /// The user's current season: true = networking, false = date (default).

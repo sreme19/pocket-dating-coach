@@ -93,17 +93,27 @@
 				To power AI Bestie and AI Wingman — personalised AI companions that advise you and, in the
 				case of Bestie, converse with your matches on your behalf.
 			</li>
-			<!-- Discloses the chat-intel → vectors flow (chat-intel-capture.ts), which is
-			     already live: what a member states about themselves in ANY conversation is
-			     distilled onto their profile and informs matching with every match, not just
-			     the one they were talking to. Message CONTENT is not shared between
-			     conversations. Expand this when the cross-conversation answer ledger ships. -->
+			<!-- Two distinct flows, deliberately described separately because they have
+			     different consent rules. (1) chat-intel-capture.ts → vector-builder: always
+			     on, feeds only the member's OWN profile. (2) vv_answer_ledger: stores his
+			     answers verbatim and is READ by other matches' AI Bestie only once he has
+			     agreed (ledger_consent = 'granted'). Neither shares message content. -->
 			<li>
 				To keep your profile current — what you state about yourself in conversations (for
 				example your work, interests, or what you are looking for) is distilled into your
 				own profile and preferences, which inform how we match you with everyone, not only
 				the person you were speaking to. The messages themselves are not shared between
 				conversations.
+			</li>
+			<li>
+				To save you repeating yourself — answers you give about yourself in conversations
+				are saved so that, <strong>with your agreement</strong>, an AI Bestie you talk to
+				later can see what you have already covered instead of asking again. We ask you in
+				the conversation before any of it is used, and you can turn this on or off at any
+				time in Settings. Until you agree, your answers are stored but not used. We do not
+				record which conversation an answer came from, so it can never be traced back to a
+				particular person, and no one else sees your answers — only the AI. Turning this off
+				stops it being used; it does not delete it, so turning it back on restores it.
 			</li>
 			<li>To match you with compatible people using our matchmaking engine.</li>
 			<li>To send push notifications relevant to your activity (only with your permission).</li>
