@@ -493,7 +493,7 @@ class _ProfileBody extends StatelessWidget {
         Builder(builder: (context) {
           const defaultTags = <String, List<String>>{
             'casual_man':               ['Laid-back', 'Genuine', 'Present'],
-            'casual_generous_man':      ['Generous', 'Sophisticated', 'Discreet'],
+            'casual_generous_man':      ['Present', 'Sophisticated', 'Discreet'],
             'forever_focused_man':      ['Intentional', 'Loyal', 'Grounded'],
             'marriage_minded_man':      ['Committed', 'Family-first', 'Stable'],
             'hopeless_romantic_man':    ['Romantic', 'Emotionally available', 'All-in'],
