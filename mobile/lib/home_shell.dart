@@ -49,12 +49,29 @@ class _ChatIcon extends StatelessWidget {
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
 
+  /// Which tab is actually on screen (0 Discover, 1 Chat, 2 Profile).
+  ///
+  /// IndexedStack keeps every tab BUILT and alive, and all three share one
+  /// ModalRoute — so a screen cannot tell whether it is visible by asking
+  /// `ModalRoute.of(context)!.isCurrent`, which is true for all of them at once.
+  /// The chat list relied on exactly that check before showing its hand-off
+  /// modal, which is why the modal appeared on top of Discover.
+  static final ValueNotifier<int> visibleTab = ValueNotifier<int>(0);
+
+  /// Index of the Chat tab, so callers do not hard-code the magic number.
+  static const int chatTabIndex = 1;
+
   @override
   State<HomeShell> createState() => _HomeShellState();
 }
 
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
+
+  void _setIndex(int i) {
+    setState(() => _index = i);
+    HomeShell.visibleTab.value = i;
+  }
 
   @override
   void initState() {
@@ -64,7 +81,7 @@ class _HomeShellState extends State<HomeShell> {
     SeasonState.hydrate();
     // Let push deep-links switch the active tab (e.g. Wingman → Chat).
     PushService.onSwitchTab = (i) {
-      if (mounted && i >= 0 && i < 3) setState(() => _index = i);
+      if (mounted && i >= 0 && i < 3) _setIndex(i);
     };
     // Authenticated + in the app — request push permission + register FCM token.
     PushService.registerForUser();
@@ -99,7 +116,7 @@ class _HomeShellState extends State<HomeShell> {
                   child: InkWell(
                     onTap: () {
                       AppLogger.instance.action('home', 'season_banner_tap');
-                      setState(() => _index = 0); // jump to Discover to flip back
+                      _setIndex(0); // jump to Discover to flip back
                     },
                     child: SizedBox(
                       width: double.infinity,
@@ -133,7 +150,7 @@ class _HomeShellState extends State<HomeShell> {
                 selectedIndex: _index,
                 onDestinationSelected: (i) {
                   AppLogger.instance.action('home', 'switch_tab', meta: {'tab': i});
-                  setState(() => _index = i);
+                  _setIndex(i);
                 },
                 destinations: [
                   NavigationDestination(

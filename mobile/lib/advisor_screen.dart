@@ -854,10 +854,56 @@ String _fmtNum(num n) {
 /// Public (unlike the other cards in this file) so the App Store 1.1.4 money rule
 /// can be pinned down by a widget test — see test/portfolio_card_test.dart. That
 /// rule is not a preference, so it gets a guard rather than a comment.
-class PortfolioCard extends StatelessWidget {
+class PortfolioCard extends StatefulWidget {
   final AdvisorPortfolio p;
   final void Function(String categoryId) onOpen;
   const PortfolioCard({super.key, required this.p, required this.onOpen});
+
+  /// Shared with the web card (localStorage) by name only — the two stores never
+  /// sync, but keeping one key means one concept to reason about.
+  static const String openKey = 'vv_trust_boost_card_open';
+
+  @override
+  State<PortfolioCard> createState() => _PortfolioCardState();
+}
+
+class _PortfolioCardState extends State<PortfolioCard> {
+  /// Expanded until the member says otherwise: the card has to be discovered
+  /// before it can be dismissed, and a first-run collapse would hide the entire
+  /// point of the surface. Only a stored '0' collapses it — same rule as the web
+  /// card, so the two platforms behave identically.
+  bool _open = true;
+
+  AdvisorPortfolio get p => widget.p;
+  void Function(String categoryId) get onOpen => widget.onOpen;
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreOpen();
+  }
+
+  Future<void> _restoreOpen() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      if (prefs.getString(PortfolioCard.openKey) == '0') setState(() => _open = false);
+    } catch (_) {
+      /* non-fatal — the card just stays open */
+    }
+  }
+
+  Future<void> _toggle() async {
+    setState(() => _open = !_open);
+    AppLogger.instance
+        .action('advisor', 'toggle_portfolio_card', meta: {'open': _open.toString()});
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(PortfolioCard.openKey, _open ? '1' : '0');
+    } catch (_) {
+      /* non-fatal — it just will not stick */
+    }
+  }
 
   /// Completed ids, normalised: callers upstream carry both bare ids (`travel`)
   /// and verification steps (`proof_travel`).
@@ -875,59 +921,85 @@ class PortfolioCard extends StatelessWidget {
         border: Border(bottom: BorderSide(color: Brand.accentAlpha(0x22))),
       ),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+        padding: EdgeInsets.fromLTRB(14, 10, 14, _open ? 12 : 10),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Header + meter stay put when collapsed: the count and the bar are the
+          // glanceable part, and on a real phone the rest was eating a third of
+          // the screen and pushing the conversation off.
           _header(),
           const SizedBox(height: 8),
           _meter(),
-          if ((p.band ?? '').isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(_bandLine(), style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
-          ],
-          const SizedBox(height: 10),
-          _chips(top?.id),
-          if (top != null) ...[
+          if (_open) ...[
+            if ((p.band ?? '').isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(_bandLine(), style: const TextStyle(color: Color(Config.text3), fontSize: 12)),
+            ],
             const SizedBox(height: 10),
-            _nextMove(top),
+            _chips(top?.id),
+            if (top != null) ...[
+              const SizedBox(height: 10),
+              _nextMove(top),
+            ],
           ],
         ]),
       ),
     );
   }
 
-  Widget _header() => Row(children: [
-        const Text('🛡', style: TextStyle(fontSize: 13)),
-        const SizedBox(width: 6),
-        const Expanded(
-          child: Text('YOUR PROOF PORTFOLIO',
-              style: TextStyle(
-                  color: Color(Config.text2),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8)),
+  /// The whole header row is the tap target — a bare chevron is a hard thing to
+  /// hit on a phone.
+  Widget _header() => GestureDetector(
+        onTap: _toggle,
+        behavior: HitTestBehavior.opaque,
+        child: Semantics(
+          button: true,
+          label: _open ? 'Collapse proof portfolio' : 'Expand proof portfolio',
+          child: Row(children: [
+            const Text('🛡', style: TextStyle(fontSize: 13)),
+            const SizedBox(width: 6),
+            const Expanded(
+              child: Text('YOUR PROOF PORTFOLIO',
+                  style: TextStyle(
+                      color: Color(Config.text2),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.8)),
+            ),
+            // "proofs", not "proven": the header counts categories and the band
+            // line counts Profile Strength points, so both have to name their unit.
+            Text('${p.done} of ${p.total} proofs',
+                style:
+                    TextStyle(color: Brand.accentBright, fontSize: 13, fontWeight: FontWeight.w800)),
+            Icon(_open ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                size: 20, color: const Color(Config.text3)),
+          ]),
         ),
-        Text('${p.done} of ${p.total} proven',
-            style: TextStyle(color: Brand.accentBright, fontSize: 13, fontWeight: FontWeight.w800)),
-      ]);
+      );
 
-  /// A zero-proof member still gets a visible sliver of track, so the meter reads
-  /// as "not started" rather than as a rendering failure.
+  /// Zero looks like zero — no minimum sliver. A hairline of fill at `0 of 13`
+  /// reads as "something is already done", which is the opposite of true.
   Widget _meter() => ClipRRect(
         borderRadius: BorderRadius.circular(99),
         child: LinearProgressIndicator(
-          value: p.done == 0 ? 0.02 : p.fraction,
+          value: p.fraction,
           minHeight: 7,
           backgroundColor: Brand.accentAlpha(0x28),
           color: Brand.accent,
         ),
       );
 
+  /// The number here is Profile Strength POINTS; the header two lines up counts
+  /// PROOF CATEGORIES. At `0 of 13 proofs` above and a 13-point gap below, the old
+  /// wording ("13 to go") read as "13 more proofs to upload" — wrong, and
+  /// discouraging in exactly the place we are trying to encourage. Both lines now
+  /// name their unit, so the same figure can never be misread as the other one.
   String _bandLine() {
     final band = p.band ?? '';
     final next = p.nextBand;
     final pts = p.pointsToNextBand;
     if (next == null || next.isEmpty || pts == null) return band;
-    return '$band - ${_fmtNum(pts)} to go to "$next"';
+    final n = _fmtNum(pts);
+    return '$band - $n ${n == '1' ? 'point' : 'points'} to "$next"';
   }
 
   /// One horizontal row rather than a wrap: the card is pinned, so its height has

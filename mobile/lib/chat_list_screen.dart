@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api.dart';
@@ -10,6 +12,9 @@ import 'conversation_screen.dart';
 import 'advisor_screen.dart';
 import 'verification_screen.dart';
 import 'season.dart';
+// Mutual import with home_shell (it renders this screen); Dart permits it, and it
+// is what lets the hand-off modal know which tab is actually on screen.
+import 'home_shell.dart';
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
@@ -34,7 +39,18 @@ class _ChatListScreenState extends State<ChatListScreen>
   final _clearedConvos = <String>{}; // optimistic read-clear before server confirms
   bool _advisorCleared = false; // same, for the advisor row (thread has no id here)
   List<Conversation>? _cachedConversations; // updated in-place on realtime events
-  final Set<String> _shownHandoff = {}; // matches whose "your turn to step in" popup already showed this session
+  /// Highest nudge stage whose "your turn to step in" modal we have already shown,
+  /// keyed by match id — PERSISTED, and loaded once on init.
+  ///
+  /// This was an in-memory Set, i.e. "already shown this session". A cold start
+  /// emptied it, so the modal re-fired on every single app open until she acted.
+  /// The spec asks for a paced ladder over the 48-hour window (at hand-off, around
+  /// the midpoint, and in the final hours), not one modal per launch, so we store
+  /// the stage and only interrupt her again when the stage genuinely advances —
+  /// at most three times per match.
+  Map<String, int> _shownHandoffStage = {};
+  bool _shownHandoffLoaded = false;
+  static const String _handoffPrefsKey = 'vv_handoff_modal_stage';
   bool _handoffDialogOpen = false;      // guard: never stack a second hand-off popup
   String get _myId => Supabase.instance.client.auth.currentUser?.id ?? '';
   Timer? _periodicRefresh;
@@ -55,6 +71,8 @@ class _ChatListScreenState extends State<ChatListScreen>
     AppLogger.instance.screen('chat_list');
     WidgetsBinding.instance.addObserver(this);
     _future = _load();
+    // Load the persisted hand-off-modal guard before any refresh can fire it.
+    _loadShownHandoff();
     _subscribeToMessages();
     _subscribeToPresence();
     // Periodic backstop: refresh every 15 s in case realtime misses an event.
@@ -138,11 +156,59 @@ class _ChatListScreenState extends State<ChatListScreen>
   /// woman to step in, show a matchmaker-style dialog the moment she lands here.
   /// Two paths: Reply (step into his chat) or Review (open her Bestie advisor with
   /// a "summarize him" request pre-sent). Shows once per match per session.
+  /// Which rung of the nudge ladder this hand-off is on: 1 at wrap-up, 2 from the
+  /// 24-hour mark, 3 in the final hours.
+  ///
+  /// The thresholds mirror handoff-clock.ts on the server (48h window, nudges at
+  /// 24h and 45h). If those move, move these — the numbers are quoted to her.
+  int _handoffStage(Conversation c) {
+    final at = c.handoffAt;
+    if (at == null) return 1;
+    final hours = DateTime.now().difference(at).inMinutes / 60.0;
+    if (hours >= 45) return 3;
+    if (hours >= 24) return 2;
+    return 1;
+  }
+
+  Future<void> _loadShownHandoff() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_handoffPrefsKey);
+      if (raw != null) {
+        final decoded = jsonDecode(raw) as Map<String, dynamic>;
+        _shownHandoffStage = decoded.map((k, v) => MapEntry(k, (v as num).toInt()));
+      }
+    } catch (_) {
+      // Unreadable prefs means we cannot tell what she has already seen, so the
+      // ladder restarts: she may get one more modal than she should. That is the
+      // right way to fail — the alternative is silently never nudging her again
+      // and letting a match expire while she waits.
+      _shownHandoffStage = {};
+    }
+    _shownHandoffLoaded = true;
+  }
+
+  Future<void> _rememberHandoffShown(String matchId, int stage) async {
+    _shownHandoffStage[matchId] = stage;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_handoffPrefsKey, jsonEncode(_shownHandoffStage));
+    } catch (_) {
+      // Best-effort: the in-memory value still suppresses it for this run.
+    }
+  }
+
   void _maybeShowHandoff(List<Conversation> convos) {
     if (_handoffDialogOpen) return;
+    // Never show before the persisted guard has loaded, or the first refresh after
+    // a cold start would fire the modal we are trying to suppress.
+    if (!_shownHandoffLoaded) return;
     Conversation? pending;
+    int stage = 1;
     for (final c in convos) {
-      if (c.handoffPending && !_shownHandoff.contains(c.id)) { pending = c; break; }
+      if (!c.handoffPending) continue;
+      final s = _handoffStage(c);
+      if (s > (_shownHandoffStage[c.id] ?? 0)) { pending = c; stage = s; break; }
     }
     if (pending == null) return;
     final c = pending;
@@ -154,7 +220,12 @@ class _ChatListScreenState extends State<ChatListScreen>
       // when she actually returns to the list.
       final route = ModalRoute.of(context);
       if (route == null || !route.isCurrent) return;
-      _shownHandoff.add(c.id);
+      // ...and only when Chat is the tab actually on screen. IndexedStack keeps
+      // all three tabs alive under ONE route, so `route.isCurrent` above is true
+      // even while she is looking at Discover — which is exactly where this modal
+      // was appearing.
+      if (HomeShell.visibleTab.value != HomeShell.chatTabIndex) return;
+      _rememberHandoffShown(c.id, stage);
       _handoffDialogOpen = true;
       showDialog(
         context: context,
