@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildClaudeHistory, type AdvisorMessage } from '../advisor-thread';
 import { detectTaskIntent } from '../advisor-tasks';
 import { isQuietHour, hourInZone } from '../notification-budget';
+import { withoutMoneyDimensions, isMoneyDimension } from '$lib/verified-vibe/dimensions';
 
 /**
  * The pure logic behind the advisor thread. Each of these has a failure mode that
@@ -169,5 +170,48 @@ describe('detectTaskIntent', () => {
 	it('prefers a profile audit when an ask mentions both', () => {
 		// "what should I upload to get matches" is really a portfolio question.
 		expect(detectTaskIntent('what should I upload to get more matches?')).toBe('profile_audit');
+	});
+});
+
+// ── Money framing (App Store 1.1.4) ──────────────────────────────────────────
+
+describe('withoutMoneyDimensions', () => {
+	it('drops the financial dimension but keeps everything else in order', () => {
+		// `financial` has the highest avgWeight (0.16) of any open dimension, so it
+		// routinely won the "highest-leverage move" sort — which is how production
+		// came to tell a member "Financial standing proof — verify your stability
+		// (another major lift)".
+		const ranked = [
+			{ dim: 'financial', label: 'Financial standing', deltaPS: 9 },
+			{ dim: 'lifestyle', label: 'Lifestyle & adventure', deltaPS: 7 },
+			{ dim: 'warmth', label: 'Warmth & emotional intelligence', deltaPS: 5 }
+		];
+
+		const named = withoutMoneyDimensions(ranked);
+
+		expect(named.map((a) => a.dim)).toEqual(['lifestyle', 'warmth']);
+		// The next real move is promoted rather than the list simply getting shorter.
+		expect(named[0].label).toBe('Lifestyle & adventure');
+	});
+
+	it('leaves social_legitimacy alone — career credibility is not wealth', () => {
+		// Deliberately narrow: over-broadening here would gut legitimate coaching.
+		const kept = withoutMoneyDimensions([
+			{ dim: 'social_legitimacy', label: 'Social & professional legitimacy', deltaPS: 4 }
+		]);
+		expect(kept).toHaveLength(1);
+	});
+
+	it('is identity for lists with no money dimension, and safe on empty', () => {
+		const items = [{ dim: 'humor', label: 'Humor', deltaPS: 2 }];
+		expect(withoutMoneyDimensions(items)).toEqual(items);
+		expect(withoutMoneyDimensions([])).toEqual([]);
+	});
+
+	it('classifies only money dimensions as money', () => {
+		expect(isMoneyDimension('financial')).toBe(true);
+		for (const d of ['lifestyle', 'warmth', 'ambition', 'social_legitimacy', 'looks', 'family']) {
+			expect(isMoneyDimension(d)).toBe(false);
+		}
 	});
 });

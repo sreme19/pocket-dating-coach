@@ -34,7 +34,7 @@ export interface CompetitiveSnapshot {
 	realMenActive: number;
 	/** Which gender the snapshot was computed for. null = owner gender unknown. */
 	ownerGender: 'man' | 'woman' | null;
-	trustRank: { score: number; rank: number; total: number; percentile: number } | null;
+	trustRank: { score: number; rank: number; total: number; aheadOfPct: number } | null;
 	matchRivals: Array<{ firstName: string; qualifiedRivals: number; filtered: boolean }>;
 	/** Pre-formatted block ready to splice into the advisor system prompt. */
 	promptBlock: string;
@@ -79,23 +79,34 @@ export async function buildCompetitiveSnapshot(
 				.select('id', { count: 'exact', head: true })
 				.eq('is_seed', false)
 				.eq('gender', 'woman')
+				.is('deleted_at', null)
 				.gte('last_active_at', activeCutoff),
 			db.from('verified_vibe_users')
 				.select('id', { count: 'exact', head: true })
 				.eq('is_seed', false)
 				.eq('gender', 'man')
+				.is('deleted_at', null)
 				.gte('last_active_at', activeCutoff),
 		]);
 
-		// ── Normalized trust standing among ALL real same-gender users (RCA pt 1) ──
+		// ── Normalized trust standing among ACTIVE real same-gender users ─────────
 		// Absolute trust_score is population-blind; rank the owner against the real
 		// field of their OWN gender so the advisor stops pushing impossible
 		// point-grinding.
+		//
+		// The cohort MUST match the population counted above. It used to omit the
+		// activity window, so one reply told a woman she ranked "#14 out of 16 active
+		// women" and, six lines later, that there were "only 8 active women" — both
+		// labelled the same thing, eight lines apart in this function. It also matches
+		// the cohort trust-normalize.ts actually used to compute the score being
+		// ranked here, so the number and its rank finally describe one population.
 		const { data: realPeers } = await db
 			.from('verified_vibe_users')
 			.select('id, trust_score')
 			.eq('is_seed', false)
-			.eq('gender', ownerGender);
+			.eq('gender', ownerGender)
+			.is('deleted_at', null)
+			.gte('last_active_at', activeCutoff);
 
 		let trustRank: CompetitiveSnapshot['trustRank'] = null;
 		if (Array.isArray(realPeers) && realPeers.length) {
@@ -106,9 +117,12 @@ export async function buildCompetitiveSnapshot(
 				// Rank: 1 = highest. Ties share the better (lower) rank.
 				const ahead = realPeers.filter((m: any) => (m.trust_score ?? 0) > myScore).length;
 				const rank = ahead + 1;
-				// "top X%" — smaller is better. rank 1 of 3 → top 33%.
-				const percentile = Math.max(1, Math.round((rank / total) * 100));
-				trustRank = { score: myScore, rank, total, percentile };
+				// Share of the field this user is actually ahead of. The old figure was
+				// `rank / total` labelled "top X%", which turned rank 14 of 16 into
+				// "top 88%" — literally true, and read by every member as praise for
+				// what is in fact near the bottom. "Ahead of 13%" cannot be misread.
+				const aheadOfPct = Math.round(((total - rank) / total) * 100);
+				trustRank = { score: myScore, rank, total, aheadOfPct };
 			}
 		}
 
@@ -132,6 +146,7 @@ export async function buildCompetitiveSnapshot(
 				.select('id')
 				.eq('is_seed', false)
 				.eq('gender', ownerGender)
+				.is('deleted_at', null)
 				.gte('last_active_at', activeCutoff)
 				.neq('id', userId);
 			const rivalIds: string[] = (rivalUsers ?? []).map((r: any) => r.id);
@@ -221,9 +236,9 @@ function formatPromptBlock(s: CompetitiveSnapshot): string {
 	);
 
 	if (s.trustRank) {
-		const { score, rank, total, percentile } = s.trustRank;
+		const { score, rank, total, aheadOfPct } = s.trustRank;
 		lines.push(
-			`${isMan ? 'His' : 'Her'} Trust Score standing: ${score}/100 — ranked #${rank} of ${total} real ${rivalsWord} (top ${percentile}%).`
+			`${isMan ? 'His' : 'Her'} Trust Score standing: ${score}/100 — ranked #${rank} of ${total} active real ${rivalsWord}, ahead of ${aheadOfPct}% of them. Never dress a low rank up as "top X%".`
 		);
 		if (rank === 1) {
 			// A #1 Trust RANK is NOT proof that every verification step is done — the

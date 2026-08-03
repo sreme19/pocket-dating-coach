@@ -422,6 +422,19 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
+          # Diff the PUSH RANGE explicitly.
+          #
+          # With no `base`, paths-filter falls back to the repo's default branch
+          # (main). For the development job that meant comparing main...development
+          # AT THE MOMENT THIS JOB FETCHES MAIN — a minute or more after the push.
+          # So fast-forwarding main to the same SHA right after pushing development
+          # (the normal ship flow) yielded "Detected 0 changed files" and silently
+          # skipped the Android tester build, despite the push really containing
+          # mobile/** changes. Distribution must not depend on that race.
+          #
+          # github.event.before is where the branch pointed before this push, so the
+          # comparison is exactly "what did this push change".
+          base: ${{ github.event.before }}
           filters: |
             mobile:
               - 'mobile/**'
@@ -590,6 +603,19 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
+          # Diff the PUSH RANGE explicitly.
+          #
+          # With no `base`, paths-filter falls back to the repo's default branch
+          # (main). For the development job that meant comparing main...development
+          # AT THE MOMENT THIS JOB FETCHES MAIN — a minute or more after the push.
+          # So fast-forwarding main to the same SHA right after pushing development
+          # (the normal ship flow) yielded "Detected 0 changed files" and silently
+          # skipped the Android tester build, despite the push really containing
+          # mobile/** changes. Distribution must not depend on that race.
+          #
+          # github.event.before is where the branch pointed before this push, so the
+          # comparison is exactly "what did this push change".
+          base: ${{ github.event.before }}
           filters: |
             mobile:
               - 'mobile/**'

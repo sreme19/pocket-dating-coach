@@ -69,6 +69,38 @@ export const SENSITIVE_DIMENSIONS: DimensionDef[] = [
 
 export const ALL_DIMENSIONS: DimensionDef[] = [...OPEN_DIMENSIONS, ...SENSITIVE_DIMENSIONS];
 
+// ── Money dimensions — contribute to the total, never named as a draw ──────────
+/**
+ * Dimensions that are about someone's money.
+ *
+ * These still count toward Profile Strength and appeal: verifying them raises the
+ * aggregate number like any other dimension. What they must never do is appear in
+ * user-facing coaching as a reason someone is more appealing — "verify your
+ * financial standing, it's the biggest lift to your standing" is exactly the
+ * framing App Store guideline 1.1.4 flagged as compensated dating, and the product
+ * spec is explicit that financial proof is a fraud check, not an attraction signal.
+ *
+ * `financial` carries the highest avgWeight of any open dimension (0.16), so it
+ * wins the "highest-leverage move" sort more often than not. Filtering it out of
+ * the NAMED lists is what keeps the aggregate honest without advertising money.
+ *
+ * Deliberately narrow: `social_legitimacy` is career and network credibility, not
+ * wealth, and excluding it too would gut legitimate coaching.
+ */
+export const MONEY_DIMENSION_IDS = ['financial'] as const;
+
+export function isMoneyDimension(id: string): boolean {
+	return (MONEY_DIMENSION_IDS as readonly string[]).includes(id);
+}
+
+/**
+ * Drop money dimensions from a list of things about to be named to a member.
+ * Order is preserved, so the next-best non-money move simply moves up.
+ */
+export function withoutMoneyDimensions<T extends { dim: string }>(items: T[]): T[] {
+	return items.filter((i) => !isMoneyDimension(i.dim));
+}
+
 export type DimensionId = string;
 
 export const OPEN_DIMENSION_IDS: DimensionId[] = OPEN_DIMENSIONS.map((d) => d.id);

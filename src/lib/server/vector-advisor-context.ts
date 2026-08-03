@@ -23,6 +23,23 @@ import {
 	portfolioActions,
 	type Vec,
 } from './vector-scoring';
+import { withoutMoneyDimensions } from '$lib/verified-vibe/dimensions';
+
+/**
+ * Money is never NAMED as a draw.
+ *
+ * Every block below filters money dimensions out of the lists it hands the model,
+ * while leaving them in the aggregate arithmetic (Profile Strength, band, upside) —
+ * the aggregate-only rule. Production was telling members "Financial standing proof
+ * — verify your stability (another major lift)", because `financial` has the highest
+ * avgWeight of any dimension and so won the highest-leverage sort. That is the
+ * compensated-dating framing guideline 1.1.4 flagged, and the spec is explicit that
+ * financial proof is a fraud check, not an attraction signal.
+ *
+ * Appended to each emitted block so the instruction travels with the data.
+ */
+const MONEY_FRAMING_RULE =
+	' NEVER present money — income, salary, net worth, assets, spending, generosity or "financial standing" — as something that makes anyone more appealing, higher-ranked or more competitive. If financial verification comes up at all, it is only ever an anti-fraud check that confirms someone is real. Never quote a financial figure.';
 
 /**
  * Appeal-to-her threshold for the consent-unlock recommendation (§11d). The doc
@@ -62,7 +79,10 @@ export async function loadVectorAdvisorContext(
 		const ps = profileStrength(attrs, conf);
 		const prog = bandProgress(ps);
 		const upside = upsidePreview(attrs, conf);
-		const actions = upsideByDimension(attrs, conf).slice(0, 3);
+		// Money stays in `ps`/`upside` above (the aggregate) but is filtered before
+		// anything gets NAMED as a lift. Filter first, then take 3, so dropping
+		// financial promotes the next real move rather than shortening the list.
+		const actions = withoutMoneyDimensions(upsideByDimension(attrs, conf)).slice(0, 3);
 
 		const nextLine = prog.nextBand
 			? `${Subj}'s ${prog.pointsToNextBand} from the “${prog.nextBand}” band.`
@@ -81,7 +101,7 @@ PROFILE STRENGTH (deterministic vector model — these numbers are EXACT, use th
 - ${upsideLine}
 - Highest-leverage verification moves, in order:
 ${actionLines}
-Coach from this: the fastest standing gains come from VERIFYING claims (raising confidence), not just adding new ones. Surface the single highest-leverage move first, quantify the gain, and walk ${obj} through it. Persistent-but-positive — always opportunity, never deficiency.`;
+Coach from this: the fastest standing gains come from VERIFYING claims (raising confidence), not just adding new ones. Surface the single highest-leverage move first, quantify the gain, and walk ${obj} through it. Persistent-but-positive — always opportunity, never deficiency.${MONEY_FRAMING_RULE}`;
 	} catch {
 		return '';
 	}
@@ -121,7 +141,9 @@ export async function loadPathPlanContext(supabase: any, manId: string): Promise
 
 		const lines: string[] = [];
 		for (const v of vecs ?? []) {
-			const gaps = pathGaps((v.weights ?? {}) as Vec, myAttrs, myConf, 2);
+			// Filter money BEFORE truncating, so a dropped financial gap promotes the
+			// next real lever instead of leaving the match with fewer moves.
+			const gaps = withoutMoneyDimensions(pathGaps((v.weights ?? {}) as Vec, myAttrs, myConf, 4)).slice(0, 2);
 			if (!gaps.length) continue;
 			const name = nameMap.get(v.user_id) ?? 'She';
 			const moves = gaps.map((g) => g.lever === 'verify'
@@ -135,7 +157,7 @@ export async function loadPathPlanContext(supabase: any, manId: string): Promise
 
 PATH PLAN (deterministic per-match levers — translate into APPROACH advice, NEVER state her weights or these labels as "what she wants"):
 ${lines.join('\n')}
-For each: "verify" means the fastest win is proving an existing claim (raises confidence → appeal to her). "thin" means genuinely add/show more. Lead with the single highest-leverage move per match.`;
+For each: "verify" means the fastest win is proving an existing claim (raises confidence → appeal to her). "thin" means genuinely add/show more. Lead with the single highest-leverage move per match${MONEY_FRAMING_RULE}`;
 	} catch {
 		return '';
 	}
@@ -178,7 +200,7 @@ export async function loadPortfolioContext(supabase: any, manId: string): Promis
 			.map((v: any) => ({ name: nameMap.get(v.user_id) ?? 'She', weights: v.weights as Vec }));
 		if (stacks.length < 2) return '';
 
-		const actions = portfolioActions(myAttrs, myConf, stacks, { max: 3 });
+		const actions = withoutMoneyDimensions(portfolioActions(myAttrs, myConf, stacks, { max: 6 })).slice(0, 3);
 		if (!actions.length) return '';
 
 		const total = stacks.length;
@@ -195,7 +217,7 @@ export async function loadPortfolioContext(supabase: any, manId: string): Promis
 
 CROSS-MATCH IMPACT (portfolio — rank moves by how many of his matches they help AT ONCE; §10):
 ${lines.join('\n')}
-Lead with the move that helps the MOST matches simultaneously — "proving this lifts you with several people at once" is far more motivating than a single-match tip. These are HIS matches by name (fine to name them); still NEVER state any woman's preference weights. Make the leverage explicit: one verification can advance several stacks AND his global standing together.`;
+Lead with the move that helps the MOST matches simultaneously — "proving this lifts you with several people at once" is far more motivating than a single-match tip. These are HIS matches by name (fine to name them); still NEVER state any woman's preference weights. Make the leverage explicit: one verification can advance several stacks AND his global standing together${MONEY_FRAMING_RULE}`;
 	} catch {
 		return '';
 	}
@@ -236,7 +258,9 @@ export async function loadPursuitPlanContext(supabase: any, womanId: string): Pr
 
 		const lines: string[] = [];
 		for (const v of vecs ?? []) {
-			const gaps = pathGaps((v.weights ?? {}) as Vec, myAttrs, myConf, 2);
+			// Filter money BEFORE truncating, so a dropped financial gap promotes the
+			// next real lever instead of leaving the match with fewer moves.
+			const gaps = withoutMoneyDimensions(pathGaps((v.weights ?? {}) as Vec, myAttrs, myConf, 4)).slice(0, 2);
 			if (!gaps.length) continue;
 			const name = nameMap.get(v.user_id) ?? 'He';
 			const moves = gaps.map((g) => g.lever === 'verify'
@@ -250,7 +274,7 @@ export async function loadPursuitPlanContext(supabase: any, womanId: string): Pr
 
 TARGETED PURSUIT (§11i — only if SHE wants to pursue a specific man; translate into approach advice, NEVER state his weights): she can open a direct conversation with any match any time (she's never gated). If she's keen on one of these men, here's where she has the most room to land with HIM specifically:
 ${lines.join('\n')}
-"verify" = prove an existing claim (fastest lift to her appeal to him); otherwise bring/show more. Only raise this when she signals interest in pursuing someone — don't push.`;
+"verify" = prove an existing claim (fastest lift to her appeal to him); otherwise bring/show more. Only raise this when she signals interest in pursuing someone — don't push${MONEY_FRAMING_RULE}`;
 	} catch {
 		return '';
 	}

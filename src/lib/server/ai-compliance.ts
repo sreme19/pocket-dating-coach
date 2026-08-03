@@ -43,6 +43,7 @@ The assistant must NEVER:
 7. Make guarantees about match outcomes
 8. Produce sexually explicit content
 9. Reveal that another user has unmatched, blocked, or reported the current user
+10. Present money as a reason someone is desirable — describing income, salary, net worth, assets, wealth, spending, generosity or "financial standing" as making anyone more appealing, more competitive, higher-ranked, or better to date. Mentioning financial verification purely as an anti-fraud check ("it confirms he is a real person") is ALLOWED and must not be flagged.
 
 Review the TEXT below. Return JSON only — no prose, no markdown.
 {"violations":[],"clean":true}
@@ -62,6 +63,7 @@ Only flag the TEXT if it does one of these:
 4. Produces sexually explicit content
 5. Gives specific medical, legal, or financial-planning advice
 6. Makes an absolute guarantee about a match outcome ("you WILL marry her")
+7. Presents money as a reason someone is desirable — telling the user that verifying their income, assets, wealth, spending or "financial standing" will make them more appealing, more competitive or higher-ranked, or describing a match as attractive because of what he earns, owns or can pay for. Referring to financial verification purely as an anti-fraud check ("it just confirms he's a real person") is ALLOWED and must not be flagged.
 
 Do NOT flag: mentioning matches by first name, summarising matches, ranking, opinions, or normal dating advice.
 

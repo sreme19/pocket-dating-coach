@@ -258,9 +258,33 @@ interface TaskResult {
  * user's run quota, and a chat message is the wrong place to silently do that —
  * the Find Matches button owns that decision.
  */
+/**
+ * The report generators return the internal string 'No pool entry found.' when a
+ * user has no vv_pool_profiles row. A production run surfaced that verbatim as the
+ * entire result card — technically accurate, useless to read, and it leaks an
+ * internal concept. Anyone in this state has a real, actionable problem, so say
+ * what it is.
+ */
+const NO_POOL_SENTINEL = 'No pool entry found.';
+
+function humaniseEmptyReport(summary: string, assistantType: AssistantType): TaskResult | null {
+	if (summary.trim() !== NO_POOL_SENTINEL) return null;
+	const who = assistantType === 'bestie' ? 'matches' : 'the pool';
+	return {
+		summary: "You're not in the matching pool yet — finish your profile and I'll scan properly.",
+		body:
+			`I couldn't scan ${who} for you yet, because your profile isn't in the matching pool.\n\n` +
+			`That usually means a required step is still open — the liveness check, your photos, or the intent Q&A. ` +
+			`Finish those and ask me again; I'll run the full scan the moment you're in.`,
+		payload: { reason: 'not_in_pool', actions: [] }
+	};
+}
+
 async function runTask(task: AdvisorTask): Promise<TaskResult> {
 	if (task.assistantType === 'bestie') {
 		const report = await generateFemaleCompetitiveReport(task.userId);
+		const empty = humaniseEmptyReport(report.summary ?? '', task.assistantType);
+		if (empty) return empty;
 		const actions = report.actionList.sort((a, b) => a.priority - b.priority);
 		return {
 			summary: report.summary || 'Here is where you stand right now.',
@@ -284,6 +308,8 @@ async function runTask(task: AdvisorTask): Promise<TaskResult> {
 	}
 
 	const report = await generatePerMatchRanking(task.userId);
+	const emptyReport = humaniseEmptyReport(report.summary ?? '', task.assistantType);
+	if (emptyReport) return emptyReport;
 	const actions = report.actionList.sort((a, b) => a.priority - b.priority);
 	return {
 		summary: report.summary || 'Here is where you stand right now.',
