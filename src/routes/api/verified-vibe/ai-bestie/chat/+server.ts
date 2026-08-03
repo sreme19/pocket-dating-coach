@@ -23,7 +23,7 @@ import { buildCompetitiveSnapshot } from '$lib/server/competitive-snapshot';
 import { loadMatchIntelligenceContext } from '$lib/server/match-intelligence';
 import { loadVectorAdvisorContext, loadUnlockRecommendations, loadPursuitPlanContext } from '$lib/server/vector-advisor-context';
 import { buildAIBestieAdvisorSystemPrompt } from '$lib/prompts';
-import { complianceGate } from '$lib/server/ai-compliance';
+import { complianceGateWithRetry, correctiveInstruction } from '$lib/server/ai-compliance';
 
 /**
  * POST /api/verified-vibe/ai-bestie/chat
@@ -259,7 +259,34 @@ export const POST: RequestHandler = async ({ request }) => {
 			.trim();
 
 		// Compliance gate — PII regex + Haiku validator
-		const compliance = await complianceGate({ text: strippedReply, userId, assistantType: 'bestie', context: 'advisor' });
+		// Compliance gate, with ONE corrective retry before deflecting. A blocked
+		// reply used to be replaced wholesale by SAFE_FALLBACK, so a single borderline
+		// clause cost her the entire briefing — which is exactly what happened on a
+		// hand-off "Review" tap in production.
+		const compliance = await complianceGateWithRetry({
+			text: strippedReply,
+			userId,
+			assistantType: 'bestie',
+			context: 'advisor',
+			regenerate: async (violations) => {
+				const retry = await client.messages.create({
+					model: CLAUDE_MODEL,
+					max_tokens: 700,
+					system: systemPrompt + correctiveInstruction(violations),
+					messages: [
+						...history.map((h) => ({ role: h.role as 'user' | 'assistant', content: h.content })),
+						{ role: 'user', content: userMessage }
+					]
+				});
+				const b = retry.content[0];
+				const t = b.type === 'text' ? b.text.trim() : '';
+				// Strip the same markers the first pass strips, or they leak to her.
+				return t
+					.replace(/\[PREF:[^\]]+\]/g, '')
+					.replace(/\[DRAFT:[^\]]+\][\s\S]*?\[\/DRAFT\]/g, '')
+					.trim();
+			}
+		});
 		const reply = compliance.text;
 
 		if (detectedPrefs.length > 0) {

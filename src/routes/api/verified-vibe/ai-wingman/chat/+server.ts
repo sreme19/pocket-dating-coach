@@ -37,7 +37,7 @@ import { buildCompetitiveSnapshot } from '$lib/server/competitive-snapshot';
 import { loadMatchIntelligenceContext } from '$lib/server/match-intelligence';
 import { loadVectorAdvisorContext, loadPathPlanContext, loadPortfolioContext } from '$lib/server/vector-advisor-context';
 import { loadOwnLedgerContext } from '$lib/server/bestie-ledger';
-import { complianceGate } from '$lib/server/ai-compliance';
+import { complianceGateWithRetry, correctiveInstruction } from '$lib/server/ai-compliance';
 import { logAppError } from '$lib/server/logAppError';
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -232,7 +232,28 @@ export const POST: RequestHandler = async ({ request }) => {
 		const rawReply = block.type === 'text' ? block.text.trim() : '';
 
 		// Compliance gate — PII regex + Haiku validator
-		const compliance = await complianceGate({ text: rawReply, userId, assistantType: 'wingman', context: 'advisor' });
+		// Compliance gate, with ONE corrective retry before deflecting — see the note
+		// in the Bestie endpoint. Losing a whole answer to one clause is worse than
+		// spending a second Claude call to say it properly.
+		const compliance = await complianceGateWithRetry({
+			text: rawReply,
+			userId,
+			assistantType: 'wingman',
+			context: 'advisor',
+			regenerate: async (violations) => {
+				const retry = await client.messages.create({
+					model: CLAUDE_MODEL,
+					max_tokens: 700,
+					system: systemPrompt + correctiveInstruction(violations),
+					messages: [
+						...history.map((h) => ({ role: h.role as 'user' | 'assistant', content: h.content })),
+						{ role: 'user', content: userMessage }
+					]
+				});
+				const b = retry.content[0];
+				return b.type === 'text' ? b.text.trim() : '';
+			}
+		});
 		const reply = compliance.text;
 
 		// Reply is ready — stamp the server half of the latency record. This id stays

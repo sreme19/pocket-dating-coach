@@ -63,9 +63,11 @@ Only flag the TEXT if it does one of these:
 4. Produces sexually explicit content
 5. Gives specific medical, legal, or financial-planning advice
 6. Makes an absolute guarantee about a match outcome ("you WILL marry her")
-7. Presents money as a reason someone is desirable — telling the user that verifying their income, assets, wealth, spending or "financial standing" will make them more appealing, more competitive or higher-ranked, or describing a match as attractive because of what he earns, owns or can pay for. Referring to financial verification purely as an anti-fraud check ("it just confirms he's a real person") is ALLOWED and must not be flagged.
+7. Presents MONEY as a reason someone is desirable. This means specifically: a salary, income figure, net worth, bank balance, assets owned, spending power, generosity with money, or "financial standing" — presented as making someone more appealing, more competitive or higher-ranked, or a match described as attractive because of what he earns, owns or can pay for.
 
-Do NOT flag: mentioning matches by first name, summarising matches, ranking, opinions, or normal dating advice.
+CAREER IS NOT MONEY. A job title, employer, profession, seniority, education, skills, ambition, or professional network is NORMAL dating conversation and must NEVER be flagged under rule 7. "He is a senior engineer at a good company", "she is a doctor", "strong professional network", "he is driven" are all ALLOWED — do not infer an income from a job. Referring to financial verification purely as an anti-fraud check ("it just confirms he is a real person") is also ALLOWED. Only flag rule 7 when the text actually talks about money itself.
+
+Do NOT flag: mentioning matches by first name, summarising matches, ranking, opinions, careers, or normal dating advice.
 
 Return JSON only — no prose, no markdown.
 {"violations":[],"clean":true} or {"violations":["<description>"],"clean":false}`;
@@ -166,4 +168,74 @@ export async function complianceGate(opts: {
   }
 
   return { text, passed: true, violations: [] };
+}
+
+// ── Gate with one corrective retry ───────────────────────────────────────────
+
+/**
+ * Run the gate, and if it blocks, give the model ONE chance to say the same thing
+ * without the offending part before falling back.
+ *
+ * Why this exists: the plain gate replaces the WHOLE reply with SAFE_FALLBACK, so a
+ * single borderline clause destroys an otherwise good answer. In production a
+ * woman tapped "Review" on a hand-off, and instead of the detailed briefing her
+ * Bestie had written about the man she was deciding on, she got
+ * "could you tell me more about what you're looking for right now?" — a deflection
+ * to a question she had asked perfectly clearly. The compliance outcome was right;
+ * the remedy was disproportionate.
+ *
+ * A retry keeps the answer and drops the problem. Only if the second attempt also
+ * fails do we deflect — at which point something is genuinely wrong with the
+ * request rather than with one sentence.
+ *
+ * Both attempts log their violations, so the retry rate stays visible rather than
+ * hiding a prompt that keeps misbehaving.
+ */
+export async function complianceGateWithRetry(opts: {
+  text: string;
+  userId: string | null;
+  assistantType: 'wingman' | 'bestie';
+  context?: 'advisor' | 'outbound';
+  /** Re-ask the model, told what to avoid. Return '' to skip the retry. */
+  regenerate: (violations: string[]) => Promise<string>;
+}): Promise<{ text: string; passed: boolean; violations: string[]; retried: boolean }> {
+  const first = await complianceGate({
+    text: opts.text,
+    userId: opts.userId,
+    assistantType: opts.assistantType,
+    context: opts.context,
+  });
+  if (first.passed) return { ...first, retried: false };
+
+  let second = '';
+  try {
+    second = (await opts.regenerate(first.violations))?.trim() ?? '';
+  } catch (e) {
+    console.warn('[ai-compliance] corrective retry failed to generate:', e);
+  }
+  if (!second) return { ...first, retried: false };
+
+  const retry = await complianceGate({
+    text: second,
+    userId: opts.userId,
+    assistantType: opts.assistantType,
+    context: opts.context,
+  });
+  if (retry.passed) return { ...retry, retried: true };
+
+  // Twice is enough — deflect rather than loop.
+  return { ...retry, retried: true };
+}
+
+/** Instruction appended to a retry, naming what the gate objected to. */
+export function correctiveInstruction(violations: string[]): string {
+  return (
+    `\n\nIMPORTANT — your previous draft was blocked by the compliance check for this reason:\n` +
+    violations.map((v) => `- ${v}`).join('\n') +
+    `\n\nWrite the SAME answer again, keeping all of its substance and specifics, but ` +
+    `without the part that caused this. Do not mention the compliance check, do not ` +
+    `apologise, and do not replace the answer with a question — the user asked something ` +
+    `clear and deserves a real answer. If the objection is about money, simply leave the ` +
+    `money out and keep everything else.`
+  );
 }
