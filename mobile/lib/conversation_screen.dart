@@ -384,7 +384,13 @@ class _ConversationScreenState extends State<ConversationScreen> {
                 TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
                 const TextSpan(text: ' asked her AI Bestie to get to know you first. Anything you share here, '),
                 TextSpan(text: name, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(Config.text1))),
-                const TextSpan(text: ' sees — directly, or summarised. Bring your best.'),
+                // Second sentence is load-bearing and was MISSING here while web had it:
+                // what he types about himself is distilled onto his profile and read by
+                // all his matches, so the thread is not the boundary. Keep in lockstep
+                // with the web card (chat/[conversationId]/+page.svelte).
+                const TextSpan(
+                    text: ' sees — directly, or summarised. What you share about yourself'
+                        ' also strengthens your riteangle profile. Bring your best.'),
               ],
             ),
           ),

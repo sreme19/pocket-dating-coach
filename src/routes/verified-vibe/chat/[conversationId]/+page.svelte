@@ -1640,10 +1640,15 @@
           <span class="bestie-intro-subtitle">{$currentMatch.firstName.toUpperCase()}'S AI BESTIE</span>
         </div>
       </div>
+      <!-- Scope disclosure. The second sentence is load-bearing: what he types about
+           himself is distilled onto his PROFILE (chat-intel-capture.ts → his vectors),
+           which every match of his consumes — so this card must not imply the thread is
+           the boundary. See also the matching Flutter copy in conversation_screen.dart. -->
       <p class="bestie-intro-body">
         <strong>{$currentMatch.firstName}</strong> asked AI Bestie to get to know you first.
         Anything you share here, <strong>{$currentMatch.firstName}</strong> sees — directly,
-        or summarised by AI Bestie. Bring your best.
+        or summarised. What you share about yourself also strengthens your riteangle
+        profile. Bring your best.
       </p>
       <div class="bestie-intro-divider"></div>
       {#if checklistWrapped}
@@ -1683,9 +1688,11 @@
         </div>
       {/if}
       <div class="bestie-intro-divider"></div>
+      <!-- The "strengthens your profile" half of this line moved UP into the body,
+           where it belongs next to the scope disclosure — repeating it here read as
+           filler once the body said it plainly. -->
       <p class="bestie-intro-footer">
         Not a fit? AI Bestie will let {$currentMatch.firstName} know kindly.
-        Your replies still go toward strengthening <em>your</em> profile.
       </p>
     </div>
   {/if}

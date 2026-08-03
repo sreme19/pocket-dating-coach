@@ -93,6 +93,18 @@
 				To power AI Bestie and AI Wingman — personalised AI companions that advise you and, in the
 				case of Bestie, converse with your matches on your behalf.
 			</li>
+			<!-- Discloses the chat-intel → vectors flow (chat-intel-capture.ts), which is
+			     already live: what a member states about themselves in ANY conversation is
+			     distilled onto their profile and informs matching with every match, not just
+			     the one they were talking to. Message CONTENT is not shared between
+			     conversations. Expand this when the cross-conversation answer ledger ships. -->
+			<li>
+				To keep your profile current — what you state about yourself in conversations (for
+				example your work, interests, or what you are looking for) is distilled into your
+				own profile and preferences, which inform how we match you with everyone, not only
+				the person you were speaking to. The messages themselves are not shared between
+				conversations.
+			</li>
 			<li>To match you with compatible people using our matchmaking engine.</li>
 			<li>To send push notifications relevant to your activity (only with your permission).</li>
 			<li>To detect fraud, fake documents, and AI-generated or manipulated images.</li>
