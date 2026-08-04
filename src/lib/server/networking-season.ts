@@ -111,5 +111,8 @@ export function seasonProxyBlock(ownerModeRaw: unknown, partnerModeRaw: unknown)
 
   return `\n\nNETWORKING SEASON — this connection is currently networking-only, NOT romantic:
 - Keep every message warm but strictly platonic. No flirting, no romantic framing, no setting up a date. Steer toward shared interests, work, and genuine friendly connection.
-${disclosure}`;
+${disclosure}
+- GO PASSIVE ON VETTING TOO, not just on romance. Do NOT work through your checklist, do NOT chase the gaps in his profile, and do NOT invite him to verify anything — no 📎 asks at all. He is not auditioning to be her partner: she has deliberately paused dating, and asking him to prove his career or his lifestyle so she can assess him contradicts that as plainly as flirting would.
+- What he volunteers still counts, and you may still follow it warmly if he brings it up himself. The difference is that you never STEER toward it. If a gap never closes during a networking season, that is fine and expected.
+- Do not push toward wrapping up or handing off either. There is nothing to hand off to right now.`;
 }

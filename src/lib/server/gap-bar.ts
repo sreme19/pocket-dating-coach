@@ -36,7 +36,7 @@
  */
 
 import { MONEY_DIMENSION_IDS, type DimensionId } from '$lib/verified-vibe/dimensions';
-import { PROVABLE_DIMS, DIM_TO_PROOF, ASK_PHRASE, PROVEN_C, CLAIMING_V, MIN_WEIGHT } from './dimension-proof-map';
+import { PROVABLE_DIMS, DIM_TO_PROOF, ASK_PHRASE, CATEGORY_ASK_PHRASE, PROVEN_C, CLAIMING_V, MIN_WEIGHT } from './dimension-proof-map';
 import { isDocumentProofCategory } from './proof-signals';
 import type { Vec } from './vector-scoring';
 
@@ -132,16 +132,22 @@ function herTargets(herWeights: Vec): DimensionId[] {
 }
 
 /**
- * The proof category to invite for a dimension, or null when there is nothing left
- * to ask. A refusal takes out the whole DIMENSION rather than one category: every
- * category in a dimension shares an ASK_PHRASE, so falling through to a sibling
- * re-sends a word-for-word identical ask he already declined. Document categories
- * are skipped because the in-chat surface takes pictures only.
+ * The proof category to invite for a dimension, or null when nothing is left to ask.
+ * Document categories are skipped because the in-chat surface takes pictures only.
  */
 function askableCategory(d: DimensionId, verified: Set<string>, refused: Set<string>): string | null {
 	const cats = DIM_TO_PROOF[d] ?? [];
-	if (cats.some((c) => refused.has(c))) return null;
-	return cats.find((c) => !verified.has(c) && !isDocumentProofCategory(c)) ?? null;
+	// Skip the categories he ACTUALLY declined, not every category in the dimension.
+	//
+	// The old rule took out the whole dimension on one refusal, for a real reason:
+	// every category shared a single per-dimension ask phrase, so falling through to a
+	// sibling re-sent a word-for-word identical sentence — which is how one man got
+	// asked for his income four times in six minutes. Now each category has its own
+	// wording, so a fallthrough asks a genuinely different question and the blunt rule
+	// costs more than it protects. It was collapsing a third of matches to no
+	// alternative route at all, because `linkedin` sits in two dimensions and refusing
+	// it killed both.
+	return cats.find((c) => !verified.has(c) && !refused.has(c) && !isDocumentProofCategory(c)) ?? null;
 }
 
 export interface GapBarInput {
@@ -269,7 +275,10 @@ export function computeGapBar(input: GapBarInput, skipActions = false): GapBar {
 		if (worth <= 0) continue;                           // earns nothing → don't ask
 		candidates.push({
 			dim: d, category, worth,
-			phrase: ASK_PHRASE[d] ?? d.replace(/_/g, ' '),
+			// The CATEGORY's wording, not the dimension's. Thirteen possible asks instead
+			// of four, so "your next step" stops being one of four sentences he hears in
+			// every conversation he has.
+			phrase: CATEGORY_ASK_PHRASE[category] ?? ASK_PHRASE[d] ?? d.replace(/_/g, ' '),
 		});
 	}
 	candidates.sort((a, b) => b.worth - a.worth || (herWeights?.[b.dim] ?? 0) - (herWeights?.[a.dim] ?? 0));

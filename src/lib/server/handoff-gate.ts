@@ -23,6 +23,7 @@ import {
 	PROVABLE_DIMS,
 	DIM_TO_PROOF,
 	ASK_PHRASE,
+	CATEGORY_ASK_PHRASE,
 	PROVEN_C,
 	CLAIMING_V,
 	MIN_WEIGHT,
@@ -77,7 +78,9 @@ export function assessHandoffReadiness(args: {
 	const blockOn = (d: DimensionId, target: string, reason: string): HandoffGate => ({
 		ready: false,
 		blockingDim: d,
-		blockingPhrase: ASK_PHRASE[d] ?? (OPEN_DIMENSIONS.find((x) => x.id === d)?.label ?? d).toLowerCase(),
+		// The CATEGORY's wording, so the ask names the thing he is actually being asked
+		// for rather than the dimension it happens to serve.
+		blockingPhrase: CATEGORY_ASK_PHRASE[target] ?? ASK_PHRASE[d] ?? (OPEN_DIMENSIONS.find((x) => x.id === d)?.label ?? d).toLowerCase(),
 		requestCategory: target,
 		reason,
 	});
@@ -85,14 +88,15 @@ export function assessHandoffReadiness(args: {
 	// in-chat 📎 surface, which is picture-upload only. Document/ID-gated categories
 	// (income, ownership papers) are skipped; a dim she values that has only doc
 	// proofs (e.g. financial) simply can't gate the hand-off from chat.
-	// A refusal takes out the whole DIMENSION, not just the one category. Every
-	// category in a dimension shares a single ASK_PHRASE, so falling through to a
-	// sibling category re-sends a word-for-word identical ask he already declined
-	// (refuse "wealth" → ask "assets" → same "verify your income" sentence).
+	// Skips the categories he actually declined. This used to take out the whole
+	// DIMENSION, because every category in one shared a single ASK_PHRASE and falling
+	// through re-sent a word-for-word identical ask (refuse "wealth" → ask "assets" →
+	// the same "verify your income" sentence). Asks are named per CATEGORY now, so a
+	// fallthrough is a genuinely different question and the blunt rule only cost him
+	// routes — `linkedin` sits in two dimensions, so one refusal closed both.
 	const available = (d: DimensionId): string | null => {
 		const cats = DIM_TO_PROOF[d] ?? [];
-		if (cats.some((cat) => refused.has(cat))) return null;
-		return cats.find((cat) => !verified.has(cat) && !isDocumentProofCategory(cat)) ?? null;
+		return cats.find((cat) => !verified.has(cat) && !refused.has(cat) && !isDocumentProofCategory(cat)) ?? null;
 	};
 
 	// PASS 1 — specific gaps: a dimension she values that he CLAIMS (v≥45) but hasn't

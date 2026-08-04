@@ -137,14 +137,53 @@ describe('computeGapBar', () => {
 	});
 
 	// ── Held, and fit ─────────────────────────────────────────────────────────
+	// Every picture route there is. Five used to be enough to exhaust him, which was
+	// the bug: `hosting`, `intro`, `instagram`, `habit_tracker` and `twitter` all exist
+	// and carry real dimension confidence, and nothing ever offered them.
+	const EVERY_PICTURE_ROUTE = [
+		'travel', 'lifestyle', 'discipline', 'linkedin', 'social_proof',
+		'hosting', 'intro', 'instagram', 'habit_tracker', 'twitter',
+	];
+
 	it('reports held with a named reason when every route was refused', () => {
-		const bar = computeGapBar({
-			...base,
-			refusedCategories: ['travel', 'lifestyle', 'discipline', 'linkedin', 'social_proof'],
-		});
+		const bar = computeGapBar({ ...base, refusedCategories: EVERY_PICTURE_ROUTE });
 		expect(bar.held).toBe(true);
 		expect(bar.heldPhrase).toBeTruthy();
 		expect(bar.nextAction).toBeNull();
+	});
+
+	it('one refusal does not kill a dimension that has other routes', () => {
+		// `linkedin` sits in BOTH social_legitimacy and ambition, and the old rule took
+		// out any dimension containing a refused category — so declining it killed two
+		// of four dimensions at once and left a third of real matches with no
+		// alternative route at all. social_legitimacy still has social_proof, instagram
+		// and twitter, so it must survive.
+		const bar = computeGapBar({ ...base, refusedCategories: ['linkedin'] });
+		const offered = [bar.nextAction, ...bar.alternatives].filter(Boolean);
+		expect(offered.some((a) => a!.dim === 'social_legitimacy')).toBe(true);
+		expect(offered.every((a) => a!.category !== 'linkedin')).toBe(true);
+	});
+
+	it('offers more than the four things it used to', () => {
+		// The suggestion was named after the DIMENSION, so there were exactly four
+		// possible asks product-wide and a man in six conversations heard the same one
+		// six times. Naming the CATEGORY gives him the real taxonomy.
+		const seen = new Set<string>();
+		for (const refused of [[], ['travel'], ['travel', 'lifestyle'], ['travel', 'lifestyle', 'discipline'], ['travel', 'lifestyle', 'discipline', 'linkedin']]) {
+			const bar = computeGapBar({ ...base, refusedCategories: refused });
+			for (const a of [bar.nextAction, ...bar.alternatives].filter(Boolean)) seen.add(a!.phrase);
+		}
+		expect(seen.size).toBeGreaterThan(4);
+	});
+
+	it('never offers a document proof in chat, however many routes open up', () => {
+		// Broadening the taxonomy must not have opened a door to the money categories.
+		for (const refused of [[], ['travel'], ['linkedin'], ['travel', 'lifestyle', 'discipline']]) {
+			const bar = computeGapBar({ ...base, refusedCategories: refused });
+			for (const a of [bar.nextAction, ...bar.alternatives].filter(Boolean)) {
+				expect(['wealth', 'assets', 'spending']).not.toContain(a!.category);
+			}
+		}
 	});
 
 	it('is not held once he is past the threshold', () => {

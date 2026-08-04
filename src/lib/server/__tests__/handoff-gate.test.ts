@@ -36,7 +36,11 @@ describe('assessHandoffReadiness — the Sam ↔ valarie case', () => {
 		// documents — never requested in chat — so the gate falls through to lifestyle.
 		expect(gate.blockingDim).toBe('lifestyle');
 		expect(gate.requestCategory).toBe('travel'); // a picture proof, not a document
-		expect(gate.blockingPhrase).toBe('lifestyle');
+		// Named after the CATEGORY he is being asked for, not the dimension it serves.
+		// "you mentioned your travel" is the thing he actually said; "your lifestyle" was
+		// an abstraction, and sharing one phrase across a dimension's categories is what
+		// forced a refusal to kill all of them.
+		expect(gate.blockingPhrase).toBe('travel');
 	});
 
 	it('NEVER requests a document category in chat, even when financial is her top value', () => {
@@ -62,7 +66,7 @@ describe('assessHandoffReadiness — the Sam ↔ valarie case', () => {
 		const gate = assessHandoffReadiness({
 			herWeights: valarieWeights, hisAttrs: samAttrs, hisConf: samConf,
 			verifiedCategories: ['photos'],
-			refusedCategories: ['travel', 'lifestyle', 'discipline', 'linkedin', 'social_proof'],
+			refusedCategories: ['travel', 'lifestyle', 'discipline', 'linkedin', 'social_proof', 'hosting', 'intro', 'instagram', 'habit_tracker', 'twitter'],
 		});
 		expect(gate.ready).toBe(true); // moves on rather than trapping the match
 	});
@@ -119,8 +123,25 @@ describe('assessHandoffReadiness — substance floor (hand-offs are not lightwei
 		const gate = assessHandoffReadiness({
 			herWeights: valarieWeights, hisAttrs: quietAttrs, hisConf: floorConf,
 			verifiedCategories: ['photos'],
-			refusedCategories: ['wealth', 'assets', 'spending', 'travel', 'lifestyle', 'discipline', 'linkedin', 'social_proof'],
+			refusedCategories: ['wealth', 'assets', 'spending', ...['travel', 'lifestyle', 'discipline', 'linkedin', 'social_proof', 'hosting', 'intro', 'instagram', 'habit_tracker', 'twitter']],
 		});
 		expect(gate.ready).toBe(true);
+	});
+
+	it('one refusal no longer closes every dimension that shares the category', () => {
+		// `linkedin` serves both social_legitimacy and ambition. The gate used to drop any
+		// dimension containing a refused category, so declining it shut both — and with
+		// them a third of real matches' alternative routes. social_legitimacy still has
+		// social_proof, instagram and twitter, so the gate must still find one.
+		const gate = assessHandoffReadiness({
+			herWeights: { ...valarieWeights, social_legitimacy: 0.4, lifestyle: 0.01, presentation: 0.01, financial: 0.01 },
+			hisAttrs: samAttrs,
+			hisConf: samConf,
+			verifiedCategories: [],
+			refusedCategories: ['linkedin'],
+		});
+		expect(gate.ready).toBe(false);
+		expect(gate.blockingDim).toBe('social_legitimacy');
+		expect(gate.requestCategory).not.toBe('linkedin');
 	});
 });
