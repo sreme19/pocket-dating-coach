@@ -79,6 +79,12 @@ export interface SuitorInput {
 	/** Bestie wrapped her checklist on him. */
 	wrapped: boolean;
 	waitingOnHim: boolean;
+	/**
+	 * A hard mismatch Bestie found in his own words (G-2). Takes over the note, because
+	 * "he says he isn't looking for a relationship" matters more to her than which proof
+	 * is outstanding. It never removes him from her list: the decision is hers.
+	 */
+	fitMismatch?: string | null;
 }
 
 /**
@@ -106,7 +112,10 @@ export function buildHerInbox(herWeights: Vec | null, suitors: SuitorInput[]): H
 			rank: standingRank(x.appeal, allAppeals.filter((a) => a !== x.appeal)).rank,
 			appeal: Math.round(x.appeal * 10) / 10,
 			ready: x.s.wrapped && (x.s.gapBarPercent ?? 0) >= HANDOFF_THRESHOLD,
-			unprovenNote: unprovenNote(herWeights, x.s.conf),
+			// A hard mismatch takes over the note: "he says he isn't looking for a
+			// relationship" matters more to her than which proof is outstanding. He stays
+			// in her list either way — the decision is hers, not Bestie's.
+			unprovenNote: x.s.fitMismatch?.trim() || unprovenNote(herWeights, x.s.conf),
 			waitingOnHim: x.s.waitingOnHim,
 		}));
 

@@ -147,3 +147,28 @@ describe('buildHerInbox', () => {
 		expect(box).toEqual({ ready: [], vetting: [], waiting: [], totalSuitors: 0 });
 	});
 });
+
+describe('buildHerInbox — hard mismatch (G-2)', () => {
+	it('lets the mismatch take over the note', () => {
+		const box = buildHerInbox(her, [
+			s({ matchId: 'a', fitMismatch: "he says he isn't looking for a relationship right now" }),
+		]);
+		expect(box.ready[0].unprovenNote).toBe("he says he isn't looking for a relationship right now");
+	});
+
+	it('still shows him to her — a mismatch is her decision, not a removal', () => {
+		// Deliberately not an auto-unmatch. This is a model judgement, and the same model
+		// once accused a blameless man nine times of something he never said.
+		const box = buildHerInbox(her, [
+			s({ matchId: 'a', firstName: 'Mismatched', fitMismatch: 'wants something casual' }),
+			s({ matchId: 'b', firstName: 'Fine' }),
+		]);
+		const everyone = [...box.ready, ...box.vetting, ...box.waiting].map((r) => r.firstName);
+		expect(everyone).toContain('Mismatched');
+	});
+
+	it('falls back to the unproven note when there is no mismatch', () => {
+		const box = buildHerInbox(her, [s({ matchId: 'a', fitMismatch: null })]);
+		expect(box.ready[0].unprovenNote).toBe('portfolio thin');
+	});
+});

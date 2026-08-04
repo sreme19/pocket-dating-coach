@@ -53,7 +53,7 @@ export async function loadMatchGapBar(
 
 	const { data: matchRow } = await supabase
 		.from('verified_vibe_matches')
-		.select('proof_request' + (gapBarEnabled() ? ', gap_bar_percent' : ''))
+		.select('proof_request' + (gapBarEnabled() ? ', gap_bar_percent, fit_mismatch' : ''))
 		.eq('id', matchId)
 		.maybeSingle();
 
@@ -74,12 +74,13 @@ export async function loadMatchGapBar(
 		hisConf: (hisVec?.confidence ?? null) as Vec | null,
 		verifiedCategories: proofSignals.categories,
 		refusedCategories: refusedCategories(proofState),
-		// Stage 1 passes because the match EXISTS: the matchmaker applies her hard
-		// filters (age, city, intent, hard nos) before creating one, so a match on the
-		// board has already cleared them. A hard-no discovered later in conversation is
-		// a separate outcome — the match closes — rather than a lower score, so it is
-		// not modelled as a failing fit here.
-		fitPass: true,
+		// Stage 1 passes because the match EXISTS: the matchmaker applies her hard filters
+		// (age, city, intent, hard nos) before creating one, so anything on the board has
+		// cleared them. What it cannot catch is a hard-no he reveals while TALKING, and
+		// that is what fit_mismatch records (G-2) — a man saying he does not want a
+		// relationship to a woman whose dealbreaker is mixed signals. Bestie writes it
+		// from his own words; it is never inferred from a pattern, and it never unmatches.
+		fitPass: !matchRow?.fit_mismatch,
 		previousPercent,
 	};
 

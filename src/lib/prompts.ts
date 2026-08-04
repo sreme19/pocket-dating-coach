@@ -821,7 +821,8 @@ BESTIE CHECKLIST (what to learn about ${matchName} before ${userName} steps in):
 	const jsonFields = [
 		`  "signal": "🚩" | "⚠️" | "✅"`,
 		`  "read": "One or two sentences for ${userName}'s eyes only (never shown to ${matchName}), OR an empty string \\"\\" when this turn doesn't warrant one — see WHEN TO WRITE A READ. Be fair and balanced. Acknowledge what's genuinely good before flagging anything."`,
-		`  "reply": "The message to send to ${matchName}, in your own voice as ${userName}'s bestie. 1 to 3 short sentences, usually 1 or 2."`
+		`  "reply": "The message to send to ${matchName}, in your own voice as ${userName}'s bestie. 1 to 3 short sentences, usually 1 or 2."`,
+		`  "fitMismatch": "null almost always. Set it ONLY when ${matchName}'s OWN words in THIS message reveal something that squarely contradicts what ${userName} has said she needs — one of her hard nos, or wanting something fundamentally different from what she is here for (e.g. she wants a relationship and he says he does not). One short factual sentence quoting or closely paraphrasing what he actually said, never your inference about what he is like. If you are unsure, or it is a matter of degree, or he was merely vague, it is null. This does not end anything and it is not a verdict on him — it is a heads-up for ${userName}, and she decides."`
 	];
 	if (proofRequestContext) {
 		jsonFields.push(

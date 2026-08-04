@@ -123,7 +123,7 @@ export async function buildConversations(
   //    query has no dependency on the Phase 4 migration.
   const enforce = networkingEnforcementEnabled();
   const matchCols =
-    'id, user1_id, user2_id, status, created_at, user1_last_read_at, user2_last_read_at, ai_bestie_active, bestie_checklist, expired_at' +
+    'id, user1_id, user2_id, status, created_at, user1_last_read_at, user2_last_read_at, ai_bestie_active, bestie_checklist, expired_at, fit_mismatch' +
     (enforce ? ', deranked_at' : '') +
     // Same reasoning as deranked_at: only read behind its flag, so this query has no
     // dependency on the gap-bar migration until the gate is switched on.
@@ -314,6 +314,7 @@ async function annotateHerInbox(
           conf: (v?.confidence ?? null) as Vec | null,
           gapBarPercent: typeof row?.gap_bar_percent === 'number' ? row.gap_bar_percent : null,
           wrapped: (row?.bestie_checklist as any)?.status === 'wrapped',
+          fitMismatch: (row?.fit_mismatch as any)?.reason ?? null,
           // Literally what it says: the last word in the thread is not his, and it has
           // been days. No new state needed to know he owes her an answer.
           waitingOnHim:

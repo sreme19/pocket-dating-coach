@@ -101,6 +101,12 @@ export interface BestieReply {
 	/** Counters to write when an ask opportunity passed (drives the 1-in-5 cadence). */
 	consentCounters?: Record<string, unknown>;
 	/**
+	 * A hard mismatch he revealed in his own words this turn (G-2). Zeroes stage 1 of
+	 * his gap bar, stops her driving toward a hand-off, and surfaces the call to the
+	 * owner. NEVER unmatches: this is a model judgement, so she decides.
+	 */
+	fitMismatch?: string;
+	/**
 	 * "Ask him more" (G-27): this turn OPENED on her new round of questions. The SENDER
 	 * stamps verified_vibe_matches.bestie_round_announced so she says it once rather
 	 * than re-announcing on every turn until he stops reading.
@@ -637,6 +643,18 @@ export async function generateBestieReply(
 			  )
 			: '';
 
+	// A hard mismatch already on record (G-2): stop working toward a hand-off. There is
+	// no point drawing out more of a man who has said he wants something she does not,
+	// and it would be unkind to keep him auditioning for it. She has been told and it is
+	// her call, so Bestie stays warm and present and simply stops steering.
+	const priorMismatch = ((matchRow as any)?.fit_mismatch ?? null) as { reason?: string } | null;
+	const mismatchContext = priorMismatch?.reason
+		? `\n\nHOLD OFF ON WRAPPING UP — ${matchName} has said something that does not line up with what ${userName} is looking for ("${priorMismatch.reason}"). ${userName} knows and it is her call, not yours.` +
+		  `\n- Do NOT push toward wrap-up, do NOT mark items done to get there, and do NOT ask him for proofs.` +
+		  `\n- Do NOT raise the mismatch with him, do not hint at it, and do not treat him as though he has failed something. He answered honestly and that is worth more than a tidy checklist.` +
+		  `\n- Stay warm and keep the conversation going normally if he wants to. If he asks what happens next, tell him she has it from here — which is true.`
+		: '';
+
 	// "Ask him more" (G-27): she reopened the checklist with follow-ups of her own.
 	// Announced ONCE per round — the marker is why she does not re-open on it every
 	// turn, or repeat the final-round warning until he stops reading. The open items
@@ -741,7 +759,7 @@ export async function generateBestieReply(
 					proofRequestContext: proofRequestContext + swapContext,
 					proofInviteContext,
 					checklistContext,
-					handoffContext: handoffContext + questionRoundContext,
+					handoffContext: handoffContext + questionRoundContext + mismatchContext,
 					proofAckCategory: opts?.proofAckCategory ?? '',
 					// Networking Season (Phase 4): adds the romanticPressure output field.
 					networking: seasonContext !== '',
@@ -831,6 +849,7 @@ export async function generateBestieReply(
 		proofRequest?: string | null;
 		proofRefusal?: boolean;
 		proofRefusalReason?: unknown;
+		fitMismatch?: unknown;
 		itemsDone?: unknown;
 		wrapUp?: unknown;
 		romanticPressure?: boolean;
@@ -948,6 +967,13 @@ export async function generateBestieReply(
 	// disengage, then unmatch) and does not depend on this signal, and anything real
 	// recurs on the next turn — whereas a false warning about a boundary reaches her
 	// once and colours whether she ever engages with him.
+	// A hard mismatch in HIS OWN WORDS (G-2). Bounded and trimmed: it goes in front of
+	// the owner, so it must be a short factual line rather than an essay of inference.
+	const fitMismatch =
+		typeof parsed.fitMismatch === 'string' && parsed.fitMismatch.trim().length > 3
+			? parsed.fitMismatch.trim().slice(0, 240)
+			: undefined;
+
 	const refusedThisTurn = parsed.proofRefusal === true;
 	const signal = refusedThisTurn ? '✅' : (parsed.signal ?? '✅');
 	if (refusedThisTurn && parsed.signal && parsed.signal !== '✅') {
@@ -966,6 +992,7 @@ export async function generateBestieReply(
 		// SPENT — she asked, she gave the caught-up notice, or the cadence said stay
 		// quiet this time. Ignoring the ask counts too: silence is not a decline, but
 		// she still had her shot and does not get to re-open it later in this chat.
+		...(fitMismatch ? { fitMismatch } : {}),
 		...(announceRound ? { roundAnnounced: roundsUsed } : {}),
 		...(consentOpportunity || noticeConsent ? { consentMoment: true } : {}),
 		...(consentUpdate ? { consentUpdate, partnerId: otherUserId ?? undefined } : {}),
@@ -1109,6 +1136,21 @@ export async function generateAndSendBestieReply(
 	// counter. Must run whether or not he answered — raising it at all is the
 	// event that spends this Bestie's one consent moment.
 	await persistConsent(supabase as any, matchId, reply);
+
+	// A hard mismatch he revealed (G-2). Written ONCE — the first one stands, so a later
+	// turn cannot overwrite the reason she was originally shown. Non-fatal, and it never
+	// unmatches: the whole point is that she decides.
+	if (reply.fitMismatch) {
+		try {
+			await (supabase as any)
+				.from('verified_vibe_matches')
+				.update({ fit_mismatch: { reason: reply.fitMismatch, at: new Date().toISOString() } })
+				.eq('id', matchId)
+				.is('fit_mismatch', null);
+		} catch (e) {
+			console.warn('[bestie] fit_mismatch persist failed (non-fatal):', e);
+		}
+	}
 
 	// "Ask him more" (G-27): mark the round as announced, so she opens on it once
 	// instead of every turn and the final-round warning is said a single time.
