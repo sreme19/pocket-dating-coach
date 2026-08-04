@@ -75,7 +75,34 @@ export interface ProofRequestState {
 	asked_at: string;
 	attempts: number;
 	resolved_at?: string | null;
-	history?: Array<{ category: string; outcome: 'refused' | 'fulfilled'; at: string }>;
+	history?: Array<{
+		category: string;
+		outcome: 'refused' | 'fulfilled';
+		at: string;
+		/**
+		 * WHY he said no, when the outcome is 'refused'. Absent on every entry written
+		 * before this shipped, and absent whenever it genuinely isn't clear.
+		 *
+		 * A refusal is currently a single undifferentiated fact, which is wrong in both
+		 * directions. "I don't think salary slips or bank statements should be shared on
+		 * this platform, they are confidential" is a considered boundary from someone
+		 * being careful. "I don't have any with me in it" is simply not having the photo.
+		 * Neither is evasion, and yet one man's push-back was logged as a red flag
+		 * against him purely because a refusal had nowhere to record that it was reasonable.
+		 *
+		 * Nothing reads this yet. It is captured now because the decisions that need it
+		 * — showing her a refusal as a neutral fact rather than a warning, and offering
+		 * him an equivalent proof he IS willing to give — cannot be made retroactively
+		 * on data we never kept.
+		 *
+		 *   privacy    — a deliberate boundary about what he shares anywhere
+		 *   unavailable — willing in principle, hasn't got the photo or document
+		 *   deferred   — "later", not a no
+		 *   pressured  — he objected to being asked, or to being asked again
+		 *   unclear    — he declined and gave nothing to go on
+		 */
+		reason?: 'privacy' | 'unavailable' | 'deferred' | 'pressured' | 'unclear';
+	}>;
 }
 
 /** Request is active = the man's proof-upload button should be visible. */

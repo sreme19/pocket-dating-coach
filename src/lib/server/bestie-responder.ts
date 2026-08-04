@@ -169,9 +169,18 @@ function buildProofRequestBlock(opts: {
  * Compute the post-reply proof-request state. Returns undefined when nothing
  * changed. Pure — persistence is the caller's job.
  */
+/** The refusal reasons we accept from the model; anything else becomes 'unclear'. */
+const REFUSAL_REASONS = ['privacy', 'unavailable', 'deferred', 'pressured', 'unclear'] as const;
+type RefusalReason = (typeof REFUSAL_REASONS)[number];
+
+function normaliseRefusalReason(raw: unknown): RefusalReason {
+	const v = `${raw ?? ''}`.trim().toLowerCase();
+	return (REFUSAL_REASONS as readonly string[]).includes(v) ? (v as RefusalReason) : 'unclear';
+}
+
 function nextProofState(
 	prev: ProofRequestState | null,
-	parsed: { proofRequest?: string | null; proofRefusal?: boolean },
+	parsed: { proofRequest?: string | null; proofRefusal?: boolean; proofRefusalReason?: unknown },
 	invitable: ProofRequestCategory[]
 ): ProofRequestState | undefined {
 	const now = new Date().toISOString();
@@ -187,13 +196,23 @@ function nextProofState(
 	}
 
 	// He declined the open request → refused, permanently. Context only — this
-	// must never feed trust or match scoring.
+	// must never feed trust or match scoring. The REASON is recorded alongside it
+	// (see ProofRequestState.history) so that a considered boundary and plain evasion
+	// stop being the same stored fact. Nothing consumes it yet.
 	if (parsed.proofRefusal === true && prev && isProofRequestActive(prev)) {
 		return {
 			...prev,
 			status: 'refused',
 			resolved_at: now,
-			history: [...(prev.history ?? []), { category: prev.category, outcome: 'refused', at: now }],
+			history: [
+				...(prev.history ?? []),
+				{
+					category: prev.category,
+					outcome: 'refused',
+					at: now,
+					reason: normaliseRefusalReason(parsed.proofRefusalReason),
+				},
+			],
 		};
 	}
 
@@ -348,7 +367,16 @@ export async function generateBestieReply(
 			.from('verified_vibe_messages')
 			.select('content, sender_id, created_at, is_ai')
 			.eq('match_id', matchId)
-			.order('created_at', { ascending: false })
+			// nullsFirst: false — Postgres puts NULLs FIRST in a DESC sort, so one row
+			// with a NULL created_at would be pulled to the top of this window and read
+			// as his newest message. That is precisely the false-pressure incident: his
+			// opener kept resurfacing as if just sent, and she accused him of pushing a
+			// line he had written once, before the conversation started, nine times over.
+			// The source was fixed in f6a3d27 (multi-row inserts now always set
+			// created_at) and there are no NULL rows left, but this is the query that
+			// decides whether a man is being pushy, so it does not get to rely on that.
+			// chat-read and the re-engage cron already carry the same guard.
+			.order('created_at', { ascending: false, nullsFirst: false })
 			.limit(12)
 			.then((r) => r.data),
 	]);
@@ -726,6 +754,7 @@ export async function generateBestieReply(
 		suggestedQuestion?: string;
 		proofRequest?: string | null;
 		proofRefusal?: boolean;
+		proofRefusalReason?: unknown;
 		itemsDone?: unknown;
 		wrapUp?: unknown;
 		romanticPressure?: boolean;

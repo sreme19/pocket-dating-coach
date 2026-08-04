@@ -829,6 +829,9 @@ BESTIE CHECKLIST (what to learn about ${matchName} before ${userName} steps in):
 		jsonFields.push(
 			`  "proofRefusal": "true ONLY if ${matchName}'s latest message declines the open proof request, otherwise false"`
 		);
+		jsonFields.push(
+			`  "proofRefusalReason": "ONLY when proofRefusal is true, WHY he declined, as one of: \\"privacy\\" (a deliberate boundary about what he shares — e.g. documents being confidential), \\"unavailable\\" (willing enough, just hasn't got that photo or document), \\"deferred\\" (\\"later\\", \\"I'll do it\\" — not a no), \\"pressured\\" (he objected to being asked, or to being asked again), \\"unclear\\" (he declined and gave nothing to go on). Judge it from HIS words, not from how you feel about the refusal. Declining is allowed and is not a character flaw. null when proofRefusal is false."`
+		);
 	}
 	if (checklistContext) {
 		jsonFields.push(
