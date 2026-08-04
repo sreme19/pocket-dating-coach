@@ -54,6 +54,7 @@ import {
 } from '$lib/server/bestie-ledger';
 import { seasonProxyBlock, networkingEnforcementEnabled, DERANK_PRESSURE_THRESHOLD } from '$lib/server/networking-season';
 import { scrubContactDetails } from '$lib/server/contact-scrub';
+import { resolveProxyPair } from '$lib/server/bestie-pair';
 
 export interface BestieReply {
 	signal: string;
@@ -963,43 +964,6 @@ async function persistConsent(supabase: any, matchId: string, reply: BestieReply
 	} catch (e) {
 		console.warn('[bestie-ledger] consent state persist failed (non-fatal):', e);
 	}
-}
-
-/**
- * Resolve the (woman, man) pair a Bestie may proxy for on this match, or null
- * when she may not speak in it at all.
- *
- * Bestie is a woman→man proxy and nothing else (§B). Networking Season ADDS
- * same-gender connections, and those are person-to-person by design: no Bestie
- * on either side, no transparency card, no checklist. The old shape —
- * `find((u) => u.gender === 'woman')` with only a `!woman` guard — silently
- * picked an arbitrary owner on a woman↔woman pair and treated the other woman as
- * "the man". So the test has to be the presence of a valid OPPOSITE-GENDER pair,
- * not the presence of one woman. A missing/unknown gender fails the same way,
- * deliberately: we don't guess who the owner is.
- */
-async function resolveProxyPair(
-	supabase: any,
-	matchId: string
-): Promise<{ woman: { id: string }; man: { id: string } } | null> {
-	const { data: matchRow } = await supabase
-		.from('verified_vibe_matches')
-		.select('user1_id, user2_id')
-		.eq('id', matchId)
-		.maybeSingle();
-	if (!matchRow) return null;
-
-	const { data: users } = await supabase
-		.from('verified_vibe_users')
-		.select('id, gender')
-		.in('id', [matchRow.user1_id, matchRow.user2_id]);
-
-	const women = (users ?? []).filter((u: any) => u.gender === 'woman');
-	const men = (users ?? []).filter((u: any) => u.gender === 'man');
-	// Exactly one of each. Two women, two men, or an unknown gender → not a proxy
-	// conversation, so Bestie stays out of it entirely.
-	if (women.length !== 1 || men.length !== 1) return null;
-	return { woman: women[0], man: men[0] };
 }
 
 /**
