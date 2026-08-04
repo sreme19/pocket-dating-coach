@@ -39,6 +39,7 @@ import { appeal, type Vec } from '$lib/server/vector-scoring';
 import { buildProofInviteContext } from '$lib/server/proof-invite-context';
 import {
 	loadLedger,
+	isLedgerEnabled,
 	ledgerTopics,
 	overlappingTopics,
 	shouldAskConsent,
@@ -574,7 +575,10 @@ export async function generateBestieReply(
 		.map((i) => i.topic ?? '')
 		.filter(Boolean) as string[];
 	const overlap = overlappingTopics(checklistTopics, ledgerEntries);
-	const consentGranted = consentState.consent === 'granted';
+	// Reuse is ON unless he switched it off, so there is nothing to ASK — every
+	// eligible thread takes the caught-up NOTICE path instead. Only 'declined'
+	// seals the ledger. See isLedgerEnabled().
+	const consentGranted = isLedgerEnabled(consentState.consent);
 	// A wrapped checklist means she's done vetting — raising consent then is noise.
 	const consentEligible = existingChecklist?.status !== 'wrapped';
 	const alreadyHadConsentMoment = !!(matchRow as any)?.bestie_consent_asked_at;
@@ -584,16 +588,13 @@ export async function generateBestieReply(
 	// count as a fresh opportunity and burn through the post-cap 1-in-5 cadence
 	// inside a single chat — he'd be back to being asked almost every thread.
 	// Spending it is what stamps the thread marker, whether she asks or stays quiet.
-	const consentOpportunity =
-		consentEligible && !consentGranted && !alreadyHadConsentMoment && overlap.length > 0;
-
-	const askConsent =
-		consentOpportunity &&
-		shouldAskConsent({
-			state: consentState,
-			hasOpportunity: true,
-			askedInThisThread: false
-		});
+	// Nothing to ask for any more: reuse is on by default, so the only men who are
+	// NOT enabled are the ones who went into Settings and switched it off. Raising
+	// it in chat would be overriding a control we handed him, so a decline is final
+	// and the in-chat ask never fires. shouldAskConsent() stays for the opt-in
+	// model's tests and for the day we want a periodic re-ask.
+	const consentOpportunity = false;
+	const askConsent = false;
 	// He said yes elsewhere and this Bestie hasn't told him yet. He agreed to a
 	// general reuse, so this is a courtesy notice rather than a second ask — but
 	// he must never find out silently.

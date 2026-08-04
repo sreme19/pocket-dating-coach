@@ -38,6 +38,20 @@ export interface LedgerEntry {
 
 export type LedgerConsent = 'unasked' | 'granted' | 'declined';
 
+/**
+ * Reuse is ON by default — only an explicit 'declined' seals the ledger.
+ *
+ * The earlier model was opt-in, which meant a man's own answers sat unread until
+ * some Bestie happened to hit an overlap and remember to ask him, and most men
+ * therefore got the repeat questions the ledger exists to prevent. He is told
+ * plainly the first time a Bestie is caught up (buildConsentNoticeBlock) and can
+ * switch it off in Settings > Safety > "Reuse what I have shared" — so it is a
+ * disclosed default rather than a silent one.
+ */
+export function isLedgerEnabled(consent: LedgerConsent): boolean {
+	return consent !== 'declined';
+}
+
 /** Consent state as stored on the man's user row. */
 export interface ConsentState {
 	consent: LedgerConsent;
@@ -276,12 +290,9 @@ export async function loadOwnLedgerContext(supabase: any, userId: string): Promi
 		return '';
 	}
 
-	const status =
-		consent === 'granted'
-			? 'He HAS agreed that besties can use this, so they are being spared the repeat questions. He can switch it off any time under Settings > Safety > "Reuse what I have shared", and switching it off keeps what he said rather than deleting it.'
-			: consent === 'declined'
-				? 'He has NOT agreed to besties using this, so nobody is reading it. It is only stored. He can turn it on any time under Settings > Safety > "Reuse what I have shared", and he would stop being asked the same things twice.'
-				: 'Nobody has used this yet. A bestie will ask him at some point whether she can, so he does not have to repeat himself. He can also turn it on himself under Settings > Safety > "Reuse what I have shared".';
+	const status = isLedgerEnabled(consent)
+		? 'Reuse is ON for him (it is on by default), so besties are caught up and he is spared the repeat questions. He can switch it off any time under Settings > Safety > "Reuse what I have shared", and switching it off keeps what he said rather than deleting it.'
+		: 'He has switched reuse OFF, so nobody is reading it. It is only stored. He can turn it back on any time under Settings > Safety > "Reuse what I have shared", and he would stop being asked the same things twice.';
 
 	if (entries.length === 0) {
 		return `

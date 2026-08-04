@@ -22,6 +22,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getSupabase } from '$lib/server/supabase';
 import { resolveUserId } from '$lib/server/require-user';
+import { isLedgerEnabled, type LedgerConsent } from '$lib/server/bestie-ledger';
 
 export const GET: RequestHandler = async ({ request }) => {
 	const userId = await resolveUserId(request);
@@ -42,12 +43,13 @@ export const GET: RequestHandler = async ({ request }) => {
 				.eq('user_id', userId)
 				.then((r: any) => r.count ?? 0)
 		]);
-		const consent = (user?.ledger_consent ?? 'unasked') as string;
-		return json({ consent, enabled: consent === 'granted', entryCount: count });
+		const consent = (user?.ledger_consent ?? 'unasked') as LedgerConsent;
+		return json({ consent, enabled: isLedgerEnabled(consent), entryCount: count });
 	} catch (err) {
 		console.error('[ledger-consent] read failed:', err);
-		// Degrade to "off, nothing stored" rather than 500ing a settings screen.
-		return json({ consent: 'unasked', enabled: false, entryCount: 0 });
+		// Degrade to the default (on, nothing stored) rather than 500ing a settings
+		// screen — showing it off when it is actually on would be the lie.
+		return json({ consent: 'unasked', enabled: true, entryCount: 0 });
 	}
 };
 

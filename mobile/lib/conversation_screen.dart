@@ -52,7 +52,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
   bool _manBannerDismissed = false;    // man's banner dismiss flag
   ProofRequest? _proofRequest;         // Bestie's open in-chat proof ask (man's side)
   bool _proofUploading = false;        // verification in progress
-  bool _bestieCardCollapsed = false;
+  // Collapsed by default: expanded it eats most of the first screen and pushes
+  // the actual conversation out of view. The header row still names her and
+  // carries the progress, and he can open it whenever he wants the full note.
+  bool _bestieCardCollapsed = true;
   bool _wrappedCardCollapsed = false;  // woman's in-thread wrap-up card collapse
   BestieChecklist? _checklist;         // Bestie's per-man checklist (drives progress)
 
