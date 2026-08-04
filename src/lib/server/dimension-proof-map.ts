@@ -6,8 +6,21 @@
 import type { DimensionId } from '$lib/verified-vibe/dimensions';
 
 /** Dimensions backable by a proof UPLOAD. Soft dims (humor, warmth, intellect,
- * family) can't be "proven" by a file, so we never invite/gate on them. */
-export const PROVABLE_DIMS: DimensionId[] = ['financial', 'lifestyle', 'presentation', 'social_legitimacy', 'ambition'];
+ * family) can't be "proven" by a file, so we never invite/gate on them.
+ *
+ * `financial` is deliberately NOT here. Money is a fraud check, never an attraction
+ * signal: neither companion may describe anyone in terms of what they earn or can
+ * pay for, so Bestie must not gate a hand-off on it or invite it in chat either.
+ * Asking did not work in any case — across production, income/wealth/assets/spending
+ * asks ran 0 fulfilled to 4 refused, and one man's flat "stop asking me for my income
+ * proof, I am not applying for a loan" was logged as a red flag AGAINST him.
+ *
+ * Financial documents still contribute to his score through the normal verification
+ * pipeline, and Wingman may still encourage him to verify them — just never on the
+ * grounds that it makes him more appealing. Only these two Bestie-side surfaces
+ * (handoff-gate, proof-invite-context) read this list, so dropping it here does not
+ * touch that. The `financial` entries below stay for the scoring map. */
+export const PROVABLE_DIMS: DimensionId[] = ['lifestyle', 'presentation', 'social_legitimacy', 'ambition'];
 
 /** Best in-chat proof categories per provable dimension, strongest first
  * (mirrors PROOF_CONFIDENCE in vector-builder + the proof-signals taxonomy). */

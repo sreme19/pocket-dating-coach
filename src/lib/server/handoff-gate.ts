@@ -120,7 +120,16 @@ export function assessHandoffReadiness(args: {
 	return READY('proof-coverage-ok');
 }
 
-/** Warm, woman-voiced line that pivots the wrap-up turn into a proof invite. */
+/**
+ * Warm, woman-voiced line that pivots the wrap-up turn into a proof invite.
+ *
+ * Deliberately says nothing about how much she cares or what it will do for him.
+ * The old wording — "it's something she really cares about, and proving it here makes
+ * all the difference" — sold a proof as an attraction signal, which is exactly what
+ * the money rule forbids, and it promised an outcome we cannot deliver on given how
+ * often a hand-off goes unanswered. It is now about the claim standing up: he said a
+ * thing, and verified reads differently from stated.
+ */
 export function handoffProofAskLine(phrase: string): string {
-	return `Before I bring her in, it'd genuinely help if you could verify your ${phrase} — it's something she really cares about, and proving it here makes all the difference. Tap 📎 whenever you're ready.`;
+	return `One thing before I bring her in — you mentioned your ${phrase}, and it reads differently on your profile once it's verified rather than just said. Tap 📎 if you want to.`;
 }

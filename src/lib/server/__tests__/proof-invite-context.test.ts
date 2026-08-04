@@ -37,19 +37,30 @@ describe('buildProofInviteContext — proactive, preference-targeted invites', (
 		for (const doc of ['(wealth)', '(assets)', '(spending)']) expect(block).not.toContain(doc);
 	});
 
-	it('respects the allowed set — honours whatever categories it is handed (pure contract)', () => {
-		// The pure function itself has no picture/document opinion; the filtering is
-		// upstream. Given the full taxonomy it will surface her top value, income.
-		const { topCategory } = buildProofInviteContext({
+	it('never invites money EVEN when handed the full taxonomy, and even when it is her top value', () => {
+		// This is the strong form of the money rule and the reason `financial` is not in
+		// PROVABLE_DIMS. It used to hold only incidentally: income proofs happen to be
+		// documents, and the caller filtered documents out. So a picture-based money
+		// category added later would have slipped straight through. Here the caller hands
+		// over EVERYTHING including wealth/assets/spending, financial is her single
+		// highest weight, and he is loudly claiming it (v=65) and unproven (c=0.3) — the
+		// most tempting possible case. It must still come back with her next real value.
+		const { topCategory, block } = buildProofInviteContext({
 			herWeights, hisAttrs, hisConf, rivalAppeals: [30, 20],
 			allowed: ALL_CATS, matchName: 'Sam', userName: 'valarie',
 		});
-		expect(topCategory).toBe('wealth'); // financial is her top provable value
+		expect(topCategory).toBe('travel');
+		for (const money of ['(wealth)', '(assets)', '(spending)']) expect(block).not.toContain(money);
+		expect(block.toLowerCase()).not.toContain('income');
 	});
 
 	it('can name more than one proof', () => {
+		// Needs TWO provable dims above MIN_WEIGHT. Her fixture above only clears it on
+		// lifestyle once financial is excluded, so weight presentation up as well.
+		const twoProvable: Vec = { ...herWeights, financial: 0.02, lifestyle: 0.25, presentation: 0.20 };
 		const { block } = buildProofInviteContext({
-			herWeights, hisAttrs, hisConf, rivalAppeals: [30, 20],
+			herWeights: twoProvable, hisAttrs, hisConf: { ...hisConf, presentation: 0.3 },
+			rivalAppeals: [30, 20],
 			allowed: ALL_CATS, matchName: 'Sam', userName: 'valarie', max: 2,
 		});
 		expect((block.match(/proving it/g) ?? []).length).toBeGreaterThanOrEqual(2);
