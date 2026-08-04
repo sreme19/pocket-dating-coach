@@ -75,13 +75,54 @@ class _ChatListScreenState extends State<ChatListScreen>
     _loadShownHandoff();
     _subscribeToMessages();
     _subscribeToPresence();
-    // Periodic backstop: refresh every 15 s in case realtime misses an event.
-    // Also re-checks FM eligibility so Trust & Boost completions surface quickly.
-    _periodicRefresh = Timer.periodic(const Duration(seconds: 15), (_) {
+    // Repaint + resume/pause polling as the user moves between tabs. IndexedStack
+    // keeps this screen alive and BUILT behind Discover/Profile, so without this
+    // the poll below kept firing against a screen nobody was looking at.
+    HomeShell.visibleTab.addListener(_onVisibleTabChanged);
+    _startPolling();
+    _loadMatchmakerStatus();
+  }
+
+  /// Periodic backstop in case realtime misses an event — realtime
+  /// (`_subscribeToMessages`) is what actually keeps the list live, so this only
+  /// has to catch dropped events.
+  ///
+  /// Each tick costs FIVE API calls (`_load`'s conversations + tips + admirers +
+  /// sent-admirers, plus matchmaker status). At the old 15 s cadence that was
+  /// 20 requests/minute — 1,200 an hour spent rendering an idle list, which on
+  /// its own walked users into the API rate limiter in about ninety minutes.
+  /// One minute, only while this tab is actually on screen, is 60x cheaper.
+  static const Duration _pollInterval = Duration(minutes: 1);
+
+  bool get _isVisible => HomeShell.visibleTab.value == HomeShell.chatTabIndex;
+
+  void _startPolling() {
+    _periodicRefresh?.cancel();
+    _periodicRefresh = Timer.periodic(_pollInterval, (_) {
+      // Belt-and-braces: the timer is cancelled when the tab hides or the app
+      // backgrounds, but never poll from a screen the user cannot see.
+      if (!_isVisible) return;
       _refresh();
       _loadMatchmakerStatus();
     });
-    _loadMatchmakerStatus();
+  }
+
+  void _stopPolling() {
+    _periodicRefresh?.cancel();
+    _periodicRefresh = null;
+  }
+
+  void _onVisibleTabChanged() {
+    if (!mounted) return;
+    if (_isVisible) {
+      // Coming back to the tab: refresh once immediately so the list is current
+      // without waiting out a whole interval, then resume the backstop.
+      _refresh();
+      _loadMatchmakerStatus();
+      _startPolling();
+    } else {
+      _stopPolling();
+    }
   }
 
   Future<void> _loadMatchmakerStatus() async {
@@ -263,7 +304,8 @@ class _ChatListScreenState extends State<ChatListScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _periodicRefresh?.cancel();
+    HomeShell.visibleTab.removeListener(_onVisibleTabChanged);
+    _stopPolling();
     if (_msgChannel != null) Supabase.instance.client.removeChannel(_msgChannel!);
     if (_attentionChannel != null) Supabase.instance.client.removeChannel(_attentionChannel!);
     if (_matchChannel != null) Supabase.instance.client.removeChannel(_matchChannel!);
@@ -272,12 +314,18 @@ class _ChatListScreenState extends State<ChatListScreen>
     super.dispose();
   }
 
-  // Refresh when app comes back to foreground
+  // Refresh when the app comes back to foreground — and stop polling entirely
+  // while it is backgrounded. The timer used to keep running (and keep spending
+  // API requests) with the app off screen.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      if (!_isVisible) return;
       _refresh();
       _loadMatchmakerStatus();
+      _startPolling();
+    } else {
+      _stopPolling();
     }
   }
 

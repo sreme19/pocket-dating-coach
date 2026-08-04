@@ -25,7 +25,8 @@ class ConversationScreen extends StatefulWidget {
   State<ConversationScreen> createState() => _ConversationScreenState();
 }
 
-class _ConversationScreenState extends State<ConversationScreen> {
+class _ConversationScreenState extends State<ConversationScreen>
+    with WidgetsBindingObserver {
   final _composer = TextEditingController();
   final _composerFocus = FocusNode();
   final _scroll = ScrollController();
@@ -65,17 +66,47 @@ class _ConversationScreenState extends State<ConversationScreen> {
   void initState() {
     super.initState();
     AppLogger.instance.screen('conversation');
+    WidgetsBinding.instance.addObserver(this);
     _initialLoad();
     fetchCurrentUserGender().then((g) { if (mounted) setState(() => _viewerGender = g); });
     _subscribeRealtime();
     _subscribePresence();
-    // Polling backstop
-    _poll = Timer.periodic(const Duration(seconds: 5), (_) => _pollOnce());
+    _startPolling();
+  }
+
+  /// Polling backstop for the thread. Realtime (`_subscribeRealtime`) delivers
+  /// messages; this only has to catch dropped events and the server-side state
+  /// that rides along on the thread payload (proof request, checklist, gap bar).
+  ///
+  /// This was every 5 s and ran even with the app backgrounded — 720 requests an
+  /// hour per open thread, against a shared API rate limit.
+  static const Duration _pollInterval = Duration(seconds: 10);
+
+  void _startPolling() {
+    _poll?.cancel();
+    _poll = Timer.periodic(_pollInterval, (_) => _pollOnce());
+  }
+
+  void _stopPolling() {
+    _poll?.cancel();
+    _poll = null;
+  }
+
+  // Don't poll a thread the user has backgrounded; catch up on return.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _pollOnce();
+      _startPolling();
+    } else {
+      _stopPolling();
+    }
   }
 
   @override
   void dispose() {
-    _poll?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _stopPolling();
     if (_channel != null) Supabase.instance.client.removeChannel(_channel!);
     if (_presenceChannel != null) Supabase.instance.client.removeChannel(_presenceChannel!);
     _composer.dispose();
