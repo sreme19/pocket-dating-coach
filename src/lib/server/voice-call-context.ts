@@ -69,7 +69,7 @@ export async function loadVoiceCallContext(
 			.from('verified_vibe_messages')
 			.select('content, sender_id, created_at')
 			.eq('match_id', matchId)
-			.order('created_at', { ascending: false })
+			.order('created_at', { ascending: false, nullsFirst: false })
 			.limit(12)
 			.then((r) => r.data)
 	]);

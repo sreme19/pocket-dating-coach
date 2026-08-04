@@ -294,7 +294,7 @@ export async function loadWingmanAdvisorContext(
 				.from('verified_vibe_messages')
 				.select('content, sender_id, created_at, is_ai')
 				.eq('match_id', match.id)
-				.order('created_at', { ascending: false })
+				.order('created_at', { ascending: false, nullsFirst: false })
 				.limit(6);
 
 			const msgs = (recentMsgs ?? []).reverse();

@@ -110,9 +110,11 @@ export const GET: RequestHandler = async ({ url }) => {
       searchQuery = searchQuery.eq('sender_id', sender);
     }
 
-    // Apply pagination and ordering
+    // Apply pagination and ordering. nullsFirst: false because Postgres sorts NULLs
+    // FIRST in a DESC order, so a message with a NULL created_at would head up the
+    // results as if it were the most recent. Same guard as every other message sort.
     const { data: messages, count, error } = await searchQuery
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: false, nullsFirst: false })
       .range(offset, offset + limit - 1);
 
     if (error) {

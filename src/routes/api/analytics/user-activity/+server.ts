@@ -49,7 +49,7 @@ export const GET: RequestHandler = async ({ url }) => {
 		sb.from('verified_vibe_messages')
 			.select('id, content, created_at, match_id')
 			.eq('sender_id', userId)
-			.order('created_at', { ascending: false })
+			.order('created_at', { ascending: false, nullsFirst: false })
 			.limit(50),
 
 		// Analytics events

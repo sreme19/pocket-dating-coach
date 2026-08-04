@@ -78,7 +78,7 @@ export const POST: RequestHandler = async ({ request }) => {
         .from('verified_vibe_messages')
         .select('sender_id, content, created_at')
         .eq('match_id', body.conversationId)
-        .order('created_at', { ascending: false })
+        .order('created_at', { ascending: false, nullsFirst: false })
         .limit(15),
     ]);
 
