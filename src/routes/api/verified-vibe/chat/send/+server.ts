@@ -284,32 +284,27 @@ export const POST: RequestHandler = async ({ request }) => {
             await generateAndSendBestieReply(recipientId, body.conversationId, savedMessage.id, body.content.trim(), savedMessage.created_at);
           } else if (recipient?.gender === 'man') {
             // The woman (Bestie's owner) is texting back herself → she's taking
-            // over. Deactivate Bestie so it stops auto-replying, then leave one
-            // final hard-coded sign-off (stored as AI, in her own thread). The
-            // ai_bestie_active=true guard makes this fire exactly once even if
-            // she sends two messages before the first deactivation lands.
-            const { data: deactivated } = await supabase
+            // over. Deactivate Bestie so it stops auto-replying. The
+            // ai_bestie_active=true guard keeps this to one transition even if she
+            // sends two messages before the first deactivation lands.
+            //
+            // No sign-off message is written into the thread. There used to be one
+            // ("Okay I'm gonna let you two take it from here! {her name}, he's all
+            // yours") and it was addressed to HER while sitting in the shared
+            // conversation, so the man read her bestie talking about him in the third
+            // person — one woman replied "me talking to myself / wow". It also
+            // reappeared on every take-over, and since the re-engage cron switches
+            // Bestie back on, one thread collected three of them.
+            //
+            // The man is still told, per §C9 — by the persistent "You're now talking
+            // to {name} directly" banner on both clients, which is keyed off
+            // ai_bestie_active and survives re-opening the thread. A banner is the
+            // right shape for a state change; a chat message is not.
+            await supabase
               .from('verified_vibe_matches')
               .update({ ai_bestie_active: false })
               .eq('id', body.conversationId)
-              .eq('ai_bestie_active', true)
-              .select('id');
-            if (deactivated && deactivated.length > 0) {
-              const { data: owner } = await supabase
-                .from('verified_vibe_users')
-                .select('first_name')
-                .eq('id', user.id)
-                .single();
-              const ownerName = owner?.first_name?.trim() || 'She';
-              await supabase
-                .from('verified_vibe_messages')
-                .insert({
-                  match_id: body.conversationId,
-                  sender_id: user.id,
-                  content: `Okay I'm gonna let you two take it from here! ${ownerName}, he's all yours`,
-                  is_ai: true
-                } as any);
-            }
+              .eq('ai_bestie_active', true);
           }
         } catch (bestieErr) {
           // Never let Bestie failure break the send.

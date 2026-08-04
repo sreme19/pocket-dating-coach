@@ -223,6 +223,15 @@
     currentUserGender === 'man' && $currentMatch?.gender === 'woman'
   );
 
+  // The hand-off is never silent (§C9): once she steps in and her Bestie is no
+  // longer the proxy, the man is told plainly. This is a persistent banner rather
+  // than a message in the thread — a message announcing it read as her bestie
+  // talking to HER in his thread, and it re-appeared every time Bestie resumed and
+  // she took over again.
+  const directHandoff = $derived(
+    currentUserGender === 'man' && $currentMatch?.gender === 'woman' && !aiBestieActive
+  );
+
   // ── AI Bestie CHECKLIST (spec §D/§F) ───────────────────────────────────────
   // Drives the man's "she joins in" progress (per-man item count, NOT a fixed 5).
   // On wrap-up Bestie hands off and goes reactive — the man is NOT frozen.
@@ -1627,6 +1636,14 @@
     </div>
   {/if}
 
+  <!-- Explicit hand-off notice for the male match once she steps in (§C9). Persists
+       while the thread is direct, so re-opening still shows it. -->
+  {#if directHandoff && $currentMatch}
+    <div class="direct-handoff-banner" transition:slide={{ duration: 300, axis: 'y' }}>
+      You're now talking to {$currentMatch.firstName} directly.
+    </div>
+  {/if}
+
   <!-- AI Bestie Intro Card — visible to the male match only, while AI Bestie is active.
        The progress ("she joins in") is driven by Bestie's per-man CHECKLIST, not a
        fixed message count: the denominator is how many items she chose for THIS man,
@@ -2778,6 +2795,19 @@
   }
 
   /* AI Bestie Intro Card (shown to Adrian) */
+  /* Hand-off notice for the male match (§C9). Green, matching the native banner —
+     this is good news, not a warning. */
+  .direct-handoff-banner {
+    margin: 12px 16px 0;
+    padding: 8px 12px;
+    background: rgba(34, 197, 94, 0.08);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    border-radius: 10px;
+    color: #22c55e;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
   .bestie-intro-card {
     margin: 12px 16px 0;
     padding: 16px;
