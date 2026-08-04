@@ -91,14 +91,18 @@ export async function buildConversations(
 
   if (!matches || matches.length === 0) return [];
 
-  // 2. Collect other user IDs and fetch all profiles in ONE batch query
+  // 2. Collect other user IDs and fetch all profiles in ONE batch query.
+  // The VIEWER is fetched alongside them (same query, no extra round trip) because
+  // the hand-off side below is inferred from gender, and that inference is only
+  // valid on an opposite-gender pair.
   const otherUserIds = matches.map((m) => (m.user1_id === userId ? m.user2_id : m.user1_id));
   const { data: users } = await supabase
     .from('verified_vibe_users')
     .select('id, first_name, age, city, avatar_url, gender, archetype, trust_score, about, looking, created_at, updated_at')
-    .in('id', otherUserIds);
+    .in('id', [...otherUserIds, userId]);
 
   const userMap = new Map((users ?? []).map((u) => [u.id, u]));
+  const selfGender = userMap.get(userId)?.gender ?? null;
 
   // 3. Fetch last messages for ALL matches in parallel.
   // nullsFirst: false so NULL created_at rows don't shadow newer messages in DESC order.
@@ -150,8 +154,13 @@ export async function buildConversations(
     // Which SIDE this is depends on the other user's gender:
     //   · other is a man  → THIS viewer is the woman → her "step in" (handoffPending)
     //   · other is a woman → THIS viewer is the man → he's waiting on her (awaitingReply)
+    // That inference only holds on an opposite-gender pair. On a same-gender
+    // networking connection there is no Bestie and no hand-off, and "other is a
+    // woman" would otherwise tell one woman she's waiting on the other.
+    const sameGender = !!selfGender && selfGender === otherUser.gender;
     const windowOpen =
       !isExpired &&
+      !sameGender &&
       (match as any).ai_bestie_active === true &&
       checklist?.status === 'wrapped';
     const handoffPending = windowOpen && otherUser.gender === 'man';
@@ -257,6 +266,16 @@ export async function buildConversationDetail(
     createdAt: new Date(msg.created_at)
   }));
 
+  // Same-gender connections (Networking Season) are person-to-person: no Bestie on
+  // either side (§B/§U). Deciding it HERE rather than per-creation-site is what makes
+  // it true for every match that already exists and every one added later — and the
+  // three surfaces that key off this flag (the woman's "AI Bestie is replying for you"
+  // status bar, the man's transparency card, the Call Bestie button) all go away with
+  // it. The `?? true` default is why it has to be positive suppression: an unset flag
+  // would otherwise render the full Bestie UI on a thread she can't speak in.
+  const selfGender = (selfUser as any)?.gender ?? null;
+  const sameGender = !!selfGender && selfGender === matchedUser.gender;
+
   return {
     ok: true,
     data: {
@@ -275,10 +294,10 @@ export async function buildConversationDetail(
         updatedAt: new Date(matchedUser.updated_at)
       },
       messages,
-      aiBestieActive: match.ai_bestie_active ?? true,
+      aiBestieActive: sameGender ? false : (match.ai_bestie_active ?? true),
       proofRequest: (match as any).proof_request ?? null,
       bestieChecklist: (match as any).bestie_checklist ?? null,
-      selfGender: (selfUser as any)?.gender ?? null
+      selfGender
     }
   };
 }

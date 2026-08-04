@@ -928,6 +928,43 @@ async function persistConsent(supabase: any, matchId: string, reply: BestieReply
 }
 
 /**
+ * Resolve the (woman, man) pair a Bestie may proxy for on this match, or null
+ * when she may not speak in it at all.
+ *
+ * Bestie is a woman→man proxy and nothing else (§B). Networking Season ADDS
+ * same-gender connections, and those are person-to-person by design: no Bestie
+ * on either side, no transparency card, no checklist. The old shape —
+ * `find((u) => u.gender === 'woman')` with only a `!woman` guard — silently
+ * picked an arbitrary owner on a woman↔woman pair and treated the other woman as
+ * "the man". So the test has to be the presence of a valid OPPOSITE-GENDER pair,
+ * not the presence of one woman. A missing/unknown gender fails the same way,
+ * deliberately: we don't guess who the owner is.
+ */
+async function resolveProxyPair(
+	supabase: any,
+	matchId: string
+): Promise<{ woman: { id: string }; man: { id: string } } | null> {
+	const { data: matchRow } = await supabase
+		.from('verified_vibe_matches')
+		.select('user1_id, user2_id')
+		.eq('id', matchId)
+		.maybeSingle();
+	if (!matchRow) return null;
+
+	const { data: users } = await supabase
+		.from('verified_vibe_users')
+		.select('id, gender')
+		.in('id', [matchRow.user1_id, matchRow.user2_id]);
+
+	const women = (users ?? []).filter((u: any) => u.gender === 'woman');
+	const men = (users ?? []).filter((u: any) => u.gender === 'man');
+	// Exactly one of each. Two women, two men, or an unknown gender → not a proxy
+	// conversation, so Bestie stays out of it entirely.
+	if (women.length !== 1 || men.length !== 1) return null;
+	return { woman: women[0], man: men[0] };
+}
+
+/**
  * Generate AND send a Bestie reply server-side: stores the coaching read/signal
  * on the triggering message, then inserts the reply as a message from the user
  * (is_ai = true). Safe to call fire-and-forget.
@@ -945,6 +982,14 @@ export async function generateAndSendBestieReply(
 	triggerCreatedAt?: string
 ): Promise<void> {
 	const supabase = getSupabase();
+
+	// Same-gender guard (§B/§U). This function trusts its caller for `userId`, and
+	// the callers infer the owner from gender — which can't distinguish the two
+	// parties in a woman↔woman thread. Verify here, at the choke point, and confirm
+	// the caller's owner really is this pair's woman.
+	const pair = await resolveProxyPair(supabase as any, matchId);
+	if (!pair || pair.woman.id !== userId) return;
+
 	const timing: { claudeMs?: number } = {};
 	const t0 = Date.now();
 	const reply = await generateBestieReply(userId, matchId, lastMessage, timing);
@@ -1161,14 +1206,10 @@ export async function generateAndSendBestieOpener(matchId: string): Promise<void
 		if ((matchRow as any).ai_bestie_active === false) return;
 
 		// Resolve which side is the woman (Bestie's owner) and which is the man.
-		const ids = [matchRow.user1_id, matchRow.user2_id];
-		const { data: users } = await supabase
-			.from('verified_vibe_users')
-			.select('id, gender')
-			.in('id', ids);
-		const woman = (users ?? []).find((u: any) => u.gender === 'woman');
-		const man = (users ?? []).find((u: any) => u.gender === 'man');
-		if (!woman || !man) return; // Bestie only proxies woman → man
+		// Same-gender networking pairs resolve to null and get no opener at all.
+		const pair = await resolveProxyPair(supabase as any, matchId);
+		if (!pair) return;
+		const woman = pair.woman;
 
 		// Idempotency: never open a thread that already has any message.
 		const { count } = await supabase
@@ -1256,13 +1297,11 @@ export async function generateAndSendBestieProofAck(matchId: string): Promise<vo
 		// Only ack a JUST-fulfilled request; anything else (pending/closed/refused) no-ops.
 		if (proof?.status !== 'fulfilled' || !proof.category) return;
 
-		const ids = [matchRow.user1_id, matchRow.user2_id];
-		const { data: users } = await supabase
-			.from('verified_vibe_users')
-			.select('id, gender')
-			.in('id', ids);
-		const woman = (users ?? []).find((u: any) => u.gender === 'woman');
-		if (!woman) return; // Bestie only proxies the woman
+		// Opposite-gender pair only (§B/§U) — a lone `find(gender === 'woman')` here
+		// would pick an arbitrary owner on a same-gender networking pair.
+		const pair = await resolveProxyPair(supabase as any, matchId);
+		if (!pair) return;
+		const woman = pair.woman;
 
 		const timing: { claudeMs?: number } = {};
 		const t0 = Date.now();
