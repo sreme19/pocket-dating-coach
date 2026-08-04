@@ -56,6 +56,7 @@ import { seasonProxyBlock, networkingEnforcementEnabled, DERANK_PRESSURE_THRESHO
 import { scrubContactDetails } from '$lib/server/contact-scrub';
 import { resolveProxyPair } from '$lib/server/bestie-pair';
 import { buildQuestionRoundBlock, MAX_ROUNDS } from '$lib/server/question-rounds';
+import { computeGapBar } from '$lib/server/gap-bar';
 
 export interface BestieReply {
 	signal: string;
@@ -580,6 +581,40 @@ export async function generateBestieReply(
 		userName,
 	});
 
+	// ASK-SWAP (G-10). When a proof request is open, precompute the equivalent thing he
+	// could show INSTEAD, so that if this turn is a refusal she can accept it and offer
+	// the swap in the same breath — "all good, no pressure; if you ever want to show X
+	// instead, that lands just as well."
+	//
+	// Precomputed rather than reactive because the model decides the refusal in the same
+	// output we are building the prompt for: we cannot inject a swap in response to an
+	// answer that does not exist yet. So it goes in as a conditional she may use.
+	//
+	// Deliberately from a DIFFERENT dimension than the one he is declining. Offering a
+	// sibling category of the same dimension re-sends a word-for-word identical ask,
+	// which is the shape that got a man asked for income four times.
+	let swapContext = '';
+	if (proofState && isProofRequestActive(proofState) && hisAttrs && hisConf) {
+		const refusedNow = new Set([...refusedCategories(proofState), proofState.category]);
+		const bar = computeGapBar({
+			herWeights,
+			hisAttrs,
+			hisConf,
+			verifiedCategories,
+			refusedCategories: [...refusedNow],
+			fitPass: true,
+			previousPercent: null
+		});
+		const swap = bar.nextAction ?? bar.alternatives[0] ?? null;
+		if (swap) {
+			swapContext =
+				`\n- IF HE DECLINES: accept it warmly and immediately, then — only if it lands naturally, never as a second ask —` +
+				` mention he could show his ${swap.phrase} instead, which counts just as much for ${userName}.` +
+				` ONE alternative, offered once, and never mentioned again if he passes on that too.` +
+				` If he seems tired of being asked at all, say nothing further and just carry the conversation.`;
+		}
+	}
+
 	// Bestie checklist (gap analysis, spec §D/§F). If a checklist already exists,
 	// inject its open items so this turn can mark them done / wrap up. If it does NOT
 	// exist yet and this is the first Bestie turn, we generate it CONCURRENTLY with
@@ -703,7 +738,7 @@ export async function generateBestieReply(
 					lastMessage,
 					// A proof-ack turn is never an opener even if the message read is empty.
 					isOpener: opts?.proofAckCategory ? false : isOpener,
-					proofRequestContext,
+					proofRequestContext: proofRequestContext + swapContext,
 					proofInviteContext,
 					checklistContext,
 					handoffContext: handoffContext + questionRoundContext,
@@ -900,8 +935,27 @@ export async function generateBestieReply(
 		console.warn(`[bestie] scrubbed contact details from reply (${scrubbed.removed.join(', ')}) on match ${matchId}`);
 	}
 
+	// A REFUSAL IS NEVER A CONCERN (D-7). Structural, not just instructional: the prompt
+	// already said a refusal "never counts against him" and the model flagged one anyway
+	// — a man who wrote "stop asking me for my income proof, I am not applying for a
+	// loan" got a 🚩 and a read calling him unwilling to demonstrate financial stability,
+	// after four asks. He was right and we were wrong, and she was shown a warning about
+	// a man for setting an ordinary boundary.
+	//
+	// The trade-off, stated plainly: if a message BOTH declines a proof and contains
+	// something genuinely concerning, this suppresses the concern on that one turn. That
+	// is the cheaper mistake. Bad-actor handling lives in the reply itself (warn, then
+	// disengage, then unmatch) and does not depend on this signal, and anything real
+	// recurs on the next turn — whereas a false warning about a boundary reaches her
+	// once and colours whether she ever engages with him.
+	const refusedThisTurn = parsed.proofRefusal === true;
+	const signal = refusedThisTurn ? '✅' : (parsed.signal ?? '✅');
+	if (refusedThisTurn && parsed.signal && parsed.signal !== '✅') {
+		console.info(`[bestie] downgraded ${parsed.signal} → ✅ on a refusal turn (match ${matchId})`);
+	}
+
 	return {
-		signal: parsed.signal ?? '✅',
+		signal,
 		read: stripBannedDashes(parsed.read ?? ''),
 		reply: scrubbed.text,
 		userName,
