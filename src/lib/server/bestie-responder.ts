@@ -1079,6 +1079,34 @@ export async function generateAndSendBestieReply(
 		else if (!replyText.includes('take it from here')) replyText = `${replyText} ${closing}`;
 	}
 
+	// COALESCE A BURST. He often sends two messages in a row — a typo and then the fix
+	// ("tou h" / "touch"), or one thought split in half ("I'm kinda old for her" / "I'm
+	// 32"). Each triggers its own generation, so she answered both and double-texted him
+	// two near-identical lines seconds apart. Three real threads did exactly this.
+	//
+	// Checked here rather than on the way in, because generation takes seconds and his
+	// second message usually lands during it. If a newer message from him exists by the
+	// time she's ready to speak, drop this reply: that message has its own task, it read
+	// the whole transcript including the one we were answering, and it covers both.
+	//
+	// Everything before this point still stands — the coaching card is already attached
+	// above, so her private read of his earlier message survives. Only the outgoing
+	// message is dropped. Same shape as the opener's double-open guard: re-check
+	// immediately before the insert rather than trusting a snapshot taken earlier.
+	if (triggerCreatedAt) {
+		const { data: newer } = await (supabase as any)
+			.from('verified_vibe_messages')
+			.select('id')
+			.eq('match_id', matchId)
+			.eq('sender_id', pair.man.id)
+			.gt('created_at', triggerCreatedAt)
+			.limit(1);
+		if (newer && newer.length > 0) {
+			console.info(`[bestie] superseded by a newer message from him on match ${matchId} — dropping this reply`);
+			return;
+		}
+	}
+
 	// Send the reply as a message from the user, flagged as AI.
 	let replyMessageId: string | null = null;
 	let generatedAt: string | null = null;

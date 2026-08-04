@@ -85,6 +85,13 @@ export async function notifyReturnToDate(db: any, userId: string): Promise<numbe
   for (const c of contacts) {
     try {
       // Idempotent per thread: a retry or double-submit must not re-announce.
+      //
+      // The cheap pre-check stays — it saves a pointless write on the common path —
+      // but it is NOT the guard. Two concurrent calls both pass it before either
+      // inserts, which is how one thread ended up with this notice twice. The real
+      // guard is a partial unique index (migration 20260804104500), and a
+      // duplicate-key error below means another call got there first, which is a
+      // success from our point of view rather than a failure.
       const { count: already } = await db
         .from('verified_vibe_messages')
         .select('id', { count: 'exact', head: true })
@@ -94,12 +101,17 @@ export async function notifyReturnToDate(db: any, userId: string): Promise<numbe
         .like('content', `${RETURN_NOTICE_PREFIX}%networking season%`);
       if ((already ?? 0) > 0) continue;
 
-      await db.from('verified_vibe_messages').insert({
+      const { error: insertErr } = await db.from('verified_vibe_messages').insert({
         match_id: c.matchId,
         sender_id: userId,
         content: `${RETURN_NOTICE_PREFIX} ${name} has come out of ${possessive} networking season and is open to dating again 🌹 ${subject}'s loved connecting; if there's a spark here, this is a lovely moment to explore it.`,
         is_ai: true,
       });
+      // 23505 = unique_violation. Someone else announced it; don't count it twice.
+      if (insertErr) {
+        if ((insertErr as { code?: string }).code !== '23505') throw insertErr;
+        continue;
+      }
       sent++;
     } catch { /* skip this contact, keep going */ }
   }
