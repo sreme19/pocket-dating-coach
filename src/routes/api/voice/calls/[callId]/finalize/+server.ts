@@ -68,6 +68,9 @@ export const POST: RequestHandler = async ({ request, params }) => {
 				callId,
 				matchId: call.match_id,
 				ownerId,
+				// So what he said on the call folds into HIS profile — see the capture
+				// block in finaliseVoiceCall. Before this, voice content reached nothing.
+				callerId,
 				ownerName,
 				matchName,
 				transcript,

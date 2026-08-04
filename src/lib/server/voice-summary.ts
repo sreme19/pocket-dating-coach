@@ -100,6 +100,11 @@ export async function finaliseVoiceCall(opts: {
 	callId: string;
 	matchId: string;
 	ownerId: string;
+	/**
+	 * The MAN who called. Needed so what he says on a call reaches his profile — see
+	 * the capture block below. Optional so an older caller can't break compiling.
+	 */
+	callerId?: string;
 	ownerName: string;
 	matchName: string;
 	transcript: VoiceTranscriptTurn[];
@@ -132,6 +137,35 @@ export async function finaliseVoiceCall(opts: {
 		.single();
 
 	const messageId: string | null = inserted?.id ?? null;
+
+	// WHAT HE SAYS ON A CALL COUNTS. Until now it did not, anywhere.
+	//
+	// captureMaleChatIntel distils his self-claims into vv_user_vectors, and it was
+	// wired to exactly one place: the text send route. So a man could spend six minutes
+	// on a call — there is a 393-second one in the logs — explaining his career, his
+	// training and his travel, and none of it reached his profile. Not his Profile
+	// Strength, not his appeal toward any woman, not her inbox ordering, not the
+	// hand-off proof gate, and not the cross-conversation ledger, because every one of
+	// those reads those vectors. He would have been better off typing.
+	//
+	// Only HIS turns. The transcript interleaves him with Bestie, and feeding her turns
+	// through this would distil her words into his profile — she talks about the owner,
+	// so it would quietly write the owner's life onto him.
+	//
+	// Fire-and-forget and swallowed, exactly like the text path: finalising a call must
+	// never fail because a distillation did.
+	if (opts.callerId) {
+		const hisWords = opts.transcript
+			.filter((t) => t.role === 'caller')
+			.map((t) => t.text?.trim())
+			.filter((t): t is string => !!t)
+			.join('\n');
+		if (hisWords.length > 0) {
+			void import('./chat-intel-capture')
+				.then(({ captureMaleChatIntel }) => captureMaleChatIntel(opts.callerId!, hisWords))
+				.catch((err) => console.error('[voice] male chat-intel capture failed (non-critical):', err));
+		}
+	}
 
 	// Record latency for the AI Latency dashboard (non-fatal).
 	if (messageId) {
