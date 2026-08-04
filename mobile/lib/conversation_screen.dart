@@ -453,9 +453,16 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     color: Color(Config.text3), fontSize: 11.5, fontWeight: FontWeight.w700)),
           ]),
         ),
-      // Says out loud that nobody else can move this. The whole reason the bar is
+      // Says out loud that nobody else can move this — the whole reason the bar is
       // absolute rather than a ranking against her other suitors.
-      Text('Opens at 90%. Nothing here depends on anyone but you.',
+      //
+      // It deliberately does NOT say "opens at 90%", which is what this line used to
+      // claim. The hand-off is driven by Bestie finishing her checklist, not by this
+      // number, so she can step in at any percentage — and measured across 153 real
+      // matches the highest man sits at 77.5%, so a 90% promise would have been one
+      // nobody could keep. The bar tells him how much of himself is backed up; it is
+      // not a gate he has to clear to be seen.
+      Text('She can step in whenever she likes. This just shows how much of you is backed up — and nothing here depends on anyone but you.',
           style: TextStyle(
               color: const Color(Config.text3), fontSize: 10.5, fontStyle: FontStyle.italic)),
     ]);
