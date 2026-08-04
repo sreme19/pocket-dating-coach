@@ -19,6 +19,8 @@ export type Database = {
 					preferences: Record<string, unknown> | null;
 					hard_nos: string[] | null;
 					is_seed: boolean;
+					/** Topics the owner wants every Bestie to cover (G-27). Not a preference weight. */
+					always_ask_topics: string[] | null;
 					created_at: string;
 					updated_at: string;
 				};
@@ -36,6 +38,7 @@ export type Database = {
 					preferences?: Record<string, unknown> | null;
 					hard_nos?: string[] | null;
 					is_seed?: boolean;
+					always_ask_topics?: string[] | null;
 					created_at?: string;
 					updated_at?: string;
 				};
@@ -91,6 +94,12 @@ export type Database = {
 					expired_at: string | null;
 					replaced_by_match_id: string | null;
 					handoff_nudge_stage: number;
+					/** Man-facing gap-bar percentage (0–100, one decimal). Monotonic floor — display state only, never an input to scoring. NULL = never computed. */
+					gap_bar_percent: number | null;
+					/** Follow-up question rounds spent on this match (0–2, G-27). Counted at send. */
+					bestie_question_rounds: number;
+					/** Highest question round Bestie has already announced to him (G-27). */
+					bestie_round_announced: number;
 					created_at: string;
 				};
 				Insert: {
@@ -107,6 +116,9 @@ export type Database = {
 					expired_at?: string | null;
 					replaced_by_match_id?: string | null;
 					handoff_nudge_stage?: number;
+					gap_bar_percent?: number | null;
+					bestie_question_rounds?: number;
+					bestie_round_announced?: number;
 					created_at?: string;
 				};
 				Update: Partial<Database['public']['Tables']['verified_vibe_matches']['Insert']>;
