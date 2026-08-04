@@ -53,6 +53,7 @@ import {
 	type ConsentState
 } from '$lib/server/bestie-ledger';
 import { seasonProxyBlock, networkingEnforcementEnabled, DERANK_PRESSURE_THRESHOLD } from '$lib/server/networking-season';
+import { scrubContactDetails } from '$lib/server/contact-scrub';
 
 export interface BestieReply {
 	signal: string;
@@ -821,10 +822,18 @@ export async function generateBestieReply(
 		finalReply = dropTrailingQuestion(finalReply);
 	}
 
+	// §C: she never puts the owner's contact details in front of him — not even ones
+	// the owner already pasted into this thread herself. Applied to the REPLY only;
+	// the private read is where "he asked for your Instagram" belongs.
+	const scrubbed = scrubContactDetails(finalReply);
+	if (scrubbed.removed.length > 0) {
+		console.warn(`[bestie] scrubbed contact details from reply (${scrubbed.removed.join(', ')}) on match ${matchId}`);
+	}
+
 	return {
 		signal: parsed.signal ?? '✅',
 		read: stripBannedDashes(parsed.read ?? ''),
-		reply: finalReply,
+		reply: scrubbed.text,
 		userName,
 		...(proofStateFinal ? { proofStateUpdate: proofStateFinal } : {}),
 		...(checklistUpdate ? { checklistUpdate } : {}),
