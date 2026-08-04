@@ -9,6 +9,12 @@ import {
 import { buildHerInbox } from './her-inbox';
 import { gapBarEnabled, loadMatchGapBar, persistGapBar, gapBarMode } from './gap-bar-service';
 import type { Vec } from './vector-scoring';
+import {
+  canAskMore,
+  buildTopicSuggestions,
+  roundsRemaining,
+  isFinalRound
+} from './question-rounds';
 
 /**
  * Shared, auth-agnostic chat read logic.
@@ -87,6 +93,20 @@ export interface ConversationDetailData {
    * questions, so a contact who later flips to Date arrives already vetted.
    */
   gapBar: (Record<string, unknown> & { mode: 'active' | 'passive' }) | null;
+  /**
+   * "Ask him more" (G-27), HER side only. Null for the man, and null when she cannot
+   * ask right now — the reason is carried inside so the button can explain itself
+   * rather than just being absent.
+   */
+  askMore: {
+    allowed: boolean;
+    reason: string | null;
+    roundsUsed: number;
+    roundsRemaining: number;
+    /** The next round would be her last, and he will be told so. */
+    finalRound: boolean;
+    suggestions: Array<{ id: string; label: string; topic: string | null; group: string; answered: boolean }>;
+  } | null;
 }
 
 export type ConversationDetailResult =
@@ -411,6 +431,8 @@ export async function buildConversationDetail(
     }
   }
 
+  const askMore = await buildAskMoreState(supabase, conversationId, match, selfGender, sameGender);
+
   return {
     ok: true,
     data: {
@@ -433,7 +455,8 @@ export async function buildConversationDetail(
       proofRequest: (match as any).proof_request ?? null,
       bestieChecklist: (match as any).bestie_checklist ?? null,
       selfGender,
-      gapBar
+      gapBar,
+      askMore
     }
   };
 }
@@ -477,4 +500,67 @@ export async function buildAdvisorSummary(
     headline: latest?.content ?? null,
     headlineAt: latest?.createdAt ?? null
   };
+}
+
+/**
+ * Her "ask him more" state (G-27).
+ *
+ * Returns the gate's REASON alongside the flag, so the button can say why it is
+ * unavailable instead of silently vanishing — "you're talking to him yourself" and
+ * "that's everything I can ask without it turning into an interview" are both more
+ * use to her than an absent control.
+ *
+ * Everything is wrapped and degrades to null: her chat must not fail because a topic
+ * taxonomy could not be read, and the whole feature is inert before its migration.
+ */
+async function buildAskMoreState(
+  supabase: SupabaseClient,
+  conversationId: string,
+  match: any,
+  selfGender: string | null,
+  sameGender: boolean
+): Promise<ConversationDetailData['askMore']> {
+  if (selfGender !== 'woman' || sameGender) return null;
+  try {
+    // Own lenient read: the columns may not exist yet, and a failure here must not
+    // reach the main select (which falls back to a legacy column set on error).
+    const { data: rounds } = await supabase
+      .from('verified_vibe_matches')
+      .select('bestie_question_rounds')
+      .eq('id', conversationId)
+      .maybeSingle();
+    const roundsUsed = Number((rounds as any)?.bestie_question_rounds ?? 0);
+
+    const checklist = (match as any).bestie_checklist as
+      | { status?: string; items?: Array<{ topic?: string | null; label?: string }> }
+      | null;
+    const gate = canAskMore({
+      bestieActive: (match as any).ai_bestie_active !== false,
+      checklistStatus: checklist?.status,
+      roundsUsed,
+      status: (match as any).status
+    });
+
+    let suggestions: ReturnType<typeof buildTopicSuggestions> = [];
+    if (gate.allowed) {
+      const { data: taxonomy } = await supabase.from('vv_ledger_topics').select('key, label');
+      suggestions = buildTopicSuggestions({
+        taxonomy: (taxonomy ?? []) as Array<{ key: string; label: string }>,
+        askedTopics: (checklist?.items ?? []).map((i) => i.topic ?? '').filter(Boolean),
+        askedLabels: (checklist?.items ?? []).map((i) => i.label ?? '').filter(Boolean)
+      });
+    }
+
+    return {
+      allowed: gate.allowed,
+      reason: gate.reason,
+      roundsUsed,
+      roundsRemaining: roundsRemaining(roundsUsed),
+      finalRound: isFinalRound(roundsUsed),
+      suggestions
+    };
+  } catch (e) {
+    console.warn('[ask-more] state unavailable (non-fatal):', e);
+    return null;
+  }
 }

@@ -175,6 +175,47 @@ export function screenFreeText(raw: string): FreeTextVerdict {
 	return { allowed: true, refusal: null, alternative: null };
 }
 
+// ── What to offer her ────────────────────────────────────────────────────────
+
+export interface TopicSuggestion {
+	id: string;
+	label: string;
+	/** Canonical ledger topic key, when there is one. */
+	topic: string | null;
+	/** Grouping for the full browse list. */
+	group: string;
+	/** He has already covered this. Shown struck through rather than hidden. */
+	answered: boolean;
+}
+
+/**
+ * The topics she can pick from.
+ *
+ * Already-answered ones are returned MARKED rather than removed: hiding them leaves
+ * her wondering why something obvious is missing, where showing it struck through
+ * tells her it is covered. That is also why `answered` is a flag and not a filter.
+ */
+export function buildTopicSuggestions(opts: {
+	/** Canonical taxonomy: [{ key, label, group? }] from vv_ledger_topics. */
+	taxonomy: Array<{ key: string; label: string; group?: string | null }>;
+	/** Topic keys already on this man's checklist (asked, whether or not answered). */
+	askedTopics: Iterable<string>;
+	/** Item labels already on the checklist, for taxonomy rows with no key. */
+	askedLabels: Iterable<string>;
+}): TopicSuggestion[] {
+	const asked = new Set([...opts.askedTopics].filter(Boolean));
+	const askedLabel = new Set([...opts.askedLabels].map((l) => l.trim().toLowerCase()));
+	return opts.taxonomy
+		.filter((t) => t.key && t.label)
+		.map((t) => ({
+			id: t.key,
+			label: t.label,
+			topic: t.key,
+			group: t.group?.trim() || 'More',
+			answered: asked.has(t.key) || askedLabel.has(t.label.trim().toLowerCase())
+		}));
+}
+
 /**
  * The prompt block telling Bestie about this round.
  *

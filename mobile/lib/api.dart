@@ -2060,6 +2060,55 @@ Future<String> reactivateMatch(String conversationId) async {
   }
 }
 
+/// Result of an "ask him more" round. On a policy refusal the reason and the nearest
+/// thing Bestie CAN ask are both carried, so a no is never a dead end for her.
+class AskMoreResult {
+  final bool ok;
+  final int roundsRemaining;
+  final bool finalRound;
+  /// Bestie declined to ask her question, in her own words.
+  final String? refusal;
+  /// What she could ask instead.
+  final String? alternative;
+  AskMoreResult({required this.ok, this.roundsRemaining = 0, this.finalRound = false, this.refusal, this.alternative});
+}
+
+/// Send her follow-up questions back to him (woman-only; G-27).
+Future<AskMoreResult> askHimMore({
+  required String conversationId,
+  required List<AskMoreTopic> topics,
+  String? freeText,
+  bool applyGlobally = true,
+}) async {
+  try {
+    final resp = await _dio.post(
+      '${Config.apiBase}/api/verified-vibe/ai-bestie/ask-more',
+      data: {
+        'conversationId': conversationId,
+        'topics': topics.map((t) => {'id': t.id, 'label': t.label, 'topic': t.topic}).toList(),
+        if (freeText != null && freeText.trim().isNotEmpty) 'freeText': freeText.trim(),
+        'applyGlobally': applyGlobally,
+      },
+      options: Options(headers: {'Authorization': _bearer()}),
+    );
+    final body = resp.data is Map ? resp.data as Map : const {};
+    return AskMoreResult(
+      ok: true,
+      roundsRemaining: body['roundsRemaining'] is num ? (body['roundsRemaining'] as num).toInt() : 0,
+      finalRound: body['finalRound'] == true,
+    );
+  } on DioException catch (e) {
+    final data = e.response?.data is Map ? e.response!.data as Map : const {};
+    // 422 = Bestie will not ask that. Not an error to apologise for — it comes back
+    // with the reason and an alternative, and she chooses again.
+    return AskMoreResult(
+      ok: false,
+      refusal: data['error']?.toString() ?? 'Could not send those just now.',
+      alternative: data['alternative']?.toString(),
+    );
+  }
+}
+
 class ChatMessage {
   final String id;
   final String senderId;
@@ -2122,6 +2171,59 @@ class ProofRequest {
 /// NOT a fixed 5) and the wrap-up hand-off (wrapped → his chat freezes). The mobile
 /// side only needs the counts + status; the full item list stays server-side.
 /// One of the four stages of the man's gap bar.
+/// One topic she can pick for a follow-up round.
+class AskMoreTopic {
+  final String id;
+  final String label;
+  final String? topic;
+  final String group;
+  /// He has already covered this. Shown struck through rather than hidden, so she
+  /// can see it is handled instead of wondering why it is missing.
+  final bool answered;
+  AskMoreTopic({required this.id, required this.label, this.topic, required this.group, required this.answered});
+}
+
+/// Her "ask him more" state (G-27). The wrap-up card offers three ways to commit and
+/// nothing for "interested, but not ready" — which became silence, and silence
+/// expires the match. This is that missing option.
+class AskMoreState {
+  final bool allowed;
+  /// Why not, when it is unavailable. Shown on the disabled row so it explains itself
+  /// rather than just being absent.
+  final String? reason;
+  final int roundsUsed;
+  final int roundsRemaining;
+  /// The next round is her last, and he will be told so unprompted.
+  final bool finalRound;
+  final List<AskMoreTopic> suggestions;
+
+  AskMoreState({
+    required this.allowed, this.reason, required this.roundsUsed,
+    required this.roundsRemaining, required this.finalRound,
+    this.suggestions = const [],
+  });
+
+  static AskMoreState? fromApi(dynamic raw) {
+    if (raw is! Map) return null;
+    return AskMoreState(
+      allowed: raw['allowed'] == true,
+      reason: raw['reason']?.toString(),
+      roundsUsed: raw['roundsUsed'] is num ? (raw['roundsUsed'] as num).toInt() : 0,
+      roundsRemaining: raw['roundsRemaining'] is num ? (raw['roundsRemaining'] as num).toInt() : 0,
+      finalRound: raw['finalRound'] == true,
+      suggestions: (raw['suggestions'] is List)
+          ? (raw['suggestions'] as List).whereType<Map>().map((t) => AskMoreTopic(
+                id: t['id']?.toString() ?? '',
+                label: t['label']?.toString() ?? '',
+                topic: t['topic']?.toString(),
+                group: t['group']?.toString() ?? 'More',
+                answered: t['answered'] == true,
+              )).where((t) => t.id.isNotEmpty && t.label.isNotEmpty).toList()
+          : const [],
+    );
+  }
+}
+
 class GapBarStage {
   final String id;      // fit | portfolio | standout | corroboration
   final String label;
@@ -2248,8 +2350,10 @@ class ConversationThread {
   final BestieChecklist? bestieChecklist;
   /// HIS four-stage progress. Null on her side, and null when the gate is off.
   final GapBar? gapBar;
+  /// HER follow-up round state. Null on his side.
+  final AskMoreState? askMore;
   final List<ChatMessage> messages;
-  ConversationThread({required this.otherId, required this.otherName, required this.otherAvatar, required this.otherGender, required this.aiBestieActive, this.proofRequest, this.bestieChecklist, this.gapBar, required this.messages});
+  ConversationThread({required this.otherId, required this.otherName, required this.otherAvatar, required this.otherGender, required this.aiBestieActive, this.proofRequest, this.bestieChecklist, this.gapBar, this.askMore, required this.messages});
 }
 
 Future<ConversationThread> fetchConversation(String conversationId) async {
@@ -2270,6 +2374,7 @@ Future<ConversationThread> fetchConversation(String conversationId) async {
     proofRequest: ProofRequest.fromApi(data['proofRequest']),
     bestieChecklist: BestieChecklist.fromApi(data['bestieChecklist']),
     gapBar: GapBar.fromApi(data['gapBar']),
+    askMore: AskMoreState.fromApi(data['askMore']),
     messages: msgs.whereType<Map>().map(ChatMessage.fromApi).toList(),
   );
 }

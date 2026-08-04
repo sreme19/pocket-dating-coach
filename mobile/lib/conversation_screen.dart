@@ -59,6 +59,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   bool _wrappedCardCollapsed = false;  // woman's in-thread wrap-up card collapse
   BestieChecklist? _checklist;         // Bestie's per-man checklist (drives progress)
   GapBar? _gapBar;                     // HIS four-stage progress (man's side only)
+  AskMoreState? _askMore;              // HER follow-up round state (woman's side only)
 
   @override
   void initState() {
@@ -135,6 +136,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       _proofRequest = thread.proofRequest;
       _checklist = thread.bestieChecklist;
       _gapBar = thread.gapBar;
+      _askMore = thread.askMore;
       _merge(thread.messages, scroll: true);
       // Re-check presence now that _otherId is known — fixes race condition
       // where onPresenceSync fired before _initialLoad completed (Android).
@@ -202,6 +204,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
           if (proofChanged) _proofRequest = thread.proofRequest;
           if (checklistChanged) _checklist = thread.bestieChecklist;
           if (gapBarChanged) _gapBar = thread.gapBar;
+          _askMore = thread.askMore;
         });
       }
     } catch (_) {
@@ -725,6 +728,26 @@ class _ConversationScreenState extends State<ConversationScreen> {
             primary: false,
             onTap: () => _wrapComingSoon('Sharing your details'),
           ),
+          // The fourth way forward: "interested, but not ready". It sits LAST on
+          // purpose — it is the not-yet path, so it should not outrank stepping in.
+          // Kept visible when unavailable, with the reason, because a control that
+          // silently vanishes teaches her nothing.
+          if (_askMore != null) ...[
+            const SizedBox(height: 8),
+            _wrapAction(
+              icon: Icons.auto_awesome,
+              title: 'Ask him more first',
+              subtitle: _askMore!.allowed
+                  ? (_askMore!.finalRound
+                      ? "He'll be told this is the last round"
+                      : 'Pick what else you want to know')
+                  : (_askMore!.reason ?? 'Not available right now'),
+              primary: false,
+              onTap: _askMore!.allowed ? _openAskMore : null,
+              trailing: _askMore!.allowed ? '${_askMore!.roundsRemaining} left' : '0 left',
+              enabled: _askMore!.allowed,
+            ),
+          ],
           const SizedBox(height: 10),
           Center(
             child: GestureDetector(
@@ -778,11 +801,15 @@ class _ConversationScreenState extends State<ConversationScreen> {
     required String title,
     required String subtitle,
     required bool primary,
-    required VoidCallback onTap,
+    required VoidCallback? onTap,
+    String? trailing,
+    bool enabled = true,
   }) {
     final titleColor = primary ? Colors.white : const Color(Config.text1);
     final subColor = primary ? const Color(0xE6FFFFFF) : const Color(Config.text3);
-    return GestureDetector(
+    return Opacity(
+      opacity: enabled ? 1 : 0.5,
+      child: GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
@@ -813,7 +840,231 @@ class _ConversationScreenState extends State<ConversationScreen> {
               Text(subtitle, style: TextStyle(color: subColor, fontSize: 11.5)),
             ]),
           ),
+          if (trailing != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: enabled ? const Color(0x1F22A97A) : const Color(Config.bg2),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(trailing,
+                  style: TextStyle(
+                      color: enabled ? const Color(0xFF22A97A) : const Color(Config.text3),
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800)),
+            ),
         ]),
+      ),
+    ),
+    );
+  }
+
+  /// Her follow-up picker. Unlimited selection: she overrode a three-item cap, and
+  /// silently dropping her seventh question would be worse than a long list. Bestie
+  /// still paces delivery and still may not press one subject twice.
+  Future<void> _openAskMore() async {
+    final state = _askMore;
+    if (state == null || !state.allowed) return;
+
+    final picked = <String>{};
+    final freeText = TextEditingController();
+    var showAll = false;
+    var applyGlobally = true;
+    var sending = false;
+
+    // Suggested = the first handful he has not covered. "+ More topics" opens the
+    // rest, grouped. Already-answered ones stay visible but struck through, so she
+    // can see they are handled rather than wonder why they are missing.
+    final open = state.suggestions.where((t) => !t.answered).toList();
+    final answered = state.suggestions.where((t) => t.answered).toList();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(Config.bg2),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (sheetCtx, setSheet) {
+          final shown = showAll ? [...open, ...answered] : open.take(6).toList();
+          Widget chip(AskMoreTopic t) {
+            final on = picked.contains(t.id);
+            return GestureDetector(
+              onTap: t.answered ? null : () => setSheet(() => on ? picked.remove(t.id) : picked.add(t.id)),
+              child: Opacity(
+                opacity: t.answered ? 0.45 : 1,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: on ? const Color(0xFFA855F7) : const Color(Config.bg3),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: on ? const Color(0xFFA855F7) : const Color(0x22BF5AF2)),
+                  ),
+                  child: Text(t.label,
+                      style: TextStyle(
+                        color: on ? Colors.white : const Color(Config.text2),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        decoration: t.answered ? TextDecoration.lineThrough : null,
+                      )),
+                ),
+              ),
+            );
+          }
+
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+                16, 16, 16, 16 + MediaQuery.of(sheetCtx).viewInsets.bottom),
+            child: SingleChildScrollView(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(state.finalRound ? 'Last round of questions' : 'What else do you want to know?',
+                    style: const TextStyle(
+                        color: Color(Config.text1), fontSize: 17, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                Text(
+                  state.finalRound
+                      ? "Your second and final set. I'll tell him plainly it's the last time I come back to him with questions."
+                      : "I'll weave them in naturally rather than firing them off as a list.",
+                  style: const TextStyle(color: Color(Config.text2), fontSize: 12.5, height: 1.4),
+                ),
+                const SizedBox(height: 14),
+                if (shown.isEmpty)
+                  const Text("I've covered everything I know how to ask about.",
+                      style: TextStyle(color: Color(Config.text3), fontSize: 12.5))
+                else
+                  Wrap(spacing: 7, runSpacing: 7, children: shown.map(chip).toList()),
+                if (!showAll && (open.length > 6 || answered.isNotEmpty)) ...[
+                  const SizedBox(height: 10),
+                  GestureDetector(
+                    onTap: () => setSheet(() => showAll = true),
+                    child: const Text('+ More topics',
+                        style: TextStyle(
+                            color: Color(0xFFA855F7), fontSize: 12.5, fontWeight: FontWeight.w800)),
+                  ),
+                ],
+                const SizedBox(height: 18),
+                const Text('OR ASK IN YOUR OWN WORDS',
+                    style: TextStyle(
+                        color: Color(Config.text3), fontSize: 9.5,
+                        fontWeight: FontWeight.w800, letterSpacing: 0.7)),
+                const SizedBox(height: 7),
+                TextField(
+                  controller: freeText,
+                  maxLength: 300,
+                  maxLines: 3,
+                  minLines: 2,
+                  style: const TextStyle(color: Color(Config.text1), fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: "Optional — what's on your mind?",
+                    hintStyle: const TextStyle(color: Color(Config.text3), fontStyle: FontStyle.italic),
+                    filled: true,
+                    fillColor: const Color(Config.bg3),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                  ),
+                ),
+                // Topics only. Her own words are about THIS man and stay with him.
+                GestureDetector(
+                  onTap: () => setSheet(() => applyGlobally = !applyGlobally),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Icon(applyGlobally ? Icons.check_box : Icons.check_box_outline_blank,
+                        size: 18, color: const Color(0xFF22A97A)),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'Ask this of my other matches too. Your own question stays just for him.',
+                        style: TextStyle(color: Color(Config.text2), fontSize: 11.5, height: 1.35),
+                      ),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: sending || (picked.isEmpty && freeText.text.trim().isEmpty)
+                        ? null
+                        : () async {
+                            setSheet(() => sending = true);
+                            final chosen = state.suggestions
+                                .where((t) => picked.contains(t.id))
+                                .toList();
+                            final res = await askHimMore(
+                              conversationId: widget.conversationId,
+                              topics: chosen,
+                              freeText: freeText.text,
+                              applyGlobally: applyGlobally,
+                            );
+                            if (!sheetCtx.mounted) return;
+                            Navigator.of(sheetCtx).pop();
+                            if (!mounted) return;
+                            if (res.ok) {
+                              setState(() => _wrappedCardCollapsed = true);
+                              _pollOnce();
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                content: Text(res.finalRound
+                                    ? "Sent — he's been told it's the last round."
+                                    : "Sent — I'll take it from here."),
+                              ));
+                            } else {
+                              // Not an apology: Bestie declined, and she is told why
+                              // and what could be asked instead.
+                              _showRefusal(res);
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFA855F7),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
+                    ),
+                    child: Text(sending ? 'Sending…' : (state.finalRound ? 'Send final questions' : 'Send these'),
+                        style: const TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13.5)),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Center(
+                  child: Text(
+                    'Round ${state.roundsUsed + 1} of 2'
+                    '${state.finalRound ? " · he'll be told this is the last" : ''}',
+                    style: const TextStyle(color: Color(Config.text3), fontSize: 10.5),
+                  ),
+                ),
+              ]),
+            ),
+          );
+        },
+      ),
+    );
+    freeText.dispose();
+  }
+
+  /// Bestie will not ask that. Shown as her explaining herself, with the nearest
+  /// thing she CAN ask — a refusal that dead-ends would just leave her stuck.
+  void _showRefusal(AskMoreResult res) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(Config.bg2),
+        title: const Text("One of those I can't ask",
+            style: TextStyle(color: Color(Config.text1), fontSize: 16, fontWeight: FontWeight.w800)),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(res.refusal ?? '',
+              style: const TextStyle(color: Color(Config.text2), fontSize: 13, height: 1.45)),
+          if (res.alternative != null) ...[
+            const SizedBox(height: 12),
+            Text(res.alternative!,
+                style: const TextStyle(
+                    color: Color(Config.text1), fontSize: 13, height: 1.45, fontWeight: FontWeight.w600)),
+          ],
+        ]),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Got it', style: TextStyle(color: Color(0xFFA855F7))),
+          ),
+        ],
       ),
     );
   }
