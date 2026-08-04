@@ -55,6 +55,7 @@ import {
 import { seasonProxyBlock, networkingEnforcementEnabled, DERANK_PRESSURE_THRESHOLD } from '$lib/server/networking-season';
 import { scrubContactDetails } from '$lib/server/contact-scrub';
 import { resolveProxyPair } from '$lib/server/bestie-pair';
+import { buildQuestionRoundBlock, MAX_ROUNDS } from '$lib/server/question-rounds';
 
 export interface BestieReply {
 	signal: string;
@@ -98,6 +99,12 @@ export interface BestieReply {
 	partnerId?: string;
 	/** Counters to write when an ask opportunity passed (drives the 1-in-5 cadence). */
 	consentCounters?: Record<string, unknown>;
+	/**
+	 * "Ask him more" (G-27): this turn OPENED on her new round of questions. The SENDER
+	 * stamps verified_vibe_matches.bestie_round_announced so she says it once rather
+	 * than re-announcing on every turn until he stops reading.
+	 */
+	roundAnnounced?: number;
 }
 
 // ── In-chat proof request context + state machine (spec §3 Step 3) ────────────
@@ -594,6 +601,39 @@ export async function generateBestieReply(
 					computeHandoffClock(existingChecklist.wrapped_at)
 			  )
 			: '';
+
+	// "Ask him more" (G-27): she reopened the checklist with follow-ups of her own.
+	// Announced ONCE per round — the marker is why she does not re-open on it every
+	// turn, or repeat the final-round warning until he stops reading. The open items
+	// themselves already reach her through the checklist block; what this adds is the
+	// framing and, on the last round, telling him it is the last.
+	// Read in their OWN query rather than joining the critical select above: that one
+	// falls back to a legacy column set when it errors, so a column missing before its
+	// migration runs would silently cost us the checklist and proof context too. Here a
+	// failure just means "no rounds", which is exactly the pre-feature behaviour.
+	let roundsUsed = 0;
+	let roundAnnounced = 0;
+	try {
+		const { data: rounds } = await (supabase as any)
+			.from('verified_vibe_matches')
+			.select('bestie_question_rounds, bestie_round_announced')
+			.eq('id', matchId)
+			.maybeSingle();
+		roundsUsed = Number(rounds?.bestie_question_rounds ?? 0);
+		roundAnnounced = Number(rounds?.bestie_round_announced ?? 0);
+	} catch { /* migration not applied yet — no rounds exist to announce */ }
+	const announceRound = roundsUsed > roundAnnounced && existingChecklist?.status === 'active';
+	const questionRoundContext = announceRound
+		? buildQuestionRoundBlock({
+				userName,
+				matchName,
+				topics: (existingChecklist?.items ?? [])
+					.filter((i) => i.status === 'open')
+					.map((i) => i.label),
+				freeText: null, // her own words arrive as one of the open items above
+				finalRound: roundsUsed >= MAX_ROUNDS
+		  })
+		: '';
 	// ── Cross-conversation memory + consent (§E) ──────────────────────────────
 	// The ask fires JUST IN TIME: only when her checklist is about to probe
 	// something he has already answered elsewhere. That is the one moment where
@@ -666,7 +706,7 @@ export async function generateBestieReply(
 					proofRequestContext,
 					proofInviteContext,
 					checklistContext,
-					handoffContext,
+					handoffContext: handoffContext + questionRoundContext,
 					proofAckCategory: opts?.proofAckCategory ?? '',
 					// Networking Season (Phase 4): adds the romanticPressure output field.
 					networking: seasonContext !== '',
@@ -872,6 +912,7 @@ export async function generateBestieReply(
 		// SPENT — she asked, she gave the caught-up notice, or the cadence said stay
 		// quiet this time. Ignoring the ask counts too: silence is not a decline, but
 		// she still had her shot and does not get to re-open it later in this chat.
+		...(announceRound ? { roundAnnounced: roundsUsed } : {}),
 		...(consentOpportunity || noticeConsent ? { consentMoment: true } : {}),
 		...(consentUpdate ? { consentUpdate, partnerId: otherUserId ?? undefined } : {}),
 		...(consentCounters ? { consentCounters, partnerId: otherUserId ?? undefined } : {})
@@ -1014,6 +1055,21 @@ export async function generateAndSendBestieReply(
 	// counter. Must run whether or not he answered — raising it at all is the
 	// event that spends this Bestie's one consent moment.
 	await persistConsent(supabase as any, matchId, reply);
+
+	// "Ask him more" (G-27): mark the round as announced, so she opens on it once
+	// instead of every turn and the final-round warning is said a single time.
+	// Non-fatal, and guarded so it cannot go backwards.
+	if (typeof reply.roundAnnounced === 'number') {
+		try {
+			await (supabase as any)
+				.from('verified_vibe_matches')
+				.update({ bestie_round_announced: reply.roundAnnounced })
+				.eq('id', matchId)
+				.lt('bestie_round_announced', reply.roundAnnounced);
+		} catch (e) {
+			console.warn('[ask-more] round marker persist failed (non-fatal):', e);
+		}
+	}
 
 	// Networking Season (Phase 4): a man who keeps pushing romance AFTER being told
 	// she's networking gets de-ranked in HER inbox. Local only — never touches his
