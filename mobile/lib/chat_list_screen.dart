@@ -603,6 +603,17 @@ class _ChatListScreenState extends State<ChatListScreen>
           final newMatches = conversations.where((c) => !c.hasMessages).toList();
           var active = conversations.where((c) => c.hasMessages).toList()
             ..sort((a, b) {
+              // Her ranked inbox wins when the server sent one: men who owe her a
+              // reply sink, then strongest fit first. Two thirds of Bestie's finished
+              // hand-offs expired unanswered, and the median woman has fourteen
+              // suitors in one flat list — this is the ordering that gives her
+              // somewhere to start.
+              if (a.rank != null && b.rank != null) {
+                final aw = a.section == 'waiting' ? 1 : 0;
+                final bw = b.section == 'waiting' ? 1 : 0;
+                if (aw != bw) return aw - bw;
+                return a.rank!.compareTo(b.rank!);
+              }
               // Networking Season (Phase 4): de-ranked matches sink to the bottom.
               if (a.deranked != b.deranked) return a.deranked ? 1 : -1;
               return (b.lastMessageTime ?? DateTime(1970))
@@ -628,8 +639,18 @@ class _ChatListScreenState extends State<ChatListScreen>
               ? active.where((c) => c.handoffPending && !c.isExpired).toList()
               : <Conversation>[];
           final inactive = sectioned ? active.where((c) => c.isExpired).toList() : <Conversation>[];
+          // "Waiting on them" — he owes her an answer and has been quiet for days.
+          // A named section beats silently reordering the list: she can see why he
+          // moved, and she can still reach him. Sinking is reversible the moment he
+          // replies, so being slow once is not a permanent penalty.
+          final waitingOnThem = sectioned
+              ? active.where((c) => c.section == 'waiting' && !c.isExpired && !c.handoffPending).toList()
+              : <Conversation>[];
           final normal = active
-              .where((c) => !c.isExpired && !(sectioned && c.handoffPending))
+              .where((c) =>
+                  !c.isExpired &&
+                  !(sectioned && c.handoffPending) &&
+                  !(sectioned && c.section == 'waiting'))
               .toList();
 
           _ConversationTile tile(Conversation c) => _ConversationTile(
@@ -692,7 +713,7 @@ class _ChatListScreenState extends State<ChatListScreen>
                     )
                   else
                     ...data.sentAdmirers.map((s) => _SentAdmirerCard(admirer: s)),
-                ] else if (yourMove.isEmpty && normal.isEmpty && inactive.isEmpty)
+                ] else if (yourMove.isEmpty && normal.isEmpty && inactive.isEmpty && waitingOnThem.isEmpty)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 40, 20, 0),
                     child: Text(
@@ -713,6 +734,12 @@ class _ChatListScreenState extends State<ChatListScreen>
                   if (normal.isNotEmpty) ...[
                     if (yourMove.isNotEmpty) const _SectionHeader(label: 'Active'),
                     ...normal.map(tile),
+                  ],
+                  // He owes her an answer. Below the active chats but above expired
+                  // ones, because he is still reachable and she may still want him.
+                  if (waitingOnThem.isNotEmpty) ...[
+                    const _SectionHeader(label: 'Waiting on them'),
+                    ...waitingOnThem.map(tile),
                   ],
                   if (inactive.isNotEmpty) ...[
                     const _SectionHeader(label: 'Inactive'),
@@ -1430,13 +1457,32 @@ class _ConversationTile extends StatelessWidget {
                         ? (isMe ? 'You: $displayMsg' : displayMsg)
                         : 'Say hello 👋';
                     final hasUnread = convo.unreadCount > 0 && !cleared;
-                    return Text(
+                    final line = Text(
                       preview,
                       maxLines: 1, overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: hasUnread ? const Color(Config.text1) : const Color(Config.text2),
                         fontWeight: hasUnread ? FontWeight.w600 : FontWeight.w400,
                       ),
+                    );
+                    // What he has not backed up, stated as a fact and nothing more.
+                    // Never coloured as a warning: a man who declined to share bank
+                    // statements made a reasonable choice, and this is her being
+                    // informed rather than him being marked down.
+                    if (convo.unprovenNote == null) return line;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        line,
+                        const SizedBox(height: 2),
+                        Text(convo.unprovenNote!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Color(Config.text3),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600)),
+                      ],
                     );
                   }),
                 ),

@@ -6,6 +6,9 @@ import {
   latestAdvisorHeadline,
   resolveAssistantType
 } from './advisor-thread';
+import { buildHerInbox } from './her-inbox';
+import { gapBarEnabled } from './gap-bar-service';
+import type { Vec } from './vector-scoring';
 
 /**
  * Shared, auth-agnostic chat read logic.
@@ -49,6 +52,19 @@ export interface Conversation {
   /** Networking Season (Phase 4): true when this match was de-ranked (he kept pushing
    *  romance after she went networking). Sinks him to the bottom of HER inbox. */
   deranked: boolean;
+  /**
+   * HER ranked inbox. Null for the man's view, and null for her too when the gap-bar
+   * flag is off or she has no distilled preferences yet — there is no honest ordering
+   * to show in either case, and a fabricated one is worse than none.
+   *
+   * Ranked by APPEAL (how much of what she weights he has proven), never by his gap
+   * bar. She never sees his percentage; rank and `unprovenNote` are all she gets.
+   */
+  rank: number | null;
+  /** Which section he belongs in. Null when unranked. */
+  section: 'ready' | 'vetting' | 'waiting' | null;
+  /** Neutral one-liner on what is not backed up. Never a warning. */
+  unprovenNote: string | null;
 }
 
 export interface ConversationDetailData {
@@ -78,7 +94,10 @@ export async function buildConversations(
   const enforce = networkingEnforcementEnabled();
   const matchCols =
     'id, user1_id, user2_id, status, created_at, user1_last_read_at, user2_last_read_at, ai_bestie_active, bestie_checklist, expired_at' +
-    (enforce ? ', deranked_at' : '');
+    (enforce ? ', deranked_at' : '') +
+    // Same reasoning as deranked_at: only read behind its flag, so this query has no
+    // dependency on the gap-bar migration until the gate is switched on.
+    (gapBarEnabled() ? ', gap_bar_percent' : '');
   const { data: matches, error: matchesError } = await supabase
     .from('verified_vibe_matches')
     .select(matchCols)
@@ -196,16 +215,102 @@ export async function buildConversations(
       expiredAt: isExpired ? ((match as any).expired_at ?? null) : null,
       canReactivate,
       // De-rank applies only in HER inbox (partner is a man). Local-only signal.
-      deranked: enforce && !!(match as any).deranked_at && otherUser.gender === 'man'
+      deranked: enforce && !!(match as any).deranked_at && otherUser.gender === 'man',
+      rank: null,
+      section: null,
+      unprovenNote: null
     });
   }
 
+  await annotateHerInbox(supabase, userId, selfGender, matches, conversations);
+
   return conversations.sort((a, b) => {
+    // Her ranked inbox wins when it is present: waiting-on-him sinks, then rank.
+    if (a.rank !== null && b.rank !== null) {
+      const weight = (c: Conversation) => (c.section === 'waiting' ? 1 : 0);
+      if (weight(a) !== weight(b)) return weight(a) - weight(b);
+      return a.rank - b.rank;
+    }
     // De-ranked matches (networking pushers) sink to the bottom of her inbox,
     // still time-ordered among themselves.
     if (a.deranked !== b.deranked) return a.deranked ? 1 : -1;
     return b.lastMessageTime.getTime() - a.lastMessageTime.getTime();
   });
+}
+
+/** How long he can be silent before he sinks into "waiting on them". */
+const WAITING_ON_HIM_HOURS = 72;
+
+/**
+ * Rank HER suitors and annotate the conversations in place.
+ *
+ * Two thirds of Bestie's completed hand-offs expired with no reply from her, and the
+ * median woman has fourteen suitors in one undifferentiated list. This is the ordering
+ * that gives her somewhere to start. No-ops entirely for men, and for her whenever
+ * there is nothing honest to order by.
+ */
+async function annotateHerInbox(
+  supabase: SupabaseClient,
+  userId: string,
+  selfGender: string | null,
+  matchRows: any[],
+  conversations: Conversation[]
+): Promise<void> {
+  if (selfGender !== 'woman' || !gapBarEnabled() || conversations.length === 0) return;
+
+  try {
+    const men = conversations.filter((c) => c.matchedUser.gender === 'man' && c.status === 'mutual');
+    if (men.length === 0) return;
+
+    const byId = new Map(matchRows.map((m: any) => [m.id, m]));
+    const [herVec, hisVecs] = await Promise.all([
+      supabase.from('vv_user_vectors').select('weights').eq('user_id', userId).maybeSingle().then((r: any) => r.data),
+      supabase.from('vv_user_vectors').select('user_id, attributes, confidence')
+        .in('user_id', men.map((c) => c.matchedUser.id)).then((r: any) => r.data ?? [])
+    ]);
+    const vecById = new Map((hisVecs as any[]).map((v) => [v.user_id, v]));
+    const staleBefore = Date.now() - WAITING_ON_HIM_HOURS * 3_600_000;
+
+    const inbox = buildHerInbox(
+      (herVec?.weights ?? null) as Vec | null,
+      men.map((c) => {
+        const row = byId.get(c.matchId);
+        const v = vecById.get(c.matchedUser.id);
+        return {
+          matchId: c.matchId,
+          manId: c.matchedUser.id,
+          firstName: c.matchedUser.firstName,
+          attrs: (v?.attributes ?? null) as Vec | null,
+          conf: (v?.confidence ?? null) as Vec | null,
+          gapBarPercent: typeof row?.gap_bar_percent === 'number' ? row.gap_bar_percent : null,
+          wrapped: (row?.bestie_checklist as any)?.status === 'wrapped',
+          // Literally what it says: the last word in the thread is not his, and it has
+          // been days. No new state needed to know he owes her an answer.
+          waitingOnHim:
+            c.deranked ||
+            (c.hasMessages &&
+              c.lastMessageSenderId !== c.matchedUser.id &&
+              c.lastMessageTime.getTime() < staleBefore)
+        };
+      })
+    );
+
+    const place = (rows: typeof inbox.ready, section: Conversation['section']) => {
+      for (const r of rows) {
+        const convo = conversations.find((c) => c.matchId === r.matchId);
+        if (!convo) continue;
+        convo.rank = r.rank;
+        convo.section = section;
+        convo.unprovenNote = r.unprovenNote;
+      }
+    };
+    place(inbox.ready, 'ready');
+    place(inbox.vetting, 'vetting');
+    place(inbox.waiting, 'waiting');
+  } catch (e) {
+    // Her chat list must never fail because the ranking could not be built.
+    console.warn('[her-inbox] ranking skipped (non-fatal):', e);
+  }
 }
 
 /**

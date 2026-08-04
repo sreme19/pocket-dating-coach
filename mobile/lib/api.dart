@@ -1913,6 +1913,18 @@ class Conversation {
   /// after she went networking. Sinks him to the bottom of her inbox.
   final bool deranked;
 
+  /// HER ranked inbox. Null on the man's side, and null for her when the gap-bar
+  /// gate is off or she has no distilled preferences — there is no honest ordering
+  /// in either case. Ranked by how much of what SHE weights he has proven, never by
+  /// his own progress bar, and his percentage is never sent to her.
+  final int? rank;
+  /// 'ready' | 'vetting' | 'waiting', or null when unranked.
+  final String? section;
+  /// Neutral note on what he has not backed up — "income unproven", "portfolio
+  /// thin". A statement of fact, never a warning: declining to share bank
+  /// statements is a reasonable choice and must not read as a failing.
+  final String? unprovenNote;
+
   Conversation({
     required this.id,
     this.otherId,
@@ -1934,6 +1946,9 @@ class Conversation {
     this.expiredAt,
     this.canReactivate = false,
     this.deranked = false,
+    this.rank,
+    this.section,
+    this.unprovenNote,
   });
 
   bool get isExpired => status == 'expired';
@@ -2018,6 +2033,11 @@ List<Conversation> _parseConversations(dynamic raw) {
       expiredAt: _dt(c['expiredAt']),
       canReactivate: c['canReactivate'] == true,
       deranked: c['deranked'] == true,
+      rank: c['rank'] is num ? (c['rank'] as num).toInt() : null,
+      section: c['section'] as String?,
+      unprovenNote: (c['unprovenNote'] as String?)?.trim().isEmpty == true
+          ? null
+          : c['unprovenNote'] as String?,
     );
   }).toList();
 }

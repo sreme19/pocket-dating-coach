@@ -11,11 +11,23 @@
  * it back would close a loop and let scores drift with no new evidence.
  */
 
+import { env } from '$env/dynamic/private';
 import { computeGapBar, type GapBar, type GapBarInput } from './gap-bar';
 import { loadProofSignals, refusedCategories, type ProofRequestState } from './proof-signals';
 import { resolveProxyPair } from './bestie-pair';
 import { normalizeMode } from './networking-season';
 import type { Vec } from './vector-scoring';
+
+/**
+ * Opt-in flag, default OFF — the PHOTO_SIGNAL_GATE / NETWORKING_ENFORCEMENT_GATE
+ * precedent. Every read of the new `gap_bar_percent` column is behind this, so the
+ * code deploys inert and has no dependency on migration 20260804123000 until the
+ * flag is switched on. That ordering matters here: migrations on this project are
+ * run by hand in the SQL editor, so deploy-then-migrate is the normal sequence.
+ */
+export function gapBarEnabled(): boolean {
+	return env.GAP_BAR_GATE === 'true';
+}
 
 export interface MatchGapBar {
 	bar: GapBar;
@@ -41,7 +53,7 @@ export async function loadMatchGapBar(
 
 	const { data: matchRow } = await supabase
 		.from('verified_vibe_matches')
-		.select('proof_request, gap_bar_percent')
+		.select('proof_request' + (gapBarEnabled() ? ', gap_bar_percent' : ''))
 		.eq('id', matchId)
 		.maybeSingle();
 
@@ -94,6 +106,7 @@ export async function persistGapBar(
 	percent: number,
 	opts: { allowDecrease?: boolean } = {}
 ): Promise<void> {
+	if (!gapBarEnabled()) return; // column may not exist yet
 	try {
 		const q = supabase.from('verified_vibe_matches').update({ gap_bar_percent: percent }).eq('id', matchId);
 		// lte guard = monotonic at the database, so it holds even if two turns race.
