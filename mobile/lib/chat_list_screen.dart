@@ -531,6 +531,13 @@ class _ChatListScreenState extends State<ChatListScreen>
       if (msg.contains('401') || msg.contains('Unauthorized')) {
         throw Exception('Session expired. Please sign out and sign back in.');
       }
+      // A broken endpoint is OUR fault, and saying so beats implying she did
+      // something wrong (or that waiting will help, which it won't).
+      if (_isServerError(msg)) {
+        throw Exception(
+          "Something went wrong on our end. It's not you — please try again shortly.",
+        );
+      }
       rethrow;
     }
   }
@@ -802,25 +809,45 @@ class _ChatListScreenState extends State<ChatListScreen>
     );
   }
 
+  /// True when the message carries a 5xx from the API. Matched on Dio's own
+  /// phrasing ("status code of 500") rather than a bare "500", which would also
+  /// hit any id or duration that happens to contain those digits.
+  static bool _isServerError(String e) =>
+      e.contains('status code of 5') || e.contains('HTTP 5');
+
   Widget _error(String e) {
+    // Order matters. This used to treat ANY 'DioException' as a rate limit, and
+    // Dio wraps every failed request — a 500, a 404, a dropped connection — in
+    // one. A broken endpoint therefore told users they were being throttled and
+    // to wait, which is advice that never fixes a 500. Classify the real causes
+    // first and leave the fallback honest.
     final friendly = e.contains('No internet') ? e
         : e.contains('Session expired') ? e
         : e.contains('Too many requests') ? e
         : e.contains('Server took too long') ? e
         : e.contains('401') || e.contains('Unauthorized')
             ? 'Session expired. Please sign out and sign back in.'
-        : e.contains('429') || e.contains('Rate limit') || e.contains('DioException')
-            ? 'Too many requests — please wait a moment and try again.'
         : e.contains('timeout') || e.contains('SocketException')
             ? 'No internet connection. Please check your network and retry.'
+        : e.contains('429') || e.contains('Rate limit')
+            ? 'Too many requests — please wait a moment and try again.'
+        : _isServerError(e)
+            ? "Something went wrong on our end. It's not you — please try again shortly."
         : 'Something went wrong. Please try again.';
     final isNetwork = friendly.contains('No internet');
+    final isThrottled = friendly.contains('Too many requests');
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Icon(
-            isNetwork ? Icons.cloud_off : Icons.hourglass_top_rounded,
+            isNetwork
+                ? Icons.cloud_off
+                // An hourglass means "wait, you're throttled". Don't show it for
+                // a server fault — waiting is not what fixes that.
+                : isThrottled
+                    ? Icons.hourglass_top_rounded
+                    : Icons.error_outline_rounded,
             color: const Color(Config.text3), size: 48,
           ),
           const SizedBox(height: 12),
