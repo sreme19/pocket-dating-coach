@@ -8,6 +8,7 @@ import 'api.dart';
 import 'app_logger.dart';
 import 'archetypes.dart';
 import 'config.dart';
+import 'error_text.dart';
 import 'conversation_screen.dart';
 import 'advisor_screen.dart';
 import 'verification_screen.dart';
@@ -533,10 +534,8 @@ class _ChatListScreenState extends State<ChatListScreen>
       }
       // A broken endpoint is OUR fault, and saying so beats implying she did
       // something wrong (or that waiting will help, which it won't).
-      if (_isServerError(msg)) {
-        throw Exception(
-          "Something went wrong on our end. It's not you — please try again shortly.",
-        );
+      if (isServerError(msg)) {
+        throw Exception(kServerErrorMessage);
       }
       rethrow;
     }
@@ -809,30 +808,28 @@ class _ChatListScreenState extends State<ChatListScreen>
     );
   }
 
-  /// True when the message carries a 5xx from the API. Matched on Dio's own
-  /// phrasing ("status code of 500") rather than a bare "500", which would also
-  /// hit any id or duration that happens to contain those digits.
-  static bool _isServerError(String e) =>
-      e.contains('status code of 5') || e.contains('HTTP 5');
-
   Widget _error(String e) {
     // Order matters. This used to treat ANY 'DioException' as a rate limit, and
     // Dio wraps every failed request — a 500, a 404, a dropped connection — in
     // one. A broken endpoint therefore told users they were being throttled and
     // to wait, which is advice that never fixes a 500. Classify the real causes
     // first and leave the fallback honest.
+    // The first branches pass through messages _load already made friendly —
+    // including the server-fault one, which by design no longer carries a status
+    // code for the checks below to recognise.
     final friendly = e.contains('No internet') ? e
         : e.contains('Session expired') ? e
         : e.contains('Too many requests') ? e
         : e.contains('Server took too long') ? e
-        : e.contains('401') || e.contains('Unauthorized')
+        : e.contains('on our end') ? kServerErrorMessage
+        : isAuthError(e)
             ? 'Session expired. Please sign out and sign back in.'
-        : e.contains('timeout') || e.contains('SocketException')
+        : isServerError(e)
+            ? kServerErrorMessage
+        : isNetworkError(e)
             ? 'No internet connection. Please check your network and retry.'
-        : e.contains('429') || e.contains('Rate limit')
+        : isRateLimited(e)
             ? 'Too many requests — please wait a moment and try again.'
-        : _isServerError(e)
-            ? "Something went wrong on our end. It's not you — please try again shortly."
         : 'Something went wrong. Please try again.';
     final isNetwork = friendly.contains('No internet');
     final isThrottled = friendly.contains('Too many requests');

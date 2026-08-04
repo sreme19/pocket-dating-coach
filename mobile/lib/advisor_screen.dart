@@ -6,6 +6,7 @@ import 'api.dart';
 import 'app_logger.dart';
 import 'category_proof_screen.dart';
 import 'config.dart';
+import 'error_text.dart';
 import 'markdown.dart';
 import 'season.dart';
 import 'trust_boost_screen.dart';
@@ -385,9 +386,11 @@ class _AdvisorScreenState extends State<AdvisorScreen> with WidgetsBindingObserv
       final err = e.toString();
       final msg = (err.contains('404'))
           ? 'Sorry, $_name is temporarily unavailable. Please try again later.'
-          : (err.contains('timeout') || err.contains('SocketException') || err.contains('DioException'))
-              ? 'No internet connection. Please check your network and try again.'
-              : 'Something went wrong. Please try again.';
+          : isServerError(err)
+              ? kServerErrorMessage
+              : isNetworkError(err)
+                  ? 'No internet connection. Please check your network and try again.'
+                  : 'Something went wrong. Please try again.';
       setState(() {
         _turns.add(_Turn('assistant', '⚠️ $msg'));
         _thinking = false;

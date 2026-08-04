@@ -4,6 +4,7 @@ import 'app_logger.dart';
 import 'archetypes.dart';
 import 'category_proof_screen.dart';
 import 'config.dart';
+import 'error_text.dart';
 import 'profile_body.dart' show isKnownTravelPlace;
 import 'verification_screen.dart';
 import 'season.dart';
@@ -79,16 +80,24 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
           }
           if (snap.hasError || !snap.hasData) {
             final e = snap.error?.toString() ?? '';
-            final msg = (e.contains('timeout') || e.contains('SocketException') || e.contains('DioException'))
-                ? 'No internet connection. Please check your network.'
-                : (e.contains('401') || e.contains('Unauthorized'))
-                    ? 'Session expired. Please sign out and back in.'
-                    : 'Could not load. Please try again.';
+            final msg = isServerError(e)
+                ? kServerErrorMessage
+                : isNetworkError(e)
+                    ? 'No internet connection. Please check your network.'
+                    : isAuthError(e)
+                        ? 'Session expired. Please sign out and back in.'
+                        : 'Could not load. Please try again.';
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(Icons.cloud_off, size: 44, color: Color(Config.text3)),
+                  // Only claim a connection problem when it is one — a cloud-off
+                  // icon over a server fault sends people to their router.
+                  Icon(
+                    isNetworkError(e) ? Icons.cloud_off : Icons.error_outline_rounded,
+                    size: 44,
+                    color: const Color(Config.text3),
+                  ),
                   const SizedBox(height: 12),
                   Text(msg, textAlign: TextAlign.center, style: const TextStyle(color: Color(Config.text2))),
                   const SizedBox(height: 16),

@@ -10,6 +10,7 @@ import 'app_logger.dart';
 import 'archetype_detail_sheet.dart';
 import 'archetypes.dart';
 import 'config.dart';
+import 'error_text.dart';
 import 'photo_enhance_manager.dart';
 import 'profile_body.dart' show travelMagnets, moneyMattersCard, photoReveal;
 import 'profile_edit.dart';
@@ -218,11 +219,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           }
           if (snap.hasError || !snap.hasData) {
             final e = snap.error?.toString() ?? '';
-            final msg = (e.contains('timeout') || e.contains('SocketException') || e.contains('DioException'))
-                ? 'No internet connection. Please check your network.'
-                : (e.contains('401') || e.contains('Unauthorized'))
-                    ? 'Session expired. Please sign out and back in.'
-                    : 'Could not load profile. Please try again.';
+            final msg = isServerError(e)
+                ? kServerErrorMessage
+                : isNetworkError(e)
+                    ? 'No internet connection. Please check your network.'
+                    : isAuthError(e)
+                        ? 'Session expired. Please sign out and back in.'
+                        : 'Could not load profile. Please try again.';
             return _ErrorState(onRetry: _refresh, error: msg);
           }
           // Data is ready — the entire populated UI is built in one pass and
@@ -267,7 +270,13 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.cloud_off, color: Color(Config.text3), size: 48),
+            // Matches the message it sits above: cloud-off only for an actual
+            // connection problem, not for a fault on our side.
+            Icon(
+              error.contains('No internet') ? Icons.cloud_off : Icons.error_outline_rounded,
+              color: const Color(Config.text3),
+              size: 48,
+            ),
             const SizedBox(height: 12),
             Text(error, textAlign: TextAlign.center,
                 style: const TextStyle(color: Color(Config.text2))),

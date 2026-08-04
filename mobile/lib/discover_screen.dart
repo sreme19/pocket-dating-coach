@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'api.dart';
 import 'app_logger.dart';
 import 'config.dart';
+import 'error_text.dart';
 import 'season.dart';
 import 'profile_body.dart';
 import 'engage_sheets.dart';
@@ -99,13 +100,13 @@ class _DiscoverScreenState extends State<DiscoverScreen>
       AppLogger.instance.error(e, screen: 'discover', action: 'load_feed');
       if (!mounted) return;
       final msg = e.toString();
-      final friendly = msg.contains('401') || msg.contains('Unauthorized')
+      final friendly = isAuthError(msg)
           ? 'Session expired — please restart the app.'
-          : (msg.contains('SocketException') || msg.contains('network') ||
-                  msg.contains('connection') || msg.contains('timeout') ||
-                  msg.contains('DioException'))
-              ? 'No internet connection. Pull down to retry.'
-              : 'Could not load profiles. Pull down to retry.';
+          : isServerError(msg)
+              ? "Something went wrong on our end. It's not you — pull down to retry."
+              : (isNetworkError(msg) || msg.contains('network'))
+                  ? 'No internet connection. Pull down to retry.'
+                  : 'Could not load profiles. Pull down to retry.';
       setState(() => _error = friendly);
     }
   }
@@ -314,10 +315,17 @@ class _DiscoverScreenState extends State<DiscoverScreen>
 
   Widget _body() {
     if (_error != null) {
-      final friendly = _error!.contains('401')
-          ? 'Your session expired — sign out and back in.'
-          : "Couldn't load matches. Check your connection and retry.";
-      return _centered(Icons.cloud_off, friendly, 'Retry', _load);
+      // _error is ALREADY the classified, user-facing message from _load. This
+      // used to rebuild its own here and threw that away, so every failure but a
+      // 401 read "Check your connection" — including a 500, which no amount of
+      // connection-checking fixes.
+      final isNetwork = _error!.contains('No internet');
+      return _centered(
+        isNetwork ? Icons.cloud_off : Icons.error_outline_rounded,
+        _error!,
+        'Retry',
+        _load,
+      );
     }
     if (_feed == null) {
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [

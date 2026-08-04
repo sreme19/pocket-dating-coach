@@ -8,13 +8,16 @@ import 'package:url_launcher/url_launcher.dart';
 import 'api.dart';
 import 'app_logger.dart';
 import 'config.dart';
+import 'error_text.dart';
 import 'selfie_camera.dart';
 import 'season.dart';
 
 String _friendlyError(Object e) {
   final s = e.toString();
-  if (s.contains('DioException') || s.contains('SocketException') ||
-      s.contains('connection') || s.contains('network') || s.contains('timeout')) {
+  // Server faults first: they used to be swallowed by the 'DioException' test
+  // below and reported as the user's connection.
+  if (isServerError(s)) return kServerErrorMessage;
+  if (isNetworkError(s) || s.contains('network')) {
     return 'Connection issue. Please check your internet and try again.';
   }
   // Pass through explicit user-facing messages thrown by the API layer

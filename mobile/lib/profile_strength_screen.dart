@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'api.dart';
 import 'app_logger.dart';
 import 'config.dart';
+import 'error_text.dart';
 import 'preference_weighting_screen.dart';
 import 'category_proof_screen.dart';
 import 'trust_boost_screen.dart';
@@ -64,9 +65,10 @@ class _ProfileStrengthScreenState extends State<ProfileStrengthScreen> {
 
   String get _friendlyError {
     final e = _error ?? '';
-    if (e.contains('429')) return 'Too many requests — please wait a moment and try again.';
-    if (e.contains('401') || e.contains('Unauthorized')) return 'Session expired. Please sign out and back in.';
-    if (e.contains('timeout') || e.contains('SocketException') || e.contains('DioException')) return 'No internet connection. Please check your network.';
+    if (isRateLimited(e)) return 'Too many requests — please wait a moment and try again.';
+    if (isAuthError(e)) return 'Session expired. Please sign out and back in.';
+    if (isServerError(e)) return kServerErrorMessage;
+    if (isNetworkError(e)) return 'No internet connection. Please check your network.';
     return 'Could not load profile strength. Please try again.';
   }
 
