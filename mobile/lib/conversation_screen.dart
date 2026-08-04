@@ -58,6 +58,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   bool _bestieCardCollapsed = true;
   bool _wrappedCardCollapsed = false;  // woman's in-thread wrap-up card collapse
   BestieChecklist? _checklist;         // Bestie's per-man checklist (drives progress)
+  GapBar? _gapBar;                     // HIS four-stage progress (man's side only)
 
   @override
   void initState() {
@@ -133,6 +134,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       _bestieActive = thread.aiBestieActive;
       _proofRequest = thread.proofRequest;
       _checklist = thread.bestieChecklist;
+      _gapBar = thread.gapBar;
       _merge(thread.messages, scroll: true);
       // Re-check presence now that _otherId is known — fixes race condition
       // where onPresenceSync fired before _initialLoad completed (Android).
@@ -184,7 +186,14 @@ class _ConversationScreenState extends State<ConversationScreen> {
       final checklistChanged = thread.bestieChecklist?.status != _checklist?.status ||
           thread.bestieChecklist?.done != _checklist?.done ||
           thread.bestieChecklist?.total != _checklist?.total;
-      if (mounted && (thread.aiBestieActive != _bestieActive || proofChanged || checklistChanged)) {
+      // The bar moves on its OWN events — a proof verifying bumps it with no checklist
+      // change at all — so it needs its own trigger or a repaint would wait for an
+      // unrelated one.
+      final gapBarChanged = thread.gapBar?.percent != _gapBar?.percent ||
+          thread.gapBar?.nextAction?.category != _gapBar?.nextAction?.category ||
+          thread.gapBar?.held != _gapBar?.held;
+      if (mounted &&
+          (thread.aiBestieActive != _bestieActive || proofChanged || checklistChanged || gapBarChanged)) {
         setState(() {
           if (thread.aiBestieActive != _bestieActive) {
             _bestieActive = thread.aiBestieActive;
@@ -192,6 +201,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
           }
           if (proofChanged) _proofRequest = thread.proofRequest;
           if (checklistChanged) _checklist = thread.bestieChecklist;
+          if (gapBarChanged) _gapBar = thread.gapBar;
         });
       }
     } catch (_) {
@@ -324,6 +334,130 @@ class _ConversationScreenState extends State<ConversationScreen> {
   /// so the man (a) knows up front he's talking to her Bestie — not her — and
   /// (b) sees concrete progress toward her stepping in. Fills the top void that
   /// sparse threads otherwise leave blank.
+
+  /// Stage colours. Deliberately four distinct hues rather than one accent: the
+  /// stages are a sequence he progresses through, and a single-colour bar would
+  /// read as one undifferentiated quantity.
+  static const _stageColors = <String, Color>{
+    'fit': Color(0xFF7C6BF0),
+    'portfolio': Color(0xFF3BA3F0),
+    'standout': Color(0xFFF09A2B),
+    'corroboration': Color(0xFF22A97A),
+  };
+
+  /// The segmented bar. Each segment is sized by the stage's WEIGHT, so its width
+  /// tells him how much that stage is worth, and its fill tells him how much of it
+  /// he has. One flat bar could not say both.
+  Widget _gapSegments(GapBar bar) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(
+        children: [
+          for (final s in bar.stages) ...[
+            Expanded(
+              flex: (s.weight * 10).round().clamp(1, 1000),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(5),
+                child: Container(
+                  height: 8,
+                  color: const Color(Config.bg3),
+                  alignment: Alignment.centerLeft,
+                  child: FractionallySizedBox(
+                    widthFactor: s.fraction,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: _stageColors[s.id] ?? Brand.accent,
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (s != bar.stages.last) const SizedBox(width: 3),
+          ],
+        ],
+      ),
+      // The named next action with its real value attached. Uploads worth nothing
+      // are never offered, so if this is absent there is genuinely nothing to do.
+      if (bar.nextAction != null && !bar.handoffReady) ...[
+        const SizedBox(height: 9),
+        _gapNote('🎯', 'Next: your ${bar.nextAction!.phrase} — worth +${bar.nextAction!.worth.round()}%'),
+      ],
+      // Stalled, with the reason named. Never styled as a warning: declining is a
+      // choice he is allowed to make, and the alternatives keep the door open.
+      if (bar.held && bar.heldPhrase != null) ...[
+        const SizedBox(height: 9),
+        _gapNote('↺', 'Held at ${bar.percent.round()}% — ${bar.heldPhrase} unproven. Nothing else is needed from you.'),
+      ],
+      if (bar.isPassive) ...[
+        const SizedBox(height: 9),
+        _gapNote('💬', 'Networking season — this keeps counting, no rush on anything.'),
+      ],
+    ]);
+  }
+
+  Widget _gapNote(String icon, String text) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color(Config.bg3),
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(icon, style: const TextStyle(fontSize: 12)),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(text,
+                style: const TextStyle(color: Color(Config.text2), fontSize: 11.5, height: 1.35)),
+          ),
+        ]),
+      );
+
+  /// The per-stage breakdown, shown only when he opens the card. This is what stops
+  /// the number feeling arbitrary: every row names what moved it and what is left.
+  Widget _gapBreakdown(GapBar bar) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      for (final s in bar.stages)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              width: 10, height: 10,
+              margin: const EdgeInsets.only(top: 4),
+              decoration: BoxDecoration(
+                color: s.earned > 0 ? (_stageColors[s.id] ?? Brand.accent) : const Color(Config.bg3),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Text(s.label,
+                      style: const TextStyle(
+                          color: Color(Config.text1), fontSize: 12.5, fontWeight: FontWeight.w700)),
+                  if (s.complete) ...[
+                    const SizedBox(width: 5),
+                    const Icon(Icons.check, size: 13, color: Color(0xFF22A97A)),
+                  ],
+                ]),
+                Text(s.detail,
+                    style: const TextStyle(color: Color(Config.text2), fontSize: 11, height: 1.35)),
+              ]),
+            ),
+            const SizedBox(width: 8),
+            Text('${s.earned.round()}/${s.weight.round()}',
+                style: const TextStyle(
+                    color: Color(Config.text3), fontSize: 11.5, fontWeight: FontWeight.w700)),
+          ]),
+        ),
+      // Says out loud that nobody else can move this. The whole reason the bar is
+      // absolute rather than a ranking against her other suitors.
+      Text('Opens at 90%. Nothing here depends on anyone but you.',
+          style: TextStyle(
+              color: const Color(Config.text3), fontSize: 10.5, fontStyle: FontStyle.italic)),
+    ]);
+  }
+
   Widget _bestieIntroCard() {
     final name = _otherName.isNotEmpty ? _otherName : widget.title;
     final done = _itemsDone;
@@ -368,8 +502,15 @@ class _ConversationScreenState extends State<ConversationScreen> {
               ]),
             ),
             if (_bestieCardCollapsed)
-              Text(progressLabel,
-                  style: TextStyle(color: Brand.accent, fontSize: 11, fontWeight: FontWeight.w700)),
+              // The percentage replaces "n/m cleared", which told him nothing: two of
+              // what, and what moves it? Falls back to the old counter whenever the
+              // bar is absent (gate off, or no vectors yet) rather than showing a zero
+              // he cannot act on.
+              Text(_gapBar != null ? '${_gapBar!.percent.round()}%' : progressLabel,
+                  style: TextStyle(
+                      color: Brand.accent,
+                      fontSize: _gapBar != null ? 15 : 11,
+                      fontWeight: FontWeight.w800)),
             const SizedBox(width: 6),
             Icon(
               _bestieCardCollapsed ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
@@ -378,6 +519,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
             ),
           ]),
         ),
+        if (_gapBar != null) ...[
+          const SizedBox(height: 11),
+          _gapSegments(_gapBar!),
+        ],
         if (!_bestieCardCollapsed) ...[
           const SizedBox(height: 12),
           RichText(
@@ -398,7 +543,14 @@ class _ConversationScreenState extends State<ConversationScreen> {
             ),
           ),
           const SizedBox(height: 14),
-          if (hasChecklist || wrapped) ...[
+          // With a bar, the four-stage breakdown replaces the single "joins in"
+          // progress line: it says what each stage is and what is left, which is what
+          // stops the number reading as arbitrary. The old bar stays as the fallback
+          // for when the gate is off or he has no vectors yet.
+          if (_gapBar != null) ...[
+            _gapBreakdown(_gapBar!),
+            const SizedBox(height: 9),
+          ] else if (hasChecklist || wrapped) ...[
             Row(children: [
               Expanded(
                 child: RichText(

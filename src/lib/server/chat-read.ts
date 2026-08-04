@@ -7,7 +7,7 @@ import {
   resolveAssistantType
 } from './advisor-thread';
 import { buildHerInbox } from './her-inbox';
-import { gapBarEnabled } from './gap-bar-service';
+import { gapBarEnabled, loadMatchGapBar, persistGapBar, gapBarMode } from './gap-bar-service';
 import type { Vec } from './vector-scoring';
 
 /**
@@ -77,6 +77,16 @@ export interface ConversationDetailData {
   bestieChecklist: Record<string, unknown> | null;
   /** Gender of the viewing (self) user — lets the client gate his-side UI without a separate query. */
   selfGender: string | null;
+  /**
+   * HIS four-stage progress toward the hand-off. Sent to the MAN only — it is his
+   * number, and her side gets rank and an unproven note instead (see Conversation).
+   * Null when the gate is off, when he has no vectors, or on the woman's view.
+   *
+   * `mode` is 'passive' in a networking season: the bar still accrues from proofs and
+   * whatever he volunteers, but Bestie stops driving toward it with dating-framed
+   * questions, so a contact who later flips to Date arrives already vetted.
+   */
+  gapBar: (Record<string, unknown> & { mode: 'active' | 'passive' }) | null;
 }
 
 export type ConversationDetailResult =
@@ -381,6 +391,26 @@ export async function buildConversationDetail(
   const selfGender = (selfUser as any)?.gender ?? null;
   const sameGender = !!selfGender && selfGender === matchedUser.gender;
 
+  // HIS bar, computed for the man only. Never sent to her: she gets rank and one
+  // neutral line about what is unproven, and his percentage stays his. Wrapped so a
+  // scoring failure can never stop him reading his own chat.
+  let gapBar: ConversationDetailData['gapBar'] = null;
+  if (gapBarEnabled() && selfGender === 'man' && !sameGender) {
+    try {
+      const computed = await loadMatchGapBar(supabase, conversationId);
+      if (computed) {
+        // Persist the value as the monotonic floor for next time.
+        await persistGapBar(supabase, conversationId, computed.bar.percent);
+        gapBar = {
+          ...computed.bar,
+          mode: gapBarMode((selfUser as any)?.discovery_mode, (matchedUser as any)?.discovery_mode)
+        };
+      }
+    } catch (e) {
+      console.warn('[gap-bar] detail computation skipped (non-fatal):', e);
+    }
+  }
+
   return {
     ok: true,
     data: {
@@ -402,7 +432,8 @@ export async function buildConversationDetail(
       aiBestieActive: sameGender ? false : (match.ai_bestie_active ?? true),
       proofRequest: (match as any).proof_request ?? null,
       bestieChecklist: (match as any).bestie_checklist ?? null,
-      selfGender
+      selfGender,
+      gapBar
     }
   };
 }

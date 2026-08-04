@@ -2121,6 +2121,92 @@ class ProofRequest {
 /// before the woman steps in. Drives the man's "she joins in" progress (done/total,
 /// NOT a fixed 5) and the wrap-up hand-off (wrapped → his chat freezes). The mobile
 /// side only needs the counts + status; the full item list stays server-side.
+/// One of the four stages of the man's gap bar.
+class GapBarStage {
+  final String id;      // fit | portfolio | standout | corroboration
+  final String label;
+  final double weight;  // points this stage is worth
+  final double earned;  // points earned, 0..weight
+  final bool complete;
+  final String detail;
+  GapBarStage({
+    required this.id, required this.label, required this.weight,
+    required this.earned, required this.complete, required this.detail,
+  });
+
+  double get fraction => weight <= 0 ? 0 : (earned / weight).clamp(0.0, 1.0);
+}
+
+/// The single highest-value thing he can do next, with what it is worth.
+class GapBarAction {
+  final String phrase;   // "fitness", "work / professional side"
+  final String category; // proof category to upload
+  final double worth;    // percentage points it actually adds
+  GapBarAction({required this.phrase, required this.category, required this.worth});
+}
+
+/// HIS progress toward the hand-off. Absolute and monotonic: it depends only on what
+/// he has done, never on her other suitors, and it does not fall for anything outside
+/// his control. Her side never receives this — she gets rank and one neutral note.
+class GapBar {
+  final double percent;
+  final List<GapBarStage> stages;
+  final GapBarAction? nextAction;
+  final List<GapBarAction> alternatives;
+  final bool handoffReady;
+  /// Every route to what she values was declined. The bar STALLS here — it does not
+  /// drop — and the reason is named, because a boundary is not a failing.
+  final bool held;
+  final String? heldPhrase;
+  /// 'passive' during a networking season: it still accrues, Bestie just stops
+  /// driving toward it with dating-framed questions.
+  final String mode;
+
+  GapBar({
+    required this.percent, required this.stages, this.nextAction,
+    this.alternatives = const [], this.handoffReady = false,
+    this.held = false, this.heldPhrase, this.mode = 'active',
+  });
+
+  bool get isPassive => mode == 'passive';
+
+  static double _d(dynamic v) => v is num ? v.toDouble() : 0.0;
+
+  static GapBarAction? _action(dynamic raw) {
+    if (raw is! Map) return null;
+    return GapBarAction(
+      phrase: raw['phrase']?.toString() ?? '',
+      category: raw['category']?.toString() ?? '',
+      worth: _d(raw['worth']),
+    );
+  }
+
+  static GapBar? fromApi(dynamic raw) {
+    if (raw is! Map) return null;
+    final stagesRaw = raw['stages'];
+    if (stagesRaw is! List || stagesRaw.isEmpty) return null;
+    return GapBar(
+      percent: _d(raw['percent']),
+      stages: stagesRaw.whereType<Map>().map((s) => GapBarStage(
+        id: s['id']?.toString() ?? '',
+        label: s['label']?.toString() ?? '',
+        weight: _d(s['weight']),
+        earned: _d(s['earned']),
+        complete: s['complete'] == true,
+        detail: s['detail']?.toString() ?? '',
+      )).toList(),
+      nextAction: _action(raw['nextAction']),
+      alternatives: (raw['alternatives'] is List)
+          ? (raw['alternatives'] as List).map(_action).whereType<GapBarAction>().toList()
+          : const [],
+      handoffReady: raw['handoffReady'] == true,
+      held: raw['held'] == true,
+      heldPhrase: raw['heldPhrase']?.toString(),
+      mode: raw['mode']?.toString() ?? 'active',
+    );
+  }
+}
+
 class BestieChecklist {
   final int total; // number of checklist items
   final int done;  // items marked done
@@ -2160,8 +2246,10 @@ class ConversationThread {
   final bool aiBestieActive;
   final ProofRequest? proofRequest;
   final BestieChecklist? bestieChecklist;
+  /// HIS four-stage progress. Null on her side, and null when the gate is off.
+  final GapBar? gapBar;
   final List<ChatMessage> messages;
-  ConversationThread({required this.otherId, required this.otherName, required this.otherAvatar, required this.otherGender, required this.aiBestieActive, this.proofRequest, this.bestieChecklist, required this.messages});
+  ConversationThread({required this.otherId, required this.otherName, required this.otherAvatar, required this.otherGender, required this.aiBestieActive, this.proofRequest, this.bestieChecklist, this.gapBar, required this.messages});
 }
 
 Future<ConversationThread> fetchConversation(String conversationId) async {
@@ -2181,6 +2269,7 @@ Future<ConversationThread> fetchConversation(String conversationId) async {
     aiBestieActive: data['aiBestieActive'] != false, // default true; only false when explicitly off
     proofRequest: ProofRequest.fromApi(data['proofRequest']),
     bestieChecklist: BestieChecklist.fromApi(data['bestieChecklist']),
+    gapBar: GapBar.fromApi(data['gapBar']),
     messages: msgs.whereType<Map>().map(ChatMessage.fromApi).toList(),
   );
 }
