@@ -38,7 +38,11 @@ export const load: PageServerLoad = async () => {
 	// individually via getUserById — which works — in small concurrent batches.
 	const emailById = new Map<string, string>();
 	const userIds = (users ?? []).map((u) => u.id);
-	const EMAIL_BATCH = 10;
+	// Each id is one getUserById round-trip, so this is the page's main latency
+	// cost. Resolve in wider concurrent batches to cut the number of sequential
+	// rounds (the dominant cause of the several-second load), while staying well
+	// under auth rate limits.
+	const EMAIL_BATCH = 30;
 	for (let i = 0; i < userIds.length; i += EMAIL_BATCH) {
 		const batch = userIds.slice(i, i + EMAIL_BATCH);
 		await Promise.all(

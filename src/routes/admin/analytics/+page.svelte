@@ -331,16 +331,16 @@
 	<title>Analytics — Admin</title>
 </svelte:head>
 
-<div class="min-h-screen bg-[#0b1120] px-6 py-8 text-slate-100">
+<div class="min-h-screen bg-[#0b1120] px-4 py-6 text-slate-100 sm:px-6 sm:py-8">
 	<h1 class="mb-1 text-2xl font-bold text-white">Analytics Dashboard</h1>
 	<p class="mb-4 text-sm text-slate-500">Verified Vibe · Pocket Dating Coach</p>
 
 	<!-- Tab bar -->
-	<div class="mb-8 flex gap-1 border-b border-white/[0.06]">
+	<div class="mb-8 flex gap-1 overflow-x-auto border-b border-white/[0.06]">
 		{#each [['overview', 'Overview'], ['activity', 'User Activity'], ['ai_latency', 'AI Latency']] as [tab, label]}
 			<button
 				onclick={() => activeTab = tab as Tab}
-				class="px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px {activeTab === tab ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}"
+				class="whitespace-nowrap px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px {activeTab === tab ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}"
 			>{label}</button>
 		{/each}
 	</div>
@@ -440,7 +440,7 @@
 	<!-- Female profile funnel -->
 	<div class="card mb-6">
 		<h2 class="chart-title">Female profile funnel</h2>
-		<div class="mt-4 flex gap-6">
+		<div class="mt-4 flex flex-wrap gap-6">
 			<div class="text-center">
 				<div class="text-3xl font-bold text-indigo-400">{data.totals.femaleProfiles}</div>
 				<div class="text-xs text-slate-500">Total submitted</div>
@@ -944,7 +944,12 @@
 		border-radius: 0.75rem;
 		border: 1px solid rgba(255, 255, 255, 0.06);
 		background-color: #0d1522;
-		padding: 1.25rem;
+		padding: 1rem;
+	}
+	@media (min-width: 640px) {
+		:global(.card) {
+			padding: 1.25rem;
+		}
 	}
 	:global(.chart-title) {
 		margin-bottom: 0.75rem;
