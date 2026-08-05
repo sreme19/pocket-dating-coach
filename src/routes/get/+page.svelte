@@ -163,7 +163,13 @@
 
 			<h1 class="h1">No swiping. <em>Ever.</em><br />Just matches.</h1>
 
-			<p class="lede">The AI does the searching. You do the meeting.</p>
+			<!-- Three jobs named, then the payoff on its own line in pink. The list is
+			     deliberately verb-free after the first word: "handles" carries all three,
+			     which is what makes it readable at a glance on a phone. -->
+			<p class="lede">
+				AI handles the conversations, the profile, the searching.
+				<em>You do the meeting.</em>
+			</p>
 
 			<a class="cta" href={storeUrl} data-cta="hero">
 				{@render playMark()}
@@ -249,7 +255,7 @@
 					<div class="row">
 						<span class="rank">{idx + 1}</span>
 						<span class="ava sm">{r.i}</span>
-						<span class="bar"><span class="fill" style="width:{r.pct}%"></span></span>
+						<span class="meter"><span class="fill" style="width:{r.pct}%"></span></span>
 						<span class="pct">{r.pct}%</span>
 					</div>
 				{/each}
@@ -457,6 +463,13 @@
 		font-weight: 600;
 		color: var(--text-2);
 		margin: 0 0 22px;
+	}
+
+	.lede em {
+		display: block;
+		font-style: normal;
+		font-weight: 800;
+		color: var(--accent-bright);
 	}
 
 	.chips {
@@ -842,7 +855,7 @@
 		color: var(--text-4);
 	}
 
-	.bar {
+	.meter {
 		flex: 1;
 		height: 8px;
 		border-radius: 999px;
