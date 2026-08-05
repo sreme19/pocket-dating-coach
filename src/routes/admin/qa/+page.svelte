@@ -152,7 +152,67 @@
 		/>
 	</div>
 
-	<div class="overflow-hidden rounded-xl border border-white/[0.06]">
+	<!-- Mobile: each thread is a native anchor card. A real <a> navigates on
+	     tap without depending on JS or a click surviving the table's horizontal
+	     scroll gesture, and it reads far better than a cramped wide table. -->
+	<div class="space-y-2 md:hidden">
+		{#each paged as r (r.href)}
+			<a
+				href={r.href}
+				class="block rounded-xl border border-white/[0.06] bg-[#0d1522] p-3 transition-colors active:bg-white/[0.04]"
+			>
+				<div class="flex items-start justify-between gap-2">
+					<div class="min-w-0">
+						<div class="flex flex-wrap items-center gap-1.5">
+							<span class="font-medium text-slate-100">{r.participantA.name} ↔ {r.participantB.name}</span>
+							{#if r.kind === 'advisor'}
+								<span class="rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-medium text-indigo-300">advisor</span>
+							{:else if r.kind === 'voice'}
+								<span class="rounded bg-pink-500/15 px-1.5 py-0.5 text-[10px] font-medium text-pink-300">voice call</span>
+							{/if}
+						</div>
+						<div class="mt-0.5 text-xs text-slate-500">
+							{#if r.kind === 'advisor'}
+								global advisor · {r.participantB.archetype ?? '—'}
+							{:else if r.kind === 'voice'}
+								{r.participantA.archetype ?? 'voice call'} · with {r.participantB.name}
+							{:else}
+								{r.participantA.archetype ?? '—'} · {r.participantB.archetype ?? '—'}
+							{/if}
+						</div>
+					</div>
+					<span class="shrink-0 text-xs text-slate-500">{fmt(r.lastActivityAt)}</span>
+				</div>
+				<div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
+					<span><span class="text-slate-200">{r.counts.messages}</span> msgs</span>
+					{#if r.counts.aiMessages}<span>· <span class="text-indigo-400">{r.counts.aiMessages} AI-sent</span></span>{/if}
+					{#if r.counts.coached}<span>· <span class="text-amber-400">{r.counts.coached} coached</span></span>{/if}
+					{#if r.counts.coachingThreads}<span>· <span class="text-emerald-400">{r.counts.coachingThreads} threads</span></span>{/if}
+				</div>
+				<div class="mt-2 flex items-center justify-between">
+					<span class="text-xs">
+						{#if r.review}
+							<span
+								class="rounded px-2 py-0.5 {r.review.status === 'escalated'
+									? 'bg-rose-500/15 text-rose-400'
+									: 'bg-emerald-500/15 text-emerald-400'}">{r.review.status}</span
+							>
+							{#if r.review.avgScore !== null}<span class="ml-1 text-slate-500">avg {r.review.avgScore}</span>{/if}
+						{:else}
+							<span class="text-slate-600">Not reviewed</span>
+						{/if}
+					</span>
+					<span class="text-xs font-medium text-emerald-400">{r.review ? 'View' : 'Review'} →</span>
+				</div>
+			</a>
+		{:else}
+			<div class="rounded-xl border border-white/[0.06] bg-[#0d1522] px-4 py-8 text-center text-sm text-slate-500">
+				No matches for this filter.
+			</div>
+		{/each}
+	</div>
+
+	<div class="hidden overflow-hidden rounded-xl border border-white/[0.06] md:block">
 		<table class="w-full text-left text-sm">
 			<thead class="bg-[#0d1522] text-xs text-slate-500">
 				<tr>
