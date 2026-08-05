@@ -174,7 +174,13 @@
 			</thead>
 			<tbody>
 				{#each paged as r (r.href)}
-					<tr class="border-t border-white/[0.04] hover:bg-white/[0.02]">
+					<!-- Whole row opens the conversation, so a tap anywhere works on mobile
+					     where the right-hand action link is easy to miss. -->
+					<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
+					<tr
+						onclick={() => goto(r.href)}
+						class="cursor-pointer border-t border-white/[0.04] hover:bg-white/[0.02]"
+					>
 						<td class="px-4 py-3">
 							<div class="flex items-center gap-2">
 								<div class="font-medium text-slate-100">{r.participantA.name} ↔ {r.participantB.name}</div>

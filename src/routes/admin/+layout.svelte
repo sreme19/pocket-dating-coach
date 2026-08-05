@@ -114,7 +114,9 @@
 	</header>
 {/if}
 
-{@render children()}
+<div class="admin-scope">
+	{@render children()}
+</div>
 
 <style>
 	.admin-nav-bar {
@@ -127,5 +129,36 @@
 		100% {
 			transform: translateX(400%);
 		}
+	}
+
+	/*
+	 * Mobile responsiveness for every admin page in one place. Admin pages are
+	 * data-dense and full of wide tables; without this they force the whole
+	 * document wider than the phone viewport, so the page scrolls sideways and
+	 * the right-hand columns (often the only actionable link) sit off-screen.
+	 *
+	 * Make every admin table a self-contained horizontal scroller: it sizes to
+	 * its content but is capped at the width of its container, and scrolls
+	 * internally instead of stretching the page. `display: block` is what lets
+	 * overflow apply to the table box; rows/cells keep their table layout, so
+	 * columns still line up. Pages that already wrap a table in an
+	 * overflow-x-auto div keep working — the scroll just happens a level in.
+	 */
+	.admin-scope :global(table) {
+		display: block;
+		width: max-content;
+		max-width: 100%;
+		overflow-x: auto;
+	}
+
+	/*
+	 * Document-level safety net: no admin page may scroll sideways on a phone.
+	 * `clip` (not `hidden`) is deliberate — it prevents horizontal page scroll
+	 * without turning the scope into a scroll container, so `position: sticky`
+	 * inside pages keeps working. Tables above still scroll internally within
+	 * their own box, so this only catches stray wide flex/text rows.
+	 */
+	.admin-scope {
+		overflow-x: clip;
 	}
 </style>

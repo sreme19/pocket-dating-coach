@@ -543,7 +543,7 @@
 						{@const msg = womenMessageFor(mood, `${linkFor(adminLinks.women)}?m=${mood}`)}
 						<div class="flex items-start gap-2 rounded border border-white/[0.08] bg-black/20 p-3">
 							<div class="min-w-[90px] pt-1 text-xs font-semibold text-slate-300">{MOOD_LABEL[mood]}</div>
-							<p class="flex-1 text-xs leading-relaxed text-slate-300">{msg}</p>
+							<p class="min-w-0 flex-1 break-words text-xs leading-relaxed text-slate-300">{msg}</p>
 							<button
 								onclick={() => copyText(`women-${mood}`, msg)}
 								class="shrink-0 rounded border border-white/[0.1] px-2.5 py-1 text-xs text-slate-300 hover:text-white"
