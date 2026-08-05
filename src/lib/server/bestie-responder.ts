@@ -721,8 +721,20 @@ export async function generateBestieReply(
 	// He said yes elsewhere and this Bestie hasn't told him yet. He agreed to a
 	// general reuse, so this is a courtesy notice rather than a second ask — but
 	// he must never find out silently.
-	const noticeConsent =
+	//
+	// Claimed ATOMICALLY here, before the Claude call, rather than read-now /
+	// write-after-the-reply like the rest of this function's persistence. He
+	// fires off short answers in bursts, and each burst message starts its own
+	// turn: with a plain read here and the write happening only once Claude has
+	// replied, several overlapping turns all read "not yet told" and all told
+	// him. A conditional UPDATE that only succeeds while the column is still
+	// NULL closes that window — exactly one concurrent turn can win the claim,
+	// mirroring the checklist CAS write below. Must happen before the prompt is
+	// built: whether Claude is TOLD to say it is what needs to be race-free, not
+	// just the bookkeeping after the fact.
+	const wantsNotice =
 		consentEligible && consentGranted && !alreadyHadConsentMoment && ledgerEntries.length > 0;
+	const noticeConsent = wantsNotice && (await claimConsentNotice(supabase, matchId));
 
 	const ledgerContext = consentGranted ? buildLedgerBlock(ledgerEntries, matchName) : '';
 	const consentContext = askConsent
@@ -988,13 +1000,16 @@ export async function generateBestieReply(
 		...(proofStateFinal ? { proofStateUpdate: proofStateFinal } : {}),
 		...(checklistUpdate ? { checklistUpdate } : {}),
 		...(parsed.romanticPressure === true ? { romanticPressure: true } : {}),
-		// §E consent. The thread marker is stamped whenever its one consent moment was
-		// SPENT — she asked, she gave the caught-up notice, or the cadence said stay
-		// quiet this time. Ignoring the ask counts too: silence is not a decline, but
-		// she still had her shot and does not get to re-open it later in this chat.
+		// §E consent. The caught-up NOTICE already claimed and stamped the thread
+		// marker atomically above, before the prompt was even built — see
+		// claimConsentNotice(). This flag now only covers the (currently dead)
+		// ASK path, kept for when consentOpportunity is re-enabled: she asked, or
+		// the cadence said stay quiet this time. Ignoring the ask counts too:
+		// silence is not a decline, but she still had her shot and does not get
+		// to re-open it later in this chat.
 		...(fitMismatch ? { fitMismatch } : {}),
 		...(announceRound ? { roundAnnounced: roundsUsed } : {}),
-		...(consentOpportunity || noticeConsent ? { consentMoment: true } : {}),
+		...(consentOpportunity ? { consentMoment: true } : {}),
 		...(consentUpdate ? { consentUpdate, partnerId: otherUserId ?? undefined } : {}),
 		...(consentCounters ? { consentCounters, partnerId: otherUserId ?? undefined } : {})
 	};
@@ -1051,16 +1066,49 @@ async function persistChecklist(
 }
 
 /**
+ * Atomically claim this thread's one caught-up-notice moment (§E).
+ *
+ * A read-then-write-later pattern (read the column, decide, write it back once
+ * Claude has replied) has a race the width of the Claude call: he can fire off
+ * several short messages in a burst, each starting its own turn, each reading
+ * the column while it is still NULL, each deciding to tell him. A conditional
+ * UPDATE that only succeeds while the column is still NULL closes that window
+ * — only the turn that wins the claim gets to show the notice, and it must
+ * happen before the prompt is built, since that's what decides whether Claude
+ * is told to say it at all. Mirrors the checklist CAS write above.
+ */
+async function claimConsentNotice(supabase: any, matchId: string): Promise<boolean> {
+	try {
+		const { data, error } = await supabase
+			.from('verified_vibe_matches')
+			.update({ bestie_consent_asked_at: new Date().toISOString() })
+			.eq('id', matchId)
+			.is('bestie_consent_asked_at', null)
+			.select('id');
+		if (error) {
+			console.warn('[bestie-ledger] consent notice claim failed (non-fatal):', error.message);
+			return false;
+		}
+		return !!(data && data.length > 0);
+	} catch (e) {
+		console.warn('[bestie-ledger] consent notice claim failed (non-fatal):', e);
+		return false;
+	}
+}
+
+/**
  * Persist the cross-conversation consent side effects of a turn (§E).
  *
- * Three independent writes, deliberately not one:
- *  · the THREAD marker, so this Bestie never raises consent twice — stamped
- *    whenever she raised it at all, including when he ignored her. Silence is
- *    not a decline, but she still had her one moment.
+ * Two independent writes, deliberately not one:
+ *  · the THREAD marker for the ASK path — claimConsentNotice() above already
+ *    claims it atomically for the caught-up-notice path, so this only fires
+ *    for consentOpportunity (currently always false; kept for when it's
+ *    re-enabled), stamped whenever she raised it at all, including when he
+ *    ignored her. Silence is not a decline, but she still had her one moment.
  *  · his ANSWER, on his own user row (global and retroactive: a yes here
- *    switches on every Bestie, including ones he previously declined).
- *  · the opportunity COUNTER, which moves even on turns we stayed quiet — that
- *    is what makes "every 5th opportunity" mean anything past the decline cap.
+ *    switches on every Bestie, including ones he previously declined), and the
+ *    opportunity COUNTER, which moves even on turns we stayed quiet — that is
+ *    what makes "every 5th opportunity" mean anything past the decline cap.
  *
  * Entirely non-fatal. The worst case of a failed write here is that he gets
  * asked again later, which is today's behaviour anyway.
