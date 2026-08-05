@@ -4,6 +4,40 @@
 # pipeline (Silero VAD + STT + TTS) needs dedicated CPU or it falls behind
 # realtime ("inference is slower than realtime" / "job is unresponsive").
 # This is a worker (outbound to LiveKit Cloud) — no public HTTP service.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# SCALED TO ZERO as of 2026-08-05. Do not redeploy this always-on.
+#
+# Why: this config bills ~$70/mo whether or not anyone calls. Actual lifetime
+# usage was 9 calls / 23 minutes of conversation (6 male callers, 4 women, all
+# real users) between 2026-07-12 and 2026-07-31, and nothing since. Jun+Jul Fly
+# invoices totalled $150.81 — June alone was $69.48 carrying ZERO calls. The
+# variable cost of the assembled stack over that whole period was ~$3.45, so the
+# idle VM was ~98% of the spend at a 0.026% duty cycle.
+#
+# The app now refuses calls unless VOICE_CALLS_ENABLED === 'true' (see
+# src/routes/api/voice/calls/start/+server.ts). Keep the machine and the flag in
+# step, in this order:
+#   ON:   fly scale count 1 -a vv-voice-agent   # THEN set VOICE_CALLS_ENABLED=true
+#   OFF:  unset VOICE_CALLS_ENABLED             # THEN fly scale count 0
+# Flag on with no machine = every caller sits in "Connecting…" until the
+# reap-stale-calls cron marks the row 'no_answer'.
+#
+# CAUTION: `fly deploy` recreates a machine from this file and will resurrect an
+# always-on performance-2x. After any deploy, re-run `fly scale count 0` unless
+# you actually intend voice to be live.
+#
+# Before making it always-on again, two things are worth doing (neither is done):
+#   1. Scale to zero on demand via the Machines API from dispatchVoiceAgent()
+#      in src/lib/server/livekit.ts — 'suspend' resumes from RAM in ~1s. There
+#      is no [http_service] here, so Fly's proxy autostart cannot trigger; it
+#      has to be driven explicitly by the app. Pre-warm when the call screen
+#      opens, not when the caller confirms.
+#   2. Test performance-1x/2gb. Deepgram and ElevenLabs are network calls; the
+#      only local inference is Silero VAD (~1MB ONNX). The note below argues for
+#      DEDICATED cpu, which is right, but not for two cores. Untested — that is
+#      why the size below is unchanged.
+# ─────────────────────────────────────────────────────────────────────────────
 
 app = "vv-voice-agent"
 primary_region = "sin"
@@ -14,12 +48,13 @@ primary_region = "sin"
 [env]
   NODE_ENV = "production"
 
-# Always-on: a voice agent must be warm to answer a "Get a call now" tap.
-# Dedicated CPU — shared CPUs can't keep the realtime audio pipeline up.
+# Sizing for when voice is live (currently scaled to 0 — see the header).
+# A voice agent must be warm to answer a "Get a call now" tap, and dedicated CPU
+# is required — shared CPUs can't keep the realtime audio pipeline up.
 [[vm]]
   size = "performance-2x"
   memory = "4gb"
 
-# Keep at least one warm worker; scale up under concurrent call load.
+# One warm worker when live; scale up under concurrent call load.
 [processes]
   app = "node --import tsx src/agent.ts start"

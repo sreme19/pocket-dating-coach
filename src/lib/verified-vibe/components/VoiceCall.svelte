@@ -13,7 +13,11 @@
 <script lang="ts">
 	let { conversationId, ownerName }: { conversationId: string; ownerName: string } = $props();
 
-	type Phase = 'idle' | 'consent' | 'connecting' | 'live' | 'ended' | 'error';
+	// 'disabled' is the server's VOICE_CALLS_ENABLED kill switch talking back: the
+	// Fly worker is scaled to zero, so there is no agent to join the room. We learn
+	// it from the 503 rather than a build-time public env var, so the flag lives in
+	// exactly one place (Vercel) and turning voice back on needs no web rebuild.
+	type Phase = 'idle' | 'consent' | 'connecting' | 'live' | 'ended' | 'error' | 'disabled';
 	let phase = $state<Phase>('idle');
 	let errorMsg = $state('');
 	let muted = $state(false);
@@ -58,6 +62,14 @@
 				body: JSON.stringify({ matchId: conversationId, consent: true })
 			});
 			const data = await res.json();
+			// Voice is switched off server-side. Retreat quietly and don't offer a
+			// retry — there is nothing on the other end to retry against.
+			if (res.status === 503 && data?.error === 'voice_disabled') {
+				errorMsg = data?.message || 'Voice calls are paused right now.';
+				phase = 'disabled';
+				await cleanup();
+				return;
+			}
 			if (!res.ok) throw new Error(data?.message || data?.error || 'Could not start the call.');
 
 			const { Room, RoomEvent, Track } = await import('livekit-client');
@@ -180,6 +192,14 @@
 	<div class="vc-ended vc-err">
 		<span>{errorMsg}</span>
 		<button class="vc-secondary" onclick={reset} type="button">Close</button>
+	</div>
+{/if}
+
+<!-- Paused server-side: state it plainly, no retry, and don't come back this
+     session (the launch button stays hidden while phase is 'disabled'). -->
+{#if phase === 'disabled'}
+	<div class="vc-ended">
+		<span>{errorMsg}</span>
 	</div>
 {/if}
 

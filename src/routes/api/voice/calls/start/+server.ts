@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
+import { env } from '$env/dynamic/private';
 import { getSupabase } from '$lib/server/supabase';
 import { getUserFromRequest } from '$lib/server/voice-auth';
 import { resolveVoice } from '$lib/server/elevenlabs';
@@ -18,6 +19,30 @@ import { mintJoinToken, dispatchVoiceAgent, livekitWsUrl } from '$lib/server/liv
  */
 export const POST: RequestHandler = async ({ request }) => {
 	try {
+		// Global kill switch — checked before anything else, including auth, so an
+		// off feature does zero work.
+		//
+		// Voice calls need the always-on dedicated worker (voice-agent/ on Fly.io).
+		// That worker bills whether or not anyone calls: across Jun+Jul 2026 it cost
+		// $150.81 to carry 23 minutes of actual conversation (9 calls, 6 callers),
+		// and June cost $69.48 with zero calls. So the machine is scaled to zero
+		// while this flag is off, and we must refuse here — otherwise the caller
+		// rings a LiveKit room that no agent will ever join, and sits in
+		// "Connecting…" until the reap-stale-calls cron marks it 'no_answer'.
+		//
+		// Opt-in, default OFF, matching the PHOTO_SIGNAL_GATE precedent. Read from
+		// $env/dynamic/private so turning voice back on is a Vercel env flip with no
+		// redeploy — but bring the Fly machine up FIRST, or every call no-answers.
+		if (env.VOICE_CALLS_ENABLED !== 'true') {
+			return json(
+				{
+					error: 'voice_disabled',
+					message: 'Voice calls are paused right now — keep chatting here and her bestie will reply.'
+				},
+				{ status: 503 }
+			);
+		}
+
 		const caller = await getUserFromRequest(request);
 		if (!caller) return json({ error: 'Unauthorized' }, { status: 401 });
 
