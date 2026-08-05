@@ -4,7 +4,6 @@ import 'app_logger.dart';
 import 'archetypes.dart';
 import 'archetype_detail_sheet.dart';
 import 'config.dart';
-import 'onboarding_flow.dart' show LiveMembersCarousel;
 import 'season.dart';
 
 /// Pre-auth "Pick your lane" screen — shown after the gate but before email
@@ -156,8 +155,6 @@ class _PreAuthLaneScreenState extends State<PreAuthLaneScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              // Live members carousel
-              const LiveMembersCarousel(),
             ],
           ),
         ),

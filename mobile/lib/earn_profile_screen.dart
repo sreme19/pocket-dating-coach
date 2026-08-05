@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'app_logger.dart';
 import 'config.dart';
-import 'onboarding_flow.dart' show LiveMembersCarousel;
 import 'season.dart';
 
 /// "Earn your profile." overview screen — shown after OTP verification,
@@ -105,9 +104,6 @@ class _EarnProfileScreenState extends State<EarnProfileScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 28),
-                    // Live members carousel
-                    const LiveMembersCarousel(),
                     const SizedBox(height: 28),
                   ],
                 ),

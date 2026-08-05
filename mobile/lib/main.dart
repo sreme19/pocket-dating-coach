@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'config.dart';
 import 'season.dart';
 import 'api.dart';
@@ -118,6 +119,16 @@ class _AuthGateState extends State<AuthGate> {
   // the future keeps the same key resolved, so a token refresh is a no-op here.
   Future<bool>? _onbFuture;
   String? _onbKey;
+  bool _markedSignedIn = false;
+
+  // One-shot: persist that this device has reached an authed session.
+  void _markHasSignedIn() {
+    if (_markedSignedIn) return;
+    _markedSignedIn = true;
+    SharedPreferences.getInstance()
+        .then((p) => p.setBool(kHasSignedInKey, true))
+        .catchError((_) => false);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -134,6 +145,9 @@ class _AuthGateState extends State<AuthGate> {
           _onbKey = null;
           return const AuthScreen();
         }
+        // Remember that this device has reached an authed session, so a future
+        // logged-out visit opens on sign-in rather than the create-account gate.
+        _markHasSignedIn();
         final onbKey = 'onb_${session.user.id}_$_recheck';
         if (_onbKey != onbKey) {
           _onbKey = onbKey;

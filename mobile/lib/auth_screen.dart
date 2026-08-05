@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'config.dart';
@@ -22,6 +23,11 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
+/// SharedPreferences flag: set once the device has ever reached an authed
+/// session (see AuthGate in main.dart). Drives whether the logged-out screen
+/// opens on create-account (fresh install) vs sign-in (returning user).
+const String kHasSignedInKey = 'has_signed_in';
+
 class _AuthScreenState extends State<AuthScreen> {
   // Demo account for App Store review — bypasses email OTP delivery.
   static const _demoEmail = 'review@riteangle.com';
@@ -31,12 +37,29 @@ class _AuthScreenState extends State<AuthScreen> {
   void initState() {
     super.initState();
     AppLogger.instance.screen('auth');
+    _pickInitialMode();
+  }
+
+  /// Fresh installs (device has never signed in) land on the create-account
+  /// gate; returning-but-logged-out users keep the sign-in default. Reads a
+  /// local flag, so returning users show sign-in with no flash; a never-seen
+  /// device flips to create-account once the (fast, local) read resolves.
+  Future<void> _pickInitialMode() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final hasSignedIn = prefs.getBool(kHasSignedInKey) ?? false;
+      if (!hasSignedIn && !_signUp && !_codeSent && mounted) {
+        setState(() => _signUp = true);
+      }
+    } catch (_) {
+      // If prefs are unavailable, leave the sign-in default.
+    }
   }
 
   final _email = TextEditingController();
   final _code = TextEditingController();
   bool _codeSent = false;
-  bool _signUp = false; // false = sign in, true = create account (same OTP flow)
+  bool _signUp = false; // false = sign in, true = create account (same OTP flow); initState flips fresh installs to create-account
   int _signupStep = 0; // signup: 0 = "two questions" gate, 1 = email
   String _gateGender = 'man';
   bool _gateOver18 = false;
