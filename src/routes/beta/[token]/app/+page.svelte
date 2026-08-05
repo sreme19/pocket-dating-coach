@@ -1,18 +1,13 @@
 <script lang="ts">
 	import type { PageData } from './$types';
 	import RiteLogo from '$lib/verified-vibe/components/RiteLogo.svelte';
-	import { storeChoices } from '$lib/store-links';
+	import StoreBadges from '$lib/components/StoreBadges.svelte';
 
 	let { data }: { data: PageData } = $props();
 
 	const name = $derived(data.referrer?.first_name ?? null);
 	const initial = $derived((data.referrer?.first_name ?? '?').charAt(0).toUpperCase());
 
-	// BOTH stores, always — the detected device (?d= from the admin Copy button, or a
-	// User-Agent sniff) only decides which one leads. This used to filter down to
-	// one, which meant a device recorded weeks earlier on the /beta form, or a link
-	// forwarded to a different phone, was a dead end.
-	const buttons = $derived(storeChoices(data.platform));
 </script>
 
 <svelte:head>
@@ -93,16 +88,12 @@
 					and we'll introduce you to someone worth meeting — real people, properly verified.{/if}
 			</p>
 
+			<!-- BOTH stores, always — the detected device (?d= from the admin Copy
+			     button, else a User-Agent sniff) only decides which leads. This used to
+			     filter down to one, so a device recorded weeks earlier on the /beta form,
+			     or a link forwarded to another phone, was a dead end. -->
 			<div class="cta">
-				{#each buttons as b (b.platform)}
-					<a
-						class="btn"
-						class:secondary={b.platform !== data.platform}
-						href={b.url}
-						target="_blank"
-						rel="noreferrer">{b.label} →</a
-					>
-				{/each}
+				<StoreBadges order={data.platform} />
 			</div>
 
 			<p class="legal">
@@ -234,35 +225,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
-	}
-
-	.btn {
-		display: block;
-		text-align: center;
-		text-decoration: none;
-		padding: 14px 16px;
-		border-radius: 14px;
-		background: var(--accent);
-		color: #fff;
-		font-size: 15px;
-		font-weight: 800;
-		box-shadow: 0 12px 24px -8px var(--accent-glow);
-	}
-
-	.btn:hover {
-		background: var(--accent-bright);
-	}
-
-	/* The store we don't think they're on — offered anyway, ranked second. */
-	.btn.secondary {
-		background: var(--bg-2);
-		color: var(--accent-bright);
-		border: 1px solid var(--accent-glow);
-		box-shadow: none;
-	}
-
-	.btn.secondary:hover {
-		background: var(--accent-tint);
 	}
 
 	.legal {

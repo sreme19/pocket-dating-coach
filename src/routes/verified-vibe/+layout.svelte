@@ -9,10 +9,10 @@
   import { fade, slide } from 'svelte/transition';
   import { onMount } from 'svelte';
   import RiteLogo from '$lib/verified-vibe/components/RiteLogo.svelte';
-  // One definition of where the app lives. These badges used to hardcode their
-  // own, and the Android one silently rotted into the closed-testing opt-in URL
-  // after Play moved to open testing.
-  import { STORE_LINKS } from '$lib/store-links';
+  // One definition of where the app lives (and of what the badges look like).
+  // These used to hardcode their own links, and the Android one silently rotted
+  // into the closed-testing opt-in URL after Play moved to open testing.
+  import StoreBadges from '$lib/components/StoreBadges.svelte';
 
   const COMING_SOON = true;
   let { children } = $props();
@@ -139,24 +139,7 @@
           Download the app to get started.
         </p>
         <div class="coming-soon-badges">
-          <a
-            href={STORE_LINKS.ios}
-            class="store-badge"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
-            iPhone — TestFlight
-          </a>
-          <a
-            href={STORE_LINKS.android}
-            class="store-badge"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 20.5v-17c0-.83.94-1.3 1.6-.8l14 8.5c.6.36.6 1.24 0 1.6l-14 8.5c-.66.5-1.6.03-1.6-.8z"/></svg>
-            Android — Google Play
-          </a>
+          <StoreBadges />
         </div>
       </div>
     </div>
@@ -444,29 +427,11 @@
     margin: 0;
   }
 
+  /* Wrapper only — the badges are StoreBadges.svelte, shared with the /beta
+     landing and the marketing page. */
   .coming-soon-badges {
-    display: flex;
-    gap: 12px;
     margin-top: 8px;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  .store-badge {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 20px;
-    background: var(--accent);
-    color: #ffffff;
-    border-radius: var(--r-lg);
-    font-size: 14px;
-    font-weight: 600;
-    text-decoration: none;
-    transition: background 200ms ease;
-  }
-
-  .store-badge:hover {
-    background: var(--accent-bright);
+    width: 100%;
+    max-width: 300px;
   }
 </style>

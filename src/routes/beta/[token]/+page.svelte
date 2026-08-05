@@ -2,7 +2,8 @@
 	import type { PageData } from './$types';
 	import { fade, slide } from 'svelte/transition';
 	import RiteLogo from '$lib/verified-vibe/components/RiteLogo.svelte';
-	import { storeChoices, type Platform } from '$lib/store-links';
+	import StoreBadges from '$lib/components/StoreBadges.svelte';
+	import type { Platform } from '$lib/store-links';
 
 	let { data }: { data: PageData } = $props();
 
@@ -30,10 +31,6 @@
 
 	const name = $derived(data.referrer?.first_name ?? null);
 	const initial = $derived((data.referrer?.first_name ?? '?').charAt(0).toUpperCase());
-
-	// Both stores, always. We have no device hint to order them by any more, so
-	// Android leads (see $lib/store-links) and the person picks.
-	const downloads = storeChoices(null);
 
 	/** Gate: the buttons stay inert until there's an address worth recording. */
 	const ready = $derived(EMAIL_RE.test(email.trim()));
@@ -227,31 +224,15 @@
 				<p class="error" transition:fade={{ duration: 150 }}>{error}</p>
 			{/if}
 
-			<!-- Both stores, dimmed until the email is valid. Kept as real anchors the
-			     whole time (never swapped for buttons) so long-press and open-in-new-tab
-			     still work once they're live; aria-disabled plus the preventDefault
-			     below is the gate. -->
-			<div class="dl">
-				{#each downloads as d (d.platform)}
-					<a
-						class="dl-btn"
-						class:locked={!ready}
-						href={d.url}
-						target="_blank"
-						rel="noreferrer"
-						aria-disabled={!ready}
-						onclick={(e) => {
-							if (!ready) {
-								e.preventDefault();
-								nudge();
-								return;
-							}
-							capture(d.platform);
-						}}
-					>
-						{d.label} →
-					</a>
-				{/each}
+			<!-- Store badges, inert until the email is valid. They stay real anchors
+			     the whole time (never swapped for buttons) so long-press and
+			     open-in-new-tab work the moment they go live. -->
+			<div class="dl" onclickcapture={() => nudge()}>
+				<StoreBadges
+					locked={!ready}
+					lockedLabel="Enter your email to unlock the download"
+					onpick={capture}
+				/>
 			</div>
 
 			<p class="dl-note">
@@ -533,46 +514,11 @@
 		margin: 0;
 	}
 
-	/* ── Download buttons ─────────────────────────────────────────────────── */
+	/* ── Download badges ──────────────────────────────────────────────────── */
+	/* Wrapper only — the badges themselves live in StoreBadges.svelte so every
+	   download surface renders the same thing. */
 	.dl {
-		display: flex;
-		flex-direction: column;
-		gap: 9px;
 		margin: 4px 0 0;
-	}
-
-	.dl-btn {
-		display: block;
-		padding: 14px 16px;
-		border: 1px solid transparent;
-		border-radius: 14px;
-		background: var(--accent);
-		color: #fff;
-		font-size: 14.5px;
-		font-weight: 800;
-		text-align: center;
-		text-decoration: none;
-		box-shadow: 0 12px 24px -8px var(--accent-glow);
-	}
-
-	.dl-btn:hover {
-		background: var(--accent-bright);
-	}
-
-	/* Pre-email state. Deliberately still legible — the point is to show what they
-	   are about to get, not to hide it — and the note underneath says what unlocks
-	   it. Kept clickable so the tap can explain itself (see nudge()). */
-	.dl-btn.locked {
-		background: var(--accent-tint);
-		color: var(--accent);
-		border-color: var(--accent-glow);
-		box-shadow: none;
-		cursor: not-allowed;
-		opacity: 0.6;
-	}
-
-	.dl-btn.locked:hover {
-		background: var(--accent-tint);
 	}
 
 	.dl-note {

@@ -24,7 +24,13 @@
  */
 
 import { sendEmail, escapeHtml } from './email';
-import { STORE_LINKS, storeChoices, storeUrlFor, type Platform } from '$lib/store-links';
+import {
+  STORE_LINKS,
+  storeChoices,
+  storeUrlFor,
+  type Platform,
+  type StoreChoice,
+} from '$lib/store-links';
 
 export interface ReferrerCard {
   first_name: string | null;
@@ -130,33 +136,62 @@ function emailShell(innerHtml: string, footerNote: string = NO_REPLY_NOTE): stri
 // ── Store buttons (shared by both invitee-facing emails) ──────────────────────
 
 /**
- * Both stores as buttons, with the device we believe they're on first.
+ * Both stores as black store-badge plaques, with the device we believe they're
+ * on first. This is the email twin of StoreBadges.svelte: same black plaque,
+ * same store-native wording, same system font — so the download button someone
+ * taps in the email is the one they'll recognise on the /beta page and vice
+ * versa. Neither is pink any more; a recoloured badge reads as a homemade button,
+ * and an email is the surface where that costs the most.
  *
- * BOTH, always. An email is opened on a device this code never sees, and unlike
- * a web page it cannot re-detect anything — so a platform we got wrong (a
+ * No platform glyph here, unlike the web badge. The Apple mark and the four-colour
+ * Play triangle are inline SVG on the web, and Gmail strips inline SVG outright —
+ * a badge that renders as a black rectangle with a hole in it is worse than one
+ * carrying its wording alone. Hosted images aren't the answer either: Outlook and
+ * friends block remote images by default, so the mark would be a grey placeholder
+ * exactly when the badge most needs to look official.
+ *
+ * The two lines are stacked with a `<br/>`, not `display:block` spans. Outlook's
+ * Word engine ignores `display` on a span, which collapsed the badge into a
+ * run-on "GET IT ON Google Play" — a line no store ever printed. `<br/>` is the
+ * one break every client honours, so it is what holds the badge's shape.
+ *
+ * BOTH stores, always. An email is opened on a device this code never sees, and
+ * unlike a web page it cannot re-detect anything — so a platform we got wrong (a
  * mis-tapped dropdown, a `platform` column captured weeks earlier) used to be a
- * dead end. The likely one leads and is the filled button; the other sits below
- * it as an outline, so the ordering still carries the guess.
+ * dead end. The badges are identical in weight; only their order carries the guess.
  *
- * `primaryUrl` overrides the first button's href for callers that were handed a
+ * `primaryUrl` overrides the first badge's href for callers that were handed a
  * specific link they already validated (sendEarlyAccessEmail).
  */
+function storeBadgeHtml(choice: StoreChoice, href: string): string {
+  // Google's badge sets its eyebrow in tracked caps; Apple's is sentence case.
+  // Baked in rather than done with `text-transform`, which Outlook ignores.
+  const eyebrow = choice.platform === 'android' ? 'GET IT ON' : 'Join the beta on';
+  const word = choice.platform === 'android' ? 'Google Play' : 'TestFlight';
+  // Fixed width on both badges so the pair reads as a matched set rather than two
+  // buttons that happen to be black; the wording alone would make one much wider.
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" width="230" style="margin:0 auto">
+      <tr>
+        <td width="230" style="width:230px;background:#000000;border-radius:11px" bgcolor="#000000">
+          <a href="${escapeHtml(href)}"
+            style="display:block;padding:11px 22px;color:#ffffff;text-decoration:none;
+                   font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+                   text-align:left;white-space:nowrap"
+            title="${escapeHtml(choice.label)}"
+            ><span style="font-size:11px;line-height:15px;font-weight:400;letter-spacing:0.07em;color:#ffffff">${eyebrow}</span><br/><span
+              style="font-size:19px;line-height:23px;font-weight:600;color:#ffffff">${word}</span></a>
+        </td>
+      </tr>
+    </table>`;
+}
+
 function storeButtonsHtml(platform: Platform | null, primaryUrl?: string): string {
   const [first, second] = storeChoices(platform);
-  return `<div style="text-align:center;margin:6px 0 0">
-      <a href="${escapeHtml(primaryUrl || first.url)}"
-        style="display:inline-block;background:#ec4899;color:#fff;text-decoration:none;
-               font-size:16px;font-weight:700;padding:14px 28px;border-radius:12px">
-        ${first.label} →
-      </a>
+  return `<div style="margin:6px 0 0">
+      ${storeBadgeHtml(first, primaryUrl || first.url)}
     </div>
-    <div style="text-align:center;margin:10px 0 0">
-      <a href="${escapeHtml(second.url)}"
-        style="display:inline-block;background:#fff;color:#ec4899;text-decoration:none;
-               border:1px solid #f9c0dc;font-size:15px;font-weight:700;
-               padding:12px 24px;border-radius:12px">
-        ${second.label} →
-      </a>
+    <div style="margin:10px 0 0">
+      ${storeBadgeHtml(second, second.url)}
     </div>`;
 }
 

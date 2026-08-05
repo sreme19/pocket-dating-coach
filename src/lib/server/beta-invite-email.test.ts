@@ -48,7 +48,10 @@ describe('buildEarlyAccessHtml', () => {
     const html = buildEarlyAccessHtml(null, 'android', 'https://play.example');
     expect(html).toContain('early access member');
     expect(html).toContain('https://play.example');
-    expect(html).toContain('Get it on Google Play');
+    // The badge's own wording — the store, not our app name. Split across the
+    // eyebrow and the wordmark, as the real Play badge sets it.
+    expect(html).toContain('GET IT ON');
+    expect(html).toContain('Google Play');
     expect(html).not.toContain('your match');
     expect(html).not.toContain("You've been matched with");
   });
@@ -190,7 +193,8 @@ describe('buildBetaConfirmationHtml', () => {
   });
 
   it('leads with the store they picked', () => {
-    // The primary (filled, pink) button comes first in the markup.
+    // Both badges are the same black plaque, so order is the only thing left
+    // carrying the device guess: the one we believe they're on comes first.
     const ios = buildBetaConfirmationHtml(REFERRER, 'ios');
     expect(ios.indexOf(TESTFLIGHT)).toBeLessThan(ios.indexOf(PLAY));
 

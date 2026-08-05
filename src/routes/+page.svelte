@@ -4,10 +4,12 @@
   import { Capacitor } from '@capacitor/core';
   import { getSupabaseClient } from '$lib/client/supabase';
   import '$lib/marketing/vv-landing.css';
+  import StoreBadges from '$lib/components/StoreBadges.svelte';
 
-  // App entry points the CTAs link to
-  const GET_VERIFIED = '/verified-vibe/gate';
-  const SIGN_IN = '/verified-vibe/auth?mode=signin';
+  // Privacy is the only in-app link the marketing page still points at. The
+  // "Get verified" and "Sign in" CTAs are gone: /verified-vibe is behind the web
+  // Coming Soon screen, so every one of them dead-ended on "download the app" —
+  // the store badges now say that directly, in one step instead of two.
   const PRIVACY = '/verified-vibe/privacy';
 
   onMount(() => {
@@ -170,8 +172,6 @@
   <symbol id="ic-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13A4 4 0 0 1 16 11"/></symbol>
   <symbol id="ic-flag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22V4s1-1 4-1 5 2 8 2 4-1 4-1v11s-1 1-4 1-5-2-8-2-4 1-4 1"/></symbol>
   <symbol id="ic-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></symbol>
-  <symbol id="ic-apple" viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 2c.1 1-.3 2-1 2.7-.7.8-1.8 1.4-2.8 1.3-.1-1 .4-2 1-2.6.7-.8 1.9-1.4 2.8-1.4zM19 17.5c-.5 1.2-.8 1.7-1.4 2.7-.9 1.4-2.2 3.1-3.8 3.1-1.4 0-1.8-.9-3.7-.9s-2.3.9-3.7.9c-1.6 0-2.8-1.6-3.7-3C.8 17.8.5 13.3 2.3 11c1-1.3 2.4-2 3.7-2 1.5 0 2.4.9 3.7.9 1.2 0 2-.9 3.7-.9 1.2 0 2.5.6 3.4 1.7-3 1.7-2.5 6 .2 7.3z"/></symbol>
-  <symbol id="ic-play" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3.5c-.3.2-.5.5-.5 1v15c0 .5.2.8.5 1L13 12 5 3.5z"/><path d="M15.5 9.3 6.6 3.1 14.1 10.5zM6.6 20.9l8.9-6.2-1.4-1.2zM18.7 10.2l-2.6-1.5L13.4 11l2.7 2.3 2.6-1.5c.7-.4.7-1.2 0-1.6z"/></symbol>
   <symbol id="ic-x" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h4.5l4 5.6L16 3h4l-6.4 7.9L21 21h-4.5l-4.4-6.1L7 21H3l6.8-8.4z"/></symbol>
   <symbol id="ic-ig" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17" cy="7" r="1.1" fill="currentColor" stroke="none"/></symbol>
   <symbol id="ic-tiktok" viewBox="0 0 24 24" fill="currentColor"><path d="M16 3c.3 2 1.6 3.6 3.6 3.9V9c-1.4 0-2.7-.4-3.6-1.1V14a5 5 0 1 1-5-5c.3 0 .7 0 1 .1v2.3a2.8 2.8 0 1 0 2 2.6V3z"/></symbol>
@@ -193,10 +193,6 @@
       <a href="#wingman">For Him</a>
       <a href="#faq">FAQ</a>
     </div>
-    <div class="nav__right">
-      <a class="nav__signin" href={SIGN_IN}>Sign in</a>
-      <a class="btn btn--primary" href={GET_VERIFIED}><svg><use href="#ra-mark-inv"/></svg>Get verified</a>
-    </div>
   </nav>
 
   <!-- ===== HERO ===== -->
@@ -208,12 +204,8 @@
           <span class="hero__pill reveal"><span class="dot"></span> <b>100% identity-verified</b> members</span>
           <h1 class="reveal d1">No swipes. Ever. Just <span class="accent">matches.</span></h1>
           <p class="hero__sub reveal d2">No swiping. We match you with identity-verified people — paired on what you actually value, not just looks — and a private AI coach is on your side, so you skip the games and the guessing.</p>
-          <div class="hero__cta reveal d3">
-            <a class="btn btn--primary btn--lg" href={GET_VERIFIED}><svg><use href="#ra-mark-inv"/></svg>Get verified — it's free</a>
-          </div>
           <div class="badges reveal d3">
-            <a class="store store--soon" href="#"><svg><use href="#ic-apple"/></svg><span><small>Coming to</small><strong>App Store</strong></span></a>
-            <a class="store" href="#"><svg><use href="#ic-play"/></svg><span><small>Get it on</small><strong>Google Play</strong></span></a>
+            <StoreBadges />
           </div>
           <p class="hero__note reveal d4"><svg><use href="#ic-lock"/></svg> We verify ID, photos, lifestyle &amp; intent. You see the signals — never the raw files.</p>
         </div>
@@ -494,7 +486,6 @@
           <div><b>Adults only.</b><span>riteangle is strictly 18+. Age is confirmed at verification.</span></div>
         </div>
         <a class="plink" href={PRIVACY}><svg style="width:17px;height:17px"><use href="#ic-lock"/></svg> Read our Privacy Policy</a>
-        <a class="btn btn--primary" href={GET_VERIFIED}><svg><use href="#ra-mark-inv"/></svg>Get verified</a>
       </div>
     </div>
   </section>
@@ -546,12 +537,11 @@
           </a>
           <p class="footer__blurb">Dating with the receipts. Every match identity-verified, every message coached. By riteangle.</p>
           <div class="badges">
-            <a class="store store--soon" href="#"><svg><use href="#ic-apple"/></svg><span><small>Coming to</small><strong>App Store</strong></span></a>
-            <a class="store" href="#"><svg><use href="#ic-play"/></svg><span><small>Get it on</small><strong>Google Play</strong></span></a>
+            <StoreBadges />
           </div>
         </div>
         <div class="footer__col"><h5>Date</h5><a href="#how">How it works</a><a href="#trust">Profile Strength</a><a href="#bestie">AI Bestie</a><a href="#wingman">AI Wingman</a></div>
-        <div class="footer__col"><h5>Trust</h5><a href="#safety">Safety</a><a href={GET_VERIFIED}>Verification</a><a href={PRIVACY}>Privacy Policy</a><a href="#">Community guidelines</a></div>
+        <div class="footer__col"><h5>Trust</h5><a href="#safety">Safety</a><a href="#trust">Verification</a><a href={PRIVACY}>Privacy Policy</a><a href="#">Community guidelines</a></div>
         <div class="footer__col"><h5>Company</h5><a href="#">About</a><a href="/careers">Careers</a><a href="#">Support</a><a href="#">Press</a></div>
       </div>
       <div class="footer__bottom">
