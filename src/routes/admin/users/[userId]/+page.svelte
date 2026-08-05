@@ -2,7 +2,30 @@
 	import type { PageData } from './$types';
 	let { data }: { data: PageData } = $props();
 
-	const { user, verification, verifiedProofs, photoUrls, aiPhotoUrls, uploads, matches, masterData, activity, tips, aiConversations, qaAnswers } = data;
+	const { user, verification, verifiedProofs, photoUrls, aiPhotoUrls, uploads, matches, masterData, activity, tips, aiConversations, qaAnswers, devices } = data;
+
+	const platformLabel: Record<string, string> = { ios: 'iOS', android: 'Android' };
+	const platformIcon: Record<string, string> = { ios: '🍎', android: '🤖' };
+
+	function label(p: string) {
+		return platformLabel[p] ?? p;
+	}
+
+	// The single line an admin actually wants: what is this person on?
+	const deviceSummary = (() => {
+		if (devices.pushTokens.length > 0) {
+			return devices.pushTokens.map((d: { platform: string }) => label(d.platform)).join(' + ');
+		}
+		if (devices.nativeApp.platform) return `${label(devices.nativeApp.platform)} · push off`;
+		if (devices.nativeApp.eventCount > 0) {
+			return devices.betaStoreChoice
+				? `${label(devices.betaStoreChoice)}? · app used, OS not recorded`
+				: 'Mobile app · OS not recorded';
+		}
+		if (devices.betaStoreChoice) return `${label(devices.betaStoreChoice)}? · store tapped, no install seen`;
+		return 'Web only';
+	})();
+	const hasDevice = devices.pushTokens.length > 0 || devices.nativeApp.eventCount > 0;
 
 	let isSeed = $state(user.isSeed);
 	let toggling = $state(false);
@@ -135,6 +158,9 @@
 					<span class="rounded px-2 py-0.5 text-xs font-medium {(user.trustScore ?? 0) >= 70 ? 'bg-emerald-500/20 text-emerald-400' : (user.trustScore ?? 0) >= 40 ? 'bg-amber-500/20 text-amber-400' : 'bg-red-500/20 text-red-400'}">
 						Trust {user.trustScore ?? 0}
 					</span>
+					<span class="rounded px-2 py-0.5 text-xs font-medium {hasDevice ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-500/20 text-slate-400'}">
+						📱 {deviceSummary}
+					</span>
 					<span class="rounded px-2 py-0.5 text-xs text-slate-500">Joined {fmtDate(user.createdAt)}</span>
 					{#if (user.deletedAt || user.isBanned) && !unbanned}
 						<span class="rounded px-2 py-0.5 text-xs font-medium bg-red-500/20 text-red-400">
@@ -156,6 +182,72 @@
 				<p class="mt-1 text-xs text-slate-600 font-mono">{user.id}</p>
 			</div>
 		</div>
+
+		<!-- Devices -->
+		<section class="rounded-lg border border-white/[0.08] bg-[#111a2e] p-5">
+			<h2 class="mb-3 text-sm font-semibold text-white">Devices</h2>
+
+			{#if devices.pushTokens.length > 0}
+				<div class="space-y-2">
+					{#each devices.pushTokens as d}
+						<div class="flex flex-wrap items-center gap-3 rounded bg-black/20 px-3 py-2">
+							<span class="rounded bg-indigo-500/20 px-2 py-0.5 text-xs font-medium text-indigo-300">
+								{platformIcon[d.platform] ?? '📱'} {label(d.platform)}
+							</span>
+							<span class="text-xs text-slate-400">Registered {fmtDate(d.registeredAt)}</span>
+							<span class="ml-auto font-mono text-xs text-slate-600">{d.tokenPreview}</span>
+						</div>
+					{/each}
+				</div>
+			{:else if devices.nativeApp.platform}
+				<div class="flex flex-wrap items-center gap-3 rounded bg-black/20 px-3 py-2">
+					<span class="rounded bg-amber-500/20 px-2 py-0.5 text-xs font-medium text-amber-300">
+						{platformIcon[devices.nativeApp.platform] ?? '📱'} {label(devices.nativeApp.platform)}
+					</span>
+					<span class="text-xs text-slate-400">
+						Seen in the app {fmtDate(devices.nativeApp.platformSeenAt)} — no push token, so
+						notifications are off
+					</span>
+				</div>
+			{:else}
+				<p class="rounded bg-black/20 px-3 py-2 text-xs text-slate-500">
+					No push token registered — either they never installed the app, or they declined
+					notification permission.
+				</p>
+			{/if}
+
+			<div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-4">
+				<div>
+					<p class="mb-1 text-xs font-medium text-slate-400">OS from app events</p>
+					<p class="text-sm text-slate-300">
+						{devices.nativeApp.platform ? label(devices.nativeApp.platform) : 'Not recorded'}
+					</p>
+				</div>
+				<div>
+					<p class="mb-1 text-xs font-medium text-slate-400">App activity</p>
+					<p class="text-sm text-slate-300">
+						{devices.nativeApp.eventCount === 0
+							? 'None recorded'
+							: `${devices.nativeApp.eventCount >= 500 ? '500+' : devices.nativeApp.eventCount} events`}
+					</p>
+					{#if devices.nativeApp.lastSeenAt}
+						<p class="mt-0.5 text-xs text-slate-600">Last {fmtDate(devices.nativeApp.lastSeenAt)}</p>
+					{/if}
+				</div>
+				<div>
+					<p class="mb-1 text-xs font-medium text-slate-400">App version</p>
+					<p class="text-sm text-slate-300">
+						{devices.nativeApp.appVersions.length ? devices.nativeApp.appVersions.join(', ') : '—'}
+					</p>
+				</div>
+				<div>
+					<p class="mb-1 text-xs font-medium text-slate-400">Store tapped at signup</p>
+					<p class="text-sm text-slate-300">
+						{devices.betaStoreChoice ? label(devices.betaStoreChoice) : '—'}
+					</p>
+				</div>
+			</div>
+		</section>
 
 		<!-- Activity Stats -->
 		<section class="rounded-lg border border-white/[0.08] bg-[#111a2e] p-5">

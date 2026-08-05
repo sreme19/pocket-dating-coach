@@ -96,6 +96,14 @@ class AppLogger {
 
   static const _appVersion = '1.0.5';
 
+  /// Stamped onto every event so admin tooling can tell which OS a user is on
+  /// even when they declined push permission (no `device_tokens` row to read).
+  static final _platform = defaultTargetPlatform == TargetPlatform.iOS
+      ? 'ios'
+      : defaultTargetPlatform == TargetPlatform.android
+          ? 'android'
+          : defaultTargetPlatform.name;
+
   String? _userId;
 
   /// Call on auth state change (sign-in / sign-out).
@@ -183,7 +191,7 @@ class AppLogger {
           'action':        action,
           'error_message': errorMessage,
           'error_type':    errorType,
-          'metadata':      meta,
+          'metadata':      {'platform': _platform, ...?meta},
           'app_version':   _appVersion,
         });
       } catch (e) {

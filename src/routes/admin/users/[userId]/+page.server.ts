@@ -18,6 +18,9 @@ export const load: PageServerLoad = async ({ params }) => {
 		{ data: tips },
 		{ data: aiConvos },
 		{ data: uploadAudit },
+		{ data: deviceTokens },
+		{ data: mobileEvents },
+		{ data: platformStamp },
 		{ data: { user: authUser } },
 	] = await Promise.all([
 		sb.from('verified_vibe_users').select('*').eq('id', userId).single(),
@@ -37,6 +40,28 @@ export const load: PageServerLoad = async ({ params }) => {
 			.eq('user_id', userId)
 			.order('updated_at', { ascending: false }),
 		sb.from('upload_audit').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+		// Registered push devices — the authoritative record of which native app
+		// this person actually installed and signed into.
+		sb.from('device_tokens')
+			.select('platform, token, created_at')
+			.eq('user_id', userId)
+			.order('created_at', { ascending: false }),
+		// Native-app usage. Proves the Flutter app ran even when push was declined
+		// (no token row, so no platform from device_tokens).
+		sb.from('mobile_event_log')
+			.select('app_version, created_at')
+			.eq('user_id', userId)
+			.order('created_at', { ascending: false })
+			.limit(500),
+		// Latest event that carries the OS stamp AppLogger adds to `metadata`.
+		// Only builds from Aug 2026 on stamp it, so older-only users come back empty.
+		sb.from('mobile_event_log')
+			.select('metadata, created_at')
+			.eq('user_id', userId)
+			.not('metadata->>platform', 'is', null)
+			.order('created_at', { ascending: false })
+			.limit(1)
+			.maybeSingle(),
 		sb.auth.admin.getUserById(userId),
 	]);
 
@@ -184,7 +209,45 @@ export const load: PageServerLoad = async ({ params }) => {
 		: { data: [] };
 	const externalName = new Map((externalUsers ?? []).map((u: any) => [u.id, u.first_name]));
 
+	// ── Devices ────────────────────────────────────────────────────────────────
+	// Independent signals, strongest first:
+	//   1. device_tokens         — push registered from a real install (platform certain)
+	//   2. mobile_event_log      — the Flutter app ran; metadata.platform names the OS
+	//   3. beta_signups.platform — the store button they tapped on the invite page
+	// A user with none of the three has only ever used the web app.
+	const email: string | null = authUser?.email ?? user.email ?? null;
+
+	const { data: betaSignup } = email
+		? await sb
+				.from('verified_vibe_beta_signups')
+				.select('platform, created_at')
+				.eq('email', email.toLowerCase())
+				.maybeSingle()
+		: { data: null };
+
+	const events = mobileEvents ?? [];
+	const appVersions = [...new Set(events.map((e: any) => e.app_version).filter(Boolean))] as string[];
+	const stampedPlatform = (platformStamp?.metadata?.platform ?? null) as string | null;
+
+	const devices = {
+		pushTokens: (deviceTokens ?? []).map((d: any) => ({
+			platform: d.platform as 'ios' | 'android',
+			// Enough of the FCM token to correlate with logs, never the whole thing.
+			tokenPreview: typeof d.token === 'string' ? `${d.token.slice(0, 12)}…` : '—',
+			registeredAt: d.created_at,
+		})),
+		nativeApp: {
+			eventCount: events.length,
+			lastSeenAt: events[0]?.created_at ?? null,
+			appVersions,
+			platform: stampedPlatform,
+			platformSeenAt: stampedPlatform ? platformStamp?.created_at ?? null : null,
+		},
+		betaStoreChoice: (betaSignup?.platform ?? null) as 'ios' | 'android' | null,
+	};
+
 	return {
+		devices,
 		user: {
 			id: user.id,
 			firstName: user.first_name,
@@ -198,7 +261,7 @@ export const load: PageServerLoad = async ({ params }) => {
 			looking: user.looking,
 			createdAt: user.created_at,
 			avatarUrl: user.avatar_url,
-			email: authUser?.email ?? user.email ?? null,
+			email,
 			phone: authUser?.phone ?? user.phone ?? null,
 			deletedAt: user.deleted_at ?? null,
 			isBanned: !!(authUser?.banned_until && new Date(authUser.banned_until) > new Date()),
