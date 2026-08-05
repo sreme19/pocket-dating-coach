@@ -37,7 +37,9 @@ cd "$(dirname "$0")/.."
 
 fail=0
 
-USER_FACING_WEB="src/routes/verified-vibe src/routes/beta src/routes/+page.svelte src/lib/verified-vibe/components"
+# /get is the paid-social landing page. Ad copy is exactly the surface this
+# vocabulary comes back on, so it is scanned like any other user-facing page.
+USER_FACING_WEB="src/routes/verified-vibe src/routes/beta src/routes/get src/routes/+page.svelte src/lib/verified-vibe/components"
 USER_FACING_ALL="mobile/lib $USER_FACING_WEB"
 
 # ── Case-insensitive: copy phrases that must not appear in any wording ───────
