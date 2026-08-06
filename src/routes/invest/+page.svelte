@@ -53,6 +53,14 @@
 		}
 	];
 
+	/* The game-theory scene, rendered with the same click-to-play facade as the
+	   trailers above — except there is no poster asset for this one, so the still
+	   is composed in CSS. Keeps the page's zero-external-assets rule intact. */
+	const MATH_VID = {
+		id: '-xe9U0D9xY8',
+		title: 'A Beautiful Mind — the “governing dynamics” scene'
+	};
+
 	let playing = $state<Record<string, boolean>>({});
 
 	/* Both stores are open — Play is a public listing, iOS is a public TestFlight
@@ -886,6 +894,75 @@
 				proof stays private, both sides choose in, and you stay in control. The audience is already
 				watching; we’re the product they walk out wanting.
 			</p>
+		</div>
+	</section>
+
+	<!-- ── The math (game theory) ───────────────────────────────────────────── -->
+	<!-- Sits between the culture videos and the founder: the last piece of the
+	     argument before the person making it. The claim an investor has to accept
+	     is that a multi-dimensional definition of value is what makes this market
+	     positive-sum — rank people on one axis and everyone chases the same few,
+	     so almost everyone loses. Nash's bar scene makes that point in ninety
+	     seconds better than any slide can, so we let it. -->
+	<section class="sec math">
+		<div class="wrap">
+			<span class="kicker c">The math</span>
+			<h2 class="h2 c">If you’re not already high on the math —<br /><em>here’s one more.</em></h2>
+
+			<p class="lede sm">
+				Every dating and matrimonial app today optimises for the externals: how good the photograph
+				is, how well the profile performs. It should be optimising for the data that best represents
+				a person’s <em>intrinsic</em> value — because that, not looks, is what makes a relationship
+				last.
+			</p>
+			<p class="lede sm">
+				Intrinsic value is multi-dimensional, and that is precisely why this is solvable at scale.
+				Rank people on a single axis and everybody wants the same few, so almost everybody loses.
+				Score them across many, and the best match for you is rarely the best match for someone
+				else — which means very nearly everyone can be helped to the best partner of their life
+				<em>without</em> taking that value away from anyone else.
+			</p>
+			<p class="lede sm">
+				Reaching that outcome takes real math. We lean on game theory to channel cooperative
+				behaviour inside what looks like pure competition, so the market settles on the best result
+				available to everyone in it — not just to the few at the top.
+			</p>
+			<p class="mathcta">Confused? Watch the scene.</p>
+
+			<div class="mathvid">
+				<div class="video">
+					{#if playing[MATH_VID.id]}
+						<iframe
+							src="https://www.youtube-nocookie.com/embed/{MATH_VID.id}?autoplay=1&playsinline=1&rel=0"
+							title={MATH_VID.title}
+							allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+							allowfullscreen
+						></iframe>
+					{:else}
+						<button
+							class="facade"
+							onclick={() => (playing[MATH_VID.id] = true)}
+							aria-label="Play clip: {MATH_VID.title}"
+						>
+							<span class="mposter" aria-hidden="true">
+								<span class="mposter-tag">Game theory, on film</span>
+								<span class="mposter-title">A Beautiful Mind</span>
+								<span class="mposter-sub">
+									The “governing dynamics” scene — why everyone competing only for
+									themselves is <em>not</em> the best result for the group.
+								</span>
+							</span>
+							<span class="vplay" aria-hidden="true"></span>
+						</button>
+					{/if}
+				</div>
+				<p class="cap">
+					That scene is our matching engine’s thesis in one bar argument. Everyone optimising for the
+					same top few is a bad equilibrium for almost all of them; scored on many dimensions and
+					paired where the value is mutual, the same room is far better off. Adam Smith needed
+					revision — so does dating.
+				</p>
+			</div>
 		</div>
 	</section>
 
@@ -2160,6 +2237,91 @@
 		max-width: 540px;
 	}
 
+	/* ── The math (game theory) ───────────────────────────────────────────── */
+	/* Its own soft accent wash rather than the tinted grey, so it reads as a
+	   distinct beat between the (untinted) trailers above and the (tinted)
+	   founder band below without disturbing the alternation of either. */
+	.sec.math {
+		background:
+			radial-gradient(110% 80% at 50% 0%, var(--accent-tint) 0%, transparent 62%), var(--bg-1);
+	}
+
+	/* Centred argument column: the section is a single line of reasoning ending
+	   in the clip, not a grid of cards. */
+	.sec.math .lede {
+		max-width: 700px;
+		margin-left: auto;
+		margin-right: auto;
+		text-align: center;
+	}
+
+	.mathcta {
+		font-size: 17px;
+		font-weight: 800;
+		letter-spacing: -0.02em;
+		color: var(--accent-bright);
+		text-align: center;
+		margin: 0 0 22px;
+	}
+
+	.mathvid {
+		max-width: 720px;
+		margin: 0 auto;
+	}
+
+	/* The facade still, drawn instead of shipped: ink panel, faint lattice, the
+	   film named in type. Same .video frame and .vplay pill as the trailers. */
+	.mposter {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 10px;
+		padding: 24px 30px;
+		text-align: center;
+		background:
+			repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.055) 0 1px, transparent 1px 25%),
+			repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.055) 0 1px, transparent 1px 25%),
+			radial-gradient(90% 90% at 50% 0%, rgba(240, 46, 101, 0.22) 0%, transparent 62%),
+			var(--text-1);
+		transition: transform 300ms ease;
+	}
+
+	.facade:hover .mposter {
+		transform: scale(1.03);
+	}
+
+	.mposter-tag {
+		font-size: 10.5px;
+		font-weight: 800;
+		letter-spacing: 0.09em;
+		text-transform: uppercase;
+		color: #ff8fb0;
+	}
+
+	.mposter-title {
+		font-size: clamp(26px, 5vw, 42px);
+		line-height: 1;
+		font-weight: 900;
+		letter-spacing: -0.035em;
+		color: #fff;
+	}
+
+	.mposter-sub {
+		font-size: 13px;
+		line-height: 1.5;
+		font-weight: 600;
+		color: rgba(255, 255, 255, 0.72);
+		max-width: 44ch;
+	}
+
+	.mposter-sub em {
+		font-style: normal;
+		color: #fff;
+	}
+
 	/* ── Founder book (founder–market fit) ────────────────────────────────── */
 	.book {
 		display: flex;
@@ -2554,6 +2716,24 @@
 
 		.vids {
 			grid-template-columns: 1fr;
+		}
+
+		/* Centred prose reads fine as a wide desktop column, but three ragged-both
+		   paragraphs in a phone-width measure is hard work. Left-align them here,
+		   like every other paragraph on the page. */
+		.sec.math .lede {
+			text-align: left;
+		}
+
+		/* At phone width the drawn still is short, so lift the type off the play
+		   pill in the bottom-left corner. */
+		.mposter {
+			padding: 16px 18px 38px;
+			gap: 7px;
+		}
+
+		.mposter-sub {
+			font-size: 12px;
 		}
 
 		.tier:nth-child(2),
