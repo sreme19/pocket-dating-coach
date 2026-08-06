@@ -211,6 +211,51 @@
 		}
 	];
 
+	/* Beyond dating — the same stack, pointed at other two-sided markets. Each
+	   entry names the two sides in notation, then the one thing that makes it the
+	   same problem. Ordered by how legible the analogy is to an investor. */
+	const MARKETS = [
+		{
+			pair: 'talent ⇄ roles',
+			h: 'Hiring',
+			p: 'Résumés are self-claims, references are proof, seats are capacity. Every recruiter is a Bestie with worse tooling.'
+		},
+		{
+			pair: 'capital ⇄ founders',
+			h: 'Investing',
+			p: 'Mutual selection, heavy signalling, scarce attention. You already run this market — by hand.'
+		},
+		{
+			pair: 'patients ⇄ trials',
+			h: 'Clinical research',
+			p: 'Eligibility is a verified attribute; enrolment caps are hard; a bad match costs months.'
+		},
+		{
+			pair: 'buyers ⇄ suppliers',
+			h: 'Procurement',
+			p: 'Certifications and audits gate who is even allowed to bid. Proof-first, exactly like us.'
+		},
+		{
+			pair: 'loads ⇄ carriers',
+			h: 'Freight',
+			p: 'Allocation under time windows and capacity — mutual value, solved every cycle.'
+		},
+		{
+			pair: 'applicants ⇄ seats',
+			h: 'Admissions',
+			p: 'Ranked preferences under hard caps. Nobel-winning territory, still run on decades-old tooling.'
+		}
+	];
+
+	/* What an investor actually carries out of this round. */
+	const TRANSFERS = [
+		'verify(claim) → cᵢ · a proof pipeline that destroys the raw file',
+		'elicit(agent) → wᵢ · an agent that asks what forms never get',
+		'Φ(xᵢ | cohort) → vᵢ · raw attributes as distribution positions',
+		'max Σ A s.t. load ≤ cap · allocation that protects the scarce side',
+		'proxy vs advisor · when an agent should speak for you, and when not'
+	];
+
 	/* The founder's strongest, verifiable metrics. */
 	const FOUNDER_STATS = [
 		{ figure: '₹100 Cr+', label: 'ARR environment (≈ US$10.5M+) scaled to, as the #3 hire — joined pre-revenue' },
@@ -899,6 +944,50 @@
 				<ul>
 					{#each FOUNDER_EDU as e (e)}<li>{e}</li>{/each}
 				</ul>
+			</div>
+		</div>
+	</section>
+
+	<!-- ── Beyond dating ────────────────────────────────────────────────────── -->
+	<!-- The vision-expander, deliberately sited just before the ask: enlarge the
+	     prize, then ask for the cheque. The argument is that dating is the hardest
+	     instance of a general two-sided matching problem, so the stack transfers —
+	     and that the transferable learning is itself part of what an investor
+	     buys. -->
+	<section class="sec">
+		<div class="wrap">
+			<span class="kicker">Beyond dating</span>
+			<h2 class="h2">The math doesn’t know<br /><em>it’s about romance.</em></h2>
+			<p class="lede sm">
+				Underneath riteangle is a general two-sided matching stack: verified attributes, elicited
+				preferences, proof-gated confidence, mutual-value scoring, per-side capacity limits, and an
+				agent layer that does the asking. Dating is where we prove it — because dating is the
+				<em>hardest</em> version: noisy claims, lopsided supply, high emotional stakes, and both
+				sides rounding up a little. Solve it here and the rest is a re-skin.
+				<strong>And yes, it will also find you a Saturday night — that’s a feature, not the thesis.</strong>
+			</p>
+
+			<div class="markets">
+				{#each MARKETS as m (m.pair)}
+					<div class="market">
+						<div class="market-pair">{m.pair}</div>
+						<h3 class="h3">{m.h}</h3>
+						<p class="p">{m.p}</p>
+					</div>
+				{/each}
+			</div>
+
+			<div class="gtm">
+				<h3 class="h3">What travels with you</h3>
+				<ul class="transfers">
+					{#each TRANSFERS as t (t)}<li>{t}</li>{/each}
+				</ul>
+				<p class="p">
+					This round doesn’t only buy a line on a dating app’s cap table. It buys a front-row seat
+					to how proof-gated, agent-mediated matching actually performs at scale — what converts,
+					what breaks, what people will and won’t verify, and what an AI should never be allowed to
+					say on someone’s behalf. Those answers travel to every other two-sided problem you touch.
+				</p>
 			</div>
 		</div>
 	</section>
@@ -1754,6 +1843,55 @@
 		padding: 20px 22px;
 	}
 
+	/* ── Beyond dating ────────────────────────────────────────────────────── */
+	.markets {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 12px;
+		margin-bottom: 16px;
+	}
+
+	.market {
+		background: var(--bg-2);
+		border: 1px solid var(--border-1);
+		border-radius: 15px;
+		padding: 16px 16px 18px;
+	}
+
+	/* the two sides, in notation — the through-line of the whole page */
+	.market-pair {
+		font-family: var(--font-mono);
+		font-size: 13px;
+		font-weight: 700;
+		color: var(--accent-bright);
+		margin-bottom: 8px;
+	}
+
+	.transfers {
+		list-style: none;
+		margin: 10px 0 14px;
+		padding: 0;
+		display: grid;
+		gap: 7px;
+	}
+
+	.transfers li {
+		font-family: var(--font-mono);
+		font-size: 12.5px;
+		line-height: 1.4;
+		color: var(--text-2);
+		padding-left: 16px;
+		position: relative;
+	}
+
+	.transfers li::before {
+		content: '→';
+		position: absolute;
+		left: 0;
+		color: var(--accent);
+		font-weight: 700;
+	}
+
 	/* ── Founder ──────────────────────────────────────────────────────────── */
 	.stats.founder {
 		grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2326,7 +2464,8 @@
 			.tl,
 			.fund,
 			.mstat,
-			.tier {
+			.tier,
+			.market {
 				animation: rise linear both;
 				animation-timeline: view();
 				animation-range: entry 0% entry 45%;
@@ -2348,7 +2487,8 @@
 			grid-template-columns: repeat(2, minmax(0, 1fr));
 		}
 
-		.mstats {
+		.mstats,
+		.markets {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
 		}
 
