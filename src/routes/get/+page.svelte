@@ -88,7 +88,7 @@
 	const PROOF = [
 		{ figure: '12 min', label: 'Median time to a first match, for men' },
 		{ figure: '54%', label: 'Of all messages, sent by an AI for someone' },
-		{ figure: '2:1', label: 'Our member ratio. Rivals run 70–93% men' },
+		{ figure: '2:1', label: 'Our member ratio. Rivals run ~3 men per woman' },
 		{ figure: '14', label: 'Suitors the median woman here has — ranked' }
 	];
 

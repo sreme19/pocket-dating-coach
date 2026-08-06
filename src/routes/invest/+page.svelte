@@ -46,7 +46,7 @@
 	const TRACTION = [
 		{ figure: '12 min', label: 'Median time to a man’s first match' },
 		{ figure: '54%', label: 'Of all messages sent by an AI, on someone’s behalf' },
-		{ figure: '2:1', label: 'Our member ratio. Rival apps run 70–93% men' },
+		{ figure: '2:1', label: 'Our member ratio. Indian rivals run ~3 men per woman (Redseer, 2025)' },
 		{ figure: '14', label: 'Suitors the median woman has — ranked, not a pile' }
 	];
 
@@ -110,6 +110,67 @@
 		{ h: 'Premium features', p: 'Boosts, advanced filters, priority hand-offs and unlimited coaching.' },
 		{ h: 'Refer & Earn', p: 'Rewards for verified referrals of the scarcer side, and auto-match upside for men.' },
 		{ h: 'Date Fund (future)', p: 'An escrow commitment bond that raises standing; a service fee is charged on a no-show.' }
+	];
+
+	/* Market evidence. Every figure is sourced and dated (research pass, Aug 2026);
+	   filings are marked as such. The deliberately honest picture: the swipe model
+	   is contracting, high-intent matchmaking monetises, and the thesis is a thin
+	   affluent slice at matrimony-like price points — not a big-user-base play. */
+	const MARKET_STATS = [
+		{
+			figure: '₹5,032',
+			label: 'Avg. transaction value per paying subscriber at BharatMatrimony (0.96M payers) — Indians pay for high-intent matchmaking',
+			src: 'Matrimony.com FY26 filing'
+		},
+		{
+			figure: '−20.5%',
+			label: 'Bumble’s paying users in FY25 (revenue −9.9%); Match Group payers −5%. The swipe model is contracting',
+			src: 'Company filings, FY2025'
+		},
+		{
+			figure: '>75%',
+			label: 'Of Indian Gen Z on swipe apps report swiping fatigue or burnout',
+			src: 'Redseer, 2025'
+		},
+		{
+			figure: '+333%',
+			label: 'Year-on-year jump in singles using AI in their dating lives (now 26%)',
+			src: 'Match Group × Kinsey Institute, n=5,001, 2025'
+		},
+		{
+			figure: '+26%',
+			label: 'Hinge revenue growth while swipe peers shrink — intent-led dating is the only thing growing',
+			src: 'Match Group filings, FY2025'
+		},
+		{
+			figure: '5–15%',
+			label: 'Of Indian dating-app MAU convert to premium — monetisation, not users, is the constraint riteangle is built around',
+			src: 'Redseer, 2025'
+		}
+	];
+
+	/* TAM/SAM/SOM — our own bottom-up build from sourced inputs (Redseer category
+	   revenue, Goldman Sachs affluence data, UN/MoSPI demographics), presented as
+	   such rather than as someone else's headline number. */
+	const MARKET_SIZE = [
+		{
+			tag: 'TAM',
+			figure: '₹1,250–2,250 cr',
+			h: 'India self-serve online dating revenue, 2026',
+			p: 'Anchored on Redseer’s category work; ~20M addressable metro users by two independent methods. ₹2,450–3,650 cr including online matrimony.'
+		},
+		{
+			tag: 'SAM',
+			figure: '₹30–120 cr',
+			h: 'riteangle’s segment: ~500K affluent metro men, 28+',
+			p: 'At 10–20% paying conversion and ₹6,000–12,000 annual ARPPU — at or above BharatMatrimony’s proven price point. Brackets Aisle’s actual ~₹40 cr FY26 billings.'
+		},
+		{
+			tag: 'SOM',
+			figure: '₹0.5–2 cr ARR',
+			h: 'Bengaluru + Mumbai, 24–36 months',
+			p: '~500–1,500 paying men across two launch cities. The 2:1 ratio needs 2,000–5,250 women against ~1.5M available — six times the headroom.'
+		}
 	];
 
 	/* The founder's strongest, verifiable metrics. */
@@ -351,6 +412,58 @@
 					single promise: a real match within minutes of signing up.
 				</p>
 			</div>
+		</div>
+	</section>
+
+	<!-- ── Market ───────────────────────────────────────────────────────────── -->
+	<section class="sec">
+		<div class="wrap">
+			<span class="kicker">The market</span>
+			<h2 class="h2">A structural shift, and a thin affluent slice of it</h2>
+			<p class="lede sm">
+				The honest picture: the swipe model is contracting worldwide, while high-intent
+				matchmaking keeps monetising. India pays little per download on average — which is exactly
+				why the play is a premium, verified slice at matrimony-like price points, not a
+				big-user-base race.
+			</p>
+
+			<div class="mstats">
+				{#each MARKET_STATS as m (m.figure)}
+					<div class="mstat">
+						<div class="mfig">{m.figure}</div>
+						<div class="mlabel">{m.label}</div>
+						<div class="msrc">{m.src}</div>
+					</div>
+				{/each}
+			</div>
+
+			<div class="tiers">
+				{#each MARKET_SIZE as t (t.tag)}
+					<div class="tier">
+						<div class="tier-head">
+							<span class="tier-tag">{t.tag}</span>
+							<span class="tier-fig">{t.figure}</span>
+						</div>
+						<h3 class="h3">{t.h}</h3>
+						<p class="p">{t.p}</p>
+					</div>
+				{/each}
+			</div>
+
+			<div class="gtm">
+				<h3 class="h3">Capital-bound, not market-bound</h3>
+				<p class="p">
+					At a blended acquisition cost of ₹500–2,000 per registered user, the growth half of this
+					round buys 2,500–10,000 registered target users in the launch cities — the binding
+					constraint on year-one scale is capital, not demand. That is what this raise removes.
+				</p>
+			</div>
+
+			<p class="foot">
+				Sizing is our own bottom-up build from sourced inputs (Redseer category revenue, Goldman
+				Sachs affluence data, UN/MoSPI demographics, company filings), cross-checked against
+				reported operator revenue — not a research-house headline number.
+			</p>
 		</div>
 	</section>
 
@@ -973,6 +1086,97 @@
 		margin-bottom: 28px;
 	}
 
+	/* ── Market section ───────────────────────────────────────────────────── */
+	.mstats {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 12px;
+		margin-bottom: 26px;
+	}
+
+	.mstat {
+		background: var(--bg-2);
+		border: 1px solid var(--border-1);
+		border-radius: 15px;
+		padding: 16px 16px 14px;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.mfig {
+		font-size: clamp(24px, 4vw, 30px);
+		line-height: 1;
+		font-weight: 900;
+		letter-spacing: -0.04em;
+		color: var(--accent-bright);
+		margin-bottom: 8px;
+	}
+
+	.mlabel {
+		font-size: 13px;
+		line-height: 1.45;
+		font-weight: 600;
+		color: var(--text-2);
+	}
+
+	.msrc {
+		margin-top: auto;
+		padding-top: 10px;
+		font-size: 10.5px;
+		font-weight: 800;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+		color: var(--text-4);
+	}
+
+	/* TAM → SAM → SOM as three narrowing tiers */
+	.tiers {
+		display: grid;
+		gap: 10px;
+		margin-bottom: 16px;
+	}
+
+	.tier {
+		background: linear-gradient(160deg, #fff 0%, #fff4f1 100%);
+		border: 1px solid var(--border-3);
+		border-radius: 16px;
+		padding: 18px 20px;
+	}
+
+	/* Each narrower tier indents further — the funnel drawn with layout alone. */
+	.tier:nth-child(2) {
+		margin-left: 7%;
+	}
+
+	.tier:nth-child(3) {
+		margin-left: 14%;
+	}
+
+	.tier-head {
+		display: flex;
+		align-items: baseline;
+		gap: 12px;
+		margin-bottom: 8px;
+	}
+
+	.tier-tag {
+		flex: none;
+		font-size: 11px;
+		font-weight: 900;
+		letter-spacing: 0.08em;
+		color: #fff;
+		background: linear-gradient(135deg, var(--accent) 0%, var(--accent-bright) 100%);
+		border-radius: 7px;
+		padding: 4px 9px;
+	}
+
+	.tier-fig {
+		font-size: clamp(20px, 3.4vw, 26px);
+		font-weight: 900;
+		letter-spacing: -0.03em;
+		color: var(--text-1);
+	}
+
 	/* ── Founder book (founder–market fit) ────────────────────────────────── */
 	.book {
 		display: flex;
@@ -1299,7 +1503,9 @@
 			.formula,
 			.gtm,
 			.tl,
-			.fund {
+			.fund,
+			.mstat,
+			.tier {
 				animation: rise linear both;
 				animation-timeline: view();
 				animation-range: entry 0% entry 45%;
@@ -1319,6 +1525,15 @@
 		.stats,
 		.stats.founder {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
+		.mstats {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
+		.tier:nth-child(2),
+		.tier:nth-child(3) {
+			margin-left: 0;
 		}
 
 		.sec {
