@@ -1,10 +1,10 @@
 <script lang="ts">
 	/**
-	 * /invest — the investor one-pager for the ₹1 Crore seed round.
+	 * /invest — the investor one-pager for the ₹1 Crore pre-seed round.
 	 *
 	 * This is NOT consumer marketing. It sits on the same domain and wears the same
 	 * brand (cream paper, pink accent, Gabarito) as /get, but the audience is an
-	 * angel/seed investor reading on a laptop, so the layout widens to a real
+	 * angel/pre-seed investor reading on a laptop, so the layout widens to a real
 	 * document column and the copy is dense and claim-first rather than six-word
 	 * ad captions.
 	 *
@@ -66,7 +66,7 @@
 	   so a "Let's talk" click never lands in only one place. RFC-6068 comma-joins
 	   multiple recipients in the mailto `to` field. */
 	const CONTACT_EMAILS = ['sreekanth.rnsm@gmail.com', 'chris@wardrobeofamonk.com'];
-	const mailto = `mailto:${CONTACT_EMAILS.join(',')}?subject=${encodeURIComponent('riteangle · Seed round (₹1 Cr)')}`;
+	const mailto = `mailto:${CONTACT_EMAILS.join(',')}?subject=${encodeURIComponent('riteangle · Pre-seed round (₹1 Cr)')}`;
 	const LINKEDIN = 'https://www.linkedin.com/in/sreekanthdayanidhi/';
 
 	/* First-party, from the live platform. Rates and medians only. */
@@ -292,16 +292,16 @@
 </script>
 
 <svelte:head>
-	<title>riteangle · Invest — Seed round</title>
+	<title>riteangle · Invest — Pre-seed round</title>
 	<meta
 		name="description"
-		content="riteangle is raising a ₹1 Crore seed round to scale an identity-verified dating app where AI matchmakers do the searching, asking and vetting — and hand over a real, mutual match in minutes."
+		content="riteangle is raising a ₹1 Crore pre-seed round to scale an identity-verified dating app where AI matchmakers do the searching, asking and vetting — and hand over a real, mutual match in minutes."
 	/>
 	<meta name="theme-color" content="#FFF3F0" />
 	<meta name="robots" content="noindex" />
 	<meta property="og:type" content="website" />
 	<meta property="og:site_name" content="riteangle" />
-	<meta property="og:title" content="riteangle · Seed round" />
+	<meta property="og:title" content="riteangle · Pre-seed round" />
 	<meta
 		property="og:description"
 		content="Raising ₹1 Crore to scale a verified, AI-matchmaker dating app that guarantees a real, mutual match."
@@ -315,7 +315,7 @@
 		<div class="wrap">
 			<div class="brandrow">
 				<RiteLogo mark={true} word={true} markSize={30} />
-				<span class="pill"><span class="dot" aria-hidden="true"></span>Seed round · Open</span>
+				<span class="pill"><span class="dot" aria-hidden="true"></span>Pre-seed round · Open</span>
 			</div>
 
 			<p class="eyebrow">The investment case</p>
@@ -440,7 +440,7 @@
 					<text x="34" y="74" class="lt2">uploads proof · chats</text>
 					<text x="34" y="90" class="lt2">self-claims → v̂</text>
 					<text x="34" y="106" class="lt2">stated prefs → ŵ</text>
-					<text x="34" y="126" class="lt2">sees his % only — never a rank</text>
+					<text x="34" y="126" class="lt2">sees his %, never a rank</text>
 					<rect x="16" y="168" width="200" height="106" rx="14" class="ln ln-agent" />
 					<text x="34" y="194" class="lt">🛡 WINGMAN</text>
 					<text x="34" y="214" class="lt2">private strategist</text>
@@ -486,8 +486,9 @@
 
 					<!-- hand-off -->
 					<rect x="286" y="304" width="388" height="60" rx="12" class="ln ln-hot" />
-					<text x="310" y="330" class="lt">WRAPPED HAND-OFF</text>
-					<text x="310" y="350" class="lt2">bestie steps back · honest 48h clock · quiet → replaced free</text>
+					<text x="310" y="326" class="lt">WRAPPED HAND-OFF</text>
+					<text x="310" y="343" class="lt2">bestie steps back · honest 48h clock</text>
+					<text x="310" y="357" class="lt2">quiet → replaced free</text>
 					<path d="M480,274 V304" class="lfh" />
 
 					<!-- meet -->
@@ -546,80 +547,80 @@
 				<svg viewBox="0 0 980 560" xmlns="http://www.w3.org/2000/svg">
 					<!-- inputs -->
 					<text x="16" y="30" class="lk2">RAW SIGNALS · ONE HUMAN</text>
-					<rect x="16" y="44" width="150" height="72" rx="12" class="ln" />
+					<rect x="16" y="44" width="190" height="72" rx="12" class="ln" />
 					<text x="32" y="70" class="lt">📷 images</text>
 					<text x="32" y="90" class="lt2">photos · docs · liveness</text>
 					<text x="32" y="104" class="lt2">read once, then deleted</text>
-					<rect x="16" y="132" width="150" height="72" rx="12" class="ln" />
+					<rect x="16" y="132" width="190" height="72" rx="12" class="ln" />
 					<text x="32" y="158" class="lt">🎤 voice</text>
 					<text x="32" y="178" class="lt2">calls with the AI</text>
 					<text x="32" y="192" class="lt2">tone · intent · claims</text>
-					<rect x="16" y="220" width="150" height="72" rx="12" class="ln" />
+					<rect x="16" y="220" width="190" height="72" rx="12" class="ln" />
 					<text x="32" y="246" class="lt">💬 text</text>
 					<text x="32" y="266" class="lt2">onboarding Q&amp;A · chat</text>
 					<text x="32" y="280" class="lt2">self-claims · stated prefs</text>
 
 					<!-- extraction -->
-					<rect x="230" y="118" width="180" height="112" rx="14" class="ln-dark" />
+					<rect x="230" y="118" width="212" height="112" rx="14" class="ln-dark" />
 					<text x="250" y="146" class="lk">EXTRACT</text>
 					<text x="250" y="168" class="leqs">claude · multimodal</text>
 					<text x="250" y="188" class="ld">every signal → a claim</text>
 					<text x="250" y="202" class="ld">every claim → a dimension i</text>
 					<text x="250" y="216" class="ld">raw file discarded on read</text>
-					<path d="M166,80 C200,80 200,140 230,150" class="lfh" />
-					<path d="M166,168 H230" class="lfh" />
-					<path d="M166,256 C200,256 200,210 230,200" class="lfh" />
+					<path d="M206,80 C218,80 218,140 230,150" class="lfh" />
+					<path d="M206,168 H230" class="lfh" />
+					<path d="M206,256 C218,256 218,210 230,200" class="lfh" />
 
 					<!-- fan-out -->
-					<path d="M410,140 C450,130 450,90 486,84" class="lfh" />
-					<path d="M410,174 H486" class="lfh" />
-					<path d="M410,208 C450,218 450,420 486,428" class="lfh" />
+					<path d="M442,140 C464,132 464,90 486,84" class="lfh" />
+					<path d="M442,174 H486" class="lfh" />
+					<path d="M442,208 C464,220 464,420 486,428" class="lfh" />
 
 					<!-- lane v -->
 					<rect x="486" y="30" width="478" height="150" rx="14" class="ln" />
 					<text x="506" y="56" class="lk2">v · ATTRIBUTES — what you bring</text>
-					<text x="506" y="76" class="lt2">raw score xᵢ → where do you sit among peers?</text>
+					<text x="506" y="70" class="lt2">raw score xᵢ → where do you sit among peers?</text>
 					<path d="M520,158 C560,158 575,88 610,88 C645,88 660,158 700,158" class="lcurve" />
 					<path d="M520,158 C560,158 575,88 610,88 C640,88 652,140 664,150 L664,158 Z" class="lfill-v" />
 					<line x1="664" y1="96" x2="664" y2="158" class="lmark-v" />
 					<circle cx="664" cy="147" r="4.5" class="ldot-v lpulse" />
-					<text x="674" y="104" class="lpk">you · 84th pctile</text>
+					<text x="666" y="104" class="lpk">you · 84th</text>
 					<text x="520" y="174" class="lt2">cohort distribution (his city, his age band)</text>
-					<rect x="760" y="76" width="184" height="76" rx="12" class="ln ln-hot" />
-					<text x="776" y="102" class="leqi">vᵢ = Φ(xᵢ | cohort)</text>
-					<text x="776" y="122" class="lt2">percentile-normalized —</text>
-					<text x="776" y="136" class="lt2">vs the crowd, never absolute</text>
-					<path d="M700,120 H760" class="lf" />
+					<rect x="748" y="76" width="196" height="76" rx="12" class="ln ln-hot" />
+					<text x="764" y="102" class="leqi">vᵢ = Φ(xᵢ | cohort)</text>
+					<text x="764" y="122" class="lt2">percentile-normalized —</text>
+					<text x="764" y="136" class="lt2">vs the crowd, not absolute</text>
+					<path d="M700,120 H748" class="lf" />
 
 					<!-- lane w -->
 					<rect x="486" y="196" width="478" height="150" rx="14" class="ln" />
 					<text x="506" y="222" class="lk2">w · PREFERENCES — what you want</text>
-					<text x="506" y="242" class="lt2">stated + revealed prefs → how much does each dimension matter to YOU vs the market?</text>
+					<text x="506" y="236" class="lt2">stated + revealed prefs → each dimension’s worth to YOU vs the market</text>
 					<path d="M520,324 C560,324 575,258 610,258 C645,258 660,324 700,324" class="lcurve" />
 					<path d="M520,324 C555,324 562,290 578,272 L578,324 Z" class="lfill-w" />
 					<line x1="578" y1="268" x2="578" y2="324" class="lmark-w" />
 					<circle cx="578" cy="286" r="4.5" class="ldot-w lpulse" />
 					<text x="588" y="274" class="lpk lpk-w">demand for this trait</text>
 					<text x="520" y="340" class="lt2">calibrated per city — cost-of-living adjusted</text>
-					<rect x="760" y="242" width="184" height="76" rx="12" class="ln ln-hot" />
-					<text x="776" y="268" class="leqi">wᵢ = norm(prefᵢ | city)</text>
-					<text x="776" y="288" class="lt2">a rare ask costs more of your</text>
-					<text x="776" y="302" class="lt2">weight budget — Σwᵢ = 1</text>
-					<path d="M700,286 H760" class="lf" />
+					<rect x="748" y="242" width="196" height="76" rx="12" class="ln ln-hot" />
+					<text x="764" y="268" class="leqi">wᵢ = norm(prefᵢ|city)</text>
+					<text x="764" y="288" class="lt2">a rare ask costs more of</text>
+					<text x="764" y="302" class="lt2">your budget — Σwᵢ = 1</text>
+					<path d="M700,286 H748" class="lf" />
 
 					<!-- lane c -->
 					<rect x="486" y="362" width="478" height="150" rx="14" class="ln" />
 					<text x="506" y="388" class="lk2">c · VERIFIED — how proven</text>
-					<text x="506" y="408" class="lt2">every claim starts unproven. proof moves cᵢ toward 1; nothing else can.</text>
+					<text x="506" y="402" class="lt2">every claim starts unproven. proof moves cᵢ toward 1; nothing else can.</text>
 					<rect x="520" y="428" width="180" height="10" rx="5" class="lgauge" />
 					<rect x="520" y="428" width="121" height="10" rx="5" class="lgauge-fill" />
 					<text x="520" y="458" class="lt2">unproven 0 ────────── 1 proven</text>
-					<text x="520" y="482" class="lt2">ID · face-match · docs · owner-present rule</text>
-					<rect x="760" y="408" width="184" height="76" rx="12" class="ln ln-hot" />
-					<text x="776" y="434" class="leqi">cᵢ ∈ [0,1] · gate</text>
-					<text x="776" y="454" class="lt2">unproven claims carry</text>
-					<text x="776" y="468" class="lt2">no weight in A = Σ w·v·c</text>
-					<path d="M700,452 H760" class="lf" />
+					<text x="520" y="498" class="lt2">ID · face-match · docs · owner-present rule</text>
+					<rect x="748" y="408" width="196" height="76" rx="12" class="ln ln-hot" />
+					<text x="764" y="434" class="leqi">cᵢ ∈ [0,1] · gate</text>
+					<text x="764" y="454" class="lt2">unproven claims carry</text>
+					<text x="764" y="468" class="lt2">no weight in A = Σ w·v·c</text>
+					<path d="M700,452 H748" class="lf" />
 
 					<text x="486" y="544" class="lt2">the three lanes feed the scoring spine: A(a→b) = Σᵢ wᵢᵇ · vᵢᵃ · cᵢᵃ</text>
 				</svg>
@@ -746,7 +747,7 @@
 					<text x="16" y="28" class="lk2">PATH PLANNER · FOR THE CROWDED SIDE</text>
 					<text x="16" y="46" class="lt2">supply is uneven — most men, and women chasing the same few men, compete. the planner computes the shortest route up.</text>
 
-					<rect x="16" y="66" width="430" height="264" rx="14" class="ln" />
+					<rect x="16" y="66" width="396" height="264" rx="14" class="ln" />
 					<text x="34" y="92" class="lt">his state ladder</text>
 					<text x="34" y="108" class="lt2">each hop = one shared artifact, weighted by what SHE values</text>
 					<rect x="46" y="256" width="80" height="40" rx="8" class="lstep" />
@@ -760,9 +761,9 @@
 					<path d="M126,268 C150,266 150,240 134,236" class="ledge-hot" />
 					<path d="M214,222 C238,220 238,194 222,190" class="ledge-hot" />
 					<path d="M302,176 C326,174 326,148 310,144" class="ledge-hot" />
-					<text x="120" y="256" class="lpk">+ workplace proof</text>
-					<text x="208" y="210" class="lpk">+ voice intro</text>
-					<text x="296" y="164" class="lpk">+ travel doc</text>
+					<text x="154" y="260" class="lpk">+ workplace proof</text>
+					<text x="242" y="214" class="lpk">+ voice intro</text>
+					<text x="328" y="168" class="lpk">+ travel doc</text>
 					<g class="lclimb">
 						<circle cx="86" cy="248" r="7" class="ldot-v" />
 						<text x="78" y="238" class="lpk">him</text>
@@ -771,18 +772,19 @@
 					<circle cx="172" cy="202" r="5" class="ldot-idle" />
 					<text x="34" y="318" class="lt2">gray dots: rivals who shared nothing this week</text>
 
-					<rect x="470" y="66" width="240" height="264" rx="14" class="ln-dark" />
-					<text x="490" y="94" class="lk">NEXT BEST ACTION</text>
-					<text x="490" y="122" class="leqm">a* = argmax E[ V(s′) | s, a ]</text>
-					<text x="490" y="148" class="ld">a = an artifact he could share</text>
-					<text x="490" y="164" class="ld">s′ = his standing after sharing it</text>
-					<text x="490" y="180" class="ld">V = expected appeal to HER cohort,</text>
-					<text x="490" y="194" class="ld">not vanity points</text>
-					<text x="490" y="222" class="ld">the plan re-computes after every</text>
-					<text x="490" y="236" class="ld">artifact — a living route, not a to-do list</text>
-					<text x="490" y="264" class="leqs">wingman speaks it in plain words:</text>
-					<text x="490" y="284" class="ld">“verify your workplace next — +9%,</text>
-					<text x="490" y="298" class="ld">and it closes what she asked for.”</text>
+					<rect x="436" y="66" width="274" height="264" rx="14" class="ln-dark" />
+					<text x="456" y="94" class="lk">NEXT BEST ACTION</text>
+					<text x="456" y="122" class="leqm">a* = argmax E[V(s′)|s,a]</text>
+					<text x="456" y="148" class="ld">a = an artifact he could share</text>
+					<text x="456" y="164" class="ld">s′ = his standing after sharing it</text>
+					<text x="456" y="180" class="ld">V = expected appeal to HER cohort,</text>
+					<text x="456" y="194" class="ld">not vanity points</text>
+					<text x="456" y="220" class="ld">the plan re-computes after</text>
+					<text x="456" y="234" class="ld">every artifact — a living route,</text>
+					<text x="456" y="248" class="ld">not a to-do list</text>
+					<text x="456" y="274" class="leqs">wingman, in plain words:</text>
+					<text x="456" y="294" class="ld">“verify your workplace next — +9%,</text>
+					<text x="456" y="308" class="ld">and it closes what she asked for.”</text>
 
 					<rect x="734" y="66" width="230" height="264" rx="14" class="ln" />
 					<text x="752" y="92" class="lt">her shortlist · live rank</text>
@@ -797,43 +799,43 @@
 					<text x="752" y="232" class="lt2">#4</text><circle cx="790" cy="228" r="5" class="ldot-idle" />
 					<text x="752" y="266" class="lt2">#5</text>
 					<g class="lrise">
-						<circle cx="820" cy="262" r="7" class="ldot-v" />
-						<text x="832" y="266" class="lpk">him — climbing as he proves</text>
+						<circle cx="790" cy="262" r="7" class="ldot-v" />
+						<text x="802" y="266" class="lpk">him — climbing</text>
 					</g>
-					<text x="752" y="312" class="lt2">rivals hold still; artifacts move him.</text>
-					<text x="752" y="326" class="lt2">he sees his %, never this board.</text>
+					<text x="752" y="312" class="lt2">rivals hold still — he moves.</text>
+					<text x="752" y="326" class="lt2">he sees his %, not this board.</text>
 
-					<path d="M446,190 H470" class="lfh" />
+					<path d="M412,190 H436" class="lfh" />
 					<path d="M710,190 H734" class="lfh" />
 
 					<!-- ── panel 2: flow balancer ── -->
 					<text x="16" y="382" class="lk2">FLOW BALANCER · NO ONE FLOODED, NO ONE STRANDED</text>
-					<rect x="16" y="398" width="430" height="220" rx="14" class="ln" />
+					<rect x="16" y="398" width="396" height="220" rx="14" class="ln" />
 					<text x="34" y="424" class="lt">the allocation, every cycle</text>
 					<circle cx="90" cy="460" r="7" class="ldot-idle" /><text x="52" y="464" class="lt2">m₁</text>
 					<circle cx="90" cy="500" r="7" class="ldot-v" /><text x="52" y="504" class="lt2">m₂</text>
 					<circle cx="90" cy="540" r="7" class="ldot-idle" /><text x="52" y="544" class="lt2">m₃</text>
 					<circle cx="90" cy="580" r="7" class="ldot-idle" /><text x="52" y="584" class="lt2">m₄</text>
-					<circle cx="360" cy="470" r="7" class="ldot-w" /><text x="380" y="474" class="lt2">w₁ · load ≤ cap</text>
-					<circle cx="360" cy="520" r="7" class="ldot-w" /><text x="380" y="524" class="lt2">w₂ · load ≤ cap</text>
-					<circle cx="360" cy="570" r="7" class="ldot-w" /><text x="380" y="574" class="lt2">w₃ · load ≤ cap</text>
-					<path d="M97,460 C200,460 240,470 353,470" class="ledge" />
-					<path d="M97,500 C200,500 240,478 353,472" class="ledge-hot" />
-					<path d="M97,500 C200,505 240,518 353,520" class="ledge-hot" />
-					<path d="M97,540 C200,540 240,522 353,521" class="ledge" />
-					<path d="M97,580 C200,580 240,572 353,570" class="ledge" />
-					<text x="180" y="612" class="lt2">every man keeps ≥ 1 live, winnable edge</text>
+					<circle cx="286" cy="470" r="7" class="ldot-w" /><text x="304" y="474" class="lt2">w₁ · load ≤ cap</text>
+					<circle cx="286" cy="520" r="7" class="ldot-w" /><text x="304" y="524" class="lt2">w₂ · load ≤ cap</text>
+					<circle cx="286" cy="570" r="7" class="ldot-w" /><text x="304" y="574" class="lt2">w₃ · load ≤ cap</text>
+					<path d="M97,460 C170,460 210,470 279,470" class="ledge" />
+					<path d="M97,500 C170,500 210,478 279,472" class="ledge-hot" />
+					<path d="M97,500 C170,505 210,518 279,520" class="ledge-hot" />
+					<path d="M97,540 C170,540 210,522 279,521" class="ledge" />
+					<path d="M97,580 C170,580 210,572 279,570" class="ledge" />
+					<text x="146" y="612" class="lt2">every man keeps ≥ 1 live, winnable edge</text>
 
-					<rect x="470" y="398" width="494" height="220" rx="14" class="ln-dark" />
-					<text x="490" y="426" class="lk">THE MARKET CONSTRAINT</text>
-					<text x="490" y="456" class="leqm">max Σ min[ A(m→w), A(w→m) ]</text>
-					<text x="490" y="482" class="leqs">s.t. load(w) ≤ cap(w) — she is never flooded</text>
-					<text x="490" y="504" class="leqs">wins(m) ≥ 1 — he always has a live path</text>
-					<text x="490" y="526" class="leqs">pairs form ⇔ mutual — never one-way</text>
-					<text x="490" y="558" class="ld">attention is a budget, allocated — not an auction won by</text>
-					<text x="490" y="572" class="ld">whoever shouts loudest. the scarce side is protected structurally,</text>
-					<text x="490" y="586" class="ld">and the crowded side is given a route, not a wall.</text>
-					<text x="490" y="606" class="lk" opacity="0.8">SOLVED GLOBALLY, EVERY MATCHING CYCLE</text>
+					<rect x="436" y="398" width="528" height="220" rx="14" class="ln-dark" />
+					<text x="456" y="426" class="lk">THE MARKET CONSTRAINT</text>
+					<text x="456" y="456" class="leqm">max Σ min[ A(m→w), A(w→m) ]</text>
+					<text x="456" y="482" class="leqs">s.t. load(w) ≤ cap(w) — she is never flooded</text>
+					<text x="456" y="504" class="leqs">wins(m) ≥ 1 — he always has a live path</text>
+					<text x="456" y="526" class="leqs">pairs form ⇔ mutual — never one-way</text>
+					<text x="456" y="558" class="ld">attention is a budget, allocated — not an auction won by</text>
+					<text x="456" y="572" class="ld">whoever shouts loudest. the scarce side is protected structurally,</text>
+					<text x="456" y="586" class="ld">and the crowded side is given a route, not a wall.</text>
+					<text x="456" y="606" class="lk" opacity="0.8">SOLVED GLOBALLY, EVERY MATCHING CYCLE</text>
 				</svg>
 			</div>
 			<p class="cap">
@@ -1003,8 +1005,8 @@
 	<section class="sec ask">
 		<div class="wrap">
 			<span class="kicker c">The ask</span>
-			<h2 class="h2 c">Raising <em>₹1 Crore</em> · Seed</h2>
-			<p class="ask-sub">₹1 Crore ≈ US$105K · seed capital to scale what is already working. Use of funds:</p>
+			<h2 class="h2 c">Raising <em>₹1 Crore</em> · Pre-seed</h2>
+			<p class="ask-sub">₹1 Crore ≈ US$105K · pre-seed capital to scale what is already working. Use of funds:</p>
 			<div class="funds">
 				{#each USE_OF_FUNDS as f (f.h)}
 					<div class="fund">
@@ -1039,7 +1041,7 @@
 			<a class="cta" href={mailto}>Let’s talk</a>
 			<div class="contact">
 				{#each CONTACT_EMAILS as email (email)}
-					<a href="mailto:{email}?subject={encodeURIComponent('riteangle · Seed round (₹1 Cr)')}">{email}</a>
+					<a href="mailto:{email}?subject={encodeURIComponent('riteangle · Pre-seed round (₹1 Cr)')}">{email}</a>
 					<span aria-hidden="true">·</span>
 				{/each}
 				<a href="tel:+919742007227">+91 97420 07227</a>
@@ -1072,16 +1074,19 @@
 		overflow-x: hidden;
 	}
 
+	/* One knob for the page's content column. Investors read this on a laptop or
+	   a wide desktop, so the column grows with the viewport instead of stranding
+	   ~500px of dead margin either side; prose blocks stay narrow on purpose. */
 	.wrap {
 		width: 100%;
-		max-width: 940px;
+		max-width: 1320px;
 		margin: 0 auto;
-		padding: 0 22px;
+		padding: 0 clamp(20px, 3.4vw, 52px);
 		box-sizing: border-box;
 	}
 
 	.wrap.narrow {
-		max-width: 620px;
+		max-width: 780px;
 	}
 
 	/* ── Hero ─────────────────────────────────────────────────────────────── */
@@ -2489,6 +2494,42 @@
 				animation-timeline: view();
 				animation-range: entry 0% entry 45%;
 			}
+		}
+	}
+
+	/* ── Wide desktop ─────────────────────────────────────────────────────────
+	   The column above grows to 1320px, which would leave 4-up card sets sitting
+	   as two very wide rows. Promote the counts so each card keeps a card-shaped
+	   measure instead of stretching. Prose-heavy sets stay at 2-up on purpose. */
+	@media (min-width: 1120px) {
+		.stats,
+		.funds,
+		.cols2 {
+			grid-template-columns: repeat(4, minmax(0, 1fr));
+		}
+
+		.principles {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+
+		/* The hero has the whole column to itself, so let the headline take it. */
+		.h1 {
+			font-size: 84px;
+		}
+
+		.lede {
+			max-width: 760px;
+		}
+
+		/* A paragraph that is a direct child of the column would otherwise run to
+		   ~140 characters a line at this width. Cards are already measure-limited
+		   by their grid track; these full-bleed blocks are not, so cap them. */
+		.tier .p,
+		.gtm .p,
+		.tl .p,
+		.book-body .p,
+		.foot {
+			max-width: 88ch;
 		}
 	}
 
