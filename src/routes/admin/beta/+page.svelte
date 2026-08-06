@@ -343,7 +343,7 @@
 </script>
 
 <div class="min-h-screen bg-[#0b1120] px-6 py-8 text-slate-100">
-	<div class="mx-auto max-w-5xl">
+	<div class="mx-auto max-w-7xl">
 	<h1 class="text-xl font-bold text-white">Beta Invites</h1>
 	<p class="mt-1 text-sm text-slate-400">
 		Generate a shareable link for a female user. Anyone who opens it and submits their email is
@@ -371,7 +371,7 @@
 			<p class="mt-2 text-sm text-slate-500">No invites collected yet.</p>
 		{:else}
 			<div class="mt-3 overflow-x-auto rounded-lg border border-white/[0.08]">
-				<table class="w-full text-left text-sm">
+				<table class="w-full min-w-[560px] text-left text-sm">
 					<thead class="bg-white/[0.03] text-xs uppercase tracking-wide text-slate-400">
 						<tr>
 							<th class="px-4 py-2.5">Profile owner</th>
@@ -631,7 +631,7 @@
 			<p class="mt-2 text-sm text-slate-500">No one has signed up through a link yet.</p>
 		{:else}
 			<div class="mt-3 overflow-x-auto rounded-lg border border-white/[0.08]">
-				<table class="w-full text-left text-sm">
+				<table class="w-full min-w-[860px] text-left text-sm">
 					<thead class="bg-white/[0.03] text-xs uppercase tracking-wide text-slate-400">
 						<tr>
 							<th class="px-4 py-2.5">Email</th>

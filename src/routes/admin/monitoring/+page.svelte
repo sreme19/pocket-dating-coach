@@ -219,7 +219,7 @@
 
 		{#if data.summary.length > 0}
 			<div class="mb-6 overflow-x-auto rounded-xl border border-white/[0.06] bg-white/[0.03]">
-				<table class="w-full text-sm">
+				<table class="w-full min-w-[720px] text-sm">
 					<thead>
 						<tr class="border-b border-white/[0.06] text-left text-xs text-slate-500">
 							<th class="px-4 py-3">Check</th>
@@ -273,7 +273,7 @@
 		</div>
 
 		<div class="overflow-x-auto rounded-xl border border-white/[0.06] bg-white/[0.03]">
-			<table class="w-full text-sm">
+			<table class="w-full min-w-[620px] text-sm">
 				<thead>
 					<tr class="border-b border-white/[0.06] text-left text-xs text-slate-500">
 						<th class="px-4 py-3">Time</th>
@@ -374,7 +374,7 @@
 		</div>
 
 		<div class="overflow-x-auto rounded-xl border border-white/[0.06] bg-white/[0.03]">
-			<table class="w-full text-sm">
+			<table class="w-full min-w-[780px] text-sm">
 				<thead>
 					<tr class="border-b border-white/[0.06] text-left text-xs text-slate-500">
 						<th class="px-4 py-3">Time</th>

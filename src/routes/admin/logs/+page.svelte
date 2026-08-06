@@ -20,7 +20,7 @@
 </script>
 
 <div class="min-h-screen bg-[#0b1120] px-6 py-8 text-slate-100">
-	<div class="mx-auto max-w-6xl space-y-6">
+	<div class="mx-auto max-w-7xl space-y-6">
 
 		<div class="flex items-center justify-between">
 			<div>
@@ -60,7 +60,7 @@
 		{:else}
 			<div class="rounded-lg border border-white/[0.08] bg-[#111a2e] overflow-hidden">
 				<div class="overflow-x-auto">
-					<table class="w-full text-left text-xs">
+					<table class="w-full min-w-[720px] text-left text-xs">
 						<thead class="border-b border-white/[0.06] text-slate-500 uppercase tracking-wide text-[10px]">
 							<tr>
 								<th class="py-2.5 px-4">Time</th>

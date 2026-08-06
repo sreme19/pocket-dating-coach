@@ -463,7 +463,7 @@
 			<p class="mt-0.5 text-xs text-slate-500">Click a name to open user detail. Use <span class="text-slate-300">View</span> to open the public profile as members see it (opens in a new tab).</p>
 		</div>
 		<div class="overflow-x-auto">
-			<table class="w-full text-sm">
+			<table class="w-full min-w-[940px] text-sm">
 				<thead>
 					<tr class="border-b border-white/[0.06] text-left text-xs">
 						{#each [
@@ -839,7 +839,7 @@
 						</span>
 					</div>
 					<div class="overflow-x-auto">
-						<table class="w-full text-sm">
+						<table class="w-full min-w-[820px] text-sm">
 							<thead>
 								<tr class="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-white/[0.06]">
 									<th class="py-2 pr-3 font-medium">When</th>

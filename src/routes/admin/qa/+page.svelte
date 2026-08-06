@@ -212,8 +212,8 @@
 		{/each}
 	</div>
 
-	<div class="hidden overflow-hidden rounded-xl border border-white/[0.06] md:block">
-		<table class="w-full text-left text-sm">
+	<div class="hidden overflow-x-auto rounded-xl border border-white/[0.06] md:block">
+		<table class="w-full min-w-[640px] text-left text-sm">
 			<thead class="bg-[#0d1522] text-xs text-slate-500">
 				<tr>
 					{#each [{ key: 'match', label: 'Match' }, { key: 'ai', label: 'AI activity' }, { key: 'last', label: 'Last msg' }, { key: 'review', label: 'Review' }] as const as col}

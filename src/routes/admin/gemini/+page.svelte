@@ -158,6 +158,10 @@
 
 <svelte:head><title>Gemini Playground · PDC Admin</title></svelte:head>
 
+<!-- Every other admin page paints its own dark background; without it this one
+     inherits the light riteangle brand background and the white heading below
+     is invisible against it. -->
+<div class="min-h-screen bg-[#0b1120]">
 <div class="mx-auto max-w-4xl px-6 py-6">
 	<div class="mb-4 flex items-start justify-between gap-4">
 		<div>
@@ -339,4 +343,5 @@
 			>
 		</div>
 	</div>
+</div>
 </div>

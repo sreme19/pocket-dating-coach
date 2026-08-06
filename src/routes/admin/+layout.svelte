@@ -132,31 +132,29 @@
 	}
 
 	/*
-	 * Mobile responsiveness for every admin page in one place. Admin pages are
-	 * data-dense and full of wide tables; without this they force the whole
-	 * document wider than the phone viewport, so the page scrolls sideways and
-	 * the right-hand columns (often the only actionable link) sit off-screen.
+	 * Admin pages are data-dense and full of wide tables. On a phone those
+	 * tables must not force the whole document wider than the viewport, or the
+	 * page scrolls sideways and the right-hand columns (often the only
+	 * actionable link) sit off-screen.
 	 *
-	 * Make every admin table a self-contained horizontal scroller: it sizes to
-	 * its content but is capped at the width of its container, and scrolls
-	 * internally instead of stretching the page. `display: block` is what lets
-	 * overflow apply to the table box; rows/cells keep their table layout, so
-	 * columns still line up. Pages that already wrap a table in an
-	 * overflow-x-auto div keep working — the scroll just happens a level in.
+	 * The contract every admin page follows: wrap a wide table in an
+	 * `overflow-x-auto` div and give the table a `min-w-[…]` floor alongside
+	 * `w-full`. The table then fills its container on a desktop and scrolls
+	 * inside its own box on a phone.
+	 *
+	 * Deliberately NOT solved here with a blanket `display: block;
+	 * width: max-content` on every table. That did stop the sideways scroll,
+	 * but `.admin-scope table` out-specifies each table's own `.w-full`, so on
+	 * a wide screen every table shrank to its content width and left most of
+	 * the page empty.
 	 */
-	.admin-scope :global(table) {
-		display: block;
-		width: max-content;
-		max-width: 100%;
-		overflow-x: auto;
-	}
 
 	/*
 	 * Document-level safety net: no admin page may scroll sideways on a phone.
 	 * `clip` (not `hidden`) is deliberate — it prevents horizontal page scroll
 	 * without turning the scope into a scroll container, so `position: sticky`
-	 * inside pages keeps working. Tables above still scroll internally within
-	 * their own box, so this only catches stray wide flex/text rows.
+	 * inside pages keeps working. Tables still scroll internally within their
+	 * own wrapper, so this only catches stray wide flex/text rows.
 	 */
 	.admin-scope {
 		overflow-x: clip;

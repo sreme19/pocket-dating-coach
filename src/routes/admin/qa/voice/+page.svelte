@@ -61,8 +61,8 @@
 			No voice calls{statusFilter !== 'all' ? ` with status "${statusFilter}"` : ' yet'}.
 		</div>
 	{:else}
-		<div class="overflow-hidden rounded border border-white/[0.06]">
-			<table class="w-full text-sm">
+		<div class="overflow-x-auto rounded border border-white/[0.06]">
+			<table class="w-full min-w-[760px] text-sm">
 				<thead class="bg-[#0f172a] text-xs uppercase tracking-wide text-slate-500">
 					<tr>
 						<th class="px-3 py-2 text-left font-medium">When</th>

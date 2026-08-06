@@ -89,7 +89,7 @@
 </script>
 
 <div class="min-h-screen bg-[#0b1120] px-6 py-6 text-slate-100">
-	<div class="mx-auto max-w-5xl">
+	<div class="mx-auto max-w-7xl">
 		<!-- Header + filters -->
 		<div class="mb-5 flex flex-wrap items-end justify-between gap-4">
 			<div>
