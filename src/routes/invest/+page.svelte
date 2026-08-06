@@ -340,20 +340,87 @@
 				{/each}
 			</div>
 
-			<!-- The scoring formula, called out. It's the one piece of real math on the
-			     page and it earns its space: it's the answer to "how is a match decided?" -->
-			<div class="formula">
-				<div class="formula-eq">Appeal = <span class="hl">Σ</span> w<sub>i</sub> · v<sub>i</sub> · c<sub>i</sub></div>
-				<div class="formula-key">
-					<span><b class="v">v</b> what you bring</span>
-					<span><b class="v">c</b> how proven it is</span>
-					<span><b class="v">w</b> what the other side wants</span>
-				</div>
-				<p class="formula-note">
-					Computed in both directions. A match is only created when the value is mutual — then
-					handed off on a 48-hour clock, replaced free if it stalls.
-				</p>
+			<!-- The two-sided lattice: two humans, two asymmetric agents, and a
+			     deterministic scoring spine between them. Drawn as inline SVG with brand
+			     tokens — no image asset, crisp at any width. On a phone the container
+			     scrolls sideways rather than shrinking the math to illegibility. -->
+			<div class="lattice" role="img" aria-label="Architecture: him and Wingman on one side, her and Bestie on the other, a deterministic scoring spine computing two-sided appeal in the middle, flowing into a 48-hour wrapped hand-off and a real-world meeting.">
+				<svg viewBox="0 0 960 470" xmlns="http://www.w3.org/2000/svg">
+					<defs>
+						<marker id="la" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+							<path d="M0,0 L7,3.5 L0,7 z" fill="#8A7A80" />
+						</marker>
+						<marker id="lah" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+							<path d="M0,0 L7,3.5 L0,7 z" fill="#E11D54" />
+						</marker>
+					</defs>
+
+					<!-- him -->
+					<rect x="16" y="24" width="200" height="120" rx="14" class="ln" />
+					<text x="34" y="52" class="lt lt-name">HIM</text>
+					<text x="34" y="74" class="lt2">uploads proof · chats</text>
+					<text x="34" y="90" class="lt2">self-claims → v̂</text>
+					<text x="34" y="106" class="lt2">stated prefs → ŵ</text>
+					<text x="34" y="126" class="lt2">sees his % only — never a rank</text>
+					<rect x="16" y="168" width="200" height="106" rx="14" class="ln ln-agent" />
+					<text x="34" y="194" class="lt">🛡 WINGMAN</text>
+					<text x="34" y="214" class="lt2">private strategist</text>
+					<text x="34" y="230" class="lt2">portfolio coaching:</text>
+					<text x="34" y="246" class="lt2">argmax Σ ΔA across matches</text>
+					<text x="34" y="264" class="lt2">speaks TO him, never FOR him</text>
+					<path d="M116,144 V168" class="lf" />
+
+					<!-- her -->
+					<rect x="744" y="24" width="200" height="120" rx="14" class="ln" />
+					<text x="762" y="52" class="lt lt-name">HER</text>
+					<text x="762" y="74" class="lt2">verified once</text>
+					<text x="762" y="90" class="lt2">asks: 3 things that matter</text>
+					<text x="762" y="106" class="lt2">sees: ranked shortlist</text>
+					<text x="762" y="126" class="lt2">median: 14 suitors, ordered</text>
+					<rect x="744" y="168" width="200" height="106" rx="14" class="ln ln-hot" />
+					<text x="762" y="194" class="lt">✨ BESTIE</text>
+					<text x="762" y="214" class="lt2">her proxy · speaks first</text>
+					<text x="762" y="230" class="lt2">vets his claims vs her wᵢ</text>
+					<text x="762" y="246" class="lt2">gatekeeps: hand-off only</text>
+					<text x="762" y="264" class="lt2">when the gaps close</text>
+					<path d="M844,144 V168" class="lf" />
+
+					<!-- scoring spine -->
+					<rect x="286" y="24" width="388" height="250" rx="16" class="ln-dark" />
+					<text x="310" y="56" class="lk">SCORING SPINE · DETERMINISTIC</text>
+					<text x="310" y="92" class="leq">A(m→w) = Σᵢ wᵢʷ · vᵢᵐ · cᵢᵐ</text>
+					<text x="310" y="118" class="leq">A(w→m) = Σᵢ wᵢᵐ · vᵢʷ · cᵢʷ</text>
+					<text x="310" y="146" class="ld">match ⇔ both clear the bar — mutual by</text>
+					<text x="310" y="161" class="ld">construction, never by accident</text>
+					<text x="310" y="190" class="lp">cᵢ: proof-gated confidence ∈ [0,1]</text>
+					<text x="310" y="206" class="ld">unproven claims carry no weight</text>
+					<text x="310" y="230" class="lp">Strength(t+1) ≥ Strength(t) — monotonic,</text>
+					<text x="310" y="246" class="ld">soft gate at 90% before she sees him</text>
+
+					<!-- flows -->
+					<path d="M216,84 H286" class="lfh" />
+					<text x="230" y="76" class="lt2">v, c, w</text>
+					<path d="M744,84 H674" class="lfh" />
+					<text x="694" y="76" class="lt2">v, c, w</text>
+					<path d="M216,221 C260,221 260,180 286,160" class="lfd" />
+					<path d="M744,221 C700,221 700,180 674,160" class="lfd" />
+
+					<!-- hand-off -->
+					<rect x="286" y="304" width="388" height="60" rx="12" class="ln ln-hot" />
+					<text x="310" y="330" class="lt">WRAPPED HAND-OFF</text>
+					<text x="310" y="350" class="lt2">bestie steps back · honest 48h clock · quiet → replaced free</text>
+					<path d="M480,274 V304" class="lfh" />
+
+					<!-- meet -->
+					<rect x="380" y="396" width="200" height="52" rx="12" class="ln-dark" />
+					<text x="418" y="428" class="leq">they just meet</text>
+					<path d="M480,364 V396" class="lfh" />
+				</svg>
 			</div>
+			<p class="cap">
+				Two humans, two asymmetric agents, and deterministic math in the middle — the AI talks, the
+				equation decides.
+			</p>
 		</div>
 	</section>
 
@@ -826,17 +893,6 @@
 		transform: translateY(0);
 	}
 
-	.cta.ghost {
-		background: transparent;
-		color: var(--accent-bright);
-		border: 1.5px solid var(--border-3);
-		box-shadow: none;
-	}
-
-	.cta.ghost:hover {
-		background: var(--accent-tint);
-	}
-
 	/* Store buttons: outline (secondary to "Let's talk"), stacked label + platform
 	   sub-line so the investor picks the device they actually hold. */
 	.cta.store {
@@ -1058,56 +1114,113 @@
 		margin-bottom: 12px;
 	}
 
-	.formula {
+	/* ── Two-sided lattice diagram ────────────────────────────────────────── */
+	/* Scrolls sideways on a phone instead of shrinking the math to illegibility. */
+	.lattice {
 		margin-top: 16px;
 		background: linear-gradient(160deg, #fff 0%, #fff4f1 100%);
 		border: 1px solid var(--border-3);
 		border-radius: 18px;
-		padding: 26px 22px;
-		text-align: center;
+		padding: 18px;
 		box-shadow: 0 20px 46px -32px rgba(122, 17, 51, 0.5);
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
 	}
 
-	.formula-eq {
-		font-size: clamp(24px, 5vw, 32px);
-		font-weight: 900;
-		letter-spacing: -0.02em;
-		color: var(--text-1);
+	.lattice svg {
+		display: block;
+		width: 100%;
+		min-width: 820px;
+		height: auto;
 	}
 
-	.formula-eq .hl {
-		color: var(--accent);
+	/* nodes */
+	.ln {
+		fill: #fff;
+		stroke: var(--border-2);
+		stroke-width: 1;
 	}
 
-	.formula-eq sub {
-		font-size: 0.5em;
+	.ln.ln-agent {
+		fill: var(--bg-3);
+	}
+
+	.ln.ln-hot {
+		fill: #fff0f4;
+		stroke: var(--border-3);
+	}
+
+	.ln-dark {
+		fill: var(--text-1);
+	}
+
+	/* labels — Gabarito for names, mono for math */
+	.lt {
+		font-family: var(--font-serif);
+		font-size: 12px;
+		font-weight: 800;
+		fill: var(--text-1);
+	}
+
+	.lt-name {
+		font-size: 14px;
+	}
+
+	.lt2 {
+		font-family: var(--font-mono);
+		font-size: 10px;
+		fill: var(--text-3);
+	}
+
+	.lk {
+		font-family: var(--font-mono);
+		font-size: 10px;
 		font-weight: 700;
-		color: var(--text-3);
+		letter-spacing: 2px;
+		fill: #ff7a9c;
 	}
 
-	.formula-key {
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: center;
-		gap: 8px 22px;
-		margin: 16px 0 12px;
-		font-size: 13.5px;
-		color: var(--text-2);
-		font-weight: 600;
+	.leq {
+		font-family: var(--font-mono);
+		font-size: 16px;
+		font-weight: 800;
+		fill: #fff;
 	}
 
-	.formula-key .v {
-		color: var(--accent-bright);
-		font-weight: 900;
-		margin-right: 5px;
+	.ld {
+		font-family: var(--font-mono);
+		font-size: 10.5px;
+		fill: #c2b0b5;
 	}
 
-	.formula-note {
-		font-size: 13px;
-		line-height: 1.5;
-		color: var(--text-3);
-		margin: 0 auto;
-		max-width: 460px;
+	.lp {
+		font-family: var(--font-mono);
+		font-size: 10.5px;
+		font-weight: 700;
+		fill: #ff7a9c;
+	}
+
+	/* flows */
+	.lf {
+		stroke: var(--text-4);
+		stroke-width: 1.2;
+		fill: none;
+		marker-end: url(#la);
+	}
+
+	.lfh {
+		stroke: var(--accent-bright);
+		stroke-width: 1.4;
+		fill: none;
+		marker-end: url(#lah);
+	}
+
+	.lfd {
+		stroke: var(--text-4);
+		stroke-width: 1.1;
+		stroke-dasharray: 4 3;
+		fill: none;
+		marker-end: url(#la);
 	}
 
 	/* ── Product surfaces ─────────────────────────────────────────────────── */
@@ -1659,7 +1772,7 @@
 			.card,
 			.prin,
 			.engine,
-			.formula,
+			.lattice,
 			.gtm,
 			.tl,
 			.fund,
