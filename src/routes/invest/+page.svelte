@@ -340,8 +340,101 @@
 				{/each}
 			</div>
 
-			<!-- The two-sided lattice: two humans, two asymmetric agents, and a
-			     deterministic scoring spine between them. Drawn as inline SVG with brand
+			<!-- Diagram 1 — how one human becomes three vectors. Multimodal extraction
+			     on the left; the three vector lanes on the right. v and w both pass
+			     through cohort normalization (a score is a position on a distribution,
+			     never an absolute), c is the proof gate. Shares the lattice's flow
+			     animation classes and its marker defs (SVG url(#id) resolves
+			     document-wide, and the lattice below carries the defs). -->
+			<div class="lattice vb" role="img" aria-label="Pipeline: images, voice and text are extracted by Claude into claims, which become three vectors — attributes normalized on a cohort bell curve, preferences normalized per city with a fixed weight budget, and a verified-confidence gate from zero to one.">
+				<svg viewBox="0 0 980 560" xmlns="http://www.w3.org/2000/svg">
+					<!-- inputs -->
+					<text x="16" y="30" class="lk2">RAW SIGNALS · ONE HUMAN</text>
+					<rect x="16" y="44" width="150" height="72" rx="12" class="ln" />
+					<text x="32" y="70" class="lt">📷 images</text>
+					<text x="32" y="90" class="lt2">photos · docs · liveness</text>
+					<text x="32" y="104" class="lt2">read once, then deleted</text>
+					<rect x="16" y="132" width="150" height="72" rx="12" class="ln" />
+					<text x="32" y="158" class="lt">🎤 voice</text>
+					<text x="32" y="178" class="lt2">calls with the AI</text>
+					<text x="32" y="192" class="lt2">tone · intent · claims</text>
+					<rect x="16" y="220" width="150" height="72" rx="12" class="ln" />
+					<text x="32" y="246" class="lt">💬 text</text>
+					<text x="32" y="266" class="lt2">onboarding Q&amp;A · chat</text>
+					<text x="32" y="280" class="lt2">self-claims · stated prefs</text>
+
+					<!-- extraction -->
+					<rect x="230" y="118" width="180" height="112" rx="14" class="ln-dark" />
+					<text x="250" y="146" class="lk">EXTRACT</text>
+					<text x="250" y="168" class="leqs">claude · multimodal</text>
+					<text x="250" y="188" class="ld">every signal → a claim</text>
+					<text x="250" y="202" class="ld">every claim → a dimension i</text>
+					<text x="250" y="216" class="ld">raw file discarded on read</text>
+					<path d="M166,80 C200,80 200,140 230,150" class="lfh" />
+					<path d="M166,168 H230" class="lfh" />
+					<path d="M166,256 C200,256 200,210 230,200" class="lfh" />
+
+					<!-- fan-out -->
+					<path d="M410,140 C450,130 450,90 486,84" class="lfh" />
+					<path d="M410,174 H486" class="lfh" />
+					<path d="M410,208 C450,218 450,420 486,428" class="lfh" />
+
+					<!-- lane v -->
+					<rect x="486" y="30" width="478" height="150" rx="14" class="ln" />
+					<text x="506" y="56" class="lk2">v · ATTRIBUTES — what you bring</text>
+					<text x="506" y="76" class="lt2">raw score xᵢ → where do you sit among peers?</text>
+					<path d="M520,158 C560,158 575,88 610,88 C645,88 660,158 700,158" class="lcurve" />
+					<path d="M520,158 C560,158 575,88 610,88 C640,88 652,140 664,150 L664,158 Z" class="lfill-v" />
+					<line x1="664" y1="96" x2="664" y2="158" class="lmark-v" />
+					<circle cx="664" cy="147" r="4.5" class="ldot-v lpulse" />
+					<text x="674" y="104" class="lpk">you · 84th pctile</text>
+					<text x="520" y="174" class="lt2">cohort distribution (his city, his age band)</text>
+					<rect x="760" y="76" width="184" height="76" rx="12" class="ln ln-hot" />
+					<text x="776" y="102" class="leqi">vᵢ = Φ(xᵢ | cohort)</text>
+					<text x="776" y="122" class="lt2">percentile-normalized —</text>
+					<text x="776" y="136" class="lt2">vs the crowd, never absolute</text>
+					<path d="M700,120 H760" class="lf" />
+
+					<!-- lane w -->
+					<rect x="486" y="196" width="478" height="150" rx="14" class="ln" />
+					<text x="506" y="222" class="lk2">w · PREFERENCES — what you want</text>
+					<text x="506" y="242" class="lt2">stated + revealed prefs → how much does each dimension matter to YOU vs the market?</text>
+					<path d="M520,324 C560,324 575,258 610,258 C645,258 660,324 700,324" class="lcurve" />
+					<path d="M520,324 C555,324 562,290 578,272 L578,324 Z" class="lfill-w" />
+					<line x1="578" y1="268" x2="578" y2="324" class="lmark-w" />
+					<circle cx="578" cy="286" r="4.5" class="ldot-w lpulse" />
+					<text x="588" y="274" class="lpk lpk-w">demand for this trait</text>
+					<text x="520" y="340" class="lt2">calibrated per city — cost-of-living adjusted</text>
+					<rect x="760" y="242" width="184" height="76" rx="12" class="ln ln-hot" />
+					<text x="776" y="268" class="leqi">wᵢ = norm(prefᵢ | city)</text>
+					<text x="776" y="288" class="lt2">a rare ask costs more of your</text>
+					<text x="776" y="302" class="lt2">weight budget — Σwᵢ = 1</text>
+					<path d="M700,286 H760" class="lf" />
+
+					<!-- lane c -->
+					<rect x="486" y="362" width="478" height="150" rx="14" class="ln" />
+					<text x="506" y="388" class="lk2">c · VERIFIED — how proven</text>
+					<text x="506" y="408" class="lt2">every claim starts unproven. proof moves cᵢ toward 1; nothing else can.</text>
+					<rect x="520" y="428" width="180" height="10" rx="5" class="lgauge" />
+					<rect x="520" y="428" width="121" height="10" rx="5" class="lgauge-fill" />
+					<text x="520" y="458" class="lt2">unproven 0 ────────── 1 proven</text>
+					<text x="520" y="482" class="lt2">ID · face-match · docs · owner-present rule</text>
+					<rect x="760" y="408" width="184" height="76" rx="12" class="ln ln-hot" />
+					<text x="776" y="434" class="leqi">cᵢ ∈ [0,1] · gate</text>
+					<text x="776" y="454" class="lt2">unproven claims carry</text>
+					<text x="776" y="468" class="lt2">no weight in A = Σ w·v·c</text>
+					<path d="M700,452 H760" class="lf" />
+
+					<text x="486" y="544" class="lt2">the three lanes feed the scoring spine below: A(a→b) = Σᵢ wᵢᵇ · vᵢᵃ · cᵢᵃ</text>
+				</svg>
+			</div>
+			<p class="cap">
+				One human in, three normalized vectors out — every score is a position in a distribution,
+				not a number invented by an AI.
+			</p>
+
+			<!-- Diagram 2 — the two-sided lattice: two humans, two asymmetric agents, and
+			     a deterministic scoring spine between them. Drawn as inline SVG with brand
 			     tokens — no image asset, crisp at any width. On a phone the container
 			     scrolls sideways rather than shrinking the math to illegibility. -->
 			<div class="lattice" role="img" aria-label="Architecture: him and Wingman on one side, her and Bestie on the other, a deterministic scoring spine computing two-sided appeal in the middle, flowing into a 48-hour wrapped hand-off and a real-world meeting.">
@@ -1198,6 +1291,113 @@
 		font-size: 10.5px;
 		font-weight: 700;
 		fill: #ff7a9c;
+	}
+
+	/* ── Vector-builder diagram (shares the lattice card + flow classes) ──── */
+	.lattice.vb svg {
+		min-width: 860px;
+	}
+
+	.lattice.vb + .cap {
+		margin-bottom: 26px;
+	}
+
+	/* light-background kicker (the .lk variant is for the dark spine) */
+	.lk2 {
+		font-family: var(--font-mono);
+		font-size: 10px;
+		font-weight: 700;
+		letter-spacing: 2px;
+		fill: var(--accent-bright);
+	}
+
+	/* smaller equation faces: white-on-dark and ink-on-light chip variants */
+	.leqs {
+		font-family: var(--font-mono);
+		font-size: 12.5px;
+		font-weight: 800;
+		fill: #fff;
+	}
+
+	.leqi {
+		font-family: var(--font-mono);
+		font-size: 12.5px;
+		font-weight: 800;
+		fill: var(--text-1);
+	}
+
+	.lpk {
+		font-family: var(--font-mono);
+		font-size: 10px;
+		font-weight: 700;
+		fill: var(--accent-bright);
+	}
+
+	.lpk-w {
+		fill: var(--color-vibe-mint);
+	}
+
+	/* distribution curves + "you are here" markers */
+	.lcurve {
+		fill: none;
+		stroke: var(--border-2);
+		stroke-width: 1.6;
+	}
+
+	.lfill-v {
+		fill: rgba(255, 59, 107, 0.14);
+		stroke: none;
+	}
+
+	.lfill-w {
+		fill: rgba(255, 122, 77, 0.18);
+		stroke: none;
+	}
+
+	.lmark-v {
+		stroke: var(--accent-bright);
+		stroke-width: 1.6;
+		stroke-dasharray: 3 3;
+	}
+
+	.lmark-w {
+		stroke: var(--color-vibe-mint);
+		stroke-width: 1.6;
+		stroke-dasharray: 3 3;
+	}
+
+	.ldot-v {
+		fill: var(--accent-bright);
+	}
+
+	.ldot-w {
+		fill: var(--color-vibe-mint);
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.lpulse {
+			animation: lpulse 2.2s ease-in-out infinite;
+		}
+	}
+
+	@keyframes lpulse {
+		0%,
+		100% {
+			opacity: 0.35;
+		}
+
+		50% {
+			opacity: 1;
+		}
+	}
+
+	/* proof gauge */
+	.lgauge {
+		fill: var(--bg-3);
+	}
+
+	.lgauge-fill {
+		fill: var(--accent-bright);
 	}
 
 	/* flows — dashes march along each path so the diagram reads as live dataflow.
