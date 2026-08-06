@@ -906,7 +906,7 @@
 	     seconds better than any slide can, so we let it. -->
 	<section class="sec math">
 		<div class="wrap">
-			<span class="kicker c">The math</span>
+			<span class="kicker c">The optimization</span>
 			<h2 class="h2 c">If you’re not already high on the math —<br /><em>here’s one more.</em></h2>
 
 			<p class="lede sm">
