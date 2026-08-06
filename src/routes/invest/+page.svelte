@@ -74,27 +74,28 @@
 		{ h: 'Earned, not gamed', p: 'Standing rises by becoming a more proven version of yourself, and the AI shows you exactly how.' }
 	];
 
-	/* "Under the hood" — the four systems that make the guarantee deliverable. */
+	/* "Under the hood" — four systems, each compressed to one line of notation and
+	   one sentence. The two diagrams below carry the depth; these are the index. */
 	const ENGINE = [
 		{
 			tag: 'Proof pipeline',
-			h: 'Upload → AI extract → discard raw → keep the insight',
-			p: 'Documents and photos are read once by AI, the signal is extracted, and the raw file is discarded. Face-match and anti-forgery gate the claim; the proof never becomes something anyone can browse.'
+			code: 'upload → extract → rm raw → insight',
+			p: 'Proof is read once by AI, then destroyed. Never stored, never browsable.'
 		},
 		{
 			tag: 'Trust architecture',
-			h: 'ID-gated claims, matched fuzzily, verified against a face',
-			p: 'High-value claims are gated behind identity. Names are matched fuzzily against documents; anything involving another person’s asset needs that person present. Trust is a score you earn, not a badge you buy.'
+			code: 'claim ⊨ ID ∧ face ∧ document',
+			p: 'Every high-value claim is identity-gated. Trust is earned, never bought.'
 		},
 		{
 			tag: 'Agentic matching',
-			h: 'Two AI agents, deliberately asymmetric',
-			p: 'Bestie is the woman’s front-person — she vets suitors and only hands one off when he’s ready. Wingman is the man’s private coach — he builds the man’s standing but never speaks for him. Gender-aware by design.'
+			code: 'bestie = proxy(her) · wingman = advisor(him)',
+			p: 'Two agents, deliberately asymmetric — she is spoken for, he is coached.'
 		},
 		{
 			tag: 'Two-sided value',
-			h: 'A = Σ w · v · c, then matched under real constraints',
-			p: 'Each side is a vector of what they bring (v), how proven it is (c) and what they want (w). Appeal is their weighted product — computed both ways — so a match is only made when the value is mutual, then handed off with a 48-hour clock and a free replacement if it goes quiet.'
+			code: 'A = Σ wᵢ·vᵢ·cᵢ, both directions',
+			p: 'A match exists only when the value is mutual. 48h clock, free replacement.'
 		}
 	];
 
@@ -328,13 +329,13 @@
 	<!-- ── Under the hood ───────────────────────────────────────────────────── -->
 	<section class="sec tinted">
 		<div class="wrap">
-			<span class="kicker">Under the hood</span>
-			<h2 class="h2">What makes the promise deliverable</h2>
+			<span class="kicker">Under the hood · what makes the promise deliverable</span>
+			<h2 class="h2">Elegant mathematics,<br /><em>solving for true connection.</em></h2>
 			<div class="cols2">
 				{#each ENGINE as e (e.tag)}
 					<div class="engine">
 						<span class="engine-tag">{e.tag}</span>
-						<h3 class="h3">{e.h}</h3>
+						<div class="engine-code">{e.code}</div>
 						<p class="p">{e.p}</p>
 					</div>
 				{/each}
@@ -1205,6 +1206,16 @@
 		border-radius: 999px;
 		padding: 4px 11px;
 		margin-bottom: 12px;
+	}
+
+	/* The notation IS the headline — mono, ink, one line that says the whole idea. */
+	.engine-code {
+		font-family: var(--font-mono);
+		font-size: 15px;
+		font-weight: 700;
+		letter-spacing: -0.01em;
+		color: var(--text-1);
+		margin-bottom: 8px;
 	}
 
 	/* ── Two-sided lattice diagram ────────────────────────────────────────── */
