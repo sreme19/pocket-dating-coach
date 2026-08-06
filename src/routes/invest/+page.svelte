@@ -28,6 +28,33 @@
 	import RiteLogo from '$lib/verified-vibe/components/RiteLogo.svelte';
 	import { STORE_LINKS } from '$lib/store-links';
 
+	/* The two culture trailers, rendered as click-to-play facades: a self-hosted
+	   poster still (the actors, full-bleed, zero player chrome) until the reader
+	   actually presses play — only then does the YouTube iframe load, with
+	   autoplay. Kills the big red button and defers all embed weight. */
+	const VIDS = [
+		{
+			id: 'dMaq_pfxs-0',
+			poster: '/invest/hitch-poster.jpg',
+			tagCls: 'was',
+			tag: 'Where we came from',
+			title: 'Hitch — how we used to meet our life partners',
+			h: 'The old way — Hitch',
+			p: 'One human matchmaker, coaching one man at a time to perform his way past a first impression. It ran on guesswork, rehearsed charm and luck — it never scaled, the coaching was about appearing better rather than being known, and the woman still had to do all her own vetting.'
+		},
+		{
+			id: 'e5N_Tq1EtRQ',
+			poster: '/invest/hangthedj-poster.jpg',
+			tagCls: 'will',
+			tag: 'Where it’s going',
+			title: 'Hang the DJ — where dating is going',
+			h: 'The future way — Hang the DJ',
+			p: 'The system does the searching, the asking and the vetting — it learns what each person actually wants, pairs only where the fit is mutual, and replaces months of swiping with certainty. No performing, no guessing: you just meet the one it already checked.'
+		}
+	];
+
+	let playing = $state<Record<string, boolean>>({});
+
 	/* Both stores are open — Play is a public listing, iOS is a public TestFlight
 	   join link — so the investor picks their own device rather than us guessing. */
 	const STORES = [
@@ -341,99 +368,6 @@
 				{/each}
 			</div>
 
-			<!-- Diagram 1 — how one human becomes three vectors. Multimodal extraction
-			     on the left; the three vector lanes on the right. v and w both pass
-			     through cohort normalization (a score is a position on a distribution,
-			     never an absolute), c is the proof gate. Shares the lattice's flow
-			     animation classes and its marker defs (SVG url(#id) resolves
-			     document-wide, and the lattice below carries the defs). -->
-			<div class="lattice vb" role="img" aria-label="Pipeline: images, voice and text are extracted by Claude into claims, which become three vectors — attributes normalized on a cohort bell curve, preferences normalized per city with a fixed weight budget, and a verified-confidence gate from zero to one.">
-				<svg viewBox="0 0 980 560" xmlns="http://www.w3.org/2000/svg">
-					<!-- inputs -->
-					<text x="16" y="30" class="lk2">RAW SIGNALS · ONE HUMAN</text>
-					<rect x="16" y="44" width="150" height="72" rx="12" class="ln" />
-					<text x="32" y="70" class="lt">📷 images</text>
-					<text x="32" y="90" class="lt2">photos · docs · liveness</text>
-					<text x="32" y="104" class="lt2">read once, then deleted</text>
-					<rect x="16" y="132" width="150" height="72" rx="12" class="ln" />
-					<text x="32" y="158" class="lt">🎤 voice</text>
-					<text x="32" y="178" class="lt2">calls with the AI</text>
-					<text x="32" y="192" class="lt2">tone · intent · claims</text>
-					<rect x="16" y="220" width="150" height="72" rx="12" class="ln" />
-					<text x="32" y="246" class="lt">💬 text</text>
-					<text x="32" y="266" class="lt2">onboarding Q&amp;A · chat</text>
-					<text x="32" y="280" class="lt2">self-claims · stated prefs</text>
-
-					<!-- extraction -->
-					<rect x="230" y="118" width="180" height="112" rx="14" class="ln-dark" />
-					<text x="250" y="146" class="lk">EXTRACT</text>
-					<text x="250" y="168" class="leqs">claude · multimodal</text>
-					<text x="250" y="188" class="ld">every signal → a claim</text>
-					<text x="250" y="202" class="ld">every claim → a dimension i</text>
-					<text x="250" y="216" class="ld">raw file discarded on read</text>
-					<path d="M166,80 C200,80 200,140 230,150" class="lfh" />
-					<path d="M166,168 H230" class="lfh" />
-					<path d="M166,256 C200,256 200,210 230,200" class="lfh" />
-
-					<!-- fan-out -->
-					<path d="M410,140 C450,130 450,90 486,84" class="lfh" />
-					<path d="M410,174 H486" class="lfh" />
-					<path d="M410,208 C450,218 450,420 486,428" class="lfh" />
-
-					<!-- lane v -->
-					<rect x="486" y="30" width="478" height="150" rx="14" class="ln" />
-					<text x="506" y="56" class="lk2">v · ATTRIBUTES — what you bring</text>
-					<text x="506" y="76" class="lt2">raw score xᵢ → where do you sit among peers?</text>
-					<path d="M520,158 C560,158 575,88 610,88 C645,88 660,158 700,158" class="lcurve" />
-					<path d="M520,158 C560,158 575,88 610,88 C640,88 652,140 664,150 L664,158 Z" class="lfill-v" />
-					<line x1="664" y1="96" x2="664" y2="158" class="lmark-v" />
-					<circle cx="664" cy="147" r="4.5" class="ldot-v lpulse" />
-					<text x="674" y="104" class="lpk">you · 84th pctile</text>
-					<text x="520" y="174" class="lt2">cohort distribution (his city, his age band)</text>
-					<rect x="760" y="76" width="184" height="76" rx="12" class="ln ln-hot" />
-					<text x="776" y="102" class="leqi">vᵢ = Φ(xᵢ | cohort)</text>
-					<text x="776" y="122" class="lt2">percentile-normalized —</text>
-					<text x="776" y="136" class="lt2">vs the crowd, never absolute</text>
-					<path d="M700,120 H760" class="lf" />
-
-					<!-- lane w -->
-					<rect x="486" y="196" width="478" height="150" rx="14" class="ln" />
-					<text x="506" y="222" class="lk2">w · PREFERENCES — what you want</text>
-					<text x="506" y="242" class="lt2">stated + revealed prefs → how much does each dimension matter to YOU vs the market?</text>
-					<path d="M520,324 C560,324 575,258 610,258 C645,258 660,324 700,324" class="lcurve" />
-					<path d="M520,324 C555,324 562,290 578,272 L578,324 Z" class="lfill-w" />
-					<line x1="578" y1="268" x2="578" y2="324" class="lmark-w" />
-					<circle cx="578" cy="286" r="4.5" class="ldot-w lpulse" />
-					<text x="588" y="274" class="lpk lpk-w">demand for this trait</text>
-					<text x="520" y="340" class="lt2">calibrated per city — cost-of-living adjusted</text>
-					<rect x="760" y="242" width="184" height="76" rx="12" class="ln ln-hot" />
-					<text x="776" y="268" class="leqi">wᵢ = norm(prefᵢ | city)</text>
-					<text x="776" y="288" class="lt2">a rare ask costs more of your</text>
-					<text x="776" y="302" class="lt2">weight budget — Σwᵢ = 1</text>
-					<path d="M700,286 H760" class="lf" />
-
-					<!-- lane c -->
-					<rect x="486" y="362" width="478" height="150" rx="14" class="ln" />
-					<text x="506" y="388" class="lk2">c · VERIFIED — how proven</text>
-					<text x="506" y="408" class="lt2">every claim starts unproven. proof moves cᵢ toward 1; nothing else can.</text>
-					<rect x="520" y="428" width="180" height="10" rx="5" class="lgauge" />
-					<rect x="520" y="428" width="121" height="10" rx="5" class="lgauge-fill" />
-					<text x="520" y="458" class="lt2">unproven 0 ────────── 1 proven</text>
-					<text x="520" y="482" class="lt2">ID · face-match · docs · owner-present rule</text>
-					<rect x="760" y="408" width="184" height="76" rx="12" class="ln ln-hot" />
-					<text x="776" y="434" class="leqi">cᵢ ∈ [0,1] · gate</text>
-					<text x="776" y="454" class="lt2">unproven claims carry</text>
-					<text x="776" y="468" class="lt2">no weight in A = Σ w·v·c</text>
-					<path d="M700,452 H760" class="lf" />
-
-					<text x="486" y="544" class="lt2">the three lanes feed the scoring spine below: A(a→b) = Σᵢ wᵢᵇ · vᵢᵃ · cᵢᵃ</text>
-				</svg>
-			</div>
-			<p class="cap">
-				One human in, three normalized vectors out — every score is a position in a distribution,
-				not a number invented by an AI.
-			</p>
-
 			<!-- Diagram 2 — the two-sided lattice: two humans, two asymmetric agents, and
 			     a deterministic scoring spine between them. Drawn as inline SVG with brand
 			     tokens — no image asset, crisp at any width. On a phone the container
@@ -545,8 +479,108 @@
 		</div>
 	</section>
 
-	<!-- ── Moat ─────────────────────────────────────────────────────────────── -->
+
+	<!-- ── Data engine ──────────────────────────────────────────────────────── -->
 	<section class="sec tinted">
+		<div class="wrap">
+			<span class="kicker">The data engine</span>
+			<h2 class="h2">One human in, <em>three vectors out.</em></h2>
+			<!-- Diagram 1 — how one human becomes three vectors. Multimodal extraction
+			     on the left; the three vector lanes on the right. v and w both pass
+			     through cohort normalization (a score is a position on a distribution,
+			     never an absolute), c is the proof gate. Shares the lattice's flow
+			     animation classes and its marker defs (SVG url(#id) resolves
+			     document-wide, and the lattice below carries the defs). -->
+			<div class="lattice vb" role="img" aria-label="Pipeline: images, voice and text are extracted by Claude into claims, which become three vectors — attributes normalized on a cohort bell curve, preferences normalized per city with a fixed weight budget, and a verified-confidence gate from zero to one.">
+				<svg viewBox="0 0 980 560" xmlns="http://www.w3.org/2000/svg">
+					<!-- inputs -->
+					<text x="16" y="30" class="lk2">RAW SIGNALS · ONE HUMAN</text>
+					<rect x="16" y="44" width="150" height="72" rx="12" class="ln" />
+					<text x="32" y="70" class="lt">📷 images</text>
+					<text x="32" y="90" class="lt2">photos · docs · liveness</text>
+					<text x="32" y="104" class="lt2">read once, then deleted</text>
+					<rect x="16" y="132" width="150" height="72" rx="12" class="ln" />
+					<text x="32" y="158" class="lt">🎤 voice</text>
+					<text x="32" y="178" class="lt2">calls with the AI</text>
+					<text x="32" y="192" class="lt2">tone · intent · claims</text>
+					<rect x="16" y="220" width="150" height="72" rx="12" class="ln" />
+					<text x="32" y="246" class="lt">💬 text</text>
+					<text x="32" y="266" class="lt2">onboarding Q&amp;A · chat</text>
+					<text x="32" y="280" class="lt2">self-claims · stated prefs</text>
+
+					<!-- extraction -->
+					<rect x="230" y="118" width="180" height="112" rx="14" class="ln-dark" />
+					<text x="250" y="146" class="lk">EXTRACT</text>
+					<text x="250" y="168" class="leqs">claude · multimodal</text>
+					<text x="250" y="188" class="ld">every signal → a claim</text>
+					<text x="250" y="202" class="ld">every claim → a dimension i</text>
+					<text x="250" y="216" class="ld">raw file discarded on read</text>
+					<path d="M166,80 C200,80 200,140 230,150" class="lfh" />
+					<path d="M166,168 H230" class="lfh" />
+					<path d="M166,256 C200,256 200,210 230,200" class="lfh" />
+
+					<!-- fan-out -->
+					<path d="M410,140 C450,130 450,90 486,84" class="lfh" />
+					<path d="M410,174 H486" class="lfh" />
+					<path d="M410,208 C450,218 450,420 486,428" class="lfh" />
+
+					<!-- lane v -->
+					<rect x="486" y="30" width="478" height="150" rx="14" class="ln" />
+					<text x="506" y="56" class="lk2">v · ATTRIBUTES — what you bring</text>
+					<text x="506" y="76" class="lt2">raw score xᵢ → where do you sit among peers?</text>
+					<path d="M520,158 C560,158 575,88 610,88 C645,88 660,158 700,158" class="lcurve" />
+					<path d="M520,158 C560,158 575,88 610,88 C640,88 652,140 664,150 L664,158 Z" class="lfill-v" />
+					<line x1="664" y1="96" x2="664" y2="158" class="lmark-v" />
+					<circle cx="664" cy="147" r="4.5" class="ldot-v lpulse" />
+					<text x="674" y="104" class="lpk">you · 84th pctile</text>
+					<text x="520" y="174" class="lt2">cohort distribution (his city, his age band)</text>
+					<rect x="760" y="76" width="184" height="76" rx="12" class="ln ln-hot" />
+					<text x="776" y="102" class="leqi">vᵢ = Φ(xᵢ | cohort)</text>
+					<text x="776" y="122" class="lt2">percentile-normalized —</text>
+					<text x="776" y="136" class="lt2">vs the crowd, never absolute</text>
+					<path d="M700,120 H760" class="lf" />
+
+					<!-- lane w -->
+					<rect x="486" y="196" width="478" height="150" rx="14" class="ln" />
+					<text x="506" y="222" class="lk2">w · PREFERENCES — what you want</text>
+					<text x="506" y="242" class="lt2">stated + revealed prefs → how much does each dimension matter to YOU vs the market?</text>
+					<path d="M520,324 C560,324 575,258 610,258 C645,258 660,324 700,324" class="lcurve" />
+					<path d="M520,324 C555,324 562,290 578,272 L578,324 Z" class="lfill-w" />
+					<line x1="578" y1="268" x2="578" y2="324" class="lmark-w" />
+					<circle cx="578" cy="286" r="4.5" class="ldot-w lpulse" />
+					<text x="588" y="274" class="lpk lpk-w">demand for this trait</text>
+					<text x="520" y="340" class="lt2">calibrated per city — cost-of-living adjusted</text>
+					<rect x="760" y="242" width="184" height="76" rx="12" class="ln ln-hot" />
+					<text x="776" y="268" class="leqi">wᵢ = norm(prefᵢ | city)</text>
+					<text x="776" y="288" class="lt2">a rare ask costs more of your</text>
+					<text x="776" y="302" class="lt2">weight budget — Σwᵢ = 1</text>
+					<path d="M700,286 H760" class="lf" />
+
+					<!-- lane c -->
+					<rect x="486" y="362" width="478" height="150" rx="14" class="ln" />
+					<text x="506" y="388" class="lk2">c · VERIFIED — how proven</text>
+					<text x="506" y="408" class="lt2">every claim starts unproven. proof moves cᵢ toward 1; nothing else can.</text>
+					<rect x="520" y="428" width="180" height="10" rx="5" class="lgauge" />
+					<rect x="520" y="428" width="121" height="10" rx="5" class="lgauge-fill" />
+					<text x="520" y="458" class="lt2">unproven 0 ────────── 1 proven</text>
+					<text x="520" y="482" class="lt2">ID · face-match · docs · owner-present rule</text>
+					<rect x="760" y="408" width="184" height="76" rx="12" class="ln ln-hot" />
+					<text x="776" y="434" class="leqi">cᵢ ∈ [0,1] · gate</text>
+					<text x="776" y="454" class="lt2">unproven claims carry</text>
+					<text x="776" y="468" class="lt2">no weight in A = Σ w·v·c</text>
+					<path d="M700,452 H760" class="lf" />
+
+					<text x="486" y="544" class="lt2">the three lanes feed the scoring spine: A(a→b) = Σᵢ wᵢᵇ · vᵢᵃ · cᵢᵃ</text>
+				</svg>
+			</div>
+			<p class="cap">
+				One human in, three normalized vectors out — every score is a position in a distribution,
+				not a number invented by an AI.
+			</p>
+		</div>
+	</section>
+	<!-- ── Moat ─────────────────────────────────────────────────────────────── -->
+	<section class="sec">
 		<div class="wrap">
 			<span class="kicker">The moat</span>
 			<h2 class="h2">Why this is hard to copy</h2>
@@ -563,7 +597,7 @@
 	</section>
 
 	<!-- ── Business model + GTM ─────────────────────────────────────────────── -->
-	<section class="sec">
+	<section class="sec tinted">
 		<div class="wrap">
 			<span class="kicker">How it makes money</span>
 			<h2 class="h2">Multiple revenue layers</h2>
@@ -643,6 +677,120 @@
 		</div>
 	</section>
 
+
+	<!-- ── The climb ────────────────────────────────────────────────────────── -->
+	<section class="sec tinted">
+		<div class="wrap">
+			<span class="kicker">The climb</span>
+			<h2 class="h2">A computed route up — <em>and a balanced market.</em></h2>
+			<!-- Diagram 3 — the planner + the balancer. Top: for the crowded side, the
+			     system computes the next best artifact to share (sequential-decision
+			     math, deliberately unnamed) and the pink dot climbs both his state
+			     ladder and her live shortlist while idle rivals hold still. Bottom: the
+			     allocation constraint that keeps the market fair — capacity on her
+			     side, a guaranteed live path on his. -->
+			<div class="lattice pp" role="img" aria-label="Path planner: a man climbs a ladder of states, each step unlocked by sharing an artifact, chosen as the action maximising his expected appeal to her cohort — while rising past rivals on her ranked shortlist. Below, the market allocator: appeal maximised subject to her load never exceeding capacity and every man keeping at least one winnable match.">
+				<svg viewBox="0 0 980 640" xmlns="http://www.w3.org/2000/svg">
+					<!-- ── panel 1: path planner ── -->
+					<text x="16" y="28" class="lk2">PATH PLANNER · FOR THE CROWDED SIDE</text>
+					<text x="16" y="46" class="lt2">supply is uneven — most men, and women chasing the same few men, compete. the planner computes the shortest route up.</text>
+
+					<rect x="16" y="66" width="430" height="264" rx="14" class="ln" />
+					<text x="34" y="92" class="lt">his state ladder</text>
+					<text x="34" y="108" class="lt2">each hop = one shared artifact, weighted by what SHE values</text>
+					<rect x="46" y="256" width="80" height="40" rx="8" class="lstep" />
+					<rect x="134" y="210" width="80" height="40" rx="8" class="lstep" />
+					<rect x="222" y="164" width="80" height="40" rx="8" class="lstep" />
+					<rect x="310" y="118" width="80" height="40" rx="8" class="lstep" />
+					<text x="62" y="280" class="lt2">s₀ · 58%</text>
+					<text x="150" y="234" class="lt2">s₁ · 67%</text>
+					<text x="238" y="188" class="lt2">s₂ · 76%</text>
+					<text x="326" y="142" class="lt2">s₃ · 90%+</text>
+					<path d="M126,268 C150,266 150,240 134,236" class="ledge-hot" />
+					<path d="M214,222 C238,220 238,194 222,190" class="ledge-hot" />
+					<path d="M302,176 C326,174 326,148 310,144" class="ledge-hot" />
+					<text x="120" y="256" class="lpk">+ workplace proof</text>
+					<text x="208" y="210" class="lpk">+ voice intro</text>
+					<text x="296" y="164" class="lpk">+ travel doc</text>
+					<g class="lclimb">
+						<circle cx="86" cy="248" r="7" class="ldot-v" />
+						<text x="78" y="238" class="lpk">him</text>
+					</g>
+					<circle cx="106" cy="248" r="5" class="ldot-idle" />
+					<circle cx="172" cy="202" r="5" class="ldot-idle" />
+					<text x="34" y="318" class="lt2">gray dots: rivals who shared nothing this week</text>
+
+					<rect x="470" y="66" width="240" height="264" rx="14" class="ln-dark" />
+					<text x="490" y="94" class="lk">NEXT BEST ACTION</text>
+					<text x="490" y="122" class="leqm">a* = argmax E[ V(s′) | s, a ]</text>
+					<text x="490" y="148" class="ld">a = an artifact he could share</text>
+					<text x="490" y="164" class="ld">s′ = his standing after sharing it</text>
+					<text x="490" y="180" class="ld">V = expected appeal to HER cohort,</text>
+					<text x="490" y="194" class="ld">not vanity points</text>
+					<text x="490" y="222" class="ld">the plan re-computes after every</text>
+					<text x="490" y="236" class="ld">artifact — a living route, not a to-do list</text>
+					<text x="490" y="264" class="leqs">wingman speaks it in plain words:</text>
+					<text x="490" y="284" class="ld">“verify your workplace next — +9%,</text>
+					<text x="490" y="298" class="ld">and it closes what she asked for.”</text>
+
+					<rect x="734" y="66" width="230" height="264" rx="14" class="ln" />
+					<text x="752" y="92" class="lt">her shortlist · live rank</text>
+					<line x1="752" y1="140" x2="948" y2="140" class="lgrid" />
+					<line x1="752" y1="174" x2="948" y2="174" class="lgrid" />
+					<line x1="752" y1="208" x2="948" y2="208" class="lgrid" />
+					<line x1="752" y1="242" x2="948" y2="242" class="lgrid" />
+					<line x1="752" y1="276" x2="948" y2="276" class="lgrid" />
+					<text x="752" y="130" class="lt2">#1</text><circle cx="790" cy="126" r="5" class="ldot-idle" />
+					<text x="752" y="164" class="lt2">#2</text><circle cx="790" cy="160" r="5" class="ldot-idle" />
+					<text x="752" y="198" class="lt2">#3</text><circle cx="790" cy="194" r="5" class="ldot-idle" />
+					<text x="752" y="232" class="lt2">#4</text><circle cx="790" cy="228" r="5" class="ldot-idle" />
+					<text x="752" y="266" class="lt2">#5</text>
+					<g class="lrise">
+						<circle cx="820" cy="262" r="7" class="ldot-v" />
+						<text x="832" y="266" class="lpk">him — climbing as he proves</text>
+					</g>
+					<text x="752" y="312" class="lt2">rivals hold still; artifacts move him.</text>
+					<text x="752" y="326" class="lt2">he sees his %, never this board.</text>
+
+					<path d="M446,190 H470" class="lfh" />
+					<path d="M710,190 H734" class="lfh" />
+
+					<!-- ── panel 2: flow balancer ── -->
+					<text x="16" y="382" class="lk2">FLOW BALANCER · NO ONE FLOODED, NO ONE STRANDED</text>
+					<rect x="16" y="398" width="430" height="220" rx="14" class="ln" />
+					<text x="34" y="424" class="lt">the allocation, every cycle</text>
+					<circle cx="90" cy="460" r="7" class="ldot-idle" /><text x="52" y="464" class="lt2">m₁</text>
+					<circle cx="90" cy="500" r="7" class="ldot-v" /><text x="52" y="504" class="lt2">m₂</text>
+					<circle cx="90" cy="540" r="7" class="ldot-idle" /><text x="52" y="544" class="lt2">m₃</text>
+					<circle cx="90" cy="580" r="7" class="ldot-idle" /><text x="52" y="584" class="lt2">m₄</text>
+					<circle cx="360" cy="470" r="7" class="ldot-w" /><text x="380" y="474" class="lt2">w₁ · load ≤ cap</text>
+					<circle cx="360" cy="520" r="7" class="ldot-w" /><text x="380" y="524" class="lt2">w₂ · load ≤ cap</text>
+					<circle cx="360" cy="570" r="7" class="ldot-w" /><text x="380" y="574" class="lt2">w₃ · load ≤ cap</text>
+					<path d="M97,460 C200,460 240,470 353,470" class="ledge" />
+					<path d="M97,500 C200,500 240,478 353,472" class="ledge-hot" />
+					<path d="M97,500 C200,505 240,518 353,520" class="ledge-hot" />
+					<path d="M97,540 C200,540 240,522 353,521" class="ledge" />
+					<path d="M97,580 C200,580 240,572 353,570" class="ledge" />
+					<text x="180" y="612" class="lt2">every man keeps ≥ 1 live, winnable edge</text>
+
+					<rect x="470" y="398" width="494" height="220" rx="14" class="ln-dark" />
+					<text x="490" y="426" class="lk">THE MARKET CONSTRAINT</text>
+					<text x="490" y="456" class="leqm">max Σ min[ A(m→w), A(w→m) ]</text>
+					<text x="490" y="482" class="leqs">s.t. load(w) ≤ cap(w) — she is never flooded</text>
+					<text x="490" y="504" class="leqs">wins(m) ≥ 1 — he always has a live path</text>
+					<text x="490" y="526" class="leqs">pairs form ⇔ mutual — never one-way</text>
+					<text x="490" y="558" class="ld">attention is a budget, allocated — not an auction won by</text>
+					<text x="490" y="572" class="ld">whoever shouts loudest. the scarce side is protected structurally,</text>
+					<text x="490" y="586" class="ld">and the crowded side is given a route, not a wall.</text>
+					<text x="490" y="606" class="lk" opacity="0.8">SOLVED GLOBALLY, EVERY MATCHING CYCLE</text>
+				</svg>
+			</div>
+			<p class="cap">
+				The crowded side gets a computed route up; the scarce side gets a hard ceiling. One plans
+				the individual, the other balances the market.
+			</p>
+		</div>
+	</section>
 	<!-- ── Zeitgeist / videos ───────────────────────────────────────────────── -->
 	<!-- Cultural proof, not product proof: Hollywood already told both halves of
 	     this story — the old way (Hitch: one human matchmaker, coaching one man at
@@ -650,50 +798,34 @@
 	     Mirror's Hang the DJ: the system does the searching and the vetting, and
 	     both people just meet). youtube-nocookie + lazy loading so the embeds cost
 	     nothing until the investor actually plays one. -->
-	<section class="sec tinted">
+	<section class="sec">
 		<div class="wrap">
 			<span class="kicker c">Already in the culture</span>
 			<h2 class="h2 c">The future of dating has already been cast.<br /><em>It’s sitting in your Netflix.</em></h2>
 
 			<div class="vids">
-				<div class="vid">
-					<span class="vid-tag was">Where we came from</span>
-					<div class="video">
-						<iframe
-							src="https://www.youtube-nocookie.com/embed/dMaq_pfxs-0"
-							title="Hitch — how we used to meet our life partners"
-							loading="lazy"
-							allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-							allowfullscreen
-						></iframe>
+				{#each VIDS as v (v.id)}
+					<div class="vid">
+						<span class="vid-tag {v.tagCls}">{v.tag}</span>
+						<div class="video">
+							{#if playing[v.id]}
+								<iframe
+									src="https://www.youtube-nocookie.com/embed/{v.id}?autoplay=1&playsinline=1&rel=0"
+									title={v.title}
+									allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+									allowfullscreen
+								></iframe>
+							{:else}
+								<button class="facade" onclick={() => (playing[v.id] = true)} aria-label="Play: {v.title}">
+									<img src={v.poster} alt={v.title} width="1280" height="720" loading="lazy" />
+									<span class="vplay"><span class="vplay-tri" aria-hidden="true"></span>Play trailer</span>
+								</button>
+							{/if}
+						</div>
+						<h3 class="h3">{v.h}</h3>
+						<p class="p">{v.p}</p>
 					</div>
-					<h3 class="h3">The old way — Hitch</h3>
-					<p class="p">
-						One human matchmaker, coaching one man at a time to perform his way past a first
-						impression. It ran on guesswork, rehearsed charm and luck — it never scaled, the
-						coaching was about appearing better rather than being known, and the woman still had
-						to do all her own vetting.
-					</p>
-				</div>
-
-				<div class="vid">
-					<span class="vid-tag will">Where it’s going</span>
-					<div class="video">
-						<iframe
-							src="https://www.youtube-nocookie.com/embed/e5N_Tq1EtRQ"
-							title="Hang the DJ — where dating is going"
-							loading="lazy"
-							allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-							allowfullscreen
-						></iframe>
-					</div>
-					<h3 class="h3">The future way — Hang the DJ</h3>
-					<p class="p">
-						The system does the searching, the asking and the vetting — it learns what each person
-						actually wants, pairs only where the fit is mutual, and replaces months of swiping
-						with certainty. No performing, no guessing: you just meet the one it already checked.
-					</p>
-				</div>
+				{/each}
 			</div>
 
 			<p class="cap">
@@ -705,7 +837,7 @@
 	</section>
 
 	<!-- ── Founder ──────────────────────────────────────────────────────────── -->
-	<section class="sec">
+	<section class="sec tinted">
 		<div class="wrap">
 			<span class="kicker">The founder</span>
 			<h2 class="h2">Sreekanth (Sree) Dayanidhi</h2>
@@ -1684,6 +1816,64 @@
 		width: 100%;
 		height: 100%;
 		border: 0;
+	}
+
+	/* Click-to-play facade: the still is the whole frame; our own small play pill
+	   is the only chrome. The image eases in scale on hover so the card feels
+	   alive without hiding the actors behind a player skin. */
+	.facade {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		padding: 0;
+		border: 0;
+		background: none;
+		cursor: pointer;
+		overflow: hidden;
+	}
+
+	.facade img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		display: block;
+		transition: transform 300ms ease;
+	}
+
+	.facade:hover img {
+		transform: scale(1.04);
+	}
+
+	.vplay {
+		position: absolute;
+		left: 12px;
+		bottom: 12px;
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		font-family: var(--font-serif);
+		font-size: 13px;
+		font-weight: 800;
+		letter-spacing: -0.01em;
+		color: #fff;
+		background: linear-gradient(135deg, var(--accent) 0%, var(--accent-bright) 100%);
+		border-radius: 999px;
+		padding: 8px 15px 8px 12px;
+		box-shadow: 0 10px 22px -10px rgba(225, 29, 84, 0.7);
+		transition: transform 150ms ease;
+	}
+
+	.facade:hover .vplay {
+		transform: translateY(-1px);
+	}
+
+	.vplay-tri {
+		width: 0;
+		height: 0;
+		border-style: solid;
+		border-width: 5px 0 5px 8px;
+		border-color: transparent transparent transparent #fff;
 	}
 
 	.cap {
