@@ -116,36 +116,43 @@
 	   filings are marked as such. The deliberately honest picture: the swipe model
 	   is contracting, high-intent matchmaking monetises, and the thesis is a thin
 	   affluent slice at matrimony-like price points — not a big-user-base play. */
+	/* USD equivalents at ₹95.16/US$ (5 Aug 2026 spot) — same FX as the research. */
 	const MARKET_STATS = [
 		{
 			figure: '₹5,032',
-			label: 'Avg. transaction value per paying subscriber at BharatMatrimony (0.96M payers) — Indians pay for high-intent matchmaking',
-			src: 'Matrimony.com FY26 filing'
+			label: 'Avg. transaction value per paying subscriber (≈ US$53) at BharatMatrimony, on 0.96M payers — Indians pay for high-intent matchmaking',
+			src: 'Matrimony.com FY26 filing',
+			url: 'https://www.nseindia.com/get-quotes/equity?symbol=MATRIMONY'
 		},
 		{
 			figure: '−20.5%',
 			label: 'Bumble’s paying users in FY25 (revenue −9.9%); Match Group payers −5%. The swipe model is contracting',
-			src: 'Company filings, FY2025'
+			src: 'Bumble investor relations, FY2025',
+			url: 'https://ir.bumble.com'
 		},
 		{
 			figure: '>75%',
 			label: 'Of Indian Gen Z on swipe apps report swiping fatigue or burnout',
-			src: 'Redseer, 2025'
+			src: 'Redseer, 2025',
+			url: 'https://redseer.com/reports/'
 		},
 		{
 			figure: '+333%',
 			label: 'Year-on-year jump in singles using AI in their dating lives (now 26%)',
-			src: 'Match Group × Kinsey Institute, n=5,001, 2025'
+			src: 'Match Group × Kinsey Institute, n=5,001, 2025',
+			url: 'https://match.mediaroom.com'
 		},
 		{
 			figure: '+26%',
 			label: 'Hinge revenue growth while swipe peers shrink — intent-led dating is the only thing growing',
-			src: 'Match Group filings, FY2025'
+			src: 'Match Group investor relations, FY2025',
+			url: 'https://ir.mtch.com'
 		},
 		{
 			figure: '5–15%',
 			label: 'Of Indian dating-app MAU convert to premium — monetisation, not users, is the constraint riteangle is built around',
-			src: 'Redseer, 2025'
+			src: 'Redseer, 2025',
+			url: 'https://redseer.com/reports/'
 		}
 	];
 
@@ -156,18 +163,21 @@
 		{
 			tag: 'TAM',
 			figure: '₹1,250–2,250 cr',
+			usd: '≈ US$130–235M',
 			h: 'India self-serve online dating revenue, 2026',
-			p: 'Anchored on Redseer’s category work; ~20M addressable metro users by two independent methods. ₹2,450–3,650 cr including online matrimony.'
+			p: 'Anchored on Redseer’s category work; ~20M addressable metro users by two independent methods. ₹2,450–3,650 cr (≈ US$260–385M) including online matrimony — the expansion pool once dating is landed.'
 		},
 		{
 			tag: 'SAM',
 			figure: '₹30–120 cr',
+			usd: '≈ US$3.2–12.6M',
 			h: 'riteangle’s segment: ~500K affluent metro men, 28+',
-			p: 'At 10–20% paying conversion and ₹6,000–12,000 annual ARPPU — at or above BharatMatrimony’s proven price point. Brackets Aisle’s actual ~₹40 cr FY26 billings.'
+			p: 'At 10–20% paying conversion and ₹6,000–12,000 (≈ US$63–126) annual ARPPU — at or above BharatMatrimony’s proven price point. Brackets Aisle’s actual ~₹40 cr (≈ US$4.2M) FY26 billings.'
 		},
 		{
 			tag: 'SOM',
 			figure: '₹0.5–2 cr ARR',
+			usd: '≈ US$50–210K',
 			h: 'Bengaluru + Mumbai, 24–36 months',
 			p: '~500–1,500 paying men across two launch cities. The 2:1 ratio needs 2,000–5,250 women against ~1.5M available — six times the headroom.'
 		}
@@ -175,10 +185,10 @@
 
 	/* The founder's strongest, verifiable metrics. */
 	const FOUNDER_STATS = [
-		{ figure: '₹100 Cr+', label: 'ARR environment scaled to, as the #3 hire — joined pre-revenue' },
+		{ figure: '₹100 Cr+', label: 'ARR environment (≈ US$10.5M+) scaled to, as the #3 hire — joined pre-revenue' },
 		{ figure: '50M+', label: 'Leads processed on the platform he built the data function for' },
 		{ figure: '15+', label: 'Global data team (Analysts, ML, Data Engineers) built from zero' },
-		{ figure: '₹1.5 Cr', label: 'Angel capital raised for a prior venture he founded and led' }
+		{ figure: '₹1.5 Cr', label: 'Angel capital (~US$300K at the time) raised for a prior venture he founded and led' }
 	];
 
 	const FOUNDER_TIMELINE = [
@@ -195,10 +205,10 @@
 
 	/* The ask. ₹1 Cr, split per the deck's use-of-funds. */
 	const USE_OF_FUNDS = [
-		{ pct: 50, amt: '₹50 L', h: 'Growth', p: 'Paid acquisition and ambassadors, concentrated in 1–2 launch cities.' },
-		{ pct: 20, amt: '₹20 L', h: 'Product & engineering', p: 'Matchmaking engine, photo engine, Bestie/Wingman, and the iOS build.' },
-		{ pct: 20, amt: '₹20 L', h: 'Team', p: 'Core product, growth and community hires.' },
-		{ pct: 10, amt: '₹10 L', h: 'Ops & buffer', p: 'Operations, compliance and runway.' }
+		{ pct: 50, amt: '₹50 L (≈ $53K)', h: 'Growth', p: 'Paid acquisition and ambassadors, concentrated in 1–2 launch cities.' },
+		{ pct: 20, amt: '₹20 L (≈ $21K)', h: 'Product & engineering', p: 'Matchmaking engine, photo engine, Bestie/Wingman, and the iOS build.' },
+		{ pct: 20, amt: '₹20 L (≈ $21K)', h: 'Team', p: 'Core product, growth and community hires.' },
+		{ pct: 10, amt: '₹10 L (≈ $10.5K)', h: 'Ops & buffer', p: 'Operations, compliance and runway.' }
 	];
 </script>
 
@@ -234,7 +244,8 @@
 			<p class="lede">
 				riteangle is an identity-verified dating app where AI matchmakers do the searching, the
 				asking and the vetting — and hand each person a short, ranked shortlist of people who
-				actually fit. We’re raising <strong>₹1 Crore</strong> to scale what is already live.
+				actually fit. We’re raising <strong>₹1 Crore</strong> (≈ US$105K) to scale what is already
+				live.
 			</p>
 
 			<div class="cta-row">
@@ -406,10 +417,12 @@
 			<div class="gtm">
 				<h3 class="h3">Go-to-market</h3>
 				<p class="p">
-					Land the casual segment first and win density city by city. Women are acquired on the
-					promise of vetted matches without the work — the AI Bestie does the heavy lifting. Men are
-					reached through Instagram, Snap, Telegram, LinkedIn, club networks and referrals, on a
-					single promise: a real match within minutes of signing up.
+					Land the <strong>dating</strong> segment first and win density city by city — then move up
+					into <strong>matrimony</strong>, where India already pays matrimony-grade prices for
+					high-intent matchmaking and riteangle’s verified-proof model fits natively. Women are
+					acquired on the promise of vetted matches without the work — the AI Bestie does the heavy
+					lifting. Men are reached through Instagram, Snap, Telegram, LinkedIn, club networks and
+					referrals, on a single promise: a real match within minutes of signing up.
 				</p>
 			</div>
 		</div>
@@ -432,7 +445,7 @@
 					<div class="mstat">
 						<div class="mfig">{m.figure}</div>
 						<div class="mlabel">{m.label}</div>
-						<div class="msrc">{m.src}</div>
+						<a class="msrc" href={m.url} target="_blank" rel="noopener">{m.src} ↗</a>
 					</div>
 				{/each}
 			</div>
@@ -443,6 +456,7 @@
 						<div class="tier-head">
 							<span class="tier-tag">{t.tag}</span>
 							<span class="tier-fig">{t.figure}</span>
+							<span class="tier-usd">({t.usd})</span>
 						</div>
 						<h3 class="h3">{t.h}</h3>
 						<p class="p">{t.p}</p>
@@ -453,9 +467,10 @@
 			<div class="gtm">
 				<h3 class="h3">Capital-bound, not market-bound</h3>
 				<p class="p">
-					At a blended acquisition cost of ₹500–2,000 per registered user, the growth half of this
-					round buys 2,500–10,000 registered target users in the launch cities — the binding
-					constraint on year-one scale is capital, not demand. That is what this raise removes.
+					At a blended acquisition cost of ₹500–2,000 (≈ US$5–21) per registered user, the growth
+					half of this round buys 2,500–10,000 registered target users in the launch cities — the
+					binding constraint on year-one scale is capital, not demand. That is what this raise
+					removes.
 				</p>
 			</div>
 
@@ -467,8 +482,69 @@
 		</div>
 	</section>
 
-	<!-- ── Founder ──────────────────────────────────────────────────────────── -->
+	<!-- ── Zeitgeist / videos ───────────────────────────────────────────────── -->
+	<!-- Cultural proof, not product proof: Hollywood already told both halves of
+	     this story — the old way (Hitch: one human matchmaker, coaching one man at
+	     a time through guesswork and performance) and the future way (Black
+	     Mirror's Hang the DJ: the system does the searching and the vetting, and
+	     both people just meet). youtube-nocookie + lazy loading so the embeds cost
+	     nothing until the investor actually plays one. -->
 	<section class="sec tinted">
+		<div class="wrap">
+			<span class="kicker c">Already in the culture</span>
+			<h2 class="h2 c">The future of dating has already been cast.<br /><em>It’s sitting in your Netflix.</em></h2>
+
+			<div class="vids">
+				<div class="vid">
+					<span class="vid-tag was">Where we came from</span>
+					<div class="video">
+						<iframe
+							src="https://www.youtube-nocookie.com/embed/dMaq_pfxs-0"
+							title="Hitch — how we used to meet our life partners"
+							loading="lazy"
+							allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+							allowfullscreen
+						></iframe>
+					</div>
+					<h3 class="h3">The old way — Hitch</h3>
+					<p class="p">
+						One human matchmaker, coaching one man at a time to perform his way past a first
+						impression. It ran on guesswork, rehearsed charm and luck — it never scaled, the
+						coaching was about appearing better rather than being known, and the woman still had
+						to do all her own vetting.
+					</p>
+				</div>
+
+				<div class="vid">
+					<span class="vid-tag will">Where it’s going</span>
+					<div class="video">
+						<iframe
+							src="https://www.youtube-nocookie.com/embed/e5N_Tq1EtRQ"
+							title="Hang the DJ — where dating is going"
+							loading="lazy"
+							allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+							allowfullscreen
+						></iframe>
+					</div>
+					<h3 class="h3">The future way — Hang the DJ</h3>
+					<p class="p">
+						The system does the searching, the asking and the vetting — it learns what each person
+						actually wants, pairs only where the fit is mutual, and replaces months of swiping
+						with certainty. No performing, no guessing: you just meet the one it already checked.
+					</p>
+				</div>
+			</div>
+
+			<p class="cap">
+				riteangle is Hitch’s job done by AI — and Hang the DJ’s certainty without the dystopia:
+				proof stays private, both sides choose in, and you stay in control. The audience is already
+				watching; we’re the product they walk out wanting.
+			</p>
+		</div>
+	</section>
+
+	<!-- ── Founder ──────────────────────────────────────────────────────────── -->
+	<section class="sec">
 		<div class="wrap">
 			<span class="kicker">The founder</span>
 			<h2 class="h2">Sreekanth (Sree) Dayanidhi</h2>
@@ -539,7 +615,7 @@
 		<div class="wrap">
 			<span class="kicker c">The ask</span>
 			<h2 class="h2 c">Raising <em>₹1 Crore</em> · Seed</h2>
-			<p class="ask-sub">Seed capital to scale what is already working. Use of funds:</p>
+			<p class="ask-sub">₹1 Crore ≈ US$105K · seed capital to scale what is already working. Use of funds:</p>
 			<div class="funds">
 				{#each USE_OF_FUNDS as f (f.h)}
 					<div class="fund">
@@ -1119,6 +1195,7 @@
 		color: var(--text-2);
 	}
 
+	/* Source labels are live links — an engineer-investor will click them. */
 	.msrc {
 		margin-top: auto;
 		padding-top: 10px;
@@ -1127,6 +1204,13 @@
 		letter-spacing: 0.05em;
 		text-transform: uppercase;
 		color: var(--text-4);
+		text-decoration: none;
+		align-self: flex-start;
+	}
+
+	.msrc:hover {
+		color: var(--accent-bright);
+		text-decoration: underline;
 	}
 
 	/* TAM → SAM → SOM as three narrowing tiers */
@@ -1175,6 +1259,81 @@
 		font-weight: 900;
 		letter-spacing: -0.03em;
 		color: var(--text-1);
+	}
+
+	.tier-usd {
+		font-size: 13px;
+		font-weight: 700;
+		color: var(--text-4);
+	}
+
+	/* ── Zeitgeist videos ─────────────────────────────────────────────────── */
+	.vids {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 16px;
+	}
+
+	.vid {
+		background: var(--bg-2);
+		border: 1px solid var(--border-1);
+		border-radius: 18px;
+		padding: 16px;
+		box-shadow: 0 18px 44px -32px rgba(122, 17, 51, 0.5);
+	}
+
+	.vid .h3 {
+		margin: 14px 0 6px;
+	}
+
+	.vid-tag {
+		display: inline-block;
+		font-size: 10.5px;
+		font-weight: 800;
+		letter-spacing: 0.07em;
+		text-transform: uppercase;
+		border-radius: 999px;
+		padding: 4px 11px;
+		margin-bottom: 12px;
+	}
+
+	/* Past = muted ink, future = brand pink — the two tags carry the contrast. */
+	.vid-tag.was {
+		color: var(--text-3);
+		background: var(--bg-3);
+	}
+
+	.vid-tag.will {
+		color: var(--accent-bright);
+		background: var(--accent-tint);
+	}
+
+	.video {
+		position: relative;
+		width: 100%;
+		aspect-ratio: 16 / 9;
+		border-radius: 18px;
+		overflow: hidden;
+		background: var(--text-1);
+		box-shadow: 0 26px 56px -30px rgba(27, 16, 32, 0.55);
+	}
+
+	.video iframe {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		border: 0;
+	}
+
+	.cap {
+		font-size: 14px;
+		line-height: 1.55;
+		font-weight: 600;
+		color: var(--text-3);
+		text-align: center;
+		margin: 16px auto 0;
+		max-width: 540px;
 	}
 
 	/* ── Founder book (founder–market fit) ────────────────────────────────── */
@@ -1529,6 +1688,10 @@
 
 		.mstats {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+
+		.vids {
+			grid-template-columns: 1fr;
 		}
 
 		.tier:nth-child(2),
