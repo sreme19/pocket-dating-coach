@@ -816,9 +816,9 @@
 									allowfullscreen
 								></iframe>
 							{:else}
-								<button class="facade" onclick={() => (playing[v.id] = true)} aria-label="Play: {v.title}">
+								<button class="facade" onclick={() => (playing[v.id] = true)} aria-label="Play trailer: {v.title}">
 									<img src={v.poster} alt={v.title} width="1280" height="720" loading="lazy" />
-									<span class="vplay"><span class="vplay-tri" aria-hidden="true"></span>Play trailer</span>
+									<span class="vplay" aria-hidden="true"></span>
 								</button>
 							{/if}
 						</div>
@@ -1543,6 +1543,112 @@
 		fill: var(--accent-bright);
 	}
 
+	/* ── Path-planner diagram ─────────────────────────────────────────────── */
+	/* Ladder steps, rank grid, idle rivals, artifact edges. Without these the
+	   rects/paths fall back to SVG defaults (black fill, no stroke), which is
+	   what made the ladder look like solid blocks and the allocation edges like
+	   wedges. */
+	.lstep {
+		fill: #fff;
+		stroke: var(--border-3);
+		stroke-width: 1.2;
+	}
+
+	.lgrid {
+		stroke: var(--border-1);
+		stroke-width: 1;
+	}
+
+	.ldot-idle {
+		fill: #c2b0b5;
+	}
+
+	.ledge {
+		fill: none;
+		stroke: var(--border-3);
+		stroke-width: 1.3;
+	}
+
+	.ledge-hot {
+		fill: none;
+		stroke: var(--accent-bright);
+		stroke-width: 1.6;
+	}
+
+	/* big mono equation on the dark panels */
+	.leqm {
+		font-family: var(--font-mono);
+		font-size: 13.5px;
+		font-weight: 800;
+		fill: #fff;
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.ledge {
+			stroke-dasharray: 4 4;
+			animation: lflow 1.2s linear infinite;
+		}
+
+		.ledge-hot {
+			stroke-dasharray: 6 5;
+			animation: lflow-hot 0.8s linear infinite;
+		}
+
+		/* He climbs one step per artifact — dwell, hop, dwell — then loops. */
+		.lclimb {
+			animation: lclimb 8s ease-in-out infinite;
+		}
+
+		/* …and rises past two rivals on her shortlist over the same 8s. */
+		.lrise {
+			animation: lrise 8s ease-in-out infinite;
+		}
+	}
+
+	@keyframes lclimb {
+		0%,
+		18% {
+			transform: translate(0, 0);
+		}
+
+		26%,
+		42% {
+			transform: translate(88px, -46px);
+		}
+
+		50%,
+		66% {
+			transform: translate(176px, -92px);
+		}
+
+		74%,
+		100% {
+			transform: translate(264px, -138px);
+		}
+	}
+
+	@keyframes lrise {
+		0%,
+		20% {
+			transform: translateY(0);
+		}
+
+		30%,
+		48% {
+			transform: translateY(-34px);
+		}
+
+		58%,
+		76% {
+			transform: translateY(-68px);
+		}
+
+		86%,
+		100% {
+			transform: translateY(-102px);
+		}
+	}
+
 	/* flows — dashes march along each path so the diagram reads as live dataflow.
 	   stroke-dashoffset animates by exactly one dash period per cycle, so the
 	   loop is seamless; guarded by prefers-reduced-motion. */
@@ -1845,35 +1951,41 @@
 		transform: scale(1.04);
 	}
 
+	/* A small glass disc in the corner, not a banner across the still — the actors
+	   stay the subject. The triangle is a CSS caret so there is no icon asset. */
 	.vplay {
 		position: absolute;
 		left: 12px;
 		bottom: 12px;
-		display: inline-flex;
-		align-items: center;
-		gap: 8px;
-		font-family: var(--font-serif);
-		font-size: 13px;
-		font-weight: 800;
-		letter-spacing: -0.01em;
-		color: #fff;
-		background: linear-gradient(135deg, var(--accent) 0%, var(--accent-bright) 100%);
-		border-radius: 999px;
-		padding: 8px 15px 8px 12px;
-		box-shadow: 0 10px 22px -10px rgba(225, 29, 84, 0.7);
-		transition: transform 150ms ease;
+		width: 34px;
+		height: 34px;
+		border-radius: 50%;
+		background: rgba(15, 8, 16, 0.55);
+		backdrop-filter: blur(6px);
+		-webkit-backdrop-filter: blur(6px);
+		border: 1px solid rgba(255, 255, 255, 0.35);
+		transition:
+			background 150ms ease,
+			transform 150ms ease;
 	}
 
-	.facade:hover .vplay {
-		transform: translateY(-1px);
-	}
-
-	.vplay-tri {
+	/* the play caret, centred (2px optical nudge right) */
+	.vplay::after {
+		content: '';
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-40%, -50%);
 		width: 0;
 		height: 0;
 		border-style: solid;
 		border-width: 5px 0 5px 8px;
 		border-color: transparent transparent transparent #fff;
+	}
+
+	.facade:hover .vplay {
+		background: var(--accent-bright);
+		transform: scale(1.08);
 	}
 
 	.cap {
