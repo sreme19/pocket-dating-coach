@@ -1200,7 +1200,9 @@
 		fill: #ff7a9c;
 	}
 
-	/* flows */
+	/* flows — dashes march along each path so the diagram reads as live dataflow.
+	   stroke-dashoffset animates by exactly one dash period per cycle, so the
+	   loop is seamless; guarded by prefers-reduced-motion. */
 	.lf {
 		stroke: var(--text-4);
 		stroke-width: 1.2;
@@ -1210,7 +1212,7 @@
 
 	.lfh {
 		stroke: var(--accent-bright);
-		stroke-width: 1.4;
+		stroke-width: 1.6;
 		fill: none;
 		marker-end: url(#lah);
 	}
@@ -1221,6 +1223,40 @@
 		stroke-dasharray: 4 3;
 		fill: none;
 		marker-end: url(#la);
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.lf {
+			stroke-dasharray: 4 4;
+			animation: lflow 0.9s linear infinite;
+		}
+
+		.lfh {
+			stroke-dasharray: 7 5;
+			animation: lflow-hot 0.7s linear infinite;
+		}
+
+		.lfd {
+			animation: lflow-dash 1.1s linear infinite;
+		}
+	}
+
+	@keyframes lflow {
+		to {
+			stroke-dashoffset: -8;
+		}
+	}
+
+	@keyframes lflow-hot {
+		to {
+			stroke-dashoffset: -12;
+		}
+	}
+
+	@keyframes lflow-dash {
+		to {
+			stroke-dashoffset: -7;
+		}
 	}
 
 	/* ── Product surfaces ─────────────────────────────────────────────────── */
