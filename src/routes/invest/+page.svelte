@@ -216,33 +216,39 @@
 	   same problem. Ordered by how legible the analogy is to an investor. */
 	const MARKETS = [
 		{
+			sector: 'HR tech · staffing',
 			pair: 'talent ⇄ roles',
 			h: 'Hiring',
 			p: 'Résumés are self-claims, references are proof, seats are capacity. Every recruiter is a Bestie with worse tooling.'
 		},
 		{
+			sector: 'Fintech · private capital',
 			pair: 'capital ⇄ founders',
 			h: 'Investing',
 			p: 'Mutual selection, heavy signalling, scarce attention. You already run this market — by hand.'
 		},
 		{
+			sector: 'Healthtech · life sciences',
 			pair: 'patients ⇄ trials',
 			h: 'Clinical research',
 			p: 'Eligibility is a verified attribute; enrolment caps are hard; a bad match costs months.'
 		},
 		{
+			sector: 'Supply chain · B2B marketplaces',
 			pair: 'buyers ⇄ suppliers',
 			h: 'Procurement',
 			p: 'Certifications and audits gate who is even allowed to bid. Proof-first, exactly like us.'
 		},
 		{
+			sector: 'Logistics · mobility',
 			pair: 'loads ⇄ carriers',
 			h: 'Freight',
 			p: 'Allocation under time windows and capacity — mutual value, solved every cycle.'
 		},
 		{
+			sector: 'Edtech · admissions',
 			pair: 'applicants ⇄ seats',
-			h: 'Admissions',
+			h: 'Schools & universities',
 			p: 'Ranked preferences under hard caps. Nobel-winning territory, still run on decades-old tooling.'
 		}
 	];
@@ -970,6 +976,7 @@
 			<div class="markets">
 				{#each MARKETS as m (m.pair)}
 					<div class="market">
+						<span class="market-sector">{m.sector}</span>
 						<div class="market-pair">{m.pair}</div>
 						<h3 class="h3">{m.h}</h3>
 						<p class="p">{m.p}</p>
@@ -1856,6 +1863,18 @@
 		border: 1px solid var(--border-1);
 		border-radius: 15px;
 		padding: 16px 16px 18px;
+	}
+
+	/* the industry, named plainly — an investor should place the analogy at a
+	   glance, before reading the notation underneath it */
+	.market-sector {
+		display: block;
+		font-size: 10px;
+		font-weight: 800;
+		letter-spacing: 0.07em;
+		text-transform: uppercase;
+		color: var(--text-4);
+		margin-bottom: 7px;
 	}
 
 	/* the two sides, in notation — the through-line of the whole page */
