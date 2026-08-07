@@ -25,6 +25,7 @@ import { env } from '$env/dynamic/private';
 import { getSupabase } from './supabase';
 import { lpConfigured, pickOwner } from './aibestie-owner';
 import { provisionalMembersEnabled } from './member-state';
+import { buildLpOpener } from './aibestie-opener';
 
 /**
  * Placeholder address for a visitor who has not given us one. Mirrors the
@@ -147,7 +148,7 @@ export async function startLpSession(
 
 		const { data: owner } = await db
 			.from('verified_vibe_users')
-			.select('id, gender, deleted_at')
+			.select('id, gender, deleted_at, first_name, looking')
 			.eq('id', ownerId)
 			.maybeSingle();
 		if (!owner || owner.deleted_at || owner.gender !== 'woman') {
@@ -220,7 +221,25 @@ export async function startLpSession(
 			return { ok: false, reason: 'error' };
 		}
 
-		// 4. Session bookkeeping.
+		// 4. Her opening message, written NOW rather than generated.
+		//    The in-app opener is a ~9s Claude call. A member in an installed app
+		//    waits it out; a cold ad click does not — the page would paint an empty
+		//    thread and lose most visitors before her first line landed. It is also
+		//    built from his profile and artifacts, which an ad visitor does not have.
+		//    Non-fatal: a thread that starts empty is poor, not broken, and Bestie
+		//    still answers his first message.
+		const { error: openerError } = await db.from('verified_vibe_messages').insert({
+			match_id: match.id,
+			sender_id: ownerId,
+			content: buildLpOpener({ firstName: (owner as any).first_name ?? '' }),
+			is_ai: true,
+			created_at: new Date().toISOString()
+		});
+		if (openerError) {
+			console.error('[aibestie] opener insert failed (degraded):', openerError);
+		}
+
+		// 5. Session bookkeeping.
 		const claimCode = generateClaimCode();
 		const { data: sessionRow, error: sessionError } = await db
 			.from('aibestie_lp_sessions')
@@ -242,7 +261,7 @@ export async function startLpSession(
 			console.error('[aibestie] session insert failed (degraded):', sessionError);
 		}
 
-		// 5. Credentials. generateLink returns the raw OTP and sends nothing; the
+		// 6. Credentials. generateLink returns the raw OTP and sends nothing; the
 		//    client verifies it to obtain a session (same path as seed-login).
 		const { data: link, error: linkError } = await db.auth.admin.generateLink({
 			type: 'magiclink',
