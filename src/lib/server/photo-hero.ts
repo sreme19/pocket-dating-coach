@@ -25,6 +25,7 @@
  */
 
 import { getSupabase } from './supabase';
+import { realMembersOnly } from './member-state';
 import { photoSetHash } from './photo-signals';
 
 /** Bumping this invalidates stored picks so they are re-ranked under the new policy. */
@@ -344,7 +345,7 @@ export async function runHeroPickBackfill(opts: {
     .select('id, first_name')
     .eq('gender', 'woman')
     .is('deleted_at', null);
-  if (!opts.includeSeed) q = q.eq('is_seed', false);
+  if (!opts.includeSeed) q = realMembersOnly(q);
   if (opts.userIds?.length) q = q.in('id', opts.userIds);
   if (opts.limit) q = q.limit(opts.limit);
 

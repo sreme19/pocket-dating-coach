@@ -18,6 +18,7 @@ import { getSupabase } from './supabase';
 import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
 import { computeSubscores, ARTIFACT_BOOST_MAP } from './trust-recompute';
 import { normalizeScore } from './trust-normalize';
+import { realMembersOnly } from './member-state';
 import { poolToWingmanRow, poolToBestieRow } from './matchmaker-service';
 import { calculateCGTotal, type CGTrustSubscores } from '$lib/verified-vibe/server/trustScore';
 
@@ -241,10 +242,10 @@ export async function generateMatchScores(userId: string): Promise<any[]> {
 	const cohortRawsByGender: Record<string, number[]> = {};
 	async function cohortOthers(gender: string, excludeId: string): Promise<number[]> {
 		if (!cohortRawsByGender[gender]) {
-			const { data } = await db
-				.from('verified_vibe_users')
-				.select('id, raw_trust')
-				.eq('is_seed', false).eq('gender', gender)
+			const { data } = await realMembersOnly(
+				db.from('verified_vibe_users').select('id, raw_trust')
+			)
+				.eq('gender', gender)
 				.is('deleted_at', null)
 				.gte('last_active_at', activeCutoff());
 			cohortRawsByGender[gender] = (data ?? []).map((r: any) => ({ id: r.id, raw: r.raw_trust ?? 0 }));

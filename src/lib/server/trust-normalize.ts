@@ -18,11 +18,19 @@
  *     penalized rather than gated: the man stays in the pool but his score is
  *     multiplied down, and his Wingman is told to surface this as lever #1.
  *
- * Cohort = same gender, real (is_seed=false), active within ACTIVE_WINDOW_DAYS.
+ * Cohort = same gender, REAL (realMembersOnly — neither seed nor provisional),
+ * active within ACTIVE_WINDOW_DAYS.
+ *
+ * That cohort definition is the reason member-state.ts exists. The percentile is
+ * a ratio over the cohort, so anyone admitted to it moves everybody else's score
+ * without any new evidence entering the system. /aibestie ad visitors get real
+ * user rows, and at campaign volume they would have swamped the male cohort with
+ * raw_trust = 0 rows and inflated every real man's percentile overnight.
  */
 
 import { getSupabase } from './supabase';
 import { recomputeRawTrust, refreshPoolBandIfEnrolled } from './trust-recompute';
+import { realMembersOnly } from './member-state';
 
 const ACTIVE_WINDOW_DAYS = 7;
 const COLD_START_FULL_N = 30;   // cohort size at which we trust the percentile fully
@@ -58,10 +66,9 @@ function activeCutoff(): string {
  * of raw_trust values (nulls coerced to 0). Used as the denominator for percentile.
  */
 async function fetchCohortRaws(db: any, gender: string): Promise<number[]> {
-	const { data } = await db
-		.from('verified_vibe_users')
-		.select('raw_trust')
-		.eq('is_seed', false)
+	const { data } = await realMembersOnly(
+		db.from('verified_vibe_users').select('raw_trust')
+	)
 		.eq('gender', gender)
 		.gte('last_active_at', activeCutoff());
 	return (data ?? []).map((r: any) => r.raw_trust ?? 0);
@@ -134,10 +141,9 @@ export async function runTrustNormalization(): Promise<
 	Array<{ userId: string; firstName: string; gender: string; before: number; rawTrust: number; after: number }>
 > {
 	const db = getSupabase() as any;
-	const { data: users } = await db
-		.from('verified_vibe_users')
-		.select('id, first_name, gender, trust_score')
-		.eq('is_seed', false);
+	const { data: users } = await realMembersOnly(
+		db.from('verified_vibe_users').select('id, first_name, gender, trust_score')
+	);
 
 	if (!users?.length) return [];
 
@@ -151,11 +157,9 @@ export async function runTrustNormalization(): Promise<
 	// 2. Build per-gender active cohorts from the fresh raw values.
 	const cohorts: Record<string, number[]> = {};
 	const cutoff = activeCutoff();
-	const { data: activeUsers } = await db
-		.from('verified_vibe_users')
-		.select('id, gender')
-		.eq('is_seed', false)
-		.gte('last_active_at', cutoff);
+	const { data: activeUsers } = await realMembersOnly(
+		db.from('verified_vibe_users').select('id, gender')
+	).gte('last_active_at', cutoff);
 	for (const au of activeUsers ?? []) {
 		const raw = raws.get(au.id)?.raw ?? 0;
 		(cohorts[au.gender] = cohorts[au.gender] || []).push(raw);

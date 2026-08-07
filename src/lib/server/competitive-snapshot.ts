@@ -21,11 +21,15 @@
  * other women. The hard filter is always run in its canonical (male, female)
  * argument order regardless of which side the owner is on.
  *
- * "Real"   = is_seed = false (excludes seed/demo profiles).
+ * "Real"   = realMembersOnly (excludes seed/demo profiles AND /aibestie ad
+ *            visitors who have not signed up — these counts are quoted to a
+ *            member as the size of the field they are competing in, so an ad
+ *            campaign must not be able to inflate them).
  * "Active" = last_active_at within ACTIVE_WINDOW_DAYS.
  */
 
 import { hardFilter, poolToWingmanRow, poolToBestieRow, type WingmanPoolRow, type BestiePoolRow } from './matchmaker-service';
+import { realMembersOnly } from './member-state';
 
 const ACTIVE_WINDOW_DAYS = 7;
 
@@ -75,15 +79,11 @@ export async function buildCompetitiveSnapshot(
 
 		// ── (a)/(b) Active real population counts ────────────────────────────
 		const [{ count: womenCount }, { count: menCount }] = await Promise.all([
-			db.from('verified_vibe_users')
-				.select('id', { count: 'exact', head: true })
-				.eq('is_seed', false)
+			realMembersOnly(db.from('verified_vibe_users').select('id', { count: 'exact', head: true }))
 				.eq('gender', 'woman')
 				.is('deleted_at', null)
 				.gte('last_active_at', activeCutoff),
-			db.from('verified_vibe_users')
-				.select('id', { count: 'exact', head: true })
-				.eq('is_seed', false)
+			realMembersOnly(db.from('verified_vibe_users').select('id', { count: 'exact', head: true }))
 				.eq('gender', 'man')
 				.is('deleted_at', null)
 				.gte('last_active_at', activeCutoff),
@@ -100,10 +100,9 @@ export async function buildCompetitiveSnapshot(
 		// labelled the same thing, eight lines apart in this function. It also matches
 		// the cohort trust-normalize.ts actually used to compute the score being
 		// ranked here, so the number and its rank finally describe one population.
-		const { data: realPeers } = await db
-			.from('verified_vibe_users')
-			.select('id, trust_score')
-			.eq('is_seed', false)
+		const { data: realPeers } = await realMembersOnly(
+			db.from('verified_vibe_users').select('id, trust_score')
+		)
 			.eq('gender', ownerGender)
 			.is('deleted_at', null)
 			.gte('last_active_at', activeCutoff);
@@ -141,10 +140,9 @@ export async function buildCompetitiveSnapshot(
 			// rival set. Their pool rows come from the unified table, filtered by the
 			// owner's assistant_type.
 			const rivalAssistant: 'wingman' | 'bestie' = isMan ? 'wingman' : 'bestie';
-			const { data: rivalUsers } = await db
-				.from('verified_vibe_users')
-				.select('id')
-				.eq('is_seed', false)
+			const { data: rivalUsers } = await realMembersOnly(
+				db.from('verified_vibe_users').select('id')
+			)
 				.eq('gender', ownerGender)
 				.is('deleted_at', null)
 				.gte('last_active_at', activeCutoff)

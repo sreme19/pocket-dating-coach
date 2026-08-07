@@ -16,6 +16,7 @@
  */
 
 import { getSupabase } from './supabase';
+import { realMembersOnly } from './member-state';
 import {
 	PHOTO_SIGNAL_VERSION,
 	photoSignalsEnabled,
@@ -263,7 +264,7 @@ export async function runPhotoSignalBackfill(opts: { userIds?: string[]; include
 	let ids = opts.userIds;
 	if (!ids) {
 		let q = db.from('verified_vibe_users').select('id').is('deleted_at', null);
-		if (!opts.includeSeed) q = q.eq('is_seed', false);
+		if (!opts.includeSeed) q = realMembersOnly(q);
 		const { data } = await q;
 		ids = (data ?? []).map((r: any) => r.id);
 	}
