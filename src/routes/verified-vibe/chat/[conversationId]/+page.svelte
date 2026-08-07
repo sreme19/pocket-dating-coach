@@ -12,6 +12,13 @@
   import VoiceCall from '$lib/verified-vibe/components/VoiceCall.svelte';
   import * as perf from '$lib/verified-vibe/utils/perf';
 
+  // Voice calls are suspended — the Fly worker that voices her AI Bestie is gone
+  // and the server's VOICE_CALLS_ENABLED kill switch is off, so the call button
+  // could only ever fail. Hidden rather than removed; flip back to true (with the
+  // worker up and the server flag on) to restore it. Mirrors Config.voiceCallsEnabled
+  // in the Flutter app so both surfaces hide it together.
+  const VOICE_CALLS_UI_ENABLED = false;
+
   let disposeLongTasks: (() => void) | null = null;
 
   // Initialise from route params immediately — the $effect fires AFTER onMount,
@@ -1926,7 +1933,7 @@
       </div>
     {/if}
     <!-- Voice call: the male match can request a live call with her AI bestie. -->
-    {#if currentUserGender === 'man' && $currentMatch?.gender === 'woman'}
+    {#if VOICE_CALLS_UI_ENABLED && currentUserGender === 'man' && $currentMatch?.gender === 'woman'}
       <VoiceCall conversationId={conversationId} ownerName={$currentMatch?.firstName ?? 'her'} />
     {/if}
 

@@ -14,6 +14,12 @@ class Config {
 
   static const String apiBase = 'https://www.riteangle.dating';
 
+  // Voice calls are suspended: the Fly worker that plays her AI Bestie is
+  // destroyed and the server's VOICE_CALLS_ENABLED kill switch is off, so the
+  // "Call Bestie" pill could only ever fail. Hidden rather than deleted — flip
+  // this back to true (with the worker up and the server flag on) to restore it.
+  static const bool voiceCallsEnabled = false;
+
   // riteangle palette (light theme — cream page, white cards, hot-pink accent).
   static const int bg1 = 0xFFFFF3F0; // page background (cream)
   static const int bg2 = 0xFFFFFFFF; // card / surface (white)

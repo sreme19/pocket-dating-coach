@@ -1629,7 +1629,9 @@ class _ConversationScreenState extends State<ConversationScreen>
           // "Call Bestie" voice pill — only while her AI Bestie is the proxy
           // speaker. Vanishes the instant she steps in (`_bestieIsProxy` → false),
           // so the man is never offered an AI voice call once he's talking to her.
-          if (_bestieIsProxy)
+          // Currently hidden entirely: voice calls are suspended
+          // (`Config.voiceCallsEnabled`).
+          if (Config.voiceCallsEnabled && _bestieIsProxy)
             Padding(
               padding: const EdgeInsets.only(right: 4),
               child: Center(
