@@ -57,10 +57,18 @@
 	 * traffic to. The entrance animation is CSS-only via `animation-timeline:
 	 * view()`, so a browser without it just shows the page; the CTA is a plain
 	 * anchor for the same reason.
+	 *
+	 * The single exception is the Snap Pixel below, and it obeys the same rule: it
+	 * only measures. Nothing it does is load-bearing for a pixel of the page, and
+	 * every CTA still works if it never runs. It is scoped to this route on
+	 * purpose — $lib/marketing/snap-pixel.ts explains why it must not go into
+	 * app.html or a layout.
 	 */
+	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import RiteLogo from '$lib/verified-vibe/components/RiteLogo.svelte';
 	import { STORE_LINKS } from '$lib/store-links';
+	import { initSnapPixel, trackSnap, STORE_CLICK_EVENT } from '$lib/marketing/snap-pixel';
 
 	/** Campaign labels used when the ad URL carries no utm_* of its own. */
 	const DEFAULT_UTM = 'utm_source=snapchat&utm_medium=paid_social&utm_campaign=get_lp';
@@ -82,6 +90,39 @@
 		}
 		const referrer = incoming.size > 0 ? incoming.toString() : DEFAULT_UTM;
 		return `${STORE_LINKS.android}&referrer=${encodeURIComponent(referrer)}`;
+	});
+
+	/**
+	 * Snap Pixel. The one piece of script on the page, and it renders nothing —
+	 * see the note at the top about why nothing here is allowed to gate content.
+	 *
+	 * PAGE_VIEW on arrival, then the store-click event when any CTA is tapped.
+	 * The listener is delegated off `document` rather than bolted onto each of
+	 * the four anchors so the anchors stay plain hrefs: if this script never runs
+	 * — blocked, failed, JS off — every CTA still works exactly as before, which
+	 * is the whole point of them being anchors in the first place.
+	 *
+	 * `capture: true` so the event is recorded before the browser starts leaving
+	 * for Play. The navigation is never delayed to wait for the beacon; a lost
+	 * measurement is cheaper than a CTA that feels slow.
+	 */
+	onMount(() => {
+		initSnapPixel();
+
+		const onClick = (e: MouseEvent) => {
+			const cta = (e.target as HTMLElement | null)?.closest?.('[data-cta]');
+			if (!cta) return;
+			trackSnap(STORE_CLICK_EVENT, {
+				// Which of the four buttons earned the tap, and the campaign that
+				// brought them — the same labels Play sees on the install referrer.
+				item_category: 'play_store_click',
+				item_ids: [cta.getAttribute('data-cta') ?? 'unknown'],
+				description: $page.url.searchParams.get('utm_campaign') ?? 'get_lp'
+			});
+		};
+
+		document.addEventListener('click', onClick, { capture: true });
+		return () => document.removeEventListener('click', onClick, { capture: true });
 	});
 
 	/** First-party measurements. Rates and medians only — see the header note. */
