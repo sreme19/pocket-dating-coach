@@ -23,7 +23,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { env } from '$env/dynamic/private';
 import { getSupabase } from './supabase';
-import { lpConfigured, pickOwner } from './aibestie-owner';
+import { lpConfigured, pickOwner, terminusMode } from './aibestie-owner';
 import { provisionalMembersEnabled } from './member-state';
 import { buildLpOpener } from './aibestie-opener';
 
@@ -231,7 +231,10 @@ export async function startLpSession(
 		const { error: openerError } = await db.from('verified_vibe_messages').insert({
 			match_id: match.id,
 			sender_id: ownerId,
-			content: buildLpOpener({ firstName: (owner as any).first_name ?? '' }),
+			content: buildLpOpener({
+				firstName: (owner as any).first_name ?? '',
+				terminus: terminusMode(ownerId)
+			}),
 			is_ai: true,
 			created_at: new Date().toISOString()
 		});

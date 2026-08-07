@@ -21,6 +21,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { startLpSession, lpEnabled, type StartFailure } from '$lib/server/aibestie-session';
+import { pickOwner, terminusMode } from '$lib/server/aibestie-owner';
 
 /** Only utm_* is forwarded — the landing URL is attacker-controlled. */
 function utmFrom(url: URL): Record<string, string> | null {
@@ -39,10 +40,20 @@ const STATUS: Record<StartFailure, number> = {
 };
 
 /**
- * Cheap readiness probe, so the page can render a configured/not-configured state
- * without minting anybody. Deliberately says nothing about WHO the owner is.
+ * Cheap readiness probe, so the page can render its gate without minting anybody.
+ *
+ * It also carries the terminus mode, because the AGE GATE makes a claim before a
+ * session exists and therefore before `thread.terminus` is available. The first
+ * version of the gate hardcoded "the woman whose profile it is reads these
+ * herself" — false for an unstaffed owner, and exactly the claim terminusMode()
+ * exists to prevent, reintroduced as page copy. Any surface that describes her
+ * has to ask.
+ *
+ * Deliberately says nothing about WHO the owner is — only whether someone is
+ * behind the profile.
  */
-export const GET: RequestHandler = async () => json({ enabled: lpEnabled() });
+export const GET: RequestHandler = async () =>
+	json({ enabled: lpEnabled(), terminus: terminusMode(pickOwner()) });
 
 export const POST: RequestHandler = async ({ request, url, getClientAddress }) => {
 	let ip: string | null = null;

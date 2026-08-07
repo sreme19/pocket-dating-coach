@@ -20,8 +20,19 @@
  * runs before anyone knows how the conversation will go.
  */
 
+import type { TerminusMode } from './aibestie-owner';
+
 export interface OpenerOwner {
 	firstName: string;
+	/**
+	 * Whether a real, consenting human is behind this profile. Required, not
+	 * optional with a friendly default: the first version of this file hardcoded
+	 * "and she reads these herself", which is FALSE for a seed owner — the precise
+	 * claim terminusMode() exists to make structurally impossible, smuggled back in
+	 * as a template literal. Making it a mandatory argument means a caller cannot
+	 * omit it and silently get the human promise.
+	 */
+	terminus: TerminusMode;
 }
 
 /**
@@ -46,9 +57,17 @@ export function buildLpOpener(owner: OpenerOwner): string {
 	// "her" is already possessive, so it must not take an apostrophe-s — the naive
 	// fallback produced "I'm her's AI bestie" on any profile with a blank name.
 	const whose = name ? `${name}'s` : 'her';
+
+	// The ONLY difference between the two is whether a person is claimed to be
+	// reading. Everything else is true either way.
+	const reading =
+		owner.terminus === 'human'
+			? `, and she reads these herself`
+			: ``;
+
 	return (
 		`Hey! I'm ${whose} AI bestie — I chat with her matches first so you two get off ` +
-		`to a good start, and she reads these herself. ` +
+		`to a good start${reading}. ` +
 		`So I'd rather hear it from you than guess: what brought you here?`
 	);
 }
