@@ -57,6 +57,8 @@ import { scrubContactDetails } from '$lib/server/contact-scrub';
 import { resolveProxyPair } from '$lib/server/bestie-pair';
 import { buildQuestionRoundBlock, MAX_ROUNDS } from '$lib/server/question-rounds';
 import { computeGapBar } from '$lib/server/gap-bar';
+import { buildLpConversationBlock, isFinalTurn, type LpTurnContext } from './aibestie-prompt';
+import { LP_MATCH_SOURCE } from './aibestie-session';
 
 export interface BestieReply {
 	signal: string;
@@ -344,7 +346,15 @@ export async function generateBestieReply(
 	matchId: string,
 	lastMessage: string,
 	timing?: { claudeMs?: number },
-	opts?: { proofAckCategory?: string }
+	opts?: {
+		proofAckCategory?: string;
+		/**
+		 * Present only for /aibestie landing-page threads. Carries the turn budget so
+		 * she can land the conversation instead of trailing off mid-question when the
+		 * composer locks. See aibestie-prompt.ts.
+		 */
+		lp?: LpTurnContext;
+	}
 ): Promise<BestieReply> {
 	const supabase = getSupabase();
 
@@ -567,17 +577,23 @@ export async function generateBestieReply(
 	// In-chat proof request state for this match (Bestie-driven; category always
 	// comes from HER question, never a picker).
 	const proofState = ((matchRow as any)?.proof_request ?? null) as ProofRequestState | null;
+	// A landing-page thread has no attachment control, so an invitation to upload is
+	// an instruction he physically cannot follow. isOpener already suppresses invites
+	// on the first turn; reuse it rather than adding a second switch that could drift.
+	const isLp = (matchRow as any)?.source === LP_MATCH_SOURCE;
 	const { block: proofRequestContext, invitable } = buildProofRequestBlock({
 		state: proofState,
 		matchName,
 		verifiedCategories,
-		isOpener,
+		isOpener: isOpener || isLp,
 	});
 
 	// Proactive, preference-targeted proof invites (§11a): the proofs SHE values most
 	// that he hasn't proven, with the concrete rank payoff — invited even without a
 	// topic trigger. Never promises she'll step in. '' when no vectors / nothing to ask.
-	const { block: proofInviteContext } = buildProofInviteContext({
+	// Same reason as the proof-request block above: nothing here can be uploaded.
+	const lpContext = opts?.lp ? buildLpConversationBlock(opts.lp) : '';
+	const { block: rawProofInviteContext } = buildProofInviteContext({
 		herWeights,
 		hisAttrs,
 		hisConf,
@@ -586,6 +602,7 @@ export async function generateBestieReply(
 		matchName,
 		userName,
 	});
+	const proofInviteContext = isLp ? '' : rawProofInviteContext;
 
 	// ASK-SWAP (G-10). When a proof request is open, precompute the equivalent thing he
 	// could show INSTEAD, so that if this turn is a refusal she can accept it and offer
@@ -630,7 +647,7 @@ export async function generateBestieReply(
 	// Active checklist → draw out the open items. Wrapped checklist → HAND-OFF PHASE:
 	// reactive mode (she's already handed off, now just answers his questions). These
 	// are mutually exclusive.
-	const { block: checklistContext } = buildChecklistBlock(existingChecklist);
+	const { block: checklistContext } = buildChecklistBlock(existingChecklist, { allowWrap: !isLp });
 	// Post-wrap, Bestie gets the REAL hand-off window (notified when, how long left,
 	// what happens at the end) so "is she joining or should I give up?" is answered
 	// with facts. Without it she used to invent a timeline on the woman's behalf.
@@ -763,7 +780,7 @@ export async function generateBestieReply(
 				content: buildBestieReplyPrompt({
 					userName,
 					matchName,
-					contextBlock: `${preferencesContext}${structuredPreferencesContext}${maleArtifactContext}${openerContext}${seasonContext}`,
+					contextBlock: `${lpContext}${preferencesContext}${structuredPreferencesContext}${maleArtifactContext}${openerContext}${seasonContext}`,
 					transcript,
 					lastMessage,
 					// A proof-ack turn is never an opener even if the message read is empty.
@@ -1151,7 +1168,9 @@ export async function generateAndSendBestieReply(
 	matchId: string,
 	triggerMsgId: string,
 	lastMessage: string,
-	triggerCreatedAt?: string
+	triggerCreatedAt?: string,
+	/** Landing-page turn budget. Absent for every in-app thread. */
+	lp?: LpTurnContext
 ): Promise<void> {
 	const supabase = getSupabase();
 
@@ -1164,7 +1183,7 @@ export async function generateAndSendBestieReply(
 
 	const timing: { claudeMs?: number } = {};
 	const t0 = Date.now();
-	const reply = await generateBestieReply(userId, matchId, lastMessage, timing);
+	const reply = await generateBestieReply(userId, matchId, lastMessage, timing, lp ? { lp } : undefined);
 
 	// Persist any proof-request state change this turn produced (invite opened /
 	// refusal registered / fulfilled request closed). Non-fatal; conversational
@@ -1265,8 +1284,15 @@ export async function generateAndSendBestieReply(
 	// Append the guaranteed hand-off closing line ONLY when this turn actually flipped
 	// the checklist to wrapped in the DB (§F). Decided post-persist so it can never be
 	// lost or duplicated by an overlapping turn; the includes() guard is belt-and-braces.
+	//
+	// Never on a landing-page thread: that line promises the woman takes over inside
+	// a real 48-hour clock, which is true in the app and a lie on an unstaffed ad
+	// profile where nobody is coming. The model is also told not to wrap (see
+	// buildChecklistBlock allowWrap), but this is the structural half of the same
+	// rule — a prompt instruction alone is not what should stand between a visitor
+	// and a promise the product cannot keep.
 	let replyText = reply.reply;
-	if (justWrapped) {
+	if (justWrapped && !lp) {
 		const closing = handoffClosingLine(reply.userName ?? 'she');
 		if (!replyText) replyText = closing;
 		else if (!replyText.includes('take it from here')) replyText = `${replyText} ${closing}`;

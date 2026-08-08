@@ -292,12 +292,23 @@ export async function sendLpMessage(
 			generateReply: async () => {
 				try {
 					const { generateAndSendBestieReply } = await import('./bestie-responder');
+					const owner = await loadOwner(db, session.owner_id);
 					await generateAndSendBestieReply(
 						session.owner_id,
 						ids.matchId,
 						saved.id,
 						trimmed,
-						saved.created_at
+						saved.created_at,
+						// The turn budget, so she can LAND the conversation rather than
+						// trailing off mid-question when the composer locks. `turns`
+						// already counts the message being answered, so on the last one
+						// this equals maxTurns and she is told to close.
+						{
+							turnsUsed: turns,
+							maxTurns,
+							terminus: terminusMode(session.owner_id),
+							ownerName: owner.firstName || 'she'
+						}
 					);
 				} catch (err) {
 					// Never fatal to the send. The page derives awaitingReply from the

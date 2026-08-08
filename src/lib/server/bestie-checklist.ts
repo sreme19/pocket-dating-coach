@@ -144,7 +144,21 @@ function slugifyItemId(raw: unknown): string {
  * (so the reply prompt keeps its legacy output shape). `hasWork` tells the caller
  * whether the itemsDone/wrapUp output fields should be requested this turn.
  */
-export function buildChecklistBlock(checklist: BestieChecklist | null | undefined): {
+export function buildChecklistBlock(
+	checklist: BestieChecklist | null | undefined,
+	opts: {
+		/**
+		 * May this turn wrap the checklist and trigger the hand-off?
+		 *
+		 * False on the /aibestie landing page. The hand-off line is appended in CODE
+		 * and promises the woman takes over inside a real 48-hour clock — true in the
+		 * app, and a lie on an unstaffed ad profile where nobody is coming. The model
+		 * may still mark items DONE (that is what moves the visitor's progress bar);
+		 * it simply is not offered the wrap.
+		 */
+		allowWrap?: boolean;
+	} = {}
+): {
 	block: string;
 	hasWork: boolean;
 } {
@@ -155,11 +169,15 @@ export function buildChecklistBlock(checklist: BestieChecklist | null | undefine
 	const lines = open.map((i) => `  - ${i.id}: ${i.label}`).join('\n');
 	const done = doneCount(checklist);
 	const total = totalCount(checklist);
+	const wrapLine = (opts.allowWrap ?? true)
+		? `- When every item is done (or you judge you have enough to bring her in), set "wrapUp": true. On that turn your "reply" is ONLY a brief, warm one-liner reacting to what he just said — do NOT mention handing off, waiting, or her stepping in, and do NOT ask a question. The hand-off line is appended automatically.`
+		: `- NEVER set "wrapUp": true in this conversation, however much he has covered. There is no hand-off here.`;
+
 	const block =
 		`\nYour open checklist items to draw out (cover them naturally through conversation, ONE focus at a time, never as a checklist read aloud or an interview):\n${lines}\n` +
 		`Progress so far: ${done}/${total} done.\n` +
 		`- When his latest answer genuinely covers one or more of these items, list their ids in "itemsDone". Only mark an item done when it's really answered — not on a vague or deflecting reply.\n` +
-		`- When every item is done (or you judge you have enough to bring her in), set "wrapUp": true. On that turn your "reply" is ONLY a brief, warm one-liner reacting to what he just said — do NOT mention handing off, waiting, or her stepping in, and do NOT ask a question. The hand-off line is appended automatically.`;
+		wrapLine;
 	return { block, hasWork: true };
 }
 
