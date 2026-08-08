@@ -466,6 +466,22 @@
 					<p class="gate-sub">Loading her profile…</p>
 				{/if}
 			</div>
+			<!--
+				Her profile is the highest-intent screen on the page — he opened it because
+				he wants her — and it was a dead end: a long scroll whose only exit was the
+				X. The CTA is PINNED rather than appended to the scroll, because the body
+				runs several screens and an install ask below the fold is one nobody sees.
+
+				Copy is deliberately terminus-INDEPENDENT. Every other conversion surface
+				branches on whether a real woman is behind the profile, and each branch is a
+				separate chance to promise a person who does not exist. This says only what
+				is true of any owner — mirroring the leave sheet, which already carries the
+				vetted framing for "he wants more of this".
+			-->
+			<div class="profile-cta">
+				<p>Sign up to see the women you'd actually match with — and keep this conversation.</p>
+				<button class="cta" onclick={goToStore}>Sign up on Google Play</button>
+			</div>
 		</div>
 	{/if}
 
@@ -854,6 +870,21 @@
 		flex: 1;
 		overflow-y: auto;
 		padding: 0 0.9rem 2rem;
+	}
+	/* A flex sibling of the scroller, not a fixed overlay: it reserves its own space,
+	   so it can never cover the last line of her profile on a short viewport. */
+	.profile-cta {
+		flex-shrink: 0;
+		background: var(--bg-1, #fff3f0);
+		border-top: 1px solid #f3e3e0;
+		padding: 0.8rem 1.1rem calc(0.9rem + env(safe-area-inset-bottom));
+	}
+	.profile-cta p {
+		font-size: 0.84rem;
+		line-height: 1.45;
+		color: #7c6b6b;
+		text-align: center;
+		margin: 0 0 0.65rem;
 	}
 	.scrim {
 		position: absolute;
