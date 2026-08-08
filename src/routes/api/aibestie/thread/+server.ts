@@ -2,17 +2,18 @@
  * GET  /api/aibestie/thread   — the landing-page conversation and its bar
  * POST /api/aibestie/thread   — send his message, hand the turn to her Bestie
  *
- * Both authenticate with the provisional visitor's own bearer token, issued by
- * /api/aibestie/start. Everything else — whose thread it is, how many turns he
- * has spent, what the bar reads — is resolved server-side from that identity,
- * so none of it is client-settable.
+ * Both authenticate with the OPAQUE session token issued by /api/aibestie/start.
+ * Everything else — whose thread it is, how many turns he has spent, what the bar
+ * reads — is resolved server-side from that token, so none of it is
+ * client-settable.
+ *
+ * POST is also where a visitor first becomes rows: the profile, the match and her
+ * opener are written on his first message and not before.
  */
 
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { waitUntil } from '@vercel/functions';
-import { createClient } from '@supabase/supabase-js';
-import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { loadLpThread, sendLpMessage, type ThreadError } from '$lib/server/aibestie-thread';
 
 // Bestie generation measures ~9s and runs in a waitUntil() after the response is
@@ -28,35 +29,27 @@ const STATUS: Record<ThreadError, number> = {
 	error: 500
 };
 
-async function userIdFrom(request: Request): Promise<string | null> {
+/**
+ * The visitor's OPAQUE session token. Not a Supabase JWT: no auth user exists
+ * until he signs up, and these routes are the only thing he ever calls.
+ */
+function tokenFrom(request: Request): string | null {
 	const header = request.headers.get('authorization') ?? '';
-	const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-	if (!token) return null;
-	try {
-		const client = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
-			global: { headers: { Authorization: `Bearer ${token}` } }
-		});
-		const {
-			data: { user }
-		} = await client.auth.getUser();
-		return user?.id ?? null;
-	} catch {
-		return null;
-	}
+	return header.startsWith('Bearer ') ? header.slice(7) : null;
 }
 
 export const GET: RequestHandler = async ({ request }) => {
-	const userId = await userIdFrom(request);
-	if (!userId) return json({ error: 'unauthorized' }, { status: 401 });
+	const token = tokenFrom(request);
+	if (!token) return json({ error: 'unauthorized' }, { status: 401 });
 
-	const result = await loadLpThread(userId);
+	const result = await loadLpThread(token);
 	if (!result.ok) return json({ error: result.reason }, { status: STATUS[result.reason] });
 	return json(result.thread);
 };
 
 export const POST: RequestHandler = async ({ request }) => {
-	const userId = await userIdFrom(request);
-	if (!userId) return json({ error: 'unauthorized' }, { status: 401 });
+	const token = tokenFrom(request);
+	if (!token) return json({ error: 'unauthorized' }, { status: 401 });
 
 	let content = '';
 	try {
@@ -65,7 +58,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ error: 'invalid' }, { status: 400 });
 	}
 
-	const result = await sendLpMessage(userId, content);
+	const result = await sendLpMessage(token, content);
 	if (!result.ok) return json({ error: result.reason }, { status: STATUS[result.reason] });
 
 	// Deliberately not awaited. The page returns immediately and polls GET for her

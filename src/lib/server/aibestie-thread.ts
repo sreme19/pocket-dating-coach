@@ -15,6 +15,7 @@
  *    to zero and makes the in-app bar compute 10% against the 20% he was shown
  *    here. Intel capture belongs at signup, once, over the whole transcript.
  *  · it pushes a notification to a device token a provisional user never has.
+ *  · it authenticates a Supabase user, and until he signs up there isn't one.
  *
  * What it keeps is the part that matters: the same message table, the same
  * generateAndSendBestieReply, and therefore the same contact scrub, PII
@@ -25,6 +26,8 @@ import { env } from '$env/dynamic/private';
 import { getSupabase } from './supabase';
 import { computeLpBar, isSubstantive, type LpBar } from './aibestie-bar';
 import { terminusMode, type TerminusMode } from './aibestie-owner';
+import { buildLpOpener } from './aibestie-opener';
+import { hashToken, materializeSession } from './aibestie-session';
 import type { BestieChecklist } from './bestie-checklist';
 
 /**
@@ -57,33 +60,38 @@ export interface LpThreadMessage {
 }
 
 export interface LpThread {
-	matchId: string;
 	owner: LpThreadOwner;
 	messages: LpThreadMessage[];
 	bar: LpBar;
 	turns: number;
 	maxTurns: number;
-	/** True once he has spent his turns — the composer locks, the CTA stands. */
 	closed: boolean;
-	/** Which closing promise this thread has earned. See aibestie-owner.ts. */
 	terminus: TerminusMode;
 	claimCode: string | null;
-	/** Set when Bestie owes him a reply, so the page can hold a typing state. */
 	awaitingReply: boolean;
 }
 
 export type ThreadError = 'no_session' | 'closed' | 'invalid' | 'error';
 
-/** The session row plus its match, or null when this user has no LP thread. */
-async function loadSession(db: any, userId: string) {
+interface SessionRow {
+	id: string;
+	owner_id: string;
+	user_id: string | null;
+	match_id: string | null;
+	turns: number | null;
+	bar_percent: number | null;
+	claim_code: string | null;
+}
+
+/** Resolve the opaque bearer token to its session. */
+export async function sessionForToken(db: any, token: string): Promise<SessionRow | null> {
+	if (!token) return null;
 	const { data } = await db
 		.from('aibestie_lp_sessions')
-		.select('id, match_id, owner_id, turns, bar_percent, claim_code')
-		.eq('user_id', userId)
-		.order('created_at', { ascending: false })
-		.limit(1)
+		.select('id, owner_id, user_id, match_id, turns, bar_percent, claim_code')
+		.eq('token_hash', hashToken(token))
 		.maybeSingle();
-	return data ?? null;
+	return (data as SessionRow) ?? null;
 }
 
 async function loadOwner(db: any, ownerId: string): Promise<LpThreadOwner> {
@@ -107,30 +115,64 @@ async function loadOwner(db: any, ownerId: string): Promise<LpThreadOwner> {
  * Bestie's own judgement of what he has genuinely answered, and the turn count is
  * the session row's. A client-supplied number would be a number he can set.
  */
-async function computeBar(db: any, matchId: string, session: any): Promise<LpBar> {
-	const { data: match } = await db
-		.from('verified_vibe_matches')
-		.select('bestie_checklist')
-		.eq('id', matchId)
-		.maybeSingle();
-
+async function computeBar(db: any, matchId: string | null, session: { turns?: number | null; bar_percent?: number | null }): Promise<LpBar> {
+	let checklist: BestieChecklist | null = null;
+	if (matchId) {
+		const { data: match } = await db
+			.from('verified_vibe_matches')
+			.select('bestie_checklist')
+			.eq('id', matchId)
+			.maybeSingle();
+		checklist = (match?.bestie_checklist ?? null) as BestieChecklist | null;
+	}
 	return computeLpBar({
-		checklist: (match?.bestie_checklist ?? null) as BestieChecklist | null,
+		checklist,
 		substantiveTurns: session.turns ?? 0,
 		previousPercent: Number(session.bar_percent ?? 0)
 	});
 }
 
 export async function loadLpThread(
-	userId: string
+	token: string
 ): Promise<{ ok: true; thread: LpThread } | { ok: false; reason: ThreadError }> {
 	try {
 		const db = getSupabase() as any;
-		const session = await loadSession(db, userId);
+		const session = await sessionForToken(db, token);
 		if (!session) return { ok: false, reason: 'no_session' };
 
-		const [owner, { data: rows }, bar] = await Promise.all([
-			loadOwner(db, session.owner_id),
+		const owner = await loadOwner(db, session.owner_id);
+		const terminus = terminusMode(session.owner_id);
+		const turns = session.turns ?? 0;
+
+		// Not materialised: he has read her opener and not replied, so there is no
+		// thread in the database yet. Serve the same opener the start call handed
+		// him, built from the same function so what he is reading cannot drift from
+		// what gets persisted the moment he speaks.
+		if (!session.match_id) {
+			return {
+				ok: true,
+				thread: {
+					owner,
+					messages: [
+						{
+							id: 'opener',
+							fromOwner: true,
+							content: buildLpOpener({ firstName: owner.firstName, terminus }),
+							createdAt: new Date().toISOString()
+						}
+					],
+					bar: await computeBar(db, null, session),
+					turns,
+					maxTurns: lpMaxTurns(),
+					closed: false,
+					terminus,
+					claimCode: session.claim_code ?? null,
+					awaitingReply: false
+				}
+			};
+		}
+
+		const [{ data: rows }, bar] = await Promise.all([
 			db
 				.from('verified_vibe_messages')
 				.select('id, sender_id, content, created_at')
@@ -149,18 +191,16 @@ export async function loadLpThread(
 			createdAt: m.created_at
 		}));
 
-		const turns = session.turns ?? 0;
 		return {
 			ok: true,
 			thread: {
-				matchId: session.match_id,
 				owner,
 				messages,
 				bar,
 				turns,
 				maxTurns: lpMaxTurns(),
 				closed: turns >= lpMaxTurns(),
-				terminus: terminusMode(session.owner_id),
+				terminus,
 				claimCode: session.claim_code ?? null,
 				// He is owed a reply whenever the last message is his. Derived rather
 				// than stored so a generation that died mid-flight still shows as
@@ -184,13 +224,16 @@ export interface SentMessage {
 /**
  * Record his message, advance the bar, and hand the turn to her Bestie.
  *
+ * This is where a visitor becomes rows. Everything before it — the gate, her
+ * opener, however long he spent reading — costs one session row and no identity.
+ *
  * The Bestie call is returned as a thunk rather than awaited: the caller decides
  * whether to run it in the background (Vercel waitUntil, so the page gets its
  * response immediately and polls) or inline. Generation measures ~9s, which is a
  * long time to hold a landing page's fetch open.
  */
 export async function sendLpMessage(
-	userId: string,
+	token: string,
 	content: string
 ): Promise<
 	| { ok: true; sent: SentMessage; generateReply: () => Promise<void> }
@@ -201,7 +244,7 @@ export async function sendLpMessage(
 
 	try {
 		const db = getSupabase() as any;
-		const session = await loadSession(db, userId);
+		const session = await sessionForToken(db, token);
 		if (!session) return { ok: false, reason: 'no_session' };
 
 		// The cap is enforced HERE, against the session row, not against a message
@@ -209,11 +252,14 @@ export async function sendLpMessage(
 		const maxTurns = lpMaxTurns();
 		if ((session.turns ?? 0) >= maxTurns) return { ok: false, reason: 'closed' };
 
+		const ids = await materializeSession(db, session);
+		if (!ids) return { ok: false, reason: 'error' };
+
 		const { data: saved, error: saveError } = await db
 			.from('verified_vibe_messages')
 			.insert({
-				match_id: session.match_id,
-				sender_id: userId,
+				match_id: ids.matchId,
+				sender_id: ids.userId,
 				content: trimmed,
 				created_at: new Date().toISOString()
 			})
@@ -228,7 +274,7 @@ export async function sendLpMessage(
 		// nothing; the judgement of whether it truly answered her belongs to Bestie,
 		// who marks the checklist item.
 		const turns = (session.turns ?? 0) + (isSubstantive(trimmed) ? 1 : 0);
-		const bar = await computeBar(db, session.match_id, { ...session, turns });
+		const bar = await computeBar(db, ids.matchId, { ...session, turns });
 
 		await db
 			.from('aibestie_lp_sessions')
@@ -236,7 +282,7 @@ export async function sendLpMessage(
 				turns,
 				bar_percent: bar.percent,
 				last_active_at: new Date().toISOString(),
-				...(session.turns === 0 ? { first_message_at: new Date().toISOString() } : {})
+				...((session.turns ?? 0) === 0 ? { first_message_at: new Date().toISOString() } : {})
 			})
 			.eq('id', session.id);
 
@@ -248,7 +294,7 @@ export async function sendLpMessage(
 					const { generateAndSendBestieReply } = await import('./bestie-responder');
 					await generateAndSendBestieReply(
 						session.owner_id,
-						session.match_id,
+						ids.matchId,
 						saved.id,
 						trimmed,
 						saved.created_at

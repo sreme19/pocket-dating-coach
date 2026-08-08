@@ -13,12 +13,17 @@
 	 * pointed at an anonymous visitor. What is copied is the visual language and
 	 * the poll-for-reply pattern; the state here is four fields.
 	 *
-	 * SESSION ISOLATION IS A REAL CONSTRAINT, NOT TIDINESS. The token is exchanged
-	 * with a raw fetch and kept under our own localStorage key, deliberately
-	 * bypassing supabase-js. If this page used the shared client, its persistence
-	 * would overwrite the session of anyone who is ALSO a signed-in member in the
-	 * same browser — a member clicking his own ad would be silently logged out of
-	 * his real account and into a throwaway one.
+	 * NOTHING IS WRITTEN UNTIL HE SPEAKS. Starting a session costs one narrow row
+	 * and creates no identity at all — no auth user, no profile, no match. Her
+	 * opener is rendered from the start response, so a visitor who reads it and
+	 * leaves has cost a single row. His first message is what materialises the
+	 * thread. See aibestie-session.ts for why it cannot be lazier than that.
+	 *
+	 * The bearer is therefore an OPAQUE token, not a Supabase JWT, and it lives
+	 * under our own localStorage key. That also sidesteps a trap: had this used the
+	 * shared supabase-js client, its persistence would have overwritten the session
+	 * of anyone who is ALSO a signed-in member in the same browser — a member
+	 * clicking his own ad would be logged out of his real account.
 	 *
 	 * WHAT THE PAGE MAY PROMISE is decided server-side by terminusMode() and
 	 * arrives as `thread.terminus`. 'human' only when a real, consenting woman is
@@ -27,13 +32,23 @@
 	 * them on its own.
 	 */
 	import { onMount, onDestroy, tick } from 'svelte';
-	import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 	import { page } from '$app/stores';
 	import { STORE_LINKS } from '$lib/store-links';
 	import PublicProfileBody from '$lib/verified-vibe/components/PublicProfileBody.svelte';
 
-	/** Our own key. Never `supabase.auth.token` — see the session-isolation note. */
+	/** Our own key. Never `supabase.auth.token` — see the note above. */
 	const STORE_KEY = 'aibestie.session';
+
+	/**
+	 * Empty segments for the pre-materialised view, matching the real bar's stage
+	 * weights so the control does not resize the instant the server takes over.
+	 */
+	const OPENING_SEGMENTS = [
+		{ id: 'fit', label: 'Basics line up', weight: 10, earned: 0 },
+		{ id: 'portfolio', label: 'Your profile holds up', weight: 30, earned: 0 },
+		{ id: 'standout', label: 'What sets you apart', weight: 30, earned: 0 },
+		{ id: 'corroboration', label: 'Backing up your claims', weight: 30, earned: 0 }
+	];
 
 	type View = 'gate' | 'chat';
 
@@ -136,27 +151,26 @@
 				return;
 			}
 			const started = await res.json();
-
-			// Raw auth call. supabase-js would persist this session over a real
-			// member's own — see the session-isolation note at the top.
-			const verify = await fetch(`${PUBLIC_SUPABASE_URL}/auth/v1/verify`, {
-				method: 'POST',
-				headers: { apikey: PUBLIC_SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					type: 'email',
-					email: started.auth.email,
-					token: started.auth.otp
-				})
-			});
-			const session = await verify.json();
-			if (!session?.access_token) {
-				failed = 'Something went wrong opening the chat. Try again in a moment.';
-				return;
-			}
-			token = session.access_token;
+			token = started.token;
 			localStorage.setItem(STORE_KEY, JSON.stringify({ token }));
+
+			// Paint from the start response rather than round-tripping. There is no
+			// thread in the database yet — that happens when he replies — so this is
+			// the only source for her opener until then.
+			thread = {
+				owner: started.owner,
+				messages: [
+					{ id: 'opener', fromOwner: true, content: started.opener, createdAt: new Date().toISOString() }
+				],
+				bar: { percent: 0, stages: OPENING_SEGMENTS, nextLabel: 'Tell her a bit more', capped: false },
+				turns: 0,
+				maxTurns: 5,
+				closed: false,
+				terminus: gateTerminus,
+				claimCode: started.claimCode,
+				awaitingReply: false
+			};
 			view = 'chat';
-			await loadThread();
 		} catch {
 			failed = 'Something went wrong opening the chat. Try again in a moment.';
 		} finally {

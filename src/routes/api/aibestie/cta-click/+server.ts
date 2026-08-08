@@ -15,30 +15,21 @@
 
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { createClient } from '@supabase/supabase-js';
-import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import { getSupabase } from '$lib/server/supabase';
+import { hashToken } from '$lib/server/aibestie-session';
 
 export const POST: RequestHandler = async ({ request }) => {
 	const header = request.headers.get('authorization') ?? '';
-	const bearer = header.startsWith('Bearer ') ? header.slice(7) : null;
-	if (!bearer) return json({ ok: false }, { status: 401 });
+	const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+	if (!token) return json({ ok: false }, { status: 401 });
 
 	try {
-		const userClient = createClient(PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY, {
-			global: { headers: { Authorization: `Bearer ${bearer}` } }
-		});
-		const {
-			data: { user }
-		} = await userClient.auth.getUser();
-		if (!user?.id) return json({ ok: false }, { status: 401 });
-
 		// First tap wins. He may bounce back and press it again, and the interesting
 		// figure is when he first decided, not how many times he pressed.
 		await (getSupabase() as any)
 			.from('aibestie_lp_sessions')
 			.update({ cta_clicked_at: new Date().toISOString() })
-			.eq('user_id', user.id)
+			.eq('token_hash', hashToken(token))
 			.is('cta_clicked_at', null);
 
 		return json({ ok: true });

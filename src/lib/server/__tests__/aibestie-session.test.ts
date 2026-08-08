@@ -14,7 +14,7 @@ const mockEnv: Record<string, string | undefined> = {};
 vi.mock('$env/dynamic/private', () => ({ env: mockEnv }));
 vi.mock('../supabase', () => ({ getSupabase: () => ({}) }));
 
-const { generateClaimCode, hashIp, lpEnabled, LP_MATCH_SOURCE } = await import(
+const { generateClaimCode, hashIp, hashToken, lpEnabled, LP_MATCH_SOURCE } = await import(
 	'../aibestie-session'
 );
 
@@ -101,6 +101,36 @@ describe('hashIp', () => {
 		const h = hashIp('203.0.113.7');
 		expect(h).toMatch(/^[a-f0-9]{64}$/);
 		expect(h).not.toContain('203.0.113.7');
+	});
+});
+
+describe('hashToken', () => {
+	it('is deterministic, so a token can be looked up', () => {
+		expect(hashToken('abc')).toBe(hashToken('abc'));
+	});
+
+	it('does not contain the token', () => {
+		// The session bearer is stored hashed for the same reason any credential is:
+		// a leaked table must not hand over live sessions. There is no auth user
+		// behind these, so this token IS the identity until he signs up.
+		const t = 'a-very-secret-session-token';
+		const h = hashToken(t);
+		expect(h).toMatch(/^[a-f0-9]{64}$/);
+		expect(h).not.toContain(t);
+	});
+
+	it('separates different tokens', () => {
+		expect(hashToken('abc')).not.toBe(hashToken('abd'));
+	});
+
+	it('is NOT salted with the IP salt', () => {
+		// Deliberate asymmetry. An IP hash needs a salt because the IPv4 space is
+		// small enough to enumerate; a 32-byte random token is not guessable, so
+		// binding it to a rotatable salt would only mean rotating the salt logs
+		// every live visitor out mid-conversation.
+		const before = hashToken('abc');
+		mockEnv.AIBESTIE_IP_SALT = 'something-else';
+		expect(hashToken('abc')).toBe(before);
 	});
 });
 

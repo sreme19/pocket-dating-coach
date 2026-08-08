@@ -1,8 +1,11 @@
 /**
  * POST /api/aibestie/start
  *
- * Opens a landing-page conversation: mints a provisional visitor, a thread
- * against the configured owner, and the credentials to log in as him.
+ * Opens a landing-page conversation.
+ *
+ * Writes exactly ONE row and creates no identity. The profile, the match and the
+ * messages appear on his FIRST MESSAGE — see aibestie-session.ts — so a visitor
+ * who reads her opener and leaves costs a single narrow row.
  *
  * Unauthenticated by design — the caller is an anonymous ad click, and issuing
  * him an identity is the entire job. Everything that makes that safe lives one
@@ -10,12 +13,13 @@
  * origin rate limit that stops a bot turning a public Claude endpoint into an
  * open invoice.
  *
- * Response (200):
- *   { matchId, ownerId, claimCode, auth: { email, otp } }
+ * Response (201):
+ *   { token, ownerId, claimCode, owner, opener }
  *
- * The client exchanges `auth` via supabase.auth.verifyOtp to obtain a session,
- * exactly as the seed-login flow does. The OTP is safe to hand over: it belongs
- * to a throwaway account created moments ago for this browser and nothing else.
+ * `token` is an OPAQUE bearer for /api/aibestie/* — not a Supabase JWT, because
+ * no auth user exists yet and none is created until he signs up. `owner` and
+ * `opener` let the page paint the whole conversation without a second call, and
+ * without anything but this session row being written.
  */
 
 import { json } from '@sveltejs/kit';
@@ -79,10 +83,11 @@ export const POST: RequestHandler = async ({ request, url, getClientAddress }) =
 	const { session } = result;
 	return json(
 		{
-			matchId: session.matchId,
+			token: session.token,
 			ownerId: session.ownerId,
 			claimCode: session.claimCode,
-			auth: { email: session.email, otp: session.otp }
+			owner: session.owner,
+			opener: session.opener
 		},
 		{ status: 201 }
 	);
