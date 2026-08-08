@@ -303,7 +303,13 @@
 					<img src={gateOwner.avatarUrl} alt={gateOwner.firstName || 'Her profile'} />
 				{/if}
 			</div>
-			<h1>You're about to talk to an AI</h1>
+			<!--
+				"AI bestie" has to stay in the HEADING, not just the line under it.
+				This is the page's disclosure, and it is what makes an advert that shows
+				a woman honest about who answers — so it has to survive someone who reads
+				four words and taps. The warmth is in the phrasing, never in burying it.
+			-->
+			<h1>Meet {gateOwner?.firstName ?? 'her'}'s AI bestie</h1>
 			<!--
 				The second sentence is the ONLY part that varies, and it varies because
 				"then with her" is a claim about a person. terminusMode() decides whether
