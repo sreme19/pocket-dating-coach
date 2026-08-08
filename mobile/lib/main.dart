@@ -1,6 +1,9 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'aibestie_claim.dart';
 import 'config.dart';
 import 'season.dart';
 import 'api.dart';
@@ -39,6 +42,14 @@ Future<void> main() async {
   );
   await initFirebasePush();
   PushService.navKey = navigatorKey;
+
+  // If this install came from the /aibestie advert, the Play referrer carries the
+  // code for the conversation he already had. Deliberately NOT awaited: it is a
+  // platform-channel call into Play services that only matters to ad traffic, and
+  // no launch should ever wait on it. It stores the code; the claim itself happens
+  // once onboarding has written his gender.
+  unawaited(captureInstallReferrer());
+
   runApp(const VerifiedVibeApp());
 }
 

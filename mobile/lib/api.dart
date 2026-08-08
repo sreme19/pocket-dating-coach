@@ -3579,3 +3579,55 @@ Future<Map<String, dynamic>> fetchWingmanSuggestion(String conversationId) async
     'coaching': data['coaching'] as String?,
   };
 }
+
+// ── /aibestie: inherit the conversation he had before he installed ────────────
+
+/// The outcome of handing a landing-page conversation to this account.
+///
+/// [retryable] is the distinction that matters to the caller: a 404 means the
+/// code is wrong and will never work, so the stored code should be dropped; a
+/// timeout means try again next launch. Treating those the same either loses a
+/// conversation permanently or retries a dead code on every cold start.
+class AibestieClaimResult {
+  final bool ok;
+  /// Server-authored, human-readable — the endpoint writes these for exactly this.
+  final String? message;
+  final bool retryable;
+  final int messagesMoved;
+  const AibestieClaimResult({
+    required this.ok,
+    this.message,
+    this.retryable = false,
+    this.messagesMoved = 0,
+  });
+}
+
+/// Claim the landing-page conversation identified by [code] for the signed-in user.
+///
+/// Authenticated with his REAL session, never the landing page's own token: the
+/// point of the call is to prove who is inheriting the thread, and the visitor
+/// side is the half the server already knows.
+Future<AibestieClaimResult> claimAibestieConversation(String code) async {
+  try {
+    final resp = await _dio.post(
+      '${Config.apiBase}/api/aibestie/claim',
+      data: {'code': code},
+      options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
+    );
+    final body = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : <String, dynamic>{};
+    return AibestieClaimResult(ok: true, messagesMoved: _asInt(body['messagesMoved']));
+  } on DioException catch (e) {
+    final status = e.response?.statusCode ?? 0;
+    final body = e.response?.data is Map ? Map<String, dynamic>.from(e.response!.data as Map) : <String, dynamic>{};
+    // 401 is retryable on purpose: it means the session was not ready yet, not
+    // that the code is bad. Everything else in the 4xx range is a verdict.
+    final retryable = status == 0 || status >= 500 || status == 401;
+    return AibestieClaimResult(
+      ok: false,
+      message: body['message'] as String?,
+      retryable: retryable,
+    );
+  } catch (e) {
+    return AibestieClaimResult(ok: false, retryable: true);
+  }
+}

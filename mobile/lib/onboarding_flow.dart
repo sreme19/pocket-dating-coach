@@ -1,5 +1,8 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'aibestie_claim.dart';
 import 'api.dart';
 import 'app_logger.dart';
 import 'archetypes.dart';
@@ -74,6 +77,16 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     setState(() { _saving = true; _error = null; });
     try {
       await saveGenderArchetype(_gender, archetypeId);
+      // The earliest point a landing-page conversation can be inherited. The
+      // server refuses a claimer who is not a man — the thread is the man's side
+      // of a woman→man proxy — and this call is what just wrote his gender, so
+      // anything sooner would be rejected and the code thrown away. No-op for
+      // everyone who did not arrive from the advert; never allowed to fail the
+      // step he is actually standing in.
+      unawaited(claimPendingConversation().catchError((Object e) {
+        AppLogger.instance.error(e, screen: 'onboarding', action: 'aibestie_claim');
+        return null;
+      }));
       // Only advance to step 2 if not already at step 2+ (prevents going
       // back from VerificationScreen when the background save finishes late).
       if (mounted) setState(() { _saving = false; _savedArchetypeId = archetypeId; if (_step < 2) _step = 2; });

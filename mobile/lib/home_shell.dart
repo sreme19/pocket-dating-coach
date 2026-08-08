@@ -1,4 +1,7 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/material.dart';
+import 'aibestie_claim.dart';
 import 'app_logger.dart';
 import 'config.dart';
 import 'season.dart';
@@ -85,6 +88,14 @@ class _HomeShellState extends State<HomeShell> {
     };
     // Authenticated + in the app — request push permission + register FCM token.
     PushService.registerForUser();
+    // The retry for a landing-page conversation whose claim could not go through
+    // during onboarding — no network, a session not yet settled. Only failures
+    // that a later attempt could actually fix leave a code behind, so this is a
+    // prefs read and nothing more for everyone else.
+    unawaited(claimPendingConversation().catchError((Object e) {
+      AppLogger.instance.error(e, screen: 'home', action: 'aibestie_claim');
+      return null;
+    }));
   }
 
   @override

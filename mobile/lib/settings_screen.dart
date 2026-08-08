@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'aibestie_claim.dart';
 import 'api.dart';
 import 'app_logger.dart';
 import 'blocked_users_screen.dart';
@@ -7,6 +8,7 @@ import 'config.dart';
 import 'preference_weighting_screen.dart';
 import 'profile_strength_screen.dart';
 import 'push_service.dart';
+import 'season.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -108,6 +110,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             'Tune how much each quality matters to you in a match',
             const PreferenceWeightingScreen(),
           ),
+          _codeRow(context),
           _header('SAFETY'),
           _navRow(
             context,
@@ -218,6 +221,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// The by-hand route into a conversation he started before he installed.
+  ///
+  /// The automatic route is the Play install referrer, which arrives only when the
+  /// install genuinely came from that tap — not from a store search, not on a
+  /// device that already had the app, and never on iOS. Without this row those men
+  /// simply lose the conversation, and it is the one thing the landing page
+  /// promised would follow them.
+  Widget _codeRow(BuildContext context) => InkWell(
+        onTap: () => showModalBottomSheet<void>(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: const Color(Config.bg2),
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+          builder: (_) => const AibestieCodeSheet(),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: const [
+                  Text('Add a conversation',
+                      style: TextStyle(color: Color(Config.text1), fontSize: 15, fontWeight: FontWeight.w600)),
+                  SizedBox(height: 2),
+                  Text('Bring in a chat you started before you installed the app',
+                      style: TextStyle(color: Color(Config.text3), fontSize: 12, height: 1.35)),
+                ]),
+              ),
+              const Icon(Icons.chevron_right, color: Color(Config.text3)),
+            ],
+          ),
+        ),
+      );
+
   Widget _row(String label, String value, {bool mono = false}) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         child: Row(
@@ -234,6 +271,104 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
       );
+}
+
+/// Type in the code printed on the /aibestie landing page to inherit that
+/// conversation.
+///
+/// Every failure here is reported in the SERVER's words rather than a generic
+/// line. The endpoint distinguishes a code that matches nothing from one already
+/// claimed from a conversation that cannot come to this account, and a man who
+/// typed six characters correctly needs to know which of those happened — "that
+/// didn't work" would send him to retype a code that was never going to work.
+class AibestieCodeSheet extends StatefulWidget {
+  const AibestieCodeSheet({super.key});
+  @override
+  State<AibestieCodeSheet> createState() => _AibestieCodeSheetState();
+}
+
+class _AibestieCodeSheetState extends State<AibestieCodeSheet> {
+  final _code = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _code.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_busy) return;
+    setState(() { _busy = true; _error = null; });
+    final result = await claimTypedCode(_code.text);
+    if (!mounted) return;
+    if (result.ok) {
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Added. It’s in your chats.')),
+      );
+      return;
+    }
+    setState(() {
+      _busy = false;
+      _error = result.message ?? 'Could not add that just now. Try again in a moment.';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 18, 20, MediaQuery.of(context).viewInsets.bottom + 20),
+      child: SingleChildScrollView(
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Add a conversation',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(Config.text1))),
+          const SizedBox(height: 6),
+          const Text(
+              'If you were chatting with someone’s AI bestie before you installed the app, enter the code you were shown. The whole conversation moves across, and you carry on where you left off.',
+              style: TextStyle(fontSize: 13, color: Color(Config.text2), height: 1.4)),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _code,
+            autofocus: true,
+            // The code is generated from an alphabet with no O/0/I/1, so it can be
+            // read off one screen and typed into another. Forcing capitals here
+            // matches how it is printed.
+            textCapitalization: TextCapitalization.characters,
+            style: const TextStyle(color: Color(Config.text1), fontSize: 18, letterSpacing: 2),
+            decoration: InputDecoration(
+              hintText: 'RA-XXXXXX',
+              hintStyle: const TextStyle(color: Color(Config.text3), letterSpacing: 2),
+              filled: true, fillColor: const Color(Config.bg3),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            ),
+            onSubmitted: (_) => _submit(),
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Text(_error!, style: const TextStyle(color: Color(0xFFF87171), fontSize: 13)),
+          ],
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity, height: 50,
+            child: FilledButton(
+              onPressed: _busy ? null : _submit,
+              style: FilledButton.styleFrom(
+                backgroundColor: Brand.accent,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: const Color(Config.bg3),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: _busy
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Add it', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
 }
 
 /// Delete-account flow: optional churn reason + feedback, then type DELETE to
