@@ -51,6 +51,8 @@
 		"fast-check": "^4.8.0",
 		"jest-axe": "^10.0.0",
 		"jsdom": "^29.1.1",
+		"marked": "^18.0.9",
+		"shiki": "^4.4.2",
 		"svelte": "^5.55.2",
 		"svelte-check": "^4.4.6",
 		"svelte-sonner": "^1.1.1",

@@ -3,8 +3,17 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover" />
-		<meta name="description" content="Your pocket dating coach — get personalized advice, profile reviews, and message help." />
-		<title>riteangle</title>
+		<!--
+			Deliberately no title or meta description in this template. Anything
+			hardcoded here lands ahead of the injected head below, and a browser or
+			crawler reads the FIRST one it sees, so a default here silently shadowed
+			the title and description every page sets for itself. The app-wide
+			fallbacks live in src/routes/+layout.svelte instead.
+
+			Do not write the head placeholder token inside a comment: it is a plain
+			string substitution, so it would be replaced here and the injected markup
+			would close this comment early and spill onto the page.
+		-->
 		<link rel="manifest" href="/manifest.json" />
 		<meta name="theme-color" content="#FF3B6B" />
 		<meta name="apple-mobile-web-app-capable" content="yes" />

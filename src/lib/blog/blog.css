@@ -1,0 +1,717 @@
+/*
+ * Blog design system — deliberately independent of the riteangle app.
+ *
+ * The app is cream/hot-pink, Gabarito, product-shaped. This is a reading
+ * surface: warm paper, a serif measure of ~66 characters, one accent, and no
+ * component library. Everything here is scoped under .blog so it cannot leak
+ * into product routes, and it uses system font stacks so a post paints on the
+ * first frame with no layout shift and no font download.
+ */
+
+.blog {
+	--paper: #fcfbf8;
+	--paper-raised: #ffffff;
+	--ink: #17161b;
+	--ink-soft: #3f3c45;
+	--muted: #6e6a63;
+	--faint: #97928a;
+	--rule: #e8e3d8;
+	--accent: #b4541e;
+	--accent-soft: #f6ece4;
+	--code-bg: #24292e;
+
+	--serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, 'Times New Roman', serif;
+	--sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+	--mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+	background: var(--paper);
+	color: var(--ink);
+	font-family: var(--serif);
+	min-height: 100vh;
+	display: flex;
+	flex-direction: column;
+	-webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+	.blog {
+		--paper: #14131a;
+		--paper-raised: #1b1a22;
+		--ink: #edeae3;
+		--ink-soft: #cdc8bf;
+		--muted: #9a958c;
+		--faint: #7b766e;
+		--rule: #2c2933;
+		--accent: #e2916a;
+		--accent-soft: #251c19;
+		--code-bg: #1a1920;
+	}
+}
+
+/*
+ * app.css paints the product's pink canvas on <body>. On a blog page that shows
+ * through on overscroll and tints the mobile browser chrome, so the canvas is
+ * reclaimed here. Literal values, not the vars above, because those are scoped
+ * to .blog and <body> is its ancestor.
+ */
+body:has(.blog) {
+	background: #fcfbf8;
+}
+
+@media (prefers-color-scheme: dark) {
+	body:has(.blog) {
+		background: #14131a;
+	}
+}
+
+.blog ::selection {
+	background: var(--accent);
+	color: var(--paper);
+}
+
+.blog :focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 3px;
+	border-radius: 2px;
+}
+
+/* ---------- shell ---------- */
+
+.blog__inner {
+	width: 100%;
+	max-width: 46rem;
+	margin: 0 auto;
+	padding: 0 1.5rem;
+}
+
+.blog__header {
+	border-bottom: 1px solid var(--rule);
+	padding: 1.75rem 0 1.5rem;
+}
+
+.blog__headerRow {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 1rem;
+	flex-wrap: wrap;
+}
+
+.blog__wordmark {
+	font-family: var(--serif);
+	font-size: 1.3rem;
+	font-weight: 600;
+	letter-spacing: -0.015em;
+	color: var(--ink);
+	text-decoration: none;
+}
+
+.blog__wordmark:hover {
+	color: var(--accent);
+}
+
+.blog__nav {
+	display: flex;
+	align-items: center;
+	gap: 1.25rem;
+	font-family: var(--sans);
+	font-size: 0.8125rem;
+}
+
+.blog__nav a {
+	color: var(--muted);
+	text-decoration: none;
+	transition: color 0.15s;
+}
+
+.blog__nav a:hover {
+	color: var(--accent);
+}
+
+.blog__nav a[aria-current='page'] {
+	color: var(--ink);
+}
+
+.blog__tagline {
+	margin: 0.5rem 0 0;
+	font-family: var(--sans);
+	font-size: 0.875rem;
+	color: var(--muted);
+	max-width: 34rem;
+	line-height: 1.5;
+}
+
+.blog__main {
+	flex: 1 1 auto;
+	padding: 3rem 0 4.5rem;
+}
+
+.blog__footer {
+	border-top: 1px solid var(--rule);
+	padding: 1.75rem 0 2.5rem;
+	font-family: var(--sans);
+	font-size: 0.8125rem;
+	color: var(--faint);
+}
+
+.blog__footerRow {
+	display: flex;
+	justify-content: space-between;
+	gap: 1rem;
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+.blog__footer a {
+	color: var(--muted);
+	text-decoration: none;
+}
+
+.blog__footer a:hover {
+	color: var(--accent);
+}
+
+/* ---------- index ---------- */
+
+.blog__lede {
+	margin: 0 0 3rem;
+	font-size: 1.375rem;
+	line-height: 1.55;
+	color: var(--ink-soft);
+	letter-spacing: -0.01em;
+}
+
+.blog__sectionLabel {
+	font-family: var(--sans);
+	font-size: 0.6875rem;
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--faint);
+	margin: 0 0 1.25rem;
+}
+
+.postList {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.postList__item {
+	border-top: 1px solid var(--rule);
+	padding: 1.75rem 0;
+}
+
+.postList__item:last-child {
+	border-bottom: 1px solid var(--rule);
+}
+
+.postList__link {
+	text-decoration: none;
+	color: inherit;
+	display: block;
+}
+
+.postList__title {
+	margin: 0;
+	font-size: 1.5rem;
+	font-weight: 600;
+	line-height: 1.25;
+	letter-spacing: -0.02em;
+	color: var(--ink);
+}
+
+.postList__link:hover .postList__title {
+	color: var(--accent);
+}
+
+.postList__summary {
+	margin: 0.5rem 0 0;
+	font-size: 1.0625rem;
+	line-height: 1.6;
+	color: var(--ink-soft);
+}
+
+.postMeta {
+	display: flex;
+	align-items: center;
+	gap: 0.625rem;
+	flex-wrap: wrap;
+	font-family: var(--sans);
+	font-size: 0.75rem;
+	color: var(--faint);
+	margin: 0.75rem 0 0;
+}
+
+.postMeta__dot::before {
+	content: '·';
+}
+
+.postMeta--draft {
+	color: var(--accent);
+	font-weight: 600;
+}
+
+.blog__empty {
+	border: 1px dashed var(--rule);
+	border-radius: 6px;
+	padding: 2.5rem 1.75rem;
+	text-align: center;
+	font-family: var(--sans);
+	font-size: 0.9375rem;
+	color: var(--muted);
+}
+
+/* ---------- tags ---------- */
+
+.tagRow {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin: 0 0 2.5rem;
+	padding: 0;
+	list-style: none;
+}
+
+.tagChip {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0.375rem;
+	font-family: var(--sans);
+	font-size: 0.75rem;
+	line-height: 1;
+	padding: 0.4375rem 0.6875rem;
+	border: 1px solid var(--rule);
+	border-radius: 999px;
+	color: var(--muted);
+	text-decoration: none;
+	transition:
+		color 0.15s,
+		border-color 0.15s,
+		background 0.15s;
+}
+
+.tagChip:hover {
+	color: var(--accent);
+	border-color: var(--accent);
+}
+
+.tagChip[aria-current='page'] {
+	background: var(--accent-soft);
+	border-color: var(--accent);
+	color: var(--accent);
+	font-weight: 600;
+}
+
+.tagChip__count {
+	font-variant-numeric: tabular-nums;
+	color: var(--faint);
+	font-size: 0.6875rem;
+}
+
+/* ---------- post ---------- */
+
+.post__header {
+	margin: 0 0 2.5rem;
+}
+
+.post__title {
+	margin: 0;
+	font-size: clamp(2rem, 5.5vw, 2.75rem);
+	line-height: 1.12;
+	font-weight: 600;
+	letter-spacing: -0.028em;
+	color: var(--ink);
+	text-wrap: balance;
+}
+
+.post__summary {
+	margin: 1rem 0 0;
+	font-size: 1.1875rem;
+	line-height: 1.6;
+	color: var(--muted);
+}
+
+.post__rule {
+	border: 0;
+	border-top: 1px solid var(--rule);
+	margin: 1.75rem 0 0;
+}
+
+.post__toc {
+	margin: 0 0 2.5rem;
+	padding: 1.125rem 1.25rem;
+	background: var(--paper-raised);
+	border: 1px solid var(--rule);
+	border-radius: 6px;
+	font-family: var(--sans);
+}
+
+.post__toc summary {
+	cursor: pointer;
+	font-size: 0.6875rem;
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--faint);
+}
+
+.post__toc ol {
+	list-style: none;
+	margin: 0.875rem 0 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.4375rem;
+	font-size: 0.875rem;
+}
+
+.post__toc li[data-depth='3'] {
+	padding-left: 1rem;
+}
+
+.post__toc a {
+	color: var(--muted);
+	text-decoration: none;
+}
+
+.post__toc a:hover {
+	color: var(--accent);
+}
+
+/* ---------- prose ---------- */
+
+.prose {
+	font-size: 1.125rem;
+	line-height: 1.72;
+	color: var(--ink-soft);
+}
+
+/*
+ * Vertical rhythm lives in exactly these two rules, and every element-specific
+ * rule below must stay out of the `margin` property. `.prose > *` and
+ * `.prose > * + *` both have specificity 0-1-0, so the second wins for adjacent
+ * siblings — but a rule like `.prose p { margin: 0 }` scores 0-1-1 and would
+ * silently flatten the whole document. Headings deliberately use the
+ * higher-specificity `.prose > h2` form to claim a bigger gap.
+ */
+.prose > * {
+	margin: 0;
+}
+
+.prose > * + * {
+	margin-top: 1.5rem;
+}
+
+.prose h2,
+.prose h3,
+.prose h4 {
+	color: var(--ink);
+	font-weight: 600;
+	letter-spacing: -0.018em;
+	line-height: 1.25;
+	scroll-margin-top: 1.5rem;
+}
+
+.prose > h2 {
+	font-size: 1.625rem;
+}
+
+.prose > h3 {
+	font-size: 1.3125rem;
+}
+
+.prose > h4 {
+	font-size: 1.125rem;
+}
+
+/* Headings pull away from what precedes them, not from a post's own first line. */
+.prose > h2 + *,
+.prose > h3 + *,
+.prose > h4 + * {
+	margin-top: 1rem;
+}
+
+.prose > * + h2 {
+	margin-top: 3rem;
+}
+
+.prose > * + h3 {
+	margin-top: 2.5rem;
+}
+
+.prose > * + h4 {
+	margin-top: 2rem;
+}
+
+.prose a {
+	color: var(--ink);
+	text-decoration: underline;
+	text-decoration-color: var(--accent);
+	text-decoration-thickness: 1px;
+	text-underline-offset: 3px;
+}
+
+.prose a:hover {
+	color: var(--accent);
+}
+
+.prose strong {
+	font-weight: 600;
+	color: var(--ink);
+}
+
+/* Normal flow rather than flex: a flex container blockifies its children, and
+   ::marker on a blockified list item is unreliable across browsers. */
+.prose ul,
+.prose ol {
+	padding-left: 1.375rem;
+}
+
+.prose ul {
+	list-style: disc;
+}
+
+.prose ol {
+	list-style: decimal;
+}
+
+.prose li + li {
+	margin-top: 0.5rem;
+}
+
+.prose li > ul,
+.prose li > ol {
+	margin-top: 0.5rem;
+}
+
+.prose li::marker {
+	color: var(--faint);
+}
+
+.prose blockquote {
+	padding-left: 1.25rem;
+	border-left: 2px solid var(--accent);
+	color: var(--muted);
+	font-style: italic;
+}
+
+.prose blockquote p + p {
+	margin-top: 1rem;
+}
+
+.prose hr {
+	border: 0;
+	border-top: 1px solid var(--rule);
+}
+
+.prose > * + hr,
+.prose > hr + * {
+	margin-top: 2.5rem;
+}
+
+.prose img {
+	max-width: 100%;
+	height: auto;
+	border-radius: 6px;
+	display: block;
+}
+
+.prose figcaption {
+	font-family: var(--sans);
+	font-size: 0.8125rem;
+	color: var(--faint);
+	margin-top: 0.5rem;
+}
+
+/* Inline code, distinct from a fenced block. */
+.prose :not(pre) > code {
+	font-family: var(--mono);
+	font-size: 0.875em;
+	background: var(--accent-soft);
+	color: var(--accent);
+	padding: 0.1em 0.35em;
+	border-radius: 4px;
+	white-space: nowrap;
+}
+
+/* Wide content scrolls inside itself; the page never scrolls sideways. */
+.prose .table-scroll,
+.prose table {
+	display: block;
+	overflow-x: auto;
+	max-width: 100%;
+}
+
+.prose table {
+	border-collapse: collapse;
+	font-family: var(--sans);
+	font-size: 0.9375rem;
+	white-space: nowrap;
+}
+
+.prose th,
+.prose td {
+	border-bottom: 1px solid var(--rule);
+	padding: 0.5rem 1rem 0.5rem 0;
+	text-align: left;
+}
+
+.prose th {
+	font-weight: 600;
+	color: var(--ink);
+	font-size: 0.8125rem;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+}
+
+/* ---------- fenced code ---------- */
+
+/* No `margin` here — spacing is owned by the .prose flow rules. */
+.post-code {
+	position: relative;
+	background: var(--code-bg);
+	border-radius: 8px;
+	border: 1px solid var(--rule);
+	overflow: hidden;
+}
+
+.post-code__lang {
+	position: absolute;
+	top: 0.5rem;
+	right: 0.75rem;
+	font-family: var(--sans);
+	font-size: 0.625rem;
+	font-weight: 600;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: #7d8590;
+	pointer-events: none;
+}
+
+.post-code .shiki {
+	margin: 0;
+	padding: 1.125rem 1.25rem;
+	overflow-x: auto;
+	background: transparent !important;
+	font-family: var(--mono);
+	font-size: 0.875rem;
+	line-height: 1.65;
+	tab-size: 2;
+}
+
+.post-code code {
+	font-family: inherit;
+	background: none;
+	padding: 0;
+	white-space: pre;
+}
+
+/* ---------- post footer ---------- */
+
+.post__footer {
+	margin-top: 4rem;
+	border-top: 1px solid var(--rule);
+	padding-top: 1.75rem;
+}
+
+.post__neighbours {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+	gap: 1rem;
+	margin-top: 1.75rem;
+}
+
+.neighbour {
+	display: block;
+	text-decoration: none;
+	border: 1px solid var(--rule);
+	border-radius: 6px;
+	padding: 1rem 1.125rem;
+	transition: border-color 0.15s;
+}
+
+.neighbour:hover {
+	border-color: var(--accent);
+}
+
+.neighbour__label {
+	font-family: var(--sans);
+	font-size: 0.6875rem;
+	font-weight: 600;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--faint);
+}
+
+.neighbour__title {
+	display: block;
+	margin-top: 0.375rem;
+	font-size: 1rem;
+	line-height: 1.35;
+	color: var(--ink);
+	font-weight: 600;
+}
+
+.neighbour:hover .neighbour__title {
+	color: var(--accent);
+}
+
+.neighbour--next {
+	text-align: right;
+}
+
+/* One link back to the product, clearly marked as a different thing. */
+.blog__product {
+	margin-top: 3rem;
+	border: 1px solid var(--rule);
+	border-radius: 8px;
+	padding: 1.25rem 1.375rem;
+	background: var(--paper-raised);
+	font-family: var(--sans);
+}
+
+.blog__productLabel {
+	font-size: 0.6875rem;
+	font-weight: 600;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--faint);
+}
+
+.blog__productText {
+	margin: 0.5rem 0 0;
+	font-size: 0.9375rem;
+	line-height: 1.6;
+	color: var(--muted);
+}
+
+.blog__productText a {
+	color: var(--accent);
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.blog__productText a:hover {
+	text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+	.blog__main {
+		padding: 2.25rem 0 3rem;
+	}
+
+	.blog__lede {
+		font-size: 1.1875rem;
+	}
+
+	.prose {
+		font-size: 1.0625rem;
+	}
+
+	.neighbour--next {
+		text-align: left;
+	}
+}

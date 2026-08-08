@@ -3,6 +3,7 @@ import { defineConfig, loadEnv } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
+import { blogMarkdown } from './scripts/vite-plugin-blog';
 
 // Force-load .env.local values, overriding any shell env vars that might be empty.
 // Needed because Claude Code agent sets ANTHROPIC_API_KEY="" which Vite normally respects.
@@ -25,7 +26,9 @@ function forceLoadEnvLocal() {
 forceLoadEnvLocal();
 
 export default defineConfig({
-	plugins: [tailwindcss(), sveltekit()],
+	// blogMarkdown compiles src/lib/blog/posts/*.md to HTML at build time, so
+	// `marked` and `shiki` stay devDependencies and never reach the runtime bundle.
+	plugins: [blogMarkdown(), tailwindcss(), sveltekit()],
 	server: {
 		fs: {
 			// Allow serving files from the parent node_modules (git worktree setup)
@@ -35,7 +38,10 @@ export default defineConfig({
 		allowedHosts: [
 			'localhost',
 			'127.0.0.1',
-			'pocket-dating-coach-demo.loca.lt'
+			'pocket-dating-coach-demo.loca.lt',
+			// Lets the blog's subdomain rewrite (src/hooks.ts) be exercised locally
+			// once `127.0.0.1 sree.localhost` is in /etc/hosts.
+			'sree.localhost'
 		]
 	},
 	build: {

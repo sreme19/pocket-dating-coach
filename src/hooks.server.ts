@@ -1,4 +1,6 @@
-import type { Handle } from '@sveltejs/kit';
+import { redirect, type Handle } from '@sveltejs/kit';
+import { env } from '$env/dynamic/private';
+import { BLOG_ORIGIN } from '$lib/blog/site';
 
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
@@ -86,8 +88,28 @@ function getClientIp(request: Request): string {
 	);
 }
 
+// Hostnames whose /blog/* paths are duplicates of the blog's own subdomain.
+const MAIN_SITE_HOSTS = new Set(['riteangle.dating', 'www.riteangle.dating']);
+
 export const handle: Handle = async ({ event, resolve }) => {
 	const isApi = event.url.pathname.startsWith('/api/');
+
+	// Give the blog exactly one canonical URL. On the main site, /blog/x sends the
+	// reader to sree.riteangle.dating/x instead of serving a second copy.
+	//
+	// Gated on BLOG_SUBDOMAIN_LIVE because it must stay OFF until the subdomain
+	// actually resolves — otherwise this redirects readers into a dead host. With
+	// the flag unset, /blog keeps working on the main domain, which is also how
+	// this is reachable on Vercel preview deployments.
+	if (
+		!isApi &&
+		env.BLOG_SUBDOMAIN_LIVE === 'true' &&
+		MAIN_SITE_HOSTS.has(event.url.hostname) &&
+		(event.url.pathname === '/blog' || event.url.pathname.startsWith('/blog/'))
+	) {
+		const path = event.url.pathname.replace(/^\/blog/, '') || '/';
+		redirect(308, new URL(path + event.url.search, BLOG_ORIGIN).toString());
+	}
 	const origin = event.request.headers.get('origin');
 	const allowOrigin = origin && CAPACITOR_ORIGINS.has(origin) ? origin : null;
 

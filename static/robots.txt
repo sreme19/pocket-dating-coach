@@ -1,3 +1,6 @@
 # allow crawling everything by default
 User-agent: *
 Disallow:
+
+# Sree's personal blog is served from its own subdomain (see src/hooks.ts).
+Sitemap: https://sree.riteangle.dating/sitemap.xml

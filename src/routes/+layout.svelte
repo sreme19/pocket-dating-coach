@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import { ShieldCheck } from 'lucide-svelte';
   import { Toaster } from 'svelte-sonner';
+  import { BLOG_HOSTS } from '$lib/blog/site';
 
   let { children } = $props();
 
@@ -16,14 +17,33 @@
   ];
 
   let pathname = $derived($page.url.pathname);
+  // Sree's personal blog brings its own title and description (see
+  // $lib/blog/Seo.svelte). It has to be recognised by hostname too, because on
+  // sree.riteangle.dating the rewrite in src/hooks.ts leaves the pathname at '/'.
+  let isBlog = $derived(
+    pathname === '/blog' ||
+      pathname.startsWith('/blog/') ||
+      BLOG_HOSTS.includes($page.url.hostname)
+  );
   let isVV = $derived(pathname.startsWith('/verified-vibe'));
   let activeTool = $derived(toolLinks.find(([k]) => pathname.startsWith(k)));
   let isTool = $derived(!isVV && !!activeTool);
   let footerLinks = $derived(toolLinks.filter(([k]) => !pathname.startsWith(k)));
 </script>
 
+<!--
+  App-wide fallback head, moved here out of src/app.html so it sits inside
+  %sveltekit.head% and no longer precedes (and therefore shadows) whatever a
+  page sets for itself. Skipped on the blog, which supplies its own.
+-->
 <svelte:head>
-  <title>riteangle</title>
+  {#if !isBlog}
+    <title>riteangle</title>
+    <meta
+      name="description"
+      content="Your pocket dating coach — get personalized advice, profile reviews, and message help."
+    />
+  {/if}
 </svelte:head>
 
 {#if isVV}
