@@ -29,6 +29,10 @@
       "schedule": "0 4 * * *"
     },
     {
+      "path": "/api/cron/aibestie-prune",
+      "schedule": "45 4 * * *"
+    },
+    {
       "path": "/api/cron/new-member-alert",
       "schedule": "*/5 * * * *"
     },
