@@ -62,6 +62,8 @@
 
 	let showProfile = $state(false);
 	let profile = $state<any>(null);
+	/** Set when her profile genuinely failed, so the sheet stops saying "loading". */
+	let profileFailed = $state(false);
 	let showLeaveSheet = $state(false);
 
 	/**
@@ -158,7 +160,12 @@
 			// thread in the database yet — that happens when he replies — so this is
 			// the only source for her opener until then.
 			thread = {
-				owner: started.owner,
+				// The id is returned at the TOP level of the start response, not inside
+				// `owner`. Without it folded in here, openProfile's guard fired on every
+				// fresh session and the profile sheet sat on "Loading her profile…"
+				// forever — invisible in testing, because sending a message replaces
+				// this object with the server's, which does carry it.
+				owner: { ...started.owner, id: started.ownerId },
 				messages: [
 					{ id: 'opener', fromOwner: true, content: started.opener, createdAt: new Date().toISOString() }
 				],
@@ -209,9 +216,26 @@
 
 	async function openProfile() {
 		showProfile = true;
-		if (profile || !thread?.owner?.id) return;
-		const res = await fetch(`/api/verified-vibe/public-profile/${thread.owner.id}`);
-		if (!res.ok) return;
+		if (profile) return;
+		profileFailed = false;
+		const ownerId = thread?.owner?.id;
+		if (!ownerId) {
+			profileFailed = true;
+			return;
+		}
+		let res: Response;
+		try {
+			res = await fetch(`/api/verified-vibe/public-profile/${ownerId}`);
+		} catch {
+			profileFailed = true;
+			return;
+		}
+		if (!res.ok) {
+			// Previously this just returned, leaving the sheet on "Loading her
+			// profile…" indefinitely — a failure indistinguishable from a slow network.
+			profileFailed = true;
+			return;
+		}
 		const { data } = await res.json();
 		// Income and net worth are stripped on this surface. The endpoint applies no
 		// viewer-based redaction — it was built for signed-in members — and those
@@ -317,7 +341,7 @@
 				</span>
 			</button>
 
-			<button class="signup" onclick={goToStore}>Sign up</button>
+			<button class="signup" onclick={goToStore}>Continue</button>
 		</header>
 
 		<div class="progress">
@@ -416,6 +440,9 @@
 			<div class="profile-scroll">
 				{#if profile}
 					<PublicProfileBody {profile} subjectUserId={thread.owner.id} surface="aibestie_lp" />
+				{:else if profileFailed}
+					<p class="gate-sub">Couldn't load her profile just now.</p>
+					<button class="ghost" onclick={openProfile}>Try again</button>
 				{:else}
 					<p class="gate-sub">Loading her profile…</p>
 				{/if}
