@@ -257,7 +257,12 @@
 </script>
 
 <svelte:head>
-	<title>Talk to Jessica's AI bestie</title>
+	<!--
+		Never hardcode the owner here. The roster rotates and is env-driven, so a
+		literal name is wrong the moment it changes — this said "Jessica" while the
+		page was serving Linda. Generic until the session tells us who she is.
+	-->
+	<title>{ownerName ? `Talk to ${ownerName}'s AI bestie` : 'Talk to her AI bestie'}</title>
 	<meta name="theme-color" content="#FFF3F0" />
 	<!-- A page whose whole body is a private conversation has no business in an index. -->
 	<meta name="robots" content="noindex, nofollow" />
