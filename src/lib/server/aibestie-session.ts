@@ -33,7 +33,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { env } from '$env/dynamic/private';
 import { getSupabase } from './supabase';
-import { lpConfigured, pickOwner, terminusMode } from './aibestie-owner';
+import { lpConfigured, pickOwner, terminusMode, type TerminusMode } from './aibestie-owner';
 import { provisionalMembersEnabled } from './member-state';
 import { buildLpOpener } from './aibestie-opener';
 
@@ -114,6 +114,46 @@ export interface StartOptions {
  */
 export function lpEnabled(): boolean {
 	return provisionalMembersEnabled() && lpConfigured();
+}
+
+/** Everything the gate needs to describe her before any session exists. */
+export interface GateState {
+	enabled: boolean;
+	terminus: TerminusMode;
+	owner: { firstName: string; avatarUrl: string | null } | null;
+}
+
+/**
+ * Who the page is about to introduce, and what it is allowed to claim about her.
+ *
+ * ONE function for two callers — the server-side page load and the GET readiness
+ * probe — and that is the point rather than tidiness. The gate makes a claim about
+ * a person before a session exists, so it cannot read `thread.terminus` and has to
+ * ask. Two surfaces asking the same question through two code paths is how one of
+ * them ends up answering differently, which is the exact failure terminusMode()
+ * exists to prevent.
+ *
+ * Her name and photo are not sensitive here: the page renders her whole profile on
+ * a photo tap, and the advert that brought him already showed her.
+ */
+export async function readGateState(): Promise<GateState> {
+	const ownerId = pickOwner();
+	if (!ownerId) return { enabled: false, terminus: 'artifact', owner: null };
+
+	let owner: GateState['owner'] = null;
+	try {
+		const { data } = await (getSupabase() as any)
+			.from('verified_vibe_users')
+			.select('first_name, avatar_url')
+			.eq('id', ownerId)
+			.maybeSingle();
+		if (data) owner = { firstName: data.first_name ?? '', avatarUrl: data.avatar_url ?? null };
+	} catch {
+		// Degrade to the nameless copy rather than failing to render. A landing page
+		// that 500s on a database blip costs the whole click.
+	}
+
+	return { enabled: lpEnabled(), terminus: terminusMode(ownerId), owner };
 }
 
 async function recentSessionCount(db: any, ipHash: string | null): Promise<number> {

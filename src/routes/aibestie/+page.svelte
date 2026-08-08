@@ -36,6 +36,9 @@
 	import { STORE_LINKS } from '$lib/store-links';
 	import PublicProfileBody from '$lib/verified-vibe/components/PublicProfileBody.svelte';
 
+	/** Who she is, resolved server-side so the gate paints with her name. */
+	let { data } = $props();
+
 	/** Our own key. Never `supabase.auth.token` — see the note above. */
 	const STORE_KEY = 'aibestie.session';
 
@@ -72,16 +75,26 @@
 	 * probe. Defaults to 'artifact' — the claim that is true of every owner — so a
 	 * failed probe can never upgrade the page into promising a person.
 	 */
-	let gateTerminus = $state<'human' | 'artifact'>('artifact');
-	/** Her name + photo for the gate, from the readiness probe. Null until it lands. */
-	let gateOwner = $state<{ firstName: string; avatarUrl: string | null } | null>(null);
+	let gateTerminus = $state<'human' | 'artifact'>(
+		data?.gate?.terminus === 'human' ? 'human' : 'artifact'
+	);
+	/**
+	 * Her name + photo for the gate. Seeded from the server load so the first paint
+	 * already names her — before this was client-only, and the opening frame of a
+	 * paid click was an empty photo above "Meet her's AI bestie".
+	 */
+	let gateOwner = $state<{ firstName: string; avatarUrl: string | null } | null>(
+		data?.gate?.owner ?? null
+	);
 
 	let poller: ReturnType<typeof setInterval> | null = null;
 	let scroller: HTMLElement | null = null;
 
 	const bestieTyping = $derived(!!thread?.awaitingReply);
 	const closed = $derived(!!thread?.closed);
-	const ownerName = $derived(thread?.owner?.firstName ?? '');
+	// Falls back to the gate's copy of her, so the name is right on the very first
+	// render as well as once a thread exists.
+	const ownerName = $derived(thread?.owner?.firstName || gateOwner?.firstName || '');
 
 	/**
 	 * Play link with the ad's own utm_* forwarded as the install `referrer`, plus
@@ -256,15 +269,19 @@
 	}
 
 	onMount(() => {
-		fetch('/api/aibestie/start')
-			.then((r) => r.json())
-			.then((r) => {
-				if (r?.terminus === 'human') gateTerminus = 'human';
-				if (r?.owner) gateOwner = r.owner;
-			})
-			.catch(() => {
-				/* stays 'artifact' — the safe claim */
-			});
+		// Only when the server load could not answer. It normally can, so this is the
+		// fallback for a database blip during SSR rather than the usual path.
+		if (!data?.gate) {
+			fetch('/api/aibestie/start')
+				.then((r) => r.json())
+				.then((r) => {
+					if (r?.terminus === 'human') gateTerminus = 'human';
+					if (r?.owner) gateOwner = r.owner;
+				})
+				.catch(() => {
+					/* stays 'artifact' — the safe claim */
+				});
+		}
 
 		try {
 			const saved = JSON.parse(localStorage.getItem(STORE_KEY) ?? 'null');
