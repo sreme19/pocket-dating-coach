@@ -25,6 +25,7 @@ import { sendEmail, escapeHtml } from './email';
 // One definition of the team address and the public origin, shared with the
 // beta emails — these alerts land in the same inbox.
 import { TEAM_INBOX, PUBLIC_ORIGIN } from './beta-invite-email';
+import { isRealMemberRow, memberStateColumns, realMembersOnly } from './member-state';
 
 const NOTIFIED_EVENT = 'admin_new_member_notified';
 
@@ -69,15 +70,19 @@ interface MemberRow {
   archetype: string | null;
   created_at: string;
   is_seed: boolean | null;
+  is_provisional?: boolean | null;
 }
 
 /**
- * Seed profiles must never trigger an alert. Matches how /admin/analytics
- * labels the Type column: a null is_seed counts as seed, only an explicit
- * false is a real signup (upsertProfile sets is_seed: false).
+ * Seed profiles must never trigger an alert, and neither may provisional ones —
+ * an /aibestie ad visitor gets a real user row the moment the page loads, so
+ * without the second check a campaign would have emailed chris@ on every click.
+ *
+ * Delegates to isRealMemberRow so this and the query-level filter can never
+ * disagree. Kept as a named export because the cron's tests exercise it directly.
  */
-export function isRealMember(row: { is_seed?: boolean | null }): boolean {
-  return (row.is_seed ?? true) === false;
+export function isRealMember(row: { is_seed?: boolean | null; is_provisional?: boolean | null }): boolean {
+  return isRealMemberRow(row);
 }
 
 function toMember(row: MemberRow, email: string | null): NewMember {
@@ -224,11 +229,9 @@ export async function sendNewMemberAlert(m: NewMember, total: number | null): Pr
 
 /** Total real members on the platform — the "#44" in the subject. Best-effort. */
 async function countMembers(db: any): Promise<number | null> {
-  const { count, error } = await db
-    .from('verified_vibe_users')
-    .select('count', { count: 'exact', head: true })
-    .is('deleted_at', null)
-    .eq('is_seed', false);
+  const { count, error } = await realMembersOnly(
+    db.from('verified_vibe_users').select('count', { count: 'exact', head: true })
+  ).is('deleted_at', null);
   return error ? null : (count ?? null);
 }
 
@@ -283,7 +286,7 @@ export async function runNewMemberAlert(): Promise<NewMemberAlertReport> {
   const since = new Date(Date.now() - LOOKBACK_HOURS * 3600_000).toISOString();
   const { data: rows, error } = await db
     .from('verified_vibe_users')
-    .select('id, first_name, age, city, gender, archetype, created_at, is_seed')
+    .select(`id, first_name, age, city, gender, archetype, created_at, ${memberStateColumns()}`)
     .gte('created_at', since)
     .is('deleted_at', null)
     .order('created_at', { ascending: true })

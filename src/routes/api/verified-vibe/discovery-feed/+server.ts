@@ -5,6 +5,7 @@ import { getSupabase } from '$lib/server/supabase';
 import { MATCH_MATRIX } from '$lib/verified-vibe/constants';
 import { analyzeAbout, profileHideReason } from '$lib/server/profile-moderation';
 import { buildPublicPhotos, pickHeroUrl } from '$lib/server/profile-photos';
+import { realMembersOnly } from '$lib/server/member-state';
 
 interface DiscoveryFeedRequest {
   limit?: number;
@@ -216,11 +217,10 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
     // season: opposite gender (any mode) PLUS same-gender users who are ALSO in a
     // networking season. Straight-only MVP, so same-gender ⇒ networking intent; the
     // same-gender branch is skipped when our own gender is unknown.
-    let profilesQuery = (supabase as any)
-      .from('verified_vibe_users')
-      .select('*')
+    let profilesQuery = realMembersOnly(
+      (supabase as any).from('verified_vibe_users').select('*')
+    )
       .neq('id', currentUserId)
-      .eq('is_seed', false)
       .is('deleted_at', null);
 
     if (currentUserMode === 'networking' && (resolvedGender === 'man' || resolvedGender === 'woman')) {

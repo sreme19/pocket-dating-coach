@@ -25,6 +25,7 @@
  */
 
 import { getSupabase } from './supabase';
+import { realMembersOnly } from './member-state';
 import { screenProfilePhotos, gateRecord, type PhotoGateStatus } from './photo-identity-gate';
 import { refreshPoolEntry, POOL_STATUS_PHOTO_REVIEW } from './pool-registry';
 
@@ -78,11 +79,10 @@ export async function runPhotoRescreen(opts: {
   const db = getSupabase() as any;
   const dryRun = opts.dryRun === true;
 
-  let q = db
-    .from('verified_vibe_users')
-    .select('id, first_name, gender, avatar_url')
+  let q = realMembersOnly(
+    db.from('verified_vibe_users').select('id, first_name, gender, avatar_url')
+  )
     .eq('gender', 'woman')          // men display AI portraits, not their uploads
-    .eq('is_seed', false)
     .is('deleted_at', null);
   if (opts.userIds?.length) q = q.in('id', opts.userIds);
   if (opts.limit) q = q.limit(opts.limit);
