@@ -191,6 +191,26 @@ export async function loadLpThread(
 			createdAt: m.created_at
 		}));
 
+		// Persist the number he is being SHOWN, whenever it exceeds the stored one.
+		//
+		// bar_percent is written on send, which happens BEFORE Bestie's reply marks
+		// any checklist item done — so the stored value always lags the value this
+		// read computes. That gap was invisible until the claim seeded the app's bar
+		// from it: he was shown 6% and carried 2% into the app. The floor has to be
+		// the highest figure he actually saw, so this read is what records it.
+		//
+		// Monotonic and non-fatal: it only ever raises, and a failure just means the
+		// floor updates on his next read.
+		if (bar.percent > Number(session.bar_percent ?? 0)) {
+			db.from('aibestie_lp_sessions')
+				.update({ bar_percent: bar.percent })
+				.eq('id', session.id)
+				.lte('bar_percent', bar.percent)
+				.then(() => {}, (e: unknown) =>
+					console.warn('[aibestie] bar_percent catch-up failed (non-fatal):', e)
+				);
+		}
+
 		return {
 			ok: true,
 			thread: {
