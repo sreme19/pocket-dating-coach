@@ -759,6 +759,19 @@ export async function enrollInPoolIfVerified(userId: string): Promise<void> {
   } catch (e) {
     console.error('[pool-registry] referral reward failed (non-fatal):', e);
   }
+
+  // /aibestie requirement 9: a man who came from the advert and carried his
+  // conversation into the app gets his first few matches without pressing
+  // anything. This is the earliest point it can work — the matchmaker refuses
+  // anyone without an active pool entry, so firing it at signup (the obvious
+  // place) would have been a silent no-op. No-op for everyone who did not claim
+  // a landing-page conversation. Dynamic import + non-fatal, like the two above.
+  try {
+    const { runWelcomeMatchesIfClaimed } = await import('./aibestie-welcome-match');
+    await runWelcomeMatchesIfClaimed(userId);
+  } catch (e) {
+    console.error('[pool-registry] aibestie welcome matches failed (non-fatal):', e);
+  }
 }
 
 // ── Public: lite beta match — fire the referral match before full verification ─
