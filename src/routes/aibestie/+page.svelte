@@ -73,6 +73,8 @@
 	 * failed probe can never upgrade the page into promising a person.
 	 */
 	let gateTerminus = $state<'human' | 'artifact'>('artifact');
+	/** Her name + photo for the gate, from the readiness probe. Null until it lands. */
+	let gateOwner = $state<{ firstName: string; avatarUrl: string | null } | null>(null);
 
 	let poller: ReturnType<typeof setInterval> | null = null;
 	let scroller: HTMLElement | null = null;
@@ -258,6 +260,7 @@
 			.then((r) => r.json())
 			.then((r) => {
 				if (r?.terminus === 'human') gateTerminus = 'human';
+				if (r?.owner) gateOwner = r.owner;
 			})
 			.catch(() => {
 				/* stays 'artifact' — the safe claim */
@@ -295,12 +298,22 @@
 <div class="shell">
 	{#if view === 'gate'}
 		<div class="gate">
-			<div class="gate-avatar"></div>
+			<div class="gate-photo">
+				{#if gateOwner?.avatarUrl}
+					<img src={gateOwner.avatarUrl} alt={gateOwner.firstName || 'Her profile'} />
+				{/if}
+			</div>
 			<h1>You're about to talk to an AI</h1>
+			<!--
+				The second sentence is the ONLY part that varies, and it varies because
+				"then with her" is a claim about a person. terminusMode() decides whether
+				anyone is actually behind the profile; an unstaffed owner gets the line
+				that is true of every owner instead. See aibestie-owner.ts.
+			-->
 			<p class="gate-sub">
-				She's the AI bestie of a woman on riteangle, and she chats with her matches first.
+				You'll speak to {gateOwner?.firstName ?? 'her'}'s AI bestie first.
 				{#if gateTerminus === 'human'}
-					The woman whose profile it is reads these herself.
+					Then with {gateOwner?.firstName ?? 'her'} herself.
 				{:else}
 					Everything you tell her is saved to your profile.
 				{/if}
@@ -491,12 +504,22 @@
 		text-align: center;
 		padding: 2rem 1.5rem;
 	}
-	.gate-avatar {
-		width: 72px;
-		height: 72px;
-		border-radius: 50%;
+	/* Big and flat rather than a small circle: she is what the ad promised, so she
+	   should be the first thing on the page at a size worth looking at. */
+	.gate-photo {
+		width: 100%;
+		max-width: 320px;
+		aspect-ratio: 4 / 5;
+		border-radius: 18px;
 		background: #f0cdd4;
-		margin-bottom: 1.1rem;
+		margin-bottom: 1.4rem;
+		overflow: hidden;
+	}
+	.gate-photo img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		display: block;
 	}
 	.gate h1 {
 		font-size: 1.35rem;

@@ -26,6 +26,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { startLpSession, lpEnabled, type StartFailure } from '$lib/server/aibestie-session';
 import { pickOwner, terminusMode } from '$lib/server/aibestie-owner';
+import { getSupabase } from '$lib/server/supabase';
 
 /** Only utm_* is forwarded — the landing URL is attacker-controlled. */
 function utmFrom(url: URL): Record<string, string> | null {
@@ -56,8 +57,27 @@ const STATUS: Record<StartFailure, number> = {
  * Deliberately says nothing about WHO the owner is — only whether someone is
  * behind the profile.
  */
-export const GET: RequestHandler = async () =>
-	json({ enabled: lpEnabled(), terminus: terminusMode(pickOwner()) });
+export const GET: RequestHandler = async () => {
+	const ownerId = pickOwner();
+	if (!ownerId) return json({ enabled: false, terminus: 'artifact', owner: null });
+
+	// Her name and photo, so the gate can show WHO he is about to talk to rather
+	// than a placeholder circle. Nothing private: this is the same profile the page
+	// renders in full on a photo tap, and the ad already shows her.
+	let owner: { firstName: string; avatarUrl: string | null } | null = null;
+	try {
+		const { data } = await (getSupabase() as any)
+			.from('verified_vibe_users')
+			.select('first_name, avatar_url')
+			.eq('id', ownerId)
+			.maybeSingle();
+		if (data) owner = { firstName: data.first_name ?? '', avatarUrl: data.avatar_url ?? null };
+	} catch {
+		// The gate degrades to its nameless copy rather than failing to render.
+	}
+
+	return json({ enabled: lpEnabled(), terminus: terminusMode(ownerId), owner });
+};
 
 export const POST: RequestHandler = async ({ request, url, getClientAddress }) => {
 	let ip: string | null = null;
