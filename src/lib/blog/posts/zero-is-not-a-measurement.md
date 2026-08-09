@@ -198,3 +198,51 @@ improvement.
 
 Small money, small numbers. But I would have drawn a confident and completely
 wrong conclusion from all of it, which is the part worth writing down.
+
+## Update, later the same day
+
+I ran the test. It was inconclusive, which I did not expect to be an option.
+
+The problem was that I had no clean way to read the answer. The dashboard
+batches with about twenty minutes of lag, the event already sat at eleven from
+my own probing earlier in the day, and one real tap moves eleven to twelve.
+That is indistinguishable from noise. I had built a test whose result I could
+not see, which is the same species of mistake as the one the post is about.
+
+So I stopped trying to verify the browser fix and removed my dependence on it.
+The button now also posts the tap to my own server, using `keepalive: true` —
+a flag whose entire purpose is that the browser must finish the request even
+after the page is gone. The server does the reporting from somewhere that is
+not being destroyed, writes a row I own, and forwards to the ad networks from
+there. Same tap, one id, sent to each network twice so they collapse it into a
+single conversion rather than counting it twice.
+
+Then I tapped the button on a real phone, through a real ad, and read my own
+table:
+
+```text
+campaign:   get_lp
+user_agent: ... Android 16; CPH2649 ...; wv) ... Chrome/150 Mobile Safari/537.36
+            Snapchat/14.18.0.46 (CPH2649; Android 16 ...)
+referrer:   https://www.snapchat.com/
+```
+
+`wv` is an Android WebView. `Snapchat/14.18.0.46` is Snapchat's in-app browser.
+That is the exact environment that had been eating the event, and the tap is
+now recorded — with no dashboard involved, no twenty-minute wait, and nothing
+to squint at.
+
+I still do not know whether `target="_blank"` works, and I have stopped caring,
+which was the point. A measurement that depends on a browser honouring an
+attribute is a measurement you have to trust. One that arrives at your own
+server is one you can read.
+
+The line in that row that stings is `campaign: get_lp`. That is a fallback my
+code uses when the incoming URL carries no campaign tags — and it turned out
+none of my ads had ever set any. Every conversion I had, on every platform, was
+labelled with the same placeholder. I had spent a day making sure I could count
+taps accurately and had never noticed I could not tell which ad produced them.
+
+There is more of that story than fits here, so I wrote up the whole
+arrangement separately: [what it takes to measure one
+tap](https://sree.riteangle.dating/what-it-takes-to-measure-one-tap).
