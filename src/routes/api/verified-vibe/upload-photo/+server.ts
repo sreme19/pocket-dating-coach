@@ -12,7 +12,9 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
 import { captureUploads } from '$lib/server/upload-audit';
-import { screenProfilePhotos } from '$lib/server/photo-identity-gate';
+import { screenProfilePhotos, gateRecord } from '$lib/server/photo-identity-gate';
+import { recomputeAndNormalize } from '$lib/server/trust-normalize';
+import { enrollInPoolIfVerified } from '$lib/server/pool-registry';
 
 const MIME_TO_EXT: Record<string, string> = {
 	'image/jpeg': 'jpg',
@@ -57,6 +59,9 @@ export const POST: RequestHandler = async ({ request }) => {
 		const isMan = (u as { gender?: string } | null)?.gender === 'man';
 
 		let url: string;
+		// Carried out of the upload branch so the photos-step backstop below can
+		// record the same verdict onboarding would have recorded.
+		let screened: Awaited<ReturnType<typeof screenProfilePhotos>> | null = null;
 
 		if (body.imageUrl && /^https?:\/\//.test(body.imageUrl)) {
 			// Already hosted (AI photo) — keep as-is.
@@ -81,6 +86,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			// distant shot is a perfectly good gallery photo. Only "provably not you" stops
 			// an edit.
 			const gate = await screenProfilePhotos(user.id, [{ data: match[2], mime }]);
+			screened = gate;
 			if (gate.status === 'rejected') {
 				console.warn(`[upload-photo] rejected photo for ${user.id}: not the verified owner`);
 				return json(
@@ -156,6 +162,56 @@ export const POST: RequestHandler = async ({ request }) => {
 				.from('verified_vibe_users')
 				.update({ avatar_url: url })
 				.eq('id', user.id);
+		}
+
+		// ── The photos step is a claim about the profile, not about one screen ──
+		// Discovery and the matchmaker pool both ask "does a `photos` verification
+		// row exist?" — never "does this profile have photos?". Only the onboarding
+		// photos step ever wrote that row, so a user who arrived at their photos
+		// through the profile screen instead ended up with real, screened, published
+		// photos and no row: complete profile, verified selfie, invisible to every
+		// other member. Three live users were in that state.
+		//
+		// So publishing a photo here ensures the row too. Deliberately narrow:
+		//  - only the screened upload path (an already-hosted AI portrait is derived
+		//    from a raw photo that came through here first),
+		//  - never overwrites an existing row — verify-step's record is richer, and
+		//    the stale-'rejected' clearing above already owns that case,
+		//  - 'unverified' (no anchor selfie) still counts, exactly as onboarding
+		//    records it. It does not make anyone poolable on its own: liveness is
+		//    the other half of POOL_REQUIRED_STEPS.
+		if (screened && screened.status !== 'rejected') {
+			try {
+				const { data: existing } = await (supabase as any)
+					.from('verified_vibe_verification')
+					.select('id')
+					.eq('user_id', user.id)
+					.eq('step', 'photos')
+					.maybeSingle();
+				if (!existing) {
+					const now = new Date().toISOString();
+					await (supabase as any).from('verified_vibe_verification').insert({
+						user_id: user.id,
+						step: 'photos',
+						status: 'completed',
+						data: {
+							photoCount: 1,
+							source: 'profile-photo-upload',
+							identityGate: gateRecord(screened, now),
+						},
+						completed_at: now,
+					});
+					recomputeAndNormalize(user.id).catch((e) =>
+						console.warn('[upload-photo] trust recompute failed (non-fatal):', e)
+					);
+					enrollInPoolIfVerified(user.id).catch((e) =>
+						console.warn('[upload-photo] pool enrol failed (non-fatal):', e)
+					);
+				}
+			} catch (e) {
+				// Never fail the upload over bookkeeping — the photo is already live.
+				console.warn('[upload-photo] photos-step backstop failed (non-fatal):', e);
+			}
 		}
 
 		return json({ url });
