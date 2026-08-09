@@ -53,17 +53,20 @@ that rewrite lives — prerendering would break the subdomain. Instead each load
 sets `BLOG_CACHE_CONTROL`, so the CDN caches pages for an hour and Vercel purges
 it on every deploy.
 
-### Going live on the subdomain
+### Hostnames
 
-1. Add `sree.riteangle.dating` as a domain on the Vercel project.
-2. Add the DNS record Vercel asks for (a `CNAME` to `cname.vercel-dns.com`).
-3. Once it resolves, set `BLOG_SUBDOMAIN_LIVE=true` in the Vercel environment.
-   That switches on the 308 from `www.riteangle.dating/blog/*` to the subdomain,
-   so each post has exactly one indexable URL.
+This blog is served ONLY on `sree.riteangle.dating`, where `reroute` in
+`src/hooks.ts` maps `/my-post` onto these `/blog/my-post` routes. It is live.
 
-Leave the flag unset until step 2 is done — it would otherwise redirect readers
-to a hostname that doesn't resolve. With it off, `/blog` keeps working on the
-main domain and on preview deployments.
+`/blog` on `riteangle.dating` and `www.riteangle.dating` returns **404** by
+design — see the guard in `src/hooks.server.ts`. That path belongs to
+riteangle's own writing, which is a separate publication with separate content.
+Do not "fix" this by redirecting `/blog` to the subdomain: the two sites are
+unrelated, and a redirect would fold this personal blog into the product site.
+
+The 404 is scoped to those two production hostnames, so `/blog` stays browsable
+on `localhost` and on Vercel preview URLs, which is how posts are reviewed
+before they ship.
 
 ## Local subdomain testing
 

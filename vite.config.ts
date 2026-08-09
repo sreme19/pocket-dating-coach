@@ -41,7 +41,13 @@ export default defineConfig({
 			'pocket-dating-coach-demo.loca.lt',
 			// Lets the blog's subdomain rewrite (src/hooks.ts) be exercised locally
 			// once `127.0.0.1 sree.localhost` is in /etc/hosts.
-			'sree.localhost'
+			'sree.localhost',
+			// Dev-only, and NOT a hint that anything is served from these here.
+			// They make the main-site guard in src/hooks.server.ts testable with a
+			// spoofed Host header (`curl -H 'Host: www.riteangle.dating' …/blog`
+			// must 404) without editing /etc/hosts and shadowing the real site.
+			'riteangle.dating',
+			'www.riteangle.dating'
 		]
 	},
 	build: {
