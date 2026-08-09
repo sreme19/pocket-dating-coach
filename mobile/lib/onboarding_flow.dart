@@ -3,6 +3,7 @@ import 'dart:async' show unawaited;
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'aibestie_claim.dart';
+import 'attribution.dart';
 import 'api.dart';
 import 'app_logger.dart';
 import 'archetypes.dart';
@@ -86,6 +87,14 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
       unawaited(claimPendingConversation().catchError((Object e) {
         AppLogger.instance.error(e, screen: 'onboarding', action: 'aibestie_claim');
         return null;
+      }));
+      // The referrer was parked at first launch, when there was usually no
+      // session to attach it to. This is the first moment there reliably is one,
+      // so it is where most installs actually get attributed. Idempotent on the
+      // server and a no-op once written, so the startup call and this one can
+      // both fire for the same install.
+      unawaited(reportAcquisitionIfPending().catchError((Object e) {
+        AppLogger.instance.error(e, screen: 'onboarding', action: 'attribution_report');
       }));
       // Only advance to step 2 if not already at step 2+ (prevents going
       // back from VerificationScreen when the background save finishes late).

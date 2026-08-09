@@ -1,5 +1,15 @@
 import type { RequestHandler } from './$types';
 import { recordStoreClick } from '$lib/server/marketing-conversions';
+import { countryFromRequest } from '$lib/server/request-geo';
+import {
+  MAX_BODY_BYTES,
+  MAX_CAMPAIGN,
+  MAX_REFERRER,
+  MAX_UA,
+  ID_PATTERN,
+  clamp,
+  sanitizeUtm
+} from '$lib/server/marketing-input';
 
 /**
  * POST /api/marketing/store-click
@@ -20,18 +30,15 @@ import { recordStoreClick } from '$lib/server/marketing-conversions';
  * would be read by nothing and logged as a client error by Vercel.
  */
 
-/** The four CTAs on /get. Anything else is not from our page. */
+/** The four CTAs shared by /get and /get-photos. Anything else is not from our pages. */
 const ALLOWED_CTAS = new Set(['hero', 'mid', 'footer', 'sticky']);
 
-const MAX_BODY_BYTES = 2_000;
-const MAX_CAMPAIGN = 120;
-const MAX_UA = 500;
-const MAX_REFERRER = 500;
-const MAX_UTM_KEYS = 12;
-
-function clamp(value: unknown, max: number): string | null {
-  return typeof value === 'string' && value ? value.slice(0, max) : null;
-}
+/** Landing pages that report taps, and the path each one lives at. */
+const PAGE_PATHS: Record<string, string> = {
+  get: '/get',
+  get_photos: '/get-photos',
+  aibestie: '/aibestie'
+};
 
 export const POST: RequestHandler = async ({ request, getClientAddress, url }) => {
   const noContent = new Response(null, { status: 204 });
@@ -52,23 +59,35 @@ export const POST: RequestHandler = async ({ request, getClientAddress, url }) =
 
   // An event id we did not generate is the one field we cannot substitute a
   // default for — it is what stops the networks counting the tap twice.
-  if (!ALLOWED_CTAS.has(cta) || !/^[a-zA-Z0-9-]{8,64}$/.test(eventId)) {
+  if (!ALLOWED_CTAS.has(cta) || !ID_PATTERN.test(eventId)) {
     return noContent;
   }
 
-  const rawUtm = (body.utm ?? {}) as Record<string, unknown>;
-  const utm: Record<string, string> = {};
-  for (const [k, v] of Object.entries(rawUtm).slice(0, MAX_UTM_KEYS)) {
-    if (typeof v === 'string' && /^utm_[a-z_]{1,24}$/.test(k)) utm[k] = v.slice(0, 120);
-  }
+  // The visit id is not required. It arrives from sessionStorage, which some
+  // in-app browsers refuse outright — and this traffic comes through Snapchat's.
+  // A tap that cannot be joined to its arrival is still a tap worth recording;
+  // it just sits outside the per-visit rate, which is why the reports have to
+  // treat a null here as unknown rather than as a visit that did not convert.
+  const rawVisitId = typeof body.visitId === 'string' ? body.visitId : '';
+  const visitId = ID_PATTERN.test(rawVisitId) ? rawVisitId : null;
+
+  // Defaults to 'get' so taps sent by an older cached copy of the page — which
+  // will keep arriving for as long as someone has it open — land as the page
+  // they actually came from rather than as an unknown.
+  const rawPage = typeof body.page === 'string' ? body.page : '';
+  const page = rawPage in PAGE_PATHS ? rawPage : 'get';
 
   await recordStoreClick({
     eventId,
+    visitId,
+    page,
     cta,
     campaign: clamp(body.campaign, MAX_CAMPAIGN),
-    utm,
+    utm: sanitizeUtm(body.utm),
     userAgent: clamp(request.headers.get('user-agent'), MAX_UA),
     referrer: clamp(body.referrer, MAX_REFERRER),
+    // Resolved at the edge from an address we never store. See request-geo.ts.
+    country: countryFromRequest(request),
     // Forwarded to the networks for match quality, never stored.
     clientIp: (() => {
       try {
@@ -77,7 +96,10 @@ export const POST: RequestHandler = async ({ request, getClientAddress, url }) =
         return null;
       }
     })(),
-    eventSourceUrl: new URL('/get', url.origin).toString()
+    // The page the tap actually happened on. Both CAPIs use this for attribution
+    // and Meta checks it against the verified domain, so reporting every tap as
+    // /get would misattribute every /get-photos conversion.
+    eventSourceUrl: new URL(PAGE_PATHS[page], url.origin).toString()
   });
 
   return noContent;

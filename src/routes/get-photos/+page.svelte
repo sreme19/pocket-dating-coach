@@ -25,9 +25,22 @@
 	 * is scanned by scripts/check-banned-strings.sh too). The default campaign label
 	 * is get_photos_lp so this variant is separable from /get in Play Console.
 	 */
+	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import RiteLogo from '$lib/verified-vibe/components/RiteLogo.svelte';
 	import { STORE_LINKS } from '$lib/store-links';
+	import {
+		initSnapPixel,
+		trackSnap,
+		STORE_CLICK_EVENT as SNAP_STORE_CLICK
+	} from '$lib/marketing/snap-pixel';
+	import {
+		initMetaPixel,
+		trackMeta,
+		STORE_CLICK_EVENT as META_STORE_CLICK
+	} from '$lib/marketing/meta-pixel';
+	import { reportStoreClick } from '$lib/marketing/store-click-report';
+	import { reportPageView } from '$lib/marketing/page-view-report';
 
 	/** Campaign labels used when the ad URL carries no utm_* of its own. */
 	const DEFAULT_UTM = 'utm_source=snapchat&utm_medium=paid_social&utm_campaign=get_photos_lp';
@@ -41,8 +54,66 @@
 		for (const key of [...incoming.keys()]) {
 			if (!key.startsWith('utm_')) incoming.delete(key);
 		}
-		const referrer = incoming.size > 0 ? incoming.toString() : DEFAULT_UTM;
-		return `${STORE_LINKS.android}&referrer=${encodeURIComponent(referrer)}`;
+		const referrer = new URLSearchParams(incoming.size > 0 ? incoming.toString() : DEFAULT_UTM);
+		// The variant marker that survives the install. Without it a shared
+		// utm_campaign across both pages makes the A/B test unreadable at the
+		// only point that matters — installs, not taps.
+		referrer.set('ra_lp', 'get_photos');
+		return `${STORE_LINKS.android}&referrer=${encodeURIComponent(referrer.toString())}`;
+	});
+
+	/**
+	 * Measurement, identical to /get — which is the entire point of this route.
+	 *
+	 * This page shipped with `data-cta` on all four buttons and nothing listening
+	 * to them, so the variant it exists to test recorded no views, no taps and no
+	 * conversions. Against an instrumented /get that does not read as "the photo
+	 * variant lost", it reads as a zero, which is worse than no test at all: one
+	 * is an answer and the other is an unmeasured page that looks like an answer.
+	 *
+	 * Everything below mirrors /get exactly — same pixels, same delegated capture
+	 * listener, same beacons, same shared event id — because a variant test where
+	 * the two arms are measured differently measures the instrumentation, not the
+	 * creative. The one difference is `page: 'get_photos'`, which is what keeps
+	 * the arms separable after an ad supplies its own utm_campaign and overrides
+	 * both default labels.
+	 *
+	 * See the long note in /get about why `target="_blank"` on every CTA is
+	 * load-bearing for the store-click event. It applies here unchanged.
+	 */
+	onMount(() => {
+		initSnapPixel();
+		initMetaPixel();
+
+		reportPageView({
+			page: 'get_photos',
+			campaign: $page.url.searchParams.get('utm_campaign') ?? 'get_photos_lp',
+			url: $page.url
+		});
+
+		const onClick = (e: MouseEvent) => {
+			const cta = (e.target as HTMLElement | null)?.closest?.('[data-cta]');
+			if (!cta) return;
+
+			const which = cta.getAttribute('data-cta') ?? 'unknown';
+			const campaign = $page.url.searchParams.get('utm_campaign') ?? 'get_photos_lp';
+
+			// One id per tap, sent to both networks twice — browser and server — so
+			// each collapses the pair into a single conversion instead of two.
+			const eventId = crypto.randomUUID();
+
+			trackSnap(SNAP_STORE_CLICK, {
+				item_category: 'play_store_click',
+				item_ids: [which],
+				description: campaign,
+				client_dedup_id: eventId
+			});
+			trackMeta(META_STORE_CLICK, { cta: which, campaign }, eventId);
+			reportStoreClick({ eventId, page: 'get_photos', cta: which, campaign, url: $page.url });
+		};
+
+		document.addEventListener('click', onClick, { capture: true });
+		return () => document.removeEventListener('click', onClick, { capture: true });
 	});
 
 	/** First-party measurements. Rates and medians only — see the header note. */

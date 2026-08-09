@@ -79,6 +79,7 @@
 		STORE_CLICK_EVENT as META_STORE_CLICK
 	} from '$lib/marketing/meta-pixel';
 	import { reportStoreClick } from '$lib/marketing/store-click-report';
+	import { reportPageView } from '$lib/marketing/page-view-report';
 
 	/** Campaign labels used when the ad URL carries no utm_* of its own. */
 	const DEFAULT_UTM = 'utm_source=snapchat&utm_medium=paid_social&utm_campaign=get_lp';
@@ -98,8 +99,14 @@
 			// Keep campaign params; drop anything else the click carried.
 			if (!key.startsWith('utm_')) incoming.delete(key);
 		}
-		const referrer = incoming.size > 0 ? incoming.toString() : DEFAULT_UTM;
-		return `${STORE_LINKS.android}&referrer=${encodeURIComponent(referrer)}`;
+		const referrer = new URLSearchParams(incoming.size > 0 ? incoming.toString() : DEFAULT_UTM);
+		// Which page sent them, carried through the install alongside the utm_*.
+		// Not recoverable from the campaign once an ad supplies its own
+		// utm_campaign and overrides this page's default label — and knowing
+		// whether the photo variant or this one produced an install is the only
+		// reason /get-photos exists.
+		referrer.set('ra_lp', 'get');
+		return `${STORE_LINKS.android}&referrer=${encodeURIComponent(referrer.toString())}`;
 	});
 
 	/**
@@ -135,6 +142,17 @@
 		initSnapPixel();
 		initMetaPixel();
 
+		// The same arrival, recorded somewhere we can read it. Both pixels send
+		// their own PAGE_VIEW and both have always worked — an arrival sits still
+		// for far longer than the ~1s flush timer that loses the store click — but
+		// their counts live in a vendor dashboard, which makes them the one half
+		// of tap rate we cannot audit. Tap rate needs a denominator we own.
+		reportPageView({
+			page: 'get',
+			campaign: $page.url.searchParams.get('utm_campaign') ?? 'get_lp',
+			url: $page.url
+		});
+
 		const onClick = (e: MouseEvent) => {
 			const cta = (e.target as HTMLElement | null)?.closest?.('[data-cta]');
 			if (!cta) return;
@@ -158,7 +176,7 @@
 				client_dedup_id: eventId
 			});
 			trackMeta(META_STORE_CLICK, { cta: which, campaign }, eventId);
-			reportStoreClick({ eventId, cta: which, campaign, url: $page.url });
+			reportStoreClick({ eventId, page: 'get', cta: which, campaign, url: $page.url });
 		};
 
 		document.addEventListener('click', onClick, { capture: true });

@@ -20,17 +20,29 @@
  * nobody left to show it to. Measurement never gets to break the tap.
  */
 
+import { getVisitId } from './visit-id';
+import type { LandingPage } from './page-view-report';
+
 const ENDPOINT = '/api/marketing/store-click';
 
 export interface StoreClickReport {
   /** Shared with both browser pixels so the networks dedupe. */
   eventId: string;
+  /**
+   * Which landing page earned the tap.
+   *
+   * Not derivable from the campaign: each page has a different DEFAULT campaign
+   * label, but an ad that supplies its own utm_campaign overrides both and makes
+   * the two variants indistinguishable — which would defeat the only reason
+   * /get-photos exists as a separate route.
+   */
+  page: LandingPage;
   cta: string;
   campaign: string;
   url: URL;
 }
 
-export function reportStoreClick({ eventId, cta, campaign, url }: StoreClickReport): void {
+export function reportStoreClick({ eventId, page, cta, campaign, url }: StoreClickReport): void {
   if (typeof fetch === 'undefined') return;
 
   // Only the utm_* params travel. Everything else on the query string is
@@ -47,6 +59,12 @@ export function reportStoreClick({ eventId, cta, campaign, url }: StoreClickRepo
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         eventId,
+        // Same id the arrival was recorded under, so this tap joins to the visit
+        // that produced it. Tap rate is then a join over visits rather than two
+        // independent counts divided by each other — which cannot tell 10 keen
+        // visitors from 10 different ones, and exceeds 100% when someone reloads.
+        visitId: getVisitId(),
+        page,
         cta,
         campaign,
         utm,

@@ -38,11 +38,17 @@ const FORWARD_TIMEOUT_MS = 2500;
 
 export interface StoreClickInput {
   eventId: string;
+  /** Joins this tap to the arrival that produced it. Null where sessionStorage was refused. */
+  visitId: string | null;
+  /** Which landing page earned the tap — 'get' | 'get_photos' | 'aibestie'. */
+  page: string;
   cta: string;
   campaign: string | null;
   utm: Record<string, string>;
   userAgent: string | null;
   referrer: string | null;
+  /** Two-letter code resolved at the edge. The IP it came from is never stored. */
+  country: string | null;
   /** Forwarded to the networks for match quality; never persisted. */
   clientIp: string | null;
   /** Page the tap happened on, needed by both CAPIs. */
@@ -171,21 +177,50 @@ export async function recordStoreClick(input: StoreClickInput): Promise<void> {
 
   try {
     const supabase = getSupabase();
+
+    // The columns this table has always had. Split out so the write can fall
+    // back to them if the newer ones are not there yet — see below.
+    const base = {
+      event_id: input.eventId,
+      cta: input.cta,
+      campaign: input.campaign,
+      utm: input.utm,
+      user_agent: input.userAgent,
+      referrer: input.referrer,
+      snap_forwarded: snap,
+      meta_forwarded: meta,
+      forward_error: errors.length ? errors.join(' | ').slice(0, 500) : null
+    };
+
     // `event_id` is unique: a retried keepalive request writes one row, not two.
-    const { error } = await supabase.from('marketing_store_clicks').upsert(
-      {
-        event_id: input.eventId,
-        cta: input.cta,
-        campaign: input.campaign,
-        utm: input.utm,
-        user_agent: input.userAgent,
-        referrer: input.referrer,
-        snap_forwarded: snap,
-        meta_forwarded: meta,
-        forward_error: errors.length ? errors.join(' | ').slice(0, 500) : null
-      },
+    let { error } = await supabase.from('marketing_store_clicks').upsert(
+      { ...base, visit_id: input.visitId, page: input.page, country: input.country },
       { onConflict: 'event_id', ignoreDuplicates: true }
     );
+
+    /**
+     * Retry without the new columns if the database has not got them yet.
+     *
+     * visit_id, page and country arrive in a migration that is run BY HAND, in a
+     * SQL editor, separately from the deploy. Between those two moments
+     * PostgREST rejects the whole row for naming a column that does not exist —
+     * so a deploy that lands first would not degrade this table, it would switch
+     * it off completely, and taps that record fine today would vanish until
+     * someone noticed. That is the exact failure this table was built to end.
+     *
+     * Losing three columns of detail on a handful of taps is a far smaller cost
+     * than losing the taps, so the older shape is written instead and the gap
+     * is logged loudly enough to act on.
+     */
+    if (error?.code === 'PGRST204') {
+      console.warn(
+        '[marketing] store click: new columns missing, writing legacy shape — run 20260809170000_create_marketing_page_views.sql:',
+        error.message
+      );
+      ({ error } = await supabase
+        .from('marketing_store_clicks')
+        .upsert(base, { onConflict: 'event_id', ignoreDuplicates: true }));
+    }
 
     // Checked, not assumed: PostgREST reports a missing table or a policy
     // refusal in `error` rather than by throwing, so a `try` alone would let

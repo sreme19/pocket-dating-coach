@@ -21,62 +21,28 @@
 /// discarded. It runs after that step instead.
 library;
 
-import 'dart:io' show Platform;
-
-import 'package:android_play_install_referrer/android_play_install_referrer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'api.dart';
 import 'app_logger.dart';
 
-/// Set once the referrer has been read, successfully or not. The Play referrer is
-/// available for 90 days, so this is not about a closing window — it is about not
-/// paying a platform-channel round trip on every cold start forever.
-const _kReferrerRead = 'aibestie.referrer_read';
-
 /// The code waiting to be claimed. Cleared on success and on any verdict that
 /// cannot change (a wrong code, an already-claimed conversation), kept only for
 /// failures that a later attempt could genuinely fix.
 const _kPendingCode = 'aibestie.pending_code';
 
-/// The query key the landing page appends to the install referrer.
-const _kClaimParam = 'ra_claim';
-
-/// Read the Play install referrer once and keep any conversation code in it.
+/// Park a claim code read out of the Play install referrer.
 ///
-/// Android only, and silent on every failure: this runs during startup for every
-/// user, and the overwhelming majority of them did not come from an advert. There
-/// is nothing here worth showing anyone or worth blocking a launch for.
-Future<void> captureInstallReferrer() async {
-  if (!Platform.isAndroid) return;
-
+/// The referrer read itself now lives in attribution.dart, which keeps the WHOLE
+/// referrer rather than only the rows that happen to carry a claim code — the old
+/// version returned early when `ra_claim` was absent and threw away the campaign
+/// in the same query string, which is the normal case for /get. The code is one
+/// value extracted from that read; when to retry it and when to give up on it
+/// still belong here.
+Future<void> storePendingClaimCode(String code) async {
   final prefs = await SharedPreferences.getInstance();
-  if (prefs.getBool(_kReferrerRead) == true) return;
-
-  try {
-    final details = await AndroidPlayInstallReferrer.installReferrer;
-    // Mark it read BEFORE parsing. A referrer we cannot parse is not going to
-    // parse next launch either, and retrying forever costs a platform-channel
-    // call on every cold start for the lifetime of the install.
-    await prefs.setBool(_kReferrerRead, true);
-
-    final raw = details.installReferrer;
-    if (raw == null || raw.isEmpty) return;
-
-    // Play hands back the referrer as a query string — the exact value the page
-    // put in `&referrer=`, so utm_* live alongside the claim code.
-    final code = Uri.splitQueryString(raw)[_kClaimParam];
-    if (code == null || code.trim().isEmpty) return;
-
-    await prefs.setString(_kPendingCode, code.trim().toUpperCase());
-    AppLogger.instance.action('aibestie', 'referrer_code_captured');
-  } catch (e) {
-    // No Play Store, a sideloaded build, an emulator, a dead service. All
-    // ordinary, none of them the user's problem.
-    await prefs.setBool(_kReferrerRead, true);
-    AppLogger.instance.error(e, screen: 'aibestie', action: 'capture_referrer');
-  }
+  await prefs.setString(_kPendingCode, code);
 }
 
 /// Try to claim a stored code, if there is one and the account can take it.

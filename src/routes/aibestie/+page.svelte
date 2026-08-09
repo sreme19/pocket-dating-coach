@@ -34,6 +34,7 @@
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { page } from '$app/stores';
 	import { STORE_LINKS } from '$lib/store-links';
+	import { reportPageView } from '$lib/marketing/page-view-report';
 	import PublicProfileBody from '$lib/verified-vibe/components/PublicProfileBody.svelte';
 
 	/** Who she is, resolved server-side so the gate paints with her name. */
@@ -112,6 +113,10 @@
 			incoming.set('utm_campaign', 'aibestie_lp');
 		}
 		if (thread?.claimCode) incoming.set('ra_claim', thread.claimCode);
+		// Marks which landing page produced the install, the same as /get and
+		// /get-photos, so all three variants are comparable at install rather
+		// than only at tap.
+		incoming.set('ra_lp', 'aibestie');
 		return `${STORE_LINKS.android}&referrer=${encodeURIComponent(incoming.toString())}`;
 	});
 
@@ -269,6 +274,26 @@
 	}
 
 	onMount(() => {
+		/**
+		 * Count the arrival in the same table as /get and /get-photos.
+		 *
+		 * aibestie_lp_sessions already records an arrival with its utm, so this
+		 * looks redundant and is not, for two reasons. It is written only when
+		 * AIBESTIE_LP_GATE is on — which it currently is not, so paid traffic
+		 * arriving here today is recorded nowhere at all and the page reads as
+		 * having no visitors rather than as switched off. And the funnel wants one
+		 * definition of "a landing page view" across all three pages; deriving it
+		 * from a different table per page is how two charts on the same dashboard
+		 * end up quietly disagreeing about the denominator.
+		 *
+		 * aibestie_lp_sessions keeps the job only it can do: conversation depth.
+		 */
+		reportPageView({
+			page: 'aibestie',
+			campaign: $page.url.searchParams.get('utm_campaign') ?? 'aibestie_lp',
+			url: $page.url
+		});
+
 		// Only when the server load could not answer. It normally can, so this is the
 		// fallback for a database blip during SSR rather than the usual path.
 		if (!data?.gate) {

@@ -19,6 +19,12 @@ export type Database = {
 					preferences: Record<string, unknown> | null;
 					hard_nos: string[] | null;
 					is_seed: boolean;
+					/**
+					 * A visitor the /aibestie landing page minted on his first message,
+					 * before any signup. Must be excluded from signup counts — otherwise
+					 * the ad funnel reports conversions that are not people.
+					 */
+					is_provisional: boolean;
 					/** Topics the owner wants every Bestie to cover (G-27). Not a preference weight. */
 					always_ask_topics: string[] | null;
 					created_at: string;
@@ -38,6 +44,7 @@ export type Database = {
 					preferences?: Record<string, unknown> | null;
 					hard_nos?: string[] | null;
 					is_seed?: boolean;
+					is_provisional?: boolean;
 					always_ask_topics?: string[] | null;
 					created_at?: string;
 					updated_at?: string;
@@ -643,11 +650,14 @@ export type Database = {
 				Row: {
 					id: string;
 					event_id: string;
+					visit_id: string | null;
+					page: string | null;
 					cta: string;
 					campaign: string | null;
 					utm: Record<string, string>;
 					user_agent: string | null;
 					referrer: string | null;
+					country: string | null;
 					snap_forwarded: boolean | null;
 					meta_forwarded: boolean | null;
 					forward_error: string | null;
@@ -656,17 +666,193 @@ export type Database = {
 				Insert: {
 					id?: string;
 					event_id: string;
+					visit_id?: string | null;
+					page?: string | null;
 					cta: string;
 					campaign?: string | null;
 					utm?: Record<string, string>;
 					user_agent?: string | null;
 					referrer?: string | null;
+					country?: string | null;
 					snap_forwarded?: boolean | null;
 					meta_forwarded?: boolean | null;
 					forward_error?: string | null;
 					created_at?: string;
 				};
 				Update: Partial<Database['public']['Tables']['marketing_store_clicks']['Insert']>;
+				Relationships: [];
+			};
+			/** /aibestie landing-page conversations. See aibestie-session.ts. */
+			aibestie_lp_sessions: {
+				Row: {
+					id: string;
+					user_id: string | null;
+					owner_id: string;
+					match_id: string | null;
+					ip_hash: string | null;
+					user_agent: string | null;
+					turns: number;
+					bar_percent: number;
+					claim_code: string | null;
+					claimed_by_user_id: string | null;
+					claimed_at: string | null;
+					utm: Record<string, string> | null;
+					first_message_at: string | null;
+					cta_shown_at: string | null;
+					cta_clicked_at: string | null;
+					token_hash: string | null;
+					materialized_at: string | null;
+					welcome_matched_at: string | null;
+					created_at: string;
+					last_active_at: string;
+				};
+				Insert: {
+					id?: string;
+					user_id?: string | null;
+					owner_id: string;
+					match_id?: string | null;
+					ip_hash?: string | null;
+					user_agent?: string | null;
+					turns?: number;
+					bar_percent?: number;
+					claim_code?: string | null;
+					claimed_by_user_id?: string | null;
+					claimed_at?: string | null;
+					utm?: Record<string, string> | null;
+					first_message_at?: string | null;
+					cta_shown_at?: string | null;
+					cta_clicked_at?: string | null;
+					token_hash?: string | null;
+					materialized_at?: string | null;
+					welcome_matched_at?: string | null;
+					created_at?: string;
+					last_active_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['aibestie_lp_sessions']['Insert']>;
+				Relationships: [];
+			};
+			/** Daily ad spend per network/campaign. See ad-spend/sync.ts. */
+			ad_spend_daily: {
+				Row: {
+					network: string;
+					date: string;
+					campaign_id: string;
+					campaign_name: string | null;
+					ad_set_id: string;
+					ad_set_name: string | null;
+					creative_id: string;
+					creative_name: string | null;
+					spend: string;
+					currency: string;
+					impressions: number;
+					clicks: number;
+					network_conversions: number;
+					account_timezone: string | null;
+					fetched_at: string;
+					source: string;
+				};
+				Insert: {
+					network: string;
+					date: string;
+					campaign_id?: string;
+					campaign_name?: string | null;
+					ad_set_id?: string;
+					ad_set_name?: string | null;
+					creative_id?: string;
+					creative_name?: string | null;
+					spend?: string | number;
+					currency: string;
+					impressions?: number;
+					clicks?: number;
+					network_conversions?: number;
+					account_timezone?: string | null;
+					fetched_at?: string;
+					source?: string;
+				};
+				Update: Partial<Database['public']['Tables']['ad_spend_daily']['Insert']>;
+				Relationships: [];
+			};
+			/** Daily FX rates for reporting spend in INR or USD. See ad-spend/sync.ts. */
+			ad_fx_rates: {
+				Row: {
+					date: string;
+					base: string;
+					quote: string;
+					rate: string;
+					source: string;
+					fetched_at: string;
+				};
+				Insert: {
+					date: string;
+					base: string;
+					quote: string;
+					rate: string | number;
+					source?: string;
+					fetched_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['ad_fx_rates']['Insert']>;
+				Relationships: [];
+			};
+			/** Which advert produced each member. See user-acquisition.ts. */
+			user_acquisition: {
+				Row: {
+					user_id: string;
+					network: string | null;
+					medium: string | null;
+					campaign: string | null;
+					ad_set: string | null;
+					creative: string | null;
+					utm: Record<string, string>;
+					referrer_raw: string | null;
+					landing_page: string | null;
+					claim_code: string | null;
+					platform: string | null;
+					captured_at: string | null;
+					created_at: string;
+				};
+				Insert: {
+					user_id: string;
+					network?: string | null;
+					medium?: string | null;
+					campaign?: string | null;
+					ad_set?: string | null;
+					creative?: string | null;
+					utm?: Record<string, string>;
+					referrer_raw?: string | null;
+					landing_page?: string | null;
+					claim_code?: string | null;
+					platform?: string | null;
+					captured_at?: string | null;
+					created_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['user_acquisition']['Insert']>;
+				Relationships: [];
+			};
+			/** Landing page arrivals — the denominator for tap rate. See marketing-page-views.ts. */
+			marketing_page_views: {
+				Row: {
+					id: string;
+					visit_id: string;
+					page: string;
+					campaign: string | null;
+					utm: Record<string, string>;
+					user_agent: string | null;
+					referrer: string | null;
+					country: string | null;
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					visit_id: string;
+					page: string;
+					campaign?: string | null;
+					utm?: Record<string, string>;
+					user_agent?: string | null;
+					referrer?: string | null;
+					country?: string | null;
+					created_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['marketing_page_views']['Insert']>;
 				Relationships: [];
 			};
 		};

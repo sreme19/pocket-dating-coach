@@ -3602,6 +3602,42 @@ class AibestieClaimResult {
   });
 }
 
+/// Report which advert produced this install, once there is a session to hang it on.
+///
+/// Returns true only when the server confirms the row is written. The caller keeps
+/// the parked referrer until then: the commonest failure is a migration that has
+/// not been run yet, and a referrer discarded on a recoverable error is gone for
+/// good — Play hands it over exactly once.
+Future<bool> reportInstallAttribution({
+  required Map<String, String> utm,
+  required String? referrerRaw,
+  required String? landingPage,
+  required String? claimCode,
+  required String platform,
+  required String? capturedAt,
+}) async {
+  try {
+    final resp = await _dio.post(
+      '${Config.apiBase}/api/attribution/install',
+      data: {
+        'utm': utm,
+        'referrerRaw': referrerRaw,
+        'landingPage': landingPage,
+        'claimCode': claimCode,
+        'platform': platform,
+        'capturedAt': capturedAt,
+      },
+      options: Options(headers: {'Authorization': _bearer(), 'Content-Type': 'application/json'}),
+    );
+    final body = resp.data is Map ? Map<String, dynamic>.from(resp.data as Map) : <String, dynamic>{};
+    return body['recorded'] == true;
+  } catch (_) {
+    // Silent: this runs in the background during startup and onboarding, and
+    // there is nothing the member could do about it. The next launch retries.
+    return false;
+  }
+}
+
 /// Claim the landing-page conversation identified by [code] for the signed-in user.
 ///
 /// Authenticated with his REAL session, never the landing page's own token: the

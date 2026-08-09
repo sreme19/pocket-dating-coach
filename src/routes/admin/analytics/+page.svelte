@@ -276,7 +276,7 @@
 		: '0';
 
 	// ── User Activity tab ──────────────────────────────────────────────
-	type Tab = 'overview' | 'activity' | 'ai_latency';
+	type Tab = 'overview' | 'activity' | 'ai_latency' | 'ads';
 	let activeTab = $state<Tab>('overview');
 	let selectedUserId = $state<string>('');
 	let activity = $state<Record<string, any> | null>(null);
@@ -294,6 +294,120 @@
 	function fmtDate(s: string) {
 		return s ? new Date(s).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 	}
+
+	// ── Ad Analytics tab ───────────────────────────────────────────────
+	//
+	// Fetched on first open rather than in the page load, which already runs ten
+	// queries plus a batched auth lookup per user. The other two tabs should not
+	// pay for this one.
+	let ads = $state<Record<string, any> | null>(null);
+	let adsLoading = $state(false);
+	let adsError = $state<string | null>(null);
+	let adsDays = $state(30);
+	/** Rupees by default; the toggle converts at display time via ad_fx_rates. */
+	let adsCurrency = $state<'INR' | 'USD'>('INR');
+
+	async function loadAds() {
+		adsLoading = true;
+		adsError = null;
+		try {
+			const res = await fetch(`/api/analytics/ads?days=${adsDays}&currency=${adsCurrency}`);
+			const body = await res.json();
+			if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`);
+			ads = body;
+		} catch (e: any) {
+			adsError = e?.message ?? String(e);
+			ads = null;
+		} finally {
+			adsLoading = false;
+		}
+	}
+
+	// Load once when the tab is first opened, and again whenever the range or
+	// currency changes — both are server-side, so neither can be done client-side.
+	$effect(() => {
+		if (activeTab !== 'ads') return;
+		// Referenced so the effect re-runs when either control moves.
+		void adsDays;
+		void adsCurrency;
+		loadAds();
+	});
+
+	/** Money, in whichever currency is selected. */
+	function fmtMoney(n: number): string {
+		return new Intl.NumberFormat('en-IN', {
+			style: 'currency',
+			currency: adsCurrency,
+			maximumFractionDigits: 0
+		}).format(n || 0);
+	}
+
+	/**
+	 * A rate, or an explicit "too few" — never a number the sample cannot support.
+	 *
+	 * The server returns null below its minimum sample rather than a percentage.
+	 * Rendering that as 0% would read as "nobody converted" when it means "we
+	 * cannot tell yet", and those call for opposite decisions.
+	 */
+	function fmtRate(v: number | null, sample?: number): string {
+		if (v === null || v === undefined) {
+			return sample !== undefined ? `n=${sample}` : '—';
+		}
+		return `${(v * 100).toFixed(1)}%`;
+	}
+
+	function fmtAgo(iso: string | null): string {
+		if (!iso) return 'never';
+		const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+		if (mins < 60) return `${mins}m ago`;
+		if (mins < 1440) return `${Math.round(mins / 60)}h ago`;
+		return `${Math.round(mins / 1440)}d ago`;
+	}
+
+	// Charts for the ads tab. Kept in their own effect so they redraw when the
+	// data arrives, and are destroyed first — Chart.js leaks a canvas otherwise.
+	$effect(() => {
+		if (!chartjsReady || activeTab !== 'ads' || !ads) return;
+
+		const ids = ['adsTrend', 'adsCta', 'adsTurns'];
+		destroyCharts(ids);
+
+		const labels = Object.keys(ads.trends.views);
+		renderLine(
+			'adsTrend',
+			labels,
+			[
+				{
+					label: 'Page views',
+					data: labels.map((d) => ads!.trends.views[d] ?? 0),
+					borderColor: '#10b981',
+					backgroundColor: 'rgba(16,185,129,0.12)'
+				},
+				{
+					label: 'Store taps',
+					data: labels.map((d) => ads!.trends.taps[d] ?? 0),
+					borderColor: '#6366f1',
+					backgroundColor: 'rgba(99,102,241,0.12)'
+				},
+				{
+					label: 'Signups',
+					data: labels.map((d) => ads!.trends.signups[d] ?? 0),
+					borderColor: '#f59e0b',
+					backgroundColor: 'rgba(245,158,11,0.12)'
+				}
+			]
+		);
+
+		const ctaLabels = Object.keys(ads.byCta);
+		if (ctaLabels.length) {
+			renderBar('adsCta', ctaLabels, ctaLabels.map((k) => ads!.byCta[k]), '#10b981');
+		}
+
+		const turnLabels = Object.keys(ads.lpFunnel.turnHistogram);
+		renderBar('adsTurns', turnLabels, turnLabels.map((k) => ads!.lpFunnel.turnHistogram[k]), '#6366f1');
+
+		return () => destroyCharts(ids);
+	});
 
 	// ── Toggle seed/real ───────────────────────────────────────────────
 	// Local override map so changes reflect immediately without a page reload.
@@ -337,7 +451,7 @@
 
 	<!-- Tab bar -->
 	<div class="mb-8 flex gap-1 overflow-x-auto border-b border-white/[0.06]">
-		{#each [['overview', 'Overview'], ['activity', 'User Activity'], ['ai_latency', 'AI Latency']] as [tab, label]}
+		{#each [['overview', 'Overview'], ['activity', 'User Activity'], ['ai_latency', 'AI Latency'], ['ads', 'Ad Analytics']] as [tab, label]}
 			<button
 				onclick={() => activeTab = tab as Tab}
 				class="whitespace-nowrap px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px {activeTab === tab ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-slate-400 hover:text-slate-200'}"
@@ -345,8 +459,10 @@
 		{/each}
 	</div>
 
-	<!-- Global filters -->
-	<div class="mb-6 flex flex-wrap gap-2">
+	<!-- Global filters. Hidden on Ad Analytics, which filters by campaign, country
+	     and landing page instead — leaving a gender toggle visible that silently
+	     does nothing is worse than not offering one. -->
+	<div class="mb-6 flex flex-wrap gap-2" class:hidden={activeTab === 'ads'}>
 		<div class="flex rounded-lg border border-white/[0.08] overflow-hidden text-xs">
 			{#each [['all', 'All genders'], ['man', 'Men'], ['woman', 'Women']] as [val, label]}
 				<button
@@ -880,6 +996,279 @@
 			<p class="text-[11px] text-slate-600">
 				Grouped by chat session. Dashes mean that stage wasn't recorded (e.g. the recipient's tab wasn't open to report delivery/render). Delivery is the poll gap for a live recipient; gaps over 60s are treated as staleness, not delivery, and dropped. End-to-end needs both server and client halves.
 			</p>
+		</div>
+	{/if}
+{/if}
+
+{#if activeTab === 'ads'}
+	<!-- ── Ad Analytics Tab ──────────────────────────────────────────────── -->
+	<div class="mb-6 flex flex-wrap items-center gap-2">
+		<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-xs">
+			{#each [7, 30, 90] as d}
+				<button
+					onclick={() => (adsDays = d)}
+					class="px-3 py-1.5 transition-colors {adsDays === d
+						? 'bg-emerald-500/20 text-emerald-400'
+						: 'text-slate-400 hover:text-slate-200'}">{d}d</button
+				>
+			{/each}
+		</div>
+		<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-xs">
+			{#each ['INR', 'USD'] as c}
+				<button
+					onclick={() => (adsCurrency = c as 'INR' | 'USD')}
+					class="px-3 py-1.5 transition-colors {adsCurrency === c
+						? 'bg-indigo-500/20 text-indigo-400'
+						: 'text-slate-400 hover:text-slate-200'}">{c}</button
+				>
+			{/each}
+		</div>
+		{#if ads}
+			<span class="text-[11px] text-slate-600"
+				>{ads.range.start} → {ads.range.end} · days bucketed in {ads.range.timezone}</span
+			>
+		{/if}
+	</div>
+
+	{#if adsLoading}
+		<div class="py-16 text-center text-sm text-slate-600">Loading campaign data…</div>
+	{:else if adsError}
+		<div class="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-300">
+			Could not load ad analytics: {adsError}
+		</div>
+	{:else if ads}
+		<!-- Anomalies. Deliberately above every chart: on a day when something is
+		     broken, this is the only thing on the page worth reading. -->
+		{#if ads.anomalies.length}
+			<div class="mb-6 space-y-2">
+				{#each ads.anomalies as note}
+					<div
+						class="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-300"
+					>
+						⚠ {note}
+					</div>
+				{/each}
+			</div>
+		{/if}
+
+		<!-- Data health. First, not last: at these volumes the instrumentation is
+		     likelier to be wrong than the campaign, and every number below is
+		     worthless if the pipes are not running. -->
+		<div class="card mb-6">
+			<div class="chart-title">Data health</div>
+			<div class="grid grid-cols-2 gap-4 text-xs sm:grid-cols-4">
+				<div>
+					<div class="text-slate-500">Page views recorded</div>
+					<div class="text-lg font-semibold text-white">{ads.health.counts.views}</div>
+				</div>
+				<div>
+					<div class="text-slate-500">Store taps recorded</div>
+					<div class="text-lg font-semibold text-white">{ads.health.counts.taps}</div>
+				</div>
+				<div>
+					<div class="text-slate-500">Signups attributed</div>
+					<div class="text-lg font-semibold text-white">
+						{ads.health.counts.attributedSignups}/{ads.health.counts.totalSignups}
+					</div>
+					<div class="text-[11px] text-slate-600">
+						{fmtRate(ads.health.attributionCoverage, ads.health.counts.totalSignups)} coverage
+					</div>
+				</div>
+				<div>
+					<div class="text-slate-500">Spend rows</div>
+					<div class="text-lg font-semibold text-white">{ads.health.counts.spendRows}</div>
+					<div class="text-[11px] text-slate-600">
+						snap {fmtAgo(ads.health.lastSpendFetch.snap)} · meta {fmtAgo(
+							ads.health.lastSpendFetch.meta
+						)}
+					</div>
+				</div>
+			</div>
+
+			<div class="mt-4 grid gap-2 text-[11px] text-slate-500 sm:grid-cols-2">
+				<div>
+					Conversion forwards — Snap {ads.health.snapForwardOk} ok / {ads.health
+						.snapForwardFailed} failed · Meta {ads.health.metaForwardOk} ok / {ads.health
+						.metaForwardFailed} failed
+				</div>
+				<div>
+					Credentials present — Snap:
+					{Object.entries(ads.spendConfig.snap)
+						.filter(([, v]) => v)
+						.map(([k]) => k)
+						.join(', ') || 'none'} · Meta:
+					{Object.entries(ads.spendConfig.meta)
+						.filter(([, v]) => v)
+						.map(([k]) => k)
+						.join(', ') || 'none'}
+				</div>
+				{#if ads.health.tapsWithoutVisit > 0}
+					<div class="text-amber-400/80">
+						{ads.health.tapsWithoutVisit} tap{ads.health.tapsWithoutVisit === 1 ? '' : 's'} carried no
+						visit id and sit outside the per-visit rate (blocked sessionStorage, or recorded before
+						the beacon shipped).
+					</div>
+				{/if}
+				{#if ads.health.iosMembers > 0}
+					<div class="text-amber-400/80">
+						{ads.health.iosMembers} iOS member{ads.health.iosMembers === 1 ? '' : 's'} — iOS has no
+						install referrer, so these are unattributable, not organic.
+					</div>
+				{/if}
+				{#each Object.entries(ads.health.tables) as [name, err]}
+					{#if err}
+						<div class="text-red-400">{name}: {err}</div>
+					{/if}
+				{/each}
+			</div>
+		</div>
+
+		<!-- Trends -->
+		<div class="card mb-6">
+			<div class="chart-title">Daily views, store taps and signups</div>
+			<div class="chart-box"><canvas id="adsTrend"></canvas></div>
+		</div>
+
+		<!-- Per-visit funnel + CTA breakdown -->
+		<div class="mb-6 grid gap-4 lg:grid-cols-2">
+			<div class="card">
+				<div class="chart-title">Visit → store tap</div>
+				<div class="flex items-baseline gap-3">
+					<div class="text-3xl font-bold text-white">
+						{fmtRate(ads.visitFunnel.tapRate, ads.visitFunnel.visits)}
+					</div>
+					<div class="text-xs text-slate-500">
+						{ads.visitFunnel.tapped} of {ads.visitFunnel.visits} visits
+					</div>
+				</div>
+				<p class="mt-3 text-[11px] leading-relaxed text-slate-600">
+					A join on visit id, not two totals divided by each other — so a visitor who tapped three
+					times counts once, and a reload cannot push this over 100%.
+					{#if ads.visitFunnel.visits < ads.minSample}
+						Below {ads.minSample} visits the rate is withheld rather than shown as a number the
+						sample cannot support.
+					{/if}
+				</p>
+			</div>
+			<div class="card">
+				<div class="chart-title">Taps by CTA position</div>
+				<div class="chart-box"><canvas id="adsCta"></canvas></div>
+			</div>
+		</div>
+
+		<!-- Landing page variants + country -->
+		<div class="mb-6 grid gap-4 lg:grid-cols-2">
+			<div class="card">
+				<div class="chart-title">Landing page variants</div>
+				<table class="w-full text-xs">
+					<thead class="text-slate-500">
+						<tr><th class="py-1 text-left">Page</th><th class="text-right">Views</th><th class="text-right">Taps</th><th class="text-right">Tap rate</th></tr>
+					</thead>
+					<tbody>
+						{#each Object.entries(ads.byPage) as [pageName, s]}
+							<tr class="border-t border-white/[0.04]">
+								<td class="py-1.5 text-slate-300">{pageName}</td>
+								<td class="text-right text-slate-400">{s.views}</td>
+								<td class="text-right text-slate-400">{s.taps}</td>
+								<td class="text-right text-slate-400"
+									>{fmtRate(s.views >= ads.minSample ? s.taps / s.views : null, s.views)}</td
+								>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+			<div class="card">
+				<div class="chart-title">By country</div>
+				<table class="w-full text-xs">
+					<thead class="text-slate-500">
+						<tr><th class="py-1 text-left">Country</th><th class="text-right">Views</th><th class="text-right">Taps</th><th class="text-right">Tap rate</th></tr>
+					</thead>
+					<tbody>
+						{#each Object.entries(ads.byCountry).sort((a, b) => b[1].views - a[1].views) as [code, s]}
+							<tr class="border-t border-white/[0.04]">
+								<td class="py-1.5 text-slate-300">{code}</td>
+								<td class="text-right text-slate-400">{s.views}</td>
+								<td class="text-right text-slate-400">{s.taps}</td>
+								<td class="text-right text-slate-400"
+									>{fmtRate(s.views >= ads.minSample ? s.taps / s.views : null, s.views)}</td
+								>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		</div>
+
+		<!-- Campaign leaderboard -->
+		<div class="card mb-6 overflow-x-auto">
+			<div class="chart-title">Campaign leaderboard · spend in {adsCurrency}</div>
+			<table class="w-full min-w-[52rem] text-xs">
+				<thead class="text-slate-500">
+					<tr>
+						<th class="py-1 text-left">Campaign</th>
+						<th class="text-right">Spend</th>
+						<th class="text-right">Impr.</th>
+						<th class="text-right">Views</th>
+						<th class="text-right">Taps</th>
+						<th class="text-right">Tap rate</th>
+						<th class="text-right">Signups</th>
+						<th class="text-right">Cost/signup</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each ads.leaderboard as c}
+						<tr class="border-t border-white/[0.04]">
+							<td class="py-1.5 text-slate-300">{c.campaign}</td>
+							<td class="text-right text-slate-400">{c.spend ? fmtMoney(c.spend) : '—'}</td>
+							<td class="text-right text-slate-400">{c.impressions || '—'}</td>
+							<td class="text-right text-slate-400">{c.views}</td>
+							<td class="text-right text-slate-400">{c.taps}</td>
+							<td class="text-right text-slate-400">{fmtRate(c.tapRate, c.views)}</td>
+							<td class="text-right text-slate-400">{c.signups}</td>
+							<td class="text-right text-slate-400"
+								>{c.costPerSignup ? fmtMoney(c.costPerSignup) : '—'}</td
+							>
+						</tr>
+					{:else}
+						<tr><td colspan="8" class="py-6 text-center text-slate-600">No campaign data in this window.</td></tr>
+					{/each}
+				</tbody>
+			</table>
+			<p class="mt-3 text-[11px] text-slate-600">
+				Rates are withheld below {ads.minSample} observations and shown as the raw count instead — at
+				current volumes most per-campaign differences are noise, and a percentage off a handful of
+				visitors invites a decision the data cannot support.
+			</p>
+		</div>
+
+		<!-- /aibestie conversation depth -->
+		<div class="grid gap-4 lg:grid-cols-2">
+			<div class="card">
+				<div class="chart-title">/aibestie funnel</div>
+				<table class="w-full text-xs">
+					<tbody>
+						{#each [['Opened the page', ads.lpFunnel.opened], ['Sent a message', ads.lpFunnel.spoke], ['Reached 3+ turns', ads.lpFunnel.reached3Turns], ['Tapped the store CTA', ads.lpFunnel.tappedCta], ['Claimed after install', ads.lpFunnel.claimed]] as [label, n]}
+							<tr class="border-t border-white/[0.04]">
+								<td class="py-1.5 text-slate-300">{label}</td>
+								<td class="text-right font-semibold text-white">{n}</td>
+								<td class="w-24 text-right text-slate-500"
+									>{ads.lpFunnel.opened ? `${Math.round((Number(n) / ads.lpFunnel.opened) * 100)}%` : '—'}</td
+								>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+				<p class="mt-3 text-[11px] leading-relaxed text-slate-600">
+					This page's mid-funnel metric is conversation depth, not clicks. Note the CTA-seen step is
+					missing: <code class="text-slate-500">cta_shown_at</code> is declared in the schema and never
+					written, so "tapped" cannot yet be divided by "was shown".
+				</p>
+			</div>
+			<div class="card">
+				<div class="chart-title">Turns before drop-off</div>
+				<div class="chart-box"><canvas id="adsTurns"></canvas></div>
+			</div>
 		</div>
 	{/if}
 {/if}
