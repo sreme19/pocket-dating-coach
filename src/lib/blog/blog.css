@@ -519,6 +519,33 @@ body:has(.blog) {
 	display: block;
 }
 
+/*
+ * Figures may leave the measure. Text may not.
+ *
+ * The column is 46rem because ~66 characters is where serif prose reads best,
+ * and that stays true no matter how wide the window gets. A screenshot has no
+ * such limit, and holding one to the same 688px was throwing away most of it —
+ * a 1683px Play listing rendered at 41%, small enough that the phone
+ * screenshots inside it were unreadable.
+ *
+ * `width: auto` is the part doing the real work. A replaced element sized
+ * `auto` takes its intrinsic width and is only ever clamped by `max-width`, so
+ * a big screenshot grows to the wider bound while a 460px SVG diagram —
+ * authored at exactly that size — stays 460px instead of being upscaled into
+ * mush. One rule, no per-image classes, and nothing to remember when adding a
+ * post. `margin-left: 50%` with a half-width translate re-centres whatever
+ * comes out on the text column, without either needing to know the other's
+ * width.
+ */
+@media (min-width: 64rem) {
+	.prose img {
+		width: auto;
+		max-width: min(60rem, calc(100vw - 6rem));
+		margin-left: 50%;
+		transform: translateX(-50%);
+	}
+}
+
 .prose figcaption {
 	font-family: var(--sans);
 	font-size: 0.8125rem;
@@ -615,6 +642,84 @@ body:has(.blog) {
 	margin-top: 4rem;
 	border-top: 1px solid var(--rule);
 	padding-top: 1.75rem;
+}
+
+/* ---------- share ---------- */
+
+.share {
+	margin-bottom: 2rem;
+}
+
+.share__label {
+	display: block;
+	font-family: var(--sans);
+	font-size: 0.6875rem;
+	font-weight: 600;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--faint);
+	margin-bottom: 0.75rem;
+}
+
+.share__row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+/* Deliberately the same shape as .tagChip: these are peers in the footer, and
+   a share action has no more claim on the reader's eye than a tag does. */
+.share__btn {
+	font-family: var(--sans);
+	font-size: 0.75rem;
+	line-height: 1;
+	padding: 0.5rem 0.8125rem;
+	border: 1px solid var(--rule);
+	border-radius: 999px;
+	background: none;
+	color: var(--muted);
+	text-decoration: none;
+	cursor: pointer;
+	transition:
+		color 0.15s,
+		border-color 0.15s;
+}
+
+.share__btn:hover {
+	color: var(--accent);
+	border-color: var(--accent);
+}
+
+.share__fallback {
+	font-family: var(--sans);
+	font-size: 0.8125rem;
+	color: var(--muted);
+	margin: 0.75rem 0 0;
+}
+
+.share__url {
+	display: block;
+	width: 100%;
+	margin-top: 0.375rem;
+	padding: 0.5rem 0.625rem;
+	font-family: var(--mono);
+	font-size: 0.75rem;
+	color: var(--ink-soft);
+	background: var(--paper-raised);
+	border: 1px solid var(--rule);
+	border-radius: 6px;
+}
+
+.share__reply {
+	font-family: var(--sans);
+	font-size: 0.8125rem;
+	line-height: 1.6;
+	color: var(--muted);
+	margin: 1.125rem 0 0;
+}
+
+.share__reply a {
+	color: var(--accent);
 }
 
 .post__neighbours {

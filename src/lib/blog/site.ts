@@ -27,6 +27,16 @@ export const BLOG_HOSTS = [
 export const BLOG_DEFAULT_COVER = '/og/riteangle-logo.png';
 
 /**
+ * Where replies go. This blog has no comment system on purpose: a comment box
+ * is a moderation queue, a spam surface, and a store of other people's personal
+ * data, and none of those are worth owning on a site whose subject matter
+ * already attracts drive-by abuse. Discussion happens on LinkedIn instead,
+ * where the audience already is and where the moderation is someone else's
+ * problem.
+ */
+export const BLOG_LINKEDIN = 'https://www.linkedin.com/in/sreekanthdayanidhi/';
+
+/**
  * Blog pages are pure build-output: they change only when a deploy ships new
  * markdown. So the browser revalidates every time (max-age=0) while Vercel's CDN
  * serves a cached copy for an hour and keeps serving a stale one for a day while

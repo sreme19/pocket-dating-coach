@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Seo from '$lib/blog/Seo.svelte';
+	import Share from '$lib/blog/Share.svelte';
 	import { BLOG_TAGLINE, blogHref, formatDate, tagLabel } from '$lib/blog/site';
 
 	let { data } = $props();
@@ -53,6 +54,8 @@
 	<div class="prose">{@html post.html}</div>
 
 	<footer class="post__footer">
+		<Share path={`/${post.slug}`} title={post.title} />
+
 		{#if post.tags.length}
 			<ul class="tagRow">
 				{#each post.tags as tag (tag)}
