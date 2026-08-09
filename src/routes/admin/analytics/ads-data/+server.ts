@@ -5,7 +5,7 @@ import { adSpendConfigStatus } from '$lib/server/ad-spend/sync';
 import { ADMIN_COOKIE, tokenIsValid } from '$lib/server/admin-auth';
 
 /**
- * GET /api/analytics/ads?days=30&currency=INR
+ * GET /admin/analytics/ads-data?days=30&currency=INR
  *
  * Everything the admin Ad Analytics tab renders.
  *
@@ -14,9 +14,15 @@ import { ADMIN_COOKIE, tokenIsValid } from '$lib/server/admin-auth';
  * auth.admin lookup per user and takes seconds; adding six more to it would slow
  * down the two tabs that do not need any of this.
  *
- * Auth is inherited from admin/+layout.server.ts, which redirects to the login
- * page without the admin cookie. This route sits under /api rather than /admin,
- * so it repeats the check rather than assuming it.
+ * LIVES UNDER /admin FOR A LOAD-BEARING REASON. The admin session cookie is set
+ * with `path: '/admin'` (see ADMIN_COOKIE_OPTS), so the browser does not attach
+ * it to anything outside that tree. This endpoint first shipped at
+ * /api/analytics/ads with exactly the auth check below and answered 401 to a
+ * fully logged-in admin, because the cookie it was checking for was never sent.
+ * Sitting beside delete-user and public-view-flags is what makes the check work.
+ *
+ * The check is still explicit rather than inherited: +layout.server.ts guards
+ * pages, and its load function does not run for +server.ts routes.
  */
 
 const MAX_DAYS = 180;

@@ -311,7 +311,10 @@
 		adsLoading = true;
 		adsError = null;
 		try {
-			const res = await fetch(`/api/analytics/ads?days=${adsDays}&currency=${adsCurrency}`);
+			// Under /admin deliberately: the session cookie is scoped to that path,
+			// so an endpoint anywhere else never receives it. See the note in
+			// ads-data/+server.ts.
+			const res = await fetch(`/admin/analytics/ads-data?days=${adsDays}&currency=${adsCurrency}`);
 			const body = await res.json();
 			if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`);
 			ads = body;
