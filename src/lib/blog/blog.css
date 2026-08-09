@@ -162,6 +162,13 @@ body:has(.blog) {
 	align-items: center;
 }
 
+.blog__footerLinks {
+	display: flex;
+	align-items: center;
+	gap: 1.25rem;
+	flex-wrap: wrap;
+}
+
 .blog__footer a {
 	color: var(--muted);
 	text-decoration: none;

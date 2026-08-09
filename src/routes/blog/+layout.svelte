@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '$lib/blog/blog.css';
 	import { page } from '$app/stores';
-	import { BLOG_NAME, BLOG_TAGLINE, blogHref } from '$lib/blog/site';
+	import { BLOG_GITHUB, BLOG_LINKEDIN, BLOG_NAME, BLOG_TAGLINE, blogHref } from '$lib/blog/site';
 
 	let { data, children } = $props();
 
@@ -38,9 +38,13 @@
 		<div class="blog__inner">
 			<div class="blog__footerRow">
 				<span>&copy; {year} {BLOG_NAME}</span>
-				<span>
+				<!-- rel="me" marks these as the same person's other profiles, which is
+				     what lets a reader (or an identity verifier) treat the claim as mine. -->
+				<nav class="blog__footerLinks">
+					<a href={BLOG_LINKEDIN} rel="me noopener noreferrer" target="_blank">LinkedIn</a>
+					<a href={BLOG_GITHUB} rel="me noopener noreferrer" target="_blank">GitHub</a>
 					<a href={href('/rss.xml')}>Subscribe by RSS</a>
-				</span>
+				</nav>
 			</div>
 		</div>
 	</footer>

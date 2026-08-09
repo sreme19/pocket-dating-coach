@@ -37,6 +37,13 @@ export const BLOG_DEFAULT_COVER = '/og/riteangle-logo.png';
 export const BLOG_LINKEDIN = 'https://www.linkedin.com/in/sreekanthdayanidhi/';
 
 /**
+ * The code side of the same person. Linked because most of what these posts
+ * describe is readable there, and a claim about an architecture is worth more
+ * when the reader can go check it.
+ */
+export const BLOG_GITHUB = 'https://github.com/sreme19';
+
+/**
  * Blog pages are pure build-output: they change only when a deploy ships new
  * markdown. So the browser revalidates every time (max-age=0) while Vercel's CDN
  * serves a cached copy for an hour and keeps serving a stale one for a day while
