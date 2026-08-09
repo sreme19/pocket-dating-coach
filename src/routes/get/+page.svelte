@@ -105,6 +105,18 @@
 	 * `capture: true` so the event is recorded before the browser starts leaving
 	 * for Play. The navigation is never delayed to wait for the beacon; a lost
 	 * measurement is cheaper than a CTA that feels slow.
+	 *
+	 * That last rule is also why every CTA carries `target="_blank"`, which is
+	 * load-bearing and not a style choice. Snap's SDK does not send an event when
+	 * you hand it one — it queues it and flushes on a ~1s timer (measured against
+	 * production 2026-08-09: click at 6ms, beacon out at 1003ms). A CTA that
+	 * navigates the current tab to Play destroys the page, and the queue inside
+	 * it, well before that timer fires, so the tap is never reported. PAGE_VIEW
+	 * survives only because arrivals sit on the page far longer than a second.
+	 * Opening Play in a new context leaves this page alive long enough to flush,
+	 * and costs the visitor nothing: on Android the Play link hands off to the
+	 * Play app either way. Remove the attribute and the store-click event silently
+	 * stops being measurable — no error, just a permanent zero in Ads Manager.
 	 */
 	onMount(() => {
 		initSnapPixel();
@@ -212,7 +224,7 @@
 				<em>You do the meeting.</em>
 			</p>
 
-			<a class="cta" href={storeUrl} data-cta="hero">
+			<a class="cta" href={storeUrl} data-cta="hero" target="_blank" rel="noopener">
 				{@render playMark()}
 				Get the Android app
 			</a>
@@ -322,7 +334,7 @@
 	<section class="sec mid">
 		<div class="wrap narrow">
 			<h2 class="h2 c">Minutes, not months.</h2>
-			<a class="cta" href={storeUrl} data-cta="mid">
+			<a class="cta" href={storeUrl} data-cta="mid" target="_blank" rel="noopener">
 				{@render playMark()}
 				Get the Android app
 			</a>
@@ -382,7 +394,7 @@
 	<section class="sec close">
 		<div class="wrap narrow">
 			<h2 class="h2 c">Meet who you<br />actually want.</h2>
-			<a class="cta" href={storeUrl} data-cta="footer">
+			<a class="cta" href={storeUrl} data-cta="footer" target="_blank" rel="noopener">
 				{@render playMark()}
 				Get the Android app
 			</a>
@@ -405,7 +417,7 @@
 	     on script to appear is a CTA that can fail to appear. Hidden on desktop,
 	     where the page's own buttons are never far away. -->
 	<div class="bar">
-		<a class="cta" href={storeUrl} data-cta="sticky">
+		<a class="cta" href={storeUrl} data-cta="sticky" target="_blank" rel="noopener">
 			{@render playMark()}
 			Get the Android app
 		</a>
