@@ -2,7 +2,7 @@
 title: Zero is not a measurement
 date: 2026-08-09
 summary: I spent a day on a conversion number that read zero. Three separate things were wrong, and not one of them raised an error.
-tags: [riteangle, operations]
+tags: [marketing, riteangle, operations]
 cover: /og/blog/zero-is-not-a-measurement.png
 ---
 
