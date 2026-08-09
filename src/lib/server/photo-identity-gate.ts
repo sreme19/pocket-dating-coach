@@ -272,7 +272,12 @@ export function decidePhotoGate(
         ? "We can't publish these photos on a public profile. Please choose different ones."
         : hasAnchor
           ? 'None of these photos match your verification selfie. Please upload a photo of yourself — the same face you used for your selfie check.'
-          : 'None of these look like a clear photo of you. Please upload photos of yourself with your face visible.',
+          // No anchor: this user skipped the selfie, so all we could run is bare
+          // face detection. Naming the selfie is the whole point — without it the
+          // message is a dead end. One user retried five times against the old
+          // wording in under three minutes, because nothing told them the step
+          // they had skipped was the fix.
+          : 'None of these look like a clear photo of you. Take your selfie check first — that is the photo we match the rest against — then upload photos with your face clearly visible.',
     };
   }
 
