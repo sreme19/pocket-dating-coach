@@ -43,7 +43,7 @@
  * shipping a half-configured pixel that 404s on every page view is worse than
  * shipping none. Paste the ID and it activates on the next deploy.
  */
-const PIXEL_ID = '';
+const PIXEL_ID = '2286986682092608';
 
 const SCRIPT_SRC = 'https://connect.facebook.net/en_US/fbevents.js';
 

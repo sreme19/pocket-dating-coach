@@ -14,6 +14,22 @@
 			string substitution, so it would be replaced here and the injected markup
 			would close this comment early and spill onto the page.
 		-->
+		<!--
+			Meta's domain-verification token. This is the ONE Facebook thing that
+			belongs in this template, and it is worth being explicit about why,
+			because the rule next door is the opposite: the Meta Pixel is confined
+			to /get and must never be lifted in here (see meta-pixel.ts). The
+			difference is that this is an inert string. It runs nothing, reads
+			nothing off the page, and reports no visit — it exists so Meta's
+			crawler can confirm we control the domain. The pixel is code, and in
+			here it would execute on every screen of the signed-in app.
+
+			It lives in the template rather than a route because the crawler does
+			not run our JavaScript, and it must be on the apex: riteangle.dating
+			308s to www, which Meta follows, and a token reachable only past that
+			redirect is the usual reason a correct one still fails.
+		-->
+		<meta name="facebook-domain-verification" content="cmgnpysq6qk2p4uu5efjzvuxh65i9t" />
 		<link rel="manifest" href="/manifest.json" />
 		<meta name="theme-color" content="#FF3B6B" />
 		<meta name="apple-mobile-web-app-capable" content="yes" />
