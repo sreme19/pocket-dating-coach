@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 306" width="460" height="306" role="img" aria-labelledby="rt rd">
+  <title id="rt">The race between the flush timer and the page unloading</title>
+  <desc id="rd">A timeline from zero to just past one second. The tap happens at zero and the event is handed to the SDK at 6 milliseconds, where it sits in a queue. The browser begins leaving for the Play Store almost immediately, so the page is gone well before the flush timer fires at 1003 milliseconds. The queued event is never sent.</desc>
+
+  <style>
+    .bg    { fill: #fcfbf8; }
+    .axis  { stroke: #97928a; }
+    .tick  { fill: #97928a; font: 400 11px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+    .lbl   { fill: #17161b; font: 600 13px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+    .sub   { fill: #6e6a63; font: 400 11.5px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+    .alive { fill: #e8e3d8; }
+    .dead  { fill: #f6ece4; }
+    .deadl { stroke: #b4541e; stroke-dasharray: 3 3; }
+    .acc   { fill: #b4541e; }
+    .accl  { stroke: #b4541e; }
+    .accs  { fill: #b4541e; font: 600 11.5px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+    .dot   { fill: #17161b; }
+
+    @media (prefers-color-scheme: dark) {
+      .bg    { fill: #14131a; }
+      .axis  { stroke: #7b766e; }
+      .tick  { fill: #7b766e; }
+      .lbl   { fill: #edeae3; }
+      .sub   { fill: #9a958c; }
+      .alive { fill: #2c2933; }
+      .dead  { fill: #251c19; }
+      .deadl { stroke: #e2916a; }
+      .acc, .accs { fill: #e2916a; }
+      .accl  { stroke: #e2916a; }
+      .dot   { fill: #edeae3; }
+    }
+  </style>
+
+  <rect class="bg" x="0" y="0" width="460" height="306"/>
+
+  <!-- ── the page ── -->
+  <text class="lbl" x="22" y="30">The page</text>
+  <rect class="alive" x="22" y="42" width="74" height="26" rx="4"/>
+  <rect class="dead"  x="96" y="42" width="344" height="26" rx="4"/>
+  <line class="deadl" x1="96" y1="36" x2="96" y2="74"/>
+  <text class="sub"  x="30"  y="60">alive</text>
+  <text class="accs" x="106" y="60">unloading — the queue dies with it</text>
+
+  <!-- ── the event ── -->
+  <text class="lbl" x="22" y="112">The event</text>
+  <text class="sub" x="22" y="132">Tap at 0 ms. Handed to the SDK at 6 ms, then queued.</text>
+
+  <!-- tick labels sit above the line; the flush annotation below it -->
+  <text class="tick" x="22"  y="162">0</text>
+  <text class="tick" x="212" y="162" text-anchor="middle">500 ms</text>
+  <text class="tick" x="402" y="162" text-anchor="middle">1000 ms</text>
+
+  <line class="axis" x1="22" y1="176" x2="440" y2="176"/>
+  <line class="axis" x1="212" y1="172" x2="212" y2="180"/>
+
+  <circle class="dot" cx="22"  cy="176" r="4.5"/>
+  <circle class="dot" cx="24"  cy="176" r="3"/>
+  <circle class="acc" cx="402" cy="176" r="5.5"/>
+
+  <line class="accl" x1="402" y1="182" x2="402" y2="202"/>
+  <text class="accs" x="402" y="220" text-anchor="middle">1003 ms</text>
+  <text class="accs" x="402" y="236" text-anchor="middle">flush timer fires</text>
+  <text class="sub"  x="402" y="254" text-anchor="middle">into a page that</text>
+  <text class="sub"  x="402" y="268" text-anchor="middle">no longer exists</text>
+
+  <line class="axis" x1="22" y1="282" x2="440" y2="282"/>
+  <text class="sub" x="22" y="300">Page views survive because arrivals sit still for longer than a second.</text>
+</svg>

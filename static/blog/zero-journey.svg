@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 748" width="460" height="748" role="img" aria-labelledby="jt jd">
+  <title id="jt">The journey from ad impression to install</title>
+  <desc id="jd">Six steps. 6,845 impressions became 285 taps on the ad, 29 arrivals on the landing page, and zero recorded button taps — because the page is destroyed before the event can be sent. Installs are only visible in the Play Console.</desc>
+
+  <style>
+    .bg   { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; }
+    .name { fill: #17161b; font: 600 15px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+    .num  { fill: #17161b; font: 700 21px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+    .cap  { fill: #6e6a63; font: 400 12px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+    .arw  { stroke: #97928a; fill: none; }
+    .loss { fill: #97928a; font: 400 11.5px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+    .brk  { fill: #fdf3ee; stroke: #b4541e; }
+    .brkn { fill: #b4541e; font: 600 15px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+    .brkv { fill: #b4541e; font: 700 21px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+    .brkc { fill: #b4541e; font: 400 12px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+
+    @media (prefers-color-scheme: dark) {
+      .bg   { fill: #14131a; }
+      .card { fill: #1b1a22; stroke: #2c2933; }
+      .name { fill: #edeae3; }
+      .num  { fill: #edeae3; }
+      .cap  { fill: #9a958c; }
+      .arw  { stroke: #7b766e; }
+      .loss { fill: #7b766e; }
+      .brk  { fill: #251c19; stroke: #e2916a; }
+      .brkn, .brkv, .brkc { fill: #e2916a; }
+    }
+  </style>
+
+  <rect class="bg" x="0" y="0" width="460" height="748"/>
+
+  <!-- 1. impression -->
+  <rect class="card" x="20" y="14" width="420" height="62" rx="8"/>
+  <text class="name" x="38" y="42">Ad shown on Snapchat</text>
+  <text class="cap"  x="38" y="61">Counted by Snapchat</text>
+  <text class="num"  x="422" y="50" text-anchor="end">6,845</text>
+
+  <path class="arw" d="M230 76 L230 98"/>
+  <path class="arw" d="M224 92 L230 99 L236 92"/>
+  <text class="loss" x="246" y="94">96% never tap</text>
+
+  <!-- 2. tap on ad -->
+  <rect class="card" x="20" y="104" width="420" height="62" rx="8"/>
+  <text class="name" x="38" y="132">Tap on the ad</text>
+  <text class="cap"  x="38" y="151">Counted the instant a finger lands</text>
+  <text class="num"  x="422" y="140" text-anchor="end">285</text>
+
+  <path class="arw" d="M230 166 L230 188"/>
+  <path class="arw" d="M224 182 L230 189 L236 182"/>
+  <text class="loss" x="246" y="184">90% never arrive</text>
+
+  <!-- 3. landing page -->
+  <rect class="card" x="20" y="194" width="420" height="62" rx="8"/>
+  <text class="name" x="38" y="222">Landing page loads</text>
+  <text class="cap"  x="38" y="241">First step my own pixel can see</text>
+  <text class="num"  x="422" y="230" text-anchor="end">29</text>
+
+  <path class="arw" d="M230 256 L230 278"/>
+  <path class="arw" d="M224 272 L230 279 L236 272"/>
+
+  <!-- 4. the break -->
+  <rect class="brk" x="20" y="284" width="420" height="78" rx="8"/>
+  <text class="brkn" x="38" y="312">Tap “Get the Android app”</text>
+  <text class="brkc" x="38" y="331">Page is destroyed before the event sends</text>
+  <text class="brkc" x="38" y="349">Unknown — not zero, unmeasured</text>
+  <text class="brkv" x="422" y="322" text-anchor="end">0</text>
+
+  <path class="arw" d="M230 362 L230 384"/>
+  <path class="arw" d="M224 378 L230 385 L236 378"/>
+
+  <!-- 5. store -->
+  <rect class="card" x="20" y="390" width="420" height="62" rx="8"/>
+  <text class="name" x="38" y="418">Play Store listing</text>
+  <text class="cap"  x="38" y="437">Off my site — no pixel reaches here</text>
+  <text class="num"  x="422" y="428" text-anchor="end">?</text>
+
+  <path class="arw" d="M230 452 L230 474"/>
+  <path class="arw" d="M224 468 L230 475 L236 468"/>
+
+  <!-- 6. install -->
+  <rect class="card" x="20" y="480" width="420" height="62" rx="8"/>
+  <text class="name" x="38" y="508">Install</text>
+  <text class="cap"  x="38" y="527">Play Console only, via the utm referrer</text>
+  <text class="num"  x="422" y="518" text-anchor="end">?</text>
+
+  <!-- who measures what -->
+  <line class="arw" x1="20" y1="576" x2="440" y2="576"/>
+  <text class="cap" x="20" y="602">Three systems, no shared identity:</text>
+  <text class="cap" x="20" y="626">Snapchat counts the tap on the ad.</text>
+  <text class="cap" x="20" y="648">My pixel counts the arrival, and should count the button.</text>
+  <text class="cap" x="20" y="670">Play counts the install.</text>
+  <text class="cap" x="20" y="700">Nothing joins them at the level of a person, by design —</text>
+  <text class="cap" x="20" y="722">there is no email step in the middle to link them with.</text>
+</svg>
