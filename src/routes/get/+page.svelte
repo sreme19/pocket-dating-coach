@@ -68,7 +68,16 @@
 	import { page } from '$app/stores';
 	import RiteLogo from '$lib/verified-vibe/components/RiteLogo.svelte';
 	import { STORE_LINKS } from '$lib/store-links';
-	import { initSnapPixel, trackSnap, STORE_CLICK_EVENT } from '$lib/marketing/snap-pixel';
+	import {
+		initSnapPixel,
+		trackSnap,
+		STORE_CLICK_EVENT as SNAP_STORE_CLICK
+	} from '$lib/marketing/snap-pixel';
+	import {
+		initMetaPixel,
+		trackMeta,
+		STORE_CLICK_EVENT as META_STORE_CLICK
+	} from '$lib/marketing/meta-pixel';
 
 	/** Campaign labels used when the ad URL carries no utm_* of its own. */
 	const DEFAULT_UTM = 'utm_source=snapchat&utm_medium=paid_social&utm_campaign=get_lp';
@@ -93,10 +102,13 @@
 	});
 
 	/**
-	 * Snap Pixel. The one piece of script on the page, and it renders nothing —
-	 * see the note at the top about why nothing here is allowed to gate content.
+	 * Ad pixels — Snap and Meta. The only script on the page, and they render
+	 * nothing; see the note at the top about why nothing here is allowed to gate
+	 * content. Both are scoped to this route on purpose, and both modules say at
+	 * length why lifting them into a layout would leak members' contact details
+	 * to an ad network. Read those before adding a third.
 	 *
-	 * PAGE_VIEW on arrival, then the store-click event when any CTA is tapped.
+	 * A page view on arrival, then the store-click event when any CTA is tapped.
 	 * The listener is delegated off `document` rather than bolted onto each of
 	 * the four anchors so the anchors stay plain hrefs: if this script never runs
 	 * — blocked, failed, JS off — every CTA still works exactly as before, which
@@ -120,17 +132,25 @@
 	 */
 	onMount(() => {
 		initSnapPixel();
+		initMetaPixel();
 
 		const onClick = (e: MouseEvent) => {
 			const cta = (e.target as HTMLElement | null)?.closest?.('[data-cta]');
 			if (!cta) return;
-			trackSnap(STORE_CLICK_EVENT, {
-				// Which of the four buttons earned the tap, and the campaign that
-				// brought them — the same labels Play sees on the install referrer.
+
+			// Which of the four buttons earned the tap, and the campaign that
+			// brought them — the same labels Play sees on the install referrer.
+			const which = cta.getAttribute('data-cta') ?? 'unknown';
+			const campaign = $page.url.searchParams.get('utm_campaign') ?? 'get_lp';
+
+			// One listener, both networks. Each takes the same two facts in its
+			// own vocabulary; neither is told anything the other is not.
+			trackSnap(SNAP_STORE_CLICK, {
 				item_category: 'play_store_click',
-				item_ids: [cta.getAttribute('data-cta') ?? 'unknown'],
-				description: $page.url.searchParams.get('utm_campaign') ?? 'get_lp'
+				item_ids: [which],
+				description: campaign
 			});
+			trackMeta(META_STORE_CLICK, { cta: which, campaign });
 		};
 
 		document.addEventListener('click', onClick, { capture: true });
