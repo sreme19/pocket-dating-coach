@@ -78,6 +78,7 @@
 		trackMeta,
 		STORE_CLICK_EVENT as META_STORE_CLICK
 	} from '$lib/marketing/meta-pixel';
+	import { reportStoreClick } from '$lib/marketing/store-click-report';
 
 	/** Campaign labels used when the ad URL carries no utm_* of its own. */
 	const DEFAULT_UTM = 'utm_source=snapchat&utm_medium=paid_social&utm_campaign=get_lp';
@@ -143,14 +144,21 @@
 			const which = cta.getAttribute('data-cta') ?? 'unknown';
 			const campaign = $page.url.searchParams.get('utm_campaign') ?? 'get_lp';
 
+			// One id for this tap, sent three ways. Both networks receive it twice
+			// — once from the browser and once from our server — and collapse the
+			// pair into a single conversion. Without it every tap counts twice.
+			const eventId = crypto.randomUUID();
+
 			// One listener, both networks. Each takes the same two facts in its
 			// own vocabulary; neither is told anything the other is not.
 			trackSnap(SNAP_STORE_CLICK, {
 				item_category: 'play_store_click',
 				item_ids: [which],
-				description: campaign
+				description: campaign,
+				client_dedup_id: eventId
 			});
-			trackMeta(META_STORE_CLICK, { cta: which, campaign });
+			trackMeta(META_STORE_CLICK, { cta: which, campaign }, eventId);
+			reportStoreClick({ eventId, cta: which, campaign, url: $page.url });
 		};
 
 		document.addEventListener('click', onClick, { capture: true });

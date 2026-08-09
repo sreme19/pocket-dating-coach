@@ -125,10 +125,17 @@ export function initMetaPixel(): void {
  * Report a custom event. Silent when the pixel never loaded — an ad blocker or
  * a failed CDN request must never break the page or its links.
  */
-export function trackMeta(event: string, params?: Record<string, unknown>): void {
+export function trackMeta(
+  event: string,
+  params?: Record<string, unknown>,
+  /** Dedup key. The same id reaches Meta again from our server; passing it here
+   *  is what makes Meta collapse the pair into one conversion. */
+  eventId?: string
+): void {
   if (typeof window === 'undefined' || !window.fbq) return;
   try {
-    window.fbq('trackCustom', event, params ?? {});
+    if (eventId) window.fbq('trackCustom', event, params ?? {}, { eventID: eventId });
+    else window.fbq('trackCustom', event, params ?? {});
   } catch {
     /* measurement is never worth an exception on the page we pay for */
   }

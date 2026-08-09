@@ -638,6 +638,37 @@ export type Database = {
 				Update: Partial<Database['public']['Tables']['job_applications']['Insert']>;
 				Relationships: [];
 			};
+			/** Server-side record of /get store-button taps. See marketing-conversions.ts. */
+			marketing_store_clicks: {
+				Row: {
+					id: string;
+					event_id: string;
+					cta: string;
+					campaign: string | null;
+					utm: Record<string, string>;
+					user_agent: string | null;
+					referrer: string | null;
+					snap_forwarded: boolean | null;
+					meta_forwarded: boolean | null;
+					forward_error: string | null;
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					event_id: string;
+					cta: string;
+					campaign?: string | null;
+					utm?: Record<string, string>;
+					user_agent?: string | null;
+					referrer?: string | null;
+					snap_forwarded?: boolean | null;
+					meta_forwarded?: boolean | null;
+					forward_error?: string | null;
+					created_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['marketing_store_clicks']['Insert']>;
+				Relationships: [];
+			};
 		};
 		Functions: {
 			match_book_chunks: {
