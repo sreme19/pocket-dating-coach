@@ -2,7 +2,7 @@
 title: What it takes to measure one tap
 date: 2026-08-09
 summary: Four systems, none of which can see each other, cooperating to record that somebody pressed a button. Here is the whole arrangement and why each piece is there.
-tags: [marketing, riteangle, operations]
+tags: [marketing, riteangle]
 cover: /og/blog/what-it-takes-to-measure-one-tap.png
 ---
 
