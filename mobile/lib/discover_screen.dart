@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'api.dart';
 import 'app_logger.dart';
 import 'config.dart';
@@ -8,6 +9,7 @@ import 'error_text.dart';
 import 'season.dart';
 import 'profile_body.dart';
 import 'engage_sheets.dart';
+import 'verification_screen.dart';
 
 /// Discover: one full profile at a time (the web "Public Read") with Tip /
 /// Notice-me / Next. This product has no like/pass — Next just advances.
@@ -43,6 +45,13 @@ class _DiscoverScreenState extends State<DiscoverScreen>
   final Set<String> _matchedUserIds = {}; // already mutual matches — hide Tip/Notice me
   bool _autoSkipping = false; // guard against re-entrant auto-skip
 
+  // ── Missing-selfie notice ───────────────────────────────────────────────────
+  // The discovery gate and the matchmaker pool both require liveness + photos, so
+  // a user who never took the selfie browses a normal-looking feed while being
+  // invisible in everyone else's. Nothing used to say so. Null = not yet known.
+  bool? _missingSelfie;
+  Set<int> _selfieSkipSteps = const {};
+
   @override
   bool get wantKeepAlive => true;
 
@@ -51,6 +60,95 @@ class _DiscoverScreenState extends State<DiscoverScreen>
     super.initState();
     AppLogger.instance.screen('discover');
     _load();
+    _checkSelfie();
+  }
+
+  /// Look for a completed liveness row. Also records which of the other steps are
+  /// already done, so the CTA drops the user on the selfie and nothing else.
+  Future<void> _checkSelfie() async {
+    try {
+      final uid = Supabase.instance.client.auth.currentUser?.id;
+      if (uid == null) return;
+      final rows = await Supabase.instance.client
+          .from('verified_vibe_verification')
+          .select('step, status')
+          .eq('user_id', uid);
+      final done = <String>{
+        for (final r in (rows as List).cast<Map>())
+          if (r['status'] == 'completed') r['step'].toString(),
+      };
+      if (!mounted) return;
+      setState(() {
+        _missingSelfie = !done.contains('liveness');
+        // The banner promises a selfie and about a minute, so always skip the
+        // two optional Q&A steps — dropping someone into a questionnaire they
+        // did not agree to is how the selfie got skipped in the first place.
+        // Photos are only skipped when already done: a user missing BOTH still
+        // needs them, and step 3 is mandatory anyway.
+        _selfieSkipSteps = {1, 2, if (done.contains('photos')) 3};
+      });
+    } catch (_) {
+      // Best-effort: a failed check just means no banner, never a broken feed.
+    }
+  }
+
+  Widget _selfieNotice() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(Config.bg2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Brand.accentBright.withValues(alpha: 0.45)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Text('👋', style: TextStyle(fontSize: 16)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'No one can see you yet',
+              style: TextStyle(
+                fontSize: 14, fontWeight: FontWeight.w700, color: Brand.accentBright),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 6),
+        const Text(
+          "You can browse, but your profile stays hidden from everyone else until "
+          "you finish your selfie check. It takes about a minute.",
+          style: TextStyle(fontSize: 13, height: 1.45, color: Color(Config.text2)),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: () {
+              AppLogger.instance.action('discover', 'start_missing_selfie');
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => VerificationScreen(
+                  initialStep: 0,
+                  skipSteps: _selfieSkipSteps,
+                  onDone: () {
+                    Navigator.of(context).pop();
+                    _checkSelfie();
+                  },
+                ),
+              ));
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Brand.accentBright,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Take my selfie',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+          ),
+        ),
+      ]),
+    );
   }
 
   @override
@@ -226,7 +324,12 @@ class _DiscoverScreenState extends State<DiscoverScreen>
               const SizedBox(width: 12),
             ],
           ),
-          body: _body(),
+          // The notice sits above every feed state — loading, empty and card —
+          // because being invisible is true in all of them.
+          body: Column(children: [
+            if (_missingSelfie == true) _selfieNotice(),
+            Expanded(child: _body()),
+          ]),
         );
       },
     );

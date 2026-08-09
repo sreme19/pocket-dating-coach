@@ -159,7 +159,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
           .maybeSingle();
       final verifyRowsFuture = Supabase.instance.client
           .from('verified_vibe_verification')
-          .select('step, data')
+          .select('step, status, data')
           .eq('user_id', uid);
       final parallel = await Future.wait<dynamic>([userRowFuture, verifyRowsFuture]);
       if (!mounted) return;
@@ -178,6 +178,19 @@ class _VerificationScreenState extends State<VerificationScreen> {
 
       // ── Steps 1, 2 & 3: Q&A answers + photos from verification rows ───────
       final verifyRows = (parallel[1] as List).cast<Map>();
+
+      // ── Step 0: an already-passed selfie ──────────────────────────────────
+      // Step 0 is mandatory, so someone re-entering the flow (Trust Boost, a
+      // half-finished onboarding) must not be told to retake a selfie they have
+      // already passed — without this they cannot get past the step at all.
+      // Only 'completed' counts: 'under_review' keeps its retake affordance.
+      for (final row in verifyRows) {
+        if (row['step'] == 'liveness' && row['status'] == 'completed') {
+          _livenessDone = true;
+          _livenessResult = 'Verified';
+        }
+      }
+
       for (final row in verifyRows) {
         final step = row['step'] as String?;
         final data = row['data'] as Map?;
@@ -680,8 +693,14 @@ class _VerificationScreenState extends State<VerificationScreen> {
               final prev = _prevStep(_step);
               if (prev >= 0) {
                 setState(() { _step = prev; _error = null; });
+              } else if (widget.onBack != null) {
+                widget.onBack!.call();
               } else {
-                widget.onBack?.call();
+                // Pushed entries (Trust Boost, the matchmaker's "go verify")
+                // pass no onBack. They used to leave via the header Skip, which
+                // step 0 no longer has — without this the arrow does nothing and
+                // the screen is a dead end.
+                Navigator.maybePop(context);
               }
             },
             child: Container(
@@ -701,17 +720,25 @@ class _VerificationScreenState extends State<VerificationScreen> {
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(Config.text1)),
             ),
           ),
-          // Step 3 (name / age / city / photos) is mandatory — no skip. The
-          // 36-wide box is kept so the centered title stays balanced against the
-          // back button on the left.
+          // Only the two Q&A steps (1 and 2) are skippable. Step 0 (selfie) and
+          // step 3 (name / age / city / photos) are mandatory, so they show no
+          // Skip at all — the 36-wide box is kept so the centered title stays
+          // balanced against the back button on the left.
           //
-          // Skipping from an EARLIER step jumps to step 3, it does NOT leave
-          // onboarding: exiting here used to create a live profile with no photo
+          // Step 0 used to offer Skip too, and because Skip jumps to step 3 that
+          // single tap silently dropped the selfie: the profile then failed the
+          // photos step against bare face detection with no way to tell why, and
+          // landed in the app invisible to Discover and the matchmaker pool
+          // (POOL_REQUIRED_STEPS = liveness + photos). Four live users reached
+          // that state before this was closed.
+          //
+          // Skipping from a Q&A step jumps to step 3, it does NOT leave
+          // onboarding: exiting there used to create a live profile with no photo
           // at all (name still 'New member'), which is the one thing a profile
-          // cannot be. The Q&A steps stay optional; the photo does not.
+          // cannot be.
           SizedBox(
             width: 36,
-            child: _step == 3
+            child: (_step == 0 || _step == 3)
                 ? null
                 : TextButton(
                     onPressed: () => _showSkipDialog(
@@ -835,26 +862,19 @@ class _VerificationScreenState extends State<VerificationScreen> {
           ),
         ],
         const SizedBox(height: 10),
-        Center(
-          child: TextButton(
-            onPressed: _busy ? null : () => _showSkipDialog(
-              onConfirm: () {
-                setState(() {
-                  _livenessDone = true;
-                  _livenessUnderReview = false;
-                  _livenessResult = 'Skipped';
-                });
-                _advance();
-              },
-            ),
-            child: const Text(
-              'Skip identity check — lower your trust score',
+        // No skip. The selfie is the anchor every later face check reads from:
+        // without it the photos step can only fall back to bare face detection,
+        // and a profile that never took it stays out of Discover and the
+        // matchmaker pool (POOL_REQUIRED_STEPS) with nothing on screen saying so.
+        // Say that plainly here instead of offering a way past it.
+        const Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              'This one is required — your selfie is what proves your photos are '
+              'really you. Nobody can see your profile until it is done.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13, color: Color(Config.text3),
-                decoration: TextDecoration.underline,
-                decorationColor: Color(Config.text3),
-              ),
+              style: TextStyle(fontSize: 13, height: 1.45, color: Color(Config.text3)),
             ),
           ),
         ),

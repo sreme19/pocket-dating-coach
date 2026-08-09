@@ -4,7 +4,6 @@
     loading?: boolean;
     onStartSelfie?: () => void;
     onComplete: () => void;
-    onSkip: () => void;
   }
 
   let {
@@ -12,7 +11,6 @@
     loading = false,
     onStartSelfie,
     onComplete,
-    onSkip,
   }: Props = $props();
 </script>
 
@@ -65,9 +63,14 @@
         Take a quick selfie
       {/if}
     </button>
-    <button class="skip-link" onclick={onSkip} disabled={loading}>
-      Skip identity check — lower your trust score
-    </button>
+    <!-- No skip. The selfie is the anchor every later face check reads from, and
+         a profile without it never enters Discover or the matchmaker pool
+         (POOL_REQUIRED_STEPS = liveness + photos). Say why it is required
+         instead of offering a way past it. Mirrors the Flutter step 0. -->
+    <p class="required-note">
+      This one is required — your selfie is what proves your photos are really
+      you. Nobody can see your profile until it's done.
+    </p>
   </div>
 </div>
 
@@ -209,21 +212,14 @@
     transform: scale(0.98);
   }
 
-  .skip-link {
-    background: transparent;
-    border: none;
+  .required-note {
+    margin: 0;
     color: var(--text-3);
     font-size: 12.5px;
     font-weight: 500;
-    font-family: inherit;
-    cursor: pointer;
+    line-height: 1.5;
     padding: 10px;
     text-align: center;
     width: 100%;
-    transition: color 0.2s;
-  }
-
-  .skip-link:hover {
-    color: var(--text-2);
   }
 </style>

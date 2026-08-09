@@ -656,6 +656,29 @@
       }
     }
 
+    // Step 1 has no skip, so a returning user must not be asked to retake a
+    // selfie they already passed — `identitySelfieDone` only ever reflected
+    // THIS session until now, which would have made the step unpassable-looking
+    // on a reload or a ?step=id deep link. Only 'completed' counts:
+    // 'under_review' keeps its retake affordance. Best-effort, never blocking.
+    (async () => {
+      try {
+        const sb = getSupabaseClient();
+        const { data: { session } } = await sb.auth.getSession();
+        const uid = session?.user?.id;
+        if (!uid) return;
+        const { data: row } = await sb
+          .from('verified_vibe_verification')
+          .select('status')
+          .eq('user_id', uid)
+          .eq('step', 'liveness')
+          .maybeSingle();
+        if ((row as any)?.status === 'completed') identitySelfieDone = true;
+      } catch (e) {
+        console.warn('[verify] liveness hydration failed (non-fatal):', e);
+      }
+    })();
+
     // Retry flushing pending gender/archetype in case the auth-page upsert
     // lost the session-propagation race on first sign-up.
     const pendingGender    = localStorage.getItem('verified_vibe_pending_gender');
@@ -1844,13 +1867,16 @@
   <div class="verification-content">
     <!-- Step-specific content -->
     <div class="step-body" transition:slide={{ duration: 300, axis: 'y' }}>
+      <!-- No onSkip: the selfie is the anchor every later face check reads from,
+           and a profile that never took it stays out of Discover and the
+           matchmaker pool with nothing on screen saying so. Mandatory, like the
+           photos step below (matches the Flutter onboarding). -->
       {#if currentStep === 1 && identitySubView === 'overview'}
         <IdentityCheckStep
           selfieDone={identitySelfieDone}
           {loading}
           onStartSelfie={() => { identitySubView = 'liveness'; }}
           onComplete={handleIdentityComplete}
-          onSkip={handleSkipClick}
         />
       {:else if currentStep === 1 && identitySubView === 'liveness'}
         <LivenessStep
