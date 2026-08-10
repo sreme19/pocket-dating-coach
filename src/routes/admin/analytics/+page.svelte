@@ -1499,6 +1499,19 @@
 		<!-- Trends -->
 		<div class="card mb-6">
 			<div class="chart-title">Views, store taps and signups — per {adsGranularityLabel}</div>
+			{#if ads.range.filtersActive}
+				<!-- A filtered page must not draw conversions the filtered slice did not
+				     produce. Said here rather than left to be inferred from a flat line. -->
+				<p class="mb-2 text-[11px] text-amber-400/80">
+					Filtered to {ads.range.network === 'all' ? '' : ads.range.network}{ads.range.network !==
+						'all' && ads.range.audience !== 'all'
+						? ' · '
+						: ''}{ads.range.audience === 'all' ? '' : ads.range.audience}. The signups series counts
+					only signups attributable to that slice, which needs <code>user_acquisition</code> — empty
+					until the new Flutter build ships, so it reads zero rather than showing signups this slice
+					may not have produced.
+				</p>
+			{/if}
 			<div class="chart-box"><canvas id="adsTrend"></canvas></div>
 			{#if ads.range.granularity !== 'day'}
 				<!-- Said here rather than left to be inferred from a missing series:
@@ -1647,6 +1660,17 @@
 										class="ml-1.5 whitespace-nowrap rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-slate-500"
 										title="Nothing served, nothing charged, nobody arrived in this range"
 										>idle</span
+									>
+								{/if}
+								{#if !c.adSetId}
+									<!-- Two rows can share a label and still be different keys: one
+									     carries an ad set id, the other never had a utm_term. They are
+									     not merged, because only spend can confirm an id — so the
+									     difference is shown instead of looking like a duplicate. -->
+									<span
+										class="ml-1.5 whitespace-nowrap rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-slate-500"
+										title="No ad set id on these rows, so they cannot be keyed to an ad set or joined to spend"
+										>no ad set id</span
 									>
 								{/if}
 							</td>

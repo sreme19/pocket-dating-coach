@@ -259,14 +259,42 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
     }
   };
 
+  /**
+   * THE FILTER HAS TO REACH EVERY ROW SET, NOT JUST THE TRAFFIC.
+   *
+   * Filtering only views and taps looks like it works and is worse than not
+   * filtering at all: picking Meta zeroed the traffic columns but left every Snap
+   * ad set on the leaderboard with its spend and impressions intact, so the table
+   * read as "Meta spent 457 rupees and got nothing". Spend, installs and the
+   * /aibestie sessions all carry their own network, and all of them have to
+   * narrow together or the page contradicts its own filter.
+   */
+  const spendMatches = (s: any): boolean =>
+    // Spend carries the network as a column rather than in a utm, and the ad set
+    // name is the only audience signal it has.
+    (networkFilter === 'all' || s.network === networkFilter) &&
+    (audienceFilter === 'all' ||
+      audienceOf({ campaign: s.ad_set_name ?? s.campaign_name }) === audienceFilter);
+
+  const acqMatches = (a: any): boolean =>
+    // user_acquisition stores Snap as 'snapchat'; the rest of this file says 'snap'.
+    (networkFilter === 'all' ||
+      (a.network === 'snapchat' ? 'snap' : (a.network ?? 'other')) === networkFilter) &&
+    (audienceFilter === 'all' || audienceOf({ campaign: a.campaign }) === audienceFilter);
+
   const viewRows = viewSplit.counted.filter(matchesFilters);
   const clickRows = clickSplit.counted.filter(matchesFilters);
-  const spendRows = spend.data ?? [];
-  const acqRows = (acquisition.data ?? []).filter((r: any) => inRange(r.created_at));
+  const spendRows = (spend.data ?? []).filter(spendMatches);
+  const acqRows = (acquisition.data ?? [])
+    .filter((r: any) => inRange(r.created_at))
+    .filter(acqMatches);
   const memberRows = (members.data ?? []).filter(
     (m: any) => !m.is_seed && !m.is_provisional && inRange(m.created_at)
   );
-  const lpRows = (lpSessions.data ?? []).filter((r: any) => inRange(r.created_at));
+  // These carry utm, so the same predicate as the traffic works on them.
+  const lpRows = (lpSessions.data ?? [])
+    .filter((r: any) => inRange(r.created_at))
+    .filter(matchesFilters);
   const fxRows = fx.data ?? [];
 
   /* ---------------------------------------------------------------- currency */
@@ -308,7 +336,19 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
 
   for (const v of viewRows) bump(viewsByBucket, istBucket(v.created_at, g));
   for (const c of clickRows) bump(clicksByBucket, istBucket(c.created_at, g));
-  for (const m of memberRows) bump(signupsByBucket, istBucket(m.created_at, g));
+  /**
+   * Signups cannot be narrowed by network or audience the way traffic can.
+   *
+   * `verified_vibe_users` has no campaign on it; the join lives in
+   * `user_acquisition`, which has no rows until the new Flutter build ships. So
+   * under a filter this series switches to the ATTRIBUTABLE signups only — which
+   * is currently zero, and honestly zero. Leaving all signups on the chart beside
+   * filtered views would draw conversions the filtered slice did not produce, and
+   * that is the one error worth avoiding on a chart about spend.
+   */
+  const filtersActive = networkFilter !== 'all' || audienceFilter !== 'all';
+  const signupSource = filtersActive ? acqRows : memberRows;
+  for (const m of signupSource) bump(signupsByBucket, istBucket(m.created_at, g));
 
   // SPEND IS ALWAYS DAY-KEYED, whatever the granularity is, which is why it sits
   // outside `trends` rather than beside three bucket-keyed series in the same
@@ -720,7 +760,13 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
       granularity: g,
       buckets: Object.keys(viewsByBucket).length,
       network: networkFilter,
-      audience: audienceFilter
+      audience: audienceFilter,
+      /**
+       * True when a filter is narrowing the page, so the UI can say that the
+       * signups series switched to attributable-only and that signup gender is
+       * still a whole-range total.
+       */
+      filtersActive
     },
     minSample: MIN_SAMPLE,
     // Shared so the row badge and the anomaly agree on when zero arrivals is a

@@ -344,6 +344,118 @@ describe('network and audience filters', () => {
 		}
 	});
 
+	it('narrows the LEADERBOARD, not just the traffic columns', async () => {
+		// The bug this pins: filtering only views and taps left every Snap ad set on
+		// the table with its spend and impressions intact, so picking Meta read as
+		// "Meta spent 187 rupees and got nothing".
+		// Traffic cleared so this isolates the spend side.
+		rows.marketing_page_views = [];
+		rows.ad_spend_daily = [
+			{
+				network: 'snap',
+				date: '2026-08-10',
+				campaign_id: 'c1',
+				campaign_name: 'MEN_25-40',
+				ad_set_id: 'a1b2c3d4-1111-2222-3333-444455556666',
+				ad_set_name: 'MEN_25-40',
+				creative_id: '',
+				spend: '126',
+				currency: 'INR',
+				impressions: 5482,
+				clicks: 126,
+				network_conversions: 0,
+				fetched_at: '2026-08-10T01:00:00.000Z'
+			},
+			{
+				network: 'meta',
+				date: '2026-08-10',
+				campaign_id: 'c2',
+				campaign_name: '6978093820881',
+				ad_set_id: '6978093820881',
+				ad_set_name: 'META_SET',
+				creative_id: '',
+				spend: '61',
+				currency: 'INR',
+				impressions: 900,
+				clicks: 20,
+				network_conversions: 0,
+				fetched_at: '2026-08-10T01:00:00.000Z'
+			}
+		];
+
+		const meta = await buildAdAnalytics({ ...RANGE, granularity: 'day', network: 'meta' });
+		expect(meta.leaderboard.map((r: any) => r.campaign)).toEqual(['META_SET']);
+		// And the spend total follows the filter rather than staying whole.
+		expect(meta.leaderboard[0].spend).toBe(61);
+		expect(meta.health.counts.spendRows).toBe(1);
+
+		const snap = await buildAdAnalytics({ ...RANGE, granularity: 'day', network: 'snap' });
+		expect(snap.leaderboard.map((r: any) => r.campaign)).toEqual(['MEN_25-40']);
+
+		const all = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+		expect(all.leaderboard).toHaveLength(2);
+	});
+
+	it('narrows spend by targeted audience, read off the ad set name', async () => {
+		rows.marketing_page_views = [];
+		rows.ad_spend_daily = [
+			{
+				network: 'snap',
+				date: '2026-08-10',
+				campaign_id: 'c1',
+				campaign_name: 'x',
+				ad_set_id: 'aaaaaaaa-1111-2222-3333-444455556666',
+				ad_set_name: 'MEN_25-40_CASUAL',
+				creative_id: '',
+				spend: '100',
+				currency: 'INR',
+				impressions: 10,
+				clicks: 1,
+				network_conversions: 0,
+				fetched_at: '2026-08-10T01:00:00.000Z'
+			},
+			{
+				network: 'snap',
+				date: '2026-08-10',
+				campaign_id: 'c2',
+				campaign_name: 'y',
+				ad_set_id: 'bbbbbbbb-1111-2222-3333-444455556666',
+				ad_set_name: 'Female 18-22',
+				creative_id: '',
+				spend: '50',
+				currency: 'INR',
+				impressions: 10,
+				clicks: 1,
+				network_conversions: 0,
+				fetched_at: '2026-08-10T01:00:00.000Z'
+			}
+		];
+
+		const women = await buildAdAnalytics({ ...RANGE, granularity: 'day', audience: 'women' });
+		expect(women.leaderboard.map((r: any) => r.campaign)).toEqual(['Female 18-22']);
+		const men = await buildAdAnalytics({ ...RANGE, granularity: 'day', audience: 'men' });
+		expect(men.leaderboard.map((r: any) => r.campaign)).toEqual(['MEN_25-40_CASUAL']);
+	});
+
+	it('drops unattributable signups from the trend once a filter is on', async () => {
+		rows.verified_vibe_users = [
+			{ id: '1', gender: 'man', created_at: '2026-08-10T07:00:00.000Z' },
+			{ id: '2', gender: 'woman', created_at: '2026-08-10T07:00:00.000Z' }
+		];
+
+		const all = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+		expect(all.trends.signups['2026-08-10']).toBe(2);
+		expect(all.range.filtersActive).toBe(false);
+
+		// user_acquisition is empty, so no signup can be tied to Meta. Showing 2
+		// beside filtered views would draw conversions this slice did not produce.
+		const meta = await buildAdAnalytics({ ...RANGE, granularity: 'day', network: 'meta' });
+		expect(meta.trends.signups['2026-08-10']).toBe(0);
+		expect(meta.range.filtersActive).toBe(true);
+		// The whole-range gender total is unchanged and still says it cannot join.
+		expect(meta.signupGender).toMatchObject({ man: 1, woman: 1, joinableToCampaign: false });
+	});
+
 	it('echoes the filter actually applied', async () => {
 		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day', network: 'meta', audience: 'men' });
 		expect(d.range.network).toBe('meta');
