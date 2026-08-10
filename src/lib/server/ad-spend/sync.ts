@@ -83,7 +83,56 @@ async function writeRows(rows: SpendRow[]): Promise<number> {
     console.error('[ad-spend] rows NOT written:', error.message, error.hint ?? '');
     return 0;
   }
+
+  await dropStaleCoarserRows(rows);
   return payload.length;
+}
+
+/**
+ * Remove rows for the same days at a COARSER grain than we just wrote.
+ *
+ * THE SYNC OWNS ITS WINDOW, at exactly one grain per network. Without this, a
+ * change of grain doubles the money. The primary key includes ad_set_id, so when
+ * this adapter moved from campaign-level to ad-set-level totals the new rows did
+ * not replace the old ones — they landed beside them, and every rupee was
+ * counted twice. Measured on 2026-08-10: 49 ad-set rows at ₹387.79 sitting next
+ * to 35 campaign rows at ₹387.79, summing to ₹775.57 of spend that never
+ * happened. Nothing errored, and the number looked entirely plausible.
+ *
+ * Self-healing rather than a one-off cleanup script, because this recurs every
+ * time a grain changes — Meta will do the same the first time it moves from
+ * campaign to ad set.
+ *
+ * Guarded so it can only ever delete a coarser grain than the one just written.
+ * When the ad-squad listing fails and the adapter falls back to campaign level,
+ * `rows` carry an empty ad_set_id, nothing here qualifies as coarser, and the
+ * existing ad-set rows are left alone. A degraded fetch must not be able to
+ * delete good data.
+ */
+async function dropStaleCoarserRows(rows: SpendRow[]): Promise<void> {
+  const finer = rows.filter((r) => r.adSetId);
+  if (finer.length === 0) return;
+
+  const supabase = getSupabase();
+  const networks = [...new Set(finer.map((r) => r.network))];
+  const dates = [...new Set(finer.map((r) => r.date))];
+
+  for (const network of networks) {
+    const { error, count } = await supabase
+      .from('ad_spend_daily')
+      .delete({ count: 'exact' })
+      .eq('network', network)
+      .eq('ad_set_id', '')
+      .in('date', dates);
+
+    if (error) {
+      // Loud, because the consequence of a silent failure here is a spend total
+      // that is quietly twice what was actually spent.
+      console.error('[ad-spend] could not clear coarser rows:', error.message);
+    } else if (count) {
+      console.warn(`[ad-spend] cleared ${count} campaign-level ${network} row(s) superseded by ad-set data`);
+    }
+  }
 }
 
 export async function syncAdSpend(windowDays = SYNC_WINDOW_DAYS): Promise<SyncOutcome> {
