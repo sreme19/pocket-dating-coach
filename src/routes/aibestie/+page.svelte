@@ -40,6 +40,12 @@
 		trackMeta,
 		STORE_CLICK_EVENT as META_STORE_CLICK
 	} from '$lib/marketing/meta-pixel';
+	import {
+		initSnapPixel,
+		trackSnap,
+		STORE_CLICK_EVENT as SNAP_STORE_CLICK,
+		CHAT_STARTED_EVENT as SNAP_CHAT_STARTED
+	} from '$lib/marketing/snap-pixel';
 	import { reportStoreClick } from '$lib/marketing/store-click-report';
 	import PublicProfileBody from '$lib/verified-vibe/components/PublicProfileBody.svelte';
 
@@ -259,11 +265,16 @@
 				 * anyway so a server-side copy can be added later without double
 				 * counting.
 				 */
-				trackMeta(
-					'ChatStarted',
-					{ campaign: $page.url.searchParams.get('utm_campaign') ?? 'aibestie_lp' },
-					crypto.randomUUID()
-				);
+				const chatStartCampaign = $page.url.searchParams.get('utm_campaign') ?? 'aibestie_lp';
+				const chatStartId = crypto.randomUUID();
+				trackMeta('ChatStarted', { campaign: chatStartCampaign }, chatStartId);
+				// Snap hears the same moment as "Custom Event 2" — the mid-funnel
+				// signal its traffic campaign can be pointed at once volume allows,
+				// instead of arrivals. Same containment: a count, nothing else.
+				trackSnap(SNAP_CHAT_STARTED, {
+					description: chatStartCampaign,
+					client_dedup_id: chatStartId
+				});
 			}
 			await loadThread();
 		} finally {
@@ -324,6 +335,16 @@
 		const campaign = $page.url.searchParams.get('utm_campaign') ?? 'aibestie_lp';
 		const eventId = crypto.randomUUID();
 		trackMeta(META_STORE_CLICK, { cta: which, campaign }, eventId);
+		// Snap's browser copy of the same tap. Same teardown race as Meta's —
+		// this navigates the current tab — and the same answer: the keepalive
+		// server copy below shares this id as client_dedup_id, so Snap keeps one
+		// conversion whichever half of the pair survives.
+		trackSnap(SNAP_STORE_CLICK, {
+			item_category: 'play_store_click',
+			item_ids: [which],
+			description: campaign,
+			client_dedup_id: eventId
+		});
 		reportStoreClick({ eventId, page: 'aibestie', cta: which, campaign, url: $page.url });
 
 		window.location.href = storeUrl;
@@ -338,13 +359,12 @@
 		 * Count the arrival in the same table as /get and /get-photos.
 		 *
 		 * aibestie_lp_sessions already records an arrival with its utm, so this
-		 * looks redundant and is not, for two reasons. It is written only when
-		 * AIBESTIE_LP_GATE is on — which it currently is not, so paid traffic
-		 * arriving here today is recorded nowhere at all and the page reads as
-		 * having no visitors rather than as switched off. And the funnel wants one
-		 * definition of "a landing page view" across all three pages; deriving it
-		 * from a different table per page is how two charts on the same dashboard
-		 * end up quietly disagreeing about the denominator.
+		 * looks redundant and is not, for two reasons. That table is written only
+		 * when AIBESTIE_LP_GATE is on — a flag, so the arrival record must not
+		 * depend on it. And the funnel wants one definition of "a landing page
+		 * view" across all three pages; deriving it from a different table per
+		 * page is how two charts on the same dashboard end up quietly disagreeing
+		 * about the denominator.
 		 *
 		 * aibestie_lp_sessions keeps the job only it can do: conversation depth.
 		 */
@@ -366,11 +386,22 @@
 		 * conversation. That containment is also why this stays scoped to landing
 		 * pages and must never move into a layout.
 		 *
-		 * Snap deliberately absent here for now — no Snap campaign points at this
-		 * page, and a pixel that fires with no campaign behind it is denominator
-		 * noise in someone else's dashboard.
+		 * The same containment holds for Snap below: snaptr is initialised with no
+		 * user_email / user_phone_number, and receives the URL plus exactly the
+		 * events we name. Never the conversation.
 		 */
 		initMetaPixel();
+
+		/**
+		 * Snap was deliberately absent here while no Snap campaign pointed at this
+		 * page — a pixel with no campaign behind it is denominator noise. That
+		 * ended with SC_TRAFFIC_BESTIE_IN_BLR_M_TOF_20260810 (ad set
+		 * SC_MEN_28-38_BLR_CASUAL): its taps were already reaching Snap through
+		 * the server-side forward, but with no browser pair to dedupe against and
+		 * no PAGE_VIEW for the ad set to learn arrivals from. Both init calls are
+		 * origin-gated internally, so a dev machine fires neither.
+		 */
+		initSnapPixel();
 
 		// Only when the server load could not answer. It normally can, so this is the
 		// fallback for a database blip during SSR rather than the usual path.

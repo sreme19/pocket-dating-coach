@@ -40,6 +40,18 @@ const SCRIPT_SRC = 'https://sc-static.net/scevent.min.js';
  */
 export const STORE_CLICK_EVENT = 'CUSTOM_EVENT_1';
 
+/**
+ * The event fired when a visitor sends their first message on /aibestie.
+ *
+ * That page's thesis is conversation depth, not clicks — between PAGE_VIEW and
+ * the store tap Snap would otherwise hear silence, and a traffic campaign can
+ * only optimise toward what it hears. First messages are the mid-funnel signal
+ * frequent enough to become an optimisation goal long before installs reach
+ * learning volume. Maps to "Custom Event 2" in Ads Manager; a count and nothing
+ * else — no content, no length, no timing.
+ */
+export const CHAT_STARTED_EVENT = 'CUSTOM_EVENT_2';
+
 type Snaptr = ((...args: unknown[]) => void) & {
   handleRequest?: (...args: unknown[]) => void;
   queue: IArguments[];
