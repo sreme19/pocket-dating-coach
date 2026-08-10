@@ -1622,11 +1622,17 @@
 					{/each}
 				</div>
 			</div>
-			<!-- 13px over text-xs, and values at slate-200 rather than slate-400:
-			     slate-400 on this background is about 4:1, under the 4.5:1 threshold,
-			     and it failed worst on the numeric columns where it matters most.
-			     Headers stay dimmer — the hierarchy was never the problem. -->
-			<table class="w-full min-w-[52rem] text-[13px]">
+			<!-- 16px, not 13: 13 was legible only at 125% browser zoom, which is a
+			     reader telling you the type is too small. The whole card is scaled by
+			     that same 1.25 — badges and the footnote too — so the proportions the
+			     zoom produced are what ships, rather than one row of bigger numbers
+			     against unchanged chrome.
+			     Values at slate-200 rather than slate-400: slate-400 on this
+			     background is about 4:1, under the 4.5:1 threshold, and it failed
+			     worst on the numeric columns where it matters most. Headers stay
+			     dimmer — the hierarchy was never the problem.
+			     min-width grows with the type or eight columns of 16px crush. -->
+			<table class="w-full min-w-[64rem] text-[16px]">
 				<thead class="text-slate-500">
 					<tr>
 						<th class="py-1 text-left">Ad set</th>
@@ -1642,7 +1648,7 @@
 				<tbody>
 					{#each adsLeaderboard as c}
 						<tr class="border-t border-white/[0.04]">
-							<td class="py-1.5 text-slate-200"
+							<td class="py-2 text-slate-200"
 								>{c.campaign}
 								{#if c.paidButNoTraffic && c.networkClicks >= ads.paidNoTrafficMinClicks}
 									<!-- Said on the row, not left to be inferred from a line of
@@ -1651,13 +1657,13 @@
 									     the same threshold as the anomaly, so a single click with no
 									     view does not get a red badge it has not earned. -->
 									<span
-										class="ml-1.5 whitespace-nowrap rounded bg-rose-500/15 px-1.5 py-0.5 text-[10px] text-rose-300"
+										class="ml-1.5 whitespace-nowrap rounded bg-rose-500/15 px-2 py-0.5 text-[12px] text-rose-300"
 										title="{c.networkClicks} clicks charged for, zero landing page views — check where this ad set points"
 										>no arrivals</span
 									>
 								{:else if !c.delivering}
 									<span
-										class="ml-1.5 whitespace-nowrap rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-slate-500"
+										class="ml-1.5 whitespace-nowrap rounded bg-white/[0.06] px-2 py-0.5 text-[12px] text-slate-500"
 										title="Nothing served, nothing charged, nobody arrived in this range"
 										>idle</span
 									>
@@ -1668,7 +1674,7 @@
 									     not merged, because only spend can confirm an id — so the
 									     difference is shown instead of looking like a duplicate. -->
 									<span
-										class="ml-1.5 whitespace-nowrap rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-slate-500"
+										class="ml-1.5 whitespace-nowrap rounded bg-white/[0.06] px-2 py-0.5 text-[12px] text-slate-500"
 										title="No ad set id on these rows, so they cannot be keyed to an ad set or joined to spend"
 										>no ad set id</span
 									>
@@ -1714,7 +1720,7 @@
 					{/each}
 				</tbody>
 			</table>
-			<p class="mt-3 text-[11px] text-slate-600">
+			<p class="mt-3 text-[13px] text-slate-600">
 				Rates are withheld below {ads.minSample} observations and shown as the raw count instead — at
 				current volumes most per-campaign differences are noise, and a percentage off a handful of
 				visitors invites a decision the data cannot support.
