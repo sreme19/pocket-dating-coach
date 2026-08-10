@@ -43,6 +43,8 @@
  * shipping a half-configured pixel that 404s on every page view is worse than
  * shipping none. Paste the ID and it activates on the next deploy.
  */
+import { isProductionBrowser } from './production-origin';
+
 const PIXEL_ID = '2286986682092608';
 
 const SCRIPT_SRC = 'https://connect.facebook.net/en_US/fbevents.js';
@@ -87,6 +89,10 @@ let started = false;
  */
 export function initMetaPixel(): void {
   if (typeof window === 'undefined' || started || !PIXEL_ID) return;
+  // Never from a laptop. Events Manager was showing 21 events from `localhost`
+  // against 132 from the live site — dev traffic that Meta was training
+  // delivery on. See production-origin.ts.
+  if (!isProductionBrowser()) return;
   started = true;
 
   // Meta's base snippet, transcribed. The stub queues calls made before

@@ -22,6 +22,8 @@
  * `initSnapPixel()` is idempotent and safe to call on every mount.
  */
 
+import { isProductionBrowser } from './production-origin';
+
 const PIXEL_ID = '0657d30b-4d65-414b-b9a9-65edb4aa1e07';
 const SCRIPT_SRC = 'https://sc-static.net/scevent.min.js';
 
@@ -57,6 +59,9 @@ let started = false;
  */
 export function initSnapPixel(): void {
   if (typeof window === 'undefined' || started) return;
+  // Same gate as Meta: a page opened on a dev machine is not a visitor, and a
+  // conversion reported from one teaches the auction the wrong thing.
+  if (!isProductionBrowser()) return;
   started = true;
 
   // Snap's own base snippet, transcribed. The stub queues calls made before

@@ -22,6 +22,7 @@
 import { createHash } from 'node:crypto';
 import { env } from '$env/dynamic/private';
 import { getSupabase } from '$lib/server/supabase';
+import { isProductionUrl } from '$lib/marketing/production-origin';
 
 /** Matches the pixel modules. Kept here so the server never imports client code. */
 const SNAP_PIXEL_ID = '0657d30b-4d65-414b-b9a9-65edb4aa1e07';
@@ -158,21 +159,43 @@ export async function recordStoreClick(input: StoreClickInput): Promise<void> {
   let meta: boolean | null = null;
   const errors: string[] = [];
 
-  const [snapResult, metaResult] = await Promise.allSettled([
-    forwardToSnap(input, at),
-    forwardToMeta(input, at)
-  ]);
+  /**
+   * Only the live site reports conversions.
+   *
+   * The browser pixels are gated the same way, but this half matters more: it
+   * runs server-side, so an ad blocker cannot stop it and a dev machine cannot
+   * be told apart by the network. A tap fired while verifying a build on
+   * localhost:5211 was reported to Snap as a genuine conversion — snap_forwarded
+   * came back true — which is dev behaviour teaching the auction what a
+   * converting user looks like.
+   *
+   * The first-party row is still written either way. It is ours, it is
+   * filterable, and being able to verify the write path locally is the whole
+   * reason this table can be trusted.
+   */
+  const live = isProductionUrl(input.eventSourceUrl);
 
-  if (snapResult.status === 'fulfilled') snap = snapResult.value;
-  else {
-    snap = false;
-    errors.push(`snap: ${snapResult.reason}`);
-  }
+  if (live) {
+    const [snapResult, metaResult] = await Promise.allSettled([
+      forwardToSnap(input, at),
+      forwardToMeta(input, at)
+    ]);
 
-  if (metaResult.status === 'fulfilled') meta = metaResult.value;
-  else {
-    meta = false;
-    errors.push(`meta: ${metaResult.reason}`);
+    if (snapResult.status === 'fulfilled') snap = snapResult.value;
+    else {
+      snap = false;
+      errors.push(`snap: ${snapResult.reason}`);
+    }
+
+    if (metaResult.status === 'fulfilled') meta = metaResult.value;
+    else {
+      meta = false;
+      errors.push(`meta: ${metaResult.reason}`);
+    }
+  } else {
+    // Null, matching "not attempted" — the same value an unconfigured token
+    // produces. The health check reads null as "not forwarded", never as failure.
+    console.info('[marketing] non-production origin, conversion not forwarded:', input.eventSourceUrl);
   }
 
   try {
