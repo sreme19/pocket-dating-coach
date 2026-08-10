@@ -397,6 +397,61 @@
 	 */
 	let adsDelivery = $state<'all' | 'delivering' | 'idle'>('all');
 
+	/** When the last successful fetch landed, for the freshness stamp. */
+	let adsFetchedAt = $state<number | null>(null);
+	/**
+	 * Ticks the stamp, and only the stamp.
+	 *
+	 * Nothing is refetched on this interval. A dashboard left open for an hour
+	 * saying "updated 1m ago" is lying, but one that silently redraws underneath a
+	 * reader is worse — so the label ages honestly and the data waits to be asked.
+	 */
+	let adsClock = $state(Date.now());
+
+	$effect(() => {
+		if (activeTab !== 'ads') return;
+		const tick = setInterval(() => (adsClock = Date.now()), 30_000);
+		return () => clearInterval(tick);
+	});
+
+	const adsFreshness = $derived.by(() => {
+		if (adsFetchedAt === null) return null;
+		const secs = Math.max(0, Math.round((adsClock - adsFetchedAt) / 1000));
+		if (secs < 45) return 'just now';
+		const mins = Math.round(secs / 60);
+		if (mins < 60) return `${mins}m ago`;
+		const hrs = Math.round(mins / 60);
+		return hrs < 24 ? `${hrs}h ago` : `${Math.round(hrs / 24)}d ago`;
+	});
+
+	/**
+	 * The newest spend sync across networks — the real freshness ceiling for every
+	 * money column, and slower than the page fetch by up to an hour.
+	 */
+	const adsSpendSyncedAt = $derived.by(() => {
+		const seen = Object.values((ads?.health?.lastSpendFetch ?? {}) as Record<string, string | null>)
+			.filter((v): v is string => Boolean(v))
+			.sort();
+		return seen.length ? seen[seen.length - 1] : null;
+	});
+
+	/**
+	 * Assembled as one string rather than interpolated around an {#if} in the
+	 * markup — Svelte trims the leading whitespace inside a block, which glued the
+	 * separator to the previous word as "6m ago· spend synced".
+	 *
+	 * Reads adsClock so the spend half ages with the tick too; fmtAgo reaches for
+	 * Date.now() on its own and would otherwise freeze at whatever it first
+	 * rendered.
+	 */
+	const adsStamp = $derived.by(() => {
+		if (!adsFreshness) return null;
+		void adsClock;
+		return adsSpendSyncedAt
+			? `updated ${adsFreshness} · spend synced ${fmtAgo(adsSpendSyncedAt)}`
+			: `updated ${adsFreshness}`;
+	});
+
 	const adsLeaderboard = $derived(
 		((ads?.leaderboard ?? []) as any[]).filter(
 			(r) =>
@@ -460,9 +515,16 @@
 			const body = await res.json();
 			if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`);
 			ads = body;
+			// Stamped on success only, so a failed refresh does not make stale data
+			// look freshly confirmed.
+			adsFetchedAt = Date.now();
+			adsClock = adsFetchedAt;
 		} catch (e: any) {
 			adsError = e?.message ?? String(e);
-			ads = null;
+			// The last good numbers are deliberately NOT discarded. A failed refresh
+			// used to blank the tab, which turns one transient error into losing the
+			// data you were reading; the error shows as a banner above it instead.
+			// A failed first load has nothing to keep, and `ads` is already null.
 		} finally {
 			adsLoading = false;
 		}
@@ -1246,6 +1308,22 @@
 				>
 			{/each}
 		</div>
+		<!-- Manual, not polled. Keeps the old numbers on screen while it refetches,
+		     so a refresh is not a blank page. -->
+		<button
+			onclick={loadAds}
+			disabled={adsLoading}
+			title={adsSpendSyncedAt
+				? `Spend last synced ${fmtAgo(adsSpendSyncedAt)} — the cron runs hourly at :20`
+				: 'Spend has never synced'}
+			class="flex items-center gap-1.5 rounded-lg border border-white/[0.08] px-3 py-1.5 text-xs text-slate-300 transition-colors hover:border-white/20 hover:text-slate-100 disabled:cursor-not-allowed disabled:text-slate-600"
+		>
+			<span class={adsLoading ? 'animate-spin' : ''} aria-hidden="true">↻</span>
+			{adsLoading ? 'Refreshing…' : 'Refresh'}
+		</button>
+		{#if adsStamp}
+			<span class="text-[11px] text-slate-600">{adsStamp}</span>
+		{/if}
 		{#if ads}
 			<!-- The range the server actually aggregated, which is the only one the
 			     numbers below describe. Says so out loud when it had to adjust the
@@ -1259,13 +1337,27 @@
 		{/if}
 	</div>
 
-	{#if adsLoading}
+	<!-- The full-page loader is for the FIRST load only. On a refresh the previous
+	     numbers stay on screen — blanking a dashboard you asked to update is how a
+	     refresh button becomes something you avoid pressing. -->
+	{#if adsLoading && !ads}
 		<div class="py-16 text-center text-sm text-slate-600">Loading campaign data…</div>
-	{:else if adsError}
+	{:else if adsError && !ads}
 		<div class="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-300">
 			Could not load ad analytics: {adsError}
 		</div>
 	{:else if ads}
+		{#if adsError}
+			<!-- Refresh failed but the previous numbers are still on screen. Says which
+			     they are, so nothing below is mistaken for current. -->
+			<div
+				class="mb-6 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-300"
+			>
+				⚠ Refresh failed ({adsError}). Showing the last successful load{adsFreshness
+					? `, from ${adsFreshness}`
+					: ''}.
+			</div>
+		{/if}
 		<!-- Anomalies. Deliberately above every chart: on a day when something is
 		     broken, this is the only thing on the page worth reading. -->
 		{#if ads.anomalies.length}
