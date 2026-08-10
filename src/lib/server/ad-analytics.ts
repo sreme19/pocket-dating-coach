@@ -32,7 +32,8 @@ import {
   istDay,
   type Granularity
 } from '$lib/ist-dates';
-import { REASON_LABEL, adSetKeyOf, splitTraffic } from '$lib/server/traffic-quality';
+import { REASON_LABEL, adSetKeyOf, networkOf, splitTraffic } from '$lib/server/traffic-quality';
+import { audienceOf, type Audience } from '$lib/server/ad-audience';
 
 /** Rates computed on fewer than this many observations are suppressed. */
 export const MIN_SAMPLE = 30;
@@ -100,6 +101,14 @@ export interface AdAnalyticsOptions {
    * in the endpoint, so the cap is not re-checked here.
    */
   granularity: Granularity;
+  /** Restrict views and taps to one ad network. 'all' by default. */
+  network?: 'all' | 'snap' | 'meta' | 'other';
+  /**
+   * Restrict views and taps to one targeted audience, derived from campaign and
+   * creative naming — NOT the gender of the person who arrived, which a landing
+   * page cannot know. See ad-audience.ts.
+   */
+  audience?: 'all' | Audience;
 }
 
 /**
@@ -203,8 +212,46 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
    */
   const viewSplit = splitTraffic<any>(viewsInRange);
   const clickSplit = splitTraffic<any>(clicksInRange);
-  const viewRows = viewSplit.counted;
-  const clickRows = clickSplit.counted;
+
+  /**
+   * NETWORK AND AUDIENCE FILTER, APPLIED AFTER THE QUALITY SPLIT.
+   *
+   * The order matters and composing matters. Filtering to Snap without first
+   * removing what was never a paid click reports 179 views where 96 are real —
+   * because nearly half of Snap's rows are the review crawler on desktop. Two
+   * orthogonal questions ("which network?" and "was this a real click?") need two
+   * filters that stack, not one that replaces the other.
+   *
+   * The unfiltered splits are computed below and returned whatever the filter is
+   * set to, so narrowing the page never hides the denominator it narrowed away.
+   */
+  const networkFilter = opts.network ?? 'all';
+  const audienceFilter = opts.audience ?? 'all';
+  const matchesFilters = (row: any): boolean =>
+    (networkFilter === 'all' || networkOf(row.utm) === networkFilter) &&
+    (audienceFilter === 'all' || audienceOf(row) === audienceFilter);
+
+  /** Counts per network and per audience, before either filter narrows anything. */
+  const splitBy = <K extends string>(rows: any[], key: (r: any) => K) => {
+    const out = {} as Record<K, number>;
+    for (const r of rows) out[key(r)] = (out[key(r)] ?? 0) + 1;
+    return out;
+  };
+  const facets = {
+    network: {
+      views: splitBy(viewSplit.counted, (r) => networkOf(r.utm)),
+      taps: splitBy(clickSplit.counted, (r) => networkOf(r.utm)),
+      viewsExcluded: splitBy(viewSplit.excluded, (r) => networkOf(r.utm))
+    },
+    audience: {
+      views: splitBy(viewSplit.counted, (r) => audienceOf(r)),
+      taps: splitBy(clickSplit.counted, (r) => audienceOf(r)),
+      viewsExcluded: splitBy(viewSplit.excluded, (r) => audienceOf(r))
+    }
+  };
+
+  const viewRows = viewSplit.counted.filter(matchesFilters);
+  const clickRows = clickSplit.counted.filter(matchesFilters);
   const spendRows = spend.data ?? [];
   const acqRows = (acquisition.data ?? []).filter((r: any) => inRange(r.created_at));
   const memberRows = (members.data ?? []).filter(
@@ -324,6 +371,35 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
     return row;
   };
 
+  /**
+   * NAME RECONCILIATION, for traffic whose utm_term never resolved to an id.
+   *
+   * While `{{adSet.id}}` was still propagating through Snap ad review, some
+   * landing-page hits carry the literal macro instead of an id. Those fell back
+   * to a name key and appeared as a SECOND leaderboard row for an ad set that
+   * already had one — spend and impressions on the upper row, part of the traffic
+   * on the lower, and each half looking worse than the ad set really is. It is
+   * near-invisible because the two labels differ only in case and separators:
+   *
+   *   traffic utm_campaign : men_25_40_casual_story_ind_lpv
+   *   spend   ad_set_name  : MEN_25-40_CASUAL_STORY_IND-LPV
+   *
+   * Lowercasing is not enough — '_' against '-' still differs — so the index is
+   * keyed on the name with every non-alphanumeric character stripped.
+   *
+   * Deliberately one-directional: id-less traffic may merge INTO an ad set that
+   * spend gave a real id to, and never the other way. Two id-less rows sharing a
+   * name are NOT merged with each other — that is a different claim, and nothing
+   * here has the authority to make it.
+   *
+   * Temporary by design. These rows shrink on their own as the macro propagates;
+   * utm_term stays the primary key.
+   */
+  const normName = (s: string | null | undefined) =>
+    (s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  /** `${network}:${normalised name}` -> rollup key, only for ids spend confirmed. */
+  const byNormName = new Map<string, string>();
+
   for (const s of spendRows) {
     const id = s.ad_set_id || null;
     const key = id ? `${s.network}:${id}` : `${s.network}:name:${s.campaign_name ?? s.campaign_id}`;
@@ -331,22 +407,47 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
     row.spend += toDisplay(Number(s.spend), s.currency, s.date);
     row.impressions += Number(s.impressions ?? 0);
     row.networkClicks += Number(s.clicks ?? 0);
+    // Network-scoped, so a numeric Meta name can never merge into a Snap ad set.
+    if (id && s.ad_set_name) {
+      const n = normName(s.ad_set_name);
+      if (n) byNormName.set(`${s.network}:${n}`, key);
+    }
   }
 
-  // Traffic rows that carry no resolvable ad set still have to be counted
-  // somewhere, or the totals stop adding up. They land under their ad set name,
-  // or `(unattributed)` — never silently folded into a real ad set.
-  let unjoinedViews = 0;
+  /**
+   * Where an id-less traffic row belongs, and how confident that is.
+   *
+   * "Matched by name" and "could not be placed at all" are different confidence
+   * levels, and only the second needs chasing — so they are counted separately
+   * rather than summed into one number that hides the distinction.
+   */
+  let viewsReconciledByName = 0;
+  let viewsUnattributed = 0;
+  const placeRow = (utm: any, fallbackLabel: string | null) => {
+    const k = adSetKeyOf(utm);
+    if (k.adSetId) return { key: k.key, label: k.adSetName ?? fallbackLabel, k, matched: 'id' as const };
+
+    const n = normName(k.adSetName ?? fallbackLabel);
+    const hit = n ? byNormName.get(`${k.network}:${n}`) : undefined;
+    if (hit) {
+      // Keep the real ad set name that spend supplied, not the lowercase utm
+      // value — passing null lets `of` leave the existing label alone.
+      return { key: hit, label: null, k, matched: 'name' as const };
+    }
+    return { key: k.key, label: k.adSetName ?? fallbackLabel, k, matched: 'none' as const };
+  };
+
   for (const v of viewRows) {
-    const k = adSetKeyOf(v.utm);
-    if (!k.adSetId) unjoinedViews += 1;
     // `campaign` is the denormalised utm_campaign on the row itself, and is the
     // only label available for traffic recorded before the utm parameters existed.
-    of(k.key, k.adSetName ?? v.campaign, k.network, k.adSetId).views += 1;
+    const p = placeRow(v.utm, v.campaign);
+    if (p.matched === 'name') viewsReconciledByName += 1;
+    else if (p.matched === 'none') viewsUnattributed += 1;
+    of(p.key, p.label, p.k.network, p.k.adSetId).views += 1;
   }
   for (const c of clickRows) {
-    const k = adSetKeyOf(c.utm);
-    of(k.key, k.adSetName ?? c.campaign, k.network, k.adSetId).taps += 1;
+    const p = placeRow(c.utm, c.campaign);
+    of(p.key, p.label, p.k.network, p.k.adSetId).taps += 1;
   }
   for (const a of acqRows) {
     // user_acquisition stores the ad set id in `ad_set`, from the install referrer.
@@ -439,6 +540,28 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
 
   const attributedSignups = acqRows.length;
   const totalSignups = memberRows.length;
+
+  /**
+   * Signups by ACTUAL gender — a different population from the audience filter.
+   *
+   * `verified_vibe_users.gender` is the only real gender in this whole file, and
+   * it exists only for people who finished signing up. The audience filter above
+   * is who the ad was AIMED at, read off campaign naming. A campaign targeting
+   * men producing women signups is routine, and reporting the two in one column
+   * would erase exactly that.
+   *
+   * NOT narrowed by the network or audience filter, and it cannot be: joining a
+   * signup to the campaign that produced it needs `user_acquisition`, which has
+   * no rows until the new Flutter build ships. So this is a whole-range total,
+   * and `joinableToCampaign` says so rather than letting a filtered page imply
+   * these signups came from the filtered traffic.
+   */
+  const signupGender = {
+    man: memberRows.filter((m: any) => m.gender === 'man').length,
+    woman: memberRows.filter((m: any) => m.gender === 'woman').length,
+    unknown: memberRows.filter((m: any) => m.gender !== 'man' && m.gender !== 'woman').length,
+    joinableToCampaign: acqRows.length > 0
+  };
   const androidAttributed = acqRows.filter((a: any) => a.platform === 'android' && a.campaign).length;
   const iosMembers = acqRows.filter((a: any) => a.platform === 'ios').length;
 
@@ -547,9 +670,15 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
       currency: opts.currency,
       timezone: IST_TIMEZONE,
       granularity: g,
-      buckets: Object.keys(viewsByBucket).length
+      buckets: Object.keys(viewsByBucket).length,
+      network: networkFilter,
+      audience: audienceFilter
     },
     minSample: MIN_SAMPLE,
+    // Unfiltered, always — so narrowing the page never hides what it narrowed
+    // away, and the filter chips can carry their own counts.
+    facets,
+    signupGender,
     /**
      * What was set aside, and why. Reported rather than silently applied: a
      * filter nobody can see is one that eventually drops something real without
@@ -567,8 +696,16 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
           { count: n, label: REASON_LABEL[reason as keyof typeof REASON_LABEL] ?? reason }
         ])
       ),
-      /** Views with no resolvable ad set — pre-macro rows; shrinks to zero on its own. */
-      viewsWithoutAdSet: unjoinedViews
+      /**
+       * Views with no resolvable ad set — pre-macro rows; shrinks on its own.
+       *
+       * Split by confidence, because they are not equally worrying: a name match
+       * is placed and countable, an unattributed row is neither. The sum is what
+       * this used to report as one figure.
+       */
+      viewsWithoutAdSet: viewsReconciledByName + viewsUnattributed,
+      viewsReconciledByName,
+      viewsUnattributed
     },
     trends: { views: viewsByBucket, taps: clicksByBucket, signups: signupsByBucket },
     // Day-keyed whatever `granularity` is — see the note where it is built.

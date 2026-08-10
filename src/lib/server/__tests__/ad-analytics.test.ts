@@ -158,6 +158,212 @@ describe('spend stays day-keyed at every granularity', () => {
 	});
 });
 
+describe('ad set name reconciliation', () => {
+	/** A spend row with a real ad set id and the ad manager's own capitalisation. */
+	const SPEND = (adSetId: string, adSetName: string, network = 'snap') => ({
+		network,
+		date: '2026-08-10',
+		campaign_id: 'camp1',
+		campaign_name: adSetName,
+		ad_set_id: adSetId,
+		ad_set_name: adSetName,
+		creative_id: '',
+		spend: '116',
+		currency: 'INR',
+		impressions: 5241,
+		clicks: 40,
+		network_conversions: 0,
+		fetched_at: '2026-08-10T01:00:00.000Z'
+	});
+
+	/** A view whose utm_term never resolved, carrying only the lowercase name. */
+	const UNRESOLVED = (campaign: string, source = 'snapchat') => ({
+		...V('2026-08-10T07:00:00.000Z', campaign),
+		user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148',
+		utm: { utm_source: source, utm_campaign: campaign, utm_term: '{{adSet.id}}' }
+	});
+
+	it('merges id-less traffic into the ad set spend named, across case and separators', async () => {
+		rows.ad_spend_daily = [SPEND('a1b2c3d4-1111-2222-3333-444455556666', 'MEN_25-40_CASUAL_STORY_IND-LPV')];
+		rows.marketing_page_views = [
+			// Resolved: carries the real id.
+			{
+				...V('2026-08-10T06:00:00.000Z', 'men_25_40_casual_story_ind_lpv'),
+				user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148',
+				utm: { utm_source: 'snapchat', utm_term: 'a1b2c3d4-1111-2222-3333-444455556666' }
+			},
+			UNRESOLVED('men_25_40_casual_story_ind_lpv'),
+			UNRESOLVED('men_25_40_casual_story_ind_lpv')
+		];
+
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+
+		// ONE row for the ad set, not two near-duplicate labels.
+		const forAdSet = d.leaderboard.filter((r: any) => r.adSetId === 'a1b2c3d4-1111-2222-3333-444455556666');
+		expect(forAdSet).toHaveLength(1);
+		expect(forAdSet[0].views).toBe(3);
+		expect(forAdSet[0].spend).toBe(116);
+		// The real name from spend survives, not the lowercase utm value.
+		expect(forAdSet[0].campaign).toBe('MEN_25-40_CASUAL_STORY_IND-LPV');
+		expect(d.leaderboard).toHaveLength(1);
+	});
+
+	it('never merges across networks, even on an identical name', async () => {
+		rows.ad_spend_daily = [SPEND('meta_1', 'MEN_25-40_CASUAL_STORY_IND-LPV', 'meta')];
+		rows.marketing_page_views = [UNRESOLVED('men_25_40_casual_story_ind_lpv')];
+
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+
+		const meta = d.leaderboard.find((r: any) => r.adSetId === 'meta_1');
+		expect(meta?.views).toBe(0);
+		expect(d.traffic.viewsReconciledByName).toBe(0);
+		expect(d.traffic.viewsUnattributed).toBe(1);
+	});
+
+	it('does not merge two id-less rows into each other when no spend row exists', async () => {
+		rows.ad_spend_daily = [];
+		rows.marketing_page_views = [
+			UNRESOLVED('men_25_40_casual_story_ind_lpv'),
+			UNRESOLVED('MEN_25-40_CASUAL_STORY_IND-LPV')
+		];
+
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+
+		// Two separate rows: nothing here has the authority to claim they are one.
+		expect(d.leaderboard).toHaveLength(2);
+		expect(d.traffic.viewsReconciledByName).toBe(0);
+		expect(d.traffic.viewsUnattributed).toBe(2);
+	});
+
+	it('does not merge on an empty normalised name', async () => {
+		rows.ad_spend_daily = [SPEND('b2c3d4e5-1111-2222-3333-444455556666', '---')];
+		rows.marketing_page_views = [UNRESOLVED('___')];
+
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+		expect(d.leaderboard.find((r: any) => r.adSetId === 'b2c3d4e5-1111-2222-3333-444455556666')?.views).toBe(0);
+		expect(d.traffic.viewsReconciledByName).toBe(0);
+	});
+
+	it('keeps the two confidence buckets adding up to the old single figure', async () => {
+		rows.ad_spend_daily = [SPEND('a1b2c3d4-1111-2222-3333-444455556666', 'MEN_25-40_CASUAL_STORY_IND-LPV')];
+		rows.marketing_page_views = [
+			UNRESOLVED('men_25_40_casual_story_ind_lpv'),
+			UNRESOLVED('men_25_40_casual_story_ind_lpv'),
+			UNRESOLVED('something_with_no_spend_row'),
+			{
+				...V('2026-08-10T06:00:00.000Z', 'x'),
+				user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148',
+				utm: { utm_source: 'snapchat', utm_term: 'a1b2c3d4-1111-2222-3333-444455556666' }
+			}
+		];
+
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+		expect(d.traffic.viewsReconciledByName).toBe(2);
+		expect(d.traffic.viewsUnattributed).toBe(1);
+		expect(d.traffic.viewsWithoutAdSet).toBe(
+			d.traffic.viewsReconciledByName + d.traffic.viewsUnattributed
+		);
+	});
+
+	it('reconciles taps the same way, so a rate is not computed across two rows', async () => {
+		rows.ad_spend_daily = [SPEND('a1b2c3d4-1111-2222-3333-444455556666', 'MEN_25-40_CASUAL_STORY_IND-LPV')];
+		rows.marketing_page_views = [UNRESOLVED('men_25_40_casual_story_ind_lpv')];
+		rows.marketing_store_clicks = [
+			{
+				created_at: '2026-08-10T07:05:00.000Z',
+				page: 'get',
+				cta: 'play',
+				campaign: 'men_25_40_casual_story_ind_lpv',
+				country: 'IN',
+				visit_id: null,
+				user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148',
+				utm: {
+					utm_source: 'snapchat',
+					utm_campaign: 'men_25_40_casual_story_ind_lpv',
+					utm_term: '{{adSet.id}}'
+				}
+			}
+		];
+
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+		const row = d.leaderboard.find((r: any) => r.adSetId === 'a1b2c3d4-1111-2222-3333-444455556666');
+		expect(row?.views).toBe(1);
+		expect(row?.taps).toBe(1);
+		expect(d.leaderboard).toHaveLength(1);
+	});
+});
+
+describe('network and audience filters', () => {
+	const HIT = (campaign: string, source: string) => ({
+		...V('2026-08-10T07:00:00.000Z', campaign),
+		user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148',
+		utm: { utm_source: source, utm_campaign: campaign }
+	});
+
+	beforeEach(() => {
+		rows.marketing_page_views = [
+			HIT('men_25_40_casual_story_ind_lpv', 'snapchat'),
+			HIT('men_25_40_casual_story_ind_lpv', 'snapchat'),
+			HIT('women_18_30_blr_lifestyle_auto', 'snapchat'),
+			HIT('6978093820881', 'ig')
+		];
+	});
+
+	it('filters views by network', async () => {
+		const snap = await buildAdAnalytics({ ...RANGE, granularity: 'day', network: 'snap' });
+		const meta = await buildAdAnalytics({ ...RANGE, granularity: 'day', network: 'meta' });
+		expect(snap.health.counts.views).toBe(3);
+		expect(meta.health.counts.views).toBe(1);
+	});
+
+	it('filters views by targeted audience', async () => {
+		const men = await buildAdAnalytics({ ...RANGE, granularity: 'day', audience: 'men' });
+		const women = await buildAdAnalytics({ ...RANGE, granularity: 'day', audience: 'women' });
+		// Meta's numeric campaign id carries no audience, so it lands in unknown.
+		const unknown = await buildAdAnalytics({ ...RANGE, granularity: 'day', audience: 'unknown' });
+		expect(men.health.counts.views).toBe(2);
+		expect(women.health.counts.views).toBe(1);
+		expect(unknown.health.counts.views).toBe(1);
+	});
+
+	it('composes the two filters', async () => {
+		const d = await buildAdAnalytics({
+			...RANGE,
+			granularity: 'day',
+			network: 'snap',
+			audience: 'women'
+		});
+		expect(d.health.counts.views).toBe(1);
+	});
+
+	it('returns the unfiltered facets whatever the filter is, so the denominator survives', async () => {
+		for (const network of ['all', 'snap', 'meta'] as const) {
+			const d = await buildAdAnalytics({ ...RANGE, granularity: 'day', network });
+			expect(d.facets.network.views, network).toEqual({ snap: 3, meta: 1 });
+			expect(d.facets.audience.views, network).toEqual({ men: 2, women: 1, unknown: 1 });
+		}
+	});
+
+	it('echoes the filter actually applied', async () => {
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day', network: 'meta', audience: 'men' });
+		expect(d.range.network).toBe('meta');
+		expect(d.range.audience).toBe('men');
+	});
+
+	it('reports signup gender unfiltered, and says it cannot be joined to a campaign', async () => {
+		rows.verified_vibe_users = [
+			{ id: '1', gender: 'man', created_at: '2026-08-10T07:00:00.000Z' },
+			{ id: '2', gender: 'man', created_at: '2026-08-10T07:00:00.000Z' },
+			{ id: '3', gender: 'woman', created_at: '2026-08-10T07:00:00.000Z' },
+			{ id: '4', gender: null, created_at: '2026-08-10T07:00:00.000Z' }
+		];
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day', network: 'meta' });
+		// Not narrowed by the network filter — user_acquisition is empty, so no
+		// signup can be attributed to a network at all.
+		expect(d.signupGender).toEqual({ man: 2, woman: 1, unknown: 1, joinableToCampaign: false });
+	});
+});
+
 describe('burst detection', () => {
 	const many = (n: number, iso: string) => Array.from({ length: n }, () => V(iso));
 

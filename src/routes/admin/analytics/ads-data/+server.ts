@@ -4,6 +4,7 @@ import { buildAdAnalytics } from '$lib/server/ad-analytics';
 import { adSpendConfigStatus } from '$lib/server/ad-spend/sync';
 import { ADMIN_COOKIE, tokenIsValid } from '$lib/server/admin-auth';
 import { resolveGranularity, resolveIstRange } from '$lib/ist-dates';
+import { isAudience } from '$lib/server/ad-audience';
 
 /**
  * GET /admin/analytics/ads-data?start=2026-08-01&end=2026-08-10&currency=INR
@@ -51,12 +52,26 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 	// reported so the UI can say the chart is not at the granularity asked for.
 	const gran = resolveGranularity(url.searchParams.get('granularity'), range.days);
 
+	// Both fall back to 'all' on anything unrecognised rather than 400-ing. A bad
+	// filter value should show the unfiltered page, not an error dialog — and the
+	// resolved value is echoed back in `range`, so the UI never has to assume the
+	// filter it asked for is the filter that was applied.
+	const requestedNetwork = url.searchParams.get('network');
+	const network =
+		requestedNetwork === 'snap' || requestedNetwork === 'meta' || requestedNetwork === 'other'
+			? requestedNetwork
+			: 'all';
+	const requestedAudience = url.searchParams.get('audience');
+	const audience = isAudience(requestedAudience) ? requestedAudience : 'all';
+
 	try {
 		const data = await buildAdAnalytics({
 			start: range.start,
 			end: range.end,
 			currency,
-			granularity: gran.granularity
+			granularity: gran.granularity,
+			network,
+			audience
 		});
 		// Which credentials each network can see, by name and never by value.
 		// Included here so the health panel can distinguish "not configured yet"

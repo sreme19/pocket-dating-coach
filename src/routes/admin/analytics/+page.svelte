@@ -379,6 +379,35 @@
 	 * whether a number arrived gradually or all at once.
 	 */
 	let adsGranularity = $state<Granularity | 'auto'>('auto');
+	/** Restricts views and taps to one ad network. Composes with the audience filter. */
+	let adsNetwork = $state<'all' | 'snap' | 'meta' | 'other'>('all');
+	/**
+	 * Restricts views and taps to one TARGETED audience, read off campaign naming.
+	 * Not the gender of whoever arrived — a landing page cannot know that. Signup
+	 * gender is reported separately and is deliberately not tied to this.
+	 */
+	let adsAudience = $state<'all' | 'men' | 'women' | 'unknown'>('all');
+
+	const NETWORK_CHIPS = [
+		{ id: 'all', label: 'All' },
+		{ id: 'snap', label: 'Snap' },
+		{ id: 'meta', label: 'Meta' },
+		{ id: 'other', label: 'Direct' }
+	] as const;
+	const AUDIENCE_CHIPS = [
+		{ id: 'all', label: 'All' },
+		{ id: 'men', label: 'Men' },
+		{ id: 'women', label: 'Women' },
+		{ id: 'unknown', label: 'Untagged' }
+	] as const;
+
+	/** Real views behind a chip, from the unfiltered facets the server always returns. */
+	function facetCount(facet: 'network' | 'audience', id: string): number | null {
+		const f = ads?.facets?.[facet]?.views;
+		if (!f) return null;
+		if (id === 'all') return Object.values(f).reduce((a: number, b: any) => a + Number(b), 0);
+		return Number(f[id] ?? 0);
+	}
 
 	const adsSpanDays = $derived(
 		Math.round(
@@ -404,7 +433,7 @@
 			// ads-data/+server.ts.
 			const res = await fetch(
 				`/admin/analytics/ads-data?start=${adsStart}&end=${adsEnd}&currency=${adsCurrency}` +
-					`&granularity=${adsGranularity}`
+					`&granularity=${adsGranularity}&network=${adsNetwork}&audience=${adsAudience}`
 			);
 			const body = await res.json();
 			if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`);
@@ -426,6 +455,8 @@
 		void adsEnd;
 		void adsCurrency;
 		void adsGranularity;
+		void adsNetwork;
+		void adsAudience;
 		// Re-read the Indian day on every fetch. This dashboard gets left open for
 		// days, and a stale "today" would quietly anchor the 7d/30d chips to
 		// yesterday — the numbers would still look plausible.
@@ -1161,6 +1192,38 @@
 				>
 			{/each}
 		</div>
+		<!-- Network. Composes with the quality filter rather than replacing it: the
+		     counts on these chips are already crawler-free. -->
+		<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-xs">
+			{#each NETWORK_CHIPS as chip}
+				{@const n = facetCount('network', chip.id)}
+				<button
+					onclick={() => (adsNetwork = chip.id)}
+					class="px-3 py-1.5 transition-colors {adsNetwork === chip.id
+						? 'bg-sky-500/20 text-sky-300'
+						: 'text-slate-400 hover:text-slate-200'}"
+					>{chip.label}{#if n !== null}<span class="ml-1 opacity-50">{n}</span>{/if}</button
+				>
+			{/each}
+		</div>
+		<!-- Audience TARGETED, read off campaign naming — not the gender of whoever
+		     arrived, which the landing page cannot know. Signup gender is a separate
+		     population and is reported separately below. -->
+		<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-xs">
+			{#each AUDIENCE_CHIPS as chip}
+				{@const n = facetCount('audience', chip.id)}
+				<button
+					onclick={() => (adsAudience = chip.id)}
+					title={chip.id === 'unknown'
+						? 'Campaign naming carries no audience — Meta sends a numeric campaign id'
+						: 'Audience the campaign targeted, from its name'}
+					class="px-3 py-1.5 transition-colors {adsAudience === chip.id
+						? 'bg-fuchsia-500/20 text-fuchsia-300'
+						: 'text-slate-400 hover:text-slate-200'}"
+					>{chip.label}{#if n !== null}<span class="ml-1 opacity-50">{n}</span>{/if}</button
+				>
+			{/each}
+		</div>
 		{#if ads}
 			<!-- The range the server actually aggregated, which is the only one the
 			     numbers below describe. Says so out loud when it had to adjust the
@@ -1267,6 +1330,150 @@
 			</div>
 		</div>
 
+		<!-- Network and audience split. ALWAYS THE FULL PICTURE, never narrowed by
+		     the chips above: the moment you filter to one network, the thing you
+		     most need is the denominator you just filtered away. -->
+		<div class="card mb-6">
+			<div class="mb-1 flex flex-wrap items-baseline justify-between gap-3">
+				<div class="chart-title mb-0">Split by network and targeted audience</div>
+				<span class="text-[11px] text-slate-600">whole range, ignores the filters above</span>
+			</div>
+			<p class="mb-4 text-[11px] text-slate-600">
+				Real views are what survives the quality filter; excluded rows are shown beside them, not
+				dropped. Audience is what the campaign <em>targeted</em>, read off its name — not who
+				arrived. Rates are withheld below n={ads.minSample}.
+			</p>
+
+			<div class="grid gap-6 lg:grid-cols-2">
+				{#each [{ facet: 'network', chips: NETWORK_CHIPS, active: adsNetwork }, { facet: 'audience', chips: AUDIENCE_CHIPS, active: adsAudience }] as group}
+					{@const f = ads.facets[group.facet]}
+					{@const rows = group.chips.filter((c) => c.id !== 'all')}
+					<!-- Bars are scaled to the biggest raw total in this group, so the two
+					     groups stay independently readable rather than one dwarfing the other. -->
+					{@const scale = Math.max(
+						1,
+						...rows.map((c) => Number(f.views[c.id] ?? 0) + Number(f.viewsExcluded[c.id] ?? 0))
+					)}
+					<div>
+						<div class="mb-2 text-[11px] uppercase tracking-wide text-slate-500">
+							{group.facet === 'network' ? 'Ad network' : 'Targeted audience'}
+						</div>
+						{#each rows as chip}
+							{@const real = Number(f.views[chip.id] ?? 0)}
+							{@const excl = Number(f.viewsExcluded[chip.id] ?? 0)}
+							{@const taps = Number(f.taps[chip.id] ?? 0)}
+							{@const dim = group.active !== 'all' && group.active !== chip.id}
+							<div class="mb-3 {dim ? 'opacity-40' : ''}">
+								<div class="flex items-baseline gap-2 text-xs">
+									<span class="min-w-[3.5rem] font-medium text-slate-200">{chip.label}</span>
+									<span class="text-slate-400">{real} real</span>
+									{#if excl > 0}
+										<span class="text-slate-600">of {real + excl} raw</span>
+									{/if}
+									<span class="ml-auto text-slate-400"
+										>{taps} tap{taps === 1 ? '' : 's'} ·
+										{#if real >= ads.minSample}
+											{((100 * taps) / real).toFixed(1)}%
+										{:else}
+											<span class="text-slate-600" title="{real} views is below the minimum sample"
+												>n&lt;{ads.minSample}</span
+											>
+										{/if}
+									</span>
+								</div>
+								<!-- Solid = counted, faded = set aside. One bar so the ratio is
+								     readable without doing the subtraction. -->
+								<div class="mt-1 flex h-1.5 overflow-hidden rounded bg-white/[0.04]">
+									<div
+										class={group.facet === 'network' ? 'bg-sky-400' : 'bg-fuchsia-400'}
+										style="width:{(100 * real) / scale}%"
+									></div>
+									<div
+										class={group.facet === 'network' ? 'bg-sky-400/25' : 'bg-fuchsia-400/25'}
+										style="width:{(100 * excl) / scale}%"
+									></div>
+								</div>
+								{#if taps > 0 && real === 0}
+									<!-- A tap can outlive its view when the view was excluded. Said
+									     rather than divided, or the rate reads above 100%. -->
+									<div class="mt-1 text-[10px] text-amber-500/80">
+										{taps} tap{taps === 1 ? '' : 's'} with no surviving view — no rate possible
+									</div>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				{/each}
+			</div>
+
+			<!-- Why rows were set aside, and how confidently the rest was placed. The
+			     server has always returned this; it had nowhere to be shown. -->
+			<div class="mt-2 border-t border-white/[0.06] pt-3">
+				<div class="mb-2 text-[11px] uppercase tracking-wide text-slate-500">
+					Set aside, and how the rest was placed
+				</div>
+				<div class="flex flex-wrap items-baseline gap-x-5 gap-y-1 text-xs">
+					{#each Object.entries(ads.traffic.byReason) as [, info]}
+						<span class="text-slate-400"
+							>{(info as any).count}
+							<span class="text-slate-600">{(info as any).label.toLowerCase()}</span></span
+						>
+					{:else}
+						<span class="text-slate-600">nothing excluded in this window</span>
+					{/each}
+				</div>
+				{#if ads.traffic.viewsReconciledByName || ads.traffic.viewsUnattributed}
+					<!-- Two different confidence levels, kept apart: a name match is placed
+					     and countable, an unattributed row is neither, and only the second
+					     needs chasing. -->
+					<div class="mt-1.5 flex flex-wrap items-baseline gap-x-5 gap-y-1 text-xs">
+						{#if ads.traffic.viewsReconciledByName}
+							<span
+								class="text-slate-400"
+								title="No ad set id in utm_term, but the campaign name matched an ad set that spend gave an id to"
+								>{ads.traffic.viewsReconciledByName}
+								<span class="text-slate-600">matched to an ad set by name</span></span
+							>
+						{/if}
+						{#if ads.traffic.viewsUnattributed}
+							<span
+								class="text-amber-400/80"
+								title="No ad set id and no name match — these cannot be tied to spend"
+								>{ads.traffic.viewsUnattributed}
+								<span class="text-amber-400/60">could not be placed at all</span></span
+							>
+						{/if}
+					</div>
+				{/if}
+			</div>
+
+			<!-- Actual signup gender. A DIFFERENT POPULATION from the audience filter,
+			     so it is kept in its own block with the join gap stated. -->
+			<div class="mt-3 border-t border-white/[0.06] pt-3">
+				<div class="mb-2 text-[11px] uppercase tracking-wide text-slate-500">
+					Signups by actual gender
+				</div>
+				<div class="flex flex-wrap items-baseline gap-x-5 gap-y-1 text-xs text-slate-300">
+					<span>{ads.signupGender.man} men</span>
+					<span>{ads.signupGender.woman} women</span>
+					{#if ads.signupGender.unknown > 0}
+						<span class="text-slate-500">{ads.signupGender.unknown} unstated</span>
+					{/if}
+				</div>
+				<p class="mt-2 text-[11px] {ads.signupGender.joinableToCampaign ? 'text-slate-600' : 'text-amber-400/80'}">
+					{#if ads.signupGender.joinableToCampaign}
+						Whole range. This is who signed up, not who the ads targeted — a men-targeted campaign
+						producing women signups is normal, and the two columns are meant to differ.
+					{:else}
+						Whole range, and <strong>not</strong> narrowed by the filters above — no signup can be
+						joined to a campaign yet, because <code>user_acquisition</code> has no rows until the new
+						Flutter build ships. Until then these totals cannot be attributed to a network or an
+						audience.
+					{/if}
+				</p>
+			</div>
+		</div>
+
 		<!-- Trends -->
 		<div class="card mb-6">
 			<div class="chart-title">Views, store taps and signups — per {adsGranularityLabel}</div>
@@ -1354,13 +1561,18 @@
 			</div>
 		</div>
 
-		<!-- Campaign leaderboard -->
+		<!-- Ad set leaderboard. Named for what the rows actually are: the rollup is
+		     keyed on ad set, because that is the only key spend and traffic share. -->
 		<div class="card mb-6 overflow-x-auto">
-			<div class="chart-title">Campaign leaderboard · spend in {adsCurrency}</div>
-			<table class="w-full min-w-[52rem] text-xs">
+			<div class="chart-title">Ad set leaderboard · spend in {adsCurrency}</div>
+			<!-- 13px over text-xs, and values at slate-200 rather than slate-400:
+			     slate-400 on this background is about 4:1, under the 4.5:1 threshold,
+			     and it failed worst on the numeric columns where it matters most.
+			     Headers stay dimmer — the hierarchy was never the problem. -->
+			<table class="w-full min-w-[52rem] text-[13px]">
 				<thead class="text-slate-500">
 					<tr>
-						<th class="py-1 text-left">Campaign</th>
+						<th class="py-1 text-left">Ad set</th>
 						<th class="text-right">Spend</th>
 						<th class="text-right">Impr.</th>
 						<th class="text-right">Views</th>
@@ -1373,19 +1585,36 @@
 				<tbody>
 					{#each ads.leaderboard as c}
 						<tr class="border-t border-white/[0.04]">
-							<td class="py-1.5 text-slate-300">{c.campaign}</td>
-							<td class="text-right text-slate-400">{c.spend ? fmtMoney(c.spend) : '—'}</td>
-							<td class="text-right text-slate-400">{c.impressions || '—'}</td>
-							<td class="text-right text-slate-400">{c.views}</td>
-							<td class="text-right text-slate-400">{c.taps}</td>
-							<td class="text-right text-slate-400">{fmtRate(c.tapRate, c.views)}</td>
-							<td class="text-right text-slate-400">{c.signups}</td>
-							<td class="text-right text-slate-400"
+							<td class="py-1.5 text-slate-200">{c.campaign}</td>
+							<!-- A literal zero stays dim so a row of zeros does not compete with
+							     the rows that actually have data. -->
+							<td class="text-right tabular-nums text-slate-200"
+								>{c.spend ? fmtMoney(c.spend) : '—'}</td
+							>
+							<td class="text-right tabular-nums text-slate-200">{c.impressions || '—'}</td>
+							<td class="text-right tabular-nums {c.views ? 'text-slate-200' : 'text-slate-500'}"
+								>{c.views}</td
+							>
+							<td class="text-right tabular-nums {c.taps ? 'text-slate-200' : 'text-slate-500'}"
+								>{c.taps}</td
+							>
+							<!-- Suppressed rates keep the dimmer treatment: they are deliberately
+							     de-emphasised, and that reads as intentional now the real numbers
+							     beside them are legible. -->
+							<td
+								class="text-right tabular-nums {c.tapRate == null
+									? 'text-slate-500'
+									: 'text-slate-200'}">{fmtRate(c.tapRate, c.views)}</td
+							>
+							<td class="text-right tabular-nums {c.signups ? 'text-slate-200' : 'text-slate-500'}"
+								>{c.signups}</td
+							>
+							<td class="text-right tabular-nums text-slate-200"
 								>{c.costPerSignup ? fmtMoney(c.costPerSignup) : '—'}</td
 							>
 						</tr>
 					{:else}
-						<tr><td colspan="8" class="py-6 text-center text-slate-600">No campaign data in this window.</td></tr>
+						<tr><td colspan="8" class="py-6 text-center text-slate-600">No ad set data in this window.</td></tr>
 					{/each}
 				</tbody>
 			</table>
