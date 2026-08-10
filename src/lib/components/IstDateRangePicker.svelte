@@ -284,7 +284,7 @@
 		type="button"
 		onclick={() => (open ? cancel() : openPicker())}
 		aria-expanded={open}
-		class="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs transition-colors
+		class="flex items-center gap-2 rounded-lg border px-3 py-1.5 text-[15px] transition-colors
 			{open
 			? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
 			: 'border-white/[0.08] text-slate-300 hover:border-white/20 hover:text-slate-100'}"

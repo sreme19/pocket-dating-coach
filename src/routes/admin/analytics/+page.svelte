@@ -1228,6 +1228,11 @@
 {/if}
 
 {#if activeTab === 'ads'}
+	<!-- ads-scale exists for one reason: .chart-title is a :global rule shared
+	     with Overview, User Activity and AI Latency, so its size cannot be bumped
+	     in place without moving three tabs nobody asked to change. Scoping it to
+	     this wrapper keeps the 1.25 confined to the tab it was asked for. -->
+	<div class="ads-scale">
 	<!-- ── Ad Analytics Tab ──────────────────────────────────────────────── -->
 	<div class="mb-6 flex flex-wrap items-center gap-2">
 		<!-- The only range control. Nothing is refetched until Update, so picking a
@@ -1243,7 +1248,7 @@
 		/>
 		<!-- Bucket size. Options too fine for the current span are disabled rather
 		     than silently coarsened, so what is offered is what you get. -->
-		<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-xs">
+		<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-[15px]">
 			<button
 				onclick={() => (adsGranularity = 'auto')}
 				title="Follows the range — currently {adsAutoGranularity}"
@@ -1266,7 +1271,7 @@
 				>
 			{/each}
 		</div>
-		<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-xs">
+		<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-[15px]">
 			{#each ['INR', 'USD'] as c}
 				<button
 					onclick={() => (adsCurrency = c as 'INR' | 'USD')}
@@ -1278,7 +1283,7 @@
 		</div>
 		<!-- Network. Composes with the quality filter rather than replacing it: the
 		     counts on these chips are already crawler-free. -->
-		<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-xs">
+		<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-[15px]">
 			{#each NETWORK_CHIPS as chip}
 				{@const n = facetCount('network', chip.id)}
 				<button
@@ -1293,7 +1298,7 @@
 		<!-- Audience TARGETED, read off campaign naming — not the gender of whoever
 		     arrived, which the landing page cannot know. Signup gender is a separate
 		     population and is reported separately below. -->
-		<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-xs">
+		<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-[15px]">
 			{#each AUDIENCE_CHIPS as chip}
 				{@const n = facetCount('audience', chip.id)}
 				<button
@@ -1316,19 +1321,19 @@
 			title={adsSpendSyncedAt
 				? `Spend last synced ${fmtAgo(adsSpendSyncedAt)} — the cron runs hourly at :20`
 				: 'Spend has never synced'}
-			class="flex items-center gap-1.5 rounded-lg border border-white/[0.08] px-3 py-1.5 text-xs text-slate-300 transition-colors hover:border-white/20 hover:text-slate-100 disabled:cursor-not-allowed disabled:text-slate-600"
+			class="flex items-center gap-1.5 rounded-lg border border-white/[0.08] px-3 py-1.5 text-[15px] text-slate-300 transition-colors hover:border-white/20 hover:text-slate-100 disabled:cursor-not-allowed disabled:text-slate-600"
 		>
 			<span class={adsLoading ? 'animate-spin' : ''} aria-hidden="true">↻</span>
 			{adsLoading ? 'Refreshing…' : 'Refresh'}
 		</button>
 		{#if adsStamp}
-			<span class="text-[11px] text-slate-600">{adsStamp}</span>
+			<span class="text-[14px] text-slate-600">{adsStamp}</span>
 		{/if}
 		{#if ads}
 			<!-- The range the server actually aggregated, which is the only one the
 			     numbers below describe. Says so out loud when it had to adjust the
 			     request rather than letting the picker and the charts disagree. -->
-			<span class="text-[11px] {ads.rangeClamped ? 'text-amber-400' : 'text-slate-600'}"
+			<span class="text-[14px] {ads.rangeClamped ? 'text-amber-400' : 'text-slate-600'}"
 				>{ads.rangeClamped ? '⚠ shortened to ' : ''}{ads.range.start} → {ads.range.end} · {ads
 					.range.days} days in {ads.range.buckets.toLocaleString('en-IN')}
 				{ads.range.granularity} bucket{ads.range.buckets === 1 ? '' : 's'} ({ads.range
@@ -1341,9 +1346,9 @@
 	     numbers stay on screen — blanking a dashboard you asked to update is how a
 	     refresh button becomes something you avoid pressing. -->
 	{#if adsLoading && !ads}
-		<div class="py-16 text-center text-sm text-slate-600">Loading campaign data…</div>
+		<div class="py-16 text-center text-[17px] text-slate-600">Loading campaign data…</div>
 	{:else if adsError && !ads}
-		<div class="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-300">
+		<div class="rounded-xl border border-red-500/20 bg-red-500/5 p-4 text-[17px] text-red-300">
 			Could not load ad analytics: {adsError}
 		</div>
 	{:else if ads}
@@ -1351,7 +1356,7 @@
 			<!-- Refresh failed but the previous numbers are still on screen. Says which
 			     they are, so nothing below is mistaken for current. -->
 			<div
-				class="mb-6 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-300"
+				class="mb-6 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[15px] text-amber-300"
 			>
 				⚠ Refresh failed ({adsError}). Showing the last successful load{adsFreshness
 					? `, from ${adsFreshness}`
@@ -1364,7 +1369,7 @@
 			<div class="mb-6 space-y-2">
 				{#each ads.anomalies as note}
 					<div
-						class="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-300"
+						class="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[15px] text-amber-300"
 					>
 						⚠ {note}
 					</div>
@@ -1377,7 +1382,7 @@
 		     worthless if the pipes are not running. -->
 		<div class="card mb-6">
 			<div class="chart-title">Data health</div>
-			<div class="grid grid-cols-2 gap-4 text-xs sm:grid-cols-4">
+			<div class="grid grid-cols-2 gap-4 text-[15px] sm:grid-cols-4">
 				<div>
 					<div class="text-slate-500">Page views recorded</div>
 					<div class="text-lg font-semibold text-white">{ads.health.counts.views}</div>
@@ -1391,14 +1396,14 @@
 					<div class="text-lg font-semibold text-white">
 						{ads.health.counts.attributedSignups}/{ads.health.counts.totalSignups}
 					</div>
-					<div class="text-[11px] text-slate-600">
+					<div class="text-[14px] text-slate-600">
 						{fmtRate(ads.health.attributionCoverage, ads.health.counts.totalSignups)} coverage
 					</div>
 				</div>
 				<div>
 					<div class="text-slate-500">Spend rows</div>
 					<div class="text-lg font-semibold text-white">{ads.health.counts.spendRows}</div>
-					<div class="text-[11px] text-slate-600">
+					<div class="text-[14px] text-slate-600">
 						snap {fmtAgo(ads.health.lastSpendFetch.snap)} · meta {fmtAgo(
 							ads.health.lastSpendFetch.meta
 						)}
@@ -1406,7 +1411,7 @@
 				</div>
 			</div>
 
-			<div class="mt-4 grid gap-2 text-[11px] text-slate-500 sm:grid-cols-2">
+			<div class="mt-4 grid gap-2 text-[14px] text-slate-500 sm:grid-cols-2">
 				<div>
 					Conversion forwards — Snap {ads.health.snapForwardOk} ok / {ads.health
 						.snapForwardFailed} failed · Meta {ads.health.metaForwardOk} ok / {ads.health
@@ -1450,9 +1455,9 @@
 		<div class="card mb-6">
 			<div class="mb-1 flex flex-wrap items-baseline justify-between gap-3">
 				<div class="chart-title mb-0">Split by network and targeted audience</div>
-				<span class="text-[11px] text-slate-600">whole range, ignores the filters above</span>
+				<span class="text-[14px] text-slate-600">whole range, ignores the filters above</span>
 			</div>
-			<p class="mb-4 text-[11px] text-slate-600">
+			<p class="mb-4 text-[14px] text-slate-600">
 				Real views are what survives the quality filter; excluded rows are shown beside them, not
 				dropped. Audience is what the campaign <em>targeted</em>, read off its name — not who
 				arrived. Rates are withheld below n={ads.minSample}.
@@ -1469,7 +1474,7 @@
 						...rows.map((c) => Number(f.views[c.id] ?? 0) + Number(f.viewsExcluded[c.id] ?? 0))
 					)}
 					<div>
-						<div class="mb-2 text-[11px] uppercase tracking-wide text-slate-500">
+						<div class="mb-2 text-[14px] uppercase tracking-wide text-slate-500">
 							{group.facet === 'network' ? 'Ad network' : 'Targeted audience'}
 						</div>
 						{#each rows as chip}
@@ -1478,7 +1483,7 @@
 							{@const taps = Number(f.taps[chip.id] ?? 0)}
 							{@const dim = group.active !== 'all' && group.active !== chip.id}
 							<div class="mb-3 {dim ? 'opacity-40' : ''}">
-								<div class="flex items-baseline gap-2 text-xs">
+								<div class="flex items-baseline gap-2 text-[15px]">
 									<span class="min-w-[3.5rem] font-medium text-slate-200">{chip.label}</span>
 									<span class="text-slate-400">{real} real</span>
 									{#if excl > 0}
@@ -1510,7 +1515,7 @@
 								{#if taps > 0 && real === 0}
 									<!-- A tap can outlive its view when the view was excluded. Said
 									     rather than divided, or the rate reads above 100%. -->
-									<div class="mt-1 text-[10px] text-amber-500/80">
+									<div class="mt-1 text-[12px] text-amber-500/80">
 										{taps} tap{taps === 1 ? '' : 's'} with no surviving view — no rate possible
 									</div>
 								{/if}
@@ -1523,10 +1528,10 @@
 			<!-- Why rows were set aside, and how confidently the rest was placed. The
 			     server has always returned this; it had nowhere to be shown. -->
 			<div class="mt-2 border-t border-white/[0.06] pt-3">
-				<div class="mb-2 text-[11px] uppercase tracking-wide text-slate-500">
+				<div class="mb-2 text-[14px] uppercase tracking-wide text-slate-500">
 					Set aside, and how the rest was placed
 				</div>
-				<div class="flex flex-wrap items-baseline gap-x-5 gap-y-1 text-xs">
+				<div class="flex flex-wrap items-baseline gap-x-5 gap-y-1 text-[15px]">
 					{#each Object.entries(ads.traffic.byReason) as [, info]}
 						<span class="text-slate-400"
 							>{(info as any).count}
@@ -1540,7 +1545,7 @@
 					<!-- Two different confidence levels, kept apart: a name match is placed
 					     and countable, an unattributed row is neither, and only the second
 					     needs chasing. -->
-					<div class="mt-1.5 flex flex-wrap items-baseline gap-x-5 gap-y-1 text-xs">
+					<div class="mt-1.5 flex flex-wrap items-baseline gap-x-5 gap-y-1 text-[15px]">
 						{#if ads.traffic.viewsReconciledByName}
 							<span
 								class="text-slate-400"
@@ -1564,17 +1569,17 @@
 			<!-- Actual signup gender. A DIFFERENT POPULATION from the audience filter,
 			     so it is kept in its own block with the join gap stated. -->
 			<div class="mt-3 border-t border-white/[0.06] pt-3">
-				<div class="mb-2 text-[11px] uppercase tracking-wide text-slate-500">
+				<div class="mb-2 text-[14px] uppercase tracking-wide text-slate-500">
 					Signups by actual gender
 				</div>
-				<div class="flex flex-wrap items-baseline gap-x-5 gap-y-1 text-xs text-slate-300">
+				<div class="flex flex-wrap items-baseline gap-x-5 gap-y-1 text-[15px] text-slate-300">
 					<span>{ads.signupGender.man} men</span>
 					<span>{ads.signupGender.woman} women</span>
 					{#if ads.signupGender.unknown > 0}
 						<span class="text-slate-500">{ads.signupGender.unknown} unstated</span>
 					{/if}
 				</div>
-				<p class="mt-2 text-[11px] {ads.signupGender.joinableToCampaign ? 'text-slate-600' : 'text-amber-400/80'}">
+				<p class="mt-2 text-[14px] {ads.signupGender.joinableToCampaign ? 'text-slate-600' : 'text-amber-400/80'}">
 					{#if ads.signupGender.joinableToCampaign}
 						Whole range. This is who signed up, not who the ads targeted — a men-targeted campaign
 						producing women signups is normal, and the two columns are meant to differ.
@@ -1594,7 +1599,7 @@
 			{#if ads.range.filtersActive}
 				<!-- A filtered page must not draw conversions the filtered slice did not
 				     produce. Said here rather than left to be inferred from a flat line. -->
-				<p class="mb-2 text-[11px] text-amber-400/80">
+				<p class="mb-2 text-[14px] text-amber-400/80">
 					Filtered to {ads.range.network === 'all' ? '' : ads.range.network}{ads.range.network !==
 						'all' && ads.range.audience !== 'all'
 						? ' · '
@@ -1609,7 +1614,7 @@
 				<!-- Said here rather than left to be inferred from a missing series:
 				     spend has no time of day in it, so nothing below daily can carry a
 				     cost line without inventing one. -->
-				<p class="mt-2 text-[11px] text-slate-600">
+				<p class="mt-2 text-[14px] text-slate-600">
 					Counts only below daily. Conversion rates need n≥{ads.minSample} and almost no bucket
 					reaches it; spend is reported by the ad networks one day at a time, so there is no
 					honest way to split it finer.
@@ -1625,11 +1630,11 @@
 					<div class="text-3xl font-bold text-white">
 						{fmtRate(ads.visitFunnel.tapRate, ads.visitFunnel.visits)}
 					</div>
-					<div class="text-xs text-slate-500">
+					<div class="text-[15px] text-slate-500">
 						{ads.visitFunnel.tapped} of {ads.visitFunnel.visits} visits
 					</div>
 				</div>
-				<p class="mt-3 text-[11px] leading-relaxed text-slate-600">
+				<p class="mt-3 text-[14px] leading-relaxed text-slate-600">
 					A join on visit id, not two totals divided by each other — so a visitor who tapped three
 					times counts once, and a reload cannot push this over 100%.
 					{#if ads.visitFunnel.visits < ads.minSample}
@@ -1648,7 +1653,7 @@
 		<div class="mb-6 grid gap-4 lg:grid-cols-2">
 			<div class="card">
 				<div class="chart-title">Landing page variants</div>
-				<table class="w-full text-xs">
+				<table class="w-full text-[15px]">
 					<thead class="text-slate-500">
 						<tr><th class="py-1 text-left">Page</th><th class="text-right">Views</th><th class="text-right">Taps</th><th class="text-right">Tap rate</th></tr>
 					</thead>
@@ -1668,7 +1673,7 @@
 			</div>
 			<div class="card">
 				<div class="chart-title">By country</div>
-				<table class="w-full text-xs">
+				<table class="w-full text-[15px]">
 					<thead class="text-slate-500">
 						<tr><th class="py-1 text-left">Country</th><th class="text-right">Views</th><th class="text-right">Taps</th><th class="text-right">Tap rate</th></tr>
 					</thead>
@@ -1695,7 +1700,7 @@
 				<div class="chart-title mb-0">Ad set leaderboard · spend in {adsCurrency}</div>
 				<!-- Delivery. Filters rows only — an idle ad set contributes no traffic
 				     by definition, so hiding it must not move the charts above. -->
-				<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-xs">
+				<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-[15px]">
 					{#each [{ id: 'all', label: 'All' }, { id: 'delivering', label: 'Delivering' }, { id: 'idle', label: 'Not delivering' }] as chip}
 						<button
 							onclick={() => (adsDelivery = chip.id as typeof adsDelivery)}
@@ -1812,7 +1817,7 @@
 					{/each}
 				</tbody>
 			</table>
-			<p class="mt-3 text-[13px] text-slate-600">
+			<p class="mt-3 text-[14px] text-slate-600">
 				Rates are withheld below {ads.minSample} observations and shown as the raw count instead — at
 				current volumes most per-campaign differences are noise, and a percentage off a handful of
 				visitors invites a decision the data cannot support.
@@ -1823,7 +1828,7 @@
 		<div class="grid gap-4 lg:grid-cols-2">
 			<div class="card">
 				<div class="chart-title">/aibestie funnel</div>
-				<table class="w-full text-xs">
+				<table class="w-full text-[15px]">
 					<tbody>
 						{#each [['Opened the page', ads.lpFunnel.opened], ['Sent a message', ads.lpFunnel.spoke], ['Reached 3+ turns', ads.lpFunnel.reached3Turns], ['Tapped the store CTA', ads.lpFunnel.tappedCta], ['Claimed after install', ads.lpFunnel.claimed]] as [label, n]}
 							<tr class="border-t border-white/[0.04]">
@@ -1836,7 +1841,7 @@
 						{/each}
 					</tbody>
 				</table>
-				<p class="mt-3 text-[11px] leading-relaxed text-slate-600">
+				<p class="mt-3 text-[14px] leading-relaxed text-slate-600">
 					This page's mid-funnel metric is conversation depth, not clicks. Note the CTA-seen step is
 					missing: <code class="text-slate-500">cta_shown_at</code> is declared in the schema and never
 					written, so "tapped" cannot yet be divided by "was shown".
@@ -1848,6 +1853,7 @@
 			</div>
 		</div>
 	{/if}
+	</div>
 {/if}
 
 {#if deleteTarget}
@@ -1936,5 +1942,11 @@
 	:global(.chart-box) {
 		position: relative;
 		height: 13rem;
+	}
+	/* The same 1.25 applied to every other size in the Ad Analytics tab. Scoped to
+	   .ads-scale because .chart-title is global and shared with the other three
+	   tabs, which were not part of the ask. */
+	:global(.ads-scale .chart-title) {
+		font-size: 1rem;
 	}
 </style>
