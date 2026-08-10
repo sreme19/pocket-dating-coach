@@ -2,7 +2,17 @@
 	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
 	import IstDateRangePicker from '$lib/components/IstDateRangePicker.svelte';
-	import { istPresetRange, istToday } from '$lib/ist-dates';
+	import {
+		GRANULARITIES,
+		autoGranularity,
+		bucketCount,
+		formatBucket,
+		formatBucketLong,
+		granularityAllowed,
+		istPresetRange,
+		istToday,
+		type Granularity
+	} from '$lib/ist-dates';
 
 	let { data }: { data: PageData } = $props();
 
@@ -155,6 +165,53 @@
 				datasets: [{ data, backgroundColor: color + 'cc', borderColor: color, borderWidth: 1 }],
 			},
 			options: { ...chartOptions(), plugins: { legend: { display: false } } },
+		});
+	}
+
+	/**
+	 * Several series as side-by-side bars — the sub-daily trend chart.
+	 *
+	 * Bar gaps are squeezed to nothing because a 2,880-bucket minute view has
+	 * well under a pixel per bar, and Chart.js's default padding would drop half
+	 * of them to nothing visible. `fullTitles` carries the unabbreviated bucket
+	 * label for the tooltip.
+	 */
+	function renderGroupedBars(
+		id: string,
+		labels: string[],
+		datasets: { label: string; data: number[]; color: string }[],
+		fullTitles: string[]
+	) {
+		const ctx = (document.getElementById(id) as HTMLCanvasElement)?.getContext('2d');
+		if (!ctx) return;
+		const base = chartOptions();
+		chartInstances[id] = new Chart(ctx, {
+			type: 'bar',
+			data: {
+				labels,
+				datasets: datasets.map((d) => ({
+					label: d.label,
+					data: d.data,
+					backgroundColor: d.color,
+					borderWidth: 0,
+					barPercentage: 1,
+					categoryPercentage: 0.98
+				}))
+			},
+			options: {
+				...base,
+				plugins: {
+					...base.plugins,
+					tooltip: {
+						callbacks: { title: (items: any[]) => fullTitles[items[0].dataIndex] ?? items[0].label }
+					}
+				},
+				scales: {
+					...base.scales,
+					x: { ...base.scales?.x, ticks: { ...base.scales?.x?.ticks, maxRotation: 0, autoSkip: true, maxTicksLimit: 14 } },
+					y: { ...base.scales?.y, beginAtZero: true, ticks: { ...base.scales?.y?.ticks, precision: 0 } }
+				}
+			}
 		});
 	}
 
@@ -316,6 +373,27 @@
 	let adsEnd = $state(istPresetRange('last30').end);
 	/** Rupees by default; the toggle converts at display time via ad_fx_rates. */
 	let adsCurrency = $state<'INR' | 'USD'>('INR');
+	/**
+	 * Trend bucket size. 'auto' follows the span, which is what it should be left
+	 * on — the explicit options exist for going finer than auto would, to check
+	 * whether a number arrived gradually or all at once.
+	 */
+	let adsGranularity = $state<Granularity | 'auto'>('auto');
+
+	const adsSpanDays = $derived(
+		Math.round(
+			(Date.parse(`${adsEnd}T00:00:00Z`) - Date.parse(`${adsStart}T00:00:00Z`)) / 86_400_000
+		) + 1
+	);
+	/** What 'auto' currently resolves to, so the button can name it. */
+	const adsAutoGranularity = $derived(autoGranularity(adsSpanDays));
+	/**
+	 * The granularity the server actually used, for the chart heading — which is
+	 * not necessarily the one requested, since too fine a request gets coarsened.
+	 */
+	const adsGranularityLabel = $derived(
+		GRANULARITIES.find((x) => x.id === ads?.range?.granularity)?.label.toLowerCase() ?? 'day'
+	);
 
 	async function loadAds() {
 		adsLoading = true;
@@ -325,7 +403,8 @@
 			// so an endpoint anywhere else never receives it. See the note in
 			// ads-data/+server.ts.
 			const res = await fetch(
-				`/admin/analytics/ads-data?start=${adsStart}&end=${adsEnd}&currency=${adsCurrency}`
+				`/admin/analytics/ads-data?start=${adsStart}&end=${adsEnd}&currency=${adsCurrency}` +
+					`&granularity=${adsGranularity}`
 			);
 			const body = await res.json();
 			if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`);
@@ -346,6 +425,7 @@
 		void adsStart;
 		void adsEnd;
 		void adsCurrency;
+		void adsGranularity;
 		// Re-read the Indian day on every fetch. This dashboard gets left open for
 		// days, and a stale "today" would quietly anchor the 7d/30d chips to
 		// yesterday — the numbers would still look plausible.
@@ -392,31 +472,43 @@
 		const ids = ['adsTrend', 'adsCta', 'adsTurns'];
 		destroyCharts(ids);
 
-		const labels = Object.keys(ads.trends.views);
-		renderLine(
-			'adsTrend',
-			labels,
-			[
-				{
-					label: 'Page views',
-					data: labels.map((d) => ads!.trends.views[d] ?? 0),
-					borderColor: '#10b981',
-					backgroundColor: 'rgba(16,185,129,0.12)'
-				},
-				{
-					label: 'Store taps',
-					data: labels.map((d) => ads!.trends.taps[d] ?? 0),
-					borderColor: '#6366f1',
-					backgroundColor: 'rgba(99,102,241,0.12)'
-				},
-				{
-					label: 'Signups',
-					data: labels.map((d) => ads!.trends.signups[d] ?? 0),
-					borderColor: '#f59e0b',
-					backgroundColor: 'rgba(245,158,11,0.12)'
-				}
-			]
-		);
+		const keys = Object.keys(ads.trends.views);
+		const g: Granularity = ads.range.granularity;
+		const series = [
+			{ label: 'Page views', map: ads.trends.views, color: '#10b981' },
+			{ label: 'Store taps', map: ads.trends.taps, color: '#6366f1' },
+			{ label: 'Signups', map: ads.trends.signups, color: '#f59e0b' }
+		];
+
+		// BARS BELOW DAILY, LINES AT DAILY. A line between sparse integer buckets
+		// draws a slope that did not happen: two points a day apart become a
+		// diagonal implying steady change, and an hourly series of mostly zeros
+		// becomes a row of spikes joined by fiction. Bars only claim the count.
+		if (g === 'day') {
+			renderLine(
+				'adsTrend',
+				keys.map((k) => formatBucket(k, g)),
+				series.map((s) => ({
+					label: s.label,
+					data: keys.map((k) => s.map[k] ?? 0),
+					borderColor: s.color,
+					backgroundColor: s.color === '#10b981' ? 'rgba(16,185,129,0.12)' : s.color === '#6366f1' ? 'rgba(99,102,241,0.12)' : 'rgba(245,158,11,0.12)'
+				}))
+			);
+		} else {
+			renderGroupedBars(
+				'adsTrend',
+				keys.map((k) => formatBucket(k, g)),
+				series.map((s) => ({
+					label: s.label,
+					data: keys.map((k) => s.map[k] ?? 0),
+					color: s.color
+				})),
+				// The axis is terse because buckets are adjacent; a tooltip is read on
+				// its own and needs the day, or '14:30' is ambiguous across a range.
+				keys.map((k) => formatBucketLong(k, g))
+			);
+		}
 
 		const ctaLabels = Object.keys(ads.byCta);
 		if (ctaLabels.length) {
@@ -1034,6 +1126,31 @@
 				adsEnd = end;
 			}}
 		/>
+		<!-- Bucket size. Options too fine for the current span are disabled rather
+		     than silently coarsened, so what is offered is what you get. -->
+		<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-xs">
+			<button
+				onclick={() => (adsGranularity = 'auto')}
+				title="Follows the range — currently {adsAutoGranularity}"
+				class="px-3 py-1.5 transition-colors {adsGranularity === 'auto'
+					? 'bg-emerald-500/20 text-emerald-400'
+					: 'text-slate-400 hover:text-slate-200'}">Auto</button
+			>
+			{#each GRANULARITIES as gr}
+				{@const allowed = granularityAllowed(gr.id, adsSpanDays)}
+				<button
+					disabled={!allowed}
+					onclick={() => (adsGranularity = gr.id)}
+					title={allowed
+						? `${bucketCount(adsStart, adsEnd, gr.id).toLocaleString('en-IN')} buckets`
+						: `Needs a range of ${gr.maxDays} day${gr.maxDays === 1 ? '' : 's'} or less`}
+					class="px-3 py-1.5 transition-colors {adsGranularity === gr.id
+						? 'bg-emerald-500/20 text-emerald-400'
+						: 'text-slate-400 hover:text-slate-200'} disabled:cursor-not-allowed disabled:text-slate-700 disabled:hover:text-slate-700"
+					>{gr.label}</button
+				>
+			{/each}
+		</div>
 		<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-xs">
 			{#each ['INR', 'USD'] as c}
 				<button
@@ -1050,7 +1167,9 @@
 			     request rather than letting the picker and the charts disagree. -->
 			<span class="text-[11px] {ads.rangeClamped ? 'text-amber-400' : 'text-slate-600'}"
 				>{ads.rangeClamped ? '⚠ shortened to ' : ''}{ads.range.start} → {ads.range.end} · {ads
-					.range.days} days bucketed in {ads.range.timezone}</span
+					.range.days} days in {ads.range.buckets.toLocaleString('en-IN')}
+				{ads.range.granularity} bucket{ads.range.buckets === 1 ? '' : 's'} ({ads.range
+					.timezone}){ads.granularityClamped ? ' · granularity coarsened to fit the range' : ''}</span
 			>
 		{/if}
 	</div>
@@ -1150,8 +1269,18 @@
 
 		<!-- Trends -->
 		<div class="card mb-6">
-			<div class="chart-title">Daily views, store taps and signups</div>
+			<div class="chart-title">Views, store taps and signups — per {adsGranularityLabel}</div>
 			<div class="chart-box"><canvas id="adsTrend"></canvas></div>
+			{#if ads.range.granularity !== 'day'}
+				<!-- Said here rather than left to be inferred from a missing series:
+				     spend has no time of day in it, so nothing below daily can carry a
+				     cost line without inventing one. -->
+				<p class="mt-2 text-[11px] text-slate-600">
+					Counts only below daily. Conversion rates need n≥{ads.minSample} and almost no bucket
+					reaches it; spend is reported by the ad networks one day at a time, so there is no
+					honest way to split it finer.
+				</p>
+			{/if}
 		</div>
 
 		<!-- Per-visit funnel + CTA breakdown -->

@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { buildAdAnalytics } from '$lib/server/ad-analytics';
 import { adSpendConfigStatus } from '$lib/server/ad-spend/sync';
 import { ADMIN_COOKIE, tokenIsValid } from '$lib/server/admin-auth';
-import { resolveIstRange } from '$lib/ist-dates';
+import { resolveGranularity, resolveIstRange } from '$lib/ist-dates';
 
 /**
  * GET /admin/analytics/ads-data?start=2026-08-01&end=2026-08-10&currency=INR
@@ -46,15 +46,29 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 		days: url.searchParams.get('days')
 	});
 	const currency = url.searchParams.get('currency') === 'USD' ? 'USD' : 'INR';
+	// Capped against the span, not just validated: minute buckets over 180 days
+	// would be 259,200 points. Too fine is coarsened rather than refused, and
+	// reported so the UI can say the chart is not at the granularity asked for.
+	const gran = resolveGranularity(url.searchParams.get('granularity'), range.days);
 
 	try {
-		const data = await buildAdAnalytics({ start: range.start, end: range.end, currency });
+		const data = await buildAdAnalytics({
+			start: range.start,
+			end: range.end,
+			currency,
+			granularity: gran.granularity
+		});
 		// Which credentials each network can see, by name and never by value.
 		// Included here so the health panel can distinguish "not configured yet"
 		// from "configured and returning nothing", which look identical on a chart.
 		// `clamped` travels with the range so the UI can say the dates it is
 		// showing are not the dates that were asked for.
-		return json({ ...data, rangeClamped: range.clamped, spendConfig: adSpendConfigStatus() });
+		return json({
+			...data,
+			rangeClamped: range.clamped,
+			granularityClamped: gran.clamped,
+			spendConfig: adSpendConfigStatus()
+		});
 	} catch (err: any) {
 		console.error('[ad-analytics] failed:', err);
 		return json({ error: err?.message ?? String(err) }, { status: 500 });

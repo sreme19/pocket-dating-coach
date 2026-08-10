@@ -23,10 +23,28 @@
  */
 
 import { getSupabase } from '$lib/server/supabase';
-import { IST_TIMEZONE, addDays, daysBetween, istDay } from '$lib/ist-dates';
+import {
+  IST_TIMEZONE,
+  addDays,
+  daysBetween,
+  istBucket,
+  istBucketKeys,
+  istDay,
+  type Granularity
+} from '$lib/ist-dates';
 
 /** Rates computed on fewer than this many observations are suppressed. */
 export const MIN_SAMPLE = 30;
+
+/**
+ * A single minute is called a burst above these two thresholds together.
+ *
+ * Both are needed. The share alone would flag a quiet range where 3 of 4 views
+ * happened to share a minute; the count alone would flag a genuinely busy
+ * minute on a day that had thousands of views spread evenly.
+ */
+export const BURST_MIN_VIEWS = 10;
+export const BURST_MIN_SHARE = 0.2;
 
 /**
  * A rate, or null when the denominator is too small to mean anything.
@@ -50,9 +68,17 @@ export function wilson(successes: number, total: number, z = 1.96): [number, num
   return [Math.max(0, (centre - spread) / denom), Math.min(1, (centre + spread) / denom)];
 }
 
-function emptyDayMap(start: string, end: string): Record<string, number> {
+/**
+ * Every bucket in the range, pre-set to zero.
+ *
+ * Zero-filled rather than sparse on purpose. A chart built only from buckets
+ * that had events joins straight across the gaps, which reads as steady low
+ * traffic instead of as nothing happening. At hourly granularity most buckets
+ * are legitimately zero and the chart has to say so.
+ */
+function emptyBucketMap(start: string, end: string, g: Granularity): Record<string, number> {
   const out: Record<string, number> = {};
-  for (let d = start; d <= end; d = addDays(d, 1)) out[d] = 0;
+  for (const key of istBucketKeys(start, end, g)) out[key] = 0;
   return out;
 }
 
@@ -68,6 +94,11 @@ export interface AdAnalyticsOptions {
   end: string;
   /** Display currency. Spend is stored in the ad account's own currency. */
   currency: 'INR' | 'USD';
+  /**
+   * Trend bucket size. Already validated against the span by resolveGranularity
+   * in the endpoint, so the cap is not re-checked here.
+   */
+  granularity: Granularity;
 }
 
 /**
@@ -126,12 +157,35 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
     supabase.from('ad_fx_rates').select('date,base,quote,rate').gte('date', addDays(start, -30))
   ]);
 
-  const viewRows = views.data ?? [];
-  const clickRows = clicks.data ?? [];
+  /**
+   * SPEND THE OVER-FETCH SLACK HERE, AND NOWHERE ELSE.
+   *
+   * The queries above deliberately widen the window by a day on each side,
+   * because an IST day begins 5h30m before the UTC one and a naive UTC range
+   * drops rows belonging in the first bucket. That slack is for making boundary
+   * rows *available*; it is not licence to count them.
+   *
+   * Trimming it once, here, is the only place this can be done safely. Almost
+   * everything below counts rows — the campaign leaderboard, the visit funnel,
+   * the CTA and country splits, the health totals — so untrimmed slack credits
+   * the range with up to a day of events from outside it. It is a nasty bug to
+   * notice, because every number inflates together and the page stays
+   * self-consistent while disagreeing with the dates at the top of it.
+   */
+  const inRange = (iso: string | null | undefined): boolean => {
+    if (!iso) return false;
+    const d = istDay(iso);
+    return d >= start && d <= end;
+  };
+
+  const viewRows = (views.data ?? []).filter((r: any) => inRange(r.created_at));
+  const clickRows = (clicks.data ?? []).filter((r: any) => inRange(r.created_at));
   const spendRows = spend.data ?? [];
-  const acqRows = acquisition.data ?? [];
-  const memberRows = (members.data ?? []).filter((m: any) => !m.is_seed && !m.is_provisional);
-  const lpRows = lpSessions.data ?? [];
+  const acqRows = (acquisition.data ?? []).filter((r: any) => inRange(r.created_at));
+  const memberRows = (members.data ?? []).filter(
+    (m: any) => !m.is_seed && !m.is_provisional && inRange(m.created_at)
+  );
+  const lpRows = (lpSessions.data ?? []).filter((r: any) => inRange(r.created_at));
   const fxRows = fx.data ?? [];
 
   /* ---------------------------------------------------------------- currency */
@@ -166,14 +220,29 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
 
   /* ------------------------------------------------------------------ trends */
 
-  const viewsByDay = emptyDayMap(start, end);
-  const clicksByDay = emptyDayMap(start, end);
-  const signupsByDay = emptyDayMap(start, end);
-  const spendByDay = emptyDayMap(start, end);
+  const g = opts.granularity;
+  const viewsByBucket = emptyBucketMap(start, end, g);
+  const clicksByBucket = emptyBucketMap(start, end, g);
+  const signupsByBucket = emptyBucketMap(start, end, g);
 
-  for (const v of viewRows) bump(viewsByDay, istDay(v.created_at));
-  for (const c of clickRows) bump(clicksByDay, istDay(c.created_at));
-  for (const m of memberRows) bump(signupsByDay, istDay(m.created_at));
+  for (const v of viewRows) bump(viewsByBucket, istBucket(v.created_at, g));
+  for (const c of clickRows) bump(clicksByBucket, istBucket(c.created_at, g));
+  for (const m of memberRows) bump(signupsByBucket, istBucket(m.created_at, g));
+
+  // SPEND IS ALWAYS DAY-KEYED, whatever the granularity is, which is why it sits
+  // outside `trends` rather than beside three bucket-keyed series in the same
+  // object. `ad_spend_daily` has no time of day in it — the networks report a
+  // day at a time — so an hourly spend series could only be a daily total
+  // divided by 24. That is not a finer measurement, it is a fabricated one, and
+  // every cost-per-thing derived from it would inherit the fabrication.
+  // Views bucketed by DAY as well, whatever the display granularity is. The
+  // decline anomaly below compares a day against the prior seven days; run over
+  // hourly buckets it would silently start comparing an hour against seven hours
+  // and fire constantly on ordinary overnight quiet.
+  const viewsByDay = g === 'day' ? viewsByBucket : emptyBucketMap(start, end, 'day');
+  if (g !== 'day') for (const v of viewRows) bump(viewsByDay, istBucket(v.created_at, 'day'));
+
+  const spendByDay = emptyBucketMap(start, end, 'day');
   for (const s of spendRows) {
     // Spend is already a network day, not a timestamp — see the migration note
     // about the two not necessarily meaning the same 24 hours.
@@ -363,10 +432,52 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
     anomalies.push(`Spend in a currency with no ${opts.currency} rate was excluded — add a row to ad_fx_rates.`);
   }
 
+  /* ------------------------------------------------------- burst detection */
+
+  // Computed at minute grain regardless of the granularity being displayed,
+  // because the whole point is to catch a spike the chosen bucket size would
+  // average away. A daily chart cannot show this and an hourly one barely can.
+  //
+  // Why it earns a place next to real errors: a single client hammering a
+  // landing page inflates views without inflating taps, so it drags the tap
+  // rate down and makes a working campaign look broken. The first time this
+  // ran on real data, 72 of 139 views in a two-day range turned out to have
+  // landed inside one minute.
+  const viewsByMinute: Record<string, number> = {};
+  for (const v of viewRows) {
+    const key = istBucket(v.created_at, 'minute');
+    if (key) viewsByMinute[key] = (viewsByMinute[key] ?? 0) + 1;
+  }
+  const peakMinute = Object.entries(viewsByMinute).sort((a, b) => b[1] - a[1])[0] ?? null;
+  const totalViews = viewRows.length;
+  const burst =
+    peakMinute && peakMinute[1] >= BURST_MIN_VIEWS && peakMinute[1] / totalViews >= BURST_MIN_SHARE
+      ? { at: peakMinute[0], views: peakMinute[1], shareOfRange: peakMinute[1] / totalViews }
+      : null;
+
+  if (burst) {
+    const pct = Math.round(burst.shareOfRange * 100);
+    anomalies.push(
+      `${burst.views} of ${totalViews} page views (${pct}%) arrived in the single minute ${burst.at} IST — ` +
+        `that is unlikely to be ${burst.views} people, and it deflates every rate computed against views.`
+    );
+  }
+
   return {
-    range: { start, end, days, currency: opts.currency, timezone: IST_TIMEZONE },
+    range: {
+      start,
+      end,
+      days,
+      currency: opts.currency,
+      timezone: IST_TIMEZONE,
+      granularity: g,
+      buckets: Object.keys(viewsByBucket).length
+    },
     minSample: MIN_SAMPLE,
-    trends: { views: viewsByDay, taps: clicksByDay, signups: signupsByDay, spend: spendByDay },
+    trends: { views: viewsByBucket, taps: clicksByBucket, signups: signupsByBucket },
+    // Day-keyed whatever `granularity` is — see the note where it is built.
+    spendDaily: spendByDay,
+    burst,
     leaderboard,
     visitFunnel: {
       visits: visitsWithView.size,

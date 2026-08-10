@@ -193,6 +193,153 @@ export function resolveIstRange(req: IstRangeRequest, today: string = istToday()
 	return { start: start!, end: end!, days: daysBetween(start!, end!), clamped };
 }
 
+/* ─────────────────────────── sub-daily buckets ───────────────────────────── */
+
+/**
+ * How finely a range is sliced for the trend charts.
+ *
+ * Every event table stores a full `created_at`, so none of this needs a schema
+ * change — it only changes where the timestamp gets truncated. `auto` is
+ * resolved to a real granularity by `resolveGranularity` before use.
+ */
+export type Granularity = 'day' | 'hour' | 'quarter' | 'minute';
+
+export const GRANULARITIES: {
+	id: Granularity;
+	label: string;
+	/** Minutes per bucket. */
+	minutes: number;
+	/** Longest range, in IST days, this granularity may be used over. */
+	maxDays: number;
+}[] = [
+	{ id: 'day', label: 'Day', minutes: 1440, maxDays: MAX_RANGE_DAYS },
+	{ id: 'hour', label: 'Hour', minutes: 60, maxDays: 31 },
+	{ id: 'quarter', label: '15 min', minutes: 15, maxDays: 7 },
+	{ id: 'minute', label: 'Minute', minutes: 1, maxDays: 2 }
+];
+
+/**
+ * The caps above exist because bucket count is span ÷ granularity, and nothing
+ * stops that from being absurd: minute buckets over 180 days is 259,200 points,
+ * which is not a chart. Each cap keeps the worst case under ~3,000 buckets.
+ *
+ * They are enforced on the server as well as in the UI, so a hand-edited URL
+ * cannot ask for the absurd version.
+ */
+export function granularityAllowed(g: Granularity, days: number): boolean {
+	const spec = GRANULARITIES.find((x) => x.id === g);
+	return spec ? days <= spec.maxDays : false;
+}
+
+/**
+ * The finest granularity a span may use — what `auto` means.
+ *
+ * Deliberately NOT the finest that fits under the bucket cap. A 7-day range
+ * sliced into minutes is 10,080 buckets of almost entirely zero, which hides the
+ * shape it was meant to reveal. Auto picks the coarsest granularity that still
+ * gives a useful number of buckets, and lets the reader go finer by hand.
+ */
+export function autoGranularity(days: number): Granularity {
+	if (days <= 1) return 'minute';
+	if (days <= 2) return 'quarter';
+	if (days <= 14) return 'hour';
+	return 'day';
+}
+
+/** Validate a requested granularity against a span, falling back to auto. */
+export function resolveGranularity(
+	requested: string | null | undefined,
+	days: number
+): { granularity: Granularity; clamped: boolean } {
+	if (requested && requested !== 'auto') {
+		const g = GRANULARITIES.find((x) => x.id === requested)?.id;
+		if (g && granularityAllowed(g, days)) return { granularity: g, clamped: false };
+		// Asked for something real but too fine for the span, or asked for junk.
+		// Coarsened rather than refused: the reader gets the chart they can have,
+		// and `clamped` lets the UI say the granularity is not the one requested.
+		if (g) return { granularity: autoGranularity(days), clamped: true };
+	}
+	return { granularity: autoGranularity(days), clamped: false };
+}
+
+/** Bucket count for a span. Cheap enough to call before building anything. */
+export function bucketCount(start: string, end: string, g: Granularity): number {
+	const minutes = GRANULARITIES.find((x) => x.id === g)?.minutes ?? 1440;
+	return Math.round((daysBetween(start, end) * 1440) / minutes);
+}
+
+/**
+ * The bucket key a UTC timestamp falls in, at the given granularity.
+ *
+ * Day keys stay bare 'YYYY-MM-DD' so nothing downstream of the existing daily
+ * charts has to change. Finer keys are 'YYYY-MM-DDTHH:MM' — sortable as strings,
+ * which is what every consumer here relies on.
+ */
+export function istBucket(iso: string, g: Granularity): string {
+	const at = new Date(iso);
+	if (Number.isNaN(at.getTime())) return '';
+	const shifted = new Date(at.getTime() + IST_OFFSET_MINUTES * 60_000);
+	if (g === 'day') return shifted.toISOString().slice(0, 10);
+
+	const minutes = GRANULARITIES.find((x) => x.id === g)!.minutes;
+	if (minutes > 1) {
+		// Floor to the bucket boundary within the hour. Done on the shifted clock
+		// so a 15-minute bucket lines up with :00/:15/:30/:45 in Kolkata, which is
+		// what the axis labels claim it does.
+		const m = shifted.getUTCMinutes();
+		shifted.setUTCMinutes(m - (m % minutes), 0, 0);
+	} else {
+		shifted.setUTCSeconds(0, 0);
+	}
+	return shifted.toISOString().slice(0, 16);
+}
+
+/**
+ * Every bucket key across a range, in order, including the empty ones.
+ *
+ * Zero-filling is the point. A chart built only from buckets that had events
+ * draws a line straight across the gaps, which reads as steady low traffic
+ * rather than as nothing happening — the opposite of the truth.
+ */
+export function istBucketKeys(start: string, end: string, g: Granularity): string[] {
+	if (g === 'day') {
+		const out: string[] = [];
+		for (let d = start; d <= end; d = addDays(d, 1)) out.push(d);
+		return out;
+	}
+
+	const minutes = GRANULARITIES.find((x) => x.id === g)!.minutes;
+	const from = Date.parse(`${start}T00:00:00.000Z`);
+	const to = Date.parse(`${addDays(end, 1)}T00:00:00.000Z`);
+	const out: string[] = [];
+	for (let t = from; t < to; t += minutes * 60_000) {
+		out.push(new Date(t).toISOString().slice(0, 16));
+	}
+	return out;
+}
+
+/** A bucket key rendered for an axis: '14:30', or '10 Aug' at day grain. */
+export function formatBucket(key: string, g: Granularity): string {
+	if (g === 'day') {
+		if (!isIstDay(key)) return key;
+		return `${Number(key.slice(8, 10))} ${MONTHS_SHORT[monthOf(key)]}`;
+	}
+	return key.slice(11);
+}
+
+/**
+ * A bucket key rendered in full, for tooltips: '10 Aug, 14:30'.
+ *
+ * The axis is allowed to be terse because the buckets are adjacent; a tooltip is
+ * read in isolation and needs the day, or an hour label is ambiguous across a
+ * multi-day range.
+ */
+export function formatBucketLong(key: string, g: Granularity): string {
+	const day = key.slice(0, 10);
+	const stamp = isIstDay(day) ? formatIstDay(day) : day;
+	return g === 'day' ? stamp : `${stamp}, ${key.slice(11)}`;
+}
+
 export type IstPresetId =
 	| 'today'
 	| 'yesterday'

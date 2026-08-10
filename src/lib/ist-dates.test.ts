@@ -1,17 +1,26 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
+	GRANULARITIES,
 	MAX_RANGE_DAYS,
 	addDays,
+	autoGranularity,
+	bucketCount,
 	dayOfWeek,
 	daysBetween,
+	formatBucket,
+	formatBucketLong,
 	formatIstDay,
 	formatIstRange,
+	granularityAllowed,
 	isIstDay,
+	istBucket,
+	istBucketKeys,
 	istDay,
 	istMonthGrid,
 	istPresetRange,
 	istToday,
 	matchIstPreset,
+	resolveGranularity,
 	resolveIstRange,
 	shiftMonth,
 	IST_PRESETS
@@ -290,6 +299,152 @@ describe('shiftMonth', () => {
 		expect(shiftMonth(2026, 11, 1)).toEqual({ year: 2027, month: 0 });
 		expect(shiftMonth(2026, 0, -1)).toEqual({ year: 2025, month: 11 });
 		expect(shiftMonth(2026, 7, -8)).toEqual({ year: 2025, month: 11 });
+	});
+});
+
+describe('istBucket', () => {
+	it('keeps day granularity as a bare day, so daily consumers are unchanged', () => {
+		expect(istBucket('2026-08-09T20:00:00.000Z', 'day')).toBe('2026-08-10');
+		expect(istBucket('2026-08-09T20:00:00.000Z', 'day')).toBe(istDay('2026-08-09T20:00:00.000Z'));
+	});
+
+	it('floors to the IST hour, not the UTC one', () => {
+		// 07:17 UTC is 12:47 IST — the hour bucket must be 12, not 07.
+		expect(istBucket('2026-08-10T07:17:33.000Z', 'hour')).toBe('2026-08-10T12:00');
+	});
+
+	it('floors 15-minute buckets to :00/:15/:30/:45 on the Kolkata clock', () => {
+		// IST is offset by a half hour, so this is the case a naive floor gets wrong.
+		expect(istBucket('2026-08-10T07:17:33.000Z', 'quarter')).toBe('2026-08-10T12:45');
+		expect(istBucket('2026-08-10T07:14:59.000Z', 'quarter')).toBe('2026-08-10T12:30');
+		expect(istBucket('2026-08-10T07:15:00.000Z', 'quarter')).toBe('2026-08-10T12:45');
+	});
+
+	it('drops seconds for minute buckets', () => {
+		expect(istBucket('2026-08-10T07:17:59.999Z', 'minute')).toBe('2026-08-10T12:47');
+	});
+
+	it('rolls an IST midnight boundary into the next day', () => {
+		// 18:30 UTC is exactly 00:00 IST the following day.
+		expect(istBucket('2026-08-09T18:29:00.000Z', 'hour')).toBe('2026-08-09T23:00');
+		expect(istBucket('2026-08-09T18:30:00.000Z', 'hour')).toBe('2026-08-10T00:00');
+		expect(istBucket('2026-08-09T18:30:00.000Z', 'minute')).toBe('2026-08-10T00:00');
+	});
+
+	it('returns empty string for an unparseable timestamp', () => {
+		expect(istBucket('nonsense', 'hour')).toBe('');
+	});
+});
+
+describe('istBucketKeys', () => {
+	it('covers a single day exactly, with no bucket from the neighbouring days', () => {
+		const hours = istBucketKeys('2026-08-10', '2026-08-10', 'hour');
+		expect(hours).toHaveLength(24);
+		expect(hours[0]).toBe('2026-08-10T00:00');
+		expect(hours[23]).toBe('2026-08-10T23:00');
+	});
+
+	it('produces one key per bucket across a multi-day range', () => {
+		expect(istBucketKeys('2026-08-09', '2026-08-10', 'hour')).toHaveLength(48);
+		expect(istBucketKeys('2026-08-09', '2026-08-10', 'quarter')).toHaveLength(192);
+		expect(istBucketKeys('2026-08-10', '2026-08-10', 'minute')).toHaveLength(1440);
+		expect(istBucketKeys('2026-08-09', '2026-08-10', 'day')).toEqual(['2026-08-09', '2026-08-10']);
+	});
+
+	it('is sorted, unique, and matches bucketCount', () => {
+		for (const g of GRANULARITIES) {
+			const keys = istBucketKeys('2026-08-09', '2026-08-10', g.id);
+			expect(new Set(keys).size, g.id).toBe(keys.length);
+			expect([...keys].sort(), g.id).toEqual(keys);
+			expect(keys.length, g.id).toBe(bucketCount('2026-08-09', '2026-08-10', g.id));
+		}
+	});
+
+	it('contains the bucket every real timestamp in the range maps to', () => {
+		// The zero-fill and the bucketing have to agree, or events land on keys the
+		// chart never draws and silently vanish from the totals.
+		const stamps = [
+			'2026-08-09T18:30:00.000Z', // 00:00 IST on the 10th
+			'2026-08-10T07:17:33.000Z', // 12:47 IST
+			'2026-08-09T18:29:59.000Z', // 23:59 IST on the 9th
+			'2026-08-10T18:29:00.000Z' // 23:59 IST on the 10th
+		];
+		for (const g of GRANULARITIES) {
+			const keys = new Set(istBucketKeys('2026-08-09', '2026-08-10', g.id));
+			for (const s of stamps) {
+				expect(keys.has(istBucket(s, g.id)), `${g.id} ${s}`).toBe(true);
+			}
+		}
+	});
+});
+
+describe('granularity limits', () => {
+	it('caps every granularity under ~3000 buckets at its longest allowed span', () => {
+		for (const g of GRANULARITIES) {
+			const end = '2026-08-10';
+			const start = addDays(end, -(g.maxDays - 1));
+			expect(bucketCount(start, end, g.id), g.id).toBeLessThanOrEqual(3000);
+		}
+	});
+
+	it('allows a granularity only within its span', () => {
+		expect(granularityAllowed('minute', 2)).toBe(true);
+		expect(granularityAllowed('minute', 3)).toBe(false);
+		expect(granularityAllowed('hour', 31)).toBe(true);
+		expect(granularityAllowed('hour', 32)).toBe(false);
+		expect(granularityAllowed('day', MAX_RANGE_DAYS)).toBe(true);
+	});
+
+	it('picks a coarser auto than the cap would permit, so buckets stay meaningful', () => {
+		// 7 days of minutes fits under the caps arithmetic but is 10,080 mostly-empty
+		// buckets — auto deliberately does not go there.
+		expect(autoGranularity(1)).toBe('minute');
+		expect(autoGranularity(2)).toBe('quarter');
+		expect(autoGranularity(7)).toBe('hour');
+		expect(autoGranularity(14)).toBe('hour');
+		expect(autoGranularity(30)).toBe('day');
+		expect(autoGranularity(MAX_RANGE_DAYS)).toBe('day');
+	});
+
+	it('never auto-picks a granularity it would then disallow', () => {
+		for (let days = 1; days <= MAX_RANGE_DAYS; days++) {
+			const g = autoGranularity(days);
+			expect(granularityAllowed(g, days), `${days}d → ${g}`).toBe(true);
+		}
+	});
+});
+
+describe('resolveGranularity', () => {
+	it('honours an explicit granularity that fits', () => {
+		expect(resolveGranularity('hour', 7)).toEqual({ granularity: 'hour', clamped: false });
+	});
+
+	it('coarsens a granularity too fine for the span, and admits it', () => {
+		expect(resolveGranularity('minute', 30)).toEqual({ granularity: 'day', clamped: true });
+		expect(resolveGranularity('quarter', 14)).toEqual({ granularity: 'hour', clamped: true });
+	});
+
+	it('treats auto and absent as auto, without flagging a clamp', () => {
+		expect(resolveGranularity('auto', 30)).toEqual({ granularity: 'day', clamped: false });
+		expect(resolveGranularity(null, 2)).toEqual({ granularity: 'quarter', clamped: false });
+		expect(resolveGranularity(undefined, 1)).toEqual({ granularity: 'minute', clamped: false });
+	});
+
+	it('falls back to auto on junk rather than throwing', () => {
+		expect(resolveGranularity('fortnight', 7)).toEqual({ granularity: 'hour', clamped: false });
+		expect(resolveGranularity('', 7)).toEqual({ granularity: 'hour', clamped: false });
+	});
+});
+
+describe('bucket labels', () => {
+	it('shows only the clock on the axis, and the day too in a tooltip', () => {
+		expect(formatBucket('2026-08-10T12:45', 'quarter')).toBe('12:45');
+		expect(formatBucketLong('2026-08-10T12:45', 'quarter')).toBe('10 Aug 2026, 12:45');
+	});
+
+	it('labels day buckets as a date, not a time', () => {
+		expect(formatBucket('2026-08-10', 'day')).toBe('10 Aug');
+		expect(formatBucketLong('2026-08-10', 'day')).toBe('10 Aug 2026');
 	});
 });
 
