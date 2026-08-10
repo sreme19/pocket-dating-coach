@@ -23,29 +23,10 @@
  */
 
 import { getSupabase } from '$lib/server/supabase';
+import { IST_TIMEZONE, addDays, daysBetween, istDay } from '$lib/ist-dates';
 
 /** Rates computed on fewer than this many observations are suppressed. */
 export const MIN_SAMPLE = 30;
-
-/** Asia/Kolkata is UTC+5:30 year-round — no daylight saving to track. */
-const IST_OFFSET_MINUTES = 330;
-
-export function istDay(iso: string): string {
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return '';
-  return new Date(at.getTime() + IST_OFFSET_MINUTES * 60_000).toISOString().slice(0, 10);
-}
-
-/** Today in IST, so "last 30 days" means the last 30 Indian days. */
-export function istToday(): string {
-  return new Date(Date.now() + IST_OFFSET_MINUTES * 60_000).toISOString().slice(0, 10);
-}
-
-export function addDays(date: string, days: number): string {
-  const at = new Date(`${date}T00:00:00.000Z`);
-  at.setUTCDate(at.getUTCDate() + days);
-  return at.toISOString().slice(0, 10);
-}
 
 /**
  * A rate, or null when the denominator is too small to mean anything.
@@ -81,7 +62,10 @@ function bump(map: Record<string, number>, key: string, by = 1) {
 }
 
 export interface AdAnalyticsOptions {
-  days: number;
+  /** First IST day to include, 'YYYY-MM-DD'. */
+  start: string;
+  /** Last IST day to include, inclusive. */
+  end: string;
   /** Display currency. Spend is stored in the ad account's own currency. */
   currency: 'INR' | 'USD';
 }
@@ -96,8 +80,11 @@ export interface AdAnalyticsOptions {
 export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
   const supabase = getSupabase();
 
-  const end = istToday();
-  const start = addDays(end, -(opts.days - 1));
+  // Already resolved and bounds-checked by resolveIstRange in the endpoint, so
+  // these are trusted here: two real IST days, in order, ending no later than
+  // today and spanning no more than MAX_RANGE_DAYS.
+  const { start, end } = opts;
+  const days = daysBetween(start, end);
   // Queried in UTC with a day of slack on each side, because an IST day starts
   // 5h30m before the UTC one and rows near the boundary belong to a different
   // bucket than a naive UTC range would collect.
@@ -377,7 +364,7 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
   }
 
   return {
-    range: { start, end, days: opts.days, currency: opts.currency, timezone: 'Asia/Kolkata' },
+    range: { start, end, days, currency: opts.currency, timezone: IST_TIMEZONE },
     minSample: MIN_SAMPLE,
     trends: { views: viewsByDay, taps: clicksByDay, signups: signupsByDay, spend: spendByDay },
     leaderboard,

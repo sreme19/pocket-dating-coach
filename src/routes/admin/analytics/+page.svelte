@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
+	import IstDateRangePicker from '$lib/components/IstDateRangePicker.svelte';
+	import { addDays, istPresetRange, istToday } from '$lib/ist-dates';
 
 	let { data }: { data: PageData } = $props();
 
@@ -303,9 +305,30 @@
 	let ads = $state<Record<string, any> | null>(null);
 	let adsLoading = $state(false);
 	let adsError = $state<string | null>(null);
-	let adsDays = $state(30);
+	/**
+	 * The range as explicit IST days rather than a day count.
+	 *
+	 * Sent as start/end on every request, including for the 7d/30d/90d chips —
+	 * one code path, so a preset and a hand-picked range cannot disagree about
+	 * where the window ends.
+	 */
+	let adsToday = $state(istToday());
+	let adsStart = $state(istPresetRange('last30').start);
+	let adsEnd = $state(istPresetRange('last30').end);
 	/** Rupees by default; the toggle converts at display time via ad_fx_rates. */
 	let adsCurrency = $state<'INR' | 'USD'>('INR');
+
+	/** Which quick chip, if any, the current range corresponds to. */
+	const adsChip = $derived(
+		[7, 30, 90].find(
+			(d) => adsStart === addDays(adsEnd, -(d - 1)) && adsEnd === adsToday
+		) ?? null
+	);
+
+	function setAdsDays(days: number) {
+		adsEnd = adsToday;
+		adsStart = addDays(adsToday, -(days - 1));
+	}
 
 	async function loadAds() {
 		adsLoading = true;
@@ -314,7 +337,9 @@
 			// Under /admin deliberately: the session cookie is scoped to that path,
 			// so an endpoint anywhere else never receives it. See the note in
 			// ads-data/+server.ts.
-			const res = await fetch(`/admin/analytics/ads-data?days=${adsDays}&currency=${adsCurrency}`);
+			const res = await fetch(
+				`/admin/analytics/ads-data?start=${adsStart}&end=${adsEnd}&currency=${adsCurrency}`
+			);
 			const body = await res.json();
 			if (!res.ok) throw new Error(body?.error ?? `HTTP ${res.status}`);
 			ads = body;
@@ -331,8 +356,13 @@
 	$effect(() => {
 		if (activeTab !== 'ads') return;
 		// Referenced so the effect re-runs when either control moves.
-		void adsDays;
+		void adsStart;
+		void adsEnd;
 		void adsCurrency;
+		// Re-read the Indian day on every fetch. This dashboard gets left open for
+		// days, and a stale "today" would quietly anchor the 7d/30d chips to
+		// yesterday — the numbers would still look plausible.
+		adsToday = istToday();
 		loadAds();
 	});
 
@@ -1009,13 +1039,24 @@
 		<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-xs">
 			{#each [7, 30, 90] as d}
 				<button
-					onclick={() => (adsDays = d)}
-					class="px-3 py-1.5 transition-colors {adsDays === d
+					onclick={() => setAdsDays(d)}
+					class="px-3 py-1.5 transition-colors {adsChip === d
 						? 'bg-emerald-500/20 text-emerald-400'
 						: 'text-slate-400 hover:text-slate-200'}">{d}d</button
 				>
 			{/each}
 		</div>
+		<!-- Exact dates. Nothing is refetched until Update, so picking a range is
+		     one query rather than one per click. -->
+		<IstDateRangePicker
+			start={adsStart}
+			end={adsEnd}
+			today={adsToday}
+			onapply={({ start, end }) => {
+				adsStart = start;
+				adsEnd = end;
+			}}
+		/>
 		<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-xs">
 			{#each ['INR', 'USD'] as c}
 				<button
@@ -1027,8 +1068,12 @@
 			{/each}
 		</div>
 		{#if ads}
-			<span class="text-[11px] text-slate-600"
-				>{ads.range.start} → {ads.range.end} · days bucketed in {ads.range.timezone}</span
+			<!-- The range the server actually aggregated, which is the only one the
+			     numbers below describe. Says so out loud when it had to adjust the
+			     request rather than letting the picker and the charts disagree. -->
+			<span class="text-[11px] {ads.rangeClamped ? 'text-amber-400' : 'text-slate-600'}"
+				>{ads.rangeClamped ? '⚠ shortened to ' : ''}{ads.range.start} → {ads.range.end} · {ads
+					.range.days} days bucketed in {ads.range.timezone}</span
 			>
 		{/if}
 	</div>

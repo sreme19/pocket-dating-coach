@@ -3,11 +3,19 @@ import type { RequestHandler } from './$types';
 import { buildAdAnalytics } from '$lib/server/ad-analytics';
 import { adSpendConfigStatus } from '$lib/server/ad-spend/sync';
 import { ADMIN_COOKIE, tokenIsValid } from '$lib/server/admin-auth';
+import { resolveIstRange } from '$lib/ist-dates';
 
 /**
+ * GET /admin/analytics/ads-data?start=2026-08-01&end=2026-08-10&currency=INR
  * GET /admin/analytics/ads-data?days=30&currency=INR
  *
  * Everything the admin Ad Analytics tab renders.
+ *
+ * START AND END ARE IST DAYS, and they win over `days` when both are given.
+ * `days` is still accepted so the 7d/30d/90d chips and any bookmarked URL keep
+ * working; it means "the last N Indian days, ending today". Both forms go
+ * through resolveIstRange, so a hand-typed URL cannot ask for tomorrow, a
+ * backwards range, or a span the aggregator will not honour.
  *
  * Fetched when the tab is first opened rather than loaded with the page. The
  * admin/analytics load function already runs ten queries plus a batched
@@ -25,8 +33,6 @@ import { ADMIN_COOKIE, tokenIsValid } from '$lib/server/admin-auth';
  * pages, and its load function does not run for +server.ts routes.
  */
 
-const MAX_DAYS = 180;
-
 export const GET: RequestHandler = async ({ url, cookies }) => {
 	// The same signed token the admin layout checks. Repeated rather than assumed
 	// because this route lives under /api, outside that layout's protection.
@@ -34,16 +40,21 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 		return json({ error: 'unauthorized' }, { status: 401 });
 	}
 
-	const requested = Number(url.searchParams.get('days') ?? 30);
-	const days = Number.isFinite(requested) ? Math.min(Math.max(1, Math.round(requested)), MAX_DAYS) : 30;
+	const range = resolveIstRange({
+		start: url.searchParams.get('start'),
+		end: url.searchParams.get('end'),
+		days: url.searchParams.get('days')
+	});
 	const currency = url.searchParams.get('currency') === 'USD' ? 'USD' : 'INR';
 
 	try {
-		const data = await buildAdAnalytics({ days, currency });
+		const data = await buildAdAnalytics({ start: range.start, end: range.end, currency });
 		// Which credentials each network can see, by name and never by value.
 		// Included here so the health panel can distinguish "not configured yet"
 		// from "configured and returning nothing", which look identical on a chart.
-		return json({ ...data, spendConfig: adSpendConfigStatus() });
+		// `clamped` travels with the range so the UI can say the dates it is
+		// showing are not the dates that were asked for.
+		return json({ ...data, rangeClamped: range.clamped, spendConfig: adSpendConfigStatus() });
 	} catch (err: any) {
 		console.error('[ad-analytics] failed:', err);
 		return json({ error: err?.message ?? String(err) }, { status: 500 });
