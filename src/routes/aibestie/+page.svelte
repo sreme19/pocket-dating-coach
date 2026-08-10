@@ -35,6 +35,12 @@
 	import { page } from '$app/stores';
 	import { STORE_LINKS } from '$lib/store-links';
 	import { reportPageView } from '$lib/marketing/page-view-report';
+	import {
+		initMetaPixel,
+		trackMeta,
+		STORE_CLICK_EVENT as META_STORE_CLICK
+	} from '$lib/marketing/meta-pixel';
+	import { reportStoreClick } from '$lib/marketing/store-click-report';
 	import PublicProfileBody from '$lib/verified-vibe/components/PublicProfileBody.svelte';
 
 	/** Who she is, resolved server-side so the gate paints with her name. */
@@ -108,8 +114,12 @@
 		const incoming = new URLSearchParams($page.url.search);
 		for (const key of [...incoming.keys()]) if (!key.startsWith('utm_')) incoming.delete(key);
 		if (incoming.size === 0) {
-			incoming.set('utm_source', 'snapchat');
-			incoming.set('utm_medium', 'paid_social');
+			// No utm_source in the default, on purpose. This used to claim
+			// `utm_source=snapchat`, written when only Snap pointed here — then a
+			// Meta campaign started sending untagged traffic, and every one of its
+			// installs would have been recorded as Snapchat's. An absent source is
+			// a gap the dashboard shows honestly; a fabricated one is a lie every
+			// later query repeats. The page label still travels via ra_lp below.
 			incoming.set('utm_campaign', 'aibestie_lp');
 		}
 		if (thread?.claimCode) incoming.set('ra_claim', thread.claimCode);
@@ -264,8 +274,31 @@
 		profile = { ...data, moneyMatters: null };
 	}
 
-	function goToStore() {
+	/**
+	 * Off to Google Play, telling everyone who needs to know on the way out.
+	 *
+	 * `which` names the CTA that earned the tap — the header Continue, the
+	 * in-chat signup gate, the profile sheet, the leave sheet. They are four
+	 * different moments of persuasion, and lumping them would hide the only
+	 * question this page exists to answer: what makes a man leave a conversation
+	 * he is enjoying to go install the app.
+	 *
+	 * Three reports, deliberately redundant:
+	 *  - cta-click marks the aibestie_lp_sessions row (first-party funnel);
+	 *  - trackMeta is the browser pixel copy — often lost, because this navigates
+	 *    the SAME tab and the pixel flushes on a ~1s timer, the exact teardown
+	 *    race that zeroed /get's store clicks for a week;
+	 *  - reportStoreClick is the keepalive server copy that survives the
+	 *    teardown, carries fbc/fbp, and shares eventId so Meta dedupes the pair.
+	 */
+	function goToStore(which: string) {
 		if (token) api('/api/aibestie/cta-click', { method: 'POST' }).catch(() => {});
+
+		const campaign = $page.url.searchParams.get('utm_campaign') ?? 'aibestie_lp';
+		const eventId = crypto.randomUUID();
+		trackMeta(META_STORE_CLICK, { cta: which, campaign }, eventId);
+		reportStoreClick({ eventId, page: 'aibestie', cta: which, campaign, url: $page.url });
+
 		window.location.href = storeUrl;
 	}
 
@@ -293,6 +326,24 @@
 			campaign: $page.url.searchParams.get('utm_campaign') ?? 'aibestie_lp',
 			url: $page.url
 		});
+
+		/**
+		 * Meta pixel, now that Meta ads point here. Origin-gated internally, so a
+		 * dev machine never fires it.
+		 *
+		 * A pixel on a CHAT page needs saying why it is safe: initMetaPixel forces
+		 * autoConfig off before init, which is the switch that stops Meta inventing
+		 * events off our buttons and reading the page for contact details — and the
+		 * dataset's "track events automatically" is off too. What Meta receives is
+		 * the URL, the referrer, and exactly the events we send; never the
+		 * conversation. That containment is also why this stays scoped to landing
+		 * pages and must never move into a layout.
+		 *
+		 * Snap deliberately absent here for now — no Snap campaign points at this
+		 * page, and a pixel that fires with no campaign behind it is denominator
+		 * noise in someone else's dashboard.
+		 */
+		initMetaPixel();
 
 		// Only when the server load could not answer. It normally can, so this is the
 		// fallback for a database blip during SSR rather than the usual path.
@@ -402,7 +453,7 @@
 				</span>
 			</button>
 
-			<button class="signup" onclick={goToStore}>Continue</button>
+			<button class="signup" onclick={() => goToStore('header')}>Continue</button>
 		</header>
 
 		<div class="progress">
@@ -458,7 +509,7 @@
 							me is saved — get the app and it goes straight onto your profile.
 						{/if}
 					</p>
-					<button class="cta" onclick={goToStore}>Sign up on Google Play</button>
+					<button class="cta" onclick={() => goToStore('chat_gate')}>Sign up on Google Play</button>
 					{#if thread.claimCode}
 						<p class="cta-code">Your code: <strong>{thread.claimCode}</strong></p>
 					{/if}
@@ -522,7 +573,7 @@
 			-->
 			<div class="profile-cta">
 				<p>Sign up to see the women you'd actually match with — and keep this conversation.</p>
-				<button class="cta" onclick={goToStore}>Sign up on Google Play</button>
+				<button class="cta" onclick={() => goToStore('profile_sheet')}>Sign up on Google Play</button>
 			</div>
 		</div>
 	{/if}
@@ -535,7 +586,7 @@
 				<p>
 					Sign up to see the women you'd actually match with — and keep this conversation.
 				</p>
-				<button class="cta" onclick={goToStore}>Sign up on Google Play</button>
+				<button class="cta" onclick={() => goToStore('leave_sheet')}>Sign up on Google Play</button>
 				<button class="ghost" onclick={() => (showLeaveSheet = false)}>
 					Keep talking to {ownerName}
 				</button>

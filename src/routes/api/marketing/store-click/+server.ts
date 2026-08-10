@@ -30,8 +30,21 @@ import {
  * would be read by nothing and logged as a client error by Vercel.
  */
 
-/** The four CTAs shared by /get and /get-photos. Anything else is not from our pages. */
-const ALLOWED_CTAS = new Set(['hero', 'mid', 'footer', 'sticky']);
+/**
+ * The CTAs each landing page actually has. Per page rather than one shared set:
+ * the closed list is this endpoint's whole defence, and a single pool would let
+ * a forged /get tap wear "chat_gate" — a button /get does not have — and land in
+ * the position-breakdown chart as a phantom row.
+ */
+const ALLOWED_CTAS: Record<string, Set<string>> = {
+  get: new Set(['hero', 'mid', 'footer', 'sticky']),
+  get_photos: new Set(['hero', 'mid', 'footer', 'sticky']),
+  // Four moments of persuasion on a chat page, not four positions on a
+  // brochure: the header Continue, the in-chat signup gate, the profile sheet,
+  // the leave sheet. Which moment converts is the question /aibestie exists to
+  // answer.
+  aibestie: new Set(['header', 'chat_gate', 'profile_sheet', 'leave_sheet'])
+};
 
 /**
  * Meta's identifier formats, both `fb.<subdomainIndex>.<createdMs>.<value>`.
@@ -67,9 +80,16 @@ export const POST: RequestHandler = async ({ request, getClientAddress, url }) =
   const cta = typeof body.cta === 'string' ? body.cta : '';
   const eventId = typeof body.eventId === 'string' ? body.eventId : '';
 
+  // Page resolves BEFORE the CTA check, because the CTA list is per page.
+  // Defaults to 'get' so taps sent by an older cached copy of the page — which
+  // will keep arriving for as long as someone has it open — land as the page
+  // they actually came from rather than as an unknown.
+  const rawPage = typeof body.page === 'string' ? body.page : '';
+  const page = rawPage in PAGE_PATHS ? rawPage : 'get';
+
   // An event id we did not generate is the one field we cannot substitute a
   // default for — it is what stops the networks counting the tap twice.
-  if (!ALLOWED_CTAS.has(cta) || !ID_PATTERN.test(eventId)) {
+  if (!ALLOWED_CTAS[page].has(cta) || !ID_PATTERN.test(eventId)) {
     return noContent;
   }
 
@@ -80,12 +100,6 @@ export const POST: RequestHandler = async ({ request, getClientAddress, url }) =
   // treat a null here as unknown rather than as a visit that did not convert.
   const rawVisitId = typeof body.visitId === 'string' ? body.visitId : '';
   const visitId = ID_PATTERN.test(rawVisitId) ? rawVisitId : null;
-
-  // Defaults to 'get' so taps sent by an older cached copy of the page — which
-  // will keep arriving for as long as someone has it open — land as the page
-  // they actually came from rather than as an unknown.
-  const rawPage = typeof body.page === 'string' ? body.page : '';
-  const page = rawPage in PAGE_PATHS ? rawPage : 'get';
 
   // Dropped silently when malformed rather than passed on: an invalid fbc costs
   // the entire conversion, whereas an absent one only costs match quality.
