@@ -572,18 +572,40 @@ body:has(.blog) {
 }
 
 /* Wide content scrolls inside itself; the page never scrolls sideways. */
-.prose .table-scroll,
-.prose table {
+.prose .table-scroll {
 	display: block;
 	overflow-x: auto;
 	max-width: 100%;
 }
 
+/*
+ * Tables WRAP; they do not scroll sideways.
+ *
+ * These were `display: block; overflow-x: auto; white-space: nowrap`, which is
+ * the standard recipe for a wide numeric table and the wrong one for the tables
+ * this blog actually has. Every one of them is prose — a stage and a paragraph
+ * describing it — so `nowrap` let a single cell grow to 1375px inside a 688px
+ * column, and the reader lost the third column entirely unless they thought to
+ * drag a scrollbar that has no visible affordance on a trackpad. A column you
+ * have to discover is a column nobody reads.
+ *
+ * `display: table` is what restores wrapping: under `display: block` a table's
+ * rows are laid out by an anonymous inner table sized to its content, so
+ * `width: 100%` constrains the outer box and does nothing to the columns inside
+ * it. Going back to a real table means the 100% is binding and long cells break
+ * across lines instead of pushing the row wider.
+ *
+ * `auto` layout rather than `fixed` on purpose: a "Stage" column holding
+ * "3 · Put together" should stay narrow and give its slack to the paragraph next
+ * to it, which is exactly what auto does and fixed refuses to.
+ */
 .prose table {
+	display: table;
+	width: 100%;
 	border-collapse: collapse;
 	font-family: var(--sans);
 	font-size: 0.9375rem;
-	white-space: nowrap;
+	white-space: normal;
 }
 
 .prose th,
@@ -591,6 +613,27 @@ body:has(.blog) {
 	border-bottom: 1px solid var(--rule);
 	padding: 0.5rem 1rem 0.5rem 0;
 	text-align: left;
+	/* A long unbroken string — a URL, an identifier — must not reopen the
+	   overflow this rule block exists to close. */
+	overflow-wrap: break-word;
+}
+
+/*
+ * On a wide screen a table gets the same extra room as a screenshot.
+ *
+ * Same idiom as `.prose img` above, and for the same reason: prose reads best at
+ * 46rem, but a three-column table crammed into 46rem is three narrow ribbons of
+ * text. Widening only the table leaves the paragraphs at their comfortable
+ * measure and gives the grid the space it actually needs. `margin-left: 50%`
+ * with a half-width translate re-centres it on the text column without either
+ * needing to know the other's width.
+ */
+@media (min-width: 64rem) {
+	.prose table {
+		width: min(60rem, calc(100vw - 6rem));
+		margin-left: 50%;
+		transform: translateX(-50%);
+	}
 }
 
 .prose th {
