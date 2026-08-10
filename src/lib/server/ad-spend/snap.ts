@@ -160,11 +160,62 @@ function asInt(value: unknown): number {
 }
 
 /**
- * Daily campaign spend between two dates, inclusive.
+ * The account timezone's UTC offset, as the suffix Snap wants on a timestamp.
  *
- * `start` and `end` are plain YYYY-MM-DD. They are sent as day boundaries in the
- * account's timezone, which is what the API requires and what makes the returned
- * dates line up with the ones the ads dashboard shows.
+ * Derived, not hardcoded. Snap rejects a range whose bounds are not midnight in
+ * the ad account's own timezone, and this account is Asia/Singapore (+08:00)
+ * while the app reports in IST — so a literal '+08:00' works today and silently
+ * misfiles every day the moment a second ad account exists in another zone, or
+ * a zone with daylight saving is used. The account already tells us its timezone;
+ * this turns that into an offset for the specific date being asked about, so a
+ * DST transition inside the window cannot shift the boundary either.
+ */
+export function offsetSuffix(timeZone: string | null, onDate: string): string {
+  if (!timeZone) return '+00:00';
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      timeZoneName: 'longOffset'
+    }).formatToParts(new Date(`${onDate}T12:00:00.000Z`));
+
+    const name = parts.find((p) => p.type === 'timeZoneName')?.value ?? '';
+    // 'GMT+08:00' -> '+08:00'. Plain 'GMT' means zero offset.
+    const match = name.match(/GMT([+-]\d{2}:\d{2})/);
+    if (match) return match[1];
+    if (name === 'GMT') return '+00:00';
+  } catch {
+    // An unrecognised zone name must not take the whole sync down.
+  }
+  return '+00:00';
+}
+
+/** `{ entities: [{ entity: {...} }] }` is Snap's shape for every list endpoint. */
+async function listEntities<T>(token: string, url: string, key: string): Promise<T[]> {
+  const res = await withTimeout(url, { headers: { authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error(`${key} ${res.status}`);
+  const body = (await res.json()) as Record<string, unknown>;
+  const list = (body[key] as Array<Record<string, unknown>>) ?? [];
+  // Each element wraps the object under its singular name.
+  return list.map((row) => row[key.replace(/s$/, '')] as T).filter(Boolean);
+}
+
+/**
+ * Daily ad-set spend between two dates, inclusive.
+ *
+ * AD SET LEVEL, NOT CAMPAIGN. The landing page URLs identify the ad SET — Snap
+ * puts the ad set name in utm_campaign and appends the ad set id itself — so
+ * campaign-level spend cannot be joined to the traffic it paid for. Two live
+ * campaigns also share the identical name `RA_TRAFFIC_GET_IN_BLR_TOF_202608`
+ * with different ids, which makes a campaign name useless as a key even where
+ * one exists.
+ *
+ * NAMES COME FROM THE LIST ENDPOINTS, not from the stats response. Snap's stats
+ * payload carries ids only, which is why the first 35 rows this ever wrote had a
+ * null campaign_name and a leaderboard showing UUIDs. One call each for
+ * campaigns and ad squads maps them back to something a human can read.
+ *
+ * Falls back to the old campaign-level breakdown if the ad-squad listing fails.
+ * Coarse spend that still joins by date is worth far more than no spend at all.
  */
 export async function fetchSnapSpend(start: string, end: string): Promise<FetchResult> {
   const { clientId, clientSecret, refreshToken, adAccountId } = credentials();
@@ -177,34 +228,131 @@ export async function fetchSnapSpend(start: string, end: string): Promise<FetchR
     const token = await accessToken();
     const meta = await accountMeta(token, adAccountId);
 
-    const params = new URLSearchParams({
-      granularity: 'DAY',
-      breakdown: 'campaign',
-      fields: 'spend,impressions,swipes,conversion_purchases',
-      start_time: `${start}T00:00:00.000-00:00`,
-      // Exclusive upper bound: the API takes a half-open range, so the end date
-      // is passed as the following midnight or its own day is silently omitted.
-      end_time: `${addDays(end, 1)}T00:00:00.000-00:00`
-    });
+    // Boundaries must be midnight in the ACCOUNT's zone, not ours.
+    const from = `${start}T00:00:00.000${offsetSuffix(meta.timezone, start)}`;
+    // Exclusive upper bound: the API takes a half-open range, so the end date is
+    // passed as the following midnight or its own day is silently omitted.
+    const toDay = addDays(end, 1);
+    const to = `${toDay}T00:00:00.000${offsetSuffix(meta.timezone, toDay)}`;
 
-    const res = await withTimeout(`${API_BASE}/adaccounts/${adAccountId}/stats?${params}`, {
-      headers: { authorization: `Bearer ${token}` }
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      return { rows: [], error: `stats ${res.status}: ${text.slice(0, 300)}`, configured: true };
+    let squads: Array<{ id?: string; name?: string; campaign_id?: string }>;
+    try {
+      squads = await listEntities(token, `${API_BASE}/adaccounts/${adAccountId}/adsquads?limit=500`, 'adsquads');
+    } catch (err) {
+      const fallback = await fetchCampaignBreakdown(token, adAccountId, from, to, meta);
+      return {
+        ...fallback,
+        error: `ad squad listing failed (${String(err).slice(0, 120)}); fell back to campaign level`
+      };
     }
 
-    const body = await res.json();
+    const campaignNames = new Map<string, string>();
+    try {
+      const campaigns = await listEntities<{ id?: string; name?: string }>(
+        token,
+        `${API_BASE}/adaccounts/${adAccountId}/campaigns?limit=500`,
+        'campaigns'
+      );
+      for (const c of campaigns) if (c.id) campaignNames.set(c.id, c.name ?? '');
+    } catch {
+      // A missing name is cosmetic; a missing ad set id is not. Carry on.
+    }
+
+    const rows: SpendRow[] = [];
+    const errors: string[] = [];
+
+    for (const squad of squads) {
+      if (!squad.id) continue;
+      const params = new URLSearchParams({
+        granularity: 'DAY',
+        fields: 'spend,impressions,swipes,conversion_purchases',
+        start_time: from,
+        end_time: to
+      });
+
+      const res = await withTimeout(`${API_BASE}/adsquads/${squad.id}/stats?${params}`, {
+        headers: { authorization: `Bearer ${token}` }
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        errors.push(`${squad.name ?? squad.id}: ${res.status} ${text.slice(0, 80)}`);
+        continue;
+      }
+
+      for (const point of pointsOf(await res.json())) {
+        const day = (point.start_time ?? '').slice(0, 10);
+        if (!day) continue;
+        const stats = point.stats ?? {};
+        rows.push({
+          network: 'snap',
+          date: day,
+          campaignId: squad.campaign_id ?? '',
+          campaignName: campaignNames.get(squad.campaign_id ?? '') ?? null,
+          adSetId: squad.id,
+          adSetName: squad.name ?? null,
+          creativeId: '',
+          creativeName: null,
+          spend: fromMicro(stats.spend),
+          currency: meta.currency,
+          impressions: asInt(stats.impressions),
+          // A "swipe" is Snap's click. Named as the metric it stands in for so the
+          // leaderboard's CTR column means the same thing across networks.
+          clicks: asInt(stats.swipes),
+          networkConversions: asInt(stats.conversion_purchases),
+          accountTimezone: meta.timezone
+        });
+      }
+    }
+
     return {
-      rows: parseTimeseries(body, meta.currency, meta.timezone),
-      error: null,
+      rows,
+      // Partial failure is reported rather than swallowed: some ad squads
+      // syncing looks identical to all of them syncing on a chart.
+      error: errors.length ? `${errors.length} ad squad(s) failed: ${errors.join(' | ').slice(0, 240)}` : null,
       configured: true
     };
   } catch (err) {
     return { rows: [], error: String(err).slice(0, 300), configured: true };
   }
+}
+
+/** Timeseries points from a single-entity stats response. */
+function pointsOf(body: unknown): Array<{ start_time?: string; stats?: Record<string, unknown> }> {
+  const envelope = body as {
+    timeseries_stats?: Array<{
+      timeseries_stat?: {
+        timeseries?: Array<{ start_time?: string; stats?: Record<string, unknown> }>;
+      };
+    }>;
+  };
+  return envelope?.timeseries_stats?.flatMap((e) => e?.timeseries_stat?.timeseries ?? []) ?? [];
+}
+
+/** The previous campaign-level path, kept only as the degraded fallback. */
+async function fetchCampaignBreakdown(
+  token: string,
+  adAccountId: string,
+  from: string,
+  to: string,
+  meta: { currency: string; timezone: string | null }
+): Promise<FetchResult> {
+  const params = new URLSearchParams({
+    granularity: 'DAY',
+    breakdown: 'campaign',
+    fields: 'spend,impressions,swipes,conversion_purchases',
+    start_time: from,
+    end_time: to
+  });
+
+  const res = await withTimeout(`${API_BASE}/adaccounts/${adAccountId}/stats?${params}`, {
+    headers: { authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    return { rows: [], error: `stats ${res.status}: ${text.slice(0, 300)}`, configured: true };
+  }
+  return { rows: parseTimeseries(await res.json(), meta.currency, meta.timezone), error: null, configured: true };
 }
 
 /**
