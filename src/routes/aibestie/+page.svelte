@@ -391,6 +391,14 @@
 <div class="shell">
 	{#if view === 'gate'}
 		<div class="gate">
+			<!--
+				The hook, above even her photo: the one sentence of positioning the
+				visitor gets before the page starts being a conversation. It states the
+				product's whole difference — a match handed to you, no swiping — and it
+				must NOT crowd the h1 below, which carries the page's honesty ("AI
+				bestie") and keeps that job to itself.
+			-->
+			<p class="gate-kicker">We have given you a Match. No Swiping.</p>
 			<div class="gate-photo">
 				{#if gateOwner?.avatarUrl}
 					<img src={gateOwner.avatarUrl} alt={gateOwner.firstName || 'Her profile'} />
@@ -618,6 +626,16 @@
 		justify-content: center;
 		text-align: center;
 		padding: 2rem 1.5rem;
+	}
+	/* The positioning line above her photo. Styled as a kicker — small, spaced,
+	   confident — so it reads as a banner over the page rather than competing
+	   with the h1, whose disclosure job it must not dilute. */
+	.gate-kicker {
+		font-size: 0.9rem;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		color: var(--accent-bright, #e11d54);
+		margin: 0 0 1rem;
 	}
 	/* Big and flat rather than a small circle: she is what the ad promised, so she
 	   should be the first thing on the page at a size worth looking at. */
