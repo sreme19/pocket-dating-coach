@@ -178,32 +178,38 @@ export function splitTraffic<T extends { user_agent?: string | null; utm?: Recor
  *
  * The id lives in a different parameter per network, which is the sort of thing
  * that silently produces a join of zero rows:
- *   · Snap  — the ad set UUID arrives in utm_id, which SNAPCHAT APPENDS ITSELF.
- *     Verified 2026-08-10: the creative URLs provably contain no utm_id (regex
- *     checked against all eight URL fields) yet every delivered impression
- *     carries one, resolved. utm_campaign holds the ad set NAME rather than the
- *     campaign name, and utm_term arrives either absent or as Snap's own BGID_n.
+ *   · Snap  — utm_term holds the ad set id, from the {{adSet.id}} macro we set on
+ *     each creative. Verified against the Marketing API on 2026-08-10: the
+ *     utm_term values (0a534b93, d3088f25, 5e08f220) are exactly the ad set ids
+ *     the API reports. utm_campaign holds the ad set NAME rather than the
+ *     campaign name.
  *   · Meta  — utm_term holds the ad set id; utm_campaign and utm_id both hold
  *     the campaign id.
  *
- * On Snap both utm_term and utm_id are therefore read, and whichever looks like
- * a UUID wins. We now also set utm_term={{adSet.id}} on the creatives, so the
- * two will agree once that change finishes propagating through ad review — but
- * one is ours and documented while the other is an undocumented injection that
- * could stop at any time, and depending on either alone is a single point of
- * failure for the entire cost-per-signup column.
+ * utm_id IS NOT THE AD SET ON SNAP, and this cost an afternoon to establish.
+ * Snapchat appends it itself — the creatives provably contain no utm_id, yet
+ * every impression carries one resolved — so it looked like a free second source
+ * for the ad set id. It is not: 7807b736, 7de8eaf5 and 7f531190 appear nowhere
+ * in the API's ad set list. It is the AD id. Reading it as an ad set would have
+ * invented ad sets that no spend row can ever match, and produced a leaderboard
+ * of plausible names with permanently empty cost columns. It is kept, separately,
+ * as what it actually is.
  *
- * BGID_n is rejected by the UUID shape test rather than by name, so a value we
- * have not seen before fails closed instead of being joined to nothing.
+ * A macro that failed to resolve arrives as the literal '{{adSet.id}}' and is
+ * rejected by the UUID shape test rather than by name, so an unresolved value we
+ * have not seen before fails closed instead of merging every such row into one
+ * fictitious ad set.
  *
- * Falls back to the ad set name so rows recorded before the id parameters
- * existed still group with their descendants rather than forming a second,
- * spend-less row for the same ad set.
+ * Falls back to the ad set name so rows recorded before the macro was added still
+ * group with their descendants rather than forming a second, spend-less row for
+ * the same ad set.
  */
 export function adSetKeyOf(utm: Record<string, string> | null | undefined): {
   network: 'snap' | 'meta' | 'other';
   adSetId: string | null;
   adSetName: string | null;
+  /** The AD id, one level below the join key. Never the ad set — see above. */
+  adId: string | null;
   key: string;
 } {
   const network = networkOf(utm);
@@ -223,19 +229,27 @@ export function adSetKeyOf(utm: Record<string, string> | null | undefined): {
     return c && UUID.test(c) ? c : null;
   };
 
+  // utm_term on BOTH networks. Snap gets the UUID shape test because an
+  // unresolved macro or Snap's own BGID_n can land there; Meta's ad set ids are
+  // numeric, so shape-testing them as UUIDs would reject every valid one.
   const adSetId =
-    network === 'snap'
-      ? // Ours first, Snap's injection second — see the note above about why both.
-        uuidOrNull(raw.utm_term) ?? uuidOrNull(raw.utm_id)
-      : network === 'meta'
-        ? clean(raw.utm_term)
-        : null;
+    network === 'snap' ? uuidOrNull(raw.utm_term) : network === 'meta' ? clean(raw.utm_term) : null;
+
+  /**
+   * The AD, not the ad set. See the note above — Snap injects utm_id itself and
+   * it is the ad id, so it belongs to a level below the join key. Carried
+   * because it is the only ad-level identifier available, and creative-level
+   * drilldown will want it.
+   */
+  const adId = network === 'snap' ? uuidOrNull(raw.utm_id) : network === 'meta' ? clean(raw.utm_content) : null;
+
   const adSetName = clean(raw.utm_campaign);
 
   return {
     network,
     adSetId,
     adSetName,
+    adId,
     // Network-prefixed so a numeric Meta id can never collide with a Snap one.
     key: adSetId ? `${network}:${adSetId}` : adSetName ? `${network}:name:${adSetName}` : `${network}:(none)`
   };

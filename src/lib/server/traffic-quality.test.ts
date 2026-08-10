@@ -87,11 +87,32 @@ describe('classifyTraffic', () => {
 });
 
 describe('adSetKeyOf', () => {
-  it('reads the ad set id from utm_id on Snap', () => {
-    const k = adSetKeyOf({ ...snapUtm, utm_id: '7807b736-2c88-40ee-be1a-1a4db58d038e' });
+  // Real values, cross-checked against the Snap Marketing API on 2026-08-10.
+  const REAL_AD_SET = '0a534b93-dba8-4a44-8ec4-7afa0d2325a7'; // MEN_25-40_CASUAL_STORY_IND-LPV
+  const REAL_AD = '7807b736-2c88-40ee-be1a-1a4db58d038e'; // Snap's injected utm_id
+
+  it('reads the ad set id from utm_term on Snap', () => {
+    const k = adSetKeyOf({ ...snapUtm, utm_term: REAL_AD_SET });
     expect(k.network).toBe('snap');
-    expect(k.adSetId).toBe('7807b736-2c88-40ee-be1a-1a4db58d038e');
-    expect(k.key).toBe('snap:7807b736-2c88-40ee-be1a-1a4db58d038e');
+    expect(k.adSetId).toBe(REAL_AD_SET);
+    expect(k.key).toBe(`snap:${REAL_AD_SET}`);
+  });
+
+  it('NEVER treats Snap utm_id as the ad set — it is the ad', () => {
+    // utm_id is injected by Snapchat and is the AD id. It appears nowhere in the
+    // API's ad set list, so using it as the join key would invent ad sets that no
+    // spend row can match, and leave the cost column permanently empty behind a
+    // leaderboard of plausible-looking names.
+    const k = adSetKeyOf({ ...snapUtm, utm_id: REAL_AD });
+    expect(k.adSetId).toBeNull();
+    expect(k.adId).toBe(REAL_AD);
+    expect(k.key).toBe('snap:name:men_25_40_casual_story_ind_lpv');
+  });
+
+  it('keeps both when both are present, at their own levels', () => {
+    const k = adSetKeyOf({ ...snapUtm, utm_term: REAL_AD_SET, utm_id: REAL_AD });
+    expect(k.adSetId).toBe(REAL_AD_SET);
+    expect(k.adId).toBe(REAL_AD);
   });
 
   it('reads the ad set id from utm_term on Meta', () => {
@@ -99,11 +120,16 @@ describe('adSetKeyOf', () => {
   });
 
   it('ignores a macro that never resolved', () => {
-    // Snap stores "{{adSet.id}}" verbatim when the macro does not resolve.
-    // Joining on it would merge every unresolved row into one fake ad set.
-    const k = adSetKeyOf({ ...snapUtm, utm_id: '{{adSet.id}}' });
+    // Snap stores "{{adSet.id}}" verbatim when the macro does not resolve — seen
+    // on 13 real impressions. Joining on it would merge every unresolved row into
+    // one fake ad set.
+    const k = adSetKeyOf({ ...snapUtm, utm_term: '{{adSet.id}}' });
     expect(k.adSetId).toBeNull();
     expect(k.key).toBe('snap:name:men_25_40_casual_story_ind_lpv');
+  });
+
+  it('rejects Snap BGID values, which are not ids at all', () => {
+    expect(adSetKeyOf({ ...snapUtm, utm_term: 'BGID_7' }).adSetId).toBeNull();
   });
 
   it('falls back to the ad set name so pre-id rows still group', () => {
