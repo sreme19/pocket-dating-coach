@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
 	import IstDateRangePicker from '$lib/components/IstDateRangePicker.svelte';
-	import { addDays, istPresetRange, istToday } from '$lib/ist-dates';
+	import { istPresetRange, istToday } from '$lib/ist-dates';
 
 	let { data }: { data: PageData } = $props();
 
@@ -306,29 +306,16 @@
 	let adsLoading = $state(false);
 	let adsError = $state<string | null>(null);
 	/**
-	 * The range as explicit IST days rather than a day count.
-	 *
-	 * Sent as start/end on every request, including for the 7d/30d/90d chips —
-	 * one code path, so a preset and a hand-picked range cannot disagree about
-	 * where the window ends.
+	 * The range as explicit IST days rather than a day count, sent as start/end on
+	 * every request. The picker's "Last 7/30/90 days" presets are the only way to
+	 * set one — there is no second control that could disagree with it about where
+	 * the window ends.
 	 */
 	let adsToday = $state(istToday());
 	let adsStart = $state(istPresetRange('last30').start);
 	let adsEnd = $state(istPresetRange('last30').end);
 	/** Rupees by default; the toggle converts at display time via ad_fx_rates. */
 	let adsCurrency = $state<'INR' | 'USD'>('INR');
-
-	/** Which quick chip, if any, the current range corresponds to. */
-	const adsChip = $derived(
-		[7, 30, 90].find(
-			(d) => adsStart === addDays(adsEnd, -(d - 1)) && adsEnd === adsToday
-		) ?? null
-	);
-
-	function setAdsDays(days: number) {
-		adsEnd = adsToday;
-		adsStart = addDays(adsToday, -(days - 1));
-	}
 
 	async function loadAds() {
 		adsLoading = true;
@@ -1036,18 +1023,8 @@
 {#if activeTab === 'ads'}
 	<!-- ── Ad Analytics Tab ──────────────────────────────────────────────── -->
 	<div class="mb-6 flex flex-wrap items-center gap-2">
-		<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-xs">
-			{#each [7, 30, 90] as d}
-				<button
-					onclick={() => setAdsDays(d)}
-					class="px-3 py-1.5 transition-colors {adsChip === d
-						? 'bg-emerald-500/20 text-emerald-400'
-						: 'text-slate-400 hover:text-slate-200'}">{d}d</button
-				>
-			{/each}
-		</div>
-		<!-- Exact dates. Nothing is refetched until Update, so picking a range is
-		     one query rather than one per click. -->
+		<!-- The only range control. Nothing is refetched until Update, so picking a
+		     range is one query rather than one per click. -->
 		<IstDateRangePicker
 			start={adsStart}
 			end={adsEnd}
