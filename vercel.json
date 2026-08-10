@@ -47,6 +47,10 @@
     {
       "path": "/api/cron/ad-spend-sync",
       "schedule": "20 * * * *"
+    },
+    {
+      "path": "/api/cron/ad-health",
+      "schedule": "45 3 * * *"
     }
   ]
 }
