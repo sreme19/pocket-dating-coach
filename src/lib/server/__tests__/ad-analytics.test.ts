@@ -207,3 +207,98 @@ describe('burst detection', () => {
 		expect(Number.isNaN(d.visitFunnel.tapRate as number)).toBe(false);
 	});
 });
+
+/**
+ * The second bug these tests exist for.
+ *
+ * Snap's ad-review crawler fetches the landing page every time a creative is
+ * edited. Measured on production 2026-08-10: 84 of 139 rows were crawler, from
+ * desktop macOS, country US, on India-only campaigns. Counted as views it
+ * inflates the denominator without inflating taps, so every rate deflates and
+ * the campaigns flatten toward each other — worst on whichever one was most
+ * recently edited, which is exactly the one being judged.
+ */
+const REAL_AD_SET = '0a534b93-dba8-4a44-8ec4-7afa0d2325a7';
+const SNAP_UTM = { utm_source: 'snapchat', utm_campaign: 'men_lpv', utm_term: REAL_AD_SET };
+
+const mobileView = (iso: string) => ({
+	created_at: iso,
+	page: 'get',
+	campaign: 'men_lpv',
+	country: 'IN',
+	user_agent: 'Mozilla/5.0 (Linux; Android 15; CPH2825) AppleWebKit/537.36',
+	utm: SNAP_UTM,
+	visit_id: null
+});
+const crawlerView = (iso: string) => ({
+	...mobileView(iso),
+	country: 'US',
+	user_agent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15'
+});
+
+describe('crawler traffic is set aside, not counted', () => {
+	it('keeps mobile Snap traffic and excludes desktop Snap traffic', async () => {
+		rows.marketing_page_views = [
+			mobileView('2026-08-10T07:00:00.000Z'),
+			mobileView('2026-08-10T07:01:00.000Z'),
+			crawlerView('2026-08-10T07:02:00.000Z'),
+			crawlerView('2026-08-10T07:02:01.000Z'),
+			crawlerView('2026-08-10T07:02:02.000Z')
+		];
+
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+
+		expect(d.traffic.viewsCounted).toBe(2);
+		expect(d.traffic.viewsExcluded).toBe(3);
+		expect(d.traffic.byReason.desktop_on_snap.count).toBe(3);
+		// The trend must show the real number, not the inflated one.
+		expect(d.trends.views).toEqual({ '2026-08-10': 2 });
+	});
+
+	it('joins spend to traffic on the ad set id', async () => {
+		rows.marketing_page_views = [mobileView('2026-08-10T07:00:00.000Z')];
+		rows.ad_spend_daily = [
+			{
+				network: 'snap',
+				date: '2026-08-10',
+				campaign_id: 'c',
+				campaign_name: 'RA_TRAFFIC',
+				ad_set_id: REAL_AD_SET,
+				ad_set_name: 'MEN_25-40_CASUAL_STORY_IND-LPV',
+				creative_id: '',
+				spend: '100',
+				currency: 'INR',
+				impressions: 1000,
+				clicks: 10,
+				network_conversions: 0,
+				account_timezone: 'Asia/Singapore',
+				fetched_at: '2026-08-10T08:00:00.000Z'
+			}
+		];
+
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+
+		// One row, not two — spend and its traffic must land together.
+		const row = d.leaderboard.find((r: any) => r.adSetId === REAL_AD_SET);
+		expect(row).toBeDefined();
+		expect(row!.spend).toBe(100);
+		expect(row!.views).toBe(1);
+		expect(row!.costPerView).toBe(100);
+		// 1 view against 10 network clicks — the billed-but-never-arrived leak.
+		expect(row!.clickToViewRate).toBeCloseTo(0.1);
+		expect(d.leaderboard.filter((r: any) => r.spend > 0)).toHaveLength(1);
+	});
+
+	it('never folds an unresolvable ad set into a real one', async () => {
+		rows.marketing_page_views = [
+			mobileView('2026-08-10T07:00:00.000Z'),
+			// Macro never resolved — must not join to the real ad set above.
+			{ ...mobileView('2026-08-10T07:05:00.000Z'), utm: { ...SNAP_UTM, utm_term: '{{adSet.id}}' } }
+		];
+
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+
+		expect(d.traffic.viewsWithoutAdSet).toBe(1);
+		expect(d.leaderboard.find((r: any) => r.adSetId === REAL_AD_SET)!.views).toBe(1);
+	});
+});

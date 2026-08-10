@@ -32,6 +32,7 @@ import {
   istDay,
   type Granularity
 } from '$lib/ist-dates';
+import { REASON_LABEL, adSetKeyOf, splitTraffic } from '$lib/server/traffic-quality';
 
 /** Rates computed on fewer than this many observations are suppressed. */
 export const MIN_SAMPLE = 30;
@@ -130,7 +131,12 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
       .lte('created_at', toIso),
     supabase
       .from('marketing_store_clicks')
-      .select('visit_id,page,cta,campaign,country,snap_forwarded,meta_forwarded,forward_error,created_at')
+      // user_agent and utm are load-bearing, not extra: without them every tap
+      // classifies as "no user agent" and is excluded, and no tap can be joined
+      // to an ad set. Omitting them silently zeroes the tap column.
+      .select(
+        'visit_id,page,cta,campaign,country,user_agent,utm,snap_forwarded,meta_forwarded,forward_error,created_at'
+      )
       .gte('created_at', fromIso)
       .lte('created_at', toIso),
     supabase.from('ad_spend_daily').select('*').gte('date', start).lte('date', end),
@@ -178,8 +184,27 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
     return d >= start && d <= end;
   };
 
-  const viewRows = (views.data ?? []).filter((r: any) => inRange(r.created_at));
-  const clickRows = (clicks.data ?? []).filter((r: any) => inRange(r.created_at));
+  const viewsInRange = (views.data ?? []).filter((r: any) => inRange(r.created_at));
+  const clicksInRange = (clicks.data ?? []).filter((r: any) => inRange(r.created_at));
+
+  /**
+   * SET ASIDE WHAT WAS NEVER A PAID CLICK, BEFORE ANYTHING IS COUNTED.
+   *
+   * Sixty percent of the landing-page table was Snap's ad-review crawler — it
+   * fetches the page every time a creative is edited, from desktop macOS, in
+   * bursts, on campaigns targeting India only. Left in, it inflates views
+   * without inflating taps, so every rate deflates and every campaign flattens
+   * toward the others; and it flattens worst whichever campaign was most
+   * recently edited, which is exactly the one being evaluated.
+   *
+   * Both halves are kept. `traffic` below reports how many rows were set aside
+   * and why, so a reader can see the denominator was reduced rather than
+   * discovering a quietly smaller number.
+   */
+  const viewSplit = splitTraffic<any>(viewsInRange);
+  const clickSplit = splitTraffic<any>(clicksInRange);
+  const viewRows = viewSplit.counted;
+  const clickRows = clickSplit.counted;
   const spendRows = spend.data ?? [];
   const acqRows = (acquisition.data ?? []).filter((r: any) => inRange(r.created_at));
   const memberRows = (members.data ?? []).filter(
@@ -249,10 +274,27 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
     if (s.date >= start && s.date <= end) bump(spendByDay, s.date, toDisplay(Number(s.spend), s.currency, s.date));
   }
 
-  /* ------------------------------------------------------- campaign rollup */
+  /* -------------------------------------------------------- ad set rollup */
 
-  type Campaign = {
+  /**
+   * KEYED ON AD SET, NOT CAMPAIGN, because that is the only key both sides share.
+   *
+   * The landing page URLs identify the ad set: Snap puts the ad set NAME in
+   * utm_campaign and the ad set id in utm_term. Spend arrives from the Marketing
+   * API keyed on ad_set_id. Grouping on a campaign name instead matches nothing —
+   * Snap's stats carry ids with no names, and two live campaigns share the
+   * identical name `RA_TRAFFIC_GET_IN_BLR_TOF_202608` with different ids, so a
+   * campaign name is not even unique. The result was a leaderboard with spend on
+   * one row and the traffic it paid for on another.
+   *
+   * The ad set is also the right unit of decision: one audience, one placement,
+   * one optimisation goal.
+   */
+  type AdSet = {
+    /** Display label. Named `campaign` so existing UI bindings keep working. */
     campaign: string;
+    adSetId: string | null;
+    network: string;
     spend: number;
     impressions: number;
     networkClicks: number;
@@ -260,12 +302,13 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
     taps: number;
     signups: number;
   };
-  const campaigns = new Map<string, Campaign>();
-  const of = (name: string | null | undefined): Campaign => {
-    const key = name && name.trim() ? name : '(none)';
-    if (!campaigns.has(key)) {
-      campaigns.set(key, {
-        campaign: key,
+  const adSets = new Map<string, AdSet>();
+  const of = (key: string, label: string | null, network: string, adSetId: string | null): AdSet => {
+    if (!adSets.has(key)) {
+      adSets.set(key, {
+        campaign: label && label.trim() ? label : '(unattributed)',
+        adSetId,
+        network,
         spend: 0,
         impressions: 0,
         networkClicks: 0,
@@ -274,20 +317,45 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
         signups: 0
       });
     }
-    return campaigns.get(key)!;
+    const row = adSets.get(key)!;
+    // Spend knows the real ad set name; traffic only knows what the ad URL said.
+    // Prefer whichever arrives with a proper label.
+    if (label && label.trim() && row.campaign === '(unattributed)') row.campaign = label;
+    return row;
   };
 
   for (const s of spendRows) {
-    const c = of(s.campaign_name ?? s.campaign_id);
-    c.spend += toDisplay(Number(s.spend), s.currency, s.date);
-    c.impressions += Number(s.impressions ?? 0);
-    c.networkClicks += Number(s.clicks ?? 0);
+    const id = s.ad_set_id || null;
+    const key = id ? `${s.network}:${id}` : `${s.network}:name:${s.campaign_name ?? s.campaign_id}`;
+    const row = of(key, s.ad_set_name ?? s.campaign_name ?? s.campaign_id, s.network, id);
+    row.spend += toDisplay(Number(s.spend), s.currency, s.date);
+    row.impressions += Number(s.impressions ?? 0);
+    row.networkClicks += Number(s.clicks ?? 0);
   }
-  for (const v of viewRows) of(v.campaign).views += 1;
-  for (const c of clickRows) of(c.campaign).taps += 1;
-  for (const a of acqRows) of(a.campaign).signups += 1;
 
-  const leaderboard = [...campaigns.values()]
+  // Traffic rows that carry no resolvable ad set still have to be counted
+  // somewhere, or the totals stop adding up. They land under their ad set name,
+  // or `(unattributed)` — never silently folded into a real ad set.
+  let unjoinedViews = 0;
+  for (const v of viewRows) {
+    const k = adSetKeyOf(v.utm);
+    if (!k.adSetId) unjoinedViews += 1;
+    // `campaign` is the denormalised utm_campaign on the row itself, and is the
+    // only label available for traffic recorded before the utm parameters existed.
+    of(k.key, k.adSetName ?? v.campaign, k.network, k.adSetId).views += 1;
+  }
+  for (const c of clickRows) {
+    const k = adSetKeyOf(c.utm);
+    of(k.key, k.adSetName ?? c.campaign, k.network, k.adSetId).taps += 1;
+  }
+  for (const a of acqRows) {
+    // user_acquisition stores the ad set id in `ad_set`, from the install referrer.
+    const key = a.ad_set ? `${a.network === 'snapchat' ? 'snap' : a.network}:${a.ad_set}` : null;
+    if (key) of(key, a.campaign, a.network ?? 'other', a.ad_set).signups += 1;
+    else of(`${a.network ?? 'other'}:name:${a.campaign}`, a.campaign, a.network ?? 'other', null).signups += 1;
+  }
+
+  const leaderboard = [...adSets.values()]
     .map((c) => ({
       ...c,
       // Per-visit, not two totals divided by each other: a visit that produced
@@ -296,6 +364,14 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
       signupRate: rate(c.signups, c.taps),
       costPerSignup: c.signups > 0 && c.spend > 0 ? c.spend / c.signups : null,
       costPerTap: c.taps > 0 && c.spend > 0 ? c.spend / c.taps : null,
+      costPerView: c.views > 0 && c.spend > 0 ? c.spend / c.views : null,
+      /**
+       * How many of the clicks the network charged for actually became a page
+       * view. Measured at 12–39% on live data, so most of what is billed never
+       * arrives — a leak upstream of every other number here, and invisible
+       * unless network clicks and first-party views sit in the same row.
+       */
+      clickToViewRate: c.networkClicks > 0 ? c.views / c.networkClicks : null,
       tapRateInterval: c.views > 0 ? wilson(c.taps, c.views) : null
     }))
     .sort((a, b) => b.spend - a.spend || b.views - a.views);
@@ -474,6 +550,26 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
       buckets: Object.keys(viewsByBucket).length
     },
     minSample: MIN_SAMPLE,
+    /**
+     * What was set aside, and why. Reported rather than silently applied: a
+     * filter nobody can see is one that eventually drops something real without
+     * anyone noticing, and the excluded share here is large enough (60% on first
+     * measurement) that a reader deserves to know the denominator moved.
+     */
+    traffic: {
+      viewsCounted: viewRows.length,
+      viewsExcluded: viewSplit.excluded.length,
+      tapsCounted: clickRows.length,
+      tapsExcluded: clickSplit.excluded.length,
+      byReason: Object.fromEntries(
+        Object.entries(viewSplit.byReason).map(([reason, n]) => [
+          reason,
+          { count: n, label: REASON_LABEL[reason as keyof typeof REASON_LABEL] ?? reason }
+        ])
+      ),
+      /** Views with no resolvable ad set — pre-macro rows; shrinks to zero on its own. */
+      viewsWithoutAdSet: unjoinedViews
+    },
     trends: { views: viewsByBucket, taps: clicksByBucket, signups: signupsByBucket },
     // Day-keyed whatever `granularity` is — see the note where it is built.
     spendDaily: spendByDay,
