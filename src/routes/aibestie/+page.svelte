@@ -218,6 +218,9 @@
 	async function send() {
 		const content = draft.trim();
 		if (!content || sending || closed) return;
+		// Decided BEFORE the optimistic append below puts his words into the
+		// thread, or every first message would look like a follow-up.
+		const isFirstMessage = !thread?.messages?.some((m: any) => !m.fromOwner);
 		sending = true;
 		draft = '';
 		// Optimistic: his own words appear instantly. The server's copy replaces
@@ -237,7 +240,31 @@
 				method: 'POST',
 				body: JSON.stringify({ content })
 			});
-			if (!res.ok) draft = content; // give it back rather than swallowing it
+			if (!res.ok) {
+				draft = content; // give it back rather than swallowing it
+			} else if (isFirstMessage) {
+				/**
+				 * The event this page's thesis turns on, told to Meta as a count and
+				 * nothing else. Between PageView and StoreClick Meta heard silence, so
+				 * it could only ever optimise for arrivals — the cheapest thing in the
+				 * chain. First messages are the mid-funnel signal frequent enough to
+				 * become the campaign's optimisation event long before installs reach
+				 * the ~50/week Meta needs to learn from.
+				 *
+				 * No content, no length, no timing — the containment argument for
+				 * having a pixel on a chat page at all does not bend for this event.
+				 * Fired only after the server accepted the message: a rejected first
+				 * send is not a conversation. No teardown race here (the page stays
+				 * up), so the browser copy alone is reliable; the eventID is carried
+				 * anyway so a server-side copy can be added later without double
+				 * counting.
+				 */
+				trackMeta(
+					'ChatStarted',
+					{ campaign: $page.url.searchParams.get('utm_campaign') ?? 'aibestie_lp' },
+					crypto.randomUUID()
+				);
+			}
 			await loadThread();
 		} finally {
 			sending = false;
