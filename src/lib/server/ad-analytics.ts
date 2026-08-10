@@ -49,6 +49,15 @@ export const BURST_MIN_VIEWS = 10;
 export const BURST_MIN_SHARE = 0.2;
 
 /**
+ * Clicks charged for, with zero arrivals, before it is called a broken
+ * destination rather than ordinary drop-off.
+ *
+ * Twenty is comfortably past the point where "everyone happened to bounce before
+ * the beacon fired" stops being a plausible explanation.
+ */
+export const PAID_NO_TRAFFIC_MIN_CLICKS = 20;
+
+/**
  * A rate, or null when the denominator is too small to mean anything.
  *
  * Returning null rather than 0 matters: zero is a finding, "we cannot tell" is
@@ -473,7 +482,31 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
        * unless network clicks and first-party views sit in the same row.
        */
       clickToViewRate: c.networkClicks > 0 ? c.views / c.networkClicks : null,
-      tapRateInterval: c.views > 0 ? wilson(c.taps, c.views) : null
+      tapRateInterval: c.views > 0 ? wilson(c.taps, c.views) : null,
+      /**
+       * Any evidence of activity in this range, from either side.
+       *
+       * Deliberately not `spend > 0 || impressions > 0`. Meta traffic arrives
+       * with no spend rows at all, because those credentials were never set, and
+       * an ad set with 13 landing-page views is plainly running — calling it
+       * "not delivering" because the spend feed is silent would report a
+       * configuration gap as an ad decision. Traffic counts as evidence.
+       *
+       * So `false` means genuinely inert here: nothing served, nothing charged,
+       * nobody arrived.
+       */
+      delivering:
+        c.spend > 0 || c.impressions > 0 || c.networkClicks > 0 || c.views > 0 || c.taps > 0,
+      /**
+       * Serving and being charged for, but nothing reaching the landing page.
+       *
+       * The worst state on this table and the one that looks quietest: it sits
+       * among the delivering rows with a plausible spend and a column of zeros.
+       * Live, two ad sets had 346 clicks Snap charged for and not one page view,
+       * while the -LPV variants of the same audiences converted 47-54% — that is
+       * a destination that does not land, not an audience that did not swipe.
+       */
+      paidButNoTraffic: (c.impressions > 0 || c.networkClicks > 0) && c.views === 0
     }))
     .sort((a, b) => b.spend - a.spend || b.views - a.views);
 
@@ -626,6 +659,21 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
     if (c.taps >= MIN_SAMPLE && c.signups === 0) {
       anomalies.push(`${c.campaign}: ${c.taps} store taps and zero attributed signups.`);
     }
+    /**
+     * Paid clicks that never arrived. Flagged above the charts because it is a
+     * spend leak rather than a performance reading: the ad set looks merely quiet
+     * on the leaderboard while the network bills for clicks that land nowhere.
+     *
+     * Gated on the click count, not just impressions — a handful of clicks with
+     * no view is ordinary drop-off, hundreds is a destination that does not work.
+     */
+    if (c.paidButNoTraffic && c.networkClicks >= PAID_NO_TRAFFIC_MIN_CLICKS) {
+      anomalies.push(
+        `${c.campaign}: ${c.networkClicks} clicks charged for and zero landing page views` +
+          `${c.spend > 0 ? ` (${Math.round(c.spend)} ${opts.currency} spent)` : ''} — ` +
+          `check where this ad set actually points.`
+      );
+    }
   }
   if (fxMissing) {
     anomalies.push(`Spend in a currency with no ${opts.currency} rate was excluded — add a row to ad_fx_rates.`);
@@ -675,6 +723,9 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
       audience: audienceFilter
     },
     minSample: MIN_SAMPLE,
+    // Shared so the row badge and the anomaly agree on when zero arrivals is a
+    // broken destination rather than ordinary drop-off.
+    paidNoTrafficMinClicks: PAID_NO_TRAFFIC_MIN_CLICKS,
     // Unfiltered, always — so narrowing the page never hides what it narrowed
     // away, and the filter chips can carry their own counts.
     facets,

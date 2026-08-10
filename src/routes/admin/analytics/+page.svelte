@@ -387,6 +387,28 @@
 	 * gender is reported separately and is deliberately not tied to this.
 	 */
 	let adsAudience = $state<'all' | 'men' | 'women' | 'unknown'>('all');
+	/**
+	 * Leaderboard-only, and applied CLIENT-SIDE on purpose.
+	 *
+	 * Unlike network and audience, delivery is a property of an ad set rather than
+	 * of a traffic row, so it filters table rows and must not touch the trend chart
+	 * or the totals. Everything it needs is already in the response, so there is no
+	 * refetch and no round trip.
+	 */
+	let adsDelivery = $state<'all' | 'delivering' | 'idle'>('all');
+
+	const adsLeaderboard = $derived(
+		((ads?.leaderboard ?? []) as any[]).filter(
+			(r) =>
+				adsDelivery === 'all' ||
+				(adsDelivery === 'delivering' ? r.delivering : !r.delivering)
+		)
+	);
+	const adsDeliveryCounts = $derived({
+		all: ((ads?.leaderboard ?? []) as any[]).length,
+		delivering: ((ads?.leaderboard ?? []) as any[]).filter((r) => r.delivering).length,
+		idle: ((ads?.leaderboard ?? []) as any[]).filter((r) => !r.delivering).length
+	});
 
 	const NETWORK_CHIPS = [
 		{ id: 'all', label: 'All' },
@@ -1564,7 +1586,29 @@
 		<!-- Ad set leaderboard. Named for what the rows actually are: the rollup is
 		     keyed on ad set, because that is the only key spend and traffic share. -->
 		<div class="card mb-6 overflow-x-auto">
-			<div class="chart-title">Ad set leaderboard · spend in {adsCurrency}</div>
+			<div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+				<div class="chart-title mb-0">Ad set leaderboard · spend in {adsCurrency}</div>
+				<!-- Delivery. Filters rows only — an idle ad set contributes no traffic
+				     by definition, so hiding it must not move the charts above. -->
+				<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-xs">
+					{#each [{ id: 'all', label: 'All' }, { id: 'delivering', label: 'Delivering' }, { id: 'idle', label: 'Not delivering' }] as chip}
+						<button
+							onclick={() => (adsDelivery = chip.id as typeof adsDelivery)}
+							title={chip.id === 'idle'
+								? 'Nothing served, nothing charged, nobody arrived in this range'
+								: chip.id === 'delivering'
+									? 'Any activity in this range — impressions, clicks, spend, views or taps'
+									: 'Every ad set either side has seen'}
+							class="px-3 py-1.5 transition-colors {adsDelivery === chip.id
+								? 'bg-emerald-500/20 text-emerald-400'
+								: 'text-slate-400 hover:text-slate-200'}"
+							>{chip.label}<span class="ml-1 opacity-50"
+								>{adsDeliveryCounts[chip.id as keyof typeof adsDeliveryCounts]}</span
+							></button
+						>
+					{/each}
+				</div>
+			</div>
 			<!-- 13px over text-xs, and values at slate-200 rather than slate-400:
 			     slate-400 on this background is about 4:1, under the 4.5:1 threshold,
 			     and it failed worst on the numeric columns where it matters most.
@@ -1583,9 +1627,29 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each ads.leaderboard as c}
+					{#each adsLeaderboard as c}
 						<tr class="border-t border-white/[0.04]">
-							<td class="py-1.5 text-slate-200">{c.campaign}</td>
+							<td class="py-1.5 text-slate-200"
+								>{c.campaign}
+								{#if c.paidButNoTraffic && c.networkClicks >= ads.paidNoTrafficMinClicks}
+									<!-- Said on the row, not left to be inferred from a line of
+									     zeros: this one is being billed for clicks that never
+									     arrive, which reads as "quiet" without the badge. Gated on
+									     the same threshold as the anomaly, so a single click with no
+									     view does not get a red badge it has not earned. -->
+									<span
+										class="ml-1.5 whitespace-nowrap rounded bg-rose-500/15 px-1.5 py-0.5 text-[10px] text-rose-300"
+										title="{c.networkClicks} clicks charged for, zero landing page views — check where this ad set points"
+										>no arrivals</span
+									>
+								{:else if !c.delivering}
+									<span
+										class="ml-1.5 whitespace-nowrap rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-slate-500"
+										title="Nothing served, nothing charged, nobody arrived in this range"
+										>idle</span
+									>
+								{/if}
+							</td>
 							<!-- A literal zero stays dim so a row of zeros does not compete with
 							     the rows that actually have data. -->
 							<td class="text-right tabular-nums text-slate-200"
@@ -1614,7 +1678,15 @@
 							>
 						</tr>
 					{:else}
-						<tr><td colspan="8" class="py-6 text-center text-slate-600">No ad set data in this window.</td></tr>
+						<!-- Distinguishes "the filter hid everything" from "there is nothing
+						     here", which look identical as an empty table. -->
+						<tr
+							><td colspan="8" class="py-6 text-center text-slate-600"
+								>{adsDelivery === 'all'
+									? 'No ad set data in this window.'
+									: `No ad set is ${adsDelivery === 'delivering' ? 'delivering' : 'idle'} in this window.`}</td
+							></tr
+						>
 					{/each}
 				</tbody>
 			</table>

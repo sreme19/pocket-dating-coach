@@ -364,6 +364,97 @@ describe('network and audience filters', () => {
 	});
 });
 
+describe('delivery state', () => {
+	const SPEND = (over: Record<string, any>) => ({
+		network: 'snap',
+		date: '2026-08-10',
+		campaign_id: 'c',
+		campaign_name: 'n',
+		ad_set_id: 'a1b2c3d4-1111-2222-3333-444455556666',
+		ad_set_name: 'AD_SET_A',
+		creative_id: '',
+		spend: '0',
+		currency: 'INR',
+		impressions: 0,
+		clicks: 0,
+		network_conversions: 0,
+		fetched_at: '2026-08-10T01:00:00.000Z',
+		...over
+	});
+	const row = (d: any, name: string) => d.leaderboard.find((r: any) => r.campaign === name);
+
+	it('counts impressions alone as delivering, even before anything is charged', async () => {
+		rows.ad_spend_daily = [SPEND({ impressions: 55, clicks: 1, spend: '0' })];
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+		expect(row(d, 'AD_SET_A').delivering).toBe(true);
+	});
+
+	it('counts traffic alone as delivering, because a silent spend feed is not a paused ad set', async () => {
+		// Meta arrives with no spend rows at all — the credentials were never set.
+		// Calling 13 landing page views "not delivering" would report a config gap
+		// as an ad decision.
+		rows.marketing_page_views = [
+			{
+				...V('2026-08-10T07:00:00.000Z', '6978093820881'),
+				user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148',
+				utm: { utm_source: 'ig', utm_campaign: '6978093820881' }
+			}
+		];
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+		expect(row(d, '6978093820881').delivering).toBe(true);
+	});
+
+	it('is not delivering only when nothing happened on either side', async () => {
+		rows.ad_spend_daily = [SPEND({ ad_set_name: 'IDLE_SET', impressions: 0, clicks: 0, spend: '0' })];
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+		expect(row(d, 'IDLE_SET').delivering).toBe(false);
+		expect(row(d, 'IDLE_SET').paidButNoTraffic).toBe(false);
+	});
+
+	it('flags clicks charged for with zero arrivals, and says so above the charts', async () => {
+		rows.ad_spend_daily = [
+			SPEND({ ad_set_name: 'BROKEN_DEST', impressions: 2292, clicks: 252, spend: '61' })
+		];
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+
+		const r = row(d, 'BROKEN_DEST');
+		// Delivering — money is moving — but nothing is arriving. Both are true and
+		// the second is the actionable one.
+		expect(r.delivering).toBe(true);
+		expect(r.paidButNoTraffic).toBe(true);
+		expect(d.anomalies.join(' ')).toContain('BROKEN_DEST');
+		expect(d.anomalies.join(' ')).toContain('252 clicks charged for');
+	});
+
+	it('does not cry broken on a handful of clicks that simply bounced', async () => {
+		rows.ad_spend_daily = [SPEND({ ad_set_name: 'QUIET', impressions: 55, clicks: 1, spend: '1' })];
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+		// The row still carries the flag, but it is below the threshold to shout.
+		expect(row(d, 'QUIET').paidButNoTraffic).toBe(true);
+		expect(d.anomalies.join(' ')).not.toContain('QUIET');
+	});
+
+	it('clears the flag as soon as one view arrives', async () => {
+		rows.ad_spend_daily = [
+			SPEND({ ad_set_name: 'AD_SET_A', impressions: 2292, clicks: 252, spend: '61' })
+		];
+		rows.marketing_page_views = [
+			{
+				...V('2026-08-10T07:00:00.000Z', 'AD_SET_A'),
+				user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148',
+				utm: {
+					utm_source: 'snapchat',
+					utm_campaign: 'AD_SET_A',
+					utm_term: 'a1b2c3d4-1111-2222-3333-444455556666'
+				}
+			}
+		];
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+		expect(row(d, 'AD_SET_A').paidButNoTraffic).toBe(false);
+		expect(d.anomalies.join(' ')).not.toContain('clicks charged for');
+	});
+});
+
 describe('burst detection', () => {
 	const many = (n: number, iso: string) => Array.from({ length: n }, () => V(iso));
 
