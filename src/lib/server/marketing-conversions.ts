@@ -43,6 +43,13 @@ export interface StoreClickInput {
   visitId: string | null;
   /** Which landing page earned the tap — 'get' | 'get_photos' | 'aibestie'. */
   page: string;
+  /**
+   * Meta's click identifier, from fbclid. The strongest match signal available:
+   * it identifies the click itself rather than inferring a person from a device.
+   */
+  fbc: string | null;
+  /** Meta's browser identifier, the `_fbp` cookie the pixel set. */
+  fbp: string | null;
   cta: string;
   campaign: string | null;
   utm: Record<string, string>;
@@ -131,7 +138,13 @@ async function forwardToMeta(input: StoreClickInput, at: number): Promise<boolea
         action_source: 'website',
         user_data: {
           client_user_agent: input.userAgent ?? undefined,
-          client_ip_address: input.clientIp ?? undefined
+          client_ip_address: input.clientIp ?? undefined,
+          // fbc first in importance, not in order: with it the conversion is
+          // matched to the click that produced it. Without it Meta is left
+          // inferring a person from a user agent and an IP, which it accepts and
+          // then largely discounts — a conversion reported but not acted on.
+          fbc: input.fbc ?? undefined,
+          fbp: input.fbp ?? undefined
         },
         custom_data: { cta: input.cta, campaign: input.campaign ?? 'get_lp' }
       }

@@ -33,6 +33,16 @@ import {
 /** The four CTAs shared by /get and /get-photos. Anything else is not from our pages. */
 const ALLOWED_CTAS = new Set(['hero', 'mid', 'footer', 'sticky']);
 
+/**
+ * Meta's identifier formats, both `fb.<subdomainIndex>.<createdMs>.<value>`.
+ *
+ * Validated rather than passed through: these go straight into an outbound API
+ * call, and a malformed value gets the whole conversion rejected by Meta rather
+ * than just that field ignored.
+ */
+const FB_ID_PATTERN = /^fb\.\d\.\d{10,}\.[A-Za-z0-9_.-]{1,400}$/;
+const MAX_FB_ID = 500;
+
 /** Landing pages that report taps, and the path each one lives at. */
 const PAGE_PATHS: Record<string, string> = {
   get: '/get',
@@ -77,11 +87,20 @@ export const POST: RequestHandler = async ({ request, getClientAddress, url }) =
   const rawPage = typeof body.page === 'string' ? body.page : '';
   const page = rawPage in PAGE_PATHS ? rawPage : 'get';
 
+  // Dropped silently when malformed rather than passed on: an invalid fbc costs
+  // the entire conversion, whereas an absent one only costs match quality.
+  const fbId = (value: unknown): string | null => {
+    const raw = clamp(value, MAX_FB_ID);
+    return raw && FB_ID_PATTERN.test(raw) ? raw : null;
+  };
+
   await recordStoreClick({
     eventId,
     visitId,
     page,
     cta,
+    fbc: fbId(body.fbc),
+    fbp: fbId(body.fbp),
     campaign: clamp(body.campaign, MAX_CAMPAIGN),
     utm: sanitizeUtm(body.utm),
     userAgent: clamp(request.headers.get('user-agent'), MAX_UA),

@@ -21,6 +21,7 @@
  */
 
 import { getVisitId } from './visit-id';
+import { getFbc, getFbp } from './meta-identifiers';
 import type { LandingPage } from './page-view-report';
 
 const ENDPOINT = '/api/marketing/store-click';
@@ -68,6 +69,12 @@ export function reportStoreClick({ eventId, page, cta, campaign, url }: StoreCli
         cta,
         campaign,
         utm,
+        // Meta's own click and browser identifiers, forwarded so the server-side
+        // conversion can actually be matched to a person rather than merely
+        // accepted. User agent and IP alone sit barely above the threshold Meta
+        // rejects as too broad to be useful. See meta-identifiers.ts.
+        fbc: getFbc(url),
+        fbp: getFbp(),
         referrer: typeof document !== 'undefined' ? document.referrer || null : null
       })
     }).catch(() => {

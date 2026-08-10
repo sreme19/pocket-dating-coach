@@ -19,6 +19,7 @@
  */
 
 import { getVisitId } from './visit-id';
+import { captureMetaClickId } from './meta-identifiers';
 
 const ENDPOINT = '/api/marketing/page-view';
 
@@ -33,6 +34,11 @@ export interface PageViewReport {
 
 export function reportPageView({ page, campaign, url }: PageViewReport): void {
   if (typeof fetch === 'undefined') return;
+
+  // Landing is the only moment fbclid is reliably on the URL, and the timestamp
+  // it embeds is meant to be when the click was observed — not when the visitor
+  // later tapped through. Recorded here, read at tap time. See meta-identifiers.ts.
+  captureMetaClickId(url);
 
   // Only the utm_* params travel. Everything else on the query string is someone
   // else's business and none of it is needed to attribute a campaign.
