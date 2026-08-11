@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import type { PageData } from './$types';
 	let { data }: { data: PageData } = $props();
 
@@ -82,7 +83,19 @@
 		return 'bg-slate-500/20 text-slate-400';
 	}
 
-	let expandedMatch = $state<string | null>(null);
+	// Seeded from the server so a `?chat=1` / `?match=` arrival renders the
+	// transcript already open, rather than flashing a collapsed row first.
+	let expandedMatch = $state<string | null>(data.openMatchId ?? null);
+
+	// The Matches section sits far down a long page, so opening it is only half the
+	// job — scroll it into view too. Guarded on the id because every other arrival
+	// must keep landing at the top of the page.
+	onMount(() => {
+		if (!data.openMatchId) return;
+		document
+			.getElementById(`match-${data.openMatchId}`)
+			?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+	});
 	let generatingAi = $state(false);
 	let aiGenResult = $state<string | null>(null);
 	let aiGenError = $state<string | null>(null);
@@ -510,7 +523,7 @@
 			{:else}
 				<div class="space-y-3">
 					{#each matches as m}
-						<div class="rounded border border-white/[0.06] bg-black/20">
+						<div id={`match-${m.id}`} class="rounded border border-white/[0.06] bg-black/20 {expandedMatch === m.id && data.openMatchId === m.id ? 'ring-1 ring-purple-400/40' : ''}">
 							<button
 								type="button"
 								class="w-full flex items-center justify-between px-4 py-3 text-left"

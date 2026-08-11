@@ -895,15 +895,33 @@
 							</td>
 							<td class="py-2 pr-4 text-slate-500 text-xs">{u.joinedAt ? u.joinedAt.slice(0, 10) : '—'}</td>
 							<td class="py-2">
-								<a
-									href={`/verified-vibe/profile/${u.id}?adminPreview=1&as=${u.gender === 'man' ? 'woman' : 'man'}`}
-									target="_blank"
-									rel="noopener"
-									title="Open the public profile as members see it"
-									class="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-0.5 text-xs text-slate-300 transition-colors hover:border-emerald-400/40 hover:text-emerald-300"
-								>
-									View ↗
-								</a>
+								<!--
+									A provisional row is an /aibestie landing-page visitor: no signup, no
+									photos, no archetype, so the public profile preview shows an empty
+									shell. The one thing there IS to look at is what he said to her
+									Bestie — so View goes straight to that transcript instead.
+								-->
+								{#if u.isProvisional}
+									<a
+										href={`/admin/users/${u.id}?chat=1`}
+										target="_blank"
+										rel="noopener"
+										title="Landing-page visitor — open the conversation he had with her AI bestie"
+										class="inline-flex items-center gap-1 rounded border border-purple-400/20 px-2 py-0.5 text-xs text-purple-300 transition-colors hover:border-purple-400/50 hover:text-purple-200"
+									>
+										Chat ↗
+									</a>
+								{:else}
+									<a
+										href={`/verified-vibe/profile/${u.id}?adminPreview=1&as=${u.gender === 'man' ? 'woman' : 'man'}`}
+										target="_blank"
+										rel="noopener"
+										title="Open the public profile as members see it"
+										class="inline-flex items-center gap-1 rounded border border-white/10 px-2 py-0.5 text-xs text-slate-300 transition-colors hover:border-emerald-400/40 hover:text-emerald-300"
+									>
+										View ↗
+									</a>
+								{/if}
 							</td>
 							<td class="py-2 pl-2">
 								<button

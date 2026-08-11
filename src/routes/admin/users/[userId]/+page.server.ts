@@ -2,7 +2,7 @@ import type { PageServerLoad } from './$types';
 import { error } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
 
-export const load: PageServerLoad = async ({ params }) => {
+export const load: PageServerLoad = async ({ params, url }) => {
 	const sb = getSupabase() as any;
 	const { userId } = params;
 
@@ -295,6 +295,20 @@ export const load: PageServerLoad = async ({ params }) => {
 		photoUrls,
 		aiPhotoUrls,
 		uploads,
+		// Which conversation to open on arrival, if any. `?chat=1` means the caller
+		// came from a link that promised a transcript (the analytics table's View on
+		// a provisional visitor) and the accordion must not land collapsed.
+		// `?match=<id>` targets one thread explicitly; `?chat=1` picks the newest
+		// thread that actually HAS messages — for an LP visitor that is his only
+		// one. Null when nothing was asked for, or when the id does not belong to
+		// this user, so a stale link degrades to today's collapsed page.
+		openMatchId: (() => {
+			const wanted = url.searchParams.get('match');
+			if (wanted) return matchList.some((m: any) => m.id === wanted) ? wanted : null;
+			if (url.searchParams.get('chat') !== '1') return null;
+			const withMessages = matchList.find((m: any) => (messagesByMatch.get(m.id) ?? []).length > 0);
+			return withMessages?.id ?? null;
+		})(),
 		matches: matchList.map((m: any) => {
 			const pid = m.user1_id === userId ? m.user2_id : m.user1_id;
 			const msgs = messagesByMatch.get(m.id) ?? [];

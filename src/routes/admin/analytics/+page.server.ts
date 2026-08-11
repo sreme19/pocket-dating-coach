@@ -1,5 +1,6 @@
 import type { PageServerLoad } from './$types';
 import { getSupabase } from '$lib/server/supabase';
+import { provisionalMembersEnabled } from '$lib/server/member-state';
 
 export const load: PageServerLoad = async () => {
 	const sb = getSupabase();
@@ -51,6 +52,27 @@ export const load: PageServerLoad = async () => {
 				if (au?.user?.email) emailById.set(id, au.user.email);
 			})
 		);
+	}
+
+	// Which of those rows are /aibestie landing-page visitors.
+	//
+	// Deliberately a SEPARATE query rather than another column on the select above:
+	// the Supabase client parses the select string at the TYPE level, so building it
+	// with `memberStateColumns()` turns the whole row type into a ParserError and
+	// erodes every `u.field` on this page. Asking for the ids on their own keeps the
+	// main select a literal, and putting the query behind the gate means the column
+	// name is never sent to PostgREST before the migration has run — an unguarded
+	// read of a missing column 42703s the entire page, not just this feature.
+	//
+	// These rows are NOT filtered out: they are wanted in the table as a visible
+	// indicator of who is hitting her Bestie's chat. See the View cell.
+	const provisionalIds = new Set<string>();
+	if (provisionalMembersEnabled()) {
+		const { data: prov } = await sb
+			.from('verified_vibe_users')
+			.select('id')
+			.eq('is_provisional', true);
+		for (const p of prov ?? []) provisionalIds.add(p.id);
 	}
 
 	// Signups per day (last 30 days)
@@ -189,6 +211,9 @@ export const load: PageServerLoad = async () => {
 			trustScore: calcTrust(u.id),
 			joinedAt: u.created_at,
 			isSeed: u.is_seed ?? true,
+			// Drives where View points: a provisional visitor has no public profile
+			// to preview, so the button opens his landing-page conversation instead.
+			isProvisional: provisionalIds.has(u.id),
 		})),
 	};
 };
