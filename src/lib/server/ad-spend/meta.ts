@@ -23,7 +23,7 @@
  */
 
 import { env } from '$env/dynamic/private';
-import type { FetchResult, SpendRow } from './snap';
+import type { DemographicResult, DemographicRow, FetchResult, SpendRow } from './snap';
 
 const API_VERSION = 'v21.0';
 const API_BASE = `https://graph.facebook.com/${API_VERSION}`;
@@ -119,4 +119,102 @@ export async function fetchMetaSpend(start: string, end: string): Promise<FetchR
   } catch (err) {
     return { rows: [], error: String(err).slice(0, 300), configured: true };
   }
+}
+
+/**
+ * Delivery demographics per campaign-day.
+ *
+ * ONE CALL PER DIMENSION, and the money is never re-added on our side. `age` and
+ * `gender` can be requested together, and doing so looks like a saving right up
+ * to the point where the age partition has to be recovered by summing decimal
+ * money strings in JavaScript — the one step capable of losing a paisa on a
+ * column whose entire job is to be money. Three calls, three partitions, no
+ * arithmetic. Meta charges nothing for the extra round trips.
+ *
+ * `region` IS THE ONE WORTH READING FIRST. It is the closest thing either network
+ * reports to the first-party city data now landing in marketing_page_views, so
+ * the two can be held against each other: the network's account of where it
+ * delivered, beside our own account of who actually arrived. When those disagree,
+ * the first-party number is the one that was not written by the party being paid.
+ *
+ * WHAT THESE ROWS DESCRIBE. Impressions — everybody the advert was SHOWN to. Not
+ * our visitors, and not the targeting. See the migration for why that distinction
+ * has to survive all the way onto the dashboard.
+ */
+const META_BREAKDOWNS: Array<{ dimension: DemographicRow['dimension']; param: string; key: string }> = [
+  { dimension: 'age', param: 'age', key: 'age' },
+  { dimension: 'gender', param: 'gender', key: 'gender' },
+  { dimension: 'region', param: 'region', key: 'region' }
+];
+
+export async function fetchMetaDemographics(start: string, end: string): Promise<DemographicResult> {
+  const { token, adAccountId } = credentials();
+  if (!token || !adAccountId) return { rows: [], error: null, configured: false };
+
+  const rows: DemographicRow[] = [];
+  const errors: string[] = [];
+
+  for (const { dimension, param, key } of META_BREAKDOWNS) {
+    const params = new URLSearchParams({
+      level: 'campaign',
+      // One row per day, for the same reason as the spend fetch: without it the
+      // range collapses to a single total that sums correctly and destroys every
+      // trend on the dashboard.
+      time_increment: '1',
+      breakdowns: param,
+      fields: 'campaign_id,campaign_name,spend,impressions,clicks,account_currency,date_start',
+      time_range: JSON.stringify({ since: start, until: end }),
+      limit: '500',
+      access_token: token
+    });
+
+    try {
+      const res = await withTimeout(`${API_BASE}/${adAccountId}/insights?${params}`);
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        const hint = text.includes('"code":190') ? ' — access token expired or revoked' : '';
+        errors.push(`${param} ${res.status}${hint}: ${text.slice(0, 160)}`);
+        continue;
+      }
+
+      const body = (await res.json()) as { data?: Array<Record<string, unknown>> };
+
+      for (const row of body?.data ?? []) {
+        const date = String(row.date_start ?? '').slice(0, 10);
+        const bucket = row[key];
+        // A row whose bucket is absent is not a bucket called "unknown" — it is a
+        // response shape this code does not understand, and inventing a label for
+        // it would put a fabricated category on a spend chart.
+        if (!date || bucket === undefined || bucket === null || bucket === '') continue;
+
+        rows.push({
+          network: 'meta',
+          date,
+          campaignId: String(row.campaign_id ?? ''),
+          campaignName: (row.campaign_name as string) ?? null,
+          dimension,
+          bucket: String(bucket).slice(0, 120),
+          spend: asDecimal(row.spend),
+          currency: String(row.account_currency ?? 'USD'),
+          impressions: asInt(row.impressions),
+          clicks: asInt(row.clicks),
+          // Meta does not return the account timezone on an insights row. Left
+          // null rather than guessed — see the spend fetch.
+          accountTimezone: null
+        });
+      }
+    } catch (err) {
+      errors.push(`${param}: ${String(err).slice(0, 160)}`);
+    }
+  }
+
+  return {
+    rows,
+    // Partial failure is reported rather than swallowed: two dimensions working
+    // and one silently failing looks exactly like an audience with no rows in
+    // that partition.
+    error: errors.length ? `meta demographics: ${errors.join(' | ').slice(0, 300)}` : null,
+    configured: true
+  };
 }

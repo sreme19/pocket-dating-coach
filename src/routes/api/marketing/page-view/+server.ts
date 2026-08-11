@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { recordPageView } from '$lib/server/marketing-page-views';
-import { countryFromRequest } from '$lib/server/request-geo';
+import { geoFromRequest } from '$lib/server/request-geo';
 import {
   MAX_BODY_BYTES,
   MAX_CAMPAIGN,
@@ -53,6 +53,9 @@ export const POST: RequestHandler = async ({ request }) => {
   // wrong visit rather than to none.
   if (!ALLOWED_PAGES.has(page) || !ID_PATTERN.test(visitId)) return noContent;
 
+  // Resolved at the edge from an address we never see and never store.
+  const geo = geoFromRequest(request);
+
   await recordPageView({
     visitId,
     page: page as 'get' | 'get_photos' | 'aibestie',
@@ -60,8 +63,9 @@ export const POST: RequestHandler = async ({ request }) => {
     utm: sanitizeUtm(body.utm),
     userAgent: clamp(request.headers.get('user-agent'), MAX_UA),
     referrer: clamp(body.referrer, MAX_REFERRER),
-    // Resolved at the edge from an address we never see and never store.
-    country: countryFromRequest(request)
+    country: geo.country,
+    city: geo.city,
+    region: geo.region
   });
 
   return noContent;

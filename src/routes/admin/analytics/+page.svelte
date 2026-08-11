@@ -571,6 +571,21 @@
 		return `${(v * 100).toFixed(1)}%`;
 	}
 
+	/**
+	 * Object.entries with the value type kept.
+	 *
+	 * `ads` is a Record<string, any>, so entries off it come back with values the
+	 * template cannot see into. Naming the shape at the call site is the smallest
+	 * thing that makes a breakdown table type-check instead of silently accepting
+	 * `s.tpas`.
+	 */
+	function entriesOf<T>(source: unknown): Array<[string, T]> {
+		return Object.entries((source ?? {}) as Record<string, T>);
+	}
+
+	type GeoCell = { views: number; taps: number };
+	type DemoBucket = { bucket: string; spend: number; impressions: number; clicks: number };
+
 	function fmtAgo(iso: string | null): string {
 		if (!iso) return 'never';
 		const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -1649,8 +1664,8 @@
 			</div>
 		</div>
 
-		<!-- Landing page variants + country -->
-		<div class="mb-6 grid gap-4 lg:grid-cols-2">
+		<!-- Landing page variants + country + city -->
+		<div class="mb-6 grid gap-4 lg:grid-cols-3">
 			<div class="card">
 				<div class="chart-title">Landing page variants</div>
 				<table class="w-full text-[15px]">
@@ -1691,6 +1706,101 @@
 					</tbody>
 				</table>
 			</div>
+			<!-- City. The coverage line under the title is not decoration: until the
+			     2026-08-11 migration ran, every row here was 'unknown', and a city
+			     table read without knowing its coverage says the wrong thing most
+			     confidently in exactly the days it is least complete. -->
+			<div class="card">
+				<div class="chart-title">By city</div>
+				{#if ads.cityCoverage}
+					<div class="mb-2 text-[13px] text-slate-500">
+						Resolved for {ads.cityCoverage.views}/{ads.cityCoverage.totalViews} views · {ads
+							.cityCoverage.taps}/{ads.cityCoverage.totalTaps} taps.
+						{#if ads.cityCoverage.views < ads.cityCoverage.totalViews}
+							<span class="text-amber-400/80">Unresolved rows show as “unknown”, never as zero.</span>
+						{/if}
+					</div>
+				{/if}
+				<table class="w-full text-[15px]">
+					<thead class="text-slate-500">
+						<tr><th class="py-1 text-left">City</th><th class="text-right">Views</th><th class="text-right">Taps</th><th class="text-right">Tap rate</th></tr>
+					</thead>
+					<tbody>
+						{#each entriesOf<GeoCell>(ads.byCity)
+							.sort((a, b) => b[1].views - a[1].views)
+							.slice(0, 12) as [city, s]}
+							<tr class="border-t border-white/[0.04]">
+								<td class="py-1.5 text-slate-300">{city}</td>
+								<td class="text-right text-slate-400">{s.views}</td>
+								<td class="text-right text-slate-400">{s.taps}</td>
+								<td class="text-right text-slate-400"
+									>{fmtRate(s.views >= ads.minSample ? s.taps / s.views : null, s.views)}</td
+								>
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		</div>
+
+		<!-- ── Network-reported delivery demographics ──────────────────────────
+		     Kept visually apart from everything above it, because everything above
+		     is first-party and this is not. These buckets are Snap's and Meta's
+		     account of who they SHOWED the advert to. The caption says so in the
+		     UI rather than only in the migration, because the natural reading of an
+		     age chart on an ad dashboard is "our traffic", and that reading is
+		     wrong in a way that changes decisions. -->
+		<div class="card mb-6">
+			<div class="chart-title">Who the networks say they reached</div>
+			<div class="mb-3 text-[13px] leading-relaxed text-slate-500">
+				Reported by Snap and Meta, per campaign-day. These describe <strong class="text-slate-400"
+					>impressions — everyone the ad was shown to</strong
+				>, not the people who arrived on the landing page, and not who the ad set was targeting.
+				Percentages are within one row only: age and gender split the same money, so they never add
+				across sections.
+			</div>
+
+			{#if !ads.demographicsPresent}
+				<div class="rounded border border-white/[0.06] bg-white/[0.02] p-3 text-[14px] text-slate-400">
+					No demographic rows yet. This fills once the spend sync has run against a network that
+					answers breakdowns — Meta needs <code class="text-slate-300">META_MARKETING_TOKEN</code> set
+					at all, and Snap's dimension parameter should be confirmed with
+					<code class="text-slate-300">/admin/analytics/demographics-probe</code>. Empty here means
+					“not fetched”, not “no audience”.
+				</div>
+			{:else}
+				<div class="grid gap-5 lg:grid-cols-3">
+					{#each entriesOf<DemoBucket[]>(ads.byDemographic) as [dimension, buckets]}
+						{@const totalImpressions = buckets.reduce((sum, b) => sum + b.impressions, 0)}
+						<div>
+							<div class="mb-1.5 text-[13px] font-medium uppercase tracking-wide text-slate-400">
+								{dimension}
+							</div>
+							<table class="w-full text-[15px]">
+								<thead class="text-slate-500">
+									<tr
+										><th class="py-1 text-left">Bucket</th><th class="text-right">Impr.</th><th
+											class="text-right">Share</th
+										><th class="text-right">Spend</th></tr
+									>
+								</thead>
+								<tbody>
+									{#each buckets.slice(0, 10) as b}
+										<tr class="border-t border-white/[0.04]">
+											<td class="py-1.5 text-slate-300">{b.bucket}</td>
+											<td class="text-right text-slate-400">{b.impressions.toLocaleString()}</td>
+											<td class="text-right text-slate-400"
+												>{fmtRate(totalImpressions ? b.impressions / totalImpressions : null)}</td
+											>
+											<td class="text-right text-slate-400">{fmtMoney(b.spend)}</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					{/each}
+				</div>
+			{/if}
 		</div>
 
 		<!-- Ad set leaderboard. Named for what the rows actually are: the rollup is

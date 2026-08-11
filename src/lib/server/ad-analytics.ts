@@ -141,22 +141,45 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
   const fromIso = `${addDays(start, -1)}T00:00:00.000Z`;
   const toIso = `${addDays(end, 1)}T23:59:59.999Z`;
 
-  const [views, clicks, spend, acquisition, members, lpSessions, fx] = await Promise.all([
-    supabase
-      .from('marketing_page_views')
-      .select('visit_id,page,campaign,country,user_agent,utm,created_at')
-      .gte('created_at', fromIso)
-      .lte('created_at', toIso),
-    supabase
-      .from('marketing_store_clicks')
-      // user_agent and utm are load-bearing, not extra: without them every tap
-      // classifies as "no user agent" and is excluded, and no tap can be joined
-      // to an ad set. Omitting them silently zeroes the tap column.
-      .select(
-        'visit_id,page,cta,campaign,country,user_agent,utm,snap_forwarded,meta_forwarded,forward_error,created_at'
-      )
-      .gte('created_at', fromIso)
-      .lte('created_at', toIso),
+  /**
+   * Select the newer columns, and fall back to the older list if they are not
+   * there yet.
+   *
+   * NOT DEFENSIVENESS FOR ITS OWN SAKE. Migrations here are run by hand in a SQL
+   * editor, separately from the deploy, so there is always a window where the
+   * code knows about a column the database does not. PostgREST does not drop the
+   * unknown column — it rejects the entire query, returns null data, and every
+   * count on this tab reads zero. That failure is far worse than the missing
+   * breakdown, because zeros look like a campaign that stopped rather than a
+   * migration that has not run, and those two prompt opposite decisions.
+   */
+  const selectWithFallback = async (table: 'marketing_page_views' | 'marketing_store_clicks', extra: string, base: string) => {
+    const run = (columns: string) =>
+      (supabase.from(table) as any)
+        .select(columns)
+        .gte('created_at', fromIso)
+        .lte('created_at', toIso);
+
+    const full = await run(`${base},${extra}`);
+    if (!full.error) return full;
+
+    console.warn(
+      `[ad-analytics] ${table}: falling back without [${extra}] — run 20260811065354_add_city_region_to_marketing_tables.sql:`,
+      full.error.message
+    );
+    return await run(base);
+  };
+
+  const [views, clicks, spend, acquisition, members, lpSessions, fx, demographics] = await Promise.all([
+    selectWithFallback('marketing_page_views', 'city,region', 'visit_id,page,campaign,country,user_agent,utm,created_at'),
+    // user_agent and utm are load-bearing, not extra: without them every tap
+    // classifies as "no user agent" and is excluded, and no tap can be joined
+    // to an ad set. Omitting them silently zeroes the tap column.
+    selectWithFallback(
+      'marketing_store_clicks',
+      'city,region',
+      'visit_id,page,cta,campaign,country,user_agent,utm,snap_forwarded,meta_forwarded,forward_error,created_at'
+    ),
     supabase.from('ad_spend_daily').select('*').gte('date', start).lte('date', end),
     supabase
       .from('user_acquisition')
@@ -178,7 +201,15 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
       .select('id,turns,bar_percent,materialized_at,cta_clicked_at,claimed_at,utm,created_at')
       .gte('created_at', fromIso)
       .lte('created_at', toIso),
-    supabase.from('ad_fx_rates').select('date,base,quote,rate').gte('date', addDays(start, -30))
+    supabase.from('ad_fx_rates').select('date,base,quote,rate').gte('date', addDays(start, -30)),
+    // Network-reported delivery buckets. Filtered to the range by `date` rather
+    // than created_at, because these describe the ad account's day and not the
+    // moment we happened to fetch it.
+    supabase
+      .from('ad_demographics_daily')
+      .select('network,date,campaign_id,campaign_name,dimension,bucket,spend,currency,impressions,clicks')
+      .gte('date', start)
+      .lte('date', end)
   ]);
 
   /**
@@ -565,7 +596,18 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
   const byCta: Record<string, number> = {};
   const byPage: Record<string, { views: number; taps: number }> = {};
   const byCountry: Record<string, { views: number; taps: number }> = {};
+  const byCity: Record<string, { views: number; taps: number }> = {};
 
+  /**
+   * 'unknown' IS A REAL CATEGORY HERE, AND IT HAS TO STAY VISIBLE.
+   *
+   * A null city means one of three things, none of which is zero: the row
+   * predates 2026-08-11 and cannot be back-filled, the edge could not resolve the
+   * address, or the city header is not available on this plan. Folding those into
+   * the smallest city — or dropping them — would make the geography look complete
+   * when it is partial, and the resulting share-of-traffic percentages would all
+   * be quietly wrong in the same direction.
+   */
   for (const v of viewRows) {
     const page = v.page ?? 'unknown';
     byPage[page] ??= { views: 0, taps: 0 };
@@ -574,6 +616,10 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
     const country = v.country ?? 'unknown';
     byCountry[country] ??= { views: 0, taps: 0 };
     byCountry[country].views += 1;
+
+    const city = v.city ?? 'unknown';
+    byCity[city] ??= { views: 0, taps: 0 };
+    byCity[city].views += 1;
   }
   for (const c of clickRows) {
     byCta[c.cta ?? 'unknown'] = (byCta[c.cta ?? 'unknown'] ?? 0) + 1;
@@ -585,7 +631,61 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
     const country = c.country ?? 'unknown';
     byCountry[country] ??= { views: 0, taps: 0 };
     byCountry[country].taps += 1;
+
+    const city = c.city ?? 'unknown';
+    byCity[city] ??= { views: 0, taps: 0 };
+    byCity[city].taps += 1;
   }
+
+  /**
+   * How much first-party geography actually exists in this range.
+   *
+   * Rendered beside the city table so the reader can tell "Bangalore is small"
+   * from "we only resolved a city for 4% of visits". Without this number the
+   * table is unreadable in exactly the period that matters most — the days
+   * straddling the migration, when coverage climbs from nothing to nearly
+   * everything and every city looks like it is growing.
+   */
+  const cityCoverage = {
+    views: viewRows.filter((v: any) => v.city).length,
+    totalViews: viewRows.length,
+    taps: clickRows.filter((c: any) => c.city).length,
+    totalTaps: clickRows.length
+  };
+
+  /* --------------------------------------------------- network demographics */
+
+  /**
+   * Delivery buckets, grouped by dimension.
+   *
+   * SUMMED WITHIN A DIMENSION ONLY. Age and gender partition the same money, so
+   * a total across dimensions double counts every rupee — see the migration.
+   * The shape here enforces that by construction: nothing can reach a total
+   * without first choosing a dimension.
+   *
+   * Spend is added as a NUMBER here, unlike everywhere it is stored. That is
+   * safe and deliberate: this is a display rollup that never goes back to the
+   * database, and the alternative — decimal string arithmetic in a chart
+   * aggregator — buys precision nothing downstream can use.
+   */
+  const demoRows = (demographics.data ?? []) as any[];
+  const byDemographic: Record<string, Array<{ bucket: string; spend: number; impressions: number; clicks: number }>> = {};
+
+  for (const row of demoRows) {
+    const dimension = row.dimension ?? 'unknown';
+    const list = (byDemographic[dimension] ??= []);
+    const existing = list.find((b) => b.bucket === row.bucket);
+    const target = existing ?? { bucket: row.bucket, spend: 0, impressions: 0, clicks: 0 };
+    if (!existing) list.push(target);
+
+    target.spend += Number(row.spend ?? 0);
+    target.impressions += Number(row.impressions ?? 0);
+    target.clicks += Number(row.clicks ?? 0);
+  }
+
+  for (const list of Object.values(byDemographic)) list.sort((a, b) => b.impressions - a.impressions);
+
+  const demographicsPresent = demoRows.length > 0;
 
   /* -------------------------------------------------------- aibestie funnel */
 
@@ -818,6 +918,15 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
     byCta,
     byPage,
     byCountry,
+    byCity,
+    cityCoverage,
+    /**
+     * Network-reported delivery buckets. Empty until the sync has run against a
+     * network that answers them, which is a different thing from a campaign with
+     * no audience — `demographicsPresent` is what the UI must branch on.
+     */
+    byDemographic,
+    demographicsPresent,
     lpFunnel,
     health,
     anomalies

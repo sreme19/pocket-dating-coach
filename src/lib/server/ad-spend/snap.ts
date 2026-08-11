@@ -59,6 +59,34 @@ export interface FetchResult {
 }
 
 /**
+ * One demographic bucket of one campaign-day.
+ *
+ * Deliberately carries no visitor identifier of any kind — see the note at the
+ * top of the ad_demographics_daily migration. The networks report these as
+ * aggregates and this type exists to make it impossible to store them as
+ * anything else.
+ */
+export interface DemographicRow {
+  network: 'snap' | 'meta';
+  date: string;
+  campaignId: string;
+  campaignName: string | null;
+  dimension: 'age' | 'gender' | 'age_gender' | 'region' | 'country' | 'device' | 'platform';
+  bucket: string;
+  spend: string;
+  currency: string;
+  impressions: number;
+  clicks: number;
+  accountTimezone: string | null;
+}
+
+export interface DemographicResult {
+  rows: DemographicRow[];
+  error: string | null;
+  configured: boolean;
+}
+
+/**
  * Credentials are read under several names on purpose.
  *
  * These were set by hand in the Vercel dashboard before this code existed, so
@@ -412,6 +440,172 @@ function parseTimeseries(body: unknown, currency: string, timezone: string | nul
           clicks: asInt(stats.swipes),
           networkConversions: asInt(stats.conversion_purchases),
           accountTimezone: timezone
+        });
+      }
+    }
+  }
+
+  return rows;
+}
+
+/**
+ * Delivery demographics per campaign-day.
+ *
+ * WHAT SNAP WILL AND WILL NOT GIVE. Snap reports these through the same stats
+ * endpoint as spend, partitioned by a `dimension` rather than by an entity. The
+ * result is a bucket per campaign-day — never a person, and never anything that
+ * could be joined to one of our visits. That ceiling is the network's, not ours,
+ * and the table this feeds is shaped to sit exactly at it.
+ *
+ * ONE CALL PER DIMENSION, and the money is never re-added on our side. Age and
+ * gender are two different partitions of the same spend, so deriving one from a
+ * combined age-and-gender response would mean summing decimal money strings in
+ * JavaScript — the single step most likely to lose a paisa on a column whose job
+ * is to be money. Letting Snap do each partition costs one extra HTTP call per
+ * dimension per run and removes the arithmetic entirely.
+ *
+ * UNVERIFIED AGAINST THE LIVE API AT THE TIME OF WRITING. The exact spelling of
+ * the dimension parameter could not be confirmed, because every value in the
+ * pulled production env is blanked and no ad-account credentials were available
+ * locally. So this is written to FAIL LOUDLY AND HARMLESSLY: an unexpected shape
+ * yields zero rows and a specific error string in the health panel, never a
+ * throw and never a partially-parsed row that looks like data. Run
+ * /api/admin/analytics/demographics-probe against production to settle which
+ * spellings this account actually answers, then trim the candidate list below.
+ */
+const SNAP_DIMENSIONS: Array<{ dimension: DemographicRow['dimension']; param: string }> = [
+  { dimension: 'gender', param: 'GENDER' },
+  { dimension: 'age', param: 'AGE_BUCKET' },
+  { dimension: 'region', param: 'REGION' },
+  { dimension: 'country', param: 'COUNTRY' }
+];
+
+export async function fetchSnapDemographics(start: string, end: string): Promise<DemographicResult> {
+  const { clientId, clientSecret, refreshToken, adAccountId } = credentials();
+  if (!clientId || !clientSecret || !refreshToken || !adAccountId) {
+    return { rows: [], error: null, configured: false };
+  }
+
+  try {
+    const token = await accessToken();
+    const meta = await accountMeta(token, adAccountId);
+
+    const from = `${start}T00:00:00.000${offsetSuffix(meta.timezone, start)}`;
+    const toDay = addDays(end, 1);
+    const to = `${toDay}T00:00:00.000${offsetSuffix(meta.timezone, toDay)}`;
+
+    const campaigns = await listEntities<{ id?: string; name?: string }>(
+      token,
+      `${API_BASE}/adaccounts/${adAccountId}/campaigns?limit=500`,
+      'campaigns'
+    ).catch(() => [] as Array<{ id?: string; name?: string }>);
+
+    const rows: DemographicRow[] = [];
+    const errors: string[] = [];
+
+    for (const campaign of campaigns) {
+      if (!campaign.id) continue;
+
+      for (const { dimension, param } of SNAP_DIMENSIONS) {
+        const params = new URLSearchParams({
+          granularity: 'DAY',
+          dimension: param,
+          fields: 'spend,impressions,swipes',
+          start_time: from,
+          end_time: to
+        });
+
+        const res = await withTimeout(`${API_BASE}/campaigns/${campaign.id}/stats?${params}`, {
+          headers: { authorization: `Bearer ${token}` }
+        });
+
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          // Recorded once per dimension rather than once per campaign — a
+          // parameter Snap does not accept fails identically for all of them, and
+          // repeating it forty times would bury the one line that matters.
+          const note = `${param}: ${res.status} ${text.slice(0, 80)}`;
+          if (!errors.includes(note)) errors.push(note);
+          continue;
+        }
+
+        rows.push(
+          ...dimensionRowsOf(await res.json(), {
+            network: 'snap',
+            campaignId: campaign.id,
+            campaignName: campaign.name ?? null,
+            dimension,
+            currency: meta.currency,
+            accountTimezone: meta.timezone
+          })
+        );
+      }
+    }
+
+    return {
+      rows,
+      error: errors.length ? `snap demographics: ${errors.join(' | ').slice(0, 300)}` : null,
+      configured: true
+    };
+  } catch (err) {
+    return { rows: [], error: String(err).slice(0, 300), configured: true };
+  }
+}
+
+/**
+ * Walk a dimension-partitioned stats response into flat rows.
+ *
+ * Defensive at every level, and silent about shapes it does not recognise. This
+ * runs unattended on a cron against a response shape nobody has yet confirmed;
+ * producing zero rows and letting the health panel show a visible zero is the
+ * correct outcome, whereas guessing at a wrapper would put invented buckets in
+ * front of somebody deciding where to move money.
+ */
+function dimensionRowsOf(
+  body: unknown,
+  ctx: {
+    network: 'snap';
+    campaignId: string;
+    campaignName: string | null;
+    dimension: DemographicRow['dimension'];
+    currency: string;
+    accountTimezone: string | null;
+  }
+): DemographicRow[] {
+  const envelope = body as {
+    timeseries_stats?: Array<{
+      timeseries_stat?: {
+        dimension_stats?: Array<{
+          dimension_value?: string;
+          timeseries?: Array<{ start_time?: string; stats?: Record<string, unknown> }>;
+        }>;
+      };
+    }>;
+  };
+
+  const rows: DemographicRow[] = [];
+
+  for (const entry of envelope?.timeseries_stats ?? []) {
+    for (const slice of entry?.timeseries_stat?.dimension_stats ?? []) {
+      const bucket = slice?.dimension_value;
+      if (!bucket) continue;
+
+      for (const point of slice?.timeseries ?? []) {
+        const day = (point?.start_time ?? '').slice(0, 10);
+        if (!day) continue;
+        const stats = point?.stats ?? {};
+        rows.push({
+          network: ctx.network,
+          date: day,
+          campaignId: ctx.campaignId,
+          campaignName: ctx.campaignName,
+          dimension: ctx.dimension,
+          bucket,
+          spend: fromMicro(stats.spend),
+          currency: ctx.currency,
+          impressions: asInt(stats.impressions),
+          clicks: asInt(stats.swipes),
+          accountTimezone: ctx.accountTimezone
         });
       }
     }

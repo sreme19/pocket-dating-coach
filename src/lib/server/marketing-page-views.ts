@@ -23,30 +23,58 @@ export interface PageViewInput {
   campaign: string | null;
   utm: Record<string, string>;
   userAgent: string | null;
-  referrer: string | null;
   country: string | null;
+  /** Edge-resolved city, decoded. Same address, same non-retention. */
+  city: string | null;
+  /** Edge-resolved subdivision, bare ISO 3166-2 code. */
+  region: string | null;
+  referrer: string | null;
 }
 
 export async function recordPageView(input: PageViewInput): Promise<void> {
   try {
     const supabase = getSupabase();
 
+    const base = {
+      visit_id: input.visitId,
+      page: input.page,
+      campaign: input.campaign,
+      utm: input.utm,
+      user_agent: input.userAgent,
+      referrer: input.referrer,
+      country: input.country
+    };
+
     // Unique on (visit_id, page): a reload inside the same session updates
     // nothing and inserts nothing. Counting it again would inflate the
     // denominator of every tap rate on the dashboard — the specific way a
     // conversion rate ends up reading above 100% and nobody can explain why.
-    const { error } = await supabase.from('marketing_page_views').upsert(
-      {
-        visit_id: input.visitId,
-        page: input.page,
-        campaign: input.campaign,
-        utm: input.utm,
-        user_agent: input.userAgent,
-        referrer: input.referrer,
-        country: input.country
-      },
-      { onConflict: 'visit_id,page', ignoreDuplicates: true }
-    );
+    let { error } = await supabase
+      .from('marketing_page_views')
+      .upsert(
+        { ...base, city: input.city, region: input.region },
+        { onConflict: 'visit_id,page', ignoreDuplicates: true }
+      );
+
+    /**
+     * Write the older shape if city/region are not in the database yet.
+     *
+     * The migration adding them is run by hand in a SQL editor, separately from
+     * the deploy, so there is a window in which PostgREST rejects the entire row
+     * for naming a column that does not exist. This table is the DENOMINATOR of
+     * every tap rate on the dashboard: losing two columns of geography costs a
+     * breakdown, whereas losing the row costs the rate itself and makes taps look
+     * like they arrived from nowhere.
+     */
+    if (error?.code === 'PGRST204') {
+      console.warn(
+        '[marketing] page view: city/region missing, retrying without — run 20260811065354_add_city_region_to_marketing_tables.sql:',
+        error.message
+      );
+      ({ error } = await supabase
+        .from('marketing_page_views')
+        .upsert(base, { onConflict: 'visit_id,page', ignoreDuplicates: true }));
+    }
 
     // Checked rather than assumed: PostgREST reports a missing table or a policy
     // refusal in `error` instead of throwing, so a bare try/catch would let this

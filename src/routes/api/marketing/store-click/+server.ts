@@ -1,6 +1,6 @@
 import type { RequestHandler } from './$types';
 import { recordStoreClick } from '$lib/server/marketing-conversions';
-import { countryFromRequest } from '$lib/server/request-geo';
+import { geoFromRequest } from '$lib/server/request-geo';
 import {
   MAX_BODY_BYTES,
   MAX_CAMPAIGN,
@@ -108,6 +108,8 @@ export const POST: RequestHandler = async ({ request, getClientAddress, url }) =
     return raw && FB_ID_PATTERN.test(raw) ? raw : null;
   };
 
+  const geo = geoFromRequest(request);
+
   await recordStoreClick({
     eventId,
     visitId,
@@ -120,7 +122,9 @@ export const POST: RequestHandler = async ({ request, getClientAddress, url }) =
     userAgent: clamp(request.headers.get('user-agent'), MAX_UA),
     referrer: clamp(body.referrer, MAX_REFERRER),
     // Resolved at the edge from an address we never store. See request-geo.ts.
-    country: countryFromRequest(request),
+    country: geo.country,
+    city: geo.city,
+    region: geo.region,
     // Forwarded to the networks for match quality, never stored.
     clientIp: (() => {
       try {

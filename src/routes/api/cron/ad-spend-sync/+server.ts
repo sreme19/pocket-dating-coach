@@ -46,7 +46,15 @@ const handle: RequestHandler = async ({ request, url }) => {
 		// though the request itself succeeded — otherwise a dead token shows up as
 		// a healthy sync that happened to find no spend.
 		const failed = outcome.networks.filter((n) => n.configured && n.error);
-		return json({ ok: failed.length === 0, ...outcome });
+
+		// Reported SEPARATELY rather than folded into `ok`. Demographics are colour
+		// around the spend number, not the number itself, so a breakdown parameter
+		// a network refuses must not mark the spend sync — the thing decisions are
+		// made on — as broken. It must not vanish either: a flag nobody sets is how
+		// a fetch that has never once succeeded goes a month without being noticed.
+		const demoFailed = outcome.demographics.networks.filter((n) => n.configured && n.error);
+
+		return json({ ok: failed.length === 0, demographicsOk: demoFailed.length === 0, ...outcome });
 	} catch (err: any) {
 		console.error('ad-spend-sync cron failed:', err);
 		return json({ ok: false, error: err?.message ?? String(err) }, { status: 500 });

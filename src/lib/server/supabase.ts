@@ -658,6 +658,8 @@ export type Database = {
 					user_agent: string | null;
 					referrer: string | null;
 					country: string | null;
+					city: string | null;
+					region: string | null;
 					snap_forwarded: boolean | null;
 					meta_forwarded: boolean | null;
 					forward_error: string | null;
@@ -674,6 +676,8 @@ export type Database = {
 					user_agent?: string | null;
 					referrer?: string | null;
 					country?: string | null;
+					city?: string | null;
+					region?: string | null;
 					snap_forwarded?: boolean | null;
 					meta_forwarded?: boolean | null;
 					forward_error?: string | null;
@@ -772,6 +776,44 @@ export type Database = {
 				Update: Partial<Database['public']['Tables']['ad_spend_daily']['Insert']>;
 				Relationships: [];
 			};
+			/**
+			 * Network-reported delivery demographics per campaign-day.
+			 * AGGREGATE BUCKETS ONLY — never per person. See ad-spend/sync.ts.
+			 */
+			ad_demographics_daily: {
+				Row: {
+					network: string;
+					date: string;
+					campaign_id: string;
+					campaign_name: string | null;
+					dimension: string;
+					bucket: string;
+					spend: string;
+					currency: string;
+					impressions: number;
+					clicks: number;
+					account_timezone: string | null;
+					fetched_at: string;
+					source: string;
+				};
+				Insert: {
+					network: string;
+					date: string;
+					campaign_id?: string;
+					campaign_name?: string | null;
+					dimension: string;
+					bucket: string;
+					spend?: string | number;
+					currency: string;
+					impressions?: number;
+					clicks?: number;
+					account_timezone?: string | null;
+					fetched_at?: string;
+					source?: string;
+				};
+				Update: Partial<Database['public']['Tables']['ad_demographics_daily']['Insert']>;
+				Relationships: [];
+			};
 			/** Daily FX rates for reporting spend in INR or USD. See ad-spend/sync.ts. */
 			ad_fx_rates: {
 				Row: {
@@ -839,6 +881,8 @@ export type Database = {
 					user_agent: string | null;
 					referrer: string | null;
 					country: string | null;
+					city: string | null;
+					region: string | null;
 					created_at: string;
 				};
 				Insert: {
@@ -850,6 +894,8 @@ export type Database = {
 					user_agent?: string | null;
 					referrer?: string | null;
 					country?: string | null;
+					city?: string | null;
+					region?: string | null;
 					created_at?: string;
 				};
 				Update: Partial<Database['public']['Tables']['marketing_page_views']['Insert']>;

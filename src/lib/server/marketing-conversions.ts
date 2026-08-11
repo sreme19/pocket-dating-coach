@@ -57,6 +57,10 @@ export interface StoreClickInput {
   referrer: string | null;
   /** Two-letter code resolved at the edge. The IP it came from is never stored. */
   country: string | null;
+  /** Edge-resolved city, decoded. Same address, same non-retention. */
+  city: string | null;
+  /** Edge-resolved subdivision, bare ISO 3166-2 code. */
+  region: string | null;
   /** Forwarded to the networks for match quality; never persisted. */
   clientIp: string | null;
   /** Page the tap happened on, needed by both CAPIs. */
@@ -228,29 +232,47 @@ export async function recordStoreClick(input: StoreClickInput): Promise<void> {
       forward_error: errors.length ? errors.join(' | ').slice(0, 500) : null
     };
 
+    // The 2026-08-09 additions, and then the 2026-08-11 ones. Kept as separate
+    // layers so a database missing only the newer pair does not lose the older
+    // trio as collateral — see the fallback below.
+    const withVisit = { ...base, visit_id: input.visitId, page: input.page, country: input.country };
+    const withGeo = { ...withVisit, city: input.city, region: input.region };
+
     // `event_id` is unique: a retried keepalive request writes one row, not two.
-    let { error } = await supabase.from('marketing_store_clicks').upsert(
-      { ...base, visit_id: input.visitId, page: input.page, country: input.country },
-      { onConflict: 'event_id', ignoreDuplicates: true }
-    );
+    let { error } = await supabase
+      .from('marketing_store_clicks')
+      .upsert(withGeo, { onConflict: 'event_id', ignoreDuplicates: true });
 
     /**
-     * Retry without the new columns if the database has not got them yet.
+     * Step back one migration at a time if the database has not got them yet.
      *
-     * visit_id, page and country arrive in a migration that is run BY HAND, in a
-     * SQL editor, separately from the deploy. Between those two moments
-     * PostgREST rejects the whole row for naming a column that does not exist —
-     * so a deploy that lands first would not degrade this table, it would switch
-     * it off completely, and taps that record fine today would vanish until
-     * someone noticed. That is the exact failure this table was built to end.
+     * These columns arrive in migrations that are run BY HAND, in a SQL editor,
+     * separately from the deploy. Between those two moments PostgREST rejects the
+     * whole row for naming a column that does not exist — so a deploy that lands
+     * first would not degrade this table, it would switch it off completely, and
+     * taps that record fine today would vanish until someone noticed. That is the
+     * exact failure this table was built to end.
      *
-     * Losing three columns of detail on a handful of taps is a far smaller cost
-     * than losing the taps, so the older shape is written instead and the gap
-     * is logged loudly enough to act on.
+     * ONE LAYER AT A TIME, rather than straight to the original shape. There are
+     * now two hand-run migrations in front of this write, and collapsing to the
+     * oldest shape on any PGRST204 would mean a database missing only city/region
+     * also silently stopped recording visit_id — which is the join key for every
+     * tap rate on the dashboard. Each step logs which migration is outstanding,
+     * because the whole point is that somebody goes and runs it.
      */
     if (error?.code === 'PGRST204') {
       console.warn(
-        '[marketing] store click: new columns missing, writing legacy shape — run 20260809170000_create_marketing_page_views.sql:',
+        '[marketing] store click: city/region missing, retrying without — run 20260811065354_add_city_region_to_marketing_tables.sql:',
+        error.message
+      );
+      ({ error } = await supabase
+        .from('marketing_store_clicks')
+        .upsert(withVisit, { onConflict: 'event_id', ignoreDuplicates: true }));
+    }
+
+    if (error?.code === 'PGRST204') {
+      console.warn(
+        '[marketing] store click: visit/page/country missing too, writing legacy shape — run 20260809170000_create_marketing_page_views.sql:',
         error.message
       );
       ({ error } = await supabase

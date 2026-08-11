@@ -16,8 +16,15 @@
  */
 
 import { getSupabase } from '$lib/server/supabase';
-import { fetchSnapSpend, addDays, snapConfigStatus, type SpendRow } from './snap';
-import { fetchMetaSpend, metaConfigStatus } from './meta';
+import {
+  fetchSnapSpend,
+  fetchSnapDemographics,
+  addDays,
+  snapConfigStatus,
+  type DemographicRow,
+  type SpendRow
+} from './snap';
+import { fetchMetaSpend, fetchMetaDemographics, metaConfigStatus } from './meta';
 
 /**
  * How far back each run re-fetches.
@@ -40,6 +47,15 @@ export interface SyncOutcome {
   end: string;
   networks: NetworkOutcome[];
   written: number;
+  /**
+   * Demographics reported SEPARATELY from spend, never folded into it.
+   *
+   * These two can succeed and fail independently — Snap's demographic parameter
+   * is not the one that returns spend — and a combined count would let a
+   * demographics fetch that returns nothing hide behind a spend fetch that
+   * worked. The health panel needs to be able to say which half is broken.
+   */
+  demographics: { networks: NetworkOutcome[]; written: number };
 }
 
 /** Today in UTC, as YYYY-MM-DD. The networks resolve their own day boundaries. */
@@ -135,15 +151,83 @@ async function dropStaleCoarserRows(rows: SpendRow[]): Promise<void> {
   }
 }
 
+/**
+ * Land demographic buckets in ad_demographics_daily.
+ *
+ * Upserts on the full grain for the same reason spend does — the trailing window
+ * re-fetches days the networks are still restating, and an insert-only design
+ * would duplicate every bucket on every run.
+ *
+ * NO EQUIVALENT OF dropStaleCoarserRows HERE, deliberately. That function exists
+ * because spend changed grain and the finer rows landed BESIDE the coarser ones,
+ * doubling the money. This table cannot have that problem: `dimension` is part of
+ * the primary key and comes from a closed set, so a new dimension is a new
+ * partition rather than a finer view of an existing one. What it CAN have is the
+ * opposite mistake, made by a reader — summing spend across dimensions double
+ * counts every rupee, because age and gender partition the same money. That is a
+ * query-side rule, and it is stated on the table and in the migration.
+ */
+async function writeDemographics(rows: DemographicRow[]): Promise<number> {
+  if (rows.length === 0) return 0;
+
+  const supabase = getSupabase();
+  const fetchedAt = new Date().toISOString();
+  const payload = rows.map((r) => ({
+    network: r.network,
+    date: r.date,
+    campaign_id: r.campaignId,
+    campaign_name: r.campaignName,
+    dimension: r.dimension,
+    bucket: r.bucket,
+    spend: r.spend,
+    currency: r.currency,
+    impressions: r.impressions,
+    clicks: r.clicks,
+    account_timezone: r.accountTimezone,
+    fetched_at: fetchedAt,
+    source: 'api'
+  }));
+
+  const { error } = await supabase
+    .from('ad_demographics_daily')
+    .upsert(payload, { onConflict: 'network,date,campaign_id,dimension,bucket', ignoreDuplicates: false });
+
+  if (error) {
+    // Loud, and specifically naming the migration: until it is run by hand this
+    // is exactly the state, and a silent zero here is indistinguishable from a
+    // network that reports no demographics at all.
+    console.error(
+      '[ad-spend] demographics NOT written (run 20260811065544_create_ad_demographics_daily_table.sql):',
+      error.message,
+      error.hint ?? ''
+    );
+    return 0;
+  }
+
+  return payload.length;
+}
+
 export async function syncAdSpend(windowDays = SYNC_WINDOW_DAYS): Promise<SyncOutcome> {
   const end = todayUtc();
   const start = addDays(end, -Math.max(0, windowDays - 1));
 
-  const [snap, meta] = await Promise.all([fetchSnapSpend(start, end), fetchMetaSpend(start, end)]);
+  // Four independent fetches. A demographics call that fails must not stop spend
+  // from syncing — spend is the number decisions are actually made on, and
+  // demographics is the colour around it.
+  const [snap, meta, snapDemo, metaDemo] = await Promise.all([
+    fetchSnapSpend(start, end),
+    fetchMetaSpend(start, end),
+    fetchSnapDemographics(start, end),
+    fetchMetaDemographics(start, end)
+  ]);
 
   let written = 0;
   written += await writeRows(snap.rows);
   written += await writeRows(meta.rows);
+
+  let demoWritten = 0;
+  demoWritten += await writeDemographics(snapDemo.rows);
+  demoWritten += await writeDemographics(metaDemo.rows);
 
   return {
     start,
@@ -152,7 +236,14 @@ export async function syncAdSpend(windowDays = SYNC_WINDOW_DAYS): Promise<SyncOu
     networks: [
       { network: 'snap', configured: snap.configured, rows: snap.rows.length, error: snap.error },
       { network: 'meta', configured: meta.configured, rows: meta.rows.length, error: meta.error }
-    ]
+    ],
+    demographics: {
+      written: demoWritten,
+      networks: [
+        { network: 'snap', configured: snapDemo.configured, rows: snapDemo.rows.length, error: snapDemo.error },
+        { network: 'meta', configured: metaDemo.configured, rows: metaDemo.rows.length, error: metaDemo.error }
+      ]
+    }
   };
 }
 
