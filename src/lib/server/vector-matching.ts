@@ -110,13 +110,25 @@ function edgeCost(c: MatchCandidate, lambda: number): number {
 /**
  * Solve the constrained matching. `valueThreshold` drops weak edges from the
  * quality phase (§9f, e.g. 40 on the LLM scale; lower on the vector scale).
+ *
+ * `existing` carries how many ACTIVE matches each person already holds, indexed
+ * parallel to `men` / `women`. Caps are cumulative over a person's inbox, not
+ * per-run: a woman on 11 of a 12 cap has one slot left tonight, not twelve.
+ * Without this the solver re-solves from a blank slate every run and hands out a
+ * full cap on top of everything already there, which is unbounded by design.
+ * Callers should also drop already-matched pairs from `candidates`, so the
+ * remaining headroom is spent on genuinely new pairs.
  */
 export function solveMatching(
 	men: string[],
 	women: string[],
 	candidates: MatchCandidate[],
 	caps: MatchCaps,
-	opts: { lambda?: number; valueThreshold?: number } = {},
+	opts: {
+		lambda?: number;
+		valueThreshold?: number;
+		existing?: { men?: number[]; women?: number[] };
+	} = {},
 ): MatchAssignment[] {
 	const lambda = opts.lambda ?? 0;
 	const threshold = opts.valueThreshold ?? 0;
@@ -125,14 +137,19 @@ export function solveMatching(
 	const M = men.length, W = women.length;
 	if (!M || !W) return [];
 
+	// Matches already held, so caps bound the inbox rather than the run.
+	const heldMen   = men.map((_, i) => Math.max(0, opts.existing?.men?.[i] ?? 0));
+	const heldWomen = women.map((_, j) => Math.max(0, opts.existing?.women?.[j] ?? 0));
+
 	// Node layout: S=0, men 1..M, women M+1..M+W, T=M+W+1.
 	const S = 0, T = M + W + 1;
 	const manNode = (i: number) => 1 + i;
 	const womanNode = (j: number) => 1 + M + j;
 	const mcf = new MinCostFlow(M + W + 2);
 
-	for (let i = 0; i < M; i++) mcf.addEdge(S, manNode(i), caps.manCap, 0);
-	for (let j = 0; j < W; j++) mcf.addEdge(womanNode(j), T, caps.womanCap, 0);
+	// Capacity is what is LEFT, not the whole cap.
+	for (let i = 0; i < M; i++) mcf.addEdge(S, manNode(i), Math.max(0, caps.manCap - heldMen[i]), 0);
+	for (let j = 0; j < W; j++) mcf.addEdge(womanNode(j), T, Math.max(0, caps.womanCap - heldWomen[j]), 0);
 
 	// Quality-phase edges: value ≥ threshold only. Track edge → candidate.
 	const usable = candidates.filter(
@@ -146,9 +163,11 @@ export function solveMatching(
 	mcf.run(S, T, /* onlyNegative */ true);
 
 	// Read the matching from man→woman edges carrying flow.
+	// Counts start at what each person already holds, so the phase-2 cap and floor
+	// checks below read total inbox size rather than tonight's allocation.
 	const assigned: MatchAssignment[] = [];
-	const manCount = new Array(M).fill(0);
-	const womanCount = new Array(W).fill(0);
+	const manCount = [...heldMen];
+	const womanCount = [...heldWomen];
 	const usedPair = new Set<string>();
 	for (const { u, v } of mcf.flowEdges()) {
 		if (u >= 1 && u <= M && v >= 1 + M && v <= M + W) {
@@ -161,6 +180,8 @@ export function solveMatching(
 
 	// Phase 2 — coverage fill (greedy, best-available, respects caps). Confined to
 	// men below floor and women with zero matches. May use sub-threshold edges.
+	// Because the counts above are cumulative, the floor is a one-time guarantee
+	// for someone genuinely unmatched, not a quota that re-arms every night.
 	const byValueDesc = [...candidates]
 		.filter((c) => mIdx.has(c.manId) && wIdx.has(c.womanId))
 		.sort((a, b) => b.value - a.value);

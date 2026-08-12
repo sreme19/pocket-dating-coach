@@ -20,11 +20,25 @@ import { solveMatching, type MatchCandidate, type MatchCaps } from './vector-mat
 import { buildAndStoreUserVectors } from './vector-builder';
 import { sendMatchNotification } from './matchmaker-service';
 
-// Caps at the current gender skew (Design §9c / Open Q27 recommendation).
+// Caps at the current gender skew (Design §9c / Open Q27 recommendation). These
+// bound a person's TOTAL active matches, not one run's — see loadHeldCounts.
 export const DEFAULT_CAPS: MatchCaps = { manFloor: 1, manCap: 4, womanCap: 12 };
 const LAMBDA = 0.15;          // assortative soft-cost weight
-const VALUE_THRESHOLD = 15;   // quality-phase floor on the vector scale (calibration: appeal ~18–49)
+
+// Quality-phase floor on the vector scale. Calibrated 2026-08-12 against all 480
+// live pairs: mutual value ran min 1.6 / median 20.6 / p90 26.8 / max 36.1, so the
+// old 15 sat below the working floor of the distribution and admitted 94% of
+// pairs — phase 1 was not a quality gate at all. 25 keeps the top ~16%.
+const VALUE_THRESHOLD = 25;
 const TOP_K = 50;             // cap candidates per person to bound the graph (§9: candidate generation)
+
+// Most new matches one person may be handed in a single run. A correct cumulative
+// cap already bounds the inbox; this bounds the RATE, so nobody opens the app to a
+// dozen new strangers and a dozen Bestie openers at once.
+const MAX_NEW_PER_PERSON_PER_RUN = 2;
+
+/** Statuses that occupy a slot in someone's inbox. Expired/unmatched/blocked don't. */
+const ACTIVE_MATCH_STATUSES = ['mutual', 'pending'];
 
 interface ActiveUser {
 	userId: string;
@@ -41,6 +55,27 @@ async function loadActive(db: any, assistant: 'wingman' | 'bestie'): Promise<str
 		.eq('assistant_type', assistant)
 		.eq('availability_status', 'active');
 	return (data ?? []).map((r: any) => r.user_id);
+}
+
+/**
+ * Every existing pair, plus how many ACTIVE matches each person holds.
+ *
+ * The pair set covers EVERY status: a pair that was unmatched, blocked or expired
+ * must never be re-created by a later run. The counts deliberately cover only the
+ * active statuses, so an expired match sitting in someone's Inactive section does
+ * not permanently consume a slot they could be using.
+ */
+async function loadHeldMatches(db: any): Promise<{ pairs: Set<string>; held: Map<string, number> }> {
+	const { data } = await db.from('verified_vibe_matches').select('user1_id, user2_id, status');
+	const pairs = new Set<string>();
+	const held = new Map<string, number>();
+	for (const m of (data ?? []) as Array<{ user1_id: string; user2_id: string; status: string }>) {
+		pairs.add([m.user1_id, m.user2_id].sort().join(':'));
+		if (!ACTIVE_MATCH_STATUSES.includes(m.status)) continue;
+		held.set(m.user1_id, (held.get(m.user1_id) ?? 0) + 1);
+		held.set(m.user2_id, (held.get(m.user2_id) ?? 0) + 1);
+	}
+	return { pairs, held };
 }
 
 /** Ensure every active user has vectors; build the missing ones (LLM, bounded). */
@@ -109,6 +144,8 @@ export interface VectorMatchResult {
 	proposed: number;
 	fired: number;
 	alreadyMatched: number;
+	/** Assignments withheld because someone had already taken their new-match slots. */
+	rateLimited: number;
 	caps: MatchCaps;
 	sample: Array<{ manId: string; womanId: string; value: number; phase: 1 | 2; isNew: boolean }>;
 }
@@ -173,41 +210,74 @@ export async function runVectorMatchmaker(
 	if (!men.length || !women.length) {
 		// Empty pool is a legitimate completed run, not a failure.
 		await logRunEnd(db, runId, { completed_at: new Date().toISOString() });
-		return { dryRun, men: men.length, women: women.length, proposed: 0, fired: 0, alreadyMatched: 0, caps, sample: [] };
+		return { dryRun, men: men.length, women: women.length, proposed: 0, fired: 0, alreadyMatched: 0, rateLimited: 0, caps, sample: [] };
 	}
 
-	const candidates = buildCandidates(men, women);
-	const assignments = solveMatching(
-		men.map((m) => m.userId), women.map((w) => w.userId),
-		candidates, caps, { lambda: LAMBDA, valueThreshold: VALUE_THRESHOLD },
+	// Existing matches (hysteresis: keep them; only fire genuinely new pairs). Read
+	// BEFORE the solve — the counts bound the caps and the pairs are excluded from
+	// the candidate set, so leftover headroom is spent on pairs that don't exist yet.
+	const { pairs: existingSet, held } = await loadHeldMatches(db);
+
+	const allCandidates = buildCandidates(men, women);
+	const candidates = allCandidates.filter(
+		(c) => !existingSet.has([c.manId, c.womanId].sort().join(':')),
 	);
 
-	// Existing matches (hysteresis: keep them; only fire genuinely new pairs).
-	const { data: existing } = await db.from('verified_vibe_matches').select('user1_id, user2_id');
-	const existingSet = new Set<string>((existing ?? []).map((m: any) => [m.user1_id, m.user2_id].sort().join(':')));
+	const assignments = solveMatching(
+		men.map((m) => m.userId), women.map((w) => w.userId),
+		candidates, caps,
+		{
+			lambda: LAMBDA,
+			valueThreshold: VALUE_THRESHOLD,
+			existing: {
+				men:   men.map((m) => held.get(m.userId) ?? 0),
+				women: women.map((w) => held.get(w.userId) ?? 0),
+			},
+		},
+	);
 
-	let fired = 0, alreadyMatched = 0;
+	// Best pairs first, so the per-run rate limit spends its slots on the strongest
+	// matches rather than whichever the solver happened to emit first.
+	const ordered = [...assignments].sort((a, b) => b.value - a.value);
+
+	let fired = 0, alreadyMatched = 0, rateLimited = 0;
+	const newThisRun = new Map<string, number>();
+	const atRunLimit = (id: string) => (newThisRun.get(id) ?? 0) >= MAX_NEW_PER_PERSON_PER_RUN;
+
 	const sample: VectorMatchResult['sample'] = [];
 	const newMatchIds: string[] = [];
-	for (const a of assignments) {
+	for (const a of ordered) {
+		// Candidates are pre-filtered, so this only catches a pair created earlier in
+		// this same loop — but it keeps the invariant local and the counter honest.
 		const isNew = !existingSet.has([a.manId, a.womanId].sort().join(':'));
 		if (!isNew) alreadyMatched++;
+		if (isNew && (atRunLimit(a.manId) || atRunLimit(a.womanId))) {
+			rateLimited++;
+			continue;
+		}
 		if (sample.length < 25) sample.push({ manId: a.manId, womanId: a.womanId, value: a.value, phase: a.phase, isNew });
-		if (isNew && !dryRun) {
+		if (!isNew) continue;
+
+		if (dryRun) {
+			fired++; // would-fire count in dry-run
+		} else {
 			const { data: created, error } = await db.from('verified_vibe_matches').insert({
 				user1_id: a.manId, user2_id: a.womanId, status: 'mutual', source: 'matchmaker', ai_bestie_active: true,
 			}).select('id').single();
-			if (!error) {
-				fired++;
-				if (created?.id) newMatchIds.push(created.id);
-				await Promise.allSettled([
-					sendMatchNotification(a.manId, a.womanId),
-					sendMatchNotification(a.womanId, a.manId),
-				]);
-			}
-		} else if (isNew && dryRun) {
-			fired++; // would-fire count in dry-run
+			if (error) continue; // failed insert must not consume a rate-limit slot
+			fired++;
+			if (created?.id) newMatchIds.push(created.id);
+			await Promise.allSettled([
+				sendMatchNotification(a.manId, a.womanId),
+				sendMatchNotification(a.womanId, a.manId),
+			]);
 		}
+
+		// Count against the per-run limit only once the match actually exists, and
+		// close the pair locally so nothing in this same loop can duplicate it.
+		existingSet.add([a.manId, a.womanId].sort().join(':'));
+		newThisRun.set(a.manId, (newThisRun.get(a.manId) ?? 0) + 1);
+		newThisRun.set(a.womanId, (newThisRun.get(a.womanId) ?? 0) + 1);
 	}
 
 	// Bestie speaks first: proactively open each freshly-formed match on the
@@ -225,8 +295,9 @@ export async function runVectorMatchmaker(
 
 	// Field semantics mirror the legacy runNightlyBatch so both matchers land in
 	// one comparable history: pairs_evaluated = every man×woman pair considered,
-	// soft_scored = pairs that survived top-K candidate filtering, soft_overrides
-	// = phase-2 assignments (matched outside stated preferences).
+	// soft_scored = pairs that survived top-K AND are not already matched (the set
+	// actually put to the solver), hard_filtered = everything dropped before it, and
+	// soft_overrides = phase-2 assignments (matched outside stated preferences).
 	await logRunEnd(db, runId, {
 		completed_at: new Date().toISOString(),
 		pairs_evaluated: men.length * women.length,
@@ -238,7 +309,7 @@ export async function runVectorMatchmaker(
 
 	return {
 		dryRun, men: men.length, women: women.length,
-		proposed: assignments.length, fired, alreadyMatched, caps, sample,
+		proposed: assignments.length, fired, alreadyMatched, rateLimited, caps, sample,
 	};
 	} catch (err: any) {
 		// Record the failure but leave completed_at NULL: an unfinished run must
