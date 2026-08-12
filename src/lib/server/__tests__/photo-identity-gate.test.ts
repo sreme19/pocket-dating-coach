@@ -188,6 +188,27 @@ describe('decidePhotoGate — no anchor selfie to compare against', () => {
 		expect(d.message).toMatch(/clear photo of you/i);
 	});
 
+	// Regression for b69a7263 — a user with no anchor selfie who fails this gate
+	// used to get a message that never mentioned the selfie at all, so retrying
+	// with different photos could never fix it. The old wording ("clear photo of
+	// you... face visible") would satisfy the loose assertion above even reverted,
+	// so this asserts the specific fact the fix adds: that the message points at
+	// the selfie check as the actual next step.
+	it('names the selfie check as the fix when there is no anchor to compare against', () => {
+		const d = decidePhotoGate([notAPerson()], false);
+		expect(d.status).toBe('rejected');
+		expect(d.message).toMatch(/selfie/i);
+		expect(d.message).not.toBe(
+			'None of these look like a clear photo of you. Please upload photos of yourself with your face visible.'
+		);
+	});
+
+	it('does NOT name the selfie when an anchor selfie already exists (different dead-end, different fix)', () => {
+		const d = decidePhotoGate([someoneElse()], true);
+		expect(d.status).toBe('rejected');
+		expect(d.message).toMatch(/verification selfie/i); // the has-anchor wording, unchanged by b69a7263
+	});
+
 	it('drops a face it could not cross-check — that grace needs the selfie check', () => {
 		const d = decidePhotoGate([inCluster(), cannotTell()], false);
 		expect(d.acceptedIndexes).toEqual([0]);
