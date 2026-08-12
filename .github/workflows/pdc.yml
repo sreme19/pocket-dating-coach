@@ -781,7 +781,25 @@ jobs:
             echo "status=OK"        >> $GITHUB_OUTPUT
           else
             echo "status=FAIL"      >> $GITHUB_OUTPUT
-            echo "error=HTTP $HTTP" >> $GITHUB_OUTPUT
+            # /api/health's own body already names which dependency broke
+            # (claude / supabase / server) — pull that out instead of alerting
+            # on a bare "HTTP 503" that tells nobody what to go fix.
+            DETAIL=$(HTTP_CODE="$HTTP" python3 -c "
+          import json, os
+          http_code = os.environ.get('HTTP_CODE', '0')
+          try:
+              d = json.load(open('/tmp/ping_body.json'))
+              services = d.get('services', {})
+              bad = []
+              for name, s in services.items():
+                  if isinstance(s, dict) and s.get('status') != 'ok':
+                      detail = ' - ' + s['error'] if s.get('error') else ''
+                      bad.append(name + ': ' + str(s.get('status', '?')).upper() + detail)
+              print('; '.join(bad) if bad else 'HTTP ' + http_code + ' (overall=' + str(d.get('status', '?')) + ', no service reported unhealthy)')
+          except Exception:
+              print('HTTP ' + http_code + ' (response body was not the expected health JSON)')
+          ")
+            echo "error=$DETAIL" >> $GITHUB_OUTPUT
           fi
 
       - name: DB read integrity
