@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 660" width="560" height="660" role="img" aria-labelledby="rgt2 rgd2">
+  <title id="rgt2">A request in English, and the gate it has to pass</title>
+  <desc id="rgd2">Someone describes a routing change in plain English. The intent is parsed into a structured edit. If anything is ambiguous the request stops and asks rather than guessing. A patch to the configuration is produced but not applied. The replay harness then runs every captured production decision through both the existing engine and the patched one and compares the outcomes. Only a divergence rate under the threshold lets the change proceed to an audited apply. Anything above it is rejected and the divergences are reported.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .gate { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.5; }
+    .ok { fill: #f2f6f3; stroke: #2f6b46; stroke-width: 1.3; }
+    .n { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; fill: #97928a; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #6e6a63; }
+    .m { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; fill: #b4541e; }
+    .arrow { stroke: #97928a; stroke-width: 1.5; fill: none; }
+    .no { stroke: #b4541e; stroke-width: 1.5; fill: none; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: fl-rg 0.9s linear infinite; }
+      .no { stroke-dasharray: 5 4; animation: fl-rg2 0.9s linear infinite; }
+    }
+    @keyframes fl-rg { to { stroke-dashoffset: -8; } }
+    @keyframes fl-rg2 { to { stroke-dashoffset: -9; } }
+  </style>
+  <rect class="bg" width="560" height="660" rx="8"/>
+  <rect class="card" x="24" y="18" width="512" height="52" rx="6"/>
+  <text class="h" x="44" y="46">&#34;Send weekend enquiries from the north to the new team&#34;</text>
+  <path class="arrow" d="M280 70 L280 88" marker-end="url(#rg2)"/>
+  <rect class="card" x="24" y="92" width="512" height="48" rx="6"/>
+  <text class="n" x="42" y="120">1</text><text class="h" x="66" y="121">Parse the intent into a structured edit</text>
+  <path class="arrow" d="M280 140 L280 158" marker-end="url(#rg2)"/>
+  <rect class="card" x="24" y="162" width="512" height="60" rx="6"/>
+  <text class="n" x="42" y="190">2</text><text class="h" x="66" y="191">Is anything ambiguous?</text>
+  <text class="s" x="66" y="210">If yes, stop and ask. Never resolve it by guessing</text>
+  <path class="arrow" d="M280 222 L280 240" marker-end="url(#rg2)"/>
+  <rect class="card" x="24" y="244" width="512" height="48" rx="6"/>
+  <text class="n" x="42" y="272">3</text><text class="h" x="66" y="273">Produce a patch — do not apply it</text>
+  <path class="arrow" d="M280 292 L280 310" marker-end="url(#rg2)"/>
+  <rect class="gate" x="24" y="314" width="512" height="96" rx="6"/>
+  <text class="n" x="42" y="342">4</text><text class="h" x="66" y="343">Replay every captured decision through both engines</text>
+  <text class="s" x="66" y="364">The one in production, and the one with the patch applied</text>
+  <text class="m" x="66" y="392">5,501 decisions · 5,501 matched · 0 divergences</text>
+  <path class="arrow" d="M170 410 L170 452" marker-end="url(#rg2)"/>
+  <text class="s" x="182" y="436">under threshold</text>
+  <path class="no" d="M400 410 L400 452" marker-end="url(#rgx)"/>
+  <text class="s" x="412" y="436">over</text>
+  <rect class="ok" x="24" y="456" width="260" height="72" rx="6"/>
+  <text class="h" x="154" y="484" text-anchor="middle">Apply, and write an</text>
+  <text class="h" x="154" y="504" text-anchor="middle">audit entry</text>
+  <rect class="card" x="300" y="456" width="236" height="72" rx="6"/>
+  <text class="h" x="418" y="484" text-anchor="middle">Rejected</text>
+  <text class="s" x="418" y="506" text-anchor="middle">every divergence reported</text>
+  <rect class="card" x="24" y="560" width="512" height="80" rx="6"/>
+  <text class="foot" x="280" y="588" text-anchor="middle">The agent is never trusted because it sounded confident.</text>
+  <text class="foot" x="280" y="610" text-anchor="middle">It is trusted because its output reproduced every decision</text>
+  <text class="foot" x="280" y="630" text-anchor="middle">the live system has already made.</text>
+  <defs>
+    <marker id="rg2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+    <marker id="rgx" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b4541e"/>
+    </marker>
+  </defs>
+</svg>
