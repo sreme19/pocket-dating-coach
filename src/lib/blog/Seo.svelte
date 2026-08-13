@@ -36,11 +36,20 @@
 	<meta property="og:description" content={description} />
 	<meta property="og:url" content={canonical} />
 	<meta property="og:image" content={cardImage} />
+	<!-- LinkedIn will not render a card without dimensions on the image, and
+	     falls back to the site default rather than reporting a problem. Every
+	     card this blog ships comes out of scripts/blog-og-card.py at this size,
+	     so the numbers are a property of the generator, not a guess. -->
+	<meta property="og:image:width" content="1200" />
+	<meta property="og:image:height" content="630" />
+	<meta property="og:image:type" content="image/png" />
+	<meta property="og:image:alt" content={title} />
 
 	<meta name="twitter:card" content="summary_large_image" />
 	<meta name="twitter:title" content={title} />
 	<meta name="twitter:description" content={description} />
 	<meta name="twitter:image" content={cardImage} />
+	<meta name="twitter:image:alt" content={title} />
 
 	{#if article}
 		<meta property="article:published_time" content={article.published} />
