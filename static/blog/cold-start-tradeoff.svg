@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 440" width="560" height="440" role="img" aria-labelledby="cst2 csd2">
+  <title id="cst2">Bundling the data versus fetching it</title>
+  <desc id="csd2">Fetching the dataset from object storage keeps the deployment package small and lets the data change without redeploying, but every cold start pays a network round trip and the function needs credentials and network access. Bundling the dataset into the deployment package makes the package much larger and means a data change requires a redeploy, but the data is present the moment the function starts and there is no network dependency at all. Under a hard memory ceiling with a short timeout, removing the network from the critical path was worth the size.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .win { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .k { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; fill: #97928a; }
+    .kw { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; fill: #b4541e; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14px; fill: #17161b; }
+    .p { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #2f6b46; }
+    .m { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #b4541e; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+  </style>
+  <rect class="bg" width="560" height="440" rx="8"/>
+  <text class="k" x="34" y="28">FETCH IT AT RUNTIME</text>
+  <rect class="card" x="24" y="40" width="512" height="128" rx="6"/>
+  <text class="h" x="44" y="68">The obvious choice</text>
+  <text class="p" x="44" y="94">+ small deployment package</text>
+  <text class="p" x="44" y="114">+ data changes without a redeploy</text>
+  <text class="m" x="44" y="138">− every cold start pays a network round trip</text>
+  <text class="m" x="44" y="158">− needs credentials and network access to work at all</text>
+  <text class="kw" x="34" y="208">BUNDLE IT INTO THE PACKAGE</text>
+  <rect class="win" x="24" y="220" width="512" height="128" rx="6"/>
+  <text class="h" x="44" y="248">What shipped</text>
+  <text class="m" x="44" y="274">− a much larger deployment artifact</text>
+  <text class="m" x="44" y="294">− changing the data means redeploying</text>
+  <text class="p" x="44" y="318">+ the data is there the instant the function starts</text>
+  <text class="p" x="44" y="338">+ no network in the critical path, nothing to be denied</text>
+  <text class="foot" x="280" y="392" text-anchor="middle">Under a hard memory ceiling and a short timeout, with data that</text>
+  <text class="foot" x="280" y="412" text-anchor="middle">changes a few times a season, removing the network won.</text>
+</svg>

@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 640" width="560" height="640" role="img" aria-labelledby="lot lod">
+  <title id="lot">Six computation stages inside a memory-capped serverless function</title>
+  <desc id="lod">A request enters a function limited to 512 megabytes and 30 seconds. Player histories are loaded from bundled data and adjusted for recent form. Conditions are encoded for the venue. A bipartite graph scores which opponents threaten which of your players. Integer programming selects the eleven under real constraints. Ten thousand vectorised simulations estimate the win probability with a confidence interval. Only then does a language model write the explanation, and it can only describe the result the solver already produced.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .ai { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .box { fill: #f4f1ea; stroke: #ddd7ca; stroke-width: 1.2; }
+    .n { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; fill: #97928a; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 13.5px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #6e6a63; }
+    .lim { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; fill: #b4541e; }
+    .arrow { stroke: #97928a; stroke-width: 1.4; fill: none; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #6e6a63; }
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: fl-lo 0.9s linear infinite; }
+    }
+    @keyframes fl-lo { to { stroke-dashoffset: -8; } }
+  </style>
+  <rect class="bg" width="560" height="640" rx="8"/>
+  <rect class="box" x="24" y="18" width="512" height="46" rx="6"/>
+  <text class="h" x="44" y="40">One serverless function</text>
+  <text class="lim" x="360" y="47">512 MB · 30 s</text>
+  <path class="arrow" d="M280 64 L280 80" marker-end="url(#lo)"/>
+  <rect class="card" x="24" y="84" width="512" height="50" rx="6"/>
+  <text class="n" x="42" y="106">1</text><text class="h" x="66" y="107">Load player histories, adjust for recent form</text>
+  <text class="s" x="66" y="124">from data bundled into the deployment package</text>
+  <path class="arrow" d="M280 134 L280 150" marker-end="url(#lo)"/>
+  <rect class="card" x="24" y="154" width="512" height="44" rx="6"/>
+  <text class="n" x="42" y="176">2</text><text class="h" x="66" y="177">Encode the venue and conditions</text>
+  <path class="arrow" d="M280 198 L280 214" marker-end="url(#lo)"/>
+  <rect class="card" x="24" y="218" width="512" height="50" rx="6"/>
+  <text class="n" x="42" y="240">3</text><text class="h" x="66" y="241">Score threats as a bipartite graph</text>
+  <text class="s" x="66" y="258">which of their players is dangerous to which of yours</text>
+  <path class="arrow" d="M280 268 L280 284" marker-end="url(#lo)"/>
+  <rect class="card" x="24" y="288" width="512" height="50" rx="6"/>
+  <text class="n" x="42" y="310">4</text><text class="h" x="66" y="311">Select the eleven by integer programming</text>
+  <text class="s" x="66" y="328">role coverage, overs available, squad rules</text>
+  <path class="arrow" d="M280 338 L280 354" marker-end="url(#lo)"/>
+  <rect class="card" x="24" y="358" width="512" height="50" rx="6"/>
+  <text class="n" x="42" y="380">5</text><text class="h" x="66" y="381">Simulate 10,000 times, vectorised</text>
+  <text class="s" x="66" y="398">win probability with a confidence interval</text>
+  <path class="arrow" d="M280 408 L280 424" marker-end="url(#lo)"/>
+  <rect class="ai" x="24" y="428" width="512" height="50" rx="6"/>
+  <text class="n" x="42" y="450">6</text><text class="h" x="66" y="451">A model writes the explanation</text>
+  <text class="s" x="66" y="468">four narration steps, one per computation stage above</text>
+  <rect class="card" x="24" y="508" width="512" height="112" rx="6"/>
+  <text class="foot" x="280" y="536" text-anchor="middle">The narration steps map one-to-one onto the computation steps,</text>
+  <text class="foot" x="280" y="556" text-anchor="middle">so the prose has nowhere to introduce a recommendation.</text>
+  <text class="foot" x="280" y="584" text-anchor="middle">It can only describe a selection the solver already made,</text>
+  <text class="foot" x="280" y="604" text-anchor="middle">and it is optional — the answer exists without it.</text>
+  <defs>
+    <marker id="lo" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+  </defs>
+</svg>
