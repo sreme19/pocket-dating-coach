@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 500" width="560" height="500" role="img" aria-labelledby="tbt tbd">
+  <title id="tbt">Two graphs, because there are two time budgets</title>
+  <desc id="tbd">Before the match there is effectively unlimited time, so the full combination space is enumerated and every candidate side is scored properly. During the match the answer must arrive in the gap between overs, which is well under a minute, so re-optimising is impossible. Instead the expensive part is precomputed into a lookup that answers in constant time, and the live path only reads it. Same domain, same data, two entirely different execution paths chosen by how long the user will wait.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .live { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .k { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; fill: #97928a; }
+    .kl { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; fill: #b4541e; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #6e6a63; }
+    .m { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; fill: #b4541e; }
+    .arrow { stroke: #97928a; stroke-width: 1.4; fill: none; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: fl-tb 0.9s linear infinite; }
+    }
+    @keyframes fl-tb { to { stroke-dashoffset: -8; } }
+  </style>
+  <rect class="bg" width="560" height="500" rx="8"/>
+  <text class="k" x="34" y="26">BEFORE THE MATCH — TIME IS FREE</text>
+  <rect class="card" x="24" y="38" width="512" height="60" rx="6"/>
+  <text class="h" x="44" y="64">Enumerate the whole combination space</text>
+  <text class="s" x="44" y="84">small enough to check every candidate side properly</text>
+  <path class="arrow" d="M280 98 L280 116" marker-end="url(#tb)"/>
+  <rect class="card" x="24" y="120" width="512" height="60" rx="6"/>
+  <text class="h" x="44" y="146">Score each one, pick the best</text>
+  <text class="m" x="44" y="168">answers in about a second</text>
+  <path class="arrow" d="M280 180 L280 202" marker-end="url(#tb)"/>
+  <rect class="card" x="24" y="206" width="512" height="56" rx="6"/>
+  <text class="h" x="44" y="232">Precompute the matchup lookup</text>
+  <text class="s" x="44" y="252">the expensive part, done once, while nobody is waiting</text>
+  <text class="kl" x="34" y="300">DURING THE MATCH — ONE GAP BETWEEN OVERS</text>
+  <rect class="live" x="24" y="312" width="512" height="96" rx="6"/>
+  <text class="h" x="44" y="340">Read the lookup. Do not re-optimise</text>
+  <text class="s" x="44" y="362">There is no version of the full solve that fits in the gap,</text>
+  <text class="s" x="44" y="382">so the live path is a constant-time read and nothing else.</text>
+  <text class="m" x="44" y="402">budget: well under a minute</text>
+  <rect class="card" x="24" y="428" width="512" height="56" rx="6"/>
+  <text class="foot" x="280" y="454" text-anchor="middle">Same domain, same data, two execution paths —</text>
+  <text class="foot" x="280" y="474" text-anchor="middle">chosen entirely by how long someone is willing to wait.</text>
+  <defs>
+    <marker id="tb" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+  </defs>
+</svg>
