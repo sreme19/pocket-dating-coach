@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 700" width="560" height="700" role="img" aria-labelledby="sct scd">
+  <title id="sct">Six stages between a patient's question and an answer</title>
+  <desc id="scd">A question passes six stages. A rate limit and input caps. An emergency keyword scan that runs before any model call and, on a hit, returns a pre-written escalation in the patient's own language without ever contacting the model. Keyword retrieval over a small set of reviewed answers. A system prompt with explicit never and always blocks. The model call itself. And a validator with eight forbidden patterns that discards the entire response on any hit and substitutes a fixed safe reply. Two of the six stages can end the request without the model being consulted at all.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .stop { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.5; }
+    .model { fill: #f4f1ea; stroke: #ddd7ca; stroke-width: 1.2; }
+    .n { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; fill: #97928a; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #6e6a63; }
+    .esc { font-family: system-ui, -apple-system, sans-serif; font-size: 10.5px; fill: #b4541e; font-weight: 600; }
+    .arrow { stroke: #97928a; stroke-width: 1.5; fill: none; }
+    .out { stroke: #b4541e; stroke-width: 1.5; fill: none; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: fl-s 0.9s linear infinite; }
+      .out { stroke-dasharray: 5 4; animation: fl-s2 0.85s linear infinite; }
+    }
+    @keyframes fl-s { to { stroke-dashoffset: -8; } }
+    @keyframes fl-s2 { to { stroke-dashoffset: -9; } }
+  </style>
+  <rect class="bg" width="560" height="700" rx="8"/>
+  <rect class="card" x="150" y="18" width="200" height="40" rx="6"/>
+  <text class="h" x="250" y="43" text-anchor="middle">A patient asks something</text>
+  <path class="arrow" d="M250 58 L250 76" marker-end="url(#sc)"/>
+  <rect class="card" x="24" y="80" width="452" height="54" rx="6"/>
+  <text class="n" x="42" y="102">1</text>
+  <text class="h" x="66" y="103">Rate limit and input caps</text>
+  <text class="s" x="66" y="122">12 requests a minute · 1000 characters · 20 turns of history</text>
+  <path class="arrow" d="M250 134 L250 152" marker-end="url(#sc)"/>
+  <rect class="stop" x="24" y="156" width="452" height="72" rx="6"/>
+  <text class="n" x="42" y="178">2</text>
+  <text class="h" x="66" y="179">Emergency scan — before any model call</text>
+  <text class="s" x="66" y="198">~65 phrases, English · Hindi · Kannada</text>
+  <text class="s" x="66" y="216">On a hit: a pre-written, human-reviewed escalation, in their language</text>
+  <path class="out" d="M476 192 L520 192 L520 640" marker-end="url(#so)"/>
+  <text class="esc" x="490" y="182">exit</text>
+  <path class="arrow" d="M250 228 L250 246" marker-end="url(#sc)"/>
+  <rect class="card" x="24" y="250" width="452" height="54" rx="6"/>
+  <text class="n" x="42" y="272">3</text>
+  <text class="h" x="66" y="273">Retrieve from reviewed answers</text>
+  <text class="s" x="66" y="292">Keyword scoring, top 3 of 13 chunks. No vector database</text>
+  <path class="arrow" d="M250 304 L250 322" marker-end="url(#sc)"/>
+  <rect class="card" x="24" y="326" width="452" height="54" rx="6"/>
+  <text class="n" x="42" y="348">4</text>
+  <text class="h" x="66" y="349">Build the prompt</text>
+  <text class="s" x="66" y="368">Fixed persona with explicit NEVER and ALWAYS blocks</text>
+  <path class="arrow" d="M250 380 L250 398" marker-end="url(#sc)"/>
+  <rect class="model" x="24" y="402" width="452" height="54" rx="6"/>
+  <text class="n" x="42" y="424">5</text>
+  <text class="h" x="66" y="425">The model answers</text>
+  <text class="s" x="66" y="444">Claude Haiku 4.5 · 1024 tokens · the only generative step</text>
+  <path class="arrow" d="M250 456 L250 474" marker-end="url(#sc)"/>
+  <rect class="stop" x="24" y="478" width="452" height="72" rx="6"/>
+  <text class="n" x="42" y="500">6</text>
+  <text class="h" x="66" y="501">Validate, and discard the whole reply if it fails</text>
+  <text class="s" x="66" y="520">8 forbidden patterns: dosages, results, diagnoses, prescriptions</text>
+  <text class="s" x="66" y="538">Any single hit throws away the entire response</text>
+  <path class="out" d="M476 514 L520 514" marker-end="url(#so)"/>
+  <path class="arrow" d="M250 550 L250 570" marker-end="url(#sc)"/>
+  <rect class="card" x="150" y="574" width="200" height="40" rx="6"/>
+  <text class="h" x="250" y="599" text-anchor="middle">The answer</text>
+  <rect class="stop" x="380" y="620" width="156" height="40" rx="6"/>
+  <text class="h" x="458" y="645" text-anchor="middle">Fixed safe reply</text>
+  <text class="foot" x="280" y="686" text-anchor="middle">Two of the six stages can end the request without the model being asked.</text>
+  <defs>
+    <marker id="sc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+    <marker id="so" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b4541e"/>
+    </marker>
+  </defs>
+</svg>

@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 620" width="560" height="620" role="img" aria-labelledby="spt spd">
+  <title id="spt">The reporting pipeline, and the gate that can stop it</title>
+  <desc id="spd">Eight stages. A ruleset version is stamped. A model inspects the raw files and infers their column layout before any parsing. Plain Python cleans and deduplicates. A preprocessor fits response curves. A builder produces the table and the workbook. A model writes the findings. An auditor checks the findings against the table and returns a verdict. A conditional edge then either runs the executive summary or stops the pipeline. The summary is only written when the audit passes or warns, never when it fails.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .ai { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.3; }
+    .gate { fill: #f2f6f3; stroke: #2f6b46; stroke-width: 1.4; }
+    .n { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10.5px; fill: #97928a; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 13.5px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 10.5px; fill: #6e6a63; }
+    .tag { font-family: system-ui, -apple-system, sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 0.05em; }
+    .ta { fill: #b4541e; } .tp { fill: #97928a; }
+    .arrow { stroke: #97928a; stroke-width: 1.4; fill: none; }
+    .stop { stroke: #b4541e; stroke-width: 1.4; fill: none; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #6e6a63; }
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: fl-sp 0.9s linear infinite; }
+      .stop { stroke-dasharray: 5 4; animation: fl-sp2 0.9s linear infinite; }
+    }
+    @keyframes fl-sp { to { stroke-dashoffset: -8; } }
+    @keyframes fl-sp2 { to { stroke-dashoffset: -9; } }
+  </style>
+  <rect class="bg" width="560" height="620" rx="8"/>
+  <rect class="card" x="24" y="20" width="400" height="44" rx="6"/>
+  <text class="n" x="40" y="40">0</text><text class="h" x="60" y="41">Stamp the ruleset version</text>
+  <text class="tag tp" x="60" y="56">DETERMINISTIC</text>
+  <path class="arrow" d="M224 64 L224 78" marker-end="url(#sp)"/>
+  <rect class="ai" x="24" y="82" width="400" height="52" rx="6"/>
+  <text class="n" x="40" y="102">0.1</text><text class="h" x="60" y="103">Infer the column layout</text>
+  <text class="s" x="60" y="119">A model reads the raw files before anything parses them</text>
+  <text class="tag ta" x="60" y="131">MODEL</text>
+  <path class="arrow" d="M224 134 L224 148" marker-end="url(#sp)"/>
+  <rect class="card" x="24" y="152" width="400" height="44" rx="6"/>
+  <text class="n" x="40" y="172">1</text><text class="h" x="60" y="173">Clean and deduplicate</text>
+  <text class="tag tp" x="60" y="188">DETERMINISTIC</text>
+  <path class="arrow" d="M224 196 L224 210" marker-end="url(#sp)"/>
+  <rect class="card" x="24" y="214" width="400" height="44" rx="6"/>
+  <text class="n" x="40" y="234">0.5</text><text class="h" x="60" y="235">Fit response curves</text>
+  <text class="tag tp" x="60" y="250">DETERMINISTIC · VERSIONED CURVE STORE</text>
+  <path class="arrow" d="M224 258 L224 272" marker-end="url(#sp)"/>
+  <rect class="card" x="24" y="276" width="400" height="44" rx="6"/>
+  <text class="n" x="40" y="296">2</text><text class="h" x="60" y="297">Build the table and the workbook</text>
+  <text class="tag tp" x="60" y="312">DETERMINISTIC</text>
+  <path class="arrow" d="M224 320 L224 334" marker-end="url(#sp)"/>
+  <rect class="ai" x="24" y="338" width="400" height="44" rx="6"/>
+  <text class="n" x="40" y="358">3</text><text class="h" x="60" y="359">Write the findings</text>
+  <text class="tag ta" x="60" y="374">MODEL</text>
+  <path class="arrow" d="M224 382 L224 396" marker-end="url(#sp)"/>
+  <rect class="gate" x="24" y="400" width="400" height="52" rx="6"/>
+  <text class="n" x="40" y="420">6</text><text class="h" x="60" y="421">Audit the findings against the table</text>
+  <text class="s" x="60" y="437">Verdict gates everything downstream</text>
+  <text class="tag tp" x="60" y="449">EITHER IMPLEMENTATION</text>
+  <path class="arrow" d="M140 452 L140 496" marker-end="url(#sp)"/>
+  <text class="s" x="150" y="478">pass or warn</text>
+  <path class="stop" d="M330 452 L330 496" marker-end="url(#spx)"/>
+  <text class="s" x="340" y="478">fail</text>
+  <rect class="card" x="24" y="500" width="220" height="44" rx="6"/>
+  <text class="h" x="134" y="527" text-anchor="middle">Executive summary</text>
+  <rect class="ai" x="256" y="500" width="220" height="44" rx="6"/>
+  <text class="h" x="366" y="527" text-anchor="middle">Nothing is written</text>
+  <text class="foot" x="280" y="578" text-anchor="middle">The summary is the only thing anyone reads,</text>
+  <text class="foot" x="280" y="598" text-anchor="middle">so it is the thing placed behind the gate.</text>
+  <defs>
+    <marker id="sp" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+    <marker id="spx" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b4541e"/>
+    </marker>
+  </defs>
+</svg>

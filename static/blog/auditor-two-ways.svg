@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 560" width="560" height="560" role="img" aria-labelledby="att atd">
+  <title id="att">The same audit step, built two opposite ways</title>
+  <desc id="atd">In the first build the auditor is a model. It reads the table and the written findings and returns a verdict of pass, warn or fail, which the calling code then has to parse out of prose that may be formatted inconsistently. In the second build the auditor is plain Python. It re-derives the percentages, recomputes the revenue formula, re-checks the margin arithmetic and confirms completeness, returning a structured result. Both occupy the same position in the same pipeline and gate the same downstream step.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .llm { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .det { fill: #f2f6f3; stroke: #2f6b46; stroke-width: 1.4; }
+    .k { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; fill: #97928a; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #6e6a63; }
+    .v { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; fill: #3f3c45; }
+    .arrow { stroke: #97928a; stroke-width: 1.5; fill: none; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: fl-at 0.9s linear infinite; }
+    }
+    @keyframes fl-at { to { stroke-dashoffset: -8; } }
+  </style>
+  <rect class="bg" width="560" height="560" rx="8"/>
+  <rect class="card" x="150" y="18" width="260" height="42" rx="6"/>
+  <text class="h" x="280" y="45" text-anchor="middle">A table of numbers, and prose about it</text>
+  <path class="arrow" d="M200 60 L140 96" marker-end="url(#at)"/>
+  <path class="arrow" d="M360 60 L420 96" marker-end="url(#at)"/>
+  <text class="k" x="30" y="118">BUILD ONE — THE AUDITOR IS A MODEL</text>
+  <rect class="llm" x="24" y="130" width="512" height="146" rx="6"/>
+  <text class="h" x="44" y="158">Claude reads both and returns a verdict</text>
+  <text class="s" x="44" y="182">Five semantic checks. Does the narrative match the table?</text>
+  <text class="v" x="44" y="208">PASS · WARN · FAIL · RULESET MISMATCH</text>
+  <text class="s" x="44" y="234">The caller must then parse that verdict back out of prose —</text>
+  <text class="s" x="44" y="252">which may arrive bold, quoted, or wrapped in a sentence.</text>
+  <text class="k" x="30" y="304">BUILD TWO — THE AUDITOR IS ARITHMETIC</text>
+  <rect class="det" x="24" y="316" width="512" height="146" rx="6"/>
+  <text class="h" x="44" y="344">Python re-derives every number</text>
+  <text class="s" x="44" y="368">Do the percentages sum to 100?</text>
+  <text class="s" x="44" y="386">Does the revenue formula reproduce the stated figure?</text>
+  <text class="s" x="44" y="404">Does the margin arithmetic hold?</text>
+  <text class="s" x="44" y="422">Is anything missing?</text>
+  <text class="v" x="44" y="448">A structured result. Nothing to parse.</text>
+  <rect class="card" x="24" y="490" width="512" height="52" rx="6"/>
+  <text class="foot" x="280" y="514" text-anchor="middle">Same position in the same pipeline. Same downstream step gated.</text>
+  <text class="foot" x="280" y="534" text-anchor="middle">Opposite implementations, and each is right for a different question.</text>
+  <defs>
+    <marker id="at" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+  </defs>
+</svg>
