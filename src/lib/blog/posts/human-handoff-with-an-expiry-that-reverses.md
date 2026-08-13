@@ -88,10 +88,11 @@ off in one guarded transition with a banner on both sides. Wrapped: only she can
 act, countdown running. Expired: nobody can act, but the record survives and she
 can bring it back.](/blog/handoff-states.svg)
 
-The moment she types her own message, the agent is switched off. That happens as
-a single guarded transition — it can only fire once, so two messages arriving
-together cannot both flip it — and from then on both people see a banner telling
-them they are talking directly.
+The moment she types her own message, the agent is switched off.
+
+That happens as a single guarded transition. It can only fire once, so two
+messages arriving together cannot both flip it. From then on, both people see a
+banner telling them they are talking directly.
 
 Being explicit about this matters more than the mechanism. He is told from the
 first message that he is talking to her agent. He is told again when he is not.
