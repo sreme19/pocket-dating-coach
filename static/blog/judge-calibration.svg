@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 540" width="560" height="540" role="img" aria-labelledby="jct jcd">
+  <title id="jct">Calibrating a judge against human labels</title>
+  <desc id="jcd">A loop. Sample stored outputs, have humans label them against the same rubric the judge uses, run the judge over the identical sample, then compare the two sets of verdicts to get an agreement rate, a false-positive rate and a false-negative rate. Those figures tell you whether to adjust the rubric, change the model tier or move the threshold. Without this loop you have a number with no error bar, and a judge that is confidently wrong looks exactly like a judge that is right.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .hot { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .k { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; fill: #97928a; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #6e6a63; }
+    .m { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; fill: #b4541e; }
+    .arrow { stroke: #97928a; stroke-width: 1.5; fill: none; }
+    .back { stroke: #b4541e; stroke-width: 1.5; fill: none; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: fl-c 0.9s linear infinite; }
+      .back { stroke-dasharray: 5 4; animation: fl-cb 1.0s linear infinite; }
+    }
+    @keyframes fl-c { to { stroke-dashoffset: -8; } }
+    @keyframes fl-cb { to { stroke-dashoffset: 9; } }
+  </style>
+  <rect class="bg" width="560" height="540" rx="8"/>
+  <text class="k" x="30" y="28">THE LOOP NOBODY RUNS</text>
+  <rect class="card" x="150" y="40" width="260" height="52" rx="6"/>
+  <text class="h" x="280" y="72" text-anchor="middle">Sample stored outputs</text>
+  <path class="arrow" d="M215 92 L150 128" marker-end="url(#k)"/>
+  <path class="arrow" d="M345 92 L410 128" marker-end="url(#k)"/>
+  <rect class="card" x="24" y="132" width="230" height="76" rx="6"/>
+  <text class="h" x="139" y="162" text-anchor="middle">Humans label them</text>
+  <text class="s" x="139" y="186" text-anchor="middle">against the same rubric</text>
+  <rect class="hot" x="306" y="132" width="230" height="76" rx="6"/>
+  <text class="h" x="421" y="162" text-anchor="middle">Judge scores them</text>
+  <text class="s" x="421" y="186" text-anchor="middle">identical sample</text>
+  <path class="arrow" d="M139 208 L200 248" marker-end="url(#k)"/>
+  <path class="arrow" d="M421 208 L360 248" marker-end="url(#k)"/>
+  <rect class="card" x="150" y="252" width="260" height="112" rx="6"/>
+  <text class="h" x="280" y="280" text-anchor="middle">Compare</text>
+  <text class="m" x="280" y="306" text-anchor="middle">agreement rate</text>
+  <text class="m" x="280" y="328" text-anchor="middle">false positives</text>
+  <text class="m" x="280" y="350" text-anchor="middle">false negatives</text>
+  <path class="back" d="M410 308 L490 308 L490 170 L540 170" marker-end="url(#kb)"/>
+  <path class="back" d="M150 308 L60 308 L60 400 L150 400" marker-end="url(#kb)"/>
+  <rect class="card" x="150" y="376" width="260" height="52" rx="6"/>
+  <text class="h" x="280" y="408" text-anchor="middle">Adjust rubric, tier or threshold</text>
+  <rect class="card" x="24" y="452" width="512" height="68" rx="6"/>
+  <text class="foot" x="280" y="480" text-anchor="middle">Skip this and you have a number with no error bar.</text>
+  <text class="foot" x="280" y="504" text-anchor="middle">A judge that is confidently wrong looks exactly like one that is right.</text>
+  <defs>
+    <marker id="k" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+    <marker id="kb" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b4541e"/>
+    </marker>
+  </defs>
+</svg>

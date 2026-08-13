@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 520" width="560" height="520" role="img" aria-labelledby="hst hsd">
+  <title id="hst">Who is allowed to speak, in each state of a conversation</title>
+  <desc id="hsd">Four states. While the agent is active it speaks on her behalf and she can watch. The moment she types her own message, the agent is switched off in a single guarded transition and both people see a banner saying they are now talking directly. Once the agent has wrapped up, only she can act, and a countdown is running. After expiry nobody can act, but the record survives and she can reactivate it. Every arrow that moves rightward can be walked back, except the final purge thirty days later.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .hot { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .k { font-family: system-ui, -apple-system, sans-serif; font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; fill: #97928a; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14.5px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #6e6a63; }
+    .arrow { stroke: #97928a; stroke-width: 1.5; fill: none; }
+    .back { stroke: #b4541e; stroke-width: 1.4; fill: none; }
+    .lbl { font-family: system-ui, -apple-system, sans-serif; font-size: 10.5px; fill: #6e6a63; }
+    .lblb { font-family: system-ui, -apple-system, sans-serif; font-size: 10.5px; fill: #b4541e; font-weight: 600; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: fl-a 0.9s linear infinite; }
+      .back  { stroke-dasharray: 5 4; animation: fl-b 1.0s linear infinite; }
+    }
+    @keyframes fl-a { to { stroke-dashoffset: -8; } }
+    @keyframes fl-b { to { stroke-dashoffset: 9; } }
+  </style>
+  <rect class="bg" width="560" height="520" rx="8"/>
+  <rect class="hot" x="24" y="26" width="512" height="72" rx="6"/>
+  <text class="k" x="44" y="48">AGENT ACTIVE</text>
+  <text class="h" x="44" y="70">It speaks for her. She watches.</text>
+  <text class="s" x="44" y="88">He is told plainly that he is talking to her agent, not to her.</text>
+  <path class="arrow" d="M160 98 L160 132" marker-end="url(#ha)"/>
+  <text class="lbl" x="174" y="120">she types</text>
+  <path class="arrow" d="M400 98 L400 246" marker-end="url(#ha)"/>
+  <text class="lbl" x="414" y="140">it finishes vetting</text>
+  <rect class="card" x="24" y="136" width="260" height="80" rx="6"/>
+  <text class="k" x="44" y="158">HUMAN TOOK OVER</text>
+  <text class="h" x="44" y="180">The agent is off</text>
+  <text class="s" x="44" y="200">One guarded transition.</text>
+  <text class="s" x="44" y="212">Both sides see a banner.</text>
+  <rect class="card" x="300" y="250" width="236" height="80" rx="6"/>
+  <text class="k" x="320" y="272">WRAPPED</text>
+  <text class="h" x="320" y="294">Only she can act</text>
+  <text class="s" x="320" y="314">48-hour countdown running</text>
+  <path class="arrow" d="M418 330 L418 372" marker-end="url(#ha)"/>
+  <text class="lbl" x="432" y="356">48h passes</text>
+  <rect class="card" x="300" y="376" width="236" height="80" rx="6"/>
+  <text class="k" x="320" y="398">EXPIRED</text>
+  <text class="h" x="320" y="420">Nobody can act</text>
+  <text class="s" x="320" y="440">The record still exists</text>
+  <path class="back" d="M300 416 L200 416 L200 300 L296 300" marker-end="url(#hb)"/>
+  <text class="lblb" x="132" y="360">she brings</text>
+  <text class="lblb" x="132" y="376">it back</text>
+  <text class="foot" x="280" y="490" text-anchor="middle">Every rightward move can be walked back, except the purge at day 30.</text>
+  <defs>
+    <marker id="ha" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+    <marker id="hb" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b4541e"/>
+    </marker>
+  </defs>
+</svg>

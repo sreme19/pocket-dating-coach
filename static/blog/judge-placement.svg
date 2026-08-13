@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 580" width="560" height="580" role="img" aria-labelledby="jpt jpd">
+  <title id="jpt">The same judge in two placements, with different requirements</title>
+  <desc id="jpd">In the blocking placement the judge sits between the generator and the user, so latency is on the critical path, a false positive costs the user their answer, and the failure direction must be chosen deliberately. In the scoring placement the judge runs after the fact over stored outputs, so latency does not matter, a false positive costs only a misleading dashboard, and it can be re-run whenever the rubric changes. Most teams run the second and describe it as if it were the first.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .hot { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .k { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; fill: #97928a; }
+    .kh { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; fill: #b4541e; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #6e6a63; }
+    .arrow { stroke: #97928a; stroke-width: 1.5; fill: none; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: fl-j 0.9s linear infinite; }
+    }
+    @keyframes fl-j { to { stroke-dashoffset: -8; } }
+  </style>
+  <rect class="bg" width="560" height="580" rx="8"/>
+  <text class="kh" x="30" y="28">PLACEMENT 1 — BLOCKING, IN THE CRITICAL PATH</text>
+  <rect class="card" x="24" y="40" width="150" height="50" rx="6"/>
+  <text class="h" x="99" y="70" text-anchor="middle">Generator</text>
+  <path class="arrow" d="M174 65 L201 65" marker-end="url(#j)"/>
+  <rect class="hot" x="205" y="40" width="150" height="50" rx="6"/>
+  <text class="h" x="280" y="70" text-anchor="middle">Judge</text>
+  <path class="arrow" d="M355 65 L382 65" marker-end="url(#j)"/>
+  <rect class="card" x="386" y="40" width="150" height="50" rx="6"/>
+  <text class="h" x="461" y="70" text-anchor="middle">User</text>
+  <rect class="card" x="24" y="104" width="512" height="118" rx="6"/>
+  <text class="s" x="44" y="130">Latency lands on every request</text>
+  <text class="s" x="44" y="154">A false positive costs the user their answer</text>
+  <text class="s" x="44" y="178">Fail-open or fail-closed is a product decision, not a detail</text>
+  <text class="s" x="44" y="202">Must be cheap enough to run on 100% of traffic</text>
+  <text class="k" x="30" y="272">PLACEMENT 2 — SCORING, AFTER THE FACT</text>
+  <rect class="card" x="24" y="284" width="150" height="50" rx="6"/>
+  <text class="h" x="99" y="314" text-anchor="middle">Generator</text>
+  <path class="arrow" d="M174 309 L201 309" marker-end="url(#j)"/>
+  <rect class="card" x="205" y="284" width="150" height="50" rx="6"/>
+  <text class="h" x="280" y="314" text-anchor="middle">User</text>
+  <path class="arrow" d="M280 334 L280 366" marker-end="url(#j)"/>
+  <rect class="card" x="205" y="370" width="150" height="50" rx="6"/>
+  <text class="h" x="280" y="400" text-anchor="middle">Stored output</text>
+  <path class="arrow" d="M205 395 L138 395" marker-end="url(#j)"/>
+  <rect class="hot" x="24" y="370" width="110" height="50" rx="6"/>
+  <text class="h" x="79" y="400" text-anchor="middle">Judge</text>
+  <rect class="card" x="24" y="436" width="512" height="94" rx="6"/>
+  <text class="s" x="44" y="462">Latency is irrelevant. Batch it overnight</text>
+  <text class="s" x="44" y="486">A false positive costs a misleading dashboard, not a user</text>
+  <text class="s" x="44" y="510">Re-runnable over history every time the rubric changes</text>
+  <text class="foot" x="280" y="562" text-anchor="middle">Most teams build the second and talk about it as though it were the first.</text>
+  <defs>
+    <marker id="j" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+  </defs>
+</svg>
