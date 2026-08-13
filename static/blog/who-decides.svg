@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 664" width="560" height="664" role="img" aria-labelledby="wdt wdd">
+  <title id="wdt">Where the LLM sits in the matching pipeline</title>
+  <desc id="wdd">Five stages in order. Stage one, raw signals: verified documents, photos and chat disclosures. Stage two, LLM extraction, run once per user, emitting attribute and preference vectors. Stage three, a weighted dot product across all dimensions. Stage four, min-cost max-flow bipartite matching under per-side caps. Stage five, LLM generation of the opening message, after the decision is already fixed. Only stages two and five involve an LLM. Stages three and four are fully deterministic.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .card-ai { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.5; }
+    .n { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; fill: #97928a; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 16px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 12.5px; fill: #6e6a63; }
+    .m { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; fill: #3f3c45; }
+    .tag { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.06em; }
+    .tag-ai { fill: #b4541e; }
+    .tag-plain { fill: #97928a; }
+    .arrow { stroke: #97928a; stroke-width: 1.5; fill: none; }
+    .cap { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    .sw { fill: #b4541e; }
+    .sg { fill: #c9c4bb; }
+  </style>
+  <rect class="bg" width="560" height="664" rx="8"/>
+  <rect class="card" x="40" y="28" width="480" height="76" rx="6"/>
+  <text class="n" x="58" y="52">1</text>
+  <text class="h" x="80" y="54">Raw signals</text>
+  <text class="s" x="80" y="76">Verified documents, photos, chat disclosures</text>
+  <text class="tag tag-plain" x="80" y="94">DETERMINISTIC</text>
+  <path class="arrow" d="M280 104 L280 130" marker-end="url(#a)"/>
+  <rect class="card-ai" x="40" y="134" width="480" height="76" rx="6"/>
+  <text class="n" x="58" y="158">2</text>
+  <text class="h" x="80" y="160">LLM extraction, once per user</text>
+  <text class="s" x="80" y="182">Emits an attribute vector and preference weights</text>
+  <text class="tag tag-ai" x="80" y="200">LLM IN THE LOOP</text>
+  <path class="arrow" d="M280 210 L280 236" marker-end="url(#a)"/>
+  <rect class="card" x="40" y="240" width="480" height="76" rx="6"/>
+  <text class="n" x="58" y="264">3</text>
+  <text class="h" x="80" y="266">Weighted dot product</text>
+  <text class="m" x="80" y="288">A = Σ w · v · c   over every dimension</text>
+  <text class="tag tag-plain" x="80" y="306">DETERMINISTIC</text>
+  <path class="arrow" d="M280 316 L280 342" marker-end="url(#a)"/>
+  <rect class="card" x="40" y="346" width="480" height="76" rx="6"/>
+  <text class="n" x="58" y="370">4</text>
+  <text class="h" x="80" y="372">Min-cost max-flow</text>
+  <text class="s" x="80" y="394">Bipartite matching under per-side inbox caps</text>
+  <text class="tag tag-plain" x="80" y="412">DETERMINISTIC</text>
+  <path class="arrow" d="M280 422 L280 448" marker-end="url(#a)"/>
+  <rect class="card-ai" x="40" y="452" width="480" height="76" rx="6"/>
+  <text class="n" x="58" y="476">5</text>
+  <text class="h" x="80" y="478">LLM generation</text>
+  <text class="s" x="80" y="500">Writes the opener. The decision is already fixed.</text>
+  <text class="tag tag-ai" x="80" y="518">LLM IN THE LOOP</text>
+  <rect x="40" y="556" width="480" height="76" rx="6" fill="#ffffff" stroke="#e8e3d8"/>
+  <circle class="sw" cx="66" cy="582" r="6"/>
+  <text class="cap" x="82" y="586">Probabilistic. Generative, and allowed to be wrong.</text>
+  <circle class="sg" cx="66" cy="610" r="6"/>
+  <text class="cap" x="82" y="614">Deterministic. Same input, same output, every run.</text>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+  </defs>
+</svg>
