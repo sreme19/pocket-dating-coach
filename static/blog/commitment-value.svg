@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 480" width="560" height="480" role="img" aria-labelledby="cvt cvd">
+  <title id="cvt">What committing first is worth, as a number</title>
+  <desc id="cvd">In a simultaneous game neither side sees the other's choice, so the solution is a mixed strategy that is hard to exploit. In a leader-follower game the leader commits to a policy first and the follower observes it before responding, which sounds like a disadvantage but is often worth more, because a credible commitment shapes what the follower will do. Subtracting the leader's value in the simultaneous solution from the leader's value in the leader-follower solution gives the price of committing early, as a single figure the planner can weigh.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .hot { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .k { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; fill: #97928a; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14.5px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    .m { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; fill: #b4541e; }
+    .arrow { stroke: #97928a; stroke-width: 1.5; fill: none; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: fl-cv 0.9s linear infinite; }
+    }
+    @keyframes fl-cv { to { stroke-dashoffset: -8; } }
+  </style>
+  <rect class="bg" width="560" height="480" rx="8"/>
+  <text class="k" x="34" y="28">SIMULTANEOUS — NEITHER SIDE MOVES FIRST</text>
+  <rect class="card" x="24" y="40" width="512" height="94" rx="6"/>
+  <text class="h" x="44" y="68">Both choose blind</text>
+  <text class="s" x="44" y="92">The answer is a mixed strategy: hard to exploit, and it</text>
+  <text class="s" x="44" y="112">assumes your opponent never learns your policy.</text>
+  <text class="k" x="34" y="176">LEADER–FOLLOWER — ONE SIDE COMMITS FIRST</text>
+  <rect class="hot" x="24" y="188" width="512" height="112" rx="6"/>
+  <text class="h" x="44" y="216">The leader commits, and is seen doing it</text>
+  <text class="s" x="44" y="240">Sounds worse. Often is not — a credible commitment</text>
+  <text class="s" x="44" y="260">changes what the follower finds worth doing.</text>
+  <text class="s" x="44" y="286">This matches the real situation: a handler plans before an operative acts.</text>
+  <path class="arrow" d="M280 300 L280 328" marker-end="url(#cv)"/>
+  <rect class="card" x="24" y="332" width="512" height="72" rx="6"/>
+  <text class="m" x="280" y="366" text-anchor="middle">commitment value = V_leader(committed) − V_leader(blind)</text>
+  <text class="s" x="280" y="390" text-anchor="middle">one number, weighable against the cost of committing</text>
+  <text class="foot" x="280" y="438" text-anchor="middle">Choosing the equilibrium concept is a modelling decision, not a maths one.</text>
+  <text class="foot" x="280" y="458" text-anchor="middle">Ask who actually moves first, then pick the solver that matches.</text>
+  <defs>
+    <marker id="cv" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+  </defs>
+</svg>
