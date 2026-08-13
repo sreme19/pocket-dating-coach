@@ -1,5 +1,5 @@
 ---
-title: Letting three agents share what a man said without revealing who he said it to
+title: Cross-thread agent memory with provenance omitted at schema level, so shared recall cannot leak its source
 date: 2026-08-14
 summary: When one person is represented by several agents, each working for a different counterparty, he answers the same question over and over — and the obvious fix, shared memory, quietly tells each agent about conversations it was never part of. The value and the hazard come from the same fact. This is a memory store where the origin of a row was never recorded in the first place, so it cannot be recovered by a query, an agent, or anyone with database access.
 tags: [context-engineering, riteangle]

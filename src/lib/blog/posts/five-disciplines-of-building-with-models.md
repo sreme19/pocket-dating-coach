@@ -1,5 +1,5 @@
 ---
-title: Data, prompt, context, loop, harness — what each one costs, and why teams start too high up
+title: Data, prompt, context, loop and harness engineering: the tooling, cost and failure mode of each layer
 date: 2026-08-18
 summary: Most failed agent projects are a data problem with an orchestration budget: a team buys a framework, builds an elaborate loop, and discovers the underlying data was six hours stale and nobody owned the definitions. These five disciplines arrived in sequence, each because the previous ran out of road, and each has a different unit of work, cost profile and characteristic failure. The last one is the only one whose purpose is to make the system smaller.
 tags: [agent-architecture, riteangle]

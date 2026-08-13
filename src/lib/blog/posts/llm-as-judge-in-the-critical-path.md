@@ -1,5 +1,5 @@
 ---
-title: Reviewing generated text when it is produced faster than anyone can read it
+title: LLM-as-judge in the send path, and the human-label calibration that gives its score an error bar
 date: 2026-08-20
 summary: Once a system generates text faster than anyone can read it, the choice is between shipping unreviewed output and building something that reviews it — and human review does not scale to every message while sampling misses exactly the rare failures worth catching. A small model grading a large one costs a fraction of the thing it guards, which is what makes total coverage affordable rather than aspirational. The catch is that a judge nobody has scored against human labels produces a number with no error bar, and a confidently wrong judge looks exactly like a working one.
 tags: [agent-evals, riteangle]

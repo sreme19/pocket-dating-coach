@@ -1,5 +1,5 @@
 ---
-title: What an agent should do at hour 49, when the human it handed to never replied
+title: A reversible 48-hour human-in-the-loop expiry, so a missed deadline frees the counterparty without deleting anything
 date: 2026-08-19
 summary: An agent finishes its work and hands the result to a person, which leaves a third party waiting on someone who may simply be busy. A deadline is necessary to protect them; a deadline that deletes punishes the wrong person for a scheduling accident. The resolution is that expiring and deleting are different operations, and the timeout should do the smallest thing that frees whoever is waiting.
 tags: [guardrails, riteangle]

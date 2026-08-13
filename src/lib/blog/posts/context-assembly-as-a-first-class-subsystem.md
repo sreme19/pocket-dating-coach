@@ -1,5 +1,5 @@
 ---
-title: Telling an agent exactly what it needs, and asking it only for answers it can actually give
+title: Twenty context blocks per turn, with the output schema derived from them, so the agent cannot pad or invent
 date: 2026-08-16
 summary: Prompts built by string concatenation at the call site drift from whatever you tested, and the context an agent actually saw is thrown away the moment it replies. Here assembly is a subsystem: twenty blocks loaded in parallel, volatile facts grounded in SQL rather than recollection, and an output schema derived from which blocks arrived — so the model is never asked for a field this turn cannot fill. Nothing in it counts a token, which is the honest gap.
 tags: [context-engineering, riteangle]

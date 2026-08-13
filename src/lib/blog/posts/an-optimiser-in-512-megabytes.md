@@ -1,5 +1,5 @@
 ---
-title: Picking an optimal cricket XI in four seconds, inside a function that costs nothing at idle
+title: Integer programming and ten thousand Monte Carlo rollouts in 512 MB, for an optimal XI in four seconds
 date: 2026-08-30
 summary: Solvers want memory and time; a free-tier serverless function gives you 512 MB and thirty seconds, and a person is watching a spinner the whole time. This is what fits: integer programming, ten thousand Monte Carlo rollouts and two graph models, answering in about four seconds, with the language model firewalled to commentary that can be switched off without losing the answer. The ceiling turned out to force better decisions than an unconstrained environment would have.
 tags: [decision-systems]

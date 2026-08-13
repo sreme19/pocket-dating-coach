@@ -1,5 +1,5 @@
 ---
-title: Nine named dimensions instead of an embedding, so the ranking can be argued with
+title: Nine interpretable attribute vectors instead of embeddings, so a ranking yields exact counterfactuals
 date: 2026-08-24
 summary: An embedding can tell you two people are close and cannot tell you which of five hundred axes did the work, because the axes mean nothing individually. When the output is a ranking that decides who someone meets, the question that matters is not who is similar but what would change the answer. Hand-designed dimensions with a pure scoring function make that exact rather than plausible — and let sensitive attributes be excluded by a weight pinned to zero instead of by a promise.
 tags: [agent-architecture, riteangle]

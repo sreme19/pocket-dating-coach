@@ -1,5 +1,5 @@
 ---
-title: What actually changed in the data stack between 2024 and 2026, and what did not move at all
+title: Kafka to MCP in twenty-four months: what the agentic wave added to the data stack, and what it left untouched
 date: 2026-08-17
 summary: The story everyone tells is that AI replaced the data stack. Two years of attending India's data and AI conferences says something more useful: Kafka, Spark, Airflow, dbt and Iceberg run unchanged from May 2024 to May 2026, four new floors were built on top of them, and the layer that actually got displaced was business intelligence. If you are deciding whether to rebuild your platform to do AI, the evidence says the work is above your serving layer, not below it.
 tags: [agent-architecture, riteangle]

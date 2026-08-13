@@ -1,5 +1,5 @@
 ---
-title: Checking every outbound message before it sends, at a sixth the cost of writing it
+title: Claude Haiku grading Claude Sonnet in the send path, so no unreviewed message reaches a real person
 date: 2026-08-15
 summary: An agent writing on someone's behalf produces text a real person reads and attributes to a real person, and nobody can read all of it before it goes. Sampling misses exactly the rare failures worth catching. A small model grades every outbound message against an enumerated rubric at roughly a sixth of the generator's budget, which is what makes total coverage affordable — and the uncomfortable part is that nothing has ever checked whether the grader is right.
 tags: [guardrails, riteangle]
