@@ -109,21 +109,24 @@ sentence. That loop is a tax on having used prose as a return type.
 ### Name the rule in the verdict, because you will feed it back
 
 A bare `blocked` teaches the generator nothing, so its second attempt is a coin
-flip.
+flip. Name the rule and the same model, on the same prompt, with the same single
+retry, usually lands it.
 
-Feed the rule back and it usually lands first time:
+![Two lanes from the same blocked output. On the left a bare refusal travels back,
+the generator learns only that it failed, and the second attempt is a guess likely
+to end at the fallback. On the right the verdict names the broken rule, that
+constraint travels back with the re-prompt, and the second attempt targets it and
+passes.](/blog/verdict-feedback.svg)
 
-| | |
-| --- | --- |
-| **Attempt 1** | *"…he's doing really well for himself, clearing 40 LPA easily."* |
-| **Verdict** | blocked — rule 6, money framed as desirability |
-| **Re-prompt** | the generator is told which rule it broke |
-| **Attempt 2** | *"…he's been building the same company for six years and still talks about it like it matters."* |
-
-The second attempt is not just compliant, it is better writing — the constraint
+The second attempt is not merely compliant, it is better writing — the constraint
 forced specificity where the first reached for the laziest available evidence.
 The model was never trying to break the rule. It did not know the rule applied to
 the sentence it had written.
+
+Which gives a way to think about verdict design generally: **a verdict is a
+message to the generator, and its information content decides whether your retry
+is a control loop or a second roll of the dice.** Anything you spend making the
+verdict more specific is repaid on every regeneration.
 
 ### Split rules by whether you can specify them exactly
 

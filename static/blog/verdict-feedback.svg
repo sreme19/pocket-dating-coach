@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 520" width="560" height="520" role="img" aria-labelledby="vft vfd">
+  <title id="vft">What a verdict carries back to the generator</title>
+  <desc id="vfd">Two lanes from the same blocked output. On the left the verdict is a bare refusal, so nothing travels back to the generator except the fact that it failed, the second attempt is a guess, and a fixed fallback is the likely result. On the right the verdict names the rule that was broken, that constraint travels back with the re-prompt, the second attempt targets it directly, and it passes. The information content of the verdict is what decides whether the retry is a loop or a coin flip.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .dead { fill: #ffffff; stroke: #c9c4bb; stroke-width: 1.2; stroke-dasharray: 5 4; }
+    .good { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .pass { fill: #f2f6f3; stroke: #2f6b46; stroke-width: 1.4; }
+    .k { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; }
+    .kd { fill: #97928a; } .kg { fill: #b4541e; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 13px; fill: #17161b; }
+    .q { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 12px; fill: #17161b; font-style: italic; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 10.5px; fill: #6e6a63; }
+    .m { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+    .mg { fill: #97928a; } .mo { fill: #b4541e; } .mp { fill: #2f6b46; }
+    .a1 { stroke: #c9c4bb; stroke-width: 1.4; fill: none; }
+    .a2 { stroke: #b4541e; stroke-width: 1.6; fill: none; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    @media (prefers-reduced-motion: no-preference) {
+      .a1 { stroke-dasharray: 4 4; animation: fl-v1 1.1s linear infinite; }
+      .a2 { stroke-dasharray: 5 4; animation: fl-v2 0.8s linear infinite; }
+    }
+    @keyframes fl-v1 { to { stroke-dashoffset: -8; } }
+    @keyframes fl-v2 { to { stroke-dashoffset: -9; } }
+  </style>
+  <rect class="bg" width="560" height="520" rx="8"/>
+  <rect class="card" x="130" y="16" width="300" height="48" rx="6"/>
+  <text class="s" x="280" y="36" text-anchor="middle">the generator wrote, and the judge blocked it</text>
+  <text class="q" x="280" y="54" text-anchor="middle">&#34;…clearing 40 LPA easily.&#34;</text>
+  <path class="a1" d="M220 64 L140 92" marker-end="url(#v1)"/>
+  <path class="a2" d="M340 64 L420 92" marker-end="url(#v2)"/>
+  <text class="k kd" x="24" y="112">VERDICT CARRIES NOTHING</text>
+  <rect class="dead" x="24" y="122" width="248" height="52" rx="6"/>
+  <text class="m mg" x="44" y="152">blocked</text>
+  <text class="k kg" x="288" y="112">VERDICT CARRIES THE RULE</text>
+  <rect class="good" x="288" y="122" width="248" height="52" rx="6"/>
+  <text class="m mo" x="308" y="146">blocked · rule 6</text>
+  <text class="s" x="308" y="164">money framed as desirability</text>
+  <path class="a1" d="M148 174 L148 208" marker-end="url(#v1)"/>
+  <path class="a2" d="M412 174 L412 208" marker-end="url(#v2)"/>
+  <rect class="card" x="24" y="212" width="248" height="56" rx="6"/>
+  <text class="h" x="44" y="236">The generator learns</text>
+  <text class="s" x="44" y="256">only that it failed</text>
+  <rect class="card" x="288" y="212" width="248" height="56" rx="6"/>
+  <text class="h" x="308" y="236">The generator learns</text>
+  <text class="s" x="308" y="256">which constraint it broke</text>
+  <path class="a1" d="M148 268 L148 302" marker-end="url(#v1)"/>
+  <path class="a2" d="M412 268 L412 302" marker-end="url(#v2)"/>
+  <rect class="dead" x="24" y="306" width="248" height="70" rx="6"/>
+  <text class="s" x="44" y="328">second attempt</text>
+  <text class="h" x="44" y="350">A guess, reworded</text>
+  <text class="s" x="44" y="368">it may break the same rule again</text>
+  <rect class="good" x="288" y="306" width="248" height="70" rx="6"/>
+  <text class="s" x="308" y="328">second attempt</text>
+  <text class="q" x="308" y="350">&#34;…building the same</text>
+  <text class="q" x="308" y="366">company for six years.&#34;</text>
+  <path class="a1" d="M148 376 L148 408" marker-end="url(#v1)"/>
+  <path class="a2" d="M412 376 L412 408" marker-end="url(#v2)"/>
+  <rect class="dead" x="24" y="412" width="248" height="44" rx="6"/>
+  <text class="m mg" x="44" y="440">likely the fixed fallback</text>
+  <rect class="pass" x="288" y="412" width="248" height="44" rx="6"/>
+  <text class="m mp" x="308" y="440">passes, and reads better</text>
+  <text class="foot" x="280" y="490" text-anchor="middle">How much the verdict carries decides whether a retry is a loop</text>
+  <text class="foot" x="280" y="508" text-anchor="middle">or a coin flip. Same model, same prompt, same one retry.</text>
+  <defs>
+    <marker id="v1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#c9c4bb"/>
+    </marker>
+    <marker id="v2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b4541e"/>
+    </marker>
+  </defs>
+</svg>
