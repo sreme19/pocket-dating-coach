@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 560" width="560" height="560" role="img" aria-labelledby="cct ccd">
+  <title id="cct">Model calls per completed task, by discipline</title>
+  <desc id="ccd">Four bars showing model calls per task. Prompt engineering is one call. Context engineering is one call plus retrieval, which is cheap and not a model call. Loop engineering is roughly six to twelve calls for a multi-step task, based on a worked insurance-quote example needing six iterations and four tool calls. Harness engineering runs the same loop but with scaffolding removed as models improve, and one presented measurement showed cost falling thirty-eight percent and wall-clock time falling from six hours to under four. Cost rises with every layer until harness engineering, which is the first discipline whose purpose is to bring it back down.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .k { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; fill: #97928a; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #6e6a63; }
+    .bar { fill: #d9a68a; }
+    .bar2 { fill: #b4541e; }
+    .barcut { fill: #eadfd2; }
+    .num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; fill: #3f3c45; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    .ax { stroke: #e8e3d8; stroke-width: 1; }
+  </style>
+  <rect class="bg" width="560" height="560" rx="8"/>
+  <text class="k" x="30" y="28">MODEL CALLS PER COMPLETED TASK</text>
+  <line class="ax" x1="200" y1="44" x2="200" y2="404"/>
+  <text class="h" x="30" y="76">Prompt</text>
+  <text class="s" x="30" y="94">one shot</text>
+  <rect class="bar" x="200" y="60" width="26" height="24" rx="3"/>
+  <text class="num" x="238" y="78">1 call</text>
+  <text class="h" x="30" y="156">Context</text>
+  <text class="s" x="30" y="174">retrieve, then ask</text>
+  <rect class="bar" x="200" y="140" width="26" height="24" rx="3"/>
+  <text class="num" x="238" y="158">1 call + retrieval</text>
+  <text class="s" x="238" y="176">retrieval is cheap, and not a model call</text>
+  <text class="h" x="30" y="248">Loop</text>
+  <text class="s" x="30" y="266">plan, act, observe</text>
+  <rect class="bar" x="200" y="232" width="234" height="24" rx="3"/>
+  <text class="num" x="238" y="250" fill="#ffffff">6–12 calls</text>
+  <text class="s" x="200" y="278">one quote: 6 iterations, 4 tool calls, state growing each turn</text>
+  <text class="h" x="30" y="340">Harness</text>
+  <text class="s" x="30" y="358">same loop, minus</text>
+  <text class="s" x="30" y="374">what is now dead</text>
+  <rect class="barcut" x="200" y="324" width="234" height="24" rx="3"/>
+  <rect class="bar2" x="200" y="324" width="145" height="24" rx="3"/>
+  <text class="num" x="357" y="342">−38%</text>
+  <text class="s" x="200" y="370">measured across three model versions: $200/6h → $124/3.8h</text>
+  <rect class="card" x="24" y="428" width="512" height="110" rx="6"/>
+  <text class="foot" x="280" y="456" text-anchor="middle">Cost climbs with every layer you add — until the last one.</text>
+  <text class="foot" x="280" y="480" text-anchor="middle">Harness engineering is the first discipline whose job is to take cost out,</text>
+  <text class="foot" x="280" y="500" text-anchor="middle">by deleting scaffolding the newer model no longer needs.</text>
+  <text class="foot" x="280" y="524" text-anchor="middle">It is also the only one that gets cheaper the longer you run it.</text>
+</svg>

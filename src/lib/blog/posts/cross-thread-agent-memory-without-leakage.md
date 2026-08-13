@@ -23,7 +23,7 @@ The answer ledger is our attempt to get the first thing without the second.
 ## Long-term memory is the part you own
 
 The framing that made this tractable came from an AWS session at their Bengaluru
-summit — a slide splitting agent memory into six types across two lifetimes.
+summit that split agent memory into six types across two lifetimes.
 
 The argument that stuck was about ownership. **Short-term memory belongs to
 whichever framework you picked**, and you have limited control over it.
@@ -110,7 +110,7 @@ Answers get a 120-day window, after which they are offered for reconfirmation
 rather than quoted, and a hard 540-day drop. At most twelve entries reach the
 prompt.
 
-I would have treated this as retention housekeeping. Then I saw a slide at
+I would have treated this as retention housekeeping. Then I sat through a talk at
 DataHack Summit 2026 that named it as a production failure mode.
 
 A Cisco session on enterprise compliance agents called it the policy-versioning
@@ -165,7 +165,7 @@ rather than degrading into near-miss keys that never match.
 The gap I will name: none of these talks were about consent. They were about
 capability, cost and correctness. The question of whether an agent is *permitted*
 to know something it could trivially retrieve did not come up on any stage I sat
-in, across eleven events. For a consumer product it is the first question, not a
+in, across eleven conferences. For a consumer product it is the first question, not a
 footnote — and it is the one that forced every design decision above.
 
 ## The pattern, without the dating app

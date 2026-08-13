@@ -99,10 +99,11 @@ cheaply verify, so the model gets no vote.
 
 ## Five teams reached the same conclusion
 
-I did not reason my way to this. I spent two years photographing conference
-slides — roughly 900 across eleven events — and when I finally read the archive
-as a corpus, the same architectural claim kept surfacing from organisations with
-nothing in common.
+I did not reason my way to this. Over two years at India's data and AI
+conferences — the [Data Engineering Summit](https://des.analyticsindiamag.com/),
+[DataHack Summit](https://www.analyticsvidhya.com/datahacksummit/),
+[MLDS](https://mlds.analyticsindiamag.com/) and others — the same architectural
+claim kept surfacing from organisations with nothing in common.
 
 | Organisation | Event | The claim |
 | --- | --- | --- |

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 700" width="560" height="700" role="img" aria-labelledby="fdt fdd">
+  <title id="fdt">Five disciplines, and what each one actually engineers</title>
+  <desc id="fdd">Five layers stacked. Data engineering engineers the table, and without it the model has nothing true to reason over. Prompt engineering engineers the instruction, and without it the model does the wrong task well. Context engineering engineers what enters the window, and without it the model is fluent and uninformed. Loop engineering engineers the iteration, and without it the model gets one attempt at a multi-step problem. Harness engineering engineers the scaffolding across model versions, and without it you keep paying for workarounds the model no longer needs. Each layer assumes the one beneath it.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .top { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.5; }
+    .n { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; fill: #97928a; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 16px; fill: #17161b; }
+    .u { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #b4541e; font-weight: 600; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+  </style>
+  <rect class="bg" width="560" height="700" rx="8"/>
+  <rect class="top" x="24" y="26" width="512" height="112" rx="6"/>
+  <text class="n" x="44" y="50">5</text>
+  <text class="h" x="70" y="52">Harness engineering</text>
+  <text class="u" x="70" y="76">Unit of work: the scaffolding, across model versions</text>
+  <text class="s" x="70" y="98">Evaluate, then subtract. Delete what the model no longer needs.</text>
+  <text class="s" x="70" y="120">Skip it and you keep paying for last year&#39;s workarounds.</text>
+  <rect class="card" x="24" y="150" width="512" height="112" rx="6"/>
+  <text class="n" x="44" y="174">4</text>
+  <text class="h" x="70" y="176">Loop engineering</text>
+  <text class="u" x="70" y="200">Unit of work: the iteration</text>
+  <text class="s" x="70" y="222">Plan, act, observe, retry, escalate to a human, stop.</text>
+  <text class="s" x="70" y="244">Skip it and the model gets one attempt at a multi-step problem.</text>
+  <rect class="card" x="24" y="274" width="512" height="112" rx="6"/>
+  <text class="n" x="44" y="298">3</text>
+  <text class="h" x="70" y="300">Context engineering</text>
+  <text class="u" x="70" y="324">Unit of work: what enters the window</text>
+  <text class="s" x="70" y="346">Retrieve, rank, assemble, trim, ground in a real query.</text>
+  <text class="s" x="70" y="368">Skip it and the model is fluent and uninformed.</text>
+  <rect class="card" x="24" y="398" width="512" height="112" rx="6"/>
+  <text class="n" x="44" y="422">2</text>
+  <text class="h" x="70" y="424">Prompt engineering</text>
+  <text class="u" x="70" y="448">Unit of work: the instruction</text>
+  <text class="s" x="70" y="470">Say what the task is, in what shape, with what constraints.</text>
+  <text class="s" x="70" y="492">Skip it and the model does the wrong task, well.</text>
+  <rect class="card" x="24" y="522" width="512" height="112" rx="6"/>
+  <text class="n" x="44" y="546">1</text>
+  <text class="h" x="70" y="548">Data engineering</text>
+  <text class="u" x="70" y="572">Unit of work: the table</text>
+  <text class="s" x="70" y="594">Ingest, store, transform, serve. Governed and current.</text>
+  <text class="s" x="70" y="616">Skip it and there is nothing true for the model to reason over.</text>
+  <text class="foot" x="280" y="662" text-anchor="middle">Each layer assumes the one beneath it. You cannot buy your way past a missing floor —</text>
+  <text class="foot" x="280" y="682" text-anchor="middle">most failed agent projects are a layer-1 problem wearing a layer-4 budget.</text>
+</svg>

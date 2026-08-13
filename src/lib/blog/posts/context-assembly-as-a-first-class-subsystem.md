@@ -68,20 +68,20 @@ only be noise this turn is simply not requested.
 
 ## Everyone arrived at context in 2026
 
-Reading back through my slide archive from this year, context assembly went from
-a footnote to the headline act in about twelve months.
+Across the conferences I went to this year, context assembly went from a footnote
+to the headline act in about twelve months.
 
 The clearest single moment: at the Data Engineering Summit in May, **three
 consecutive talks in the same hall** — MathCo, Tiger Analytics and EPAM —
 independently argued that enterprise AI failure is a context problem rather than
-a model problem. Two of them used nearly the same slide title. One was headed
+a model problem. Two of them used nearly the same title. One was headed
 *Data Rich. Context Poor.*
 
 | Idea | Where | What it says |
 | --- | --- | --- |
 | Context as the scarce resource | Data Engineering Summit 2026 | Three consecutive talks, same diagnosis, no coordination |
 | Context warehouse vs data warehouse | MLDS 2026 | A data warehouse records what happened. A context warehouse records *why an expert decided X in situation Y* |
-| Ontology-driven multi-hop assembly | Data Engineering Summit 2026 | A worked traversal answering "why did Q4 growth decline", pruning dead branches — captioned *this is reasoning, not retrieval* |
+| Ontology-driven multi-hop assembly | Data Engineering Summit 2026 | A worked traversal answering "why did Q4 growth decline", pruning dead branches — summarised as *this is reasoning, not retrieval* |
 | Context products, not raw chunks | Data Engineering Summit 2026 | A seven-step serving path ending in **token-budgeted assembly** of structured context, then a decision trace written back as audit |
 | Four memory types, four operations | DataHack Summit 2025 | Retrieval demoted to one of four types. The operations on the window: compress, isolate, trim, filter |
 
@@ -115,7 +115,7 @@ turns the thread is summarised. **That summarisation is not implemented.** The
 code takes the last twelve turns and drops the rest. I found it while researching
 this post, which is its own small lesson about comments.
 
-Set against the EPAM slide describing *token-budgeted assembly of structured
+Set against the EPAM talk describing *token-budgeted assembly of structured
 context products*, this is plainly behind. They have a budget and allocate it. I
 have constants that were right when I chose them.
 

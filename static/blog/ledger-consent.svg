@@ -14,6 +14,13 @@
     .no { fill: #97928a; }
     .arrow { stroke: #97928a; stroke-width: 1.5; fill: none; }
     .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 12px; fill: #6e6a63; }
+  
+    /* dashes march along each connector so the diagram reads as live flow.
+       one dash period per cycle keeps the loop seamless. */
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: fl-arrow 0.9s linear infinite; }
+    }
+    @keyframes fl-arrow { to { stroke-dashoffset: -8; } }
   </style>
   <rect class="bg" width="560" height="520" rx="8"/>
   <text class="hdr" x="34" y="32">WRITE PATH — UNCONDITIONAL</text>

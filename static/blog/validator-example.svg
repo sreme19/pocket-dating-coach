@@ -14,6 +14,15 @@
     .arrow2 { stroke: #97928a; stroke-width: 1.5; fill: none; }
     .step { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #b4541e; font-weight: 600; }
     .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+  
+    /* dashes march along each connector so the diagram reads as live flow.
+       one dash period per cycle keeps the loop seamless. */
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 5 4; animation: fl-arrow 0.8s linear infinite; }
+      .arrow2 { stroke-dasharray: 4 4; animation: fl-arrow2 0.9s linear infinite; }
+    }
+    @keyframes fl-arrow { to { stroke-dashoffset: -9; } }
+    @keyframes fl-arrow2 { to { stroke-dashoffset: -8; } }
   </style>
   <rect class="bg" width="560" height="590" rx="8"/>
   <text class="k" x="34" y="30">ATTEMPT 1</text>

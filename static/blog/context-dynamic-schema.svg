@@ -9,6 +9,13 @@
     .f { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; fill: #b4541e; }
     .arrow { stroke: #c9c4bb; stroke-width: 1.3; fill: none; }
     .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+  
+    /* dashes march along each connector so the diagram reads as live flow.
+       one dash period per cycle keeps the loop seamless. */
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 3 3; animation: fl-arrow 0.8s linear infinite; }
+    }
+    @keyframes fl-arrow { to { stroke-dashoffset: -6; } }
   </style>
   <rect class="bg" width="560" height="500" rx="8"/>
   <text class="k" x="30" y="30">IF THIS BLOCK IS PRESENT</text>

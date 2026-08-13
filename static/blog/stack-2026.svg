@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 620" width="560" height="620" role="img" aria-labelledby="s26t s26d">
+  <title id="s26t">The same stack as presented in mid-2026</title>
+  <desc id="s26d">The four lower layers are unchanged from 2024: ingest, store, transform and serve, still Kafka, Iceberg, Spark, dbt and Airflow. Four new layers sit above them. A context layer with ontologies, semantic models and assembly. A protocol layer with MCP and A2A. An agent runtime with orchestration, memory, identity and a registry. An evaluation and governance layer with model-graded judging, traces, guardrails and kill switches. Consumption is now agents as well as humans, and the business intelligence tools that used to sit at the top have receded.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .old { fill: #f4f1ea; stroke: #ddd7ca; stroke-width: 1; }
+    .new { fill: #ffffff; stroke: #b4541e; stroke-width: 1.4; }
+    .k { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; fill: #97928a; }
+    .kn { font-family: system-ui, -apple-system, sans-serif; font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; fill: #b4541e; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14px; fill: #17161b; }
+    .t { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; fill: #6e6a63; }
+    .note { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+  </style>
+  <rect class="bg" width="560" height="620" rx="8"/>
+  <text class="k" x="30" y="26">AUG 2026 — SAME ARCHIVE, TWO YEARS ON</text>
+  <rect class="new" x="24" y="38" width="512" height="56" rx="6"/>
+  <text class="kn" x="44" y="58">NEW</text>
+  <text class="h" x="90" y="59">Consume: agents, and humans</text>
+  <text class="t" x="90" y="80">Tableau last appears Mar 2026 · agents are now a consumer</text>
+  <rect class="new" x="24" y="100" width="512" height="56" rx="6"/>
+  <text class="kn" x="44" y="120">NEW</text>
+  <text class="h" x="90" y="121">Evaluate and govern</text>
+  <text class="t" x="90" y="142">LLM-as-judge · traces · guardrails · kill switches · registries</text>
+  <rect class="new" x="24" y="162" width="512" height="56" rx="6"/>
+  <text class="kn" x="44" y="182">NEW</text>
+  <text class="h" x="90" y="183">Agent runtime</text>
+  <text class="t" x="90" y="204">Orchestration · memory · identity · AgentCore · LangGraph</text>
+  <rect class="new" x="24" y="224" width="512" height="56" rx="6"/>
+  <text class="kn" x="44" y="244">NEW</text>
+  <text class="h" x="90" y="245">Protocol</text>
+  <text class="t" x="90" y="266">MCP · A2A · tool registries</text>
+  <rect class="new" x="24" y="286" width="512" height="56" rx="6"/>
+  <text class="kn" x="44" y="306">NEW</text>
+  <text class="h" x="90" y="307">Context</text>
+  <text class="t" x="90" y="328">Ontologies · semantic layer · assembly · vector and graph stores</text>
+  <rect class="old" x="24" y="356" width="512" height="48" rx="6"/>
+  <text class="k" x="44" y="376">SAME</text>
+  <text class="h" x="106" y="377">Serve</text>
+  <text class="t" x="106" y="395">Warehouse · metrics store · feature store</text>
+  <rect class="old" x="24" y="410" width="512" height="48" rx="6"/>
+  <text class="k" x="44" y="430">SAME</text>
+  <text class="h" x="106" y="431">Transform</text>
+  <text class="t" x="106" y="449">Spark · dbt · Airflow</text>
+  <rect class="old" x="24" y="464" width="512" height="48" rx="6"/>
+  <text class="k" x="44" y="484">SAME</text>
+  <text class="h" x="106" y="485">Store</text>
+  <text class="t" x="106" y="503">S3 · Iceberg · Delta Lake</text>
+  <rect class="old" x="24" y="518" width="512" height="48" rx="6"/>
+  <text class="k" x="44" y="538">SAME</text>
+  <text class="h" x="106" y="539">Ingest</text>
+  <text class="t" x="106" y="557">Kafka · Kinesis · CDC</text>
+  <text class="note" x="280" y="596" text-anchor="middle">Nothing below the line was replaced. Four floors were built on top of it.</text>
+</svg>

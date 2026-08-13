@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 600" width="560" height="600" role="img" aria-labelledby="uwt uwd">
+  <title id="uwt">What engineers were being asked to engineer, by year</title>
+  <desc id="uwd">Four eras from the same conference archive. May 2024, the prompt: a four-rung menu of prompt, retrieval, fine-tune or train from scratch, with agents absent. August 2025, retrieval and tools: MCP, A2A, LangGraph and ReAct all first appear in the archive on the same day, and context engineering is already named as a discipline. March to May 2026, context: the protocol stack is taught as one subject and three consecutive talks call context the scarce resource. August 2026, the loop: a session titled Loop Engineering, another arguing memory is the harness, and a slide showing scaffolding deleted between model versions to cut cost.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .cur { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.5; }
+    .d { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; fill: #b4541e; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 17px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    .ev { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10.5px; fill: #97928a; }
+    .rail { stroke: #e8e3d8; stroke-width: 2; }
+    .dot { fill: #b4541e; }
+    .dotg { fill: #c9c4bb; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+  </style>
+  <rect class="bg" width="560" height="600" rx="8"/>
+  <line class="rail" x1="54" y1="46" x2="54" y2="470"/>
+  <circle class="dotg" cx="54" cy="60" r="6"/>
+  <text class="d" x="78" y="42">MAY 2024</text>
+  <rect class="card" x="78" y="52" width="458" height="82" rx="6"/>
+  <text class="h" x="98" y="80">The prompt</text>
+  <text class="s" x="98" y="102">Four rungs on offer: prompt · retrieve · fine-tune · train.</text>
+  <text class="ev" x="98" y="122">Agents are not on the ladder. Gen AI is one tile on the stack diagram.</text>
+  <circle class="dotg" cx="54" cy="176" r="6"/>
+  <text class="d" x="78" y="158">AUG–SEP 2025</text>
+  <rect class="card" x="78" y="168" width="458" height="98" rx="6"/>
+  <text class="h" x="98" y="196">Retrieval, then tools</text>
+  <text class="s" x="98" y="218">MCP, A2A, LangGraph and ReAct all first appear on one day.</text>
+  <text class="s" x="98" y="236">Context engineering is already named as a discipline.</text>
+  <text class="ev" x="98" y="256">A bank presents an A2A deep-dive four weeks later.</text>
+  <circle class="dotg" cx="54" cy="308" r="6"/>
+  <text class="d" x="78" y="290">MAR–MAY 2026</text>
+  <rect class="card" x="78" y="300" width="458" height="98" rx="6"/>
+  <text class="h" x="98" y="328">Context</text>
+  <text class="s" x="98" y="350">The protocol stack is taught as one subject: MCP + A2A + context.</text>
+  <text class="s" x="98" y="368">Three consecutive talks call context the scarce resource.</text>
+  <text class="ev" x="98" y="388">A cloud vendor ships an agent runtime, registry and evaluations.</text>
+  <circle class="dot" cx="54" cy="452" r="7"/>
+  <text class="d" x="78" y="434">AUG 2026</text>
+  <rect class="cur" x="78" y="444" width="458" height="98" rx="6"/>
+  <text class="h" x="98" y="472">The loop</text>
+  <text class="s" x="98" y="494">A session titled Loop Engineering. Another: the memory is the harness.</text>
+  <text class="s" x="98" y="512">Scaffolding deleted between model versions, cost down 38%.</text>
+  <text class="ev" x="98" y="532">The work is now the loop around the model, not the call to it.</text>
+  <text class="foot" x="280" y="576" text-anchor="middle">Dates are first appearance in one photographed archive, not industry-wide firsts.</text>
+</svg>

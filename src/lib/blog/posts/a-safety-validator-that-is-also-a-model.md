@@ -123,8 +123,8 @@ the full assembled context: profile, match history, transcript, priorities. The
 validator receives the reply text and a rule list, and nothing else. On top of
 that it runs on a cheaper model tier.
 
-This mirrors a pattern that showed up repeatedly across the conferences I sat in
-this year. A pharma-regulatory team at the AWS summit presented an architecture
+This mirrors a pattern that came up repeatedly at the conferences I went to this
+year. A pharma-regulatory team at the AWS summit presented an architecture
 where in-house small models handle traffic first and escalate to frontier models
 only when confidence drops. Same instinct, inverted: they use the cheap model to
 avoid calling the expensive one, we use the cheap model to check the expensive
@@ -156,9 +156,9 @@ their absence a choice about priorities rather than a limitation.
 
 ## Where the industry stands
 
-Evaluation-as-a-product was the loudest theme in my 2026 slide archive, and it
-has moved from conference talk to shipped feature faster than almost anything
-else I tracked.
+Evaluation-as-a-product was the loudest theme across the 2026 events I attended,
+and it has moved from conference talk to shipped feature faster than almost
+anything else I have followed.
 
 | What was shown | Where | Where riteangle stands |
 | --- | --- | --- |
@@ -177,7 +177,7 @@ above — that is a real gap, not a theoretical one.
 There is a second gap worth naming. Every block is written to a violations table
 with the original text, the substitute, the rule broken and the stage that caught
 it. That table is written and **never read**. There is no screen, no digest, no
-alert. The corpus that would let me calibrate the validator is accumulating
+alert. The data that would let me calibrate the validator is accumulating
 untouched, which is a slightly absurd place to have arrived at.
 
 ## The pattern, without the dating app

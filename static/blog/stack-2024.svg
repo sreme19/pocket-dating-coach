@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 520" width="560" height="520" role="img" aria-labelledby="s24t s24d">
+  <title id="s24t">The analytics stack as presented in mid-2024</title>
+  <desc id="s24d">Five layers. Ingest with Kafka and change data capture. Storage on S3 with Hive, Iceberg and Delta Lake in a medallion arrangement. Transform with Spark, dbt and Airflow. Serve through a warehouse and a feature store. Consume through Tableau and Power BI, with a separate machine learning branch through SageMaker. Generative AI appears as a single unelaborated tile at the edge of the consumption layer.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .lay { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .genai { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.3; stroke-dasharray: 4 3; }
+    .k { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; fill: #97928a; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14.5px; fill: #17161b; }
+    .t { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; fill: #6e6a63; }
+    .note { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #b4541e; }
+    .arrow { stroke: #c9c4bb; stroke-width: 1.3; fill: none; }
+  
+    /* dashes march along each connector so the diagram reads as live flow.
+       one dash period per cycle keeps the loop seamless. */
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: fl-arrow 0.9s linear infinite; }
+    }
+    @keyframes fl-arrow { to { stroke-dashoffset: -8; } }
+  </style>
+  <rect class="bg" width="560" height="520" rx="8"/>
+  <text class="k" x="30" y="28">MAY 2024 — DATA ENGINEERING SUMMIT</text>
+  <rect class="lay" x="24" y="40" width="512" height="62" rx="6"/>
+  <text class="h" x="44" y="66">Ingest</text>
+  <text class="t" x="44" y="88">Kafka · Kinesis · change data capture · Debezium</text>
+  <path class="arrow" d="M280 102 L280 116" marker-end="url(#g)"/>
+  <rect class="lay" x="24" y="120" width="512" height="62" rx="6"/>
+  <text class="h" x="44" y="146">Store</text>
+  <text class="t" x="44" y="168">S3 · Hive · Iceberg · Delta Lake · medallion layering</text>
+  <path class="arrow" d="M280 182 L280 196" marker-end="url(#g)"/>
+  <rect class="lay" x="24" y="200" width="512" height="62" rx="6"/>
+  <text class="h" x="44" y="226">Transform</text>
+  <text class="t" x="44" y="248">Spark · dbt · Airflow · Data Vault · dimensional models</text>
+  <path class="arrow" d="M280 262 L280 276" marker-end="url(#g)"/>
+  <rect class="lay" x="24" y="280" width="512" height="62" rx="6"/>
+  <text class="h" x="44" y="306">Serve</text>
+  <text class="t" x="44" y="328">Warehouse · metrics store · feature store (offline / online)</text>
+  <path class="arrow" d="M280 342 L280 356" marker-end="url(#g)"/>
+  <rect class="lay" x="24" y="360" width="330" height="62" rx="6"/>
+  <text class="h" x="44" y="386">Consume</text>
+  <text class="t" x="44" y="408">Tableau · Power BI · SageMaker</text>
+  <rect class="genai" x="366" y="360" width="170" height="62" rx="6"/>
+  <text class="h" x="451" y="386" text-anchor="middle">Gen AI</text>
+  <text class="t" x="451" y="406" text-anchor="middle">one tile</text>
+  <text class="note" x="280" y="456" text-anchor="middle">In May 2024 the entire generative layer is a single unelaborated box.</text>
+  <text class="note" x="280" y="478" text-anchor="middle">No framework, no protocol, no orchestration named anywhere in the deck.</text>
+  <text class="note" x="280" y="500" text-anchor="middle">The four-rung menu: prompt · RAG · fine-tune · train from scratch.</text>
+  <defs>
+    <marker id="g" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#c9c4bb"/>
+    </marker>
+  </defs>
+</svg>
