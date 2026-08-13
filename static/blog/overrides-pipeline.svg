@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 600" width="560" height="600" role="img" aria-labelledby="opt opd">
+  <title id="opt">Where plain code overrules the model, between generation and sending</title>
+  <desc id="opd">A generated reply passes five deterministic checks before it can be sent. A signal downgrade forces a concerning-behaviour flag back to neutral when the same turn was a refusal to supply proof. A contact scrub strips emails, phone numbers and handles from the outbound half only. A pair check refuses to let the agent speak at all unless the conversation has exactly one man and one woman in it. A wrap rewrite drops a trailing question and guarantees a non-empty reply. A loop cap stops two agents talking to each other past ten exchanges per side. Each of these exists because of a specific production incident.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .gen { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #6e6a63; }
+    .w { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; fill: #b4541e; }
+    .arrow { stroke: #97928a; stroke-width: 1.5; fill: none; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: fl-o 0.9s linear infinite; }
+    }
+    @keyframes fl-o { to { stroke-dashoffset: -8; } }
+  </style>
+  <rect class="bg" width="560" height="600" rx="8"/>
+  <rect class="gen" x="150" y="20" width="260" height="46" rx="6"/>
+  <text class="h" x="280" y="49" text-anchor="middle">Claude Sonnet 4.5 writes a reply</text>
+  <path class="arrow" d="M280 66 L280 88" marker-end="url(#o)"/>
+  <rect class="card" x="24" y="92" width="512" height="64" rx="6"/>
+  <text class="w" x="44" y="114">SIGNAL DOWNGRADE</text>
+  <text class="h" x="44" y="134">A refusal is not a red flag</text>
+  <text class="s" x="44" y="150">He said no to a proof request. The concern flag is forced back to neutral.</text>
+  <path class="arrow" d="M280 156 L280 174" marker-end="url(#o)"/>
+  <rect class="card" x="24" y="178" width="512" height="64" rx="6"/>
+  <text class="w" x="44" y="200">CONTACT SCRUB</text>
+  <text class="h" x="44" y="220">Strip contact details, outbound only</text>
+  <text class="s" x="44" y="236">Emails, phones, links, handles. The private coaching note is untouched.</text>
+  <path class="arrow" d="M280 242 L280 260" marker-end="url(#o)"/>
+  <rect class="card" x="24" y="264" width="512" height="64" rx="6"/>
+  <text class="w" x="44" y="286">PAIR CHECK</text>
+  <text class="h" x="44" y="306">Exactly one man, one woman — or silence</text>
+  <text class="s" x="44" y="322">If the pair is not what the agent assumes, it does not get to speak.</text>
+  <path class="arrow" d="M280 328 L280 346" marker-end="url(#o)"/>
+  <rect class="card" x="24" y="350" width="512" height="64" rx="6"/>
+  <text class="w" x="44" y="372">WRAP REWRITE</text>
+  <text class="h" x="44" y="392">Drop the trailing question, guarantee a body</text>
+  <text class="s" x="44" y="408">A hand-off must not end by asking something it will never hear back.</text>
+  <path class="arrow" d="M280 414 L280 432" marker-end="url(#o)"/>
+  <rect class="card" x="24" y="436" width="512" height="64" rx="6"/>
+  <text class="w" x="44" y="458">LOOP CAP</text>
+  <text class="h" x="44" y="478">Ten exchanges per side, then stop</text>
+  <text class="s" x="44" y="494">Two agents will talk to each other indefinitely. Neither gets bored.</text>
+  <path class="arrow" d="M280 500 L280 520" marker-end="url(#o)"/>
+  <rect class="card" x="150" y="524" width="260" height="46" rx="6"/>
+  <text class="h" x="280" y="553" text-anchor="middle">Sent</text>
+  <text class="foot" x="280" y="590" text-anchor="middle">Every one of these was written after an incident, not before.</text>
+  <defs>
+    <marker id="o" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+  </defs>
+</svg>

@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 640" width="560" height="640" role="img" aria-labelledby="nbt nbd">
+  <title id="nbt">Two harmless defaults combining into a corrupted memory window</title>
+  <desc id="nbd">First default: a multi-row insert sends the union of all keys, so a row that omits its timestamp is written an explicit null rather than receiving the column default. Second default: Postgres sorts nulls first in descending order. Combined, the null-timestamped opener sits at the top of every newest-first query. The agent reads the last twelve messages every turn, sees that opener pinned in first position, and concludes he just said it again. Nine times.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .bad { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.5; }
+    .k { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; fill: #97928a; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14.5px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    .m { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; fill: #3f3c45; }
+    .mb { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; fill: #b4541e; }
+    .arrow { stroke: #97928a; stroke-width: 1.5; fill: none; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: fl-n 0.9s linear infinite; }
+    }
+    @keyframes fl-n { to { stroke-dashoffset: -8; } }
+  </style>
+  <rect class="bg" width="560" height="640" rx="8"/>
+  <text class="k" x="30" y="26">DEFAULT ONE — THE CLIENT LIBRARY</text>
+  <rect class="card" x="24" y="38" width="512" height="86" rx="6"/>
+  <text class="h" x="44" y="64">A multi-row insert sends the union of all keys</text>
+  <text class="m" x="44" y="88">row A: { body, created_at }</text>
+  <text class="mb" x="44" y="108">row B: { body }  →  written as created_at = NULL</text>
+  <path class="arrow" d="M280 124 L280 148" marker-end="url(#n)"/>
+  <text class="k" x="30" y="170">DEFAULT TWO — THE DATABASE</text>
+  <rect class="card" x="24" y="182" width="512" height="70" rx="6"/>
+  <text class="h" x="44" y="208">Postgres sorts NULLs first in a descending order</text>
+  <text class="s" x="44" y="232">A null timestamp is therefore the newest thing that ever happened</text>
+  <path class="arrow" d="M280 252 L280 276" marker-end="url(#n)"/>
+  <text class="k" x="30" y="298">THE WINDOW THE AGENT READS, EVERY TURN</text>
+  <rect class="bad" x="24" y="310" width="512" height="182" rx="6"/>
+  <text class="s" x="44" y="334">newest first, limit 12</text>
+  <rect class="card" x="44" y="346" width="472" height="30" rx="4"/>
+  <text class="mb" x="60" y="366">1.  NULL   his opener — &#34;we&#39;re meant for each other&#34;</text>
+  <rect class="card" x="44" y="382" width="472" height="26" rx="4"/>
+  <text class="m" x="60" y="400">2.  14:22  her reply</text>
+  <rect class="card" x="44" y="414" width="472" height="26" rx="4"/>
+  <text class="m" x="60" y="432">3.  14:19  his message</text>
+  <text class="s" x="60" y="458">…nine more turns pass, and position 1 never changes</text>
+  <text class="s" x="60" y="478">the agent concludes he has just said it again, every time</text>
+  <rect class="card" x="24" y="516" width="512" height="100" rx="6"/>
+  <text class="foot" x="280" y="544" text-anchor="middle">Neither default is a bug. Both are documented, reasonable behaviour.</text>
+  <text class="foot" x="280" y="568" text-anchor="middle">The failure only exists where they meet — and it presents</text>
+  <text class="foot" x="280" y="590" text-anchor="middle">as an agent with a personality problem, not as an error.</text>
+  <defs>
+    <marker id="n" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+  </defs>
+</svg>

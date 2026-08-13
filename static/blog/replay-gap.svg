@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 460" width="560" height="460" role="img" aria-labelledby="rgt rgd">
+  <title id="rgt">Inspection is built. Measurement is not.</title>
+  <desc id="rgd">Six capabilities are built: a step-by-step trace, the full assembled prompt, the raw output before any guardrail, token usage, a ledger of suppressed side effects, and saved runs that can be resumed. Six are absent: a stored set of test cases, expected outputs, a saved baseline, a diff between two runs, a batch runner, and any pass or fail verdict. A run produces a complete picture of one turn and no judgement about whether that turn was good.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .have { fill: #f2f6f3; stroke: #2f6b46; stroke-width: 1.2; }
+    .miss { fill: #ffffff; stroke: #b4541e; stroke-width: 1.2; stroke-dasharray: 5 4; }
+    .k { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; }
+    .kh { fill: #2f6b46; }
+    .km { fill: #b4541e; }
+    .t { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #3f3c45; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+  </style>
+  <rect class="bg" width="560" height="460" rx="8"/>
+  <text class="k kh" x="34" y="28">BUILT — INSPECTION</text>
+  <rect class="have" x="24" y="40" width="248" height="34" rx="5"/><text class="t" x="40" y="62">Step-by-step trace</text>
+  <rect class="have" x="24" y="80" width="248" height="34" rx="5"/><text class="t" x="40" y="102">The full assembled prompt</text>
+  <rect class="have" x="24" y="120" width="248" height="34" rx="5"/><text class="t" x="40" y="142">Raw output, pre-guardrail</text>
+  <rect class="have" x="24" y="160" width="248" height="34" rx="5"/><text class="t" x="40" y="182">Token usage</text>
+  <rect class="have" x="24" y="200" width="248" height="34" rx="5"/><text class="t" x="40" y="222">Suppressed side effects</text>
+  <rect class="have" x="24" y="240" width="248" height="34" rx="5"/><text class="t" x="40" y="262">Saved runs, resumable</text>
+  <text class="k km" x="298" y="28">ABSENT — MEASUREMENT</text>
+  <rect class="miss" x="288" y="40" width="248" height="34" rx="5"/><text class="t" x="304" y="62">A stored set of test cases</text>
+  <rect class="miss" x="288" y="80" width="248" height="34" rx="5"/><text class="t" x="304" y="102">Expected outputs</text>
+  <rect class="miss" x="288" y="120" width="248" height="34" rx="5"/><text class="t" x="304" y="142">A saved baseline</text>
+  <rect class="miss" x="288" y="160" width="248" height="34" rx="5"/><text class="t" x="304" y="182">A diff between two runs</text>
+  <rect class="miss" x="288" y="200" width="248" height="34" rx="5"/><text class="t" x="304" y="222">A batch runner</text>
+  <rect class="miss" x="288" y="240" width="248" height="34" rx="5"/><text class="t" x="304" y="262">Any pass or fail verdict</text>
+  <rect class="card" x="24" y="308" width="512" height="120" rx="6"/>
+  <text class="foot" x="280" y="340" text-anchor="middle">A run produces a complete picture of one turn,</text>
+  <text class="foot" x="280" y="364" text-anchor="middle">and no judgement about whether that turn was any good.</text>
+  <text class="foot" x="280" y="396" text-anchor="middle">Every saved run already stores the prompt, the input and the output —</text>
+  <text class="foot" x="280" y="416" text-anchor="middle">which is a golden set, accidentally half-built and unused.</text>
+</svg>

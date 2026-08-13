@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 560" width="560" height="560" role="img" aria-labelledby="rvt rvd">
+  <title id="rvt">Production and replay share everything except the write</title>
+  <desc id="rvd">Both paths use the same context loaders, the same prompt builders and the same model, Claude Sonnet 4.5. They diverge only at the final step. Production writes to the database, sends the message and records timing. Replay records what each of those writes would have been, with a reason, and performs none of them. Because the two paths share the code that assembles the prompt, the tested prompt cannot drift from the live one.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .shared { fill: #f4f1ea; stroke: #ddd7ca; stroke-width: 1; }
+    .prod { fill: #ffffff; stroke: #6e6a63; stroke-width: 1.4; }
+    .rep { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .k { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; fill: #97928a; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 13.5px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #6e6a63; }
+    .arrow { stroke: #97928a; stroke-width: 1.5; fill: none; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: fl-rv 0.9s linear infinite; }
+    }
+    @keyframes fl-rv { to { stroke-dashoffset: -8; } }
+  </style>
+  <rect class="bg" width="560" height="560" rx="8"/>
+  <text class="k" x="30" y="26">SHARED BY CONSTRUCTION</text>
+  <rect class="shared" x="24" y="38" width="512" height="46" rx="6"/>
+  <text class="h" x="280" y="66" text-anchor="middle">The same context loaders — twenty blocks, same queries</text>
+  <path class="arrow" d="M280 84 L280 104" marker-end="url(#rv)"/>
+  <rect class="shared" x="24" y="108" width="512" height="46" rx="6"/>
+  <text class="h" x="280" y="136" text-anchor="middle">The same prompt builders</text>
+  <path class="arrow" d="M280 154 L280 174" marker-end="url(#rv)"/>
+  <rect class="shared" x="24" y="178" width="512" height="46" rx="6"/>
+  <text class="h" x="280" y="206" text-anchor="middle">The same model — Claude Sonnet 4.5</text>
+  <path class="arrow" d="M180 224 L120 268" marker-end="url(#rv)"/>
+  <path class="arrow" d="M380 224 L440 268" marker-end="url(#rv)"/>
+  <text class="k" x="30" y="292">PRODUCTION</text>
+  <rect class="prod" x="24" y="304" width="242" height="152" rx="6"/>
+  <text class="h" x="44" y="332">Writes the message</text>
+  <text class="h" x="44" y="360">Sends the notification</text>
+  <text class="h" x="44" y="388">Records the timing</text>
+  <text class="h" x="44" y="416">Advances the checklist</text>
+  <text class="s" x="44" y="440">All of it really happens</text>
+  <text class="k" x="300" y="292">REPLAY</text>
+  <rect class="rep" x="294" y="304" width="242" height="152" rx="6"/>
+  <text class="h" x="314" y="332">Would have written…</text>
+  <text class="h" x="314" y="360">Would have sent…</text>
+  <text class="h" x="314" y="388">Would have recorded…</text>
+  <text class="h" x="314" y="416">Would have advanced…</text>
+  <text class="s" x="314" y="440">each with a reason, none performed</text>
+  <rect class="card" x="24" y="484" width="512" height="56" rx="6"/>
+  <text class="foot" x="280" y="512" text-anchor="middle">Because the prompt is built by shared code, the tested prompt</text>
+  <text class="foot" x="280" y="532" text-anchor="middle">cannot drift from the live one. There is no fixture to rot.</text>
+  <defs>
+    <marker id="rv" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+  </defs>
+</svg>
