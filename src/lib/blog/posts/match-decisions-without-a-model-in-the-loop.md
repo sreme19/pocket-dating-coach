@@ -1,5 +1,5 @@
 ---
-title: The AI doesn't pick your matches
+title: Match decisions without a model in the loop
 date: 2026-08-13
 summary: riteangle runs LLMs at both edges of the matching pipeline and nothing in the middle. The decision itself is a weighted dot product and a min-cost max-flow solve. Here is the architecture, why the industry converged on it, and where we still violate it.
 tags: [agent-architecture, riteangle]
@@ -211,6 +211,7 @@ linked.
 | Building real agentic systems — Alessandro Romano | DataHack Summit 2025 | [Recording](https://www.youtube.com/watch?v=-YG9WGThlgI) |
 | Agentic knowledge-augmented generation — Arun Prakash Asokan | DataHack Summit 2025 | [Recording](https://www.youtube.com/watch?v=Q1LtjqyxCFA) |
 
-*First of nine posts on riteangle's architecture. Next: the answer ledger — a
-cross-thread memory store deliberately built with no column recording where any
-of its rows came from.*
+*First of nine posts on riteangle's architecture. Next:
+[cross-thread agent memory without cross-user leakage](/blog/cross-thread-agent-memory-without-leakage)
+— a shared memory store deliberately built with no column recording where any of
+its rows came from.*
