@@ -1,7 +1,7 @@
 ---
-title: Interpretable scoring without embeddings
+title: Nine named dimensions instead of an embedding, so the ranking can be argued with
 date: 2026-08-24
-summary: We have an embedding model and a vector index in the codebase, and the production ranking does not use either. Nine named dimensions instead, because the question that matters is not who is similar but what would change the answer.
+summary: An embedding can tell you two people are close and cannot tell you which of five hundred axes did the work, because the axes mean nothing individually. When the output is a ranking that decides who someone meets, the question that matters is not who is similar but what would change the answer. Hand-designed dimensions with a pure scoring function make that exact rather than plausible — and let sensitive attributes be excluded by a weight pinned to zero instead of by a promise.
 tags: [agent-architecture, riteangle]
 ---
 

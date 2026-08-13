@@ -1,7 +1,7 @@
 ---
-title: A keyword scan in front of the model
+title: Why the crisis path in a patient-facing chatbot never reaches the model at all
 date: 2026-08-25
-summary: A patient-facing medical chatbot where the crisis path never reaches the model at all. Sixty-five keywords in three languages, checked before the API call, and a validator that throws away whole responses. Deliberately worse technology, chosen on purpose.
+summary: Some questions a patient asks are urgent in a way the patient does not know, and getting one wrong means telling someone to wait until morning. A model would detect those better than a keyword list by every ordinary measure — it handles paraphrase, typos and mid-sentence language switching. It is used anyway, because a list of phrases cannot be argued out of its judgement by the message it is reading, cannot fail open during an outage, and can be read line by line and signed off by a clinician.
 tags: [guardrails, decision-systems]
 ---
 

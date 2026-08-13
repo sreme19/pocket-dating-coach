@@ -1,7 +1,7 @@
 ---
-title: Modelling a sport with no data
+title: Building a selection model when your best player has twenty matches of history
 date: 2026-08-31
-summary: Building a selection and tactics model for women's international T20, where the record for a given player might be twenty matches. Graceful degradation as a first-class feature, two execution paths for two time budgets, and why I am not quoting my own headline accuracy number.
+summary: Most sports modelling assumes abundance. Women's international T20 gives you a career of thirty appearances and matchups four deliveries deep, and the standard approach turns that into confident numbers derived from noise. So graceful degradation is the actual product: four declared tiers of evidence, adjacent leagues blended at a discount, thin matchups discarded rather than trusted, and every output labelled with which tier it rests on. It also includes the accuracy figure I stopped quoting once I checked it per class.
 tags: [decision-systems]
 ---
 

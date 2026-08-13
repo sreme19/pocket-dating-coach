@@ -1,7 +1,7 @@
 ---
-title: Three ways to not know things
+title: Choosing a solver by what you cannot see: full information, hidden moves, hidden state
 date: 2026-08-27
-summary: Three decision-support systems built in sequence, each because the previous one's assumptions ran out. Integer programming when you can see everything, regret minimisation when you cannot see their move, belief-state planning when you cannot see the state.
+summary: Reach for game theory on a problem with no opponent and you have built machinery you did not need; reach for optimisation when someone is actively choosing against you and your clean optimum will not hold still. Three decision-support systems built in sequence, where the rungs are not algorithms but what you are allowed to assume you know. The most transferable finding is that picking between equilibrium concepts is a question about who commits first, and once you have both solvers, the difference between them prices the commitment.
 tags: [decision-systems]
 ---
 

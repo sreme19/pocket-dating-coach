@@ -1,7 +1,7 @@
 ---
-title: Cross-thread agent memory without cross-user leakage
+title: Letting three agents share what a man said without revealing who he said it to
 date: 2026-08-14
-summary: A cross-thread memory store for agents, where the privacy boundary is a column that was never created. How riteangle lets an agent reuse what you already said without letting it reveal who you said it to.
+summary: When one person is represented by several agents, each working for a different counterparty, he answers the same question over and over — and the obvious fix, shared memory, quietly tells each agent about conversations it was never part of. The value and the hazard come from the same fact. This is a memory store where the origin of a row was never recorded in the first place, so it cannot be recovered by a query, an agent, or anyone with database access.
 tags: [context-engineering, riteangle]
 ---
 

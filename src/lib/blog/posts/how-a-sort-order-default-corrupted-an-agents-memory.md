@@ -1,7 +1,7 @@
 ---
-title: How a sort-order default corrupted an agent's memory
+title: Two database defaults that made an agent accuse a blameless man nine times
 date: 2026-08-22
-summary: An agent accused a blameless man nine times of something he said once. The cause was two documented, reasonable library defaults meeting each other. The fix was a test that reads our own source code rather than running it.
+summary: An agent's context window is a query result, and it is the one artifact nobody audits — assembled at runtime, used once, discarded. Two separately correct, separately documented library defaults met in the middle and pinned a single old message to the top of every window, so the agent read it as the newest thing said and escalated accordingly. This is what that failure looked like, why every natural diagnosis pointed at the prompt instead, and how you test for a bug that lives in the gap between two libraries.
 tags: [agent-evals, riteangle]
 ---
 

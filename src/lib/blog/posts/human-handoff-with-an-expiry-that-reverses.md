@@ -1,7 +1,7 @@
 ---
-title: Human hand-off with an expiry that reverses
+title: What an agent should do at hour 49, when the human it handed to never replied
 date: 2026-08-19
-summary: An agent works on your behalf, then stops and hands you the result. You have 48 hours. What happens at hour 49 is the design problem — and deleting is the wrong answer.
+summary: An agent finishes its work and hands the result to a person, which leaves a third party waiting on someone who may simply be busy. A deadline is necessary to protect them; a deadline that deletes punishes the wrong person for a scheduling accident. The resolution is that expiring and deleting are different operations, and the timeout should do the smallest thing that frees whoever is waiting.
 tags: [guardrails, riteangle]
 ---
 

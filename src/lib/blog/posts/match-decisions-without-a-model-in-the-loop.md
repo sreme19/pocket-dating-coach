@@ -1,7 +1,7 @@
 ---
-title: Match decisions without a model in the loop
+title: Why the agent writes the message but never picks the match
 date: 2026-08-13
-summary: riteangle runs LLMs at both edges of the matching pipeline and nothing in the middle. The decision itself is a weighted dot product and a min-cost max-flow solve. Here is the architecture, why the industry converged on it, and where we still violate it.
+summary: A generative model cannot be regression-tested, cannot explain a specific past output, and cannot be told apart from its own drift — which makes it the wrong thing to put in charge of who two people meet. So the models here read evidence and write messages, and a weighted dot product plus a flow solve makes the actual call. The payoff is that any ranking can be re-derived exactly by changing one input and running it again.
 tags: [agent-architecture, riteangle]
 ---
 

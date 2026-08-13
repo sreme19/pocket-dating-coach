@@ -1,7 +1,7 @@
 ---
-title: Safety in infrastructure, safety in code
+title: Where a safety rule should live when the cost of forgetting it is somebody getting hurt
 date: 2026-08-29
-summary: I built the same class of protection twice — once as regex in an application route, once as a managed guardrail wrapping the model. One I can read and must remember to wire in. The other I cannot read and cannot forget.
+summary: A safety rule written in your own code can be read, reviewed and approved by a domain expert, and protects exactly the one route you remembered to wire it into. The same rule bought as managed infrastructure is opaque, catches paraphrase you never enumerated, and applies to every path including ones written six months from now by someone who never read your docs. Having built both, the split I would defend is to write the rules you must be able to defend, and buy the rules you must not be able to forget.
 tags: [guardrails, decision-systems]
 ---
 

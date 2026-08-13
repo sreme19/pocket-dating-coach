@@ -1,7 +1,7 @@
 ---
-title: When the auditor should not be a model
+title: The same audit step built as a model and as arithmetic, and what each version caught
 date: 2026-08-26
-summary: I built the same reporting pipeline twice, weeks apart. The audit step is a Claude call in one version and plain arithmetic in the other. Having both makes the answer obvious, and it is not the one I expected when I started.
+summary: A pipeline produces a table of numbers and a written analysis, and somebody senior makes decisions from the summary — so something has to check that the prose actually describes the data. I built that check twice by accident, weeks apart: once as a model call, once as plain Python. The arithmetic version is obviously right for four of the five checks, and reimplementing it silently deleted the fifth, which was the only one a model can do.
 tags: [guardrails, decision-systems]
 ---
 

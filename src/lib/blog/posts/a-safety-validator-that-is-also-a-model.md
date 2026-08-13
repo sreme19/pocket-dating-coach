@@ -1,7 +1,7 @@
 ---
-title: A safety validator that is also a model
+title: Checking every outbound message before it sends, at a sixth the cost of writing it
 date: 2026-08-15
-summary: Every outbound message from riteangle's agents is graded by a second, cheaper model before it can be sent. Two stages, failing in opposite directions, with one corrective regeneration in between. Here is the design and the part of it I am not comfortable with.
+summary: An agent writing on someone's behalf produces text a real person reads and attributes to a real person, and nobody can read all of it before it goes. Sampling misses exactly the rare failures worth catching. A small model grades every outbound message against an enumerated rubric at roughly a sixth of the generator's budget, which is what makes total coverage affordable — and the uncomfortable part is that nothing has ever checked whether the grader is right.
 tags: [guardrails, riteangle]
 ---
 
