@@ -161,6 +161,58 @@ to know something it could trivially retrieve did not come up on any stage I sat
 in, across eleven events. For a consumer product it is the first question, not a
 footnote — and it is the one that forced every design decision above.
 
+## The pattern, without the dating app
+
+Strip the domain and this is:
+
+> **Shared long-term memory across agent instances, with provenance omitted at
+> the schema level and reads gated in tiers.** Facts are written unconditionally.
+> Existence of a fact is readable before permission; content is readable only
+> after. Capture is span-selection from the user's own words, never composition.
+> Entries carry an effective-date window so a stale fact degrades to a question
+> rather than an assertion.
+
+The precondition is structural: **one principal is represented by several agent
+instances, each acting for a different counterparty.** Whenever that is true, you
+have both the redundancy problem and the leakage problem at once.
+
+| Setting | The repeated question | What must not leak across instances |
+| --- | --- | --- |
+| **Multi-tenant B2B support** | An engineer re-explains their environment to an agent on every account they hold | Which other tenant they also work with |
+| **Healthcare across providers** | A patient restates history at each new clinic | Which other clinicians they are seeing |
+| **Recruiting** | A candidate re-answers relocation, notice period, compensation for every employer's agent | Which other employers they are talking to |
+| **Professional services and agencies** | A client restates constraints to each engagement team | Which competitor the firm also serves |
+| **Marketplaces and brokerage** | A buyer restates requirements to each seller's agent | Which other sellers they are negotiating with |
+| **Insurance broking** | An applicant repeats disclosures per carrier | Which other carriers quoted them |
+
+In every row, the value and the hazard come from the same fact. That is what
+makes schema omission the right tool rather than access control: you are not
+trying to restrict who can query the origin, you are trying to make the origin
+unrecoverable.
+
+Three transferable choices:
+
+**Delete the join key, not the access.** Access control depends on every future
+query being written correctly. A column that does not exist cannot be selected by
+a mistaken query, a new engineer, an over-eager agent, or a leaked credential. You
+pay for it in debuggability, and that is the trade to make consciously.
+
+**Gate the read, not the write.** If declining stops capture, consent is worthless
+for months after it is granted. Gating reads makes permission instantly meaningful
+in both directions, and revocation becomes a lock rather than a destruction event
+— which is also what makes it reversible without a data-recovery story.
+
+**Ship a topics-only tier.** The middle tier — knowing a subject has been covered
+without knowing what was said — is the highest-value, lowest-risk signal in the
+whole design, and it is the one most systems skip. It is what lets an agent decide
+whether a question is worth asking without any content crossing a boundary.
+
+The constraint worth copying wholesale is the verbatim gate. If your system quotes
+stored facts back to the person who supplied them, the extraction step must select
+spans rather than compose summaries. A paraphrase that drifts becomes a
+misattributed quote, and misattribution destroys trust far faster than asking a
+question twice.
+
 ## What it does not do
 
 It is memory, not retrieval. There is no embedding, no vector search, no semantic

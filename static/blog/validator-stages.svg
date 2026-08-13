@@ -19,14 +19,14 @@
   <text class="h" x="280" y="52" text-anchor="middle">Generated reply</text>
   <path class="arrow" d="M280 72 L280 96" marker-end="url(#v)"/>
   <rect class="card" x="60" y="100" width="440" height="82" rx="6"/>
-  <text class="pill closed" x="80" y="124">STAGE 1 · FAILS CLOSED</text>
+  <text class="pill closed" x="80" y="124">STAGE 1 · FAILS CLOSED · 7 PATTERNS</text>
   <text class="h" x="80" y="148">Pattern scan for personal data</text>
-  <text class="s" x="80" y="168">Seven expressions. On any error, the message is blocked.</text>
+  <text class="s" x="80" y="168">Email, two phone formats, four identity documents.</text>
   <path class="arrow" d="M280 182 L280 206" marker-end="url(#v)"/>
   <rect class="card" x="60" y="210" width="440" height="82" rx="6"/>
-  <text class="pill open" x="80" y="234">STAGE 2 · FAILS OPEN</text>
-  <text class="h" x="80" y="258">A small model grades the large one</text>
-  <text class="s" x="80" y="278">Ten forbidden behaviours. On any error, the message passes.</text>
+  <text class="pill open" x="80" y="234">STAGE 2 · FAILS OPEN · 10 RULES</text>
+  <text class="h" x="80" y="258">Claude Haiku 4.5 grades Claude Sonnet 4.5</text>
+  <text class="s" x="80" y="278">Impersonation, invented facts, money-as-desirability.</text>
   <path class="arrow" d="M280 292 L280 316" marker-end="url(#v)"/>
   <rect class="warm" x="60" y="320" width="440" height="82" rx="6"/>
   <text class="h" x="80" y="350">Blocked? One corrective regeneration</text>

@@ -77,6 +77,24 @@ verdict that says which rule was broken usually gets a clean second attempt,
 because the model was not trying to break the rule, it just did not know the
 rule applied to the sentence it wrote.
 
+Here is what that looks like on a real message shape. An agent is recommending a
+man to the woman it works for, and reaches for the easiest available evidence:
+
+![A worked example. The first attempt recommends a man by citing his salary and
+is blocked under the rule forbidding money as a reason someone is desirable. The
+rule is named and fed back. The second attempt describes what he has built and
+how he talks about it, and passes.](/blog/validator-example.svg)
+
+The first attempt is not offensive. It is not a policy violation in any obvious
+sense. It is just the laziest possible reason to want to meet someone, and it is
+exactly the register this product should never adopt — so it is rule six on the
+list.
+
+What I find persuasive about this example is that the second attempt is *better
+writing*, not merely permitted writing. Naming the constraint pushed the model
+off the generic sentence and onto a specific one. That is the case for
+regenerating rather than deflecting, in one comparison.
+
 ## A small model can afford to watch a big one
 
 ![The generator runs a large model with up to roughly seven hundred output
@@ -91,6 +109,12 @@ because it is writing something a person will read. The validator is a small,
 cheap model returning a short structured verdict, because "is this compliant, and
 if not, which rule" is a classification problem, not a writing problem.
 
+The output budget for the validator is **120 tokens against the generator's 700 —
+about 17%** — and the input side is more lopsided still. The generator receives
+the full assembled context: profile, match history, transcript, priorities. The
+validator receives the reply text and a rule list, and nothing else. On top of
+that it runs on a cheaper model tier.
+
 This mirrors a pattern that showed up repeatedly across the conferences I sat in
 this year. A pharma-regulatory team at the AWS summit presented an architecture
 where in-house small models handle traffic first and escalate to frontier models
@@ -98,6 +122,29 @@ only when confidence drops. Same instinct, inverted: they use the cheap model to
 avoid calling the expensive one, we use the cheap model to check the expensive
 one. Both work because a small model is adequate at judging and inadequate at
 composing.
+
+### The numbers that exist, and the ones that don't
+
+I would rather show this as a table than imply a rigour we do not have.
+
+| Quantity | Value | Source |
+| --- | --- | --- |
+| Patterns in the fail-closed stage | 7 | Configured |
+| Rules in the model-graded stage | 10 | Configured |
+| Corrective regenerations allowed | 1 | Configured |
+| Validator output budget | 120 tokens | Configured |
+| Generator output budget | up to 700 tokens | Configured |
+| Validator budget as a share of generator | ~17% | Derived |
+| Messages graded | every outbound message | By design, not sampled |
+| **Block rate** | **unmeasured** | No dashboard reads the violations table |
+| **False-positive rate** | **unmeasured** | Validator never scored against human labels |
+| **Share of blocks the retry rescues** | **unmeasured** | Both attempts are logged; nothing aggregates them |
+| **Fail-open events during provider outages** | **unmeasured** | No alerting on that path |
+
+The top half of that table is configuration, which is easy. The bottom half is
+measurement, which is the actual work, and it is not done. Every one of those
+unknowns is answerable from data already sitting in the database — which makes
+their absence a choice about priorities rather than a limitation.
 
 ## Where the industry has got to
 
@@ -124,6 +171,57 @@ with the original text, the substitute, the rule broken and the stage that caugh
 it. That table is written and **never read**. There is no screen, no digest, no
 alert. The corpus that would let me calibrate the validator is accumulating
 untouched, which is a slightly absurd place to have arrived at.
+
+## The pattern, without the dating app
+
+Nothing above is specific to dating. Strip the domain and the pattern is:
+
+> **Layered output validation with corrective regeneration.** A deterministic
+> fail-closed check for the categories you can specify exactly, a model-graded
+> fail-open check for the categories you cannot, and one bounded regeneration in
+> which the failing rule is named back to the generator before you give up on the
+> turn.
+
+It applies wherever a generative system produces text that a real person reads
+and attributes to an organisation or another human — which is most deployed
+agents.
+
+| Industry | The equivalent outbound message | What the rule list becomes |
+| --- | --- | --- |
+| **Clinical documentation** | A drafted note or discharge summary going into a patient record | No diagnosis not stated by the clinician, no invented medication or dose, no prognosis language the clinician did not use |
+| **Financial advice and wealth** | Any client-facing summary or suggestion | Suitability boundaries, no performance guarantees, mandatory disclosures, no advice outside the client's stated risk profile |
+| **Insurance claims** | Correspondence explaining a decision | No coverage assertion beyond the adjudicated outcome, no admission of liability, no speculation about cause |
+| **Recruiting** | Candidate feedback and outreach | No protected-characteristic reasoning, no commitment on compensation or start date, no claim about a role that the requisition does not support |
+| **Regulated customer support** | Refunds, cancellations, complaint responses | No entitlement the policy does not grant, no promise of a timeline the operation cannot meet |
+| **Legal drafting** | Any first draft reaching a client | No jurisdictional claim outside scope, no advice framed as certainty, privilege boundaries respected |
+
+The transferable pieces are the three design choices, not the code:
+
+**Split your rules by whether you can specify them exactly.** Anything expressible
+as a pattern — identifiers, account numbers, contact details, banned phrases —
+belongs in the deterministic stage and should fail closed. Anything requiring
+judgement — tone, impersonation, unsupported claims, framing — belongs in the
+model stage. Trying to regex a judgement call produces false positives; trying to
+model-grade an account number is wasteful and less reliable than a pattern.
+
+**Choose your failure direction per stage, deliberately, and write down why.**
+Ours are opposite and that is the single most contestable decision in the design.
+In a clinical or financial setting I would almost certainly fail closed on both
+and accept the outage, because the cost asymmetry runs the other way: a blocked
+message is an inconvenience, an ungraded one is a regulatory event.
+
+**Feed the violation back rather than deflecting.** A gate that only blocks
+converts every borderline output into a lost interaction. Naming the specific rule
+and regenerating once recovers most of them, and — as the example above shows —
+frequently produces a better output than the first attempt, because the
+constraint forces specificity.
+
+The economics that make this viable are also general. A frontier model writes;
+a small fast model judges. Judging is classification and does not need the
+capability you are paying for in generation, so the guard lands at a fraction of
+the cost of the thing it guards and you can afford to run it on every single
+output instead of a sample. That ratio holds across providers and tiers, whatever
+you are building.
 
 ## What the model may not do to its own output
 

@@ -18,7 +18,7 @@
   <rect class="bg" width="560" height="520" rx="8"/>
   <text class="hdr" x="34" y="32">WRITE PATH — UNCONDITIONAL</text>
   <rect class="warm" x="24" y="44" width="512" height="72" rx="6"/>
-  <text class="h" x="44" y="72">Everything he types is captured</text>
+  <text class="h" x="44" y="72">Claude Sonnet 4.5 extracts, Postgres stores</text>
   <text class="s" x="44" y="94">Consent state is not consulted. A man who declines still builds a ledger.</text>
   <path class="arrow" d="M280 116 L280 146" marker-end="url(#m)"/>
   <text class="hdr" x="34" y="176">READ PATH — THREE TIERS</text>

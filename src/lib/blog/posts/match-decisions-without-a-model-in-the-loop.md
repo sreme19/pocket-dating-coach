@@ -174,6 +174,60 @@ against exactly the users who were shadow-scored. A tuning parameter that appear
 active and is inert is worse than no parameter, so it is getting wired up or
 removed.
 
+## The pattern, without the dating app
+
+Nothing here is specific to matching people. Strip the domain and it is:
+
+> **A deterministic decision core with generative models at the boundaries.**
+> A model converts unstructured evidence into structured, cached features. A
+> closed-form function ranks. A solver assigns under constraints. A model writes
+> the human-facing explanation *after* the decision is fixed. Confidence in any
+> feature is derived from corroboration, never asserted by the model that
+> proposed it.
+
+This is the right shape for any decision that is consequential, contested, or
+regulated — that is, any decision someone might demand you justify.
+
+| Industry | The decision | What the confidence term becomes |
+| --- | --- | --- |
+| **Lending and credit** | Approve, price, set a limit | Which income and liability claims are documented versus stated |
+| **Insurance underwriting** | Accept, rate, exclude | Which risk factors are inspected or verified versus self-reported |
+| **Recruiting and staffing** | Shortlist and rank candidates | Which skills are evidenced by work samples or references versus claimed on a CV |
+| **Supply chain and logistics** | Assign loads to carriers | Which capacity and compliance attributes are audited versus declared |
+| **Clinical triage** | Prioritise a queue | Which findings are instrumented versus reported by the patient |
+| **Grants, admissions, procurement** | Award a scarce slot | Which applicant claims carry supporting documentation |
+
+Four pieces transfer directly:
+
+**Run extraction once per entity, not once per pair.** The model reads a person,
+a supplier or an applicant a single time and its output is cached. Scoring then
+runs over cached features. This is what makes the system affordable at *n²*
+comparisons — the model cost scales with the number of entities, while the
+arithmetic scales with the number of pairs.
+
+**Separate the claim from its corroboration.** Keep "what is asserted" and "how
+well is it evidenced" as two different numbers that multiply. Collapsing them into
+one score is the single most common way ranking systems become unauditable, and it
+is why an unproven claim here retains only 30% of its weight rather than all of it
+or none of it.
+
+**Make assignment a constrained solve, not a threshold.** Anything with capacity
+on both sides — reviewers to papers, jobs to machines, cases to caseworkers,
+candidates to interview slots — is a flow problem. Thresholding each pair
+independently overfills the popular side, which is exactly the failure this system
+had before caps were bound to the recipient rather than the run.
+
+**Keep displayed artifacts out of the scoring inputs.** Any indicator you surface
+to a user must not feed back into the model that produced it, or the metric starts
+measuring its own history. This is the same discipline as holding out a validation
+set, applied to a live product surface.
+
+The trade you are accepting is the same one every time: a closed-form ranker only
+knows the features you defined, so it will never surprise you the way a model
+reading raw evidence might. What you get is the ability to answer *why this
+ranking, and what would change it* — exactly, by re-running the function with one
+input altered.
+
 ## What determinism costs
 
 The honest trade-off: this architecture is worse at serendipity.
