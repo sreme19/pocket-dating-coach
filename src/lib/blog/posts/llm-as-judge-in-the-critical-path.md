@@ -187,6 +187,49 @@ stage. Worth testing for explicitly.
 | **Fail-open blindness** | Provider errors silently pass everything | Alert on the error path, do not just count verdicts |
 | **Threshold theatre** | A gate exists but never blocks anything | Track block rate; a rate of zero means no gate |
 
+Each of those is easier to recognise with an instance attached.
+
+**Verbosity bias.** Two replies say the same true thing. One is *"Yes — his ID and
+income are both verified."* The other spends three warm paragraphs arriving at the
+same fact. Ask a judge which is more helpful and the long one tends to win,
+because length reads as effort. Now your judge is quietly training you toward
+padding. Catch it by putting length-matched pairs into the calibration set on
+purpose — same content, different word count — and checking whether the verdicts
+track.
+
+**Position bias.** You show the judge two candidate openers and ask which is
+better. Run the same pair with the order swapped and a meaningful share of the
+verdicts flip. Nothing about the text changed; only which one appeared first. Any
+pairwise judging needs both orderings run and averaged, or you are measuring
+position as much as quality.
+
+**Self-preference.** A judge tends to rate text from its own model family more
+kindly. Worth naming plainly: **our setup has this exposure.** Claude Haiku grades
+Claude Sonnet — same family, same house style, and the judge may well find its
+sibling's phrasing more natural than an equally compliant reply written
+differently. Using a different family is the mitigation, and there are reasons not
+to (latency, one provider, one bill), so this is a known accepted risk rather than
+a solved one.
+
+**Rubric drift.** Rule 6 starts as *money framed as desirability*. Six weeks later
+you broaden it to cover status generally — job titles, schools, postcodes. Block
+rate jumps and it looks like the generator got worse. It did not; the ruler
+changed. Without a version stamped on every stored verdict, you cannot tell a
+regression from a redefinition, and every trend line crossing that edit is
+meaningless.
+
+**Fail-open blindness.** The provider has a forty-minute wobble. Every message
+that hour passes ungraded, because that stage fails open by design. The violations
+table records nothing, so the dashboard shows a clean hour — arguably the best
+hour of the week. Counting verdicts cannot detect this; only instrumenting the
+error path can. This is the one I would build first, and it is not built.
+
+**Threshold theatre.** A gate that has never blocked anything is not a gate, and
+it takes real effort to notice, because nothing draws attention to a component
+quietly returning `pass`. The honest version for us: **our block rate is
+unmeasured**, so I cannot currently rule this out for our own validator. Every
+block is written to a table nobody reads.
+
 The last two are the ones I would check first in any system, because both present
 as a perfectly healthy dashboard.
 
