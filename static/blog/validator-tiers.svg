@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 372" width="560" height="372" role="img" aria-labelledby="vtt vtd">
+  <title id="vtt">Cost asymmetry between the generator and its validator</title>
+  <desc id="vtd">The generator runs a large model with a budget of several hundred output tokens per reply. The validator runs a small model with a budget of roughly a hundred and twenty tokens and returns a short structured verdict. The guard therefore costs a small fraction of the thing it guards, which is what makes it affordable to run on every single outbound message rather than on a sample.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 15px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    .k { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; fill: #97928a; }
+    .barbg { fill: #f1ede4; }
+    .barbig { fill: #b4541e; }
+    .barsm { fill: #d9a68a; }
+    .num { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; fill: #3f3c45; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 12px; fill: #6e6a63; }
+  </style>
+  <rect class="bg" width="560" height="372" rx="8"/>
+  <rect class="card" x="30" y="26" width="500" height="112" rx="6"/>
+  <text class="k" x="50" y="52">GENERATOR · CLAUDE SONNET 4.5</text>
+  <text class="h" x="50" y="76">Writes the reply</text>
+  <rect class="barbg" x="50" y="92" width="420" height="16" rx="4"/>
+  <rect class="barbig" x="50" y="92" width="420" height="16" rx="4"/>
+  <text class="num" x="50" y="128">up to 700 output tokens · full assembled context in</text>
+  <rect class="card" x="30" y="152" width="500" height="112" rx="6"/>
+  <text class="k" x="50" y="178">VALIDATOR · CLAUDE HAIKU 4.5</text>
+  <text class="h" x="50" y="202">Returns a structured verdict</text>
+  <rect class="barbg" x="50" y="218" width="420" height="16" rx="4"/>
+  <rect class="barsm" x="50" y="218" width="72" height="16" rx="4"/>
+  <text class="num" x="50" y="254">120 output tokens · 17% of the budget · reply text only in</text>
+  <rect x="30" y="286" width="500" height="62" rx="6" fill="#ffffff" stroke="#e8e3d8"/>
+  <text class="foot" x="280" y="312" text-anchor="middle">The guard costs a fraction of the thing it guards.</text>
+  <text class="foot" x="280" y="332" text-anchor="middle">That is what makes it affordable on every message, not a sample.</text>
+</svg>

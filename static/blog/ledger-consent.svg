@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 520" width="560" height="520" role="img" aria-labelledby="lct lcd">
+  <title id="lct">Writes are unconditional, reads are gated in two tiers</title>
+  <desc id="lcd">The write path is always on: whatever he types is captured into the ledger regardless of consent state. The read path has three tiers. With no consent decision yet, an agent can read topic keys only, enough to know a subject has been covered before but not what was said. With consent granted, it can read the verbatim answers. With consent revoked, reads are locked again but the stored rows remain. Revocation is a lock, not a purge.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .warm { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .hdr { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.07em; fill: #6e6a63; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 15px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    .pill { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; }
+    .yes { fill: #2f6b46; }
+    .part { fill: #b4541e; }
+    .no { fill: #97928a; }
+    .arrow { stroke: #97928a; stroke-width: 1.5; fill: none; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 12px; fill: #6e6a63; }
+  </style>
+  <rect class="bg" width="560" height="520" rx="8"/>
+  <text class="hdr" x="34" y="32">WRITE PATH — UNCONDITIONAL</text>
+  <rect class="warm" x="24" y="44" width="512" height="72" rx="6"/>
+  <text class="h" x="44" y="72">Claude Sonnet 4.5 extracts, Postgres stores</text>
+  <text class="s" x="44" y="94">Consent state is not consulted. A man who declines still builds a ledger.</text>
+  <path class="arrow" d="M280 116 L280 146" marker-end="url(#m)"/>
+  <text class="hdr" x="34" y="176">READ PATH — THREE TIERS</text>
+  <rect class="card" x="24" y="188" width="512" height="88" rx="6"/>
+  <text class="pill no" x="44" y="214">NO DECISION YET</text>
+  <text class="h" x="44" y="238">Topic keys only</text>
+  <text class="s" x="44" y="260">The agent learns a subject was covered. Not what was said.</text>
+  <rect class="card" x="24" y="288" width="512" height="88" rx="6"/>
+  <text class="pill yes" x="44" y="314">CONSENT GRANTED</text>
+  <text class="h" x="44" y="338">Verbatim answers</text>
+  <text class="s" x="44" y="360">Capped at twelve entries, and only inside the staleness window.</text>
+  <rect class="card" x="24" y="388" width="512" height="88" rx="6"/>
+  <text class="pill part" x="44" y="414">CONSENT REVOKED</text>
+  <text class="h" x="44" y="438">Locked, not purged</text>
+  <text class="s" x="44" y="460">Rows survive. A later yes is worth something immediately.</text>
+  <text class="foot" x="280" y="502" text-anchor="middle">Gating reads rather than writes is what makes consent reversible in both directions.</text>
+  <defs>
+    <marker id="m" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+  </defs>
+</svg>

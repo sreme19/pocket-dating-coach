@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 590" width="560" height="590" role="img" aria-labelledby="vet ved">
+  <title id="vet">One message through the gate, blocked and regenerated</title>
+  <desc id="ved">A worked example. The first attempt recommends a man by citing his salary. The validator blocks it under the rule forbidding money as a reason someone is desirable. The rule is named and fed back to the generator, which produces a second attempt describing what he has built and how he talks about it. The second attempt passes and is sent. The regenerated version is not merely compliant, it is better writing, which is the argument for regenerating rather than deflecting.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .blocked { fill: #ffffff; stroke: #b4541e; stroke-width: 1.5; }
+    .k { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; fill: #97928a; }
+    .msg { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14px; fill: #17161b; font-style: italic; }
+    .verdict-bad { font-family: system-ui, -apple-system, sans-serif; font-size: 12px; font-weight: 700; fill: #b4541e; }
+    .verdict-ok { font-family: system-ui, -apple-system, sans-serif; font-size: 12px; font-weight: 700; fill: #2f6b46; }
+    .rule { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    .arrow { stroke: #b4541e; stroke-width: 1.6; fill: none; }
+    .arrow2 { stroke: #97928a; stroke-width: 1.5; fill: none; }
+    .step { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #b4541e; font-weight: 600; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+  </style>
+  <rect class="bg" width="560" height="590" rx="8"/>
+  <text class="k" x="34" y="30">ATTEMPT 1</text>
+  <rect class="blocked" x="24" y="42" width="512" height="86" rx="6"/>
+  <text class="msg" x="44" y="74">Honestly, you should meet him. He&#39;s doing</text>
+  <text class="msg" x="44" y="98">really well for himself, clearing 40 LPA easily.</text>
+  <text class="verdict-bad" x="44" y="152">BLOCKED</text>
+  <text class="rule" x="120" y="152">money framed as a reason someone is desirable</text>
+  <path class="arrow" d="M280 168 L280 208" marker-end="url(#e)"/>
+  <text class="step" x="296" y="192">the rule is named, and fed back</text>
+  <text class="k" x="34" y="234">ATTEMPT 2</text>
+  <rect class="card" x="24" y="246" width="512" height="110" rx="6"/>
+  <text class="msg" x="44" y="278">Honestly, you should meet him. He&#39;s been building</text>
+  <text class="msg" x="44" y="302">the same company for six years and still talks</text>
+  <text class="msg" x="44" y="326">about it like it matters.</text>
+  <text class="verdict-ok" x="44" y="380">PASSED</text>
+  <text class="rule" x="118" y="380">sent, no fallback needed</text>
+  <path class="arrow2" d="M280 396 L280 428" marker-end="url(#f)"/>
+  <rect x="24" y="432" width="512" height="130" rx="6" fill="#ffffff" stroke="#e8e3d8"/>
+  <text class="foot" x="280" y="462" text-anchor="middle">The second attempt is not merely compliant.</text>
+  <text class="foot" x="280" y="484" text-anchor="middle">It is better writing — specific where the first was generic.</text>
+  <text class="foot" x="280" y="514" text-anchor="middle">That is the whole argument for regenerating with the rule named,</text>
+  <text class="foot" x="280" y="534" text-anchor="middle">rather than deflecting to a canned line and losing the message.</text>
+  <defs>
+    <marker id="e" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b4541e"/>
+    </marker>
+    <marker id="f" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+  </defs>
+</svg>

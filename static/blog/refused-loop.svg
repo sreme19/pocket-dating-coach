@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 400" width="560" height="400" role="img" aria-labelledby="rlt rld">
+  <title id="rlt">The feedback loop we deliberately refused to close</title>
+  <desc id="rld">Three boxes in a row, connected left to right. Proof he uploaded feeds how confident we are, which feeds his score and the bar she is shown. A dashed line curves back from the bar to the confidence box, crossed out. Letting what she is shown feed back into his score would mean the number was partly measuring itself.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14.5px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    .arrow { stroke: #6e6a63; stroke-width: 1.6; fill: none; }
+    .bad { stroke: #b4541e; stroke-width: 1.6; fill: none; stroke-dasharray: 6 5; }
+    .badtext { font-family: system-ui, -apple-system, sans-serif; font-size: 12px; fill: #b4541e; font-weight: 600; }
+    .note { font-family: system-ui, -apple-system, sans-serif; font-size: 12px; fill: #6e6a63; }
+    .x { stroke: #b4541e; stroke-width: 2.5; stroke-linecap: round; }
+  </style>
+  <rect class="bg" width="560" height="400" rx="8"/>
+  <rect class="card" x="24" y="44" width="150" height="86" rx="6"/>
+  <text class="h" x="40" y="72">What he proved</text>
+  <text class="s" x="40" y="94">Payslip, ID,</text>
+  <text class="s" x="40" y="110">photos, receipts</text>
+  <rect class="card" x="205" y="44" width="150" height="86" rx="6"/>
+  <text class="h" x="221" y="72">How sure we are</text>
+  <text class="s" x="221" y="94">A multiplier from</text>
+  <text class="s" x="221" y="110">0.3 up to 1.0</text>
+  <rect class="card" x="386" y="44" width="150" height="86" rx="6"/>
+  <text class="h" x="402" y="72">What she sees</text>
+  <text class="s" x="402" y="94">His score, and the</text>
+  <text class="s" x="402" y="110">bar in her app</text>
+  <path class="arrow" d="M174 87 L199 87" marker-end="url(#b)"/>
+  <path class="arrow" d="M355 87 L380 87" marker-end="url(#b)"/>
+  <path class="bad" d="M461 130 C 461 232, 280 232, 280 232 C 280 232, 99 232, 99 152" marker-end="url(#c)"/>
+  <line class="x" x1="266" y1="218" x2="294" y2="246"/>
+  <line class="x" x1="294" y1="218" x2="266" y2="246"/>
+  <text class="badtext" x="280" y="278" text-anchor="middle">This arrow does not exist</text>
+  <text class="note" x="280" y="316" text-anchor="middle">If what she is shown fed back into how sure we are,</text>
+  <text class="note" x="280" y="336" text-anchor="middle">the number would be partly measuring itself.</text>
+  <text class="note" x="280" y="356" text-anchor="middle">It would drift, and nobody could tell you why.</text>
+  <defs>
+    <marker id="b" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6e6a63"/>
+    </marker>
+    <marker id="c" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b4541e"/>
+    </marker>
+  </defs>
+</svg>
