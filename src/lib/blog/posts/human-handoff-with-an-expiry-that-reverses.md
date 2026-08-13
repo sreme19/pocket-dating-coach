@@ -3,7 +3,6 @@ title: Human hand-off with an expiry that reverses
 date: 2026-08-19
 summary: An agent works on your behalf, then stops and hands you the result. You have 48 hours. What happens at hour 49 is the design problem — and deleting is the wrong answer.
 tags: [guardrails, riteangle]
-draft: true
 ---
 
 An agent in riteangle vets a stranger on someone's behalf. When it has what it

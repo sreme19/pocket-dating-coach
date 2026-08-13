@@ -3,7 +3,6 @@ title: LLM-as-judge in the critical path
 date: 2026-08-20
 summary: Using a cheap model to grade an expensive one. Where to put the judge, how to design the rubric, what it costs, the failure modes nobody measures, and the calibration step almost everyone skips.
 tags: [agent-evals, riteangle]
-draft: true
 ---
 
 Model-graded evaluation was the loudest theme at the 2026 conferences I went to.

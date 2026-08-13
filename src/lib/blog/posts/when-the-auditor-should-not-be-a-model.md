@@ -3,7 +3,6 @@ title: When the auditor should not be a model
 date: 2026-08-26
 summary: I built the same reporting pipeline twice, weeks apart. The audit step is a Claude call in one version and plain arithmetic in the other. Having both makes the answer obvious, and it is not the one I expected when I started.
 tags: [guardrails, decision-systems]
-draft: true
 ---
 
 I built the same thing twice.

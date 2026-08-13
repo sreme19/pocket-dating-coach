@@ -3,7 +3,6 @@ title: Shipping a rewrite only when it's provably identical
 date: 2026-08-28
 summary: An agent that edits production routing rules from a plain-English request, and is not allowed to ship anything until a shadow reimplementation reproduces every decision the live system has already made. 5,501 out of 5,501, zero divergences.
 tags: [agent-evals, decision-systems]
-draft: true
 ---
 
 There is a routing engine deciding, hundreds of times an hour, which of many

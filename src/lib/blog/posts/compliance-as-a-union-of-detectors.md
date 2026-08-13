@@ -3,7 +3,6 @@ title: Compliance as a union of detectors
 date: 2026-09-01
 summary: Five independent violation checks emitting one shared shape, so adding a regulation is adding a query rather than changing a schema. Plus the hardcoded timezone table sitting inside a model whose whole job is legal calling windows.
 tags: [data-platform, decision-systems]
-draft: true
 ---
 
 Contact-centre compliance is a small, sharp problem. There are rules about when

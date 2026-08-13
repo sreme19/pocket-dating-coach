@@ -3,7 +3,6 @@ title: A keyword scan in front of the model
 date: 2026-08-25
 summary: A patient-facing medical chatbot where the crisis path never reaches the model at all. Sixty-five keywords in three languages, checked before the API call, and a validator that throws away whole responses. Deliberately worse technology, chosen on purpose.
 tags: [guardrails, decision-systems]
-draft: true
 ---
 
 I built a patient education chatbot for a fertility clinic. People ask it what a

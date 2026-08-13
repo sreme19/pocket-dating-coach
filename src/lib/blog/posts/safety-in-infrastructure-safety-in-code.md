@@ -3,7 +3,6 @@ title: Safety in infrastructure, safety in code
 date: 2026-08-29
 summary: I built the same class of protection twice — once as regex in an application route, once as a managed guardrail wrapping the model. One I can read and must remember to wire in. The other I cannot read and cannot forget.
 tags: [guardrails, decision-systems]
-draft: true
 ---
 
 In [a keyword scan in front of the model](/blog/a-keyword-scan-in-front-of-the-model)

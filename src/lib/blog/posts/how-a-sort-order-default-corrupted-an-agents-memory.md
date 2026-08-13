@@ -3,7 +3,6 @@ title: How a sort-order default corrupted an agent's memory
 date: 2026-08-22
 summary: An agent accused a blameless man nine times of something he said once. The cause was two documented, reasonable library defaults meeting each other. The fix was a test that reads our own source code rather than running it.
 tags: [agent-evals, riteangle]
-draft: true
 ---
 
 A man matched with someone, sent an opener, and had a normal conversation with

@@ -3,7 +3,6 @@ title: Modelling a sport with no data
 date: 2026-08-31
 summary: Building a selection and tactics model for women's international T20, where the record for a given player might be twenty matches. Graceful degradation as a first-class feature, two execution paths for two time budgets, and why I am not quoting my own headline accuracy number.
 tags: [decision-systems]
-draft: true
 ---
 
 Most sports modelling assumes abundance. Thousands of matches, deep player

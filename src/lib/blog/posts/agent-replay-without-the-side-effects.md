@@ -3,7 +3,6 @@ title: Agent replay without the side effects
 date: 2026-08-23
 summary: Running the real agent against real data, with every database write, notification and state change suppressed and recorded instead. Excellent inspection, and no measurement at all — which is the honest state of most eval work I have seen.
 tags: [agent-evals, riteangle]
-draft: true
 ---
 
 To debug an agent you need to see what it saw. Not a reconstruction — the actual

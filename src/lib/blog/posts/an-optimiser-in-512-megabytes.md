@@ -3,7 +3,6 @@ title: An optimiser in 512 megabytes
 date: 2026-08-30
 summary: Integer programming, ten thousand simulations and two graph models inside one memory-capped serverless function with a thirty-second timeout. Plus the decision to bundle sixteen megabytes of data into the deployment package rather than fetch it.
 tags: [decision-systems]
-draft: true
 ---
 
 Optimisation and serverless are an awkward pair. Solvers want memory and time;

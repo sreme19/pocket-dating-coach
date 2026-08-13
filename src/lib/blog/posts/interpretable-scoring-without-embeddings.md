@@ -3,7 +3,6 @@ title: Interpretable scoring without embeddings
 date: 2026-08-24
 summary: We have an embedding model and a vector index in the codebase, and the production ranking does not use either. Nine named dimensions instead, because the question that matters is not who is similar but what would change the answer.
 tags: [agent-architecture, riteangle]
-draft: true
 ---
 
 There is an embedding model wired up in this codebase, and a vector index sitting

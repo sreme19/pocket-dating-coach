@@ -3,7 +3,6 @@ title: Deterministic overrides on a generative agent
 date: 2026-08-21
 summary: Five places where plain code overrules the model between generation and sending. Each one exists because of a specific incident, and each one encodes a rule the model could not be trusted to remember.
 tags: [guardrails, riteangle]
-draft: true
 ---
 
 Prompts are instructions, not constraints. A model that has been told ten times

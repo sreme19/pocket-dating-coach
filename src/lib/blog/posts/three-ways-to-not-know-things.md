@@ -3,7 +3,6 @@ title: Three ways to not know things
 date: 2026-08-27
 summary: Three decision-support systems built in sequence, each because the previous one's assumptions ran out. Integer programming when you can see everything, regret minimisation when you cannot see their move, belief-state planning when you cannot see the state.
 tags: [decision-systems]
-draft: true
 ---
 
 I built three decision-support systems in a row without meaning to build a
