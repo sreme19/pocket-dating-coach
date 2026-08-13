@@ -172,11 +172,10 @@ judge.
 judge scores the identical sample. Compare to get agreement rate, false positives
 and false negatives. Adjust rubric, tier or threshold.](/blog/judge-calibration.svg)
 
-Here is the uncomfortable part, and I include myself in it.
-
-A judge produces a number. Nobody checks the number against reality. Ours has
-never been scored against human labels, so I cannot tell you its false-positive
-rate — and a false positive here costs a real user a real message.
+A judge produces a number, and in most systems nothing ever checks that number
+against reality. That matters more in the blocking placement than the scoring one:
+a false positive there does not skew a chart, it costs a real person the message
+they were waiting for.
 
 The loop is not complicated. Sample stored outputs. Have humans label them against
 the same rubric the judge uses. Run the judge over the identical sample. Compare.
@@ -223,12 +222,13 @@ pairwise judging needs both orderings run and averaged, or you are measuring
 position as much as quality.
 
 **Self-preference.** A judge tends to rate text from its own model family more
-kindly. Worth naming plainly: **our setup has this exposure.** Claude Haiku grades
-Claude Sonnet — same family, same house style, and the judge may well find its
-sibling's phrasing more natural than an equally compliant reply written
-differently. Using a different family is the mitigation, and there are reasons not
-to (latency, one provider, one bill), so this is a known accepted risk rather than
-a solved one.
+kindly. Any setup where a small model grades a larger one from the same provider
+carries this — same house style, same phrasing instincts, so an equally compliant
+reply written in a different idiom can score worse. Crossing providers removes it
+and costs you a second integration, another bill and a second latency profile.
+Worth deciding deliberately rather than by default: if your rubric is mostly
+about tone, the exposure is real; if it is mostly about facts and forbidden
+content, it matters much less.
 
 **Rubric drift.** Rule 6 starts as *money framed as desirability*. Six weeks later
 you broaden it to cover status generally — job titles, schools, postcodes. Block
@@ -237,17 +237,38 @@ changed. Without a version stamped on every stored verdict, you cannot tell a
 regression from a redefinition, and every trend line crossing that edit is
 meaningless.
 
-**Fail-open blindness.** The provider has a forty-minute wobble. Every message
-that hour passes ungraded, because that stage fails open by design. The violations
-table records nothing, so the dashboard shows a clean hour — arguably the best
-hour of the week. Counting verdicts cannot detect this; only instrumenting the
-error path can. This is the one I would build first, and it is not built.
+**Fail-open blindness.** Say your model provider has a bad forty minutes —
+timeouts, 503s, the usual. The judge stage is built to let messages through when
+it cannot reach the model, so every message sent in that window ships without
+being graded at all.
 
-**Threshold theatre.** A gate that has never blocked anything is not a gate, and
-it takes real effort to notice, because nothing draws attention to a component
-quietly returning `pass`. The honest version for us: **our block rate is
-unmeasured**, so I cannot currently rule this out for our own validator. Every
-block is written to a table nobody reads.
+Now follow what gets recorded. Nothing was blocked, so nothing is written to the
+violations table. Nothing in the table means nothing on the dashboard. The hour
+reports zero violations.
+
+Zero violations is also exactly what a flawless hour looks like.
+
+That is the trap. **"Nothing was wrong" and "nothing was checked" produce
+identical data**, so no amount of counting verdicts separates them — the count is
+zero either way. The only thing that tells them apart is a count of how often the judge failed to
+run — a number that lives on the error path rather than the verdict path, and gets
+skipped precisely because it is not a verdict. Emit it as a metric, alert when it
+is non-zero for more than a few minutes, and the ambiguity disappears.
+
+**Threshold theatre.** A gate that has never blocked anything is not a gate. It
+is a component that returns `pass`, costs money on every request, and provides
+reassurance.
+
+Nothing will alert you to this. A gate that blocks nothing throws no errors, fails
+no requests and breaks no tests — it is indistinguishable from a gate protecting a
+well-behaved system. The only symptom is an absence, and absences do not page
+anyone.
+
+The detection is unglamorous: track the block rate as a number somebody actually
+looks at, and set a floor alert rather than a ceiling one. A rate of zero over a
+week means either your generator is flawless or your gate is decorative — and if
+you cannot say which, you do not currently have a gate, whatever the architecture
+diagram says.
 
 The last two are the ones I would check first in any system, because both present
 as a perfectly healthy dashboard.
@@ -304,24 +325,25 @@ table has never been read by anything. The corpus that would let me calibrate th
 judge is sitting there, accumulating, untouched — which is an accurate description
 of most eval data I have heard described.
 
-## What we owe on this
+## Four numbers, in the order worth building them
 
-Plainly, from our own system:
+Configuration is the easy half — how many rules, how many retries, which model
+tier. Those are decisions you make once. The measurement half is the work, and it
+is where most implementations stop.
 
-| Quantity | Status |
-| --- | --- |
-| Rules in the graded stage | 10, configured |
-| Corrective regenerations | 1, configured |
-| Coverage | every outbound message |
-| Judge output budget | 120 tokens, ~17% of the generator's |
-| **Block rate** | **unmeasured** |
-| **False-positive rate** | **unmeasured** |
-| **Retry rescue rate** | **unmeasured** |
-| **Human agreement with the judge** | **never tested** |
+If you are building this, these are the four numbers that make the difference
+between a judge and a decoration, roughly in order of effort against payoff.
 
-Everything above the line is a configuration choice, which is easy. Everything
-below it is measurement, which is the actual work. All four are answerable from
-data already stored.
+| Number | How to get it | What it tells you |
+| --- | --- | --- |
+| **Block rate** | Count blocks over total graded, per rule | Whether the gate does anything at all — and which rules are load-bearing versus decorative |
+| **Retry rescue rate** | Of blocked outputs, how many pass on the second attempt | Whether naming the rule in the verdict is actually working, or whether you are just paying twice to reach the same fallback |
+| **Fail-open count** | Emit a metric on the judge's error path, not its verdict path | Whether your clean hours are clean or simply ungraded |
+| **Human agreement** | Sample, dual-label against the same rubric, compare | The only one that gives your block rate an error bar |
+
+The first three are counters over data most systems already store, and can be
+built in an afternoon. The fourth needs people and a sampling plan, and it is the
+one that converts everything above it from an activity into a measurement.
 
 ## References
 
