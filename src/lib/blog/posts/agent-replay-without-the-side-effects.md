@@ -1,5 +1,5 @@
 ---
-title: Agent replay with writes suppressed at the boundary, so production can be debugged without sending a message
+title: Agent replay with writes suppressed at the boundary, and the side-effect ledger that proves nothing escaped
 date: 2026-08-23
 summary: To debug an agent you need the prompt it actually saw, and the only way to get that is to run it — which sends messages to real people. This harness is the production code path with the writes cut at the boundary, and every suppressed effect recorded in plain language rather than silently skipped. It is very good at showing you one turn and completely unable to tell you whether that turn was any good, which is the state most eval work is actually in.
 tags: [agent-evals, riteangle]

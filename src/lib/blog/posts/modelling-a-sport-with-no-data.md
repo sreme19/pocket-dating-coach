@@ -1,5 +1,5 @@
 ---
-title: Tiered evidence and downweighted league blending, for selection models where a career is thirty matches
+title: Tiered evidence for a sport with almost no data, and the accuracy headline that failed a per-class check
 date: 2026-08-31
 summary: Most sports modelling assumes abundance. Women's international T20 gives you a career of thirty appearances and matchups four deliveries deep, and the standard approach turns that into confident numbers derived from noise. So graceful degradation is the actual product: four declared tiers of evidence, adjacent leagues blended at a discount, thin matchups discarded rather than trusted, and every output labelled with which tier it rests on. It also includes the accuracy figure I stopped quoting once I checked it per class.
 tags: [decision-systems]

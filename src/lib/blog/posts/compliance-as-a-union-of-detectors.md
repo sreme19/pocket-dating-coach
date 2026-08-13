@@ -1,5 +1,5 @@
 ---
-title: Five dbt violation detectors sharing one output contract, so a new regulation is a query and not a migration
+title: Five dbt detectors sharing one output contract, and the timezone table that breaks all of them twice a year
 date: 2026-09-01
 summary: Contact-centre rules about when you may call someone carry real penalties, and they change — so the structural question is whether adding next year's regulation means rewriting this year's checks. Five detectors that know nothing about each other, each emitting the same three fields, means a new rule is a new query rather than a schema migration. The interesting part is that the architecture is sound and the whole thing is still wrong for two months a year, because of a hardcoded timezone table nobody thought was interesting.
 tags: [data-platform, decision-systems]

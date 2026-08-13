@@ -1,5 +1,5 @@
 ---
-title: Deterministic scoring and min-cost max-flow pick the match, so the LLM never makes a call it cannot explain
+title: Min-cost max-flow picks the match, and the confidence multiplier that keeps an unproven claim at 30% of its weight
 date: 2026-08-13
 summary: A generative model cannot be regression-tested, cannot explain a specific past output, and cannot be told apart from its own drift — which makes it the wrong thing to put in charge of who two people meet. So the models here read evidence and write messages, and a weighted dot product plus a flow solve makes the actual call. The payoff is that any ranking can be re-derived exactly by changing one input and running it again.
 tags: [agent-architecture, riteangle]

@@ -1,5 +1,5 @@
 ---
-title: A replay harness gating an agent's config edits at zero divergence across 5,501 production decisions
+title: A replay harness gating an agent's edits at zero divergence, and the assumption ontology that explains each one
 date: 2026-08-28
 summary: Letting an agent edit a production configuration from a plain-English request is reckless unless something can answer what the change would actually do — offline, thousands of times, without touching live traffic. So a shadow reimplementation exists, and it earns the right to speak by reproducing every routing decision production has already made: 5,501 of 5,501, zero divergences, against a threshold set in advance. The same harness then makes a 7,900-line refactor reviewable, because behaviour preservation is demonstrated rather than argued.
 tags: [agent-evals, decision-systems]

@@ -1,5 +1,5 @@
 ---
-title: Deterministic post-generation overrides, because a refusal does not survive an orchestrator boundary
+title: Deterministic overrides after generation, and the incident behind each one that a prompt could not prevent
 date: 2026-08-21
 summary: A prompt is an instruction, not a constraint, and a model told ten times not to do something will still do it on the turn where the sentence felt right. Worse, a refusal is a property of one model call and does not survive being wrapped in an orchestrator. So the rules that actually have to hold live in code that runs on the output — five checks, each written after something went wrong in production.
 tags: [guardrails, riteangle]
