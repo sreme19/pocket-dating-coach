@@ -3,6 +3,7 @@ title: LLM-as-judge in the send path, and the human-label calibration that gives
 date: 2026-08-20
 summary: Once a system generates text faster than anyone can read it, the choice is between shipping unreviewed output and building something that reviews it — and human review does not scale to every message while sampling misses exactly the rare failures worth catching. A small model grading a large one costs a fraction of the thing it guards, which is what makes total coverage affordable rather than aspirational. The catch is that a judge nobody has scored against human labels produces a number with no error bar, and a confidently wrong judge looks exactly like a working one.
 tags: [agent-evals, riteangle]
+cover: /og/blog/llm-as-judge-in-the-critical-path.png
 ---
 
 The moment your system writes more text than a person can read, you have made a
@@ -15,7 +16,11 @@ team — review cost scales with volume and volume is the thing you built the
 system to increase.
 
 So a second, cheaper model reads the first one's output and grades it. That is
-now standard: a cloud vendor ships it as a managed service, and it appeared in
+now standard enough to buy: AWS ships it as
+[managed evaluations on Bedrock AgentCore](https://aws.amazon.com/blogs/aws/amazon-bedrock-agentcore-adds-quality-evaluations-and-policy-controls-for-deploying-trusted-ai-agents/),
+with a
+[published set of built-in evaluators](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/prompt-templates-builtin.html)
+covering goal success, harmfulness and tool-selection accuracy. It appeared in
 most agent architectures I saw presented this year.
 
 It is also the technique people are least rigorous about, because a judge
@@ -183,6 +188,11 @@ You get an agreement rate, a false-positive rate and a false-negative rate, and
 those three numbers tell you whether to change the rubric, move to a different
 model tier, or shift the threshold.
 
+The most useful practitioner write-up of this loop is Hamel Husain's
+[guide to using LLM-as-a-judge](https://hamel.dev/blog/posts/llm-judge/), which
+argues for binary pass/fail over scores and for aligning the judge to one domain
+expert rather than to a committee.
+
 Two details matter. Label against the *same* rubric, or you are measuring
 disagreement about the rules rather than the judge's accuracy. And have more than
 one person label an overlapping subset, so you know how much humans agree with
@@ -193,8 +203,10 @@ because it gets put on a dashboard and believed.
 
 ## Known failure modes
 
-These come up repeatedly in the literature and in what practitioners described on
-stage. Worth testing for explicitly.
+Three of these — position, verbosity and self-enhancement bias — are named
+directly in the paper that put this technique on the map,
+[Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena](https://arxiv.org/abs/2306.05685).
+The rest come from practitioners. All six are worth testing for explicitly.
 
 | Failure mode | What happens | Mitigation |
 | --- | --- | --- |
@@ -215,14 +227,15 @@ padding. Catch it by putting length-matched pairs into the calibration set on
 purpose — same content, different word count — and checking whether the verdicts
 track.
 
-**Position bias.** You show the judge two candidate openers and ask which is
-better. Run the same pair with the order swapped and a meaningful share of the
+**Position bias.** ([studied systematically across 15 judges and 22
+tasks](https://arxiv.org/abs/2406.07791).) You show the judge two candidate
+openers and ask which is better. Run the same pair with the order swapped and a meaningful share of the
 verdicts flip. Nothing about the text changed; only which one appeared first. Any
 pairwise judging needs both orderings run and averaged, or you are measuring
 position as much as quality.
 
-**Self-preference.** A judge tends to rate text from its own model family more
-kindly. Any setup where a small model grades a larger one from the same provider
+**Self-preference.** A judge tends to
+[rate text from its own model family more kindly](https://arxiv.org/abs/2410.21819). Any setup where a small model grades a larger one from the same provider
 carries this — same house style, same phrasing instincts, so an equally compliant
 reply written in a different idiom can score worse. Crossing providers removes it
 and costs you a second integration, another bill and a second latency profile.
@@ -230,7 +243,9 @@ Worth deciding deliberately rather than by default: if your rubric is mostly
 about tone, the exposure is real; if it is mostly about facts and forbidden
 content, it matters much less.
 
-**Rubric drift.** Rule 6 starts as *money framed as desirability*. Six weeks later
+**Rubric drift.** ([Criteria drift is well documented — the rubric itself moves as
+you look at outputs](https://arxiv.org/abs/2404.12272).) Rule 6 starts as *money
+framed as desirability*. Six weeks later
 you broaden it to cover status generally — job titles, schools, postcodes. Block
 rate jumps and it looks like the generator got worse. It did not; the ruler
 changed. Without a version stamped on every stored verdict, you cannot tell a
@@ -375,24 +390,58 @@ between a judge and a decoration, roughly in order of effort against payoff.
 | **Fail-open count** | Emit a metric on the judge's error path, not its verdict path | Whether your clean hours are clean or simply ungraded |
 | **Human agreement** | Sample, dual-label against the same rubric, compare | The only one that gives your block rate an error bar |
 
+If you would rather not build the storage and versioning yourself, this is what
+the eval platforms are for —
+[LangSmith](https://docs.langchain.com/langsmith/manage-datasets) and
+[Langfuse](https://langfuse.com/docs/evaluation/experiments/datasets) both version
+a dataset on every edit so you can re-run an experiment against a historical
+version, and [Arize Phoenix](https://arize.com/docs/ax/evaluate/evaluators/trace-and-session-evals/trace-level-evaluations/agent-trajectory-evaluations)
+does trajectory-level evaluation over ordered tool-call spans.
+
 The first three are counters over data most systems already store, and can be
 built in an afternoon. The fourth needs people and a sampling plan, and it is the
 one that converts everything above it from an activity into a measurement.
 
 ## References
 
-Most sessions have no published recording — these events tend to livestream whole
-halls rather than publish individual talks. Where one exists it is linked.
+### Papers
+
+| Topic | Reference |
+| --- | --- |
+| The technique, and three of its biases named directly | [Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena](https://arxiv.org/abs/2306.05685) — Zheng et al., NeurIPS 2023 |
+| Position bias, measured across 15 judges and 22 tasks | [Judging the Judges: A Systematic Study of Position Bias](https://arxiv.org/abs/2406.07791) |
+| Self-preference bias | [Self-Preference Bias in LLM-as-a-Judge](https://arxiv.org/abs/2410.21819) |
+| Criteria drift, and aligning a judge to human preference | [Who Validates the Validators?](https://arxiv.org/abs/2404.12272) — Shankar et al., UIST 2024 |
+| Reasoning before the verdict | [Chain-of-Thought Prompting Elicits Reasoning in LLMs](https://arxiv.org/abs/2201.11903) — Wei et al. |
+| Edit distance as a quality signal | [A Study of Translation Edit Rate with Targeted Human Annotation](https://aclanthology.org/2006.amta-papers.25/) — the paper defining TER and HTER. This is the machine-translation ancestor of the idea rather than a source on LLM output, and I could find no canonical equivalent for generative text |
+
+### Tooling
+
+| Topic | Reference |
+| --- | --- |
+| Built-in evaluators, with the judge prompts published | [Bedrock AgentCore prompt templates](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/prompt-templates-builtin.html) — the page that actually lists goal success, harmfulness and tool-selection accuracy |
+| Built-in versus custom versus code-based evaluators | [AgentCore evaluators overview](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/evaluators.html) |
+| The launch write-up | [AgentCore adds quality evaluations and policy controls](https://aws.amazon.com/blogs/aws/amazon-bedrock-agentcore-adds-quality-evaluations-and-policy-controls-for-deploying-trusted-ai-agents/) |
+| Conference session on the same | [Improve agent quality in production with AgentCore Evaluations](https://www.youtube.com/watch?v=Gcje6pRGr1g) — AWS re:Invent 2025 |
+| Dataset versioning for experiments | [LangSmith](https://docs.langchain.com/langsmith/manage-datasets) · [Langfuse](https://langfuse.com/docs/evaluation/experiments/datasets) |
+| Trajectory-level evaluation over tool-call spans | [Arize Phoenix](https://arize.com/docs/ax/evaluate/evaluators/trace-and-session-evals/trace-level-evaluations/agent-trajectory-evaluations) |
+| Practitioner methodology, end to end | [Using LLM-as-a-Judge for evaluation](https://hamel.dev/blog/posts/llm-judge/) — Hamel Husain |
+
+### Talks
+
+These events tend to livestream whole halls rather than publish individual
+sessions, so most of what I saw has no recording. Listed anyway, since the
+argument in this post leans on them.
 
 | Source | Event | Recording |
 | --- | --- | --- |
 | Managed agent evaluations and evaluator taxonomy | [AWS Summit Bengaluru 2026](https://aws.amazon.com/events/summits/bengaluru/), Apr 2026 | [Keynote](https://www.youtube.com/watch?v=CprBATdRoh0) |
-| Weighted deployment gate with a non-negotiable trust floor | [MLDS 2026](https://mlds.analyticsindiamag.com/), Mar 2026 | Not published |
-| Chain-of-thought judging | [DataHack Summit 2026](https://www.analyticsvidhya.com/datahacksummit/), Aug 2026 | Not published |
-| Eval toolchain: versioned trajectories, approved baseline, human gate | [DataHack Summit 2026](https://www.analyticsvidhya.com/datahacksummit/), Aug 2026 | Not published |
-| Edit distance as a human-in-the-loop metric | [MLDS 2026](https://mlds.analyticsindiamag.com/), Mar 2026 | Not published |
+| Weighted deployment gate with a non-negotiable trust floor | [MLDS](https://mlds.analyticsindiamag.com/), Mar 2026 | Not published |
+| Chain-of-thought judging | [DataHack Summit](https://www.analyticsvidhya.com/datahacksummit/), Aug 2026 | Not published |
+| Eval toolchain: versioned trajectories, approved baseline, human gate | [DataHack Summit](https://www.analyticsvidhya.com/datahacksummit/), Aug 2026 | Not published |
+| Edit distance as a human-in-the-loop metric | [MLDS](https://mlds.analyticsindiamag.com/), Mar 2026 | Not published |
 | Building real agentic systems — Alessandro Romano | [DataHack Summit 2025](https://www.analyticsvidhya.com/datahacksummit-2025/) | [Recording](https://www.youtube.com/watch?v=-YG9WGThlgI) |
-| Full hall recordings across three days | [CYPHER 2025](https://cypher.analyticsindiamag.com/), Sept 2025 | [Day 2, Hall 3](https://www.youtube.com/watch?v=uOqflHyRxcs) · [Day 3, Hall 3](https://www.youtube.com/watch?v=o9nrXPslI3Y) |
+| Full hall recordings across three days | [CYPHER](https://cypher.analyticsindiamag.com/), Sept 2025 | [Day 2, Hall 3](https://www.youtube.com/watch?v=uOqflHyRxcs) · [Day 3, Hall 3](https://www.youtube.com/watch?v=o9nrXPslI3Y) |
 
 *Companion to [a safety validator that is also a
 model](/blog/a-safety-validator-that-is-also-a-model), which covers how this is

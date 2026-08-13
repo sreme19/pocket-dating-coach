@@ -71,7 +71,65 @@ def wrap(draw, text, font, max_w):
     return lines
 
 
-def render(slug):
+FAINT = (244, 241, 234)      # --paper-tint, for the deterministic stages
+WARM = (246, 236, 228)       # --accent-soft, for the stages a model runs
+GREEN = (47, 107, 70)
+
+
+def arrow(d, x1, y, x2, colour=MUTED, width=2):
+    """A short horizontal connector with a solid head."""
+    d.line([(x1, y), (x2 - 7, y)], fill=colour, width=width)
+    d.polygon([(x2, y), (x2 - 9, y - 5), (x2 - 9, y + 5)], fill=colour)
+
+
+def flow_strip(d, stages, top):
+    """A left-to-right pipeline across the card.
+
+    Each stage is `label|sub|kind`, where kind is `ai` for anything a model
+    runs and anything else for a deterministic step. The two fills are the
+    only distinction the card needs to make at thumbnail size.
+    """
+    n = len(stages)
+    gap = 40
+    box_w = (W - MARGIN * 2 - gap * (n - 1)) // n
+    box_h = 104
+    lab_f = ImageFont.truetype(SERIF, 27, index=SERIF_BOLD)
+    sub_f = ImageFont.truetype(SANS, 19)
+
+    centres = []
+    for i, spec in enumerate(stages):
+        parts = (spec.split('|') + ['', ''])[:3]
+        label, sub, kind = parts[0].strip(), parts[1].strip(), parts[2].strip()
+        x = MARGIN + i * (box_w + gap)
+        fill = WARM if kind == 'ai' else FAINT
+        edge = ACCENT if kind == 'ai' else RULE
+        d.rounded_rectangle([x, top, x + box_w, top + box_h], radius=10,
+                            fill=fill, outline=edge, width=2)
+        for ln, (txt, font, colour, dy) in enumerate((
+            (label, lab_f, INK, 26), (sub, sub_f, MUTED, 62),
+        )):
+            if txt:
+                w = d.textlength(txt, font=font)
+                d.text((x + (box_w - w) / 2, top + dy), txt, font=font, fill=colour)
+        centres.append((x, x + box_w))
+        if i:
+            arrow(d, centres[i - 1][1] + 8, top + box_h // 2, x - 6)
+    return centres, top + box_h
+
+
+def retry_arc(d, centres, y, label):
+    """The loop back from the judge to the generator, drawn under the strip."""
+    x_from = (centres[2][0] + centres[2][1]) // 2
+    x_to = (centres[1][0] + centres[1][1]) // 2
+    d.line([(x_from, y), (x_from, y + 30), (x_to, y + 30)], fill=ACCENT, width=2)
+    d.line([(x_to, y + 30), (x_to, y + 8)], fill=ACCENT, width=2)
+    d.polygon([(x_to, y), (x_to - 5, y + 11), (x_to + 5, y + 11)], fill=ACCENT)
+    f = ImageFont.truetype(SANS, 19)
+    w = d.textlength(label, font=f)
+    d.text(((x_from + x_to) / 2 - w / 2, y + 38), label, font=f, fill=ACCENT)
+
+
+def render(slug, stages=None, loop_label=None):
     md = os.path.join(POSTS, f'{slug}.md')
     if not os.path.exists(md):
         sys.exit(f'no such post: {md}')
@@ -87,26 +145,34 @@ def render(slug):
 
     kicker = ImageFont.truetype(SANS, 25)
     byline = ImageFont.truetype(SANS, 25)
+    d.text((MARGIN, 62), 'SREE DAYANIDHI', font=kicker, fill=MUTED)
 
-    # Largest size at which the title fits three lines; long titles step down
-    # rather than overflowing or being cut.
-    for size in (82, 74, 66, 58, 52):
+    # With a diagram the title takes the top third and steps down harder,
+    # because the strip below it is the thing worth looking at.
+    sizes = (58, 52, 46, 42) if stages else (82, 74, 66, 58, 52)
+    max_lines = 2 if stages else 3
+    for size in sizes:
         title_font = ImageFont.truetype(SERIF, size, index=SERIF_BOLD)
         lines = wrap(d, title, title_font, W - MARGIN * 2)
-        if len(lines) <= 3:
+        if len(lines) <= max_lines:
             break
 
-    d.text((MARGIN, 74), 'SREE DAYANIDHI', font=kicker, fill=MUTED)
-
     leading = int(size * 1.16)
-    block_h = leading * len(lines)
-    y = (H - block_h) // 2 + 14
+    if stages:
+        y = 118
+    else:
+        y = (H - leading * len(lines)) // 2 + 14
     for line in lines:
         d.text((MARGIN, y), line, font=title_font, fill=INK)
         y += leading
 
-    d.line([(MARGIN, H - 128), (W - MARGIN, H - 128)], fill=RULE, width=1)
-    d.text((MARGIN, H - 104), 'sree.riteangle.dating', font=byline, fill=MUTED)
+    if stages:
+        centres, strip_bottom = flow_strip(d, stages, top=y + 46)
+        if loop_label and len(centres) >= 3:
+            retry_arc(d, centres, strip_bottom + 6, loop_label)
+
+    d.line([(MARGIN, H - 92), (W - MARGIN, H - 92)], fill=RULE, width=1)
+    d.text((MARGIN, H - 68), 'sree.riteangle.dating', font=byline, fill=MUTED)
 
     os.makedirs(OUT_DIR, exist_ok=True)
     out = os.path.join(OUT_DIR, f'{slug}.png')
@@ -116,6 +182,12 @@ def render(slug):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
+    args = sys.argv[1:]
+    if not args:
         sys.exit(__doc__)
-    render(sys.argv[1])
+    slug, stages, loop = args[0], None, None
+    if '--flow' in args:
+        stages = args[args.index('--flow') + 1].split('||')
+    if '--loop' in args:
+        loop = args[args.index('--loop') + 1]
+    render(slug, stages, loop)
