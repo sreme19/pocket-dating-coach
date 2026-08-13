@@ -128,27 +128,43 @@ message to the generator, and its information content decides whether your retry
 is a control loop or a second roll of the dice.** Anything you spend making the
 verdict more specific is repaid on every regeneration.
 
-### Split rules by whether you can specify them exactly
+### Sort the rules by whether you can write them down exactly
 
-Two rules, both real, requiring opposite mechanisms:
+Take two real rules and ask, of each: could you hand this to a stranger as a
+precise instruction and expect them to apply it the same way you would?
 
-**"Do not include a phone number."** Fully specifiable. This is a regex, it runs
-before the model is ever called, it costs nothing, and it should fail closed. Ask
-a model to do it and you are paying for inference to do a worse job than
-`\d{10}`.
+**"Never include a phone number."**
 
-**"Do not write as though you are her rather than her assistant."** Not
-specifiable. There is no pattern for impersonation — it lives in pronouns, in
-implied authority, in a sentence that reads like a promise she did not make. This
-needs a judge.
+You can. A phone number is a run of digits in a recognisable shape. That is a
+pattern match — it runs before the model is called at all, it costs nothing, and
+it can safely refuse on any error, because there is no judgement in it to get
+wrong. Give this job to a model and you are paying for inference to do, less
+reliably, what one line of pattern matching does perfectly.
 
-The failure mode in both directions is expensive. Model-grading the phone number
-is wasteful and less reliable. Regex-ing the impersonation gives you a list of
-banned phrases that catches nothing and false-positives on ordinary sentences.
+**"Never write as though you are her, rather than as her assistant."**
 
-Sort the list before you build: **can I write the check as an assertion?** If yes,
-write the assertion. If describing it needs the words *reads as*, *implies* or
-*comes across*, you need the judge.
+You cannot. Compare two replies the agent might send on her behalf:
+
+> *"Yes, Saturday works — see you at seven."*
+>
+> *"Saturday looks clear for her. Shall I check?"*
+
+The first commits her to a plan she never agreed to. The second does not. No list
+of banned words separates them. The difference is **who the sentence claims to
+speak for**, and it is carried by the word "yes", by "see you", by her name being
+absent. You cannot enumerate that. It needs a judge.
+
+Getting this split wrong is expensive in both directions:
+
+| Mistake | What it costs |
+| --- | --- |
+| Sending the phone number to the judge | Slower, dearer, and less accurate than the regex you already could have written |
+| Sending impersonation to a regex | A banned-phrase list that misses every real case and blocks ordinary sentences |
+
+So sort the list before you build anything. **Can you write the check as an
+assertion?** Then write the assertion. If explaining the rule requires the words
+*reads as*, *implies* or *comes across*, no assertion exists and you need the
+judge.
 
 ## The step almost nobody runs
 
