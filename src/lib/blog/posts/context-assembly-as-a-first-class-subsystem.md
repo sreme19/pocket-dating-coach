@@ -5,13 +5,23 @@ summary: Prompts built by string concatenation at the call site drift from whate
 tags: [context-engineering, riteangle]
 ---
 
-The prompt is not a template with a few variables in it. It is assembled, per
-turn, from around twenty independently-loaded blocks — and which blocks arrive
-changes not just what the agent knows, but what it is required to say back.
+A woman opens her app and asks her agent what it makes of a man she has been
+matched with. Before it answers, the system has to know who he is, what he has
+proved, who else is interested in him, how he ranks against them right now, what
+he has already told other agents, and what the two of them have said so far.
 
-This is the part of riteangle that most resembles a real subsystem rather than a
-feature. It also contains the single largest gap in the whole architecture, which
-I will get to.
+Six groups of facts, about twenty separate database reads, all of it assembled
+into a single prompt in the time it takes her to look up from the screen.
+
+If you build that with string concatenation at the call site — which is how it
+usually starts — two things go wrong. The prompt drifts from whatever you tested,
+because the test built its own copy. And the context the agent actually saw is
+discarded the moment it replies, so when it says something strange you are
+debugging blind.
+
+So assembly here is a subsystem with its own module boundary, its own
+concurrency and its own tests. That is the part worth copying. It also contains
+the largest single gap in this architecture, which I will come to.
 
 ## What gets loaded before a word is written
 

@@ -5,12 +5,22 @@ summary: A prompt is an instruction, not a constraint, and a model told ten time
 tags: [guardrails, riteangle]
 ---
 
-Prompts are instructions, not constraints. A model that has been told ten times
-not to do something will still do it on the turn where the sentence felt right.
+A man was asked to prove his income. He replied that he was not applying for a
+loan and would like the questions to stop.
+
+The agent vetting him read that tone, decided it was evasive, and told the woman
+it worked for that he was being cagey about money. The prompt had explicitly said
+not to treat a refusal as a red flag. It said so clearly, about a thousand tokens
+earlier, and it was ignored on the one turn where the model's read of the
+sentence felt stronger than the instruction.
+
+That is the whole problem with prompts. They are instructions, and a model
+weighs instructions against everything else in front of it. A rule you actually
+need to hold has to live somewhere the model does not get a vote.
 
 So between the generator and the recipient there are five deterministic checks
-that can rewrite or refuse the output. None of them is clever. All of them were
-written after something went wrong.
+that rewrite or refuse the output. None of them is clever. Every one was written
+after something like the above reached a real person.
 
 ## The overrides
 

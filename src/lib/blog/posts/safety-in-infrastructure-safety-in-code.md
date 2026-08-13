@@ -5,16 +5,27 @@ summary: A safety rule written in your own code can be read, reviewed and approv
 tags: [guardrails, decision-systems]
 ---
 
-In [a keyword scan in front of the model](/blog/a-keyword-scan-in-front-of-the-model)
-I described a medical chatbot whose safety is entirely application code: a keyword
-list before the call, forbidden patterns after it.
+Two questions decide where a safety rule lives, and they pull in opposite
+directions.
 
-That post ends by admitting the approach's real limit — pattern matching enforces
-the rules you thought to write. Its own design notes say the plan is to move
-enforcement to platform guardrails.
+Can somebody outside engineering read this rule and approve it? A clinician can
+read a list of phrases and sign it off. Nobody can meaningfully sign off "the
+model detects emergencies", because there is nothing to read.
 
-In a later project I built that version. So I now have both, and the comparison is
-more interesting than either.
+Will somebody add a second route six months from now and forget this exists? A
+check written into one request handler protects that handler. It does not protect
+the endpoint added later by a person who never opened your safety documentation.
+
+I have now built the same class of protection both ways. In
+[a deterministic keyword gate ahead of the LLM](/blog/a-keyword-scan-in-front-of-the-model)
+the whole thing is application code — a keyword list before the call, forbidden
+patterns after it — and that post admits the limit plainly: pattern matching
+enforces the rules you thought to write. In a later project the equivalent
+protection is a managed guardrail wrapping the model, catching paraphrase I never
+enumerated and applying to every caller automatically.
+
+Having both is more useful than either, because the answer turns out not to be a
+preference.
 
 *Account identifiers, resource names and endpoints are omitted throughout.*
 

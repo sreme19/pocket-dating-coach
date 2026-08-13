@@ -5,12 +5,24 @@ summary: Reach for game theory on a problem with no opponent and you have built 
 tags: [decision-systems]
 ---
 
-I built three decision-support systems in a row without meaning to build a
-sequence. Each one started because the previous one made an assumption I could no
-longer make.
+Pick eleven cricketers from a squad of fifteen. Everything you need is public —
+every record, every condition — and nobody is hiding anything from you. That is
+an optimisation problem, and integer programming solves it properly in about a
+second.
 
-Read together they are a ladder, and the rungs are not about algorithms. They are
-about **what you are allowed to assume you know**.
+Now change one thing. Your opponent is choosing at the same moment and you will
+not see their choice until it is too late. Your clean optimum stops being an
+answer, because if you always pick your strongest option you become predictable,
+and predictable is beatable.
+
+Change one more thing. You can no longer see the state at all — only noisy
+signals about what might be true.
+
+Three systems, built in sequence, each because the previous one made an
+assumption I could no longer make. The rungs are not algorithms. They are **what
+you are allowed to assume you know**, and getting that wrong in either direction
+is expensive: elaborate game theory on a problem with no opponent, or a tidy
+optimum for a situation that will not hold still.
 
 ## The ladder
 

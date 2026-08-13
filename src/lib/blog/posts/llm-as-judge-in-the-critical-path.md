@@ -5,13 +5,21 @@ summary: Once a system generates text faster than anyone can read it, the choice
 tags: [agent-evals, riteangle]
 ---
 
-Model-graded evaluation was the loudest theme at the 2026 conferences I went to.
-A cloud vendor now ships it as a managed service. A pharmaceutical team presented
-a deployment gate built on it. It appears, in one form or another, in most agent
-architectures I saw presented this year.
+The moment your system writes more text than a person can read, you have made a
+decision whether you meant to or not. Either something unreviewed is going out to
+real people, or something other than a human is doing the reviewing.
 
-It is also the technique people are least rigorous about, because a judge that
-returns confident nonsense is indistinguishable from one that works.
+Sampling does not rescue you. The failures worth catching are rare by definition,
+and a five percent sample catches five percent of them. Neither does a bigger
+team — review cost scales with volume and volume is the thing you built the
+system to increase.
+
+So a second, cheaper model reads the first one's output and grades it. That is
+now standard: a cloud vendor ships it as a managed service, and it appeared in
+most agent architectures I saw presented this year.
+
+It is also the technique people are least rigorous about, because a judge
+returning confident nonsense is indistinguishable from one that works.
 
 ## Two placements, two different problems
 
@@ -61,29 +69,83 @@ false economy: the cases you most want caught are rare, and a 5% sample catches
 
 ## Designing the rubric
 
-Four things that separate a judge that works from one that produces noise.
+Four things separate a judge that works from one that produces noise.
 
-**Enumerate behaviours, do not ask for a quality score.** "Rate this reply 1–5"
-produces a number with no defensible meaning. A list of specific forbidden
-behaviours produces a verdict you can act on and argue with. Ours has ten entries
-— impersonation, invented facts, revealing that another user blocked you, framing
-money as a reason someone is desirable, and so on.
+### Enumerate behaviours, do not ask for a quality score
 
-**Demand structured output, not prose.** The judge returns a verdict and the rule
-that was broken. If you have to parse an opinion, you have built a second
-generation problem on top of your first.
+Suppose the generator writes: *"He sounds lovely — and he's a doctor, so you'd
+never have to worry about money again."*
 
-**Name the rule in the verdict, because you will feed it back.** A verdict that
-only blocks teaches nothing. A verdict that says *which* rule broke lets you
-re-prompt the generator with that specific constraint, and it usually produces a
-clean second attempt. The model was rarely trying to break the rule; it did not
-know the rule applied to the sentence it wrote.
+Ask for a rating and you get back `4`. Now what? You cannot regenerate against a
+4. You cannot argue with a 4. You cannot tell whether the next reply scoring 4 has
+the same problem or a different one, and you certainly cannot show a 4 to a
+colleague and have them agree it was correct.
 
-**Split rules by whether you can specify them exactly.** Anything expressible as a
-pattern — account numbers, contact details, identifiers — belongs in a
-deterministic check before the model ever runs, and that check should fail closed.
-Reserve the judge for the judgement calls. Asking a model to regex is wasteful and
-less reliable than a regex.
+Ask against a named list and you get `rule 6 — money framed as a reason someone
+is desirable`. That is actionable, contestable, and countable. Ours has ten
+entries: impersonating the person it works for, inventing facts about someone,
+revealing that another user blocked or reported you, and so on.
+
+The test: **could two people disagree about whether the rule was broken, and
+resolve it by reading the rule?** If yes, it is a usable criterion. A score has
+nothing to resolve against.
+
+### Demand structured output, not prose
+
+The judge should return something like `{ pass: false, rule: "R6" }`.
+
+What you do not want is the judge being helpful:
+
+> Overall this response is warm and appropriate. That said, the reference to his
+> profession and financial security **could arguably** be read as framing wealth
+> as desirability, though in context it seems more like…
+
+Now you are writing a parser for hedged opinions. Does "could arguably" mean
+blocked? Is the bold formatting significant? We hit exactly this in another
+project — a small loop whose entire job was recovering a four-state verdict from
+prose that sometimes arrived bold, sometimes quoted, sometimes wrapped in a
+sentence. That loop is a tax on having used prose as a return type.
+
+### Name the rule in the verdict, because you will feed it back
+
+A bare `blocked` teaches the generator nothing, so its second attempt is a coin
+flip.
+
+Feed the rule back and it usually lands first time:
+
+| | |
+| --- | --- |
+| **Attempt 1** | *"…he's doing really well for himself, clearing 40 LPA easily."* |
+| **Verdict** | blocked — rule 6, money framed as desirability |
+| **Re-prompt** | the generator is told which rule it broke |
+| **Attempt 2** | *"…he's been building the same company for six years and still talks about it like it matters."* |
+
+The second attempt is not just compliant, it is better writing — the constraint
+forced specificity where the first reached for the laziest available evidence.
+The model was never trying to break the rule. It did not know the rule applied to
+the sentence it had written.
+
+### Split rules by whether you can specify them exactly
+
+Two rules, both real, requiring opposite mechanisms:
+
+**"Do not include a phone number."** Fully specifiable. This is a regex, it runs
+before the model is ever called, it costs nothing, and it should fail closed. Ask
+a model to do it and you are paying for inference to do a worse job than
+`\d{10}`.
+
+**"Do not write as though you are her rather than her assistant."** Not
+specifiable. There is no pattern for impersonation — it lives in pronouns, in
+implied authority, in a sentence that reads like a promise she did not make. This
+needs a judge.
+
+The failure mode in both directions is expensive. Model-grading the phone number
+is wasteful and less reliable. Regex-ing the impersonation gives you a list of
+banned phrases that catches nothing and false-positives on ordinary sentences.
+
+Sort the list before you build: **can I write the check as an assertion?** If yes,
+write the assertion. If describing it needs the words *reads as*, *implies* or
+*comes across*, you need the judge.
 
 ## The step almost nobody runs
 
