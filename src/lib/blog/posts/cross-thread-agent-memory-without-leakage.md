@@ -23,11 +23,12 @@ The answer ledger is our attempt to get the first thing without the second.
 ## Long-term memory is the part you own
 
 The framing that made this tractable came from an AWS session at their Bengaluru
-summit — a slide splitting agent memory into six types across two lifetimes. The
-argument that stuck: **short-term memory belongs to whichever framework you
-picked**, and you have limited control over it, while **long-term memory is
-retrieved from stores you own** — which makes data quality, not model quality,
-the deciding variable.
+summit — a slide splitting agent memory into six types across two lifetimes.
+
+The argument that stuck was about ownership. **Short-term memory belongs to
+whichever framework you picked**, and you have limited control over it.
+**Long-term memory is retrieved from stores you own.** Which makes data quality,
+not model quality, the deciding variable.
 
 A talk at DataHack Summit 2026 put it more bluntly still. The session was called
 *The Memory is the Harness*, and its closing line was that memory is your only
@@ -46,10 +47,11 @@ was said to. Neither exists.](/blog/ledger-schema.svg)
 The ledger stores what he said and the topic he said it about. It does not store
 which conversation it came from, or who he was talking to.
 
-Not "does not expose." Does not *store*. There is no match identifier and no
-counterparty identifier on the row, so the provenance cannot be reconstructed
-from the table — not by a query, not by an agent, not by someone with full
-database access and bad intentions.
+Not "does not expose." Does not *store*.
+
+There is no match identifier on the row, and no counterparty identifier. The
+origin cannot be reconstructed from the table at all — not by a query, not by an
+agent, and not by someone with full database access and bad intentions.
 
 This is a deliberately crude mechanism, and crude is the point. Access control
 that depends on every future query being written correctly is one refactor away
@@ -102,49 +104,54 @@ trusting, permanently, and correctly.
 So the model may only select spans, never compose them. Losing a fraction of
 captures is cheap by comparison.
 
-## Staleness is a real problem, not a hygiene one
+## A stale fact is a correctness bug
 
 Answers get a 120-day window, after which they are offered for reconfirmation
 rather than quoted, and a hard 540-day drop. At most twelve entries reach the
 prompt.
 
-I would have treated this as retention housekeeping if I had not seen a slide at
-DataHack Summit 2026 that named it as a production failure mode. A Cisco session
-on enterprise compliance agents described what they called the policy-versioning
-trap: retrieval returns the *current* policy, but the pull request under review
-was written against an older one, so the agent's reasoning is confidently
-anchored to the wrong version. Their fix was effective-date filtering on
-retrieval.
+I would have treated this as retention housekeeping. Then I saw a slide at
+DataHack Summit 2026 that named it as a production failure mode.
+
+A Cisco session on enterprise compliance agents called it the policy-versioning
+trap. Retrieval returns the *current* policy. But the pull request under review
+was written against an older one. So the agent reasons confidently, and reasons
+against the wrong version.
+
+Their fix was effective-date filtering on retrieval.
 
 Same shape, different domain. "He doesn't want to relocate" was true in March. If
 it surfaces unqualified in November it is not memory, it is a stale assertion
 wearing memory's clothes. The staleness window is not tidiness — it is the
 difference between a fact and a fact-shaped thing.
 
-Two other sessions circled the same drain from different angles: a hedge fund
-talk at MLDS 2026 listed *context rot* and catastrophic forgetting among its
-production lessons, and a Typewise session back in August 2025 was already
-demoting retrieval to just one of four memory types, with four operations defined
-over the window — compress, isolate, trim, filter — and named multi-turn context
-exhaustion as the thing that breaks first. That talk also made the point that
-output quality degrades well before a context window is full, which is why the
-cap here is twelve entries rather than "as many as fit."
+Two other sessions reached the same place by different routes.
 
-## Shared keys, grown from use
+A hedge fund talk at MLDS 2026 listed *context rot* and catastrophic forgetting
+among its production lessons. And a Typewise session, back in August 2025, was
+already demoting retrieval to one of four memory types, with four operations
+defined over the window: compress, isolate, trim, filter. The thing that breaks
+first, they said, is multi-turn context exhaustion.
+
+That talk made one more point worth repeating. Output quality degrades well
+before a context window is full. Which is why the cap here is twelve entries,
+not "as many as fit."
+
+## Both agents have to agree what a topic is
 
 For cross-thread memory to work at all, both sides have to agree on what a topic
 *is*. If one agent files something under "children" and another looks it up as
 "kids," the ledger silently does nothing.
 
-We do not maintain that taxonomy by hand. Topic keys are canonicalised into a
-registry that grows from the questions agents actually generate — when an agent
-coins a new subject while planning what to ask, that subject is registered, so
-subsequent lookups across every thread land on the same key.
+We do not maintain that taxonomy by hand. Topic keys go into a shared registry,
+and that registry grows from the questions agents actually ask. When an agent
+coins a new subject while planning a turn, the subject is registered there and
+then. Every later lookup, in every thread, lands on the same key.
 
 It is a small piece of plumbing and it is the reason the whole thing functions
 rather than degrading into near-miss keys that never match.
 
-## Where this sits against the industry
+## How this compares to the industry
 
 | Idea | Where it showed up | Where riteangle differs |
 | --- | --- | --- |
@@ -213,7 +220,7 @@ spans rather than compose summaries. A paraphrase that drifts becomes a
 misattributed quote, and misattribution destroys trust far faster than asking a
 question twice.
 
-## What it does not do
+## What this deliberately does not do
 
 It is memory, not retrieval. There is no embedding, no vector search, no semantic
 similarity anywhere in the path. Topic keys are exact-match. If a subject is

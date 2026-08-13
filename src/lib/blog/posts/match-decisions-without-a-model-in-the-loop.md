@@ -73,7 +73,7 @@ starting from a blank slate would hand out a full allocation on top of everythin
 already sitting in someone's inbox. Women hit 21 active matches against a cap of
 12 before we caught it.
 
-## Confidence is the vector the LLM never touches
+## The one number the model never writes
 
 This is the load-bearing constraint in the whole design.
 
@@ -97,7 +97,7 @@ runs through a fixed logarithmic curve normalised against cost-of-living by city
 tier. It is the dimension people most reliably inflate and the one we can most
 cheaply verify, so the model gets no vote.
 
-## The industry converged here independently
+## Five teams reached the same conclusion
 
 I did not reason my way to this. I spent two years photographing conference
 slides — roughly 900 across eleven events — and when I finally read the archive
@@ -138,17 +138,20 @@ useful. But the moment a displayed artifact feeds back into the confidence
 weighting that produced it, the metric is partly measuring its own prior output.
 It drifts, slowly, and no one can attribute the drift afterwards.
 
-So there are two rules written down in capitals: this indicator never feeds trust
-or match scoring, and the hand-off gate may *read* the score to decide what to
-show, but nothing about what was shown propagates back into scoring. Both exist
-because at some point somebody — me — was about to close the loop and had to be
-argued out of it in writing.
+So two rules are written into the code in capitals.
+
+The first: this indicator never feeds trust or match scoring. The second: the
+hand-off gate may *read* a score to decide what to show, but nothing about what
+was shown ever propagates back into scoring.
+
+Both exist because at some point somebody — me — was about to close the loop, and
+had to be argued out of it in writing.
 
 Second-order effects in a ranking system are not a bug you find in testing. They
 are a bug you find six months later when the numbers stop meaning what the
 documentation says they mean.
 
-## Where we violate our own architecture
+## Where we break our own rule
 
 I would rather state this than have someone find it.
 
@@ -206,10 +209,11 @@ comparisons — the model cost scales with the number of entities, while the
 arithmetic scales with the number of pairs.
 
 **Separate the claim from its corroboration.** Keep "what is asserted" and "how
-well is it evidenced" as two different numbers that multiply. Collapsing them into
-one score is the single most common way ranking systems become unauditable, and it
-is why an unproven claim here retains only 30% of its weight rather than all of it
-or none of it.
+well is it evidenced" as two different numbers that multiply.
+
+Collapsing them into a single score is the most common way ranking systems become
+unauditable. Keeping them apart is why an unproven claim here keeps 30% of its
+weight — not all of it, and not none of it.
 
 **Make assignment a constrained solve, not a threshold.** Anything with capacity
 on both sides — reviewers to papers, jobs to machines, cases to caseworkers,
@@ -228,7 +232,7 @@ reading raw evidence might. What you get is the ability to answer *why this
 ranking, and what would change it* — exactly, by re-running the function with one
 input altered.
 
-## What determinism costs
+## What this costs us
 
 The honest trade-off: this architecture is worse at serendipity.
 

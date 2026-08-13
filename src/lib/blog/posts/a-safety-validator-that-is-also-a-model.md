@@ -25,11 +25,15 @@ Stage one is a set of regular expressions looking for personal data — email
 addresses, phone numbers in two formats, and the Indian identity documents people
 actually paste at each other. It is dumb, fast and certain.
 
-Stage two is the interesting one. A small model receives the large model's
-output and grades it against a list of forbidden behaviours: impersonating the
-person it works for, inventing facts about someone, revealing that another user
-blocked or reported you, framing money as a reason somebody is desirable. It
-returns a structured verdict, not prose.
+Stage two is the interesting one. A small model receives the large model's output
+and grades it against a list of forbidden behaviours:
+
+- Impersonating the person it works for
+- Inventing facts about someone
+- Revealing that another user blocked or reported you
+- Framing money as a reason somebody is desirable
+
+It returns a structured verdict, not prose.
 
 The two stages **fail in opposite directions**, and that is deliberate.
 
@@ -48,34 +52,38 @@ provider blip would otherwise convert into a total product outage where nobody
 can talk to anybody. The argument against it is that "safety off" and "product
 up" is exactly the wrong pair of states to choose.
 
-What makes it defensible rather than merely convenient is that the regex layer
-underneath is still fail-closed, so the categories with the worst blast radius —
-leaked identity documents, leaked contact details — remain covered when the model
-stage is unavailable. What would make it properly defensible is alerting on the
-fail-open path, which is not built.
+One thing keeps this defensible rather than merely convenient: the regex layer
+underneath still fails closed. The categories with the worst blast radius —
+leaked identity documents, leaked contact details — stay covered even when the
+model stage is down.
+
+What would make it *properly* defensible is alerting on the fail-open path. That
+is not built.
 
 ## The corrective regeneration
 
 The first version deflected immediately: fail the gate, substitute a safe
 fallback, done.
 
-That behaviour caused an incident. A woman tapped through to read her briefing
-about a man — the summary she had been waiting on — and got a generic deflection
-instead, because one clause somewhere in a long, useful, entirely appropriate
-message had tripped the validator. The gate did its job and the product failed
-her.
+That behaviour caused an incident.
+
+A woman tapped through to read her briefing about a man — the summary she had
+been waiting on. She got a generic deflection instead. One clause, somewhere in a
+long and entirely appropriate message, had tripped the validator.
+
+The gate did its job. The product failed her.
 
 Now a block does not end the turn. The generator is re-prompted **with the
 specific violation named**, produces a second attempt, and that attempt is graded
 again. Only if it fails twice does the fallback appear. Both attempts are logged.
 
-This is the same shape as the compliance pattern that has become standard in
-agent stacks — an evaluator sitting in the loop rather than in a dashboard — but
-the detail that matters is that the evaluator's output is *fed back to the
-generator as an instruction*. A verdict that only blocks teaches nothing. A
-verdict that says which rule was broken usually gets a clean second attempt,
-because the model was not trying to break the rule, it just did not know the
-rule applied to the sentence it wrote.
+This is the now-standard shape: an evaluator in the loop, rather than in a
+dashboard. But one detail does the work. The evaluator's verdict is *fed back to
+the generator as an instruction*.
+
+A verdict that only blocks teaches nothing. A verdict that names the broken rule
+usually gets a clean second attempt — because the model was never trying to break
+the rule. It just did not know the rule applied to the sentence it wrote.
 
 Here is what that looks like on a real message shape. An agent is recommending a
 man to the woman it works for, and reaches for the easiest available evidence:
@@ -95,7 +103,7 @@ writing*, not merely permitted writing. Naming the constraint pushed the model
 off the generic sentence and onto a specific one. That is the case for
 regenerating rather than deflecting, in one comparison.
 
-## A small model can afford to watch a big one
+## Why a cheap model can guard an expensive one
 
 ![The generator runs a large model with up to roughly seven hundred output
 tokens. The validator runs a small model returning about a hundred and twenty
@@ -123,7 +131,7 @@ avoid calling the expensive one, we use the cheap model to check the expensive
 one. Both work because a small model is adequate at judging and inadequate at
 composing.
 
-### The numbers that exist, and the ones that don't
+### What we measure, and what we don't
 
 I would rather show this as a table than imply a rigour we do not have.
 
@@ -146,7 +154,7 @@ measurement, which is the actual work, and it is not done. Every one of those
 unknowns is answerable from data already sitting in the database — which makes
 their absence a choice about priorities rather than a limitation.
 
-## Where the industry has got to
+## Where the industry stands
 
 Evaluation-as-a-product was the loudest theme in my 2026 slide archive, and it
 has moved from conference talk to shipped feature faster than almost anything
@@ -206,9 +214,9 @@ model-grade an account number is wasteful and less reliable than a pattern.
 
 **Choose your failure direction per stage, deliberately, and write down why.**
 Ours are opposite and that is the single most contestable decision in the design.
-In a clinical or financial setting I would almost certainly fail closed on both
-and accept the outage, because the cost asymmetry runs the other way: a blocked
-message is an inconvenience, an ungraded one is a regulatory event.
+In a clinical or financial setting I would almost certainly fail closed on both,
+and accept the outage. The cost asymmetry runs the other way there. A blocked
+message is an inconvenience. An ungraded one is a regulatory event.
 
 **Feed the violation back rather than deflecting.** A gate that only blocks
 converts every borderline output into a lost interaction. Naming the specific rule
@@ -216,14 +224,16 @@ and regenerating once recovers most of them, and — as the example above shows 
 frequently produces a better output than the first attempt, because the
 constraint forces specificity.
 
-The economics that make this viable are also general. A frontier model writes;
-a small fast model judges. Judging is classification and does not need the
-capability you are paying for in generation, so the guard lands at a fraction of
-the cost of the thing it guards and you can afford to run it on every single
-output instead of a sample. That ratio holds across providers and tiers, whatever
-you are building.
+The economics that make this viable are also general. A frontier model writes; a
+small fast model judges.
 
-## What the model may not do to its own output
+Judging is classification. It does not need the capability you are paying for in
+generation. So the guard costs a fraction of the thing it guards, and you can
+afford to run it on every output rather than a sample.
+
+That ratio holds across providers and tiers, whatever you are building.
+
+## The validator can block. It cannot rewrite.
 
 One more constraint, because it is the part people find surprising.
 
@@ -234,10 +244,14 @@ rewrite. A blocked message goes back to the original generator with a reason, or
 it becomes a fixed fallback string. Nothing composes a correction on the fly.
 
 The reason is attribution. These messages carry a real person's voice to another
-real person. A generator writing on her behalf is already a stretch; a *second*
-model silently amending what the first one said on her behalf, with no one in the
-loop, puts words at two removes from the human they are attributed to. Blocking is
-honest — something was wrong and we did not send it. Quiet editing is not.
+real person.
+
+A generator writing on her behalf is already a stretch. A *second* model quietly
+amending what the first one said, with nobody in the loop, puts the words two
+removes from the human they are attributed to.
+
+Blocking is honest: something was wrong, and we did not send it. Quiet editing is
+not.
 
 ## References
 
