@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 980" width="560" height="980" role="img" aria-labelledby="jrt jrd">
+  <title id="jrt">A reference architecture for a graded generation pipeline</title>
+  <desc id="jrd">Three bands. The synchronous request path runs a deterministic pattern check that fails closed, then a frontier model generates, then a small model judges against a versioned rubric and returns a structured verdict. Passing output is sent; a blocked output is re-prompted once with the broken rule named, and a second failure substitutes a fixed safe reply. Everything is written to a verdict store with both attempts and the rubric version. The instrumentation band counts block rate per rule, retry rescue rate and judge error rate, the last of which is emitted on the error path rather than the verdict path so ungraded traffic is distinguishable from clean traffic. The offline calibration band samples stored outputs, has two humans label them against the same rubric, compares against the judge to produce agreement and false positive and negative rates, and feeds adjustments back into the rubric and threshold.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .det { fill: #f2f6f3; stroke: #2f6b46; stroke-width: 1.3; }
+    .ai { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .store { fill: #f4f1ea; stroke: #ddd7ca; stroke-width: 1.2; }
+    .band { fill: none; stroke: #e8e3d8; stroke-width: 1; stroke-dasharray: 3 4; }
+    .bl { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.07em; fill: #97928a; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 13.5px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 10.5px; fill: #6e6a63; }
+    .t { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; fill: #b4541e; }
+    .tg { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; fill: #6e6a63; }
+    .lbl { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; fill: #6e6a63; }
+    .a { stroke: #97928a; stroke-width: 1.5; fill: none; }
+    .loop { stroke: #b4541e; stroke-width: 1.6; fill: none; }
+    .cal { stroke: #2f6b46; stroke-width: 1.5; fill: none; }
+    @media (prefers-reduced-motion: no-preference) {
+      .a { stroke-dasharray: 4 4; animation: f1 0.9s linear infinite; }
+      .loop { stroke-dasharray: 5 4; animation: f2 0.8s linear infinite; }
+      .cal { stroke-dasharray: 5 4; animation: f3 1.1s linear infinite; }
+    }
+    @keyframes f1 { to { stroke-dashoffset: -8; } }
+    @keyframes f2 { to { stroke-dashoffset: -9; } }
+    @keyframes f3 { to { stroke-dashoffset: -9; } }
+  </style>
+  <rect class="bg" width="560" height="980" rx="8"/>
+
+  <rect class="band" x="14" y="14" width="532" height="452" rx="8"/>
+  <text class="bl" x="30" y="34">1 · REQUEST PATH — SYNCHRONOUS, ON EVERY MESSAGE</text>
+
+  <rect class="card" x="190" y="46" width="180" height="34" rx="6"/>
+  <text class="h" x="280" y="68" text-anchor="middle">Incoming request</text>
+  <path class="a" d="M280 80 L280 96" marker-end="url(#ar)"/>
+
+  <rect class="det" x="34" y="100" width="492" height="56" rx="6"/>
+  <text class="h" x="52" y="122">Pattern check — the rules you can write down</text>
+  <text class="s" x="52" y="140">Identifiers, contact details. Fails closed.</text>
+  <text class="tg" x="508" y="140" text-anchor="end">regex · no model</text>
+  <path class="a" d="M280 156 L280 172" marker-end="url(#ar)"/>
+
+  <rect class="ai" x="34" y="176" width="492" height="58" rx="6"/>
+  <text class="h" x="52" y="198">Generate</text>
+  <text class="s" x="52" y="216">Full assembled context in, prose out</text>
+  <text class="t" x="508" y="216" text-anchor="end">Claude Sonnet 4.5 · ≤700 tok</text>
+  <path class="a" d="M280 234 L280 250" marker-end="url(#ar)"/>
+
+  <rect class="ai" x="34" y="254" width="492" height="72" rx="6"/>
+  <text class="h" x="52" y="276">Judge against a versioned rubric</text>
+  <text class="s" x="52" y="294">Enumerated rules. Returns a structured verdict, never prose.</text>
+  <text class="t" x="52" y="314">{ pass, rule, rubric_version }</text>
+  <text class="t" x="508" y="314" text-anchor="end">Claude Haiku 4.5 · 120 tok</text>
+
+  <path class="a" d="M150 326 L150 352" marker-end="url(#ar)"/>
+  <text class="lbl" x="160" y="344">passes</text>
+  <path class="loop" d="M410 326 L410 352" marker-end="url(#al)"/>
+  <text class="lbl" x="420" y="344">blocked</text>
+
+  <rect class="det" x="34" y="356" width="220" height="44" rx="6"/>
+  <text class="h" x="144" y="383" text-anchor="middle">Sent</text>
+
+  <rect class="ai" x="300" y="356" width="226" height="44" rx="6"/>
+  <text class="h" x="413" y="376" text-anchor="middle">Re-prompt, naming the rule</text>
+  <text class="s" x="413" y="392" text-anchor="middle">exactly one retry</text>
+
+  <path class="loop" d="M526 378 L540 378 L540 205 L526 205" marker-end="url(#al)"/>
+  <path class="loop" d="M413 400 L413 422" marker-end="url(#al)"/>
+  <rect class="card" x="300" y="426" width="226" height="34" rx="6"/>
+  <text class="s" x="413" y="447" text-anchor="middle">fails twice → fixed safe reply</text>
+
+  <path class="a" d="M144 400 L144 490" marker-end="url(#ar)"/>
+  <path class="a" d="M413 460 L413 478 L200 478 L200 490" marker-end="url(#ar)"/>
+
+  <rect class="band" x="14" y="482" width="532" height="228" rx="8"/>
+  <text class="bl" x="30" y="502">2 · WHAT YOU STORE, AND WHAT YOU COUNT</text>
+
+  <rect class="store" x="34" y="512" width="492" height="52" rx="6"/>
+  <text class="h" x="52" y="534">Verdict store — both attempts, the rule, the rubric version</text>
+  <text class="tg" x="508" y="534" text-anchor="end">PostgreSQL</text>
+  <text class="s" x="52" y="552">Without the version stamped here, no trend line survives a rubric edit.</text>
+
+  <path class="a" d="M280 564 L280 580" marker-end="url(#ar)"/>
+  <rect class="card" x="34" y="584" width="492" height="112" rx="6"/>
+  <text class="s" x="52" y="606">block rate, per rule</text>
+  <text class="lbl" x="300" y="606">is the gate doing anything?</text>
+  <text class="s" x="52" y="628">retry rescue rate</text>
+  <text class="lbl" x="300" y="628">is naming the rule working?</text>
+  <text class="s" x="52" y="650">judge error rate</text>
+  <text class="lbl" x="300" y="650">emitted on the error path, not the verdict path</text>
+  <text class="s" x="52" y="672">latency and token cost</text>
+  <text class="lbl" x="300" y="672">what the guard costs you per message</text>
+  <text class="tg" x="508" y="690" text-anchor="end">OpenTelemetry · Langfuse / Phoenix / LangSmith</text>
+
+  <rect class="band" x="14" y="726" width="532" height="238" rx="8"/>
+  <text class="bl" x="30" y="746">3 · CALIBRATION — OFFLINE, PERIODIC, THE PART MOST TEAMS SKIP</text>
+
+  <rect class="card" x="34" y="758" width="228" height="48" rx="6"/>
+  <text class="h" x="148" y="780" text-anchor="middle">Sample stored outputs</text>
+  <text class="s" x="148" y="796" text-anchor="middle">include length-matched pairs</text>
+  <path class="cal" d="M262 782 L296 782" marker-end="url(#ac)"/>
+  <rect class="det" x="300" y="758" width="226" height="48" rx="6"/>
+  <text class="h" x="413" y="780" text-anchor="middle">Two humans label them</text>
+  <text class="s" x="413" y="796" text-anchor="middle">against the same rubric</text>
+
+  <path class="cal" d="M413 806 L413 826" marker-end="url(#ac)"/>
+  <rect class="card" x="34" y="830" width="492" height="60" rx="6"/>
+  <text class="h" x="52" y="852">Compare judge against humans</text>
+  <text class="s" x="52" y="872">agreement rate · false positives · false negatives · human-to-human agreement first</text>
+
+  <path class="cal" d="M280 890 L280 906" marker-end="url(#ac)"/>
+  <rect class="det" x="120" y="910" width="320" height="40" rx="6"/>
+  <text class="h" x="280" y="936" text-anchor="middle">Adjust rubric, model tier or threshold</text>
+  <path class="cal" d="M120 930 L24 930 L24 282 L30 282" marker-end="url(#ac)"/>
+
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+    <marker id="al" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b4541e"/>
+    </marker>
+    <marker id="ac" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f6b46"/>
+    </marker>
+  </defs>
+</svg>

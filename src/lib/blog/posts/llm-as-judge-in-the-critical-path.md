@@ -307,6 +307,40 @@ enough, and the team presented their own system failing it.
 | **Code generation** | A generated patch before review | A hard-coded credential, or a known injection pattern |
 | **Regulated support** | Refunds and complaint responses | An entitlement the policy does not grant |
 
+## The whole thing, on one page
+
+Everything above assembled into something you could build from. Three bands: what
+runs on every request, what you write down and count, and the offline loop that
+makes any of those numbers mean something.
+
+![A reference architecture in three bands. The request path runs a fail-closed
+pattern check, then generation with Claude Sonnet 4.5, then a Claude Haiku 4.5
+judge against a versioned rubric returning a structured verdict, with one
+rule-named retry and a fixed safe reply on second failure. Everything is written
+to a Postgres verdict store with both attempts and the rubric version. Block rate,
+retry rescue rate, judge error rate and cost are emitted through OpenTelemetry. An
+offline loop samples stored outputs, has two humans label them against the same
+rubric, compares, and feeds adjustments back into the
+rubric.](/blog/judge-reference-architecture.svg)
+
+Four things in that picture are easy to leave out and expensive to add later.
+
+**The rubric version travels with every verdict.** Without it, the first time you
+edit a rule, every trend line crossing that edit becomes meaningless and you
+cannot tell a regression from a redefinition.
+
+**The judge's error rate is emitted on the error path**, not derived from
+verdicts. It is the only signal that separates a genuinely clean hour from an hour
+nobody graded.
+
+**Both attempts are stored, not just the final one.** The retry rescue rate is
+computed from the pair, and it is the number that tells you whether naming the
+rule in the verdict is earning its keep.
+
+**The calibration loop writes back into the rubric.** If the comparison produces a
+report nobody acts on, you have built a measurement exercise rather than a control
+system.
+
 Three transferable rules:
 
 **Decide blocking or scoring before you build.** They have different latency
