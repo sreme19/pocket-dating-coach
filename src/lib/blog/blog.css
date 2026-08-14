@@ -31,6 +31,7 @@
 	display: flex;
 	flex-direction: column;
 	-webkit-font-smoothing: antialiased;
+	overflow-x: hidden;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -569,6 +570,13 @@ body:has(.blog) {
 	padding: 0.1em 0.35em;
 	border-radius: 4px;
 	white-space: nowrap;
+	overflow-wrap: break-word;
+}
+
+@media (max-width: 640px) {
+	.prose :not(pre) > code {
+		white-space: normal;
+	}
 }
 
 /* Wide content scrolls inside itself; the page never scrolls sideways. */
