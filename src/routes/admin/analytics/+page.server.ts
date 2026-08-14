@@ -1,6 +1,7 @@
 import type { PageServerLoad } from './$types';
 import { getSupabase } from '$lib/server/supabase';
 import { provisionalMembersEnabled } from '$lib/server/member-state';
+import { buildLeadSources, leadSourceOf } from '$lib/server/lead-source';
 
 export const load: PageServerLoad = async () => {
 	const sb = getSupabase();
@@ -75,6 +76,45 @@ export const load: PageServerLoad = async () => {
 		for (const p of prov ?? []) provisionalIds.add(p.id);
 	}
 
+	// ── Lead source per member ────────────────────────────────────────────────
+	// Three unrelated systems each hold one third of the answer; see
+	// lead-source.ts for what each record proves and why they rank as they do.
+	//
+	// Each read is destructured to `data` only and defaulted to empty on purpose.
+	// PostgREST reports a missing table or a policy refusal in `error` with null
+	// data rather than throwing, so a table that has not been migrated yet costs
+	// this one column its evidence instead of 500ing the whole analytics page —
+	// which is the failure the rest of this file is already shaped around.
+	const [
+		{ data: acquisition, error: acquisitionErr },
+		{ data: landingSessions, error: landingErr },
+		{ data: referralInvites, error: invitesErr },
+		{ data: referralRewards, error: rewardsErr },
+	] = await Promise.all([
+		sb.from('user_acquisition').select('user_id, network, campaign, utm'),
+		sb.from('aibestie_lp_sessions').select('user_id, claimed_by_user_id, utm'),
+		sb.from('verified_vibe_beta_signups').select('email, referrer_id, matched_user_id'),
+		sb.from('vv_referral_rewards').select('referred_user_id, referrer_id'),
+	]);
+	for (const [label, err] of [
+		['user_acquisition', acquisitionErr],
+		['aibestie_lp_sessions', landingErr],
+		['verified_vibe_beta_signups', invitesErr],
+		['vv_referral_rewards', rewardsErr],
+	] as const) {
+		if (err) console.warn(`[analytics] lead source: ${label} unreadable —`, err.message);
+	}
+
+	const nameById = new Map((users ?? []).map((u) => [u.id, u.first_name as string | null]));
+	const leadSources = buildLeadSources({
+		acquisition: (acquisition ?? []) as any[],
+		landingSessions: (landingSessions ?? []) as any[],
+		referralInvites: (referralInvites ?? []) as any[],
+		referralRewards: (referralRewards ?? []) as any[],
+		emailById,
+		nameById,
+	});
+
 	// Signups per day (last 30 days)
 	const signupsByDay = bucketByDay(users ?? [], 30);
 
@@ -119,7 +159,7 @@ export const load: PageServerLoad = async () => {
 	// One row per AI reply (vv_ai_response_timings): server fills generation
 	// columns, the recipient's client fills delivery/render columns. Each row
 	// carries a match_id, so we label it with the two participants of that thread.
-	const userName = new Map((users ?? []).map((u) => [u.id, u.first_name]));
+	const userName = nameById;
 	const matchLabel = new Map<string, string>();
 	for (const m of (matches ?? []) as any[]) {
 		const a = userName.get(m.user1_id) ?? 'Unknown';
@@ -203,6 +243,11 @@ export const load: PageServerLoad = async () => {
 		userList: (users ?? []).map((u) => ({
 			id: u.id,
 			name: u.first_name,
+			// Which channel produced this member: snap / meta / referral / organic,
+			// or unknown when nothing about their arrival was ever recorded.
+			leadSource: leadSourceOf(leadSources, u.id).source,
+			leadSourceDetail: leadSourceOf(leadSources, u.id).detail,
+			leadSourceEvidence: leadSourceOf(leadSources, u.id).evidence,
 			email: emailById.get(u.id) ?? null,
 			age: u.age,
 			city: u.city,
@@ -281,7 +326,7 @@ function buildAiLatency(
 	rows: any[],
 	matchLabel: Map<string, string>,
 	replyContent: Map<string, string>,
-	userName: Map<string, string>
+	userName: Map<string, string | null>
 ) {
 	// Drop render-only orphans: rows with no server-side generation half
 	// (generation_ms IS NULL). These are client render pings for AI messages

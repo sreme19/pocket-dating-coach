@@ -247,7 +247,41 @@
 	let typeFilter = $state<'all' | 'real' | 'seed'>('all');
 
 	function resetUserSelection() { selectedUserId = ''; activity = null; }
-	let sortCol = $state<'name' | 'age' | 'city' | 'gender' | 'archetype' | 'trustScore' | 'joinedAt'>('joinedAt');
+
+	// ── Lead source ───────────────────────────────────────────────────────────
+	// Resolved server-side (see lib/server/lead-source.ts). Snap and Meta keep
+	// their brand colours so a glance down the column separates paid from earned.
+	const LEAD_SOURCE_LABEL: Record<string, string> = {
+		snap: 'snap',
+		meta: 'meta',
+		referral: 'referral',
+		organic: 'organic',
+		unknown: '—'
+	};
+	const LEAD_SOURCE_STYLE: Record<string, string> = {
+		snap: 'bg-yellow-400/20 text-yellow-300',
+		meta: 'bg-blue-500/20 text-blue-400',
+		referral: 'bg-pink-500/20 text-pink-400',
+		organic: 'bg-emerald-500/20 text-emerald-400',
+		unknown: 'bg-white/[0.04] text-slate-500'
+	};
+	// Which record decided the label, in words. A source that looks wrong is
+	// almost always a question about the evidence, so put it one hover away
+	// instead of behind a query.
+	const LEAD_SOURCE_EVIDENCE: Record<string, string> = {
+		install_referrer: 'from the store install referrer',
+		landing_session: 'from the landing-page visit that created this account',
+		referral_invite: 'from the invite a member sent',
+		referral_reward: 'from a paid referral reward',
+		none: 'no arrival record exists for this member'
+	};
+	function leadSourceTitle(u: { leadSource: string; leadSourceDetail: string | null; leadSourceEvidence: string }) {
+		const head = u.leadSource === 'unknown' ? 'Source unknown' : `Source: ${u.leadSource}`;
+		const evidence = LEAD_SOURCE_EVIDENCE[u.leadSourceEvidence] ?? '';
+		return [head, u.leadSourceDetail, evidence].filter(Boolean).join(' — ');
+	}
+
+	let sortCol = $state<'name' | 'age' | 'city' | 'gender' | 'archetype' | 'trustScore' | 'leadSource' | 'joinedAt'>('joinedAt');
 	let sortDir = $state<'asc' | 'desc'>('desc');
 
 	function toggleSort(col: typeof sortCol) {
@@ -821,7 +855,7 @@
 			<p class="mt-0.5 text-xs text-slate-500">Click a name to open user detail. Use <span class="text-slate-300">View</span> to open the public profile as members see it (opens in a new tab).</p>
 		</div>
 		<div class="overflow-x-auto">
-			<table class="w-full min-w-[940px] text-sm">
+			<table class="w-full min-w-[1040px] text-sm">
 				<thead>
 					<tr class="border-b border-white/[0.06] text-left text-xs">
 						{#each [
@@ -832,6 +866,7 @@
 							['gender', 'Gender'],
 							['archetype', 'Archetype'],
 							['trustScore', 'Trust'],
+							['leadSource', 'Source'],
 							[null, 'Type'],
 							['joinedAt', 'Joined'],
 							[null, 'View'],
@@ -880,6 +915,20 @@
 									 'bg-red-500/20 text-red-400'}">
 									{u.trustScore ?? 0}
 								</span>
+							</td>
+							<td class="py-2 pr-4">
+								<!--
+									Lead source. Unknown prints a dash rather than a channel name:
+									install attribution only starts arriving with the build that reads
+									the Play referrer, so members who predate it have no record of
+									where they came from — and calling that "organic" would invent a
+									channel nobody bought or earned. Hover cites the record that
+									decided it.
+								-->
+								<span
+									title={leadSourceTitle(u)}
+									class="rounded px-1.5 py-0.5 text-xs font-medium {LEAD_SOURCE_STYLE[u.leadSource] ?? LEAD_SOURCE_STYLE.unknown}"
+								>{LEAD_SOURCE_LABEL[u.leadSource] ?? '—'}</span>
 							</td>
 							<td class="py-2 pr-4">
 								<button
