@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 480" width="560" height="480" role="img" aria-labelledby="het hed">
+  <title id="het">The harness cycle: trace, evaluate, subtract, gate, deploy — then do it again</title>
+  <desc id="hed">A continuous cycle for harness engineering. An agent system in production is traced using OpenTelemetry, Langfuse, Arize Phoenix or LangSmith. The traces feed an eval harness with a golden set and LLM-as-judge scoring, which produces a scorecard showing cost and quality per component. Dead scaffolding — parts that no longer earn their cost — is removed. A CI gate blocks the release if eval scores regress. The leaner system deploys, and the cycle repeats with the next model version. This is the only discipline whose purpose is to make the system smaller.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .hi { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .w { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; fill: #b4541e; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #6e6a63; }
+    .lbl { font-family: system-ui, -apple-system, sans-serif; font-size: 9.5px; font-weight: 600; letter-spacing: 0.05em; fill: #b4541e; }
+    .arrow { stroke: #97928a; stroke-width: 1.5; fill: none; }
+    .arc { stroke: #b4541e; stroke-width: 1.5; fill: none; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: fl 0.9s linear infinite; }
+      .arc { stroke-dasharray: 4 4; animation: fl 0.9s linear infinite; }
+    }
+    @keyframes fl { to { stroke-dashoffset: -8; } }
+  </style>
+
+  <rect class="bg" width="560" height="480" rx="8"/>
+
+  <!-- TRACE -->
+  <rect class="card" x="80" y="24" width="400" height="56" rx="6"/>
+  <text class="w" x="100" y="44">TRACE</text>
+  <text class="h" x="100" y="62">Capture every decision</text>
+  <text class="s" x="100" y="76">OpenTelemetry · Langfuse · Arize Phoenix · LangSmith</text>
+
+  <!-- Arrow -->
+  <path class="arrow" d="M280 80 L280 98" marker-end="url(#a)"/>
+
+  <!-- EVAL -->
+  <rect class="card" x="80" y="100" width="400" height="56" rx="6"/>
+  <text class="w" x="100" y="120">EVAL</text>
+  <text class="h" x="100" y="138">Measure against the golden set</text>
+  <text class="s" x="100" y="152">LLM-as-judge scoring · Trajectory capture and replay</text>
+
+  <!-- Arrow -->
+  <path class="arrow" d="M280 156 L280 174" marker-end="url(#a)"/>
+
+  <!-- SCORECARD -->
+  <rect class="card" x="80" y="176" width="400" height="46" rx="6"/>
+  <text class="w" x="100" y="196">SCORECARD</text>
+  <text class="h" x="100" y="214">Cost and quality per component</text>
+
+  <!-- Arrow -->
+  <path class="arrow" d="M280 222 L280 240" marker-end="url(#a)"/>
+
+  <!-- SUBTRACT (accent — the key step) -->
+  <rect class="hi" x="80" y="242" width="400" height="46" rx="6"/>
+  <text class="w" x="100" y="262">SUBTRACT</text>
+  <text class="h" x="100" y="280">Remove what the model no longer needs</text>
+
+  <!-- Arrow -->
+  <path class="arrow" d="M280 288 L280 306" marker-end="url(#a)"/>
+
+  <!-- CI GATE -->
+  <rect class="card" x="80" y="308" width="400" height="46" rx="6"/>
+  <text class="w" x="100" y="328">CI GATE</text>
+  <text class="h" x="100" y="346">Block release on eval regression</text>
+
+  <!-- Arrow -->
+  <path class="arrow" d="M280 354 L280 372" marker-end="url(#a)"/>
+
+  <!-- DEPLOY -->
+  <rect class="card" x="140" y="374" width="280" height="38" rx="6"/>
+  <text class="h" x="280" y="398" text-anchor="middle">Leaner system in production</text>
+
+  <!-- Feedback arc: DEPLOY → TRACE (left side) -->
+  <path class="arc" d="M68 396 C20 396, 20 46, 68 46" marker-end="url(#b)"/>
+  <text class="lbl" x="26" y="222" transform="rotate(-90 26 222)" text-anchor="middle">NEXT MODEL VERSION</text>
+
+  <!-- Side annotations -->
+  <text class="s" x="500" y="198" text-anchor="end" style="font-size:10px">Is it still paying</text>
+  <text class="s" x="500" y="210" text-anchor="end" style="font-size:10px">for itself?</text>
+  <text class="s" x="500" y="270" text-anchor="end" style="font-size:10px">Guardrails</text>
+  <text class="s" x="500" y="282" text-anchor="end" style="font-size:10px">Kill switches</text>
+  <text class="s" x="500" y="340" text-anchor="end" style="font-size:10px">Registry of</text>
+  <text class="s" x="500" y="352" text-anchor="end" style="font-size:10px">what is deployed</text>
+
+  <!-- Footer -->
+  <text class="foot" x="280" y="440" text-anchor="middle">The only discipline whose purpose is to make the system smaller.</text>
+  <text class="foot" x="280" y="458" text-anchor="middle">It is a practice, not a project.</text>
+
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+    <marker id="b" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b4541e"/>
+    </marker>
+  </defs>
+</svg>

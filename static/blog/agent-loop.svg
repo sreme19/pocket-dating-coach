@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 500" width="560" height="500" role="img" aria-labelledby="alt ald">
+  <title id="alt">The agent loop: plan, act, observe, decide — and know when to stop</title>
+  <desc id="ald">A four-step agent loop. Plan identifies the next step. Act executes a tool call, using an orchestration framework such as LangGraph, CrewAI, AutoGen, Strands Agents, or a hand-rolled state machine. Observe reads the result and accumulates state. Decide chooses whether to continue the loop, escalate to a human, or return the result. A feedback arc from Decide back to Plan shows the loop. Below the loop, two exit boxes: return the result or escalate to a human. Durable execution through Temporal keeps the loop alive when it outlives a single request. Six to twelve model calls per task is normal, and each carries a fatter prompt than the last.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .hi { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .w { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; fill: #b4541e; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #6e6a63; }
+    .lbl { font-family: system-ui, -apple-system, sans-serif; font-size: 9.5px; font-weight: 600; letter-spacing: 0.05em; fill: #b4541e; }
+    .arrow { stroke: #97928a; stroke-width: 1.5; fill: none; }
+    .arc { stroke: #b4541e; stroke-width: 1.5; fill: none; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: fl 0.9s linear infinite; }
+      .arc { stroke-dasharray: 4 4; animation: fl 0.9s linear infinite; }
+    }
+    @keyframes fl { to { stroke-dashoffset: -8; } }
+  </style>
+
+  <rect class="bg" width="560" height="500" rx="8"/>
+
+  <!-- PLAN -->
+  <rect class="card" x="80" y="24" width="400" height="46" rx="6"/>
+  <text class="w" x="100" y="44">PLAN</text>
+  <text class="h" x="100" y="62">Identify the next step</text>
+
+  <!-- Arrow: PLAN → ACT -->
+  <path class="arrow" d="M280 70 L280 88" marker-end="url(#a)"/>
+
+  <!-- ACT -->
+  <rect class="card" x="80" y="90" width="400" height="60" rx="6"/>
+  <text class="w" x="100" y="110">ACT</text>
+  <text class="h" x="100" y="128">Execute a tool call</text>
+  <text class="s" x="100" y="144">LangGraph · CrewAI · AutoGen · Strands · state machine</text>
+
+  <!-- Arrow: ACT → OBSERVE -->
+  <path class="arrow" d="M280 150 L280 168" marker-end="url(#a)"/>
+
+  <!-- OBSERVE -->
+  <rect class="card" x="80" y="170" width="400" height="46" rx="6"/>
+  <text class="w" x="100" y="190">OBSERVE</text>
+  <text class="h" x="100" y="208">Read result, accumulate state</text>
+
+  <!-- Arrow: OBSERVE → DECIDE -->
+  <path class="arrow" d="M280 216 L280 236" marker-end="url(#a)"/>
+
+  <!-- DECIDE (accent) -->
+  <rect class="hi" x="80" y="238" width="400" height="46" rx="6"/>
+  <text class="w" x="100" y="258">DECIDE</text>
+  <text class="h" x="100" y="276">Continue the loop, escalate, or return</text>
+
+  <!-- Feedback arc: DECIDE → PLAN (left side, accent color) -->
+  <path class="arc" d="M68 268 C24 268, 24 44, 68 44" marker-end="url(#b)"/>
+  <text class="lbl" x="28" y="160" transform="rotate(-90 28 160)" text-anchor="middle">CONTINUE</text>
+
+  <!-- Arrow: DECIDE splits to two exit boxes -->
+  <path class="arrow" d="M230 284 L170 310" marker-end="url(#a)"/>
+  <path class="arrow" d="M330 284 L390 310" marker-end="url(#a)"/>
+
+  <!-- Return result -->
+  <rect class="card" x="80" y="312" width="180" height="46" rx="6"/>
+  <text class="w" x="100" y="332">RETURN</text>
+  <text class="s" x="100" y="348">Deliver the result</text>
+
+  <!-- Escalate to human -->
+  <rect class="card" x="300" y="312" width="180" height="46" rx="6"/>
+  <text class="w" x="320" y="332">ESCALATE</text>
+  <text class="s" x="320" y="348">Human in the loop</text>
+
+  <!-- Annotations on right side -->
+  <text class="s" x="500" y="116" text-anchor="end" style="font-size:10px">Tool registries</text>
+  <text class="s" x="500" y="130" text-anchor="end" style="font-size:10px">A2A · Bedrock AgentCore</text>
+  <text class="s" x="500" y="200" text-anchor="end" style="font-size:10px">State grows per turn</text>
+
+  <!-- Durable execution note -->
+  <text class="s" x="280" y="390" text-anchor="middle">Durable execution: Temporal when a loop outlives a request</text>
+  <text class="s" x="280" y="406" text-anchor="middle">Retry, fallback and abort policies for non-deterministic steps</text>
+
+  <!-- Footer -->
+  <text class="foot" x="280" y="450" text-anchor="middle">Six to twelve model calls per task is normal,</text>
+  <text class="foot" x="280" y="468" text-anchor="middle">and each one carries a fatter prompt than the last.</text>
+
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+    <marker id="b" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b4541e"/>
+    </marker>
+  </defs>
+</svg>

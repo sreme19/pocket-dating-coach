@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 500" width="560" height="500" role="img" aria-labelledby="det ded">
+  <title id="det">Data engineering end to end: the pipeline is unchanged, who consumes it is not</title>
+  <desc id="ded">An end-to-end data pipeline from CDC streams, APIs and event buses through four stages: ingest on Kafka or Kinesis, object storage on S3 with Iceberg or Delta Lake, transformation using Spark, dbt and Airflow, and serving through Snowflake, Databricks, BigQuery, Redshift or ClickHouse with Trino for federation. Unity Catalog or Lake Formation governs the data from storage through serving. The pipeline splits at the end to show two consumers: in 2024 a dashboard, where a human reads and applies judgment; in 2026 an agent, which queries the same warehouse with total confidence and cannot tell that a column is stale.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .src { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .hi { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .w { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; fill: #b4541e; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #6e6a63; }
+    .yr { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+    .gov { font-family: system-ui, -apple-system, sans-serif; font-size: 9px; font-weight: 600; letter-spacing: 0.05em; fill: #2f6b46; }
+    .govl { stroke: #2f6b46; stroke-width: 1; fill: none; opacity: 0.4; }
+    .arrow { stroke: #97928a; stroke-width: 1.5; fill: none; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: fl 0.9s linear infinite; }
+    }
+    @keyframes fl { to { stroke-dashoffset: -8; } }
+  </style>
+
+  <rect class="bg" width="560" height="500" rx="8"/>
+
+  <!-- Sources -->
+  <rect class="src" x="110" y="20" width="288" height="38" rx="6"/>
+  <text class="h" x="254" y="44" text-anchor="middle">CDC streams · APIs · event buses</text>
+
+  <!-- Arrow: Sources → Ingest -->
+  <path class="arrow" d="M254 58 L254 76" marker-end="url(#a)"/>
+
+  <!-- INGEST -->
+  <rect class="card" x="24" y="78" width="460" height="50" rx="6"/>
+  <text class="w" x="44" y="98">INGEST</text>
+  <text class="h" x="44" y="118">Kafka / Kinesis</text>
+
+  <!-- Arrow: Ingest → Store -->
+  <path class="arrow" d="M254 128 L254 148" marker-end="url(#a)"/>
+
+  <!-- STORE -->
+  <rect class="card" x="24" y="150" width="460" height="50" rx="6"/>
+  <text class="w" x="44" y="170">STORE</text>
+  <text class="h" x="44" y="190">S3 with Iceberg / Delta Lake</text>
+
+  <!-- Arrow: Store → Transform -->
+  <path class="arrow" d="M254 200 L254 220" marker-end="url(#a)"/>
+
+  <!-- TRANSFORM -->
+  <rect class="card" x="24" y="222" width="460" height="50" rx="6"/>
+  <text class="w" x="44" y="242">TRANSFORM</text>
+  <text class="h" x="44" y="262">Spark · dbt · Airflow</text>
+
+  <!-- Arrow: Transform → Serve -->
+  <path class="arrow" d="M254 272 L254 292" marker-end="url(#a)"/>
+
+  <!-- SERVE -->
+  <rect class="card" x="24" y="294" width="460" height="62" rx="6"/>
+  <text class="w" x="44" y="316">SERVE</text>
+  <text class="h" x="44" y="336">Snowflake · Databricks · BigQuery · Redshift · ClickHouse</text>
+  <text class="s" x="44" y="352">Trino for federation across engines</text>
+
+  <!-- Governance bracket on the right, spanning STORE through SERVE -->
+  <path class="govl" d="M498 150 L510 150 L510 356 L498 356"/>
+  <text class="gov" x="520" y="220" transform="rotate(90 520 220)" text-anchor="middle">GOVERNANCE</text>
+  <text x="534" y="260" transform="rotate(90 534 260)" text-anchor="middle" style="font-size:8px;fill:#2f6b46;font-family:system-ui,-apple-system,sans-serif">Unity Catalog / Lake Formation</text>
+
+  <!-- Arrow fork to consumers -->
+  <path class="arrow" d="M254 356 L254 372 L136 394" marker-end="url(#a)"/>
+  <path class="arrow" d="M254 356 L254 372 L372 394" marker-end="url(#a)"/>
+
+  <!-- Dashboard (2024, muted) -->
+  <rect class="card" x="24" y="394" width="224" height="54" rx="6" style="opacity:0.55"/>
+  <text class="yr" x="44" y="416" style="fill:#97928a">2024</text>
+  <text class="h" x="82" y="416" style="fill:#97928a">Dashboard</text>
+  <text class="s" x="44" y="434">Reads and applies judgment</text>
+
+  <!-- Agent (2026, accent) -->
+  <rect class="hi" x="260" y="394" width="224" height="54" rx="6"/>
+  <text class="yr" x="280" y="416" style="fill:#b4541e">2026</text>
+  <text class="h" x="318" y="416">Agent</text>
+  <text class="s" x="280" y="434" style="fill:#b4541e">Cannot tell a column is stale</text>
+
+  <!-- Footer -->
+  <text class="foot" x="280" y="478" text-anchor="middle">The pipeline is unchanged. What changed is who consumes it.</text>
+
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+  </defs>
+</svg>

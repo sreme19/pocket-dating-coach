@@ -42,6 +42,8 @@ agent queries the same warehouse, and it is much less forgiving than a human
 analyst — it cannot tell that a column is stale, and it will state whatever it
 finds with total confidence.
 
+![End-to-end data pipeline from sources through ingest, storage, transformation and serving. In 2024 the consumer was a dashboard; in 2026 it is an agent that cannot tell a column is stale.](/blog/data-engineering-pipeline.svg)
+
 **Tools:** Kafka or Kinesis for ingest; S3 with Iceberg or Delta Lake for
 storage; Spark, dbt and Airflow for transformation; Snowflake, Databricks,
 BigQuery, Redshift or ClickHouse for serving; Trino for federation; Unity Catalog
@@ -59,6 +61,24 @@ State the task, the shape of the output, and the constraints.
 It is genuinely undervalued now that it is unfashionable. Most "the model can't do
 this" conclusions I have watched people reach were a prompt that never specified
 the output shape.
+
+A support team asks a model to classify incoming tickets. The prompt:
+
+> Classify this customer support ticket.
+
+The model returns "This appears to be a billing issue related to the customer's
+subscription renewal" — a sentence. The next ticket gets a bulleted list of
+observations. The third gets a single word. All three are correct; none is
+parseable by the routing system downstream.
+
+The shaped version:
+
+> Classify this customer support ticket. Return JSON with four fields: category
+> (billing, technical, account, other), urgency (p1, p2, p3), one-sentence
+> summary, and whether it needs escalation (true or false).
+
+Now every response has four fields the routing system can read without a regex.
+The model did not get smarter; the instruction told it what shape to hand back.
 
 **Tools:** the model API and a place to keep prompts under version control. That
 is the whole list. Structured output or tool-calling schemas if the provider
@@ -81,6 +101,8 @@ one of four memory types, and there are four operations you perform on the
 window — compress, isolate, trim, filter. That is a checklist you can hold a
 system against.
 
+![Context assembly pipeline. A user query is embedded, then three retrieval paths run in parallel — vector search, keyword search, and graph traversal. Results converge through reciprocal rank fusion and a reranker, then four window operations — compress, isolate, trim, filter — shape what enters the context window.](/blog/context-assembly.svg)
+
 **Tools:** an embedding model; a vector store (pgvector if you already run
 Postgres, otherwise Qdrant, Pinecone, Weaviate or Milvus); a graph store such as
 Neo4j or Neptune when relationships matter more than similarity; hybrid retrieval
@@ -97,6 +119,8 @@ part is relevance, not plumbing.
 
 Plan, act, observe, decide whether to go again, escalate to a human, and know when
 to stop. This is where cost stops being linear.
+
+![The agent loop. Plan identifies the next step, Act executes a tool call, Observe reads the result and accumulates state, Decide chooses whether to loop back, escalate to a human, or return the result.](/blog/agent-loop.svg)
 
 **Tools:** an orchestration framework (LangGraph, CrewAI, AutoGen, Strands
 Agents, or hand-rolled state machines — plenty of shipped systems are the last
@@ -126,6 +150,21 @@ Then the model improves and some of that scaffolding becomes pure overhead —
 still running, still costing money, still adding latency, no longer earning it.
 
 Harness engineering is measuring which parts still pay, and deleting the rest.
+
+A document-processing agent built in March runs five steps per document:
+decompose the PDF into sections, extract structured fields, run a reflection pass
+to check for missed sections, validate the output against a schema, and retry on
+failure. By June the model has improved. The eval harness measures each step:
+decomposition still matters — accuracy drops 23 points without it. Reflection —
+zero measured impact; the current model stopped missing sections two versions
+ago. Validation still catches 4% of outputs. Retry triggers on 0.3% of runs,
+down from 11%.
+
+The reflection pass is deleted. The retry threshold is raised until it fires
+rarely enough to remove. Two steps gone, three remain. Cost per document: $0.41
+to $0.26. Latency: 4.2 seconds to 2.8. Eval scores: unchanged.
+
+![The harness cycle. Trace every decision, evaluate against a golden set, score each component for cost and quality, subtract what the model no longer needs, gate the release on eval regression, deploy the leaner system, and repeat with the next model version.](/blog/harness-eval.svg)
 
 **Tools:** an eval harness with a golden set; LLM-as-judge scoring; trajectory
 capture and replay; tracing through OpenTelemetry, Langfuse, Arize Phoenix or
