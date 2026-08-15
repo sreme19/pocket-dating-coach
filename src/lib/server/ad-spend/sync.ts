@@ -18,6 +18,7 @@
 import { getSupabase } from '$lib/server/supabase';
 import {
   fetchSnapSpend,
+  fetchSnapCreativeSpend,
   fetchSnapDemographics,
   addDays,
   snapConfigStatus,
@@ -56,6 +57,17 @@ export interface SyncOutcome {
    * worked. The health panel needs to be able to say which half is broken.
    */
   demographics: { networks: NetworkOutcome[]; written: number };
+  /**
+   * Per-ad (creative) spend, reported separately for the same reason
+   * demographics is: this fetch can succeed or fail independently of the
+   * ad-squad fetch above, and folding it in would let a creative-level fetch
+   * that returns nothing hide behind an ad-set fetch that worked fine.
+   *
+   * SNAP ONLY. Meta's ad-level data is already inside the `meta` entry under
+   * `networks` above — `fetchMetaSpend` fetches at `level:'ad'` directly, so
+   * there is no separate Meta creative fetch to report here.
+   */
+  creativeSpend: { networks: NetworkOutcome[]; written: number };
 }
 
 /** Today in UTC, as YYYY-MM-DD. The networks resolve their own day boundaries. */
@@ -82,18 +94,46 @@ async function writeRows(rows: SpendRow[]): Promise<number> {
     clicks: r.clicks,
     network_conversions: r.networkConversions,
     account_timezone: r.accountTimezone,
+    status: r.status,
     fetched_at: new Date().toISOString(),
     source: 'api'
   }));
 
-  // ignoreDuplicates is deliberately FALSE here — the opposite of every other
-  // upsert in this codebase. A re-fetched day is expected to differ from the
-  // stored one; that restatement is the entire reason for re-fetching, and
-  // ignoring it would freeze each day at whatever it read within hours of
-  // happening, which is exactly when it is least final.
-  const { error } = await supabase
-    .from('ad_spend_daily')
-    .upsert(payload, { onConflict: 'network,date,campaign_id,ad_set_id,creative_id', ignoreDuplicates: false });
+  const upsert = (rows: Array<Omit<(typeof payload)[number], 'status'> & { status?: string | null }>) =>
+    supabase
+      // ignoreDuplicates is deliberately FALSE here — the opposite of every other
+      // upsert in this codebase. A re-fetched day is expected to differ from the
+      // stored one; that restatement is the entire reason for re-fetching, and
+      // ignoring it would freeze each day at whatever it read within hours of
+      // happening, which is exactly when it is least final.
+      .from('ad_spend_daily')
+      .upsert(rows, { onConflict: 'network,date,campaign_id,ad_set_id,creative_id', ignoreDuplicates: false });
+
+  let { error } = await upsert(payload);
+
+  /**
+   * FALL BACK WITHOUT `status` ON A SCHEMA-CACHE ERROR, exactly the same
+   * migration-lag gap the read side handles in `selectWithFallback` above.
+   * Migrations here are run by hand, separately from the deploy, so there is
+   * always a window where this code knows about a column
+   * (20260815140510_add_status_column_to_ad_spend_daily.sql) some database does
+   * not — every environment gets this migration at a different moment (this
+   * one was applied straight to hosted Supabase and synced back, not run
+   * through a local dev DB first) — and PostgREST rejects the WHOLE upsert on
+   * an unrecognised column, not just the one field. Unlike a read, silently
+   * losing this would mean the hourly cron writes zero rows and every number
+   * on the dashboard reads as "nothing spent" instead of "status not synced
+   * yet" — so this is deliberately narrowed to PostgREST's schema-cache code
+   * rather than swallowing every error, and still logs loudly either way.
+   */
+  if (error?.code === 'PGRST204') {
+    console.warn(
+      '[ad-spend] retrying without `status` — run 20260815140510_add_status_column_to_ad_spend_daily.sql:',
+      error.message
+    );
+    const retry = await upsert(payload.map(({ status: _status, ...rest }) => rest));
+    error = retry.error;
+  }
 
   if (error) {
     console.error('[ad-spend] rows NOT written:', error.message, error.hint ?? '');
@@ -101,6 +141,7 @@ async function writeRows(rows: SpendRow[]): Promise<number> {
   }
 
   await dropStaleCoarserRows(rows);
+  await dropStaleAdSquadLevelRows(rows);
   return payload.length;
 }
 
@@ -147,6 +188,50 @@ async function dropStaleCoarserRows(rows: SpendRow[]): Promise<void> {
       console.error('[ad-spend] could not clear coarser rows:', error.message);
     } else if (count) {
       console.warn(`[ad-spend] cleared ${count} campaign-level ${network} row(s) superseded by ad-set data`);
+    }
+  }
+}
+
+/**
+ * Remove the ad-squad-level AGGREGATE row for exactly the (network, ad_set_id,
+ * date) triples the creative-level fetch just covered — one grain further
+ * down than `dropStaleCoarserRows` above, and guarded MORE tightly than it.
+ *
+ * That function clears every `ad_set_id=''` row for a whole network+date,
+ * which is safe there because a squads-listing failure means NO ad-set rows
+ * were written for that run at all — nothing partial to protect. Here, a
+ * single squad's ads-listing or per-ad stats call failing is ROUTINE (one bad
+ * squad among a dozen good ones, not an all-or-nothing failure), so a blanket
+ * clear by network+date would delete a still-good ad-squad aggregate for the
+ * one squad whose creative breakdown happened to fail this run — turning a
+ * partial creative-fetch failure into a partial SPEND-total failure, which is
+ * strictly worse. Scoped instead to only the (network, ad_set_id) pairs this
+ * batch of rows actually has creative-level data for.
+ */
+async function dropStaleAdSquadLevelRows(rows: SpendRow[]): Promise<void> {
+  const byAdSet = new Map<string, { network: string; adSetId: string; dates: Set<string> }>();
+  for (const r of rows) {
+    if (!r.creativeId || !r.adSetId) continue;
+    const key = `${r.network}:${r.adSetId}`;
+    if (!byAdSet.has(key)) byAdSet.set(key, { network: r.network, adSetId: r.adSetId, dates: new Set() });
+    byAdSet.get(key)!.dates.add(r.date);
+  }
+  if (byAdSet.size === 0) return;
+
+  const supabase = getSupabase();
+  for (const { network, adSetId, dates } of byAdSet.values()) {
+    const { error, count } = await supabase
+      .from('ad_spend_daily')
+      .delete({ count: 'exact' })
+      .eq('network', network)
+      .eq('ad_set_id', adSetId)
+      .eq('creative_id', '')
+      .in('date', [...dates]);
+
+    if (error) {
+      console.error(`[ad-spend] could not clear ad-squad-level rows for ${adSetId}:`, error.message);
+    } else if (count) {
+      console.warn(`[ad-spend] cleared ${count} ad-squad-level row(s) for ${adSetId} superseded by per-ad data`);
     }
   }
 }
@@ -211,12 +296,14 @@ export async function syncAdSpend(windowDays = SYNC_WINDOW_DAYS): Promise<SyncOu
   const end = todayUtc();
   const start = addDays(end, -Math.max(0, windowDays - 1));
 
-  // Four independent fetches. A demographics call that fails must not stop spend
-  // from syncing — spend is the number decisions are actually made on, and
-  // demographics is the colour around it.
-  const [snap, meta, snapDemo, metaDemo] = await Promise.all([
+  // Five independent fetches. A demographics or creative-level call failing
+  // must not stop the campaign/ad-set spend from syncing — that is the number
+  // decisions are actually made on, and the finer breakdowns are colour
+  // around it.
+  const [snap, meta, snapCreative, snapDemo, metaDemo] = await Promise.all([
     fetchSnapSpend(start, end),
     fetchMetaSpend(start, end),
+    fetchSnapCreativeSpend(start, end),
     fetchSnapDemographics(start, end),
     fetchMetaDemographics(start, end)
   ]);
@@ -224,6 +311,14 @@ export async function syncAdSpend(windowDays = SYNC_WINDOW_DAYS): Promise<SyncOu
   let written = 0;
   written += await writeRows(snap.rows);
   written += await writeRows(meta.rows);
+  // WRITTEN LAST, DELIBERATELY. `writeRows` clears the ad-squad-level
+  // aggregate for whatever this batch covers (`dropStaleAdSquadLevelRows`) —
+  // if this ran before `snap.rows` above, that unconditional ad-squad upsert
+  // would simply re-insert the rows the cleanup just removed, undoing it and
+  // silently doubling the money again exactly the way the original
+  // campaign/ad-set collision did.
+  let creativeWritten = 0;
+  creativeWritten += await writeRows(snapCreative.rows);
 
   let demoWritten = 0;
   demoWritten += await writeDemographics(snapDemo.rows);
@@ -242,6 +337,18 @@ export async function syncAdSpend(windowDays = SYNC_WINDOW_DAYS): Promise<SyncOu
       networks: [
         { network: 'snap', configured: snapDemo.configured, rows: snapDemo.rows.length, error: snapDemo.error },
         { network: 'meta', configured: metaDemo.configured, rows: metaDemo.rows.length, error: metaDemo.error }
+      ]
+    },
+    // Snap only — see the type's doc comment for why Meta has no entry here.
+    creativeSpend: {
+      written: creativeWritten,
+      networks: [
+        {
+          network: 'snap',
+          configured: snapCreative.configured,
+          rows: snapCreative.rows.length,
+          error: snapCreative.error
+        }
       ]
     }
   };

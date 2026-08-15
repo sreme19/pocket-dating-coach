@@ -754,6 +754,7 @@ export type Database = {
 					account_timezone: string | null;
 					fetched_at: string;
 					source: string;
+					status: string | null;
 				};
 				Insert: {
 					network: string;
@@ -772,6 +773,7 @@ export type Database = {
 					account_timezone?: string | null;
 					fetched_at?: string;
 					source?: string;
+					status?: string | null;
 				};
 				Update: Partial<Database['public']['Tables']['ad_spend_daily']['Insert']>;
 				Relationships: [];

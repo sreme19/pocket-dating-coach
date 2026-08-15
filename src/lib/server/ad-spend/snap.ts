@@ -48,6 +48,13 @@ export interface SpendRow {
   clicks: number;
   networkConversions: number;
   accountTimezone: string | null;
+  /**
+   * The network's own admin-set status for the finest entity this row has an
+   * id for — ACTIVE/PAUSED, matching the vocabulary both networks use. Null
+   * when the adapter has no status to report (a fetch failure, or a network
+   * whose entity-status read is not wired up yet). See the migration.
+   */
+  status: 'ACTIVE' | 'PAUSED' | null;
 }
 
 export interface FetchResult {
@@ -188,6 +195,18 @@ function asInt(value: unknown): number {
 }
 
 /**
+ * `squad.status`/`campaign.status`, narrowed to exactly what the migration's
+ * check constraint accepts. Documented as `ACTIVE`/`PAUSED` — this has not been
+ * confirmed against a live response (`.env.vercel` blanks every secret, so
+ * nothing here could be run against production locally), so anything other
+ * than those two exact strings becomes null rather than a guessed row the
+ * check constraint would then reject and lose silently.
+ */
+function asStatus(value: unknown): 'ACTIVE' | 'PAUSED' | null {
+  return value === 'ACTIVE' || value === 'PAUSED' ? value : null;
+}
+
+/**
  * The account timezone's UTC offset, as the suffix Snap wants on a timestamp.
  *
  * Derived, not hardcoded. Snap rejects a range whose bounds are not midnight in
@@ -263,7 +282,7 @@ export async function fetchSnapSpend(start: string, end: string): Promise<FetchR
     const toDay = addDays(end, 1);
     const to = `${toDay}T00:00:00.000${offsetSuffix(meta.timezone, toDay)}`;
 
-    let squads: Array<{ id?: string; name?: string; campaign_id?: string }>;
+    let squads: Array<{ id?: string; name?: string; campaign_id?: string; status?: string }>;
     try {
       squads = await listEntities(token, `${API_BASE}/adaccounts/${adAccountId}/adsquads?limit=500`, 'adsquads');
     } catch (err) {
@@ -328,7 +347,11 @@ export async function fetchSnapSpend(start: string, end: string): Promise<FetchR
           // leaderboard's CTR column means the same thing across networks.
           clicks: asInt(stats.swipes),
           networkConversions: asInt(stats.conversion_purchases),
-          accountTimezone: meta.timezone
+          accountTimezone: meta.timezone,
+          // From the SAME adsquads listing already fetched above for the name —
+          // no extra API call, so this cannot make a previously-working sync
+          // fail in a new way.
+          status: asStatus(squad.status)
         });
       }
     }
@@ -338,6 +361,134 @@ export async function fetchSnapSpend(start: string, end: string): Promise<FetchR
       // Partial failure is reported rather than swallowed: some ad squads
       // syncing looks identical to all of them syncing on a chart.
       error: errors.length ? `${errors.length} ad squad(s) failed: ${errors.join(' | ').slice(0, 240)}` : null,
+      configured: true
+    };
+  } catch (err) {
+    return { rows: [], error: String(err).slice(0, 300), configured: true };
+  }
+}
+
+/**
+ * Daily per-AD (creative) spend, layered under `fetchSnapSpend` above.
+ *
+ * ADDITIVE AND ISOLATED ON PURPOSE. `GET /ads/{id}/stats` is an endpoint this
+ * codebase has never called, and it cannot be verified against the live API
+ * before shipping — `.env.vercel` blanks every secret, so nothing here could
+ * be tested against production locally (same constraint already documented on
+ * the `status` field). A failure ANYWHERE in this function must not touch a
+ * single row the proven ad-squad fetch already writes successfully, so this
+ * is called as its OWN separate fetch in `sync.ts` — never inline inside
+ * `fetchSnapSpend` — and returns `{ rows: [], error }` on any problem rather
+ * than throwing or partially writing.
+ *
+ * ADS ARE LISTED PER SQUAD (`/adsquads/{id}/ads`), mirroring how ad squads
+ * themselves are listed per account above — Snap's docs describe the
+ * per-squad listing, not an account-wide one.
+ *
+ * `sync.ts` drops the coarser ad-squad-level row for a (network, date,
+ * ad_set_id) once this successfully writes ad-level rows for it — the exact
+ * same coarser-row cleanup that already runs when spend moved from
+ * campaign-level to ad-squad-level, applied one grain further down, and
+ * guarded the same way: only for the ad sets THIS fetch actually covered, so
+ * an ad set whose per-ad listing failed keeps its existing aggregate rather
+ * than losing spend.
+ */
+export async function fetchSnapCreativeSpend(start: string, end: string): Promise<FetchResult> {
+  const { clientId, clientSecret, refreshToken, adAccountId } = credentials();
+
+  if (!clientId || !clientSecret || !refreshToken || !adAccountId) {
+    return { rows: [], error: null, configured: false };
+  }
+
+  try {
+    const token = await accessToken();
+    const meta = await accountMeta(token, adAccountId);
+
+    const from = `${start}T00:00:00.000${offsetSuffix(meta.timezone, start)}`;
+    const toDay = addDays(end, 1);
+    const to = `${toDay}T00:00:00.000${offsetSuffix(meta.timezone, toDay)}`;
+
+    let squads: Array<{ id?: string; name?: string; campaign_id?: string }>;
+    try {
+      squads = await listEntities(token, `${API_BASE}/adaccounts/${adAccountId}/adsquads?limit=500`, 'adsquads');
+    } catch (err) {
+      return { rows: [], error: `ad squad listing failed (${String(err).slice(0, 120)})`, configured: true };
+    }
+
+    const campaignNames = new Map<string, string>();
+    try {
+      const campaigns = await listEntities<{ id?: string; name?: string }>(
+        token,
+        `${API_BASE}/adaccounts/${adAccountId}/campaigns?limit=500`,
+        'campaigns'
+      );
+      for (const c of campaigns) if (c.id) campaignNames.set(c.id, c.name ?? '');
+    } catch {
+      // A missing name is cosmetic; a missing id is not. Carry on.
+    }
+
+    const rows: SpendRow[] = [];
+    const errors: string[] = [];
+
+    for (const squad of squads) {
+      if (!squad.id) continue;
+
+      let ads: Array<{ id?: string; name?: string; status?: string }>;
+      try {
+        ads = await listEntities(token, `${API_BASE}/adsquads/${squad.id}/ads?limit=500`, 'ads');
+      } catch (err) {
+        errors.push(`${squad.name ?? squad.id} ads listing: ${String(err).slice(0, 80)}`);
+        continue;
+      }
+
+      for (const ad of ads) {
+        if (!ad.id) continue;
+        const params = new URLSearchParams({
+          granularity: 'DAY',
+          fields: 'spend,impressions,swipes,conversion_purchases',
+          start_time: from,
+          end_time: to
+        });
+
+        const res = await withTimeout(`${API_BASE}/ads/${ad.id}/stats?${params}`, {
+          headers: { authorization: `Bearer ${token}` }
+        });
+
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          errors.push(`${ad.name ?? ad.id}: ${res.status} ${text.slice(0, 80)}`);
+          continue;
+        }
+
+        for (const point of pointsOf(await res.json())) {
+          const day = (point.start_time ?? '').slice(0, 10);
+          if (!day) continue;
+          const stats = point.stats ?? {};
+          rows.push({
+            network: 'snap',
+            date: day,
+            campaignId: squad.campaign_id ?? '',
+            campaignName: campaignNames.get(squad.campaign_id ?? '') ?? null,
+            adSetId: squad.id,
+            adSetName: squad.name ?? null,
+            creativeId: ad.id,
+            creativeName: ad.name ?? null,
+            spend: fromMicro(stats.spend),
+            currency: meta.currency,
+            impressions: asInt(stats.impressions),
+            clicks: asInt(stats.swipes),
+            networkConversions: asInt(stats.conversion_purchases),
+            accountTimezone: meta.timezone,
+            // From the SAME per-squad ads listing fetched above for the name.
+            status: asStatus(ad.status)
+          });
+        }
+      }
+    }
+
+    return {
+      rows,
+      error: errors.length ? `${errors.length} ad(s) failed: ${errors.join(' | ').slice(0, 240)}` : null,
       configured: true
     };
   } catch (err) {
@@ -439,7 +590,10 @@ function parseTimeseries(body: unknown, currency: string, timezone: string | nul
           // the leaderboard's CTR column means the same thing across networks.
           clicks: asInt(stats.swipes),
           networkConversions: asInt(stats.conversion_purchases),
-          accountTimezone: timezone
+          accountTimezone: timezone,
+          // This degraded path doesn't fetch the campaign listing, so it has no
+          // status to report — null, not a guess.
+          status: null
         });
       }
     }

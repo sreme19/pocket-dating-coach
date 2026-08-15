@@ -183,6 +183,27 @@ describe('ad set name reconciliation', () => {
 		utm: { utm_source: source, utm_campaign: campaign, utm_term: '{{adSet.id}}' }
 	});
 
+	it('shows the most recently dated spend row name, not whichever row came first', async () => {
+		// Hardens against a risk the design invites rather than a bug seen live:
+		// ad_spend_daily freezes ad_set_name per day-row, so a renamed ad set
+		// could keep showing its pre-rename name if the old code's "first row
+		// wins" rule happened to see the stale row first. Two rows here share an
+		// ad_set_id but carry different names on different dates, deliberately in
+		// an order where the OLDER date comes LAST in the array — a naive
+		// first-wins rule would get this backwards.
+		rows.ad_spend_daily = [
+			{ ...SPEND('a1b2c3d4-1111-2222-3333-444455556666', 'SC_TRAFFIC_BESTIE_IN_BLR_M_TOF_20260810'), date: '2026-08-14' },
+			{ ...SPEND('a1b2c3d4-1111-2222-3333-444455556666', 'SC_MEN_28-38_BLR_CASUAL'), date: '2026-08-09' }
+		];
+
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+
+		const row = d.leaderboard.find((r: any) => r.adSetId === 'a1b2c3d4-1111-2222-3333-444455556666');
+		expect(row?.campaign).toBe('SC_TRAFFIC_BESTIE_IN_BLR_M_TOF_20260810');
+		// Both days' numbers still roll up into the one row regardless of the name.
+		expect(row?.spend).toBe(232);
+	});
+
 	it('merges id-less traffic into the ad set spend named, across case and separators', async () => {
 		rows.ad_spend_daily = [SPEND('a1b2c3d4-1111-2222-3333-444455556666', 'MEN_25-40_CASUAL_STORY_IND-LPV')];
 		rows.marketing_page_views = [
@@ -491,9 +512,52 @@ describe('delivery state', () => {
 		clicks: 0,
 		network_conversions: 0,
 		fetched_at: '2026-08-10T01:00:00.000Z',
+		status: null,
 		...over
 	});
 	const row = (d: any, name: string) => d.leaderboard.find((r: any) => r.campaign === name);
+
+	it('reports deliveringNow from the network status, separately from the retrospective flag', async () => {
+		// A paused ad set that spent all week before being turned off: still
+		// "delivering" (it had activity in the range), but the network's own
+		// status says it is not live right now — the two must not collapse into
+		// the same boolean.
+		rows.ad_spend_daily = [
+			SPEND({ ad_set_name: 'PAUSED_AFTER_SPEND', impressions: 3304, clicks: 57, spend: '145', status: 'PAUSED' })
+		];
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+		const r = row(d, 'PAUSED_AFTER_SPEND');
+		expect(r.delivering).toBe(true);
+		expect(r.deliveringNow).toBe(false);
+	});
+
+	it('leaves deliveringNow null when status was never synced, rather than guessing from activity', async () => {
+		rows.ad_spend_daily = [SPEND({ ad_set_name: 'NO_STATUS_YET', impressions: 100, clicks: 5, spend: '10' })];
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+		expect(row(d, 'NO_STATUS_YET').deliveringNow).toBeNull();
+	});
+
+	it('treats a MISSING status key the same as an explicit null, not as PAUSED', async () => {
+		// This is the shape a real row has before the migration runs — the column
+		// is absent from the object entirely (`undefined`), not present as `null`.
+		// A caught-live bug: the first version of this feature checked
+		// `c.status === null` only, so `undefined` fell through to "not ACTIVE"
+		// and every row on prod showed a false "paused" badge before any sync had
+		// ever written a status.
+		const { status: _status, ...withoutStatusColumn } = SPEND({ ad_set_name: 'PRE_MIGRATION_ROW' });
+		rows.ad_spend_daily = [withoutStatusColumn];
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+		expect(row(d, 'PRE_MIGRATION_ROW').deliveringNow).toBeNull();
+	});
+
+	it('adopts the freshest day-row\'s status, not the first one seen', async () => {
+		rows.ad_spend_daily = [
+			SPEND({ date: '2026-08-09', status: 'PAUSED' }),
+			SPEND({ date: '2026-08-14', status: 'ACTIVE' })
+		];
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+		expect(row(d, 'AD_SET_A').deliveringNow).toBe(true);
+	});
 
 	it('counts impressions alone as delivering, even before anything is charged', async () => {
 		rows.ad_spend_daily = [SPEND({ impressions: 55, clicks: 1, spend: '0' })];
@@ -709,5 +773,112 @@ describe('crawler traffic is set aside, not counted', () => {
 
 		expect(d.traffic.viewsWithoutAdSet).toBe(1);
 		expect(d.leaderboard.find((r: any) => r.adSetId === REAL_AD_SET)!.views).toBe(1);
+	});
+});
+
+describe('the third dimension: campaign name and per-ad breakdown', () => {
+	const REAL_AD = '11111111-2222-3333-4444-555555555555';
+	const CREATIVE_SPEND = (over: Record<string, any> = {}) => ({
+		network: 'snap',
+		date: '2026-08-10',
+		campaign_id: 'camp1',
+		campaign_name: 'RA_TRAFFIC_GET_IN_BLR_TOF_202608',
+		ad_set_id: REAL_AD_SET,
+		ad_set_name: 'MEN_25-40_CASUAL_STORY_IND-LPV',
+		creative_id: REAL_AD,
+		creative_name: 'story_casual_men_7frame_v1',
+		spend: '42',
+		currency: 'INR',
+		impressions: 900,
+		clicks: 9,
+		network_conversions: 0,
+		status: null,
+		fetched_at: '2026-08-10T01:00:00.000Z',
+		...over
+	});
+
+	it('carries the real campaign name, separate from the ad set label', async () => {
+		rows.ad_spend_daily = [CREATIVE_SPEND()];
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+
+		const row = d.leaderboard.find((r: any) => r.adSetId === REAL_AD_SET);
+		expect(row!.campaign).toBe('MEN_25-40_CASUAL_STORY_IND-LPV');
+		expect(row!.campaignName).toBe('RA_TRAFFIC_GET_IN_BLR_TOF_202608');
+	});
+
+	it('rolls a per-ad spend row up into the ad set total AND keeps the ad-level breakdown', async () => {
+		rows.ad_spend_daily = [CREATIVE_SPEND()];
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+
+		const row = d.leaderboard.find((r: any) => r.adSetId === REAL_AD_SET);
+		// The ad-set total still reflects the underlying spend — a per-ad row is
+		// not a second, separate thing to add up.
+		expect(row!.spend).toBe(42);
+		expect(row!.impressions).toBe(900);
+		expect(row!.ads).toHaveLength(1);
+		expect(row!.ads[0]).toMatchObject({
+			creativeId: REAL_AD,
+			creativeName: 'story_casual_men_7frame_v1',
+			spend: 42,
+			impressions: 900,
+			networkClicks: 9
+		});
+	});
+
+	it('joins traffic to the ad-level breakdown via the already-parsed ad id (utm_id)', async () => {
+		rows.ad_spend_daily = [CREATIVE_SPEND()];
+		rows.marketing_page_views = [{ ...mobileView('2026-08-10T07:00:00.000Z'), utm: { ...SNAP_UTM, utm_id: REAL_AD } }];
+		rows.marketing_store_clicks = [
+			{ ...mobileView('2026-08-10T07:01:00.000Z'), utm: { ...SNAP_UTM, utm_id: REAL_AD }, cta: 'get' }
+		];
+
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+
+		const row = d.leaderboard.find((r: any) => r.adSetId === REAL_AD_SET);
+		// Unchanged: the ad-set-level totals still count every view/tap for the
+		// ad set, same as before this dimension existed.
+		expect(row!.views).toBe(1);
+		expect(row!.taps).toBe(1);
+		const ad = row!.ads.find((a: any) => a.creativeId === REAL_AD);
+		expect(ad).toBeDefined();
+		expect(ad!.views).toBe(1);
+		expect(ad!.taps).toBe(1);
+	});
+
+	it('sums two ads under the same ad set separately, not into one blended row', async () => {
+		const REAL_AD_2 = '66666666-7777-8888-9999-000000000000';
+		rows.ad_spend_daily = [
+			CREATIVE_SPEND(),
+			CREATIVE_SPEND({ creative_id: REAL_AD_2, creative_name: 'story_casual_men_static_v2', spend: '18', impressions: 300, clicks: 3 })
+		];
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+
+		const row = d.leaderboard.find((r: any) => r.adSetId === REAL_AD_SET);
+		// The ad-set total is the SUM of both ads, not either one alone.
+		expect(row!.spend).toBe(60);
+		expect(row!.ads).toHaveLength(2);
+		expect(row!.ads.map((a: any) => a.creativeId).sort()).toEqual([REAL_AD, REAL_AD_2].sort());
+	});
+
+	it('leaves ads empty when no per-ad data has ever synced, same as before this feature existed', async () => {
+		rows.ad_spend_daily = [
+			{
+				network: 'snap',
+				date: '2026-08-10',
+				campaign_id: 'camp1',
+				campaign_name: 'RA_TRAFFIC',
+				ad_set_id: REAL_AD_SET,
+				ad_set_name: 'MEN_25-40_CASUAL_STORY_IND-LPV',
+				creative_id: '',
+				spend: '100',
+				currency: 'INR',
+				impressions: 1000,
+				clicks: 10,
+				network_conversions: 0,
+				fetched_at: '2026-08-10T01:00:00.000Z'
+			}
+		];
+		const d = await buildAdAnalytics({ ...RANGE, granularity: 'day' });
+		expect(d.leaderboard.find((r: any) => r.adSetId === REAL_AD_SET)!.ads).toEqual([]);
 	});
 });

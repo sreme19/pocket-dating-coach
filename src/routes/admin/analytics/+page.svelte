@@ -486,18 +486,102 @@
 			: `updated ${adsFreshness}`;
 	});
 
+	/**
+	 * The network's OWN status (`deliveringNow`) wins whenever it's known — that
+	 * is the real answer to "is this live right now". `delivering` (had ANY
+	 * activity in the selected range) is only a fallback for rows where status
+	 * has never synced, which today is every row: the migration adding the
+	 * column ships alongside this UI change, not before it.
+	 */
+	function isCurrentlyDelivering(r: any): boolean {
+		return r.deliveringNow ?? r.delivering;
+	}
+
 	const adsLeaderboard = $derived(
 		((ads?.leaderboard ?? []) as any[]).filter(
 			(r) =>
 				adsDelivery === 'all' ||
-				(adsDelivery === 'delivering' ? r.delivering : !r.delivering)
+				(adsDelivery === 'delivering' ? isCurrentlyDelivering(r) : !isCurrentlyDelivering(r))
 		)
 	);
 	const adsDeliveryCounts = $derived({
 		all: ((ads?.leaderboard ?? []) as any[]).length,
-		delivering: ((ads?.leaderboard ?? []) as any[]).filter((r) => r.delivering).length,
-		idle: ((ads?.leaderboard ?? []) as any[]).filter((r) => !r.delivering).length
+		delivering: ((ads?.leaderboard ?? []) as any[]).filter((r) => isCurrentlyDelivering(r)).length,
+		idle: ((ads?.leaderboard ?? []) as any[]).filter((r) => !isCurrentlyDelivering(r)).length
 	});
+
+	/**
+	 * The third dimension (ad/creative) is a per-row drill-down rather than a
+	 * separate flat table — most rows have no per-ad data yet (it needs
+	 * fetchSnapCreativeSpend or Meta's ad-level fetch to have run), and a
+	 * column that's empty for every row except a handful reads as broken.
+	 * Expansion state is keyed the same way "no ad set id" rows already
+	 * distinguish themselves elsewhere on this table.
+	 */
+	let expandedAdSetRows = $state(new Set<string>());
+	function adSetRowKey(c: any): string {
+		return c.adSetId ?? c.campaign;
+	}
+	function toggleAdSetRow(key: string) {
+		const next = new Set(expandedAdSetRows);
+		if (next.has(key)) next.delete(key);
+		else next.add(key);
+		expandedAdSetRows = next;
+	}
+
+	/**
+	 * Anomalies arrive as plain strings from the server — see ad-analytics.ts.
+	 * Classified here, client-side, against the handful of fixed templates that
+	 * file actually emits, so a dismiss survives an in-page Refresh (the numbers
+	 * inside a message change every fetch; the ISSUE it names does not) while a
+	 * real reload of the page clears the dismiss set and brings everything back.
+	 *
+	 * Severity governs sort order and which few show by default — six warning
+	 * banners stacked above the charts is the thing being fixed here, not the
+	 * anomalies themselves.
+	 */
+	const ANOMALY_RULES: Array<{ test: RegExp; severity: 0 | 1 | 2; key: (m: RegExpMatchArray) => string }> = [
+		{ test: /^Landing page views down/, severity: 0, key: () => 'decline' },
+		{ test: /^Every Snap conversion forward failed/, severity: 0, key: () => 'snap-capi' },
+		{ test: /^Every Meta conversion forward failed/, severity: 0, key: () => 'meta-capi' },
+		{
+			test: /^(.+?): \d+ clicks charged for and zero landing page views/,
+			severity: 0,
+			key: (m) => `spend-leak:${m[1]}`
+		},
+		{ test: /^Spend in a currency with no/, severity: 1, key: () => 'fx-missing' },
+		{ test: /^(.+?): \d+ store taps and zero attributed signups\./, severity: 1, key: (m) => `zero-signup:${m[1]}` },
+		{ test: /arrived in the single minute/, severity: 2, key: () => 'burst' }
+	];
+	function classifyAnomaly(note: string): { key: string; severity: 0 | 1 | 2 } {
+		for (const rule of ANOMALY_RULES) {
+			const m = note.match(rule.test);
+			if (m) return { key: rule.key(m), severity: rule.severity };
+		}
+		return { key: note, severity: 1 };
+	}
+
+	/** In-memory only — a fresh page load is what brings a dismissed anomaly back. */
+	let dismissedAnomalies = $state(new Set<string>());
+	/** How many surface before the reader has to ask for more. */
+	const ANOMALIES_SHOWN_BY_DEFAULT = 3;
+	let anomaliesExpanded = $state(false);
+
+	const adsAnomalies = $derived.by(() => {
+		const notes = (ads?.anomalies ?? []) as string[];
+		return notes
+			.map((note) => ({ note, ...classifyAnomaly(note) }))
+			.filter((a) => !dismissedAnomalies.has(a.key))
+			.sort((a, b) => a.severity - b.severity);
+	});
+	const adsAnomaliesVisible = $derived(
+		anomaliesExpanded ? adsAnomalies : adsAnomalies.slice(0, ANOMALIES_SHOWN_BY_DEFAULT)
+	);
+	const adsAnomaliesHiddenCount = $derived(Math.max(0, adsAnomalies.length - adsAnomaliesVisible.length));
+
+	function dismissAnomaly(key: string) {
+		dismissedAnomalies = new Set(dismissedAnomalies).add(key);
+	}
 
 	const NETWORK_CHIPS = [
 		{ id: 'all', label: 'All' },
@@ -1446,16 +1530,36 @@
 			</div>
 		{/if}
 		<!-- Anomalies. Deliberately above every chart: on a day when something is
-		     broken, this is the only thing on the page worth reading. -->
-		{#if ads.anomalies.length}
+		     broken, this is the only thing on the page worth reading. Capped and
+		     dismissible so that "something is broken" does not itself become the
+		     thing crowding the rest of the page out — see classifyAnomaly above. -->
+		{#if adsAnomalies.length}
 			<div class="mb-6 space-y-2">
-				{#each ads.anomalies as note}
+				{#each adsAnomaliesVisible as a (a.key)}
 					<div
-						class="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[15px] text-amber-300"
+						class="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[15px] text-amber-300"
 					>
-						⚠ {note}
+						<span class="flex-1">⚠ {a.note}</span>
+						<button
+							onclick={() => dismissAnomaly(a.key)}
+							title="Dismiss — reappears next time this dashboard is opened"
+							class="shrink-0 rounded px-1.5 text-amber-300/60 transition-colors hover:bg-amber-500/10 hover:text-amber-200"
+							>✕</button
+						>
 					</div>
 				{/each}
+				{#if adsAnomaliesHiddenCount > 0}
+					<button
+						onclick={() => (anomaliesExpanded = true)}
+						class="text-[14px] text-amber-300/70 transition-colors hover:text-amber-200"
+						>Show {adsAnomaliesHiddenCount} more issue{adsAnomaliesHiddenCount === 1 ? '' : 's'}</button
+					>
+				{:else if anomaliesExpanded && adsAnomalies.length > ANOMALIES_SHOWN_BY_DEFAULT}
+					<button
+						onclick={() => (anomaliesExpanded = false)}
+						class="text-[14px] text-amber-300/70 transition-colors hover:text-amber-200">Show fewer</button
+					>
+				{/if}
 			</div>
 		{/if}
 
@@ -1875,16 +1979,19 @@
 		<div class="card mb-6 overflow-x-auto">
 			<div class="mb-3 flex flex-wrap items-center justify-between gap-3">
 				<div class="chart-title mb-0">Ad set leaderboard · spend in {adsCurrency}</div>
-				<!-- Delivery. Filters rows only — an idle ad set contributes no traffic
-				     by definition, so hiding it must not move the charts above. -->
+				<!-- Delivery. Filters rows only — a not-delivering ad set contributes no
+				     traffic by definition, so hiding it must not move the charts above.
+				     Prefers the network's OWN status where it's known (isCurrentlyDelivering);
+				     falls back to "had any activity in this range" only for rows synced
+				     before the status column existed. -->
 				<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-[15px]">
 					{#each [{ id: 'all', label: 'All' }, { id: 'delivering', label: 'Delivering' }, { id: 'idle', label: 'Not delivering' }] as chip}
 						<button
 							onclick={() => (adsDelivery = chip.id as typeof adsDelivery)}
 							title={chip.id === 'idle'
-								? 'Nothing served, nothing charged, nobody arrived in this range'
+								? 'Paused on the network, or — where status has not synced yet — nothing served, charged, or arrived in this range'
 								: chip.id === 'delivering'
-									? 'Any activity in this range — impressions, clicks, spend, views or taps'
+									? 'Active on the network right now, or — where status has not synced yet — any activity in this range'
 									: 'Every ad set either side has seen'}
 							class="px-3 py-1.5 transition-colors {adsDelivery === chip.id
 								? 'bg-emerald-500/20 text-emerald-400'
@@ -1906,9 +2013,13 @@
 			     worst on the numeric columns where it matters most. Headers stay
 			     dimmer — the hierarchy was never the problem.
 			     min-width grows with the type or eight columns of 16px crush. -->
-			<table class="w-full min-w-[64rem] text-[16px]">
+			<table class="w-full min-w-[70rem] text-[16px]">
 				<thead class="text-slate-500">
 					<tr>
+						<!-- Blank header for the expand toggle column — nothing to label,
+						     it exists only where a row has ads to drill into. -->
+						<th class="w-6"></th>
+						<th class="py-1 text-left">Campaign</th>
 						<th class="py-1 text-left">Ad set</th>
 						<th class="text-right">Spend</th>
 						<th class="text-right">Impr.</th>
@@ -1921,7 +2032,22 @@
 				</thead>
 				<tbody>
 					{#each adsLeaderboard as c}
+						{@const rowKey = adSetRowKey(c)}
+						{@const expanded = expandedAdSetRows.has(rowKey)}
 						<tr class="border-t border-white/[0.04]">
+							<td class="py-2 text-center">
+								{#if c.ads.length > 0}
+									<button
+										onclick={() => toggleAdSetRow(rowKey)}
+										title="{c.ads.length} ad{c.ads.length === 1 ? '' : 's'} — {expanded
+											? 'collapse'
+											: 'show the ad-level breakdown'}"
+										class="text-slate-500 transition-colors hover:text-slate-200"
+										>{expanded ? '▾' : '▸'}</button
+									>
+								{/if}
+							</td>
+							<td class="py-2 text-slate-400">{c.campaignName ?? '—'}</td>
 							<td class="py-2 text-slate-200"
 								>{c.campaign}
 								{#if c.paidButNoTraffic && c.networkClicks >= ads.paidNoTrafficMinClicks}
@@ -1934,6 +2060,17 @@
 										class="ml-1.5 whitespace-nowrap rounded bg-rose-500/15 px-2 py-0.5 text-[12px] text-rose-300"
 										title="{c.networkClicks} clicks charged for, zero landing page views — check where this ad set points"
 										>no arrivals</span
+									>
+								{:else if c.deliveringNow === false}
+									<!-- The network's OWN status, not a guess from activity — this row
+									     may still show real spend and impressions from before it was
+									     paused. Kept visually distinct from "idle" below: this ad set
+									     ran, it was simply turned off, which is a different fact from
+									     "nothing ever happened here". -->
+									<span
+										class="ml-1.5 whitespace-nowrap rounded bg-white/[0.06] px-2 py-0.5 text-[12px] text-slate-500"
+										title="Paused on the network as of the last sync — may still show spend and impressions from before it was paused"
+										>paused</span
 									>
 								{:else if !c.delivering}
 									<span
@@ -1981,11 +2118,41 @@
 								>{c.costPerSignup ? fmtMoney(c.costPerSignup) : '—'}</td
 							>
 						</tr>
+						{#if expanded}
+							{#each c.ads as ad}
+								<!-- The ad (creative) row — one level below the ad set. Signups and
+								     cost/signup stay blank rather than 0 or a computed number: neither
+								     is tracked at this grain, and a number here would look measured
+								     rather than simply absent. -->
+								<tr class="border-t border-white/[0.02] bg-white/[0.015] text-[15px]">
+									<td></td>
+									<td class="py-1.5"></td>
+									<td class="py-1.5 pl-4 text-slate-400">↳ {ad.creativeName ?? ad.creativeId}</td>
+									<td class="text-right tabular-nums text-slate-400"
+										>{ad.spend ? fmtMoney(ad.spend) : '—'}</td
+									>
+									<td class="text-right tabular-nums text-slate-400">{ad.impressions || '—'}</td>
+									<td class="text-right tabular-nums {ad.views ? 'text-slate-400' : 'text-slate-600'}"
+										>{ad.views}</td
+									>
+									<td class="text-right tabular-nums {ad.taps ? 'text-slate-400' : 'text-slate-600'}"
+										>{ad.taps}</td
+									>
+									<td
+										class="text-right tabular-nums {ad.tapRate == null
+											? 'text-slate-600'
+											: 'text-slate-400'}">{fmtRate(ad.tapRate, ad.views)}</td
+									>
+									<td class="text-right text-slate-600">—</td>
+									<td class="text-right text-slate-600">—</td>
+								</tr>
+							{/each}
+						{/if}
 					{:else}
 						<!-- Distinguishes "the filter hid everything" from "there is nothing
 						     here", which look identical as an empty table. -->
 						<tr
-							><td colspan="8" class="py-6 text-center text-slate-600"
+							><td colspan="10" class="py-6 text-center text-slate-600"
 								>{adsDelivery === 'all'
 									? 'No ad set data in this window.'
 									: `No ad set is ${adsDelivery === 'delivering' ? 'delivering' : 'idle'} in this window.`}</td

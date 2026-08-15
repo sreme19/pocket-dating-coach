@@ -417,9 +417,32 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
    * The ad set is also the right unit of decision: one audience, one placement,
    * one optimisation goal.
    */
+  /**
+   * One ad (creative) within an ad set — the third of the three dimensions
+   * (campaign / ad set / ad) the leaderboard rolls up to. Joined the same way
+   * the ad set itself is: spend carries it when a per-ad fetch has run
+   * (`fetchSnapCreativeSpend`, or Meta's ad-level `fetchMetaSpend`), traffic
+   * carries it via the AD id already parsed by `adSetKeyOf` (`k.adId` — Snap's
+   * `utm_id`, Meta's `utm_content`) but never used here before now.
+   */
+  type AdCreative = {
+    creativeId: string;
+    creativeName: string | null;
+    spend: number;
+    impressions: number;
+    networkClicks: number;
+    views: number;
+    taps: number;
+  };
   type AdSet = {
     /** Display label. Named `campaign` so existing UI bindings keep working. */
     campaign: string;
+    /**
+     * The actual ad CAMPAIGN name — a level above the ad set, and distinct
+     * from `campaign` above despite the confusing shared word. Null until a
+     * spend row supplies one; traffic carries no campaign-level name at all.
+     */
+    campaignName: string | null;
     adSetId: string | null;
     network: string;
     spend: number;
@@ -428,12 +451,24 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
     views: number;
     taps: number;
     signups: number;
+    /**
+     * The network's own admin-set status (ACTIVE/PAUSED) as of the freshest
+     * spend row seen for this key. Null when never synced with a status —
+     * every row before the `status` column existed, or any network whose adapter doesn't
+     * fetch it yet (Meta, until its entity read is wired up). Deliberately NOT
+     * derived from `delivering` below — that is retrospective ("had activity in
+     * this range"), this is the network's answer to "is it live right now".
+     */
+    status: 'ACTIVE' | 'PAUSED' | null;
+    /** Per-ad breakdown, keyed by creative id. Empty until per-ad data exists. */
+    ads: Map<string, AdCreative>;
   };
   const adSets = new Map<string, AdSet>();
   const of = (key: string, label: string | null, network: string, adSetId: string | null): AdSet => {
     if (!adSets.has(key)) {
       adSets.set(key, {
         campaign: label && label.trim() ? label : '(unattributed)',
+        campaignName: null,
         adSetId,
         network,
         spend: 0,
@@ -441,7 +476,9 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
         networkClicks: 0,
         views: 0,
         taps: 0,
-        signups: 0
+        signups: 0,
+        status: null,
+        ads: new Map()
       });
     }
     const row = adSets.get(key)!;
@@ -449,6 +486,33 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
     // Prefer whichever arrives with a proper label.
     if (label && label.trim() && row.campaign === '(unattributed)') row.campaign = label;
     return row;
+  };
+
+  /**
+   * The ad-level row within an ad set, created on first sight and filled in
+   * once — NOT freshest-wins like the ad set's own name above. An ad is
+   * rarely renamed, this is the third dimension of an already-large rollup,
+   * and the ad-set-level hardening above was itself precautionary rather than
+   * a fix for an observed rename; the same caution one level deeper is not
+   * worth the extra bookkeeping until an actual case shows up.
+   */
+  const adOf = (row: AdSet, creativeId: string, creativeName: string | null): AdCreative => {
+    let ad = row.ads.get(creativeId);
+    if (!ad) {
+      ad = {
+        creativeId,
+        creativeName: creativeName && creativeName.trim() ? creativeName : null,
+        spend: 0,
+        impressions: 0,
+        networkClicks: 0,
+        views: 0,
+        taps: 0
+      };
+      row.ads.set(creativeId, ad);
+    } else if (creativeName && creativeName.trim() && !ad.creativeName) {
+      ad.creativeName = creativeName;
+    }
+    return ad;
   };
 
   /**
@@ -480,10 +544,56 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
   /** `${network}:${normalised name}` -> rollup key, only for ids spend confirmed. */
   const byNormName = new Map<string, string>();
 
+  /**
+   * PREFER THE MOST RECENTLY DATED SPEND ROW'S NAME AND STATUS, not the first
+   * one `of()` saw.
+   *
+   * Snap and Meta let an ad set be renamed or paused/resumed in place, but
+   * `ad_spend_daily` freezes both `ad_set_name` and `status` as they read AT
+   * SYNC TIME on every day-row, and the sync only re-fetches a trailing window
+   * (SYNC_WINDOW_DAYS) — so a day-row from before a rename, or from before it
+   * was last paused, would otherwise win by being processed first. `of()`'s
+   * guard only fills in a label once; without this, the freshest reality could
+   * lose to a stale row purely on array order. Checked the name half against
+   * production on 2026-08-15: no ad set currently in the table has actually
+   * been renamed (every id maps to exactly one name across its whole history),
+   * so this is hardening against a risk the design invites, not a fix for an
+   * observed row. Tracked by date rather than re-sorting spendRows, so it
+   * stays correct regardless of what order Supabase returns rows in.
+   */
+  const latestSpendDate = new Map<string, string>();
+  const adoptFreshestSpendFields = (
+    key: string,
+    label: string | null,
+    campaignName: string | null,
+    status: 'ACTIVE' | 'PAUSED' | null,
+    date: string
+  ) => {
+    const seenDate = latestSpendDate.get(key);
+    if (seenDate && seenDate >= date) return;
+    latestSpendDate.set(key, date);
+    const row = adSets.get(key);
+    if (!row) return;
+    if (label && label.trim()) row.campaign = label;
+    if (campaignName && campaignName.trim()) row.campaignName = campaignName;
+    row.status = status;
+  };
+
   for (const s of spendRows) {
     const id = s.ad_set_id || null;
     const key = id ? `${s.network}:${id}` : `${s.network}:name:${s.campaign_name ?? s.campaign_id}`;
     const row = of(key, s.ad_set_name ?? s.campaign_name ?? s.campaign_id, s.network, id);
+    // Normalised rather than cast: a row from before the status column existed
+    // reads back as `undefined`, not `null` (the column is simply absent from
+    // the object) — treated identically here, since both mean "not known".
+    const spendStatus = s.status === 'ACTIVE' || s.status === 'PAUSED' ? s.status : null;
+    adoptFreshestSpendFields(
+      key,
+      s.ad_set_name ?? s.campaign_name ?? s.campaign_id,
+      s.campaign_name,
+      spendStatus,
+      s.date
+    );
     row.spend += toDisplay(Number(s.spend), s.currency, s.date);
     row.impressions += Number(s.impressions ?? 0);
     row.networkClicks += Number(s.clicks ?? 0);
@@ -491,6 +601,21 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
     if (id && s.ad_set_name) {
       const n = normName(s.ad_set_name);
       if (n) byNormName.set(`${s.network}:${n}`, key);
+    }
+    /**
+     * THE AD (creative) DIMENSION, when this row has one.
+     *
+     * Squad-level and ad-level rows for the same ad set never coexist in the
+     * table at once — `dropStaleAdSquadLevelRows` in sync.ts removes the
+     * squad-level aggregate the moment ad-level rows land for it — so this
+     * never double counts against `row.spend` above; it only adds a finer
+     * breakdown underneath whichever grain is actually present.
+     */
+    if (s.creative_id) {
+      const ad = adOf(row, s.creative_id, s.creative_name);
+      ad.spend += toDisplay(Number(s.spend), s.currency, s.date);
+      ad.impressions += Number(s.impressions ?? 0);
+      ad.networkClicks += Number(s.clicks ?? 0);
     }
   }
 
@@ -523,11 +648,17 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
     const p = placeRow(v.utm, v.campaign);
     if (p.matched === 'name') viewsReconciledByName += 1;
     else if (p.matched === 'none') viewsUnattributed += 1;
-    of(p.key, p.label, p.k.network, p.k.adSetId).views += 1;
+    const row = of(p.key, p.label, p.k.network, p.k.adSetId);
+    row.views += 1;
+    // The ad (creative) id, already parsed by adSetKeyOf but never joined
+    // anywhere until now — Snap's utm_id, Meta's utm_content.
+    if (p.k.adId) adOf(row, p.k.adId, null).views += 1;
   }
   for (const c of clickRows) {
     const p = placeRow(c.utm, c.campaign);
-    of(p.key, p.label, p.k.network, p.k.adSetId).taps += 1;
+    const row = of(p.key, p.label, p.k.network, p.k.adSetId);
+    row.taps += 1;
+    if (p.k.adId) adOf(row, p.k.adId, null).taps += 1;
   }
   for (const a of acqRows) {
     // user_acquisition stores the ad set id in `ad_set`, from the install referrer.
@@ -539,6 +670,19 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
   const leaderboard = [...adSets.values()]
     .map((c) => ({
       ...c,
+      /**
+       * The ad-level breakdown, as a plain array — `ads` on `c` is a `Map`,
+       * which serialises to `{}` over JSON and is unusable from the client
+       * either way. Sorted by spend the same way the leaderboard itself is,
+       * so opening a row's breakdown reads top-to-bottom the same way.
+       */
+      ads: [...c.ads.values()]
+        .map((ad) => ({
+          ...ad,
+          tapRate: rate(ad.taps, ad.views),
+          costPerTap: ad.taps > 0 && ad.spend > 0 ? ad.spend / ad.taps : null
+        }))
+        .sort((a, b) => b.spend - a.spend || b.views - a.views),
       // Per-visit, not two totals divided by each other: a visit that produced
       // three taps is one converted visit, and reloads do not push it over 100%.
       tapRate: rate(c.taps, c.views),
@@ -568,6 +712,16 @@ export async function buildAdAnalytics(opts: AdAnalyticsOptions) {
        */
       delivering:
         c.spend > 0 || c.impressions > 0 || c.networkClicks > 0 || c.views > 0 || c.taps > 0,
+      /**
+       * The network's OWN answer to "is this live right now" — `null` when it
+       * was never fetched (every row before the status column existed, and every
+       * Meta row until its entity read exists), and otherwise exactly what Snap
+       * or Meta most recently reported. Deliberately separate from `delivering`
+       * above: that is "had any activity inside the selected range", which is
+       * still true for an ad set paused yesterday after spending all week, and
+       * the two answer different questions a reader can otherwise only guess at.
+       */
+      deliveringNow: c.status === null ? null : c.status === 'ACTIVE',
       /**
        * Serving and being charged for, but nothing reaching the landing page.
        *

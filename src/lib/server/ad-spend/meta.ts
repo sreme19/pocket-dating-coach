@@ -1,5 +1,5 @@
 /**
- * Meta Marketing API (Insights) — daily spend per campaign.
+ * Meta Marketing API (Insights) — daily spend per AD.
  *
  * Differs from Snap in three ways worth knowing before reading the code.
  *
@@ -8,7 +8,7 @@
  * micro integer is divided as a string: the value goes into a numeric column and
  * a round trip through a double is the one step that could lose a paisa.
  *
- * ONE ROW PER DAY PER CAMPAIGN comes from `time_increment=1`. Without it the API
+ * ONE ROW PER DAY PER AD comes from `time_increment=1`. Without it the API
  * returns a single aggregate for the whole range, which looks plausible, sums
  * correctly, and destroys every trend chart on the dashboard.
  *
@@ -20,6 +20,18 @@
  *
  * Returns an empty result rather than throwing when unconfigured, so this ships
  * inert and starts working the moment META_MARKETING_TOKEN is set.
+ *
+ * FETCHED AT AD LEVEL, NOT CAMPAIGN, so the same rows carry campaign, ad set and
+ * ad names/ids in one pass — no separate campaign-level call, and no risk of the
+ * two grains disagreeing or double-counting the way `dropStaleCoarserRows` in
+ * `sync.ts` exists to guard against on the Snap side. Rolling these rows up by
+ * campaign_id (or by ad_set_id) reproduces exactly what a campaign-level (or
+ * ad-set-level) fetch would have returned, so nothing is lost by going straight
+ * to the finest grain. UNVERIFIED AGAINST THE LIVE API: this account has never
+ * had META_MARKETING_TOKEN set (see the Ad Analytics memory), so the exact field
+ * names below (`adset_id`/`adset_name`/`ad_id`/`ad_name`) are Meta's documented
+ * Insights breakdown fields, not something this code has ever seen a real
+ * response for.
  */
 
 import { env } from '$env/dynamic/private';
@@ -70,10 +82,11 @@ export async function fetchMetaSpend(start: string, end: string): Promise<FetchR
   if (!token || !adAccountId) return { rows: [], error: null, configured: false };
 
   const params = new URLSearchParams({
-    level: 'campaign',
+    level: 'ad',
     // One row per day. Without it the range collapses into a single total.
     time_increment: '1',
-    fields: 'campaign_id,campaign_name,spend,impressions,clicks,account_currency,date_start',
+    fields:
+      'campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,spend,impressions,clicks,account_currency,date_start',
     time_range: JSON.stringify({ since: start, until: end }),
     limit: '500',
     access_token: token
@@ -100,10 +113,10 @@ export async function fetchMetaSpend(start: string, end: string): Promise<FetchR
       date: String(row.date_start ?? '').slice(0, 10),
       campaignId: String(row.campaign_id ?? ''),
       campaignName: (row.campaign_name as string) ?? null,
-      adSetId: '',
-      adSetName: null,
-      creativeId: '',
-      creativeName: null,
+      adSetId: String(row.adset_id ?? ''),
+      adSetName: (row.adset_name as string) ?? null,
+      creativeId: String(row.ad_id ?? ''),
+      creativeName: (row.ad_name as string) ?? null,
       spend: asDecimal(row.spend),
       currency: String(row.account_currency ?? 'USD'),
       impressions: asInt(row.impressions),
@@ -112,7 +125,12 @@ export async function fetchMetaSpend(start: string, end: string): Promise<FetchR
       // Meta reports in the ad account's timezone but does not return it on the
       // insights row. Left null rather than guessed — a wrong timezone recorded
       // as fact is worse than an absent one.
-      accountTimezone: null
+      accountTimezone: null,
+      // `effective_status` lives on the entity-read endpoint, not on an Insights
+      // row — a separate API call this function does not make. Null until
+      // that's wired up, same as every other Meta row here until credentials
+      // exist to test any of it against.
+      status: null
     }));
 
     return { rows: rows.filter((r) => r.date), error: null, configured: true };
