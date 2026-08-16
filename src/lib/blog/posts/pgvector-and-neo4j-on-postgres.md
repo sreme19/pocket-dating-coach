@@ -1,29 +1,20 @@
 ---
 title: pgvector and Neo4j sitting on top of Postgres, and the multi-hop question neither alone can answer
 date: 2026-08-16
-summary: A founder building AI hardware asked me about a proprietary small language model, then I sent a follow-up note about vector and graph retrieval as the cheaper alternative — and the note undersold what was actually being decided. Each layer buys immunity from a different failure, not a discount on the same one. I grounded the claim in three systems I've actually run: a dating app's relational core in production, a graph demo that models that same app's match-and-handoff chain in Neo4j, and a governed lakehouse fusing pgvector with a lineage graph. Stacked in the right order, the three answer a question — why did a specific connection go quiet — that no single layer can answer alone, and the order you add them in is not interchangeable.
+summary: A team building past prototype asked how to stand up a proprietary small language model, and the advice I gave back — try vector and graph retrieval instead, cheaper to build — undersold what was actually being decided. Each layer buys immunity from a different failure, not a discount on the same one. I grounded the claim in three systems I've actually run: a dating app's relational core in production, a graph demo that models that same app's match-and-handoff chain in Neo4j, and a governed lakehouse fusing pgvector with a lineage graph. Stacked in the right order, the three answer a question — why did a specific connection go quiet — that no single layer can answer alone, and the order you add them in is not interchangeable.
 tags: [data-platform, agent-architecture, context-engineering]
 cover: /og/blog/pgvector-and-neo4j-on-postgres.png
 ---
 
-*A note on what follows: the exchange that opens this post is a real one, with the
-company's name, the founder's name, and every identifying detail removed at their
-request-equivalent — I have not published anything about their product beyond
-what is already public, and the technical recommendation is generalised past
-their specific system. Flagged before publishing, per my usual rule for anything
-that touches someone else's work.*
+A team building a hardware product past prototype stage — real users, a paid
+pilot on the calendar — asked me how to stand up a proprietary small language
+model, self-hosted, with unit economics that survive scale. A fair question
+for a team heads-down on shipping. The advice I gave back, before any of that:
+try retrieval-augmented generation over a vector database, optionally combined
+with a graph database — cheaper to build than an SLM, and it buys the same
+win, more contextual generation per user at a lower token cost.
 
-A founder building AI-hardware for children — a voice companion, cloud pipeline,
-a parent-facing app, already past prototype — messaged me asking about one
-thing: standing up a proprietary small language model, self-hosted, with unit
-economics that survive scale. A fair question for a team heads-down on shipping
-a pilot. I answered it, then the next morning sent a follow-up I'd forgotten the
-night before: before you build an SLM, try retrieval-augmented generation over
-a vector database, optionally combined with a graph database — cheaper to
-build, and it buys you the same win, more contextual generation per user at a
-lower token cost.
-
-Everything in that follow-up is true and none of it says which problem each
+Everything in that advice is true and none of it says which problem each
 piece actually solves. "Combine with a graph database" reads as an upgrade
 tier — do the vector thing, then, budget allowing, do the fancier thing too.
 That is backwards. A vector index and a graph are not two strengths of the
@@ -173,9 +164,9 @@ richer answers to the same question; it means the system can now be asked
 three distinct kinds of question and have an honest answer to all three,
 instead of a confident answer to only one.
 
-## What I'd tell the founder now
+## What the corrected advice looks like
 
-The corrected version of that follow-up message: a vector database earns its
+A vector database earns its
 keep the moment you have a corpus of text you want a model to ground replies
 in rather than recall unaided — build that first, because most early products
 need exactly that and nothing more. Add a graph only once a real user
