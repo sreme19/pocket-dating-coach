@@ -4,7 +4,6 @@ date: 2026-08-16
 summary: A founder building AI hardware asked me about a proprietary small language model, then I sent a follow-up note about vector and graph retrieval as the cheaper alternative — and the note undersold what was actually being decided. Each layer buys immunity from a different failure, not a discount on the same one. I grounded the claim in three systems I've actually run: a dating app's relational core in production, a graph demo that models that same app's match-and-handoff chain in Neo4j, and a governed lakehouse fusing pgvector with a lineage graph. Stacked in the right order, the three answer a question — why did a specific connection go quiet — that no single layer can answer alone, and the order you add them in is not interchangeable.
 tags: [data-platform, agent-architecture, context-engineering]
 cover: /og/blog/pgvector-and-neo4j-on-postgres.png
-draft: true
 ---
 
 *A note on what follows: the exchange that opens this post is a real one, with the
