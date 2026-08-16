@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 460" width="560" height="460" role="img" aria-labelledby="gtt gtd">
+  <title id="gtt">Graph traversal: a five-hop path walked in Neo4j</title>
+  <desc id="gtd">A property graph in Neo4j connects a person to a match, the match to a handoff, the handoff to a trust event, and the trust event to a replacement match. A Cypher query walks this exact chain of named edges, deterministically, rather than searching for text that merely reads alike.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .src { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .w { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; fill: #b4541e; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 12.5px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; fill: #6e6a63; }
+    .path { stroke: #b4541e; stroke-width: 2; fill: none; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    @media (prefers-reduced-motion: no-preference) {
+      .path { stroke-dasharray: 5 5; animation: fl 0.9s linear infinite; }
+    }
+    @keyframes fl { to { stroke-dashoffset: -10; } }
+  </style>
+
+  <rect class="bg" width="560" height="460" rx="8"/>
+
+  <text class="w" x="30" y="34">NEO4J</text>
+  <text class="h" x="30" y="52">Property graph — exact chain, named edges</text>
+
+  <!-- W0007 -->
+  <rect class="src" x="30" y="80" width="110" height="50" rx="6"/>
+  <text class="w" x="46" y="99">PERSON</text>
+  <text class="s" x="46" y="115">W0007</text>
+
+  <path class="path" d="M140 105 L220 105" marker-end="url(#a)"/>
+  <text class="s" x="150" y="98">:IN_MATCH</text>
+
+  <!-- match -->
+  <rect class="card" x="220" y="80" width="110" height="50" rx="6"/>
+  <text class="w" x="236" y="99">MATCH</text>
+  <text class="s" x="236" y="115">MT001042</text>
+
+  <path class="path" d="M330 130 L330 170" marker-end="url(#a)"/>
+  <text class="s" x="340" y="155">:HAS_HANDOFF</text>
+
+  <!-- handoff -->
+  <rect class="card" x="275" y="172" width="150" height="54" rx="6"/>
+  <text class="w" x="290" y="192">HANDOFF</text>
+  <text class="s" x="290" y="208">status = expired</text>
+  <text class="s" x="290" y="220">deadline 2026-03-14</text>
+
+  <path class="path" d="M350 226 L350 266" marker-end="url(#a)"/>
+  <text class="s" x="360" y="251">:HAD_TRUST_EVENT</text>
+
+  <!-- trust event -->
+  <rect class="card" x="275" y="268" width="150" height="54" rx="6"/>
+  <text class="w" x="290" y="288">TRUST_EVENT</text>
+  <text class="s" x="290" y="304">delta = -3</text>
+  <text class="s" x="290" y="316">handoff_expired_no_response</text>
+
+  <path class="path" d="M275 295 L150 295" marker-end="url(#a)"/>
+  <text class="s" x="150" y="285">:REPLACED_BY</text>
+
+  <!-- replacement match -->
+  <rect class="src" x="30" y="270" width="120" height="52" rx="6"/>
+  <text class="w" x="46" y="290">MATCH</text>
+  <text class="s" x="46" y="306">MT001043 (new)</text>
+
+  <path class="path" d="M90 270 L90 130" marker-end="url(#a)"/>
+
+  <!-- query -->
+  <rect class="card" x="60" y="350" width="440" height="46" rx="6"/>
+  <text class="h" x="80" y="378">MATCH (p:PERSON)-[:IN_MATCH]-&gt;(:MATCH)-[:HAS_HANDOFF]-&gt;(h)</text>
+
+  <text class="foot" x="280" y="430" text-anchor="middle">One traversal, five named hops, deterministic — a model narrates the result, never computes it.</text>
+
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b4541e"/>
+    </marker>
+  </defs>
+</svg>

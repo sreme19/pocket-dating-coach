@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 460" width="560" height="460" role="img" aria-labelledby="vrt vrd">
+  <title id="vrt">Vector retrieval: embed, index with HNSW, search by similarity</title>
+  <desc id="vrd">Documents are embedded offline into a pgvector HNSW index. A user query is embedded at request time, and approximate nearest-neighbor search over the layered graph returns the closest passages by cosine distance, regardless of whether the query shares any wording with the source text.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .src { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .node { fill: #ffffff; stroke: #b4541e; stroke-width: 1.4; }
+    .w { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; fill: #b4541e; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 13px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 10.5px; fill: #6e6a63; }
+    .arrow { stroke: #97928a; stroke-width: 1.5; fill: none; }
+    .edge { stroke: #d8cfc0; stroke-width: 1; fill: none; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: fl 0.9s linear infinite; }
+    }
+    @keyframes fl { to { stroke-dashoffset: -8; } }
+  </style>
+
+  <rect class="bg" width="560" height="460" rx="8"/>
+
+  <text class="w" x="30" y="34">PGVECTOR</text>
+  <text class="h" x="30" y="52">Documents embedded offline into an HNSW index</text>
+
+  <!-- HNSW layered graph, small nodes with edges -->
+  <g>
+    <line class="edge" x1="120" y1="90" x2="220" y2="80"/>
+    <line class="edge" x1="220" y1="80" x2="330" y2="95"/>
+    <line class="edge" x1="120" y1="90" x2="150" y2="140"/>
+    <line class="edge" x1="220" y1="80" x2="250" y2="140"/>
+    <line class="edge" x1="330" y1="95" x2="380" y2="140"/>
+    <line class="edge" x1="150" y1="140" x2="250" y2="140"/>
+    <line class="edge" x1="250" y1="140" x2="380" y2="140"/>
+    <line class="edge" x1="150" y1="140" x2="200" y2="185"/>
+    <line class="edge" x1="380" y1="140" x2="330" y2="185"/>
+    <line class="edge" x1="200" y1="185" x2="330" y2="185"/>
+
+    <circle class="node" cx="120" cy="90" r="7"/>
+    <circle class="node" cx="220" cy="80" r="7"/>
+    <circle class="node" cx="330" cy="95" r="7"/>
+    <circle class="node" cx="150" cy="140" r="7"/>
+    <circle class="node" cx="250" cy="140" r="7"/>
+    <circle class="node" cx="380" cy="140" r="7"/>
+    <circle class="node" cx="200" cy="185" r="7"/>
+    <circle class="node" cx="330" cy="185" r="7" fill="#b4541e"/>
+  </g>
+  <text class="s" x="410" y="188">nearest match</text>
+
+  <!-- query -->
+  <rect class="src" x="380" y="210" width="150" height="44" rx="6"/>
+  <text class="h" x="455" y="236" text-anchor="middle">Query</text>
+
+  <path class="arrow" d="M380 232 L330 190" marker-end="url(#a)"/>
+
+  <!-- embed -->
+  <path class="arrow" d="M455 210 L455 264" marker-end="url(#a)"/>
+  <rect class="card" x="380" y="266" width="150" height="40" rx="6"/>
+  <text class="w" x="400" y="284">EMBED</text>
+  <text class="s" x="400" y="298">same model</text>
+
+  <!-- ANN search -->
+  <path class="arrow" d="M455 306 L455 330" marker-end="url(#a)"/>
+  <rect class="card" x="150" y="332" width="360" height="42" rx="6"/>
+  <text class="w" x="170" y="350">ANN SEARCH</text>
+  <text class="h" x="170" y="366">Cosine distance over the HNSW graph</text>
+
+  <path class="arrow" d="M150 350 L340 190" marker-end="url(#a)"/>
+
+  <!-- result -->
+  <path class="arrow" d="M330 374 L330 392" marker-end="url(#a)"/>
+  <rect class="card" x="140" y="394" width="280" height="42" rx="6"/>
+  <text class="h" x="280" y="420" text-anchor="middle">Passages that read alike, not that relate</text>
+
+  <text class="foot" x="280" y="450" text-anchor="middle">No shared keyword required — proximity in embedding space is enough.</text>
+
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+  </defs>
+</svg>

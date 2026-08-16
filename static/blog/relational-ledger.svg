@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 460" width="560" height="460" role="img" aria-labelledby="rlt rld">
+  <title id="rlt">Relational ledger: normalized tables joined by foreign keys</title>
+  <desc id="rld">An application writes rows into normalized Postgres tables — people, matches, handoffs, and trust events — each related to the next by a foreign key. A query planner joins across them, following one specific path, to answer a single anticipated question such as a person's current trust score.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .src { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .w { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; fill: #b4541e; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 13px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 10.5px; fill: #6e6a63; }
+    .fk { stroke: #97928a; stroke-width: 1.5; fill: none; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    @media (prefers-reduced-motion: no-preference) {
+      .fk { stroke-dasharray: 4 4; animation: fl 0.9s linear infinite; }
+    }
+    @keyframes fl { to { stroke-dashoffset: -8; } }
+  </style>
+
+  <rect class="bg" width="560" height="460" rx="8"/>
+
+  <text class="w" x="30" y="34">POSTGRES</text>
+  <text class="h" x="30" y="52">Relational ledger of record</text>
+
+  <!-- people -->
+  <rect class="card" x="30" y="70" width="120" height="70" rx="6"/>
+  <text class="w" x="44" y="88">PEOPLE</text>
+  <text class="s" x="44" y="104">id, name, joined_at</text>
+  <text class="s" x="44" y="118">trust_score</text>
+
+  <!-- matches -->
+  <rect class="card" x="220" y="70" width="120" height="70" rx="6"/>
+  <text class="w" x="234" y="88">MATCHES</text>
+  <text class="s" x="234" y="104">id, person_id (fk)</text>
+  <text class="s" x="234" y="118">status</text>
+
+  <!-- handoffs -->
+  <rect class="card" x="410" y="70" width="120" height="70" rx="6"/>
+  <text class="w" x="424" y="88">HANDOFFS</text>
+  <text class="s" x="424" y="104">match_id (fk)</text>
+  <text class="s" x="424" y="118">deadline, status</text>
+
+  <!-- FK arrows top row -->
+  <path class="fk" d="M150 105 L220 105" marker-end="url(#a)"/>
+  <path class="fk" d="M340 105 L410 105" marker-end="url(#a)"/>
+
+  <!-- trust events -->
+  <rect class="card" x="410" y="180" width="120" height="70" rx="6"/>
+  <text class="w" x="424" y="198">TRUST_EVENTS</text>
+  <text class="s" x="424" y="214">handoff_id (fk)</text>
+  <text class="s" x="424" y="228">delta, reason</text>
+
+  <path class="fk" d="M470 140 L470 180" marker-end="url(#a)"/>
+
+  <!-- replacement match -->
+  <rect class="card" x="220" y="180" width="120" height="70" rx="6"/>
+  <text class="w" x="234" y="198">MATCHES</text>
+  <text class="s" x="234" y="214">replaces_id (fk)</text>
+  <text class="s" x="234" y="228">a new match, new clock</text>
+
+  <path class="fk" d="M410 215 L340 215" marker-end="url(#a)"/>
+
+  <!-- query box -->
+  <rect class="src" x="140" y="290" width="280" height="56" rx="6"/>
+  <text class="w" x="160" y="310">QUERY</text>
+  <text class="h" x="160" y="328">"What is this person's trust score right now?"</text>
+
+  <path class="fk" d="M280 250 L280 290" marker-end="url(#a)"/>
+  <path class="fk" d="M90 140 L90 300 L140 300" marker-end="url(#a)"/>
+
+  <!-- answer -->
+  <rect class="card" x="140" y="360" width="280" height="40" rx="6"/>
+  <text class="h" x="280" y="384" text-anchor="middle">Exact answer — one row, one join path</text>
+
+  <path class="fk" d="M280 346 L280 360" marker-end="url(#a)"/>
+
+  <text class="foot" x="280" y="430" text-anchor="middle">Precise for any question you wrote a join for in advance.</text>
+  <text class="foot" x="280" y="446" text-anchor="middle">A question with an unanticipated shape gets no answer at all.</text>
+
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+  </defs>
+</svg>
