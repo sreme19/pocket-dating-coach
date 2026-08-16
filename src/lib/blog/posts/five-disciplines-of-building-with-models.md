@@ -40,7 +40,10 @@ make it current, governed and queryable.
 What changed is who consumes it. In 2024 the consumer was a dashboard. In 2026 an
 agent queries the same warehouse, and it is much less forgiving than a human
 analyst — it cannot tell that a column is stale, and it will state whatever it
-finds with total confidence.
+finds with total confidence. [I built the reference version of this end to end on
+a real public feed](/blog/event-time-partitioning-in-iceberg) to measure exactly
+how badly that missing reflex bites, down to a specific number that kept
+changing for six weeks with nothing ever failing in between.
 
 ![End-to-end data pipeline from sources through ingest, storage, transformation and serving. In 2024 the consumer was a dashboard; in 2026 it is an agent that cannot tell a column is stale.](/blog/data-engineering-pipeline.svg)
 
@@ -99,7 +102,10 @@ volatile parts in a real query rather than the model's recollection.
 A talk in August 2025 framed this better than I have seen since: retrieval is only
 one of four memory types, and there are four operations you perform on the
 window — compress, isolate, trim, filter. That is a checklist you can hold a
-system against.
+system against. Filter is the one that does no work unless something upstream
+can actually be checked against — [I wired it into the same reference build](/blog/event-time-partitioning-in-iceberg)
+and watched it drop a real answer, unprompted, the first time an ordinary
+question happened to touch it.
 
 ![Context assembly pipeline. A user query is embedded, then three retrieval paths run in parallel — vector search, keyword search, and graph traversal. Results converge through reciprocal rank fusion and a reranker, then four window operations — compress, isolate, trim, filter — shape what enters the context window.](/blog/context-assembly.svg)
 
