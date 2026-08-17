@@ -44,13 +44,29 @@ export const load: PageServerLoad = async () => {
 	// cost. Resolve in wider concurrent batches to cut the number of sequential
 	// rounds (the dominant cause of the several-second load), while staying well
 	// under auth rate limits.
+	//
+	// This project's Auth Admin API is already known to be flaky (see the bulk
+	// listUsers 500 above) — an individual getUserById can hang or throw for the
+	// same reason. Each lookup is bounded by a timeout and swallows its own
+	// error/rejection: an unhandled throw here used to reject the whole batch's
+	// Promise.all with nothing to catch it, taking the entire analytics page down
+	// (or hanging it until the function timed out) over one bad row's missing
+	// email — a cost far higher than the email just being blank.
 	const EMAIL_BATCH = 30;
+	const EMAIL_LOOKUP_TIMEOUT_MS = 5000;
 	for (let i = 0; i < userIds.length; i += EMAIL_BATCH) {
 		const batch = userIds.slice(i, i + EMAIL_BATCH);
 		await Promise.all(
 			batch.map(async (id) => {
-				const { data: au } = await sb.auth.admin.getUserById(id);
-				if (au?.user?.email) emailById.set(id, au.user.email);
+				try {
+					const au = await Promise.race([
+						sb.auth.admin.getUserById(id).then((r) => r.data),
+						new Promise<null>((resolve) => setTimeout(() => resolve(null), EMAIL_LOOKUP_TIMEOUT_MS))
+					]);
+					if (au?.user?.email) emailById.set(id, au.user.email);
+				} catch (err) {
+					console.warn(`[analytics] getUserById(${id}) failed —`, (err as Error)?.message ?? err);
+				}
 			})
 		);
 	}
@@ -170,11 +186,18 @@ export const load: PageServerLoad = async () => {
 	// which message each measurement belongs to.
 	const replyIds = [...new Set((aiTimingRows ?? []).map((r: any) => r.reply_message_id).filter(Boolean))];
 	const replyContent = new Map<string, string>();
-	if (replyIds.length) {
-		const { data: replyMsgs } = await sb
+	// Chunked: with up to 2000 timing rows this id list can run long enough that
+	// PostgREST rejects the `.in()` query outright (URL too long), which silently
+	// dropped every row's reply text at once. Chunking keeps each request short
+	// regardless of how large the full id list grows.
+	const REPLY_ID_BATCH = 200;
+	for (let i = 0; i < replyIds.length; i += REPLY_ID_BATCH) {
+		const idBatch = replyIds.slice(i, i + REPLY_ID_BATCH);
+		const { data: replyMsgs, error: replyErr } = await sb
 			.from('verified_vibe_messages')
 			.select('id, content')
-			.in('id', replyIds);
+			.in('id', idBatch);
+		if (replyErr) console.warn('[analytics] reply content batch failed —', replyErr.message);
 		for (const m of (replyMsgs ?? []) as any[]) replyContent.set(m.id, m.content);
 	}
 	// AI Wingman advisor replies aren't stored as message rows — their text lives

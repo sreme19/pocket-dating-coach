@@ -22,7 +22,11 @@
 	}
 
 	let aiOnly = $state(false);
-	let reviewFilter = $state<'all' | 'unreviewed' | 'reviewed'>('unreviewed');
+	// Scoped to one user's conversations means "show me everything he/she has",
+	// not "show me what's left to triage" — the 'unreviewed' default otherwise
+	// silently drops any of their matches a reviewer already scored, so the
+	// "N threads" count in the banner above undercounts their real thread list.
+	let reviewFilter = $state<'all' | 'unreviewed' | 'reviewed'>(userFilter ? 'all' : 'unreviewed');
 	let search = $state('');
 
 	type SortKey = 'match' | 'ai' | 'last' | 'review';
