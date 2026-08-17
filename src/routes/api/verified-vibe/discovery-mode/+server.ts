@@ -69,13 +69,20 @@ export const PUT: RequestHandler = async ({ request }) => {
 
   const db = getSupabase() as any;
 
-  // Read the prior mode so we can detect a networking→date "return" (Phase 4).
+  // Read the prior mode + gender so we can detect a networking→date "return"
+  // (Phase 4) and gate who's allowed into Networking Season.
   const { data: prior } = await db
     .from('verified_vibe_users')
-    .select('discovery_mode')
+    .select('discovery_mode, gender')
     .eq('id', userId)
     .maybeSingle();
   const priorMode: Mode = prior?.discovery_mode === 'networking' ? 'networking' : 'date';
+
+  // Networking Season is temporarily women-only — it was getting overused by
+  // men in a way that was causing confusion on the other side of the chat.
+  if (mode === 'networking' && prior?.gender !== 'woman') {
+    return json({ error: 'Networking mode is currently available to women only' }, { status: 403 });
+  }
 
   const { error } = await db
     .from('verified_vibe_users')

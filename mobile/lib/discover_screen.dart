@@ -319,8 +319,10 @@ class _DiscoverScreenState extends State<DiscoverScreen>
               ],
             ),
             centerTitle: false,
+            // Networking Season is women-only for now — it was getting overused
+            // by men in a way that confused the women on the other end of chat.
             actions: [
-              _seasonToggle(networking),
+              if (_viewerGender == 'woman') _seasonToggle(networking),
               const SizedBox(width: 12),
             ],
           ),
