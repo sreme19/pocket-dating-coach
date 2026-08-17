@@ -72,6 +72,10 @@
 		expired: 'border-rose-500/40 bg-rose-500/10 text-rose-300'
 	};
 
+	// Percent-complete, not a raw fraction — matches the progress-bar treatment
+	// used elsewhere (gap-bar, TrustBoostCard) instead of an opaque "N/M cleared".
+	let handoffPct = $derived(h.itemsTotal > 0 ? Math.round((h.itemsDone / h.itemsTotal) * 100) : 0);
+
 	const hoursText = (n: number | null) =>
 		n == null ? '—' : n <= 0 ? 'under an hour' : n === 1 ? '1 hour' : `${n} hours`;
 
@@ -126,7 +130,22 @@
 								{PHASE_LABEL[h.phase] ?? h.phase}
 							</span>
 							{#if h.itemsTotal > 0}
-								<span class="text-xs text-slate-400">checklist {h.itemsDone}/{h.itemsTotal}</span>
+								<div
+									class="flex items-center gap-1.5"
+									role="progressbar"
+									aria-label="Vetting progress"
+									aria-valuenow={handoffPct}
+									aria-valuemin="0"
+									aria-valuemax="100"
+								>
+									<div class="h-1.5 w-20 overflow-hidden rounded-full bg-slate-800">
+										<div
+											class="h-full rounded-full bg-indigo-400 transition-[width] duration-300"
+											style="width: {handoffPct}%"
+										></div>
+									</div>
+									<span class="text-xs text-slate-400">{handoffPct}%</span>
+								</div>
 							{/if}
 							<span class="text-xs {h.bestieActive ? 'text-indigo-300' : 'text-slate-500'}">
 								· Bestie {h.bestieActive ? 'active (speaking for her)' : 'off (she took over)'}
