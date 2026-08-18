@@ -495,7 +495,7 @@
 			-->
 			<p class="gate-note">
 				This chat is saved to your profile so you can pick it up in the app.
-				<a href="/verified-vibe/privacy">Privacy</a>
+				<a href="/privacy-policy">Privacy</a>
 			</p>
 		</div>
 	{:else if thread}

@@ -10,7 +10,12 @@
   // "Get verified" and "Sign in" CTAs are gone: /verified-vibe is behind the web
   // Coming Soon screen, so every one of them dead-ended on "download the app" —
   // the store badges now say that directly, in one step instead of two.
-  const PRIVACY = '/verified-vibe/privacy';
+  //
+  // The privacy link is the one exception that must NOT point into /verified-vibe:
+  // that whole tree is Coming-Soon-gated, so it would dead-end visitors (and ad
+  // reviewers) on a placeholder instead of the actual policy. /privacy-policy is
+  // the real, public, ungated document — the same one the Flutter app links to.
+  const PRIVACY = '/privacy-policy';
 
   onMount(() => {
     // This is the public marketing page — web browsers only. Inside the native

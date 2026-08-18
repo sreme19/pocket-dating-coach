@@ -445,7 +445,7 @@
 				Strictly 18+, confirmed at verification. Verification documents are read once and discarded.
 			</p>
 			<p class="ftnote">Photographs are for illustration and do not depict members.</p>
-			<a class="ftlink" href="/verified-vibe/privacy">Privacy</a>
+			<a class="ftlink" href="/privacy-policy">Privacy</a>
 		</div>
 	</footer>
 

@@ -217,22 +217,68 @@ function asParticipant(u: Record<string, unknown> | undefined, id: string): Part
 	};
 }
 
+/**
+ * PostgREST caps an unranged `.select()` at 1000 rows. verified_vibe_messages
+ * alone is well past that, so the plain queries this function used to run
+ * silently truncated — a match whose messages fell past row 1000 read as
+ * having none: hasAi false, 0 messages, lastActivityAt null, sorted to the
+ * bottom (or dropped entirely by the "AI activity only" filter). Paging with
+ * `.range()` until a page comes back short is the fix, ordered by a stable
+ * column so page N+1 can't overlap or skip rows relative to page N.
+ */
+async function fetchAllRows<T>(
+	page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
+): Promise<T[]> {
+	const PAGE_SIZE = 1000;
+	const out: T[] = [];
+	for (let from = 0; ; from += PAGE_SIZE) {
+		const { data, error } = await page(from, from + PAGE_SIZE - 1);
+		if (error) {
+			console.warn('[qa-service] paged fetch failed —', error.message);
+			break;
+		}
+		const rows = data ?? [];
+		out.push(...rows);
+		if (rows.length < PAGE_SIZE) break;
+	}
+	return out;
+}
+
 /** Build the review queue: match threads with AI activity, plus advisor chats. */
 export async function listReviewQueue(sb: SB): Promise<QueueRow[]> {
-	const [{ data: matches }, { data: messages }, { data: users }, { data: reviews }, { data: convos }, { data: advisorChats }, voiceCallsRes] =
-		await Promise.all([
-			sb.from('verified_vibe_matches').select('id, user1_id, user2_id, status, created_at'),
-			sb.from('verified_vibe_messages').select('match_id, sender_id, is_ai, ai_signal, created_at'),
-			sb.from('verified_vibe_users').select('id, first_name, gender, archetype'),
-			sb.from('ai_qa_reviews').select('*').order('updated_at', { ascending: false }),
-			sb.from('ai_assistant_conversations').select('id, match_conversation_id'),
-			sb.from('ai_assistant_advisor_chats').select('id, user_id, assistant_type, messages, updated_at, created_at'),
-			(sb as unknown as { from: (t: string) => any })
+	const db = sb as unknown as { from: (t: string) => any };
+	const [matches, messages, users, reviews, convos, advisorChats, voiceCalls] = await Promise.all([
+		fetchAllRows<any>((from, to) =>
+			db.from('verified_vibe_matches').select('id, user1_id, user2_id, status, created_at').order('id').range(from, to)
+		),
+		fetchAllRows<any>((from, to) =>
+			db
+				.from('verified_vibe_messages')
+				.select('match_id, sender_id, is_ai, ai_signal, created_at')
+				.order('id')
+				.range(from, to)
+		),
+		fetchAllRows<any>((from, to) => db.from('verified_vibe_users').select('id, first_name, gender, archetype').order('id').range(from, to)),
+		fetchAllRows<any>((from, to) => db.from('ai_qa_reviews').select('*').order('updated_at', { ascending: false }).order('id').range(from, to)),
+		fetchAllRows<any>((from, to) =>
+			db.from('ai_assistant_conversations').select('id, match_conversation_id').order('id').range(from, to)
+		),
+		fetchAllRows<any>((from, to) =>
+			db
+				.from('ai_assistant_advisor_chats')
+				.select('id, user_id, assistant_type, messages, updated_at, created_at')
+				.order('id')
+				.range(from, to)
+		),
+		fetchAllRows<any>((from, to) =>
+			db
 				.from('vv_voice_calls')
 				.select('id, owner_user_id, caller_user_id, status, duration_s, transcript, used_cloned_voice, started_at')
 				.order('started_at', { ascending: false })
-		]);
-	const voiceCalls = (voiceCallsRes?.data ?? []) as Array<Record<string, unknown>>;
+				.order('id')
+				.range(from, to)
+		)
+	]);
 
 	const userById = new Map((users ?? []).map((u) => [u.id, u as Record<string, unknown>]));
 

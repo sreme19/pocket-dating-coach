@@ -120,7 +120,7 @@
         {ready ? "Let's go →" : "Pick both to continue"}
       </button>
       <div class="gate-foot" transition:fade={{ duration: 400, delay: 400 }}>
-        By continuing you agree to ID verification, our <a href="/verified-vibe/privacy">Terms</a> and <a href="/verified-vibe/privacy">Privacy</a>.<br/>We never share ID details with matches.
+        By continuing you agree to ID verification, our <a href="/verified-vibe/privacy">Terms</a> and <a href="/privacy-policy">Privacy</a>.<br/>We never share ID details with matches.
       </div>
     </div>
 

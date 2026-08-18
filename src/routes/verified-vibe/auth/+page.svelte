@@ -358,7 +358,7 @@
         </button>
 
         <p class="auth-legal">
-          By continuing you agree to our <a href="/verified-vibe/privacy">Privacy Policy</a>.
+          By continuing you agree to our <a href="/privacy-policy">Privacy Policy</a>.
           New accounts are created automatically.
         </p>
 

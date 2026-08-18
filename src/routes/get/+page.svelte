@@ -454,7 +454,7 @@
 			<p class="ftnote">
 				Strictly 18+, confirmed at verification. Verification documents are read once and discarded.
 			</p>
-			<a class="ftlink" href="/verified-vibe/privacy">Privacy</a>
+			<a class="ftlink" href="/privacy-policy">Privacy</a>
 		</div>
 	</footer>
 
