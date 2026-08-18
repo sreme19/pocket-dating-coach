@@ -33,7 +33,7 @@
  * members whose origin was never written down, and the column says so.
  */
 
-import { networkOf } from '$lib/server/traffic-quality';
+import { networkOf, adSetKeyOf } from '$lib/server/traffic-quality';
 
 export type LeadSource = 'snap' | 'meta' | 'referral' | 'organic' | 'unknown';
 
@@ -50,6 +50,13 @@ export interface LeadSourceVerdict {
 	detail: string | null;
 	/** Which record decided it, so a surprising label can be traced back. */
 	evidence: LeadSourceEvidence;
+	/**
+	 * The AD id — Snap's `utm_id`, Meta's `utm_content` — parsed by the same
+	 * `adSetKeyOf` the ad-analytics leaderboard uses. Only ever set for a paid
+	 * (`snap`/`meta`) source; joins against `ad_spend_daily.creative_id` to
+	 * resolve the ad's display name.
+	 */
+	adId: string | null;
 }
 
 type Utm = Record<string, string> | null | undefined;
@@ -89,7 +96,7 @@ export interface LeadSourceInputs {
 	nameById: Map<string, string | null>;
 }
 
-const UNKNOWN: LeadSourceVerdict = { source: 'unknown', detail: null, evidence: 'none' };
+const UNKNOWN: LeadSourceVerdict = { source: 'unknown', detail: null, evidence: 'none', adId: null };
 
 /** The paid network on a utm bag, or null when it is not a network we buy. */
 function paidNetwork(utm: Utm): 'snap' | 'meta' | null {
@@ -118,7 +125,8 @@ export function buildLeadSources(input: LeadSourceInputs): Map<string, LeadSourc
 		out.set(row.user_id, {
 			source: 'organic',
 			detail: clean(row.network) ?? 'no campaign attached',
-			evidence: 'install_referrer'
+			evidence: 'install_referrer',
+			adId: null
 		});
 	}
 
@@ -145,7 +153,8 @@ export function buildLeadSources(input: LeadSourceInputs): Map<string, LeadSourc
 		out.set(userId, {
 			source: 'referral',
 			detail: referrerLabel(invite.referrer_id),
-			evidence: 'referral_invite'
+			evidence: 'referral_invite',
+			adId: null
 		});
 	}
 
@@ -157,7 +166,8 @@ export function buildLeadSources(input: LeadSourceInputs): Map<string, LeadSourc
 		out.set(userId, {
 			source: 'referral',
 			detail: referrerLabel(reward.referrer_id),
-			evidence: 'referral_reward'
+			evidence: 'referral_reward',
+			adId: null
 		});
 	}
 
@@ -169,21 +179,24 @@ export function buildLeadSources(input: LeadSourceInputs): Map<string, LeadSourc
 		const net = paidNetwork(session.utm);
 		if (!net) continue;
 		const detail = clean(session.utm?.utm_campaign) ?? clean(session.utm?.utm_source);
+		const adId = adSetKeyOf(session.utm ?? undefined).adId;
 		for (const userId of [clean(session.user_id), clean(session.claimed_by_user_id)]) {
 			if (!userId) continue;
-			out.set(userId, { source: net, detail, evidence: 'landing_session' });
+			out.set(userId, { source: net, detail, evidence: 'landing_session', adId });
 		}
 	}
 
 	// ── 1. Paid install, the strongest tie there is ───────────────────────────
 	for (const row of input.acquisition) {
 		if (!row.user_id) continue;
-		const net = paidNetwork(row.utm ?? { utm_source: row.network ?? '' });
+		const utm = row.utm ?? { utm_source: row.network ?? '' };
+		const net = paidNetwork(utm);
 		if (!net) continue;
 		out.set(row.user_id, {
 			source: net,
 			detail: clean(row.campaign) ?? clean(row.utm?.utm_campaign),
-			evidence: 'install_referrer'
+			evidence: 'install_referrer',
+			adId: adSetKeyOf(utm).adId
 		});
 	}
 

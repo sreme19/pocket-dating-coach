@@ -951,6 +951,7 @@
 							['archetype', 'Archetype'],
 							['trustScore', 'Trust'],
 							['leadSource', 'Source'],
+							[null, 'Ad'],
 							[null, 'Type'],
 							['joinedAt', 'Joined'],
 							[null, 'View'],
@@ -1013,6 +1014,9 @@
 									title={leadSourceTitle(u)}
 									class="rounded px-1.5 py-0.5 text-xs font-medium {LEAD_SOURCE_STYLE[u.leadSource] ?? LEAD_SOURCE_STYLE.unknown}"
 								>{LEAD_SOURCE_LABEL[u.leadSource] ?? '—'}</span>
+							</td>
+							<td class="py-2 pr-4 text-slate-400 max-w-[220px] truncate" title={u.adName ?? ''}>
+								{u.adName ?? '—'}
 							</td>
 							<td class="py-2 pr-4">
 								<button

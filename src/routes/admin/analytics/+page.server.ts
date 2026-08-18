@@ -131,6 +131,29 @@ export const load: PageServerLoad = async () => {
 		nameById,
 	});
 
+	// ── Ad name per member ────────────────────────────────────────────────────
+	// The lead source above only carries the AD id (Snap's utm_id, Meta's
+	// utm_content — see adSetKeyOf). The display name lives one hop away, on
+	// the spend rows the Ad Analytics tab already syncs from each network's
+	// Marketing API. Keyed network:creativeId so a numeric Meta id can never
+	// collide with a Snap uuid.
+	const { data: adCreatives, error: adCreativesErr } = await sb
+		.from('ad_spend_daily')
+		.select('network, creative_id, creative_name')
+		.neq('creative_id', '')
+		.not('creative_name', 'is', null);
+	if (adCreativesErr) console.warn('[analytics] ad_spend_daily unreadable —', adCreativesErr.message);
+	const adNameByKey = new Map<string, string>();
+	for (const row of (adCreatives ?? []) as any[]) {
+		if (!row.creative_name) continue;
+		adNameByKey.set(`${row.network}:${row.creative_id}`, row.creative_name);
+	}
+	function adNameOf(userId: string): string | null {
+		const verdict = leadSourceOf(leadSources, userId);
+		if (!verdict.adId) return null;
+		return adNameByKey.get(`${verdict.source}:${verdict.adId}`) ?? null;
+	}
+
 	// Signups per day (last 30 days)
 	const signupsByDay = bucketByDay(users ?? [], 30);
 
@@ -271,6 +294,10 @@ export const load: PageServerLoad = async () => {
 			leadSource: leadSourceOf(leadSources, u.id).source,
 			leadSourceDetail: leadSourceOf(leadSources, u.id).detail,
 			leadSourceEvidence: leadSourceOf(leadSources, u.id).evidence,
+			// The specific ad (creative), not the ad set or campaign — resolved via
+			// leadSource's adId against ad_spend_daily. Null when the source isn't
+			// paid, or when spend hasn't synced a name for that ad id yet.
+			adName: adNameOf(u.id),
 			email: emailById.get(u.id) ?? null,
 			age: u.age,
 			city: u.city,
