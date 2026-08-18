@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -10,6 +11,7 @@ import 'season.dart';
 import 'profile_body.dart';
 import 'engage_sheets.dart';
 import 'verification_screen.dart';
+import 'discover_profile_detail.dart';
 
 /// Discover: one full profile at a time (the web "Public Read") with Tip /
 /// Notice-me / Next. This product has no like/pass — Next just advances.
@@ -448,6 +450,14 @@ class _DiscoverScreenState extends State<DiscoverScreen>
       return _endOfFeed();
     }
 
+    // iOS-only: a scrollable feed of compact preview cards instead of one full
+    // profile at a time. Same feed data, same Tip/Notice/Next actions — tapping
+    // a card pushes the exact unchanged full-profile view (ProfileDetailView).
+    // Android is untouched below.
+    if (Platform.isIOS) {
+      return _iosFeedBody();
+    }
+
     return Column(children: [
       Expanded(
         child: FutureBuilder<MatchDetail>(
@@ -488,6 +498,204 @@ class _DiscoverScreenState extends State<DiscoverScreen>
       ),
       _actionBar(cur),
     ]);
+  }
+
+  // ── iOS feed (App Store 4.3b differentiation pass) ────────────────────────
+  // Compact cards over the same _feed list already loaded for the Android
+  // path. No new network calls, no new actions — heart reuses the existing
+  // Notice/Admire flow, tapping the card opens the unchanged full profile.
+
+  void _openProfileDetail(int index) {
+    AppLogger.instance.action('discover', 'open_card', meta: {'index': index});
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) {
+      return Scaffold(
+        backgroundColor: const Color(Config.bg1),
+        appBar: AppBar(
+          backgroundColor: const Color(Config.bg1),
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.close, color: Color(Config.text1)),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ),
+        body: ProfileDetailView(
+          feed: _feed!,
+          initialIndex: index,
+          viewerGender: _viewerGender,
+          sentAttentionIds: _sentAttentionIds,
+          tippedIds: _tippedIds,
+          matchedUserIds: _matchedUserIds,
+        ),
+      );
+    })).then((_) {
+      // Sets are mutated by reference inside ProfileDetailView — refresh so
+      // the feed's own heart-state chips reflect anything sent while there.
+      if (mounted) setState(() {});
+    });
+  }
+
+  Widget _iosFeedBody() {
+    final feed = _feed!;
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+        itemCount: feed.length,
+        itemBuilder: (context, i) => Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: _iosFeedCard(feed[i], i, feed.length),
+        ),
+      ),
+    );
+  }
+
+  Widget _iosFeedCard(DiscoveryProfile p, int i, int total) {
+    final g = _viewerGender;
+    final alreadySent = _sentAttentionIds.contains(p.id);
+    final alreadyMatched = _matchedUserIds.contains(p.id);
+    final hasPhoto = p.avatar != null && p.avatar!.startsWith('http');
+    final verified = p.verifiedCount > 0;
+    final trust = p.trustScore;
+    return GestureDetector(
+      onTap: () => _openProfileDetail(i),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(Config.bg2),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0x1A1B1020)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Stack(clipBehavior: Clip.none, children: [
+              ClipOval(
+                child: hasPhoto
+                    ? CachedNetworkImage(
+                        imageUrl: p.avatar!, width: 48, height: 48, fit: BoxFit.cover,
+                        placeholder: (c, _) => const ColoredBox(color: Color(Config.bg3), child: SizedBox(width: 48, height: 48)),
+                        errorWidget: (c, _, _) => const _NoPhoto())
+                    : const SizedBox(
+                        width: 48, height: 48,
+                        child: ColoredBox(color: Color(Config.bg3), child: Icon(Icons.person, color: Color(Config.text3))),
+                      ),
+              ),
+              if (verified)
+                Positioned(
+                  right: -2, bottom: -2,
+                  child: Container(
+                    width: 17, height: 17,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F6E56), shape: BoxShape.circle,
+                      border: Border.all(color: const Color(Config.bg2), width: 2),
+                    ),
+                    child: const Icon(Icons.verified, size: 10, color: Colors.white),
+                  ),
+                ),
+            ]),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(
+                  p.age != null ? '${p.firstName}, ${p.age}' : p.firstName,
+                  style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Color(Config.text1)),
+                ),
+                if (p.city != null || p.distance != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 1),
+                    child: Text(
+                      [p.city, p.distance].where((s) => s != null && s.isNotEmpty).join(' · '),
+                      style: const TextStyle(fontSize: 11, color: Color(Config.text2)),
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 5),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Brand.accentAlpha(0x22),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(p.archetypeLabel,
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Brand.accentBright)),
+                  ),
+                ),
+              ]),
+            ),
+            const SizedBox(width: 8),
+            Stack(clipBehavior: Clip.none, children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: hasPhoto
+                    ? CachedNetworkImage(
+                        imageUrl: p.avatar!, width: 58, height: 58, fit: BoxFit.cover,
+                        placeholder: (c, _) => const ColoredBox(color: Color(Config.bg3), child: SizedBox(width: 58, height: 58)),
+                        errorWidget: (c, _, _) => const _NoPhoto())
+                    : const SizedBox(
+                        width: 58, height: 58,
+                        child: ColoredBox(color: Color(Config.bg3), child: Icon(Icons.image_not_supported_outlined, color: Color(Config.text3))),
+                      ),
+              ),
+              if (trust > 0)
+                Positioned(
+                  right: -8, bottom: -8,
+                  child: Container(
+                    width: 30, height: 30,
+                    decoration: BoxDecoration(
+                      color: const Color(Config.bg2), shape: BoxShape.circle,
+                      border: Border.all(color: Brand.accent, width: 1.5),
+                    ),
+                    child: Center(
+                      child: Text('$trust%',
+                          style: TextStyle(color: Brand.accent, fontSize: 8.5, fontWeight: FontWeight.w800)),
+                    ),
+                  ),
+                ),
+            ]),
+          ]),
+          if (p.intent != null && p.intent!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Text(p.intent!,
+                  style: const TextStyle(fontSize: 12, color: Color(Config.text2), height: 1.35),
+                  maxLines: 2, overflow: TextOverflow.ellipsis),
+            ),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: const Color(Config.bg3),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text('Curated by your AI Bestie · ${i + 1} of $total',
+                    style: const TextStyle(fontSize: 10.5, color: Color(Config.text2), fontWeight: FontWeight.w600)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            if (alreadyMatched)
+              const Icon(Icons.favorite, size: 22, color: Color(Config.text3))
+            else
+              GestureDetector(
+                onTap: g == null || alreadySent ? null : () async {
+                  AppLogger.instance.action('discover', 'like');
+                  final sent = await showAdmireSheet(context, recipientId: p.id, viewerGender: g, name: p.firstName);
+                  if (sent && mounted) setState(() => _sentAttentionIds.add(p.id));
+                },
+                child: Container(
+                  width: 34, height: 34,
+                  decoration: BoxDecoration(
+                    color: alreadySent ? const Color(Config.bg3) : Brand.accent,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(alreadySent ? Icons.check : Icons.favorite,
+                      size: 16, color: alreadySent ? const Color(Config.text3) : Colors.white),
+                ),
+              ),
+          ]),
+        ]),
+      ),
+    );
   }
 
   Widget _profileError(Object? err) {
