@@ -9,7 +9,7 @@ export function getClaudeClient(): Anthropic {
 	return new Anthropic({ apiKey });
 }
 
-export const CLAUDE_MODEL = 'claude-sonnet-4-5-20250929';
+export const CLAUDE_MODEL = 'claude-haiku-4-5-20251001';
 export const MAX_TOKENS = 2048;
 
 export async function askClaude(systemPrompt: string, userMessage: string): Promise<string> {
