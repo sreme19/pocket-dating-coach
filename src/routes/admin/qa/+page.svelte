@@ -107,7 +107,10 @@
 
 	function fmt(ts: string | null): string {
 		if (!ts) return '—';
-		return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+		const d = new Date(ts);
+		const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+		const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+		return `${date}, ${time}`;
 	}
 </script>
 
