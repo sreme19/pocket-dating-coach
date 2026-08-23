@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 764" width="560" height="764" role="img" aria-labelledby="cqpt cqpd">
+  <title id="cqpt">How a question reaches one of three local stores, and where the answer ends up</title>
+  <desc id="cqpd">A question arrives, either from a person or from the drafting step needing a proof point. Before anything is searched, a rule-based router decides which store holds that shape of answer, using a vocabulary of 3,070 terms built from table names, column names and row labels, and scoring 97% on the labelled question set. Narrative questions go to a meaning-search index: a 384-dimension BGE-small model run through ONNX on the CPU, stored as a plain NumPy array searched by a single matrix multiply rather than in any vector database, matching on 120-token windows and returning the parent passage. Quantity questions go to DuckDB, roughly 190 tables across two database files, where the restricted set only opens on an explicit opt-in and the live ledger is mirrored in read-only. Relationship questions go to Kuzu, an embedded graph database with real Cypher, holding companies, people and investors for two-hop traversals, with every edge deterministically extracted rather than inferred. The retrieved evidence feeds the drafting step, which is the only part of this path that calls a model. The draft lands in a plain text file, a person sends it from their own account, and the outcome is appended to the Excel tracking sheet through openpyxl and mirrored one-way into the Numbers copy.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .hot { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .final { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.5; }
+    .k { font-family: system-ui, -apple-system, sans-serif; font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; fill: #97928a; }
+    .kb { font-family: system-ui, -apple-system, sans-serif; font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; fill: #b4541e; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14.5px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #6e6a63; }
+    .cap { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; fill: #b4541e; }
+    .el { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 600; fill: #97928a; }
+    .arrow { stroke: #97928a; stroke-width: 1.4; fill: none; }
+    .bar { stroke: #97928a; stroke-width: 1.4; fill: none; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+
+    /* dashes march along each connector so the diagram reads as live flow.
+       one dash period per cycle keeps the loop seamless. */
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: cq-arrow 0.9s linear infinite; }
+    }
+    @keyframes cq-arrow { to { stroke-dashoffset: -8; } }
+  </style>
+  <defs>
+    <marker id="cq" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="560" height="764" rx="8"/>
+
+  <rect class="card" x="24" y="34" width="512" height="76" rx="6"/>
+  <text class="k" x="42" y="56">A QUESTION ARRIVES</text>
+  <text class="h" x="42" y="78">From a person, or the drafting step</text>
+  <text class="s" x="42" y="98">“why did that engagement end” · “how many reached a final round”</text>
+
+  <line class="arrow" x1="280" y1="112" x2="280" y2="128" marker-end="url(#cq)"/>
+
+  <rect class="hot" x="24" y="132" width="512" height="96" rx="6"/>
+  <text class="kb" x="42" y="154">ROUTED BEFORE ANYTHING IS SEARCHED</text>
+  <text class="h" x="42" y="176">Rule-based router, not a model</text>
+  <text class="cap" x="516" y="176" text-anchor="end">3,070 terms</text>
+  <text class="s" x="42" y="196">Vocabulary from table names, column names and row labels</text>
+  <text class="s" x="42" y="214">97% routing accuracy on the labelled question set</text>
+
+  <path class="arrow" d="M 280 230 V 250 H 105 V 278" marker-end="url(#cq)"/>
+  <path class="arrow" d="M 280 230 V 278" marker-end="url(#cq)"/>
+  <path class="arrow" d="M 280 230 V 250 H 455 V 278" marker-end="url(#cq)"/>
+  <text class="el" x="190" y="244" text-anchor="middle">narrative</text>
+  <text class="el" x="290" y="270">quantity</text>
+  <text class="el" x="368" y="244" text-anchor="middle">relationship</text>
+
+  <rect class="card" x="24" y="282" width="162" height="142" rx="6"/>
+  <text class="k" x="42" y="302">PROSE</text>
+  <text class="h" x="42" y="324">Meaning search</text>
+  <text class="s" x="42" y="344">BGE-small, 384 dims</text>
+  <text class="s" x="42" y="360">ONNX, on the CPU</text>
+  <text class="s" x="42" y="376">NumPy array, 1 matmul</text>
+  <text class="s" x="42" y="392">Match 120-tok windows,</text>
+  <text class="s" x="42" y="408">return the parent</text>
+
+  <rect class="card" x="199" y="282" width="162" height="142" rx="6"/>
+  <text class="k" x="217" y="302">GRIDS</text>
+  <text class="h" x="217" y="324">DuckDB</text>
+  <text class="s" x="217" y="344">~190 tables</text>
+  <text class="s" x="217" y="360">Two database files</text>
+  <text class="s" x="217" y="376">Restricted set opens</text>
+  <text class="s" x="217" y="392">only on opt-in</text>
+  <text class="s" x="217" y="408">Ledger read-only here</text>
+
+  <rect class="card" x="374" y="282" width="162" height="142" rx="6"/>
+  <text class="k" x="392" y="302">RELATIONSHIPS</text>
+  <text class="h" x="392" y="324">Kuzu</text>
+  <text class="s" x="392" y="344">Embedded, real Cypher</text>
+  <text class="s" x="392" y="360">Companies, people,</text>
+  <text class="s" x="392" y="376">investors</text>
+  <text class="s" x="392" y="392">Two-hop traversal</text>
+  <text class="s" x="392" y="408">No inferred edges</text>
+
+  <line class="arrow" x1="105" y1="426" x2="105" y2="446"/>
+  <line class="arrow" x1="280" y1="426" x2="280" y2="446"/>
+  <line class="arrow" x1="455" y1="426" x2="455" y2="446"/>
+  <line class="bar" x1="105" y1="446" x2="455" y2="446"/>
+  <line class="arrow" x1="280" y1="446" x2="280" y2="474" marker-end="url(#cq)"/>
+  <text class="el" x="290" y="468">retrieved evidence</text>
+
+  <rect class="card" x="24" y="478" width="512" height="88" rx="6"/>
+  <text class="k" x="42" y="500">THE DRAFT IS WRITTEN</text>
+  <text class="h" x="42" y="522">Claude Opus 5, Messages API</text>
+  <text class="cap" x="516" y="522" text-anchor="end">no send path</text>
+  <text class="s" x="42" y="542">Grounded in the retrieved passages, not the model’s recall</text>
+
+  <line class="arrow" x1="280" y1="568" x2="280" y2="586" marker-end="url(#cq)"/>
+
+  <rect class="final" x="24" y="590" width="512" height="126" rx="6"/>
+  <text class="kb" x="42" y="612">WHERE THE OUTPUT LANDS</text>
+  <text class="h" x="42" y="634">A plain text file</text>
+  <text class="s" x="42" y="654">Then a person sends it, from their own account</text>
+  <text class="s" x="42" y="672">Outcome appended to the Excel tracking sheet, via openpyxl</text>
+  <text class="s" x="42" y="690">and mirrored one-way into the Numbers copy</text>
+
+  <text class="foot" x="280" y="744" text-anchor="middle">Only the drafting step calls a model. Everything above it runs on the machine.</text>
+</svg>

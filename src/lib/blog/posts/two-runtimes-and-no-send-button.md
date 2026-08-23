@@ -172,6 +172,8 @@ So documents get sorted before anything is indexed: prose to a meaning-search
 index, grids to a local analytical database, and a third bucket indexed nowhere
 at all — source code, media, and other people's files.
 
+![A question arrives, from a person or from the drafting step needing a proof point. Before anything is searched, a rule-based router decides which store holds that shape of answer, on a vocabulary of 3,070 terms drawn from table names, column names and row labels, scoring 97% on the labelled question set. Narrative questions reach a meaning-search index: a 384-dimension BGE-small model run through ONNX on the CPU, stored as a plain NumPy array searched by a single matrix multiply rather than in any vector database, matching on 120-token windows and returning the parent passage. Quantity questions reach DuckDB, roughly 190 tables across two database files, where the restricted set opens only on an explicit opt-in and the live ledger is mirrored in read-only. Relationship questions reach Kuzu, an embedded graph database with real Cypher, holding companies, people and investors for two-hop traversals, every edge deterministically extracted rather than inferred. The retrieved evidence feeds the drafting step, the only part of the path that calls a model. The draft lands in a plain text file, a person sends it from their own account, and the outcome is appended to the Excel tracking sheet through openpyxl and mirrored one-way into the Numbers copy.](/blog/corpus-query-path.svg)
+
 The whole layer runs without calling a model. Embeddings come from a small
 sentence-transformer executing locally on the processor, both databases are
 embedded libraries rather than services, and nothing in the layer reaches a
