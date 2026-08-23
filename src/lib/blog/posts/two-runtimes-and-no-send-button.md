@@ -1,8 +1,8 @@
 ---
 title: Automating my job hunt outreach with an agent that finds, researches, and drafts — and leaves sending to me
 date: 2026-09-03
-summary: A director/VP-level job search runs on outreach nobody automates safely, because the risky part is the send. This system automates the finding, researching, and drafting end to end, and keeps the one irreversible step — actually sending a message — entirely out of its code, run by hand every time instead.
-tags: [agentic-architecture, operations]
+summary: A director/VP-level job search runs on outreach nobody automates safely, because the risky part is the send. This system automates finding, researching, and drafting end to end, grounded in a local three-store memory over the sender's own documents, and keeps the one irreversible step out of its code entirely. The retrieval half gave the more surprising result: indexing each document's own title bought nearly what the vector index did, and rank fusion lost to its best single member twice.
+tags: [agentic-architecture, operations, context-engineering]
 cover: /og/blog/two-runtimes-and-no-send-button.png
 ---
 
@@ -144,6 +144,205 @@ The verdict is written back into the same row the candidate already lives
 in, not into a separate report — a check that requires opening a second file
 to read is a check that quietly stops getting read.
 
+## The drafting step needed a memory, and one index would have been the wrong shape
+
+A note that lands says something specific: a number the sender actually owned,
+a decision they actually made. Those live in about two hundred and eighty of my
+own documents — diaries, meeting notes, strategy docs — four of them running
+past two hundred and thirty printed pages. Finding one proof point by reading
+the document that holds it costs roughly a hundred and eighty thousand tokens
+of context. That measurement is what forced a retrieval layer.
+
+The obvious build is one index over everything. That would have been wrong,
+because the questions arrive in three shapes.
+
+Narrative questions want passages. "Why did that engagement end" has no
+numeric answer, and no spreadsheet anywhere records a reason.
+
+Quantity questions want an aggregation. "How many candidates reached a final
+round" is a grouped count over rows, not a similarity match. Splitting a grid
+into text passages destroys the column structure that makes the count possible.
+This is the most common way a retrieval build goes wrong, and it degrades the
+narrative side too, because grid fragments crowd out prose in every result set.
+
+Relationship questions want a traversal, which is the third store, further
+down.
+
+So documents get sorted before anything is indexed: prose to a meaning-search
+index, grids to a local analytical database, and a third bucket indexed nowhere
+at all — source code, media, and other people's files.
+
+The whole layer runs without calling a model. Embeddings come from a small
+sentence-transformer executing locally on the processor, both databases are
+embedded libraries rather than services, and nothing in the layer reaches a
+network. Two things follow from that. It is free to re-run, diff, and
+unit-test, which matters because a retrieval layer nobody can re-run is a
+retrieval layer nobody can measure. And a personal diary sitting alongside
+identifiable third-party records never leaves the machine — a hosted embedding
+endpoint would have shipped all of it off the box in a single batch job.
+
+The economics land in the same place. Retrieval returns roughly ten passages of
+a few hundred tokens each, against the hundred and eighty thousand a full
+document read cost. Same fact, a fraction of the context, and the index itself
+costs nothing per query because no metered call is involved in building or
+searching it.
+
+## The measured wins came from the chunks, not from a better retriever
+
+Five retrieval methods, scored against thirty-two hand-labelled questions.
+Thirty-two is a configured number — the size of the question set I wrote by
+hand. Everything in the table is measured.
+
+| Method | Best answer first | Answer in top ten | Mean reciprocal rank |
+| --- | --- | --- | --- |
+| Naive keyword match | 48% | 81% | 0.590 |
+| BM25 | 55% | 84% | 0.671 |
+| Dense vectors | 77% | 90% | 0.808 |
+| Small-to-big (the default) | 74% | 94% | 0.809 |
+| Rank fusion | 77% | 87% | 0.809 |
+
+BM25 is in that table on purpose. Comparing embeddings against naive keyword
+matching flatters them. BM25 needs no model, no accelerator, and no index build
+beyond a term-frequency table, and on a corpus dense with proper nouns it is
+genuinely hard to beat. An embedding index that can't beat it isn't earning its
+place.
+
+Four results came out of that run, and two of them are negative.
+
+**Indexing each document's own title moved keyword ranking from 0.590 to 0.671
+— most of what the vector index bought, for free.** Several diary files state
+their entire subject in the filename and never repeat it in the body. A passage
+indexed without its title was unfindable by the obvious question about it. The
+instruction generalizes past this corpus: fix what sits inside the retrievable
+unit before reaching for a better retriever.
+
+**A fact buried inside a passage about something else needs the match and the
+return to be different sizes.** One passage carries a weekly call-volume figure
+inside roughly five hundred tokens of process rules. No method found it in the
+top two hundred. The clause is a small share of the passage, so it averages into
+invisibility at passage-level embedding — keyword search reached it at rank
+thirty-three, dense search never did. Matching against windows of roughly a
+hundred and twenty tokens, then returning the parent passage, fixed it: both
+buried-fact questions went from unanswered to answered. The cost is about two
+and a half times more vectors.
+
+**Reciprocal-rank fusion lost to its best single member, twice.** It rewards
+consensus rather than coverage. A passage only one ranker finds scores once,
+while anything both rankers find scores roughly double, and that arithmetic
+pushed both buried-fact answers out of the fused top ten. It stays in the
+codebase as a documented negative result rather than being deleted, because the
+next person reaching for fusion should meet the measurement before the
+intuition.
+
+**Abstaining on a low score didn't work.** Both term coverage and vector
+similarity were tried as a confidence threshold. Every threshold that silenced
+a wrong answer silenced real ones too. Weak matches now carry a label instead
+of being withheld. If you're building this, measure a candidate threshold
+against your own true positives before shipping it — the intuition that a
+confidence floor is free is the thing to check, not assume.
+
+## An instruction in a prompt is not a mechanism
+
+The rule "numbers come from the spreadsheet, never from prose" was written down
+plainly, in the instructions the drafting agent reads. It was still wrong in
+practice. A keyword search returned a *paraphrase* of an operational rate,
+lifted out of a process document — and that paraphrase understated real weekly
+volume by a factor of three. A stale restatement reaching a draft is the
+concrete harm here, not a hypothetical one.
+
+The fix was a classifier in front of the search, deciding which store answers
+before anything is retrieved. Quantity phrasings route to the analytical
+database. Narrative phrasings route to the passage index. Some questions need
+both, and get both.
+
+It is rule-based rather than a model, deliberately. Routing here is a small
+closed problem, and a model classifier would be non-deterministic across runs,
+awkward to unit-test, and would make the one layer that calls no model depend
+on one. Its accuracy is scored alongside retrieval: 97% on the question set,
+and twelve of fourteen held-out phrasings. Both misses routed to the database
+when prose was the right answer, which is the safe direction to fail in.
+
+One detail decided whether it worked at all. The routing vocabulary is built at
+load time from table names, column names *and row labels* — three thousand and
+seventy terms in total. Table names alone were too weak. The table holding an
+automation rate has neither "automation" nor "rate" anywhere in its name; those
+words exist only as cell values inside it.
+
+## A relationship map earns its place at the second hop
+
+The third store answers one question the other two handle badly: which company
+I haven't approached shares an investor with one where someone already replied.
+
+A table manages the first hop comfortably — list the investors in a given
+company. The second hop is where it turns awkward, and the second hop is the
+entire value. An untouched target connected through a shared backer to a
+conversation already in progress is a warm approach rather than a cold one, and
+that reframes a long backlog as a ranked shortlist. So companies, people and
+investors live in an embedded graph database, queried in a graph query
+language, where that traversal is a single statement.
+
+Every edge comes from deterministic extraction — parsed fields and written
+research notes, never inference. That's a correctness requirement rather than a
+shortcut. A fabricated shared investor routes outreach down a warm-intro path
+that doesn't exist, and a warm approach that turns out to be cold is worse than
+no suggestion at all.
+
+Two rules keep it honest, and the second is the one worth copying.
+
+Company names in written research notes carry forms the tracking sheet doesn't:
+a parenthetical legal name, two names joined by a slash, a trailing corporate
+suffix. Matching on the literal string alone dropped eight companies' investor
+and contact data silently. Lookup now tries a series of derived keys, most
+specific first.
+
+And when a research note's company still matches nothing in the tracking sheet,
+the note is recorded as unmatched and skipped — no node is created for it. The
+tracking sheet defines what exists. Inventing a company from a near-miss name
+would split one company's edges across two nodes, and a traversal over a split
+node returns answers that are confident and wrong.
+
+## Sensitivity belongs in a separate file, not a flag on a row
+
+The corpus holds three kinds of material: professional content, my own private
+life, and identifiable third parties who never agreed to sit in a search index.
+Which of the three a document is has nothing to do with which store it lands
+in, and it gets enforced when a query runs rather than by convention.
+
+Five of the workbooks are hiring pipelines keyed to real people's names. They
+are legitimately my own business records, so they load — into a *separate*
+database file, attached only on an explicit opt-in. A sensitivity column in the
+shared database would have been easier to build, and it would have meant every
+future query had to remember the filter. A separate file keeps those rows
+outside the default query path altogether. A convention is something you
+remember; a boundary is something you can't forget.
+
+The drafting path filters harder still, to professional material only. A
+proof-point search running unfiltered will eventually surface a compensation
+figure into a draft's context — mine, or a job candidate's.
+
+Some categories are excluded unconditionally, with no setting that re-enables
+them:
+
+- Financial and identity documents.
+- Third-party HR material.
+- The folder a form-hosting service creates for uploaded files. That one held a
+  couple of hundred named applicants' CVs, submitted against an internship
+  posting — other people's documents, gathered for a purpose that wasn't this
+  one.
+
+Scope is a preference a later rebuild can revisit. Those aren't.
+
+One more finding, from getting it wrong first. Judging a folder by its name
+doesn't work. A folder of a hundred and eleven files looked like venture
+history and turned out to be a hundred and two monthly invoices wrapped around
+four documents that mattered. Relevance is now scored on each document's own
+opening words, against probes describing what a relevant document looks like
+*and* probes describing what an irrelevant one looks like. Both directions are
+needed: a household-finances document and a profitability memo both talk about
+money, and only the negative probes separate them. The output is a ranked report
+a person adjudicates, not a decision — and the middle bucket is the point,
+because that is exactly where a name-based guess picks wrong without saying so.
+
 ## What a version of this should measure that mine doesn't yet
 
 The tracking sheet is append-only: recording that a contact replied, or that
@@ -168,21 +367,24 @@ tells you when that's true.
 
 ## The pattern without the job search
 
-Strip the domain and what's left is: **an outbound pipeline where the one
-irreversible action has no code path at all, and where the same research-and-
-drafting logic runs on either a metered, unattended execution path or a free,
-supervised one, as long as both write through the same gate.**
+Strip the domain and two patterns are left. **An outbound pipeline where the
+one irreversible action has no code path at all, and where the same
+research-and-drafting logic runs on either a metered, unattended execution path
+or a free, supervised one, as long as both write through the same gate.** And
+underneath it: **a private memory that routes a question to the store holding
+that shape of answer, rather than instructing a model to prefer one source over
+another.**
 
-That generalizes well past a job search:
+Both generalize well past a job search:
 
-| Context | The irreversible action kept out of code | The free-runtime equivalent |
+| Context | The irreversible action kept out of code | Where its own records answer better than a model's recall |
 | --- | --- | --- |
-| Sales development | Sending the outbound email or connection request | A rep pasting a drafted note from a shared queue |
-| Recruiting outreach | Messaging a candidate on a professional network | A recruiter working from agent-drafted notes in an applicant tracker |
-| Vendor and partner outreach | Committing to terms in a written reply | A drafted response a person reviews before sending |
-| Fundraising outreach | Sending a cold note to an investor | A founder copying a drafted note from a running list |
-| Customer win-back or renewal | Sending the actual retention offer | A success manager sending from a drafted, discount-capped template |
-| Press and media outreach | Pitching a journalist directly | A drafted pitch a comms lead reviews before it goes out |
+| Sales development | Sending the outbound email or connection request | Won-deal notes, for the proof point that actually moved a buyer like this one |
+| Recruiting outreach | Messaging a candidate on a professional network | Prior placement records, for which pitch converted this role family before |
+| Vendor and partner outreach | Committing to terms in a written reply | Past contract terms, for what was already conceded and shouldn't be reoffered |
+| Fundraising outreach | Sending a cold note to an investor | The company's own metric history, so a figure in a deck traces to a source |
+| Customer win-back or renewal | Sending the actual retention offer | Support and usage history, for why this particular account actually lapsed |
+| Press and media outreach | Pitching a journalist directly | Past coverage, for what this outlet has already run and won't run twice |
 
 Three pieces transfer directly:
 
@@ -192,12 +394,10 @@ exists; removing the mechanism means there's nothing left for an error, a
 prompt-injection attempt, or a future refactor to accidentally trigger. The
 difference only shows up the day something tries to use that path — and on
 that day, "the code can't do it" beats "the code isn't supposed to do it."
-
-**Put the human-vs-system boundary at the highest-stakes single step, not
-earlier.** Gating discovery instead of the send would slow down the cheap,
-recoverable part of the pipeline for no safety benefit, since a wrong
-discovery costs nothing to unwind. The gate belongs exactly where getting it
-wrong stops being free.
+Put that boundary at the highest-stakes single step and no earlier. Gating
+discovery instead of the send would slow the cheap, recoverable part of the
+pipeline for no safety benefit, because a wrong discovery costs nothing to
+unwind. The gate belongs exactly where getting it wrong stops being free.
 
 **Give the same logic two execution paths sharing one write gate, instead of
 building "the cheap version" as a separate, drifting implementation.** The
@@ -206,6 +406,15 @@ path's own rules as its instructions, not a summary of them, and because both
 write through identical, snapshotted, append-only functions. Two
 implementations of the same judgment call will disagree eventually; one
 source of truth read two different ways won't.
+
+**Fix what sits inside the retrievable unit before reaching for a better
+retriever.** Indexing a document's own title alongside its passages closed most
+of the gap between a keyword index and a vector one here, at no infrastructure
+cost, because several documents state their subject in the filename and never
+repeat it in the body. The same instruction covers the buried-fact case: when a
+single clause is invisible inside a large passage, changing the size of what you
+match against beats changing the model you match with. Reach for a heavier
+retriever after the cheap fixes to the unit are exhausted, not before.
 
 ## A reference architecture for this shape
 
@@ -222,12 +431,25 @@ only ever runs after a human confirms it happened; and exactly one scheduled
 lane, kept to the smallest slice of the pipeline that actually benefits from
 running unattended.
 
+The memory layer under the drafting step is three local stores and a router in
+front of them, all of it model-free. Narrative passages go through a small
+sentence-transformer — a 384-dimension BGE model executed on the processor via
+ONNX, cached to a plain array file and searched by one matrix multiply, because
+at this corpus size a specialized vector index adds operational surface for no
+measurable latency. Spreadsheets go into DuckDB, with third-party material in a
+second database file attached only on request. Companies, people and investors
+go into Kuzu, an embedded graph database with real Cypher, so a two-hop
+shared-investor traversal is one statement. In front of all three sits a
+rule-based router, scored on the same question set as retrieval itself.
+
 The pieces worth getting right from day one, because they're expensive to
 retrofit: writing the fit verdict into the same row as the candidate rather
 than a side report (moving it later means touching every consumer of that
 report); choosing append-only before there's enough volume to justify
 anything else (retrofitting update-in-place onto a sheet already full of
 rows means writing a matching layer you didn't need to design under
-pressure); and building the free runtime to read the paid runtime's rules
+pressure); building the free runtime to read the paid runtime's rules
 directly from day one, rather than hand-copying them once and letting the
-copy drift.
+copy drift; and writing the labelled question set before the retrieval
+layer rather than after, because every choice above it — chunk size, whether
+to index titles, whether fusion helps — is unarguable without it.
