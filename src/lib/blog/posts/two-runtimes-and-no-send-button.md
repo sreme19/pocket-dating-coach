@@ -1,7 +1,7 @@
 ---
 title: Automating my job hunt outreach with an agent that finds, researches, and drafts — and leaves sending to me
 date: 2026-09-03
-summary: A director/VP-level job search runs on outreach nobody automates safely, because the risky part is the send. This system automates finding, researching, and drafting end to end, grounded in a local three-store memory over the sender's own documents, and keeps the one irreversible step out of its code entirely. The retrieval half gave the more surprising result: indexing each document's own title bought nearly what the vector index did, and rank fusion lost to its best single member twice.
+summary: A director/VP-level job search runs on outreach nobody automates safely, because the risky part is the send. This system automates finding, researching, and drafting end to end, grounded in a local three-store memory over the sender's own documents, and keeps the one irreversible step out of its code entirely. The retrieval half gave the more surprising results: indexing each document's own title bought nearly what the vector index did, four employers' near-identical policies could only be separated by file path rather than by any retriever, and a negative result about rank fusion did not survive re-running it on a larger corpus.
 tags: [agentic-architecture, operations, context-engineering]
 cover: /og/blog/two-runtimes-and-no-send-button.png
 ---
@@ -191,17 +191,28 @@ searching it.
 
 ## The measured wins came from the chunks, not from a better retriever
 
-Five retrieval methods, scored against thirty-two hand-labelled questions.
-Thirty-two is a configured number — the size of the question set I wrote by
+Five retrieval methods, scored against thirty-eight hand-labelled questions.
+Thirty-eight is a configured number — the size of the question set I wrote by
 hand. Everything in the table is measured.
 
 | Method | Best answer first | Answer in top ten | Mean reciprocal rank |
 | --- | --- | --- | --- |
-| Naive keyword match | 48% | 81% | 0.590 |
-| BM25 | 55% | 84% | 0.671 |
-| Dense vectors | 77% | 90% | 0.808 |
-| Small-to-big (the default) | 74% | 94% | 0.809 |
-| Rank fusion | 77% | 87% | 0.809 |
+| Naive keyword match | 49% | 76% | 0.585 |
+| BM25 | 51% | 78% | 0.615 |
+| Dense vectors | 59% | 81% | 0.657 |
+| Small-to-big (the default) | 51% | 84% | 0.654 |
+| Rank fusion | 57% | 84% | 0.656 |
+
+These are lower than the figures this post carried when it went up, where
+small-to-big reached 94% in the top ten rather than 84%. Both runs are real.
+The question set grew from thirty-two questions to thirty-eight, and the corpus
+roughly doubled, from about five thousand passages to eleven and a half
+thousand. More questions against a larger haystack is a harder test, so the
+drop is not a regression to chase.
+
+It is worth stating rather than quietly restating, because a retrieval number
+published once tends to get quoted forever. The reason to keep scoring cheap
+enough to re-run is so that it gets re-run when the corpus moves underneath it.
 
 BM25 is in that table on purpose. Comparing embeddings against naive keyword
 matching flatters them. BM25 needs no model, no accelerator, and no index build
@@ -209,10 +220,14 @@ beyond a term-frequency table, and on a corpus dense with proper nouns it is
 genuinely hard to beat. An embedding index that can't beat it isn't earning its
 place.
 
-Four results came out of that run, and two of them are negative.
+Four results came out of that work. Two were negative, and one of the two has
+since been overturned by re-running it.
 
 **Indexing each document's own title moved keyword ranking from 0.590 to 0.671
-— most of what the vector index bought, for free.** Several diary files state
+in the original thirty-two-question run — most of what the vector index bought,
+for free.** That pair of figures belongs to that run and has not been re-tested
+against the larger set; the finding is the direction, not the decimals. Several
+diary files state
 their entire subject in the filename and never repeat it in the body. A passage
 indexed without its title was unfindable by the obvious question about it. The
 instruction generalizes past this corpus: fix what sits inside the retrievable
@@ -224,17 +239,29 @@ inside roughly five hundred tokens of process rules. No method found it in the
 top two hundred. The clause is a small share of the passage, so it averages into
 invisibility at passage-level embedding — keyword search reached it at rank
 thirty-three, dense search never did. Matching against windows of roughly a
-hundred and twenty tokens, then returning the parent passage, fixed it: both
-buried-fact questions went from unanswered to answered. The cost is about two
-and a half times more vectors.
+hundred and twenty tokens, then returning the parent passage, fixed it. On the
+larger question set it answers one of the two buried-fact questions where
+passage-level dense search answers neither. It answered both on the smaller set,
+so the honest version of this claim is that the technique reaches facts
+passage-level embedding cannot, not that it reaches all of them.
 
-**Reciprocal-rank fusion lost to its best single member, twice.** It rewards
-consensus rather than coverage. A passage only one ranker finds scores once,
-while anything both rankers find scores roughly double, and that arithmetic
-pushed both buried-fact answers out of the fused top ten. It stays in the
-codebase as a documented negative result rather than being deleted, because the
-next person reaching for fusion should meet the measurement before the
-intuition.
+**Reciprocal-rank fusion lost to its best single member twice, and then stopped
+losing.** The mechanism is worth keeping either way: fusion rewards consensus
+rather than coverage. A passage only one ranker finds scores once, while
+anything both rankers find scores roughly double. On the thirty-two-question set
+that arithmetic pushed both buried-fact answers out of the fused top ten, which
+read as a clean negative result.
+
+On the current set fusion ties small-to-big at 84% in the top ten and recovers
+the buried-fact question that passage-level dense search misses. So the verdict
+is withdrawn while the mechanism stands. Small-to-big remains the default
+because it is the simpler of two methods scoring the same, which is a weaker and
+more accurate reason than the one I had.
+
+That reversal is the more useful lesson than either measurement. A negative
+result held on a thirty-two-question set at one corpus size, and did not survive
+the corpus growing. Retrieval verdicts have a shelf life, and the arithmetic
+that explains a result is more durable than the ranking it produced.
 
 **Abstaining on a low score didn't work.** Both term coverage and vector
 similarity were tried as a confidence threshold. Every threshold that silenced
@@ -242,6 +269,71 @@ a wrong answer silenced real ones too. Weak matches now carry a label instead
 of being withheld. If you're building this, measure a candidate threshold
 against your own true positives before shipping it — the intuition that a
 confidence floor is free is the thing to check, not assume.
+
+## Four employers wrote the same policy, and no retriever could tell them apart
+
+A question arrived that looked trivial: what was the leave policy at the company
+I worked at during a particular stretch. The system answered confidently and
+returned a different employer's policy.
+
+Four former employers each wrote an office policy, a leave policy and a
+contractor policy. The documents are near-identical in wording, because that is
+how such documents get written. Twenty working days of annual leave, ten days of
+sick leave, a clause about public holidays not counting against the balance. All
+four say roughly that.
+
+Retrieval matches on wording. So it returned all four, ranked by nothing that
+mattered. The employer actually being asked about came sixteenth under keyword
+matching and twenty-fifth under dense vectors. The default returns five results.
+
+Two things about that are worth separating. The first is that the answer was
+wrong. The second is that nothing in the output said so — every returned passage
+was a genuine leave policy, scoring exactly as a good match should score. This
+is the failure mode that matters in a drafting pipeline: not an empty result,
+but a plausible one from the wrong source.
+
+**A better retriever cannot fix this, and it is worth checking rather than
+assuming.** The smarter method ranked the right employer *worse* than the crude
+one, twenty-fifth against sixteenth. That is the signal that the problem is not
+ranking quality. The information needed to separate four near-identical
+documents was never in their text. Nobody writes "this is the policy of the
+company you worked at from this year to that year" inside the policy.
+
+It was in the file path the whole time. Exported document folders carry
+per-account directory names, and folder and file names carry company names. So
+documents now get an organisation label derived from where they sit rather than
+what they say, and a query can be scoped to one. The right employer's three
+policy passages come back at the top, in place of three other employers'.
+
+Two design choices in that are transferable, and one bug is worth the space.
+
+**A document gets a set of labels, not one.** One contractor policy sits in a
+second company's folder inside a third company's export directory. All three
+facts are true. An earlier instinct was to score the candidates and keep a
+winner, which would have discarded the label that makes the document findable at
+all. Where provenance is genuinely multi-valued, storing it as a set costs
+nothing and forcing a single value silently loses data.
+
+**The label describes where a document sits, not what it discusses.** A meeting
+note filed under one company that talks at length about another is labelled by
+where it lives. That is a real limitation and the right trade. Labelling by
+content would match every document that so much as mentions a company, which is
+the problem being solved rather than a solution to it. Provenance is a property
+of the artifact; subject matter is a property of the text, and conflating them
+gives you back the original mess.
+
+The bug is the kind that hides in plain sight. The machine's own user account is
+named after one of the companies, so every absolute path in the corpus contains
+that company's name. The first version of the matcher labelled all one thousand
+three hundred and sixty-six documents as belonging to that employer, instead of
+the seventeen that do. It looked like it worked, because a filter that matches
+everything returns plausible results for every query.
+
+The fix is to strip the machine-specific prefix before matching anything, and
+the durable version of the fix is a test that fails if that ever stops
+happening. The general shape: when deriving metadata from a path, the parts of a
+path that describe the *machine* are not data about the *document*, and they are
+easy to leave in because they are invisible in every example you look at.
 
 ## An instruction in a prompt is not a mechanism
 
@@ -443,6 +535,15 @@ second database file attached only on request. Companies, people and investors
 go into Kuzu, an embedded graph database with real Cypher, so a two-hop
 shared-investor traversal is one statement. In front of all three sits a
 rule-based router, scored on the same question set as retrieval itself.
+
+Retrieval carries two independent filter dimensions, and both are applied as a
+mask before ranking rather than as a pass over the results afterwards. One is
+sensitivity, which keeps private and third-party material out of the drafting
+path. The other is provenance, derived from each document's own file path, which
+is what separates four employers' near-identical policies. Filtering before the
+cutoff rather than after is the detail worth copying: filter afterwards and an
+excluded passage still consumes one of the slots you asked for, so a query for
+five results quietly returns four.
 
 The pieces worth getting right from day one, because they're expensive to
 retrofit: writing the fit verdict into the same row as the candidate rather
