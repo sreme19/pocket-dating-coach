@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 806" width="560" height="806" role="img" aria-labelledby="rfot rfod">
+  <title id="rfot">One question that needs all three stores, and the fused context that reaches the model</title>
+  <desc id="rfod">A single question arrives that no one store answers on its own: is this company worth approaching, and through whom. The routing layer splits it into three sub-questions before anything is searched, because each one is a different shape of answer. The narrative sub-question — which of my own proof points speaks to their problem — goes to the meaning-search index, a 384-dimension BGE-small model over a plain array. The quantity sub-question — how many companies at this stage have replied before — goes to DuckDB, roughly 190 tables across two database files. The relationship sub-question — who do I already know one hop from this company — goes to Kuzu, an embedded graph database with real Cypher. The three result sets meet in a context-fusion step that de-duplicates them, tags each fact with the store it came from, and applies the sensitivity and provenance filters as a mask before ranking rather than as a pass afterwards. Only then does a model run: Claude Opus 5 over the fused context, doing reasoning and synthesis rather than search. The output is a draft in a plain text file, which a person sends themselves. The footer records the economics: three retrievals, none of them metered, and one model call on a context a fraction the size of the documents the facts came from.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .hot { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .final { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.5; }
+    .k { font-family: system-ui, -apple-system, sans-serif; font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; fill: #97928a; }
+    .kb { font-family: system-ui, -apple-system, sans-serif; font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; fill: #b4541e; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14.5px; fill: #17161b; }
+    .hq { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 15.5px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #6e6a63; }
+    .q { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; font-style: italic; fill: #17161b; }
+    .cap { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; fill: #b4541e; }
+    .el { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 600; fill: #97928a; }
+    .arrow { stroke: #97928a; stroke-width: 1.4; fill: none; }
+    .bar { stroke: #97928a; stroke-width: 1.4; fill: none; }
+    .rule { stroke: #e8e3d8; stroke-width: 1; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+
+    /* dashes march along every connector: this figure is a single question
+       travelling outward and coming back fused. */
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: rf-arrow 0.9s linear infinite; }
+    }
+    @keyframes rf-arrow { to { stroke-dashoffset: -8; } }
+  </style>
+  <defs>
+    <marker id="rf" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="560" height="806" rx="8"/>
+
+  <rect class="hot" x="24" y="30" width="512" height="82" rx="6"/>
+  <text class="kb" x="42" y="52">ONE QUESTION, THREE SHAPES OF ANSWER</text>
+  <text class="hq" x="42" y="76">“Is this company worth approaching,</text>
+  <text class="hq" x="42" y="98">and through whom?”</text>
+
+  <line class="arrow" x1="280" y1="112" x2="280" y2="134" marker-end="url(#rf)"/>
+
+  <rect class="card" x="24" y="138" width="512" height="64" rx="6"/>
+  <text class="k" x="42" y="160">SPLIT BEFORE ANYTHING IS SEARCHED</text>
+  <text class="h" x="42" y="182">Three sub-questions, three stores</text>
+  <text class="cap" x="516" y="182" text-anchor="end">no model yet</text>
+
+  <path class="arrow" d="M 280 202 V 226 H 105 V 258" marker-end="url(#rf)"/>
+  <path class="arrow" d="M 280 202 V 258" marker-end="url(#rf)"/>
+  <path class="arrow" d="M 280 202 V 226 H 455 V 258" marker-end="url(#rf)"/>
+  <text class="el" x="186" y="220" text-anchor="middle">narrative</text>
+  <text class="el" x="290" y="248">quantity</text>
+  <text class="el" x="372" y="220" text-anchor="middle">relationship</text>
+
+  <rect class="card" x="24" y="262" width="162" height="152" rx="6"/>
+  <text class="k" x="42" y="282">PROSE</text>
+  <text class="h" x="42" y="304">Meaning search</text>
+  <text class="s" x="42" y="324">BGE-small, 384 dims</text>
+  <line class="rule" x1="42" y1="338" x2="168" y2="338"/>
+  <text class="q" x="42" y="358">which proof point</text>
+  <text class="q" x="42" y="376">of mine speaks to</text>
+  <text class="q" x="42" y="394">their problem</text>
+
+  <rect class="card" x="199" y="262" width="162" height="152" rx="6"/>
+  <text class="k" x="217" y="282">GRIDS</text>
+  <text class="h" x="217" y="304">DuckDB</text>
+  <text class="s" x="217" y="324">~190 tables, two files</text>
+  <line class="rule" x1="217" y1="338" x2="343" y2="338"/>
+  <text class="q" x="217" y="358">how many companies</text>
+  <text class="q" x="217" y="376">at this stage have</text>
+  <text class="q" x="217" y="394">replied before</text>
+
+  <rect class="card" x="374" y="262" width="162" height="152" rx="6"/>
+  <text class="k" x="392" y="282">RELATIONSHIPS</text>
+  <text class="h" x="392" y="304">Kuzu</text>
+  <text class="s" x="392" y="324">Embedded, real Cypher</text>
+  <line class="rule" x1="392" y1="338" x2="518" y2="338"/>
+  <text class="q" x="392" y="358">who do I already</text>
+  <text class="q" x="392" y="376">know one hop from</text>
+  <text class="q" x="392" y="394">this company</text>
+
+  <line class="arrow" x1="105" y1="416" x2="105" y2="436"/>
+  <line class="arrow" x1="280" y1="416" x2="280" y2="436"/>
+  <line class="arrow" x1="455" y1="416" x2="455" y2="436"/>
+  <line class="bar" x1="105" y1="436" x2="455" y2="436"/>
+  <line class="arrow" x1="280" y1="436" x2="280" y2="464" marker-end="url(#rf)"/>
+
+  <rect class="card" x="24" y="468" width="512" height="86" rx="6"/>
+  <text class="k" x="42" y="490">CONTEXT FUSION</text>
+  <text class="h" x="42" y="512">De-duplicated, each fact tagged with its store</text>
+  <text class="s" x="42" y="532">Sensitivity and provenance applied as a mask before ranking,</text>
+  <text class="s" x="42" y="546">never as a pass over the results afterwards</text>
+
+  <line class="arrow" x1="280" y1="554" x2="280" y2="576" marker-end="url(#rf)"/>
+
+  <rect class="card" x="24" y="580" width="512" height="82" rx="6"/>
+  <text class="k" x="42" y="602">THE ONLY METERED STEP</text>
+  <text class="h" x="42" y="624">Claude Opus 5, Messages API</text>
+  <text class="s" x="42" y="644">Reasoning and synthesis — where a model earns its cost</text>
+
+  <line class="arrow" x1="280" y1="662" x2="280" y2="684" marker-end="url(#rf)"/>
+
+  <rect class="final" x="24" y="688" width="512" height="56" rx="6"/>
+  <text class="kb" x="42" y="710">THE OUTPUT</text>
+  <text class="h" x="42" y="732">A draft in a plain text file, sent by a person</text>
+
+  <text class="foot" x="280" y="782" text-anchor="middle">Three retrievals, none metered. One model call, on a fraction of the context.</text>
+</svg>

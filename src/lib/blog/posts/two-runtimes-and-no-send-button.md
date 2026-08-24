@@ -1,8 +1,8 @@
 ---
 title: Automating my job hunt outreach with an agent that finds, researches, and drafts — and leaves sending to me
 date: 2026-09-03
-summary: A director/VP-level job search runs on outreach nobody automates safely, because the risky part is the send. This system automates finding, researching, and drafting end to end, grounded in a local three-store memory over the sender's own documents, and keeps the one irreversible step out of its code entirely. The retrieval half gave the more surprising results: indexing each document's own title bought nearly what the vector index did, four employers' near-identical policies could only be separated by file path rather than by any retriever, and a negative result about rank fusion did not survive re-running it on a larger corpus.
-tags: [agentic-architecture, operations, context-engineering]
+summary: A director/VP-level job search runs on outreach nobody automates safely, because the risky part is the send. This system automates finding, researching, and drafting end to end, and keeps the one irreversible step out of its code entirely. Underneath it, memory is split three ways: a table store for quantities, an embedding index for meaning, a graph for relationships. The question is no longer how to store data for a human to read, but how to organise it so an agent retrieves the right slice before a model call it pays for. The retrieval half gave the more surprising results: indexing each document's own title bought nearly what the vector index did, four employers' near-identical policies could only be separated by file path rather than by any retriever, and a negative result about rank fusion did not survive re-running it on a larger corpus.
+tags: [agentic-architecture, operations, context-engineering, data-platform]
 cover: /og/blog/two-runtimes-and-no-send-button.png
 ---
 
@@ -189,6 +189,135 @@ document read cost. Same fact, a fraction of the context, and the index itself
 costs nothing per query because no metered call is involved in building or
 searching it.
 
+## Three representations of one business reality
+
+The three stores are not three implementations of one idea. They are three ways
+of writing the same facts down, and each one makes a different question cheap.
+
+**A table keeps facts as rows and columns.** This is the oldest and most mature
+of the three, and for anything countable nothing has displaced it. Relationships
+live here too — a foreign key *is* a relationship and a join *is* a traversal —
+so the honest claim is not that a relational store can't express a connection.
+It's that every additional hop costs another join, written by whoever writes the
+query, and that cost is what starts to bite at depth.
+
+What a table externalises is meaning. A column has a name, a type, and perhaps a
+constraint. Everything else — what it counts, which population it covers, when it
+was last revised, whether its timestamps carry a zone — lives in documentation, a
+naming convention, a data dictionary, or a colleague's head. A human reading a
+figure applies a reflex an agent doesn't have: *hang on, is this current?*
+
+I measured how hard that missing reflex bites in a separate local lakehouse
+project, over a public federal complaints feed. Both numbers below are measured
+there, not here:
+
+- One day's delivery carried complaints spanning a median of 108 distinct event
+  dates, and 72% of the days in the fetch window received rows across more than
+  one delivery. One date was still receiving rows in 31 separate files. So
+  Tuesday's count for a given day is simply lower than Friday's count for that
+  same day. Nothing errors, no test goes red, and a correct answer quietly
+  becomes a wrong one.
+- About 4.5% of rows carried an event timestamp *later* than the complaint
+  reporting it. The median negative gap is 2.8 hours, and 92% fall inside six.
+  That isn't corruption, it's a timezone: one timestamp in the consumer's local
+  time, the other in Eastern, and neither column declaring a zone.
+
+The second is the more dangerous defect, because the column isn't broken. It's
+underspecified. An analyst sees a three-hour negative gap and thinks *ah, local
+time*. An agent reads a field typed as a timestamp, takes it at face value, and
+computes a calling-window figure that can be off by six hours.
+
+Neither finding argues against relational stores. Both argue that the metadata an
+agent needs — units, grain, coverage, revision time, zone — has to be an output of
+the table rather than a convention around it. Given that, a table is the
+strongest of the three for anything countable: an agent reads the schema, writes
+a precise query, and gets back exactly the rows it asked for and nothing else.
+
+**An embedding index keeps facts as position.** Prose is split into chunks, each
+chunk becomes a fixed-length vector, and retrieval returns the chunks nearest the
+embedded question. The useful property is that nearness isn't spelling. A keyword
+index asked for "termination" looks for that string. An embedding index also
+reaches passages about dismissal, ending an engagement, and offboarding, none of
+which contain the word.
+
+Worth stating precisely, because the shorthand oversells it: what the index
+computes is proximity in a learned space, which *approximates* meaning rather
+than encoding it. Four near-identical employer policies, further down this post,
+are exactly where the approximation and the intent come apart — four passages that
+mean nearly the same thing, on a question that turned on which employer wrote
+them, a fact none of the four contains.
+
+Other modalities join this store through a pipeline rather than by being poured
+into it. Audio becomes searchable by transcription, and it's the transcript that
+gets chunked and embedded. Images and video go through either a multimodal
+embedding model that maps them into a shared space with text, or a captioning
+step whose captions get embedded. The store holds vectors. What produced each
+vector is an upstream decision, and it sets the ceiling on what the store can
+answer.
+
+**A graph keeps facts as connections, with the connection itself as data.** That
+one gets its own section below, because the terminology and the payoff both need
+room.
+
+| Representation | Makes this cheap | Gets expensive at |
+| --- | --- | --- |
+| Table (DuckDB) | Counting rows — "how many reached a final round" | Depth: one join per hop |
+| Embedding index (BGE-small) | Recall by meaning — "why did that engagement end" | Near-duplicates that score alike |
+| Graph (Kuzu) | Traversal — "which untouched company shares an investor" | Aggregation, and full-text |
+
+## The context bill, and why a bigger model doesn't pay it
+
+Finding one proof point by reading the document that holds it cost roughly a
+hundred and eighty thousand tokens. Retrieval returns about ten passages of a few
+hundred tokens each for the same fact. That ratio is the whole case for putting a
+retrieval layer under a drafting step, and it's worth separating the three costs
+it moves, because they usually get collapsed into one.
+
+**Tokens are billed.** A pipeline that hands a model the corpus and asks it to
+find the relevant part pays for the corpus on every question, including all of it
+that was irrelevant.
+
+**Long prompts are slower before they are anything.** Time to first token grows
+with input length. A retrieval step that runs locally in milliseconds and removes
+most of the prompt is usually a net latency win rather than a tax on the request.
+
+**Attention isn't uniform across a long context.** This is the one that gets left
+out, and it's why the first two don't tell the whole story. Liu and colleagues
+found that performance is highest when the relevant passage sits at the beginning
+or the end of the input, and degrades measurably when a model has to reach for it
+in the middle — including in models built for long contexts. So padding a prompt
+with the corpus isn't merely slower and dearer. It can lower answer quality,
+because the passage that matters is now buried among everything that came with
+it.
+
+The tempting response to a pipeline that's expensive, slow, and mediocre is a
+stronger model. Sometimes that's right. But when the work the model is doing
+badly is *finding* rather than *reasoning*, a stronger model buys a better search
+over the same oversized haystack, at a higher price per question. The cheaper
+move is to hand it a smaller haystack.
+
+That reframes what the model is for. It's the reasoning step, and the finding
+belongs to infrastructure specialised for it: deterministic, unit-testable, and
+here, free to re-run. The entire memory layer under this drafting step calls no
+model at all. That's precisely what makes it affordable to re-score against
+thirty-eight labelled questions every time the corpus moves.
+
+There's a real trade in this, and it isn't free. Any retrieval layer can drop the
+passage the answer needed, where a model handed everything cannot. So the number
+to watch isn't average answer quality. It's the rate at which retrieval returns
+nothing useful for a question you know is answerable. Write the labelled question
+set first, measure top-ten recall against it, and treat a fall in that number as
+the signal to widen retrieval rather than to buy a larger model.
+
+One framing is worth resisting. It's tempting to draw this as a maturity ladder:
+raw prompting, then semantic retrieval, then structured queries, then graph
+traversal, each superseding the last. Only the first step is a real progression —
+moving retrieval out of the prompt and into infrastructure is close to strictly
+better. What comes after isn't a ladder. Semantic, structured and relationship
+retrieval are siblings, each matched to a shape of question, and a system that
+"graduated" from its embedding index to a graph has usually just lost the ability
+to answer narrative questions.
+
 ## The measured wins came from the chunks, not from a better retriever
 
 Five retrieval methods, scored against thirty-eight hand-labelled questions.
@@ -233,6 +362,15 @@ indexed without its title was unfindable by the obvious question about it. The
 instruction generalizes past this corpus: fix what sits inside the retrievable
 unit before reaching for a better retriever.
 
+Anthropic's contextual-retrieval write-up arrives at the same conclusion by a
+more expensive route. It has a model write a short situating description for
+every chunk before embedding, and reports retrieval failures falling from 5.7% to
+3.7% of relevant documents missing from the top twenty, and to 1.9% once keyword
+matching and reranking are added. Those are their measurements on their corpus,
+not mine. The mechanism is identical, though: the chunk was missing the context
+that made it findable. A filename is the cheapest available version of that
+context, and it is already written.
+
 **A fact buried inside a passage about something else needs the match and the
 return to be different sizes.** One passage carries a weekly call-volume figure
 inside roughly five hundred tokens of process rules. No method found it in the
@@ -248,7 +386,11 @@ passage-level embedding cannot, not that it reaches all of them.
 **Reciprocal-rank fusion lost to its best single member twice, and then stopped
 losing.** The mechanism is worth keeping either way: fusion rewards consensus
 rather than coverage. A passage only one ranker finds scores once, while
-anything both rankers find scores roughly double. On the thirty-two-question set
+anything both rankers find scores roughly double. The formula is a sum, across
+the rankers, of one over a constant plus the passage's rank in that ranker's
+list — Cormack and colleagues fixed the constant at sixty, specifically so that a
+single outlier ranker putting something first can't dominate the fused order. On
+the thirty-two-question set
 that arithmetic pushed both buried-fact answers out of the fused top ten, which
 read as a clean negative result.
 
@@ -367,6 +509,23 @@ words exist only as cell values inside it.
 The third store answers one question the other two handle badly: which company
 I haven't approached shares an investor with one where someone already replied.
 
+Three terms carry the whole model, and they're worth naming precisely. A **node**
+is an entity — here a company, a person, or an investor. An **edge** is a named,
+directed relationship between two nodes: backed by, employs, invested in. In a
+property graph, which is what this store implements, both nodes *and* edges carry
+their own properties. A company node holds a vertical and a funding stage; the
+edge to its investor holds the round and the date it was announced. Attributes on
+the relationship are the part people miss, and they're model-specific: in an RDF
+triple store an edge is a bare triple, and giving it attributes of its own takes
+reification.
+
+Traversal is what you do with that. Start at a node you can name, follow an edge
+type, arrive at another node, read its properties, and keep going while the
+relationships stay relevant. What comes back is a connected set of facts, not a
+ranked list of passages.
+
+![Two parts. The first is the anatomy of a property graph: a node is an entity such as a company, carrying properties like a name, a vertical, a funding stage and an outreach status; an edge is a named, directed relationship such as backed_by, carrying its own properties — the round, the announced date, the source of the claim. Edge properties are a property-graph feature; an RDF triple store needs reification for the same thing. The second is the traversal that justifies the store. Start at a company where a reply already landed, walk backed_by to its investor, walk the same edge type in reverse to a second company in that investor's portfolio that has never been approached, then walk employs to the person to contact there. One statement in Cypher, against a join per hop written by hand in a relational store. Every edge is parsed from a record or a research note, never inferred, because a fabricated shared investor sends a cold approach down a warm path that isn't there.](/blog/agent-graph-anatomy.svg)
+
 A table manages the first hop comfortably — list the investors in a given
 company. The second hop is where it turns awkward, and the second hop is the
 entire value. An untouched target connected through a shared backer to a
@@ -375,11 +534,38 @@ that reframes a long backlog as a ranked shortlist. So companies, people and
 investors live in an embedded graph database, queried in a graph query
 language, where that traversal is a single statement.
 
+The reason to check this rather than assume it is that the failure mode of asking
+an embedding index a relationship question isn't an empty result. I built a
+separate public project to make that concrete, on a synthetic matchmaking network
+where the facts worth having are all chains: a match, a timed handoff, a trust
+event, a replacement. Asked why one person's handoff with one specific
+counterparty went quiet, the vector path did the only thing it can. It embedded
+the question and returned the profiles that read most similarly. None of them
+belonged to the counterparty in the question. Nothing errored, no score
+collapsed, and nothing in the output said the real answer needed a specific set of
+edges walked instead. The graph path walked them and returned the expired
+deadline, the trust movement, and the replacement that followed.
+
+The same model narrated both. The difference was entirely in which facts it was
+handed — which is the argument of this whole post in one experiment: retrieval
+architecture, not model choice, decides whether "why" questions are answerable at
+all.
+
 Every edge comes from deterministic extraction — parsed fields and written
 research notes, never inference. That's a correctness requirement rather than a
 shortcut. A fabricated shared investor routes outreach down a warm-intro path
 that doesn't exist, and a warm approach that turns out to be cold is worse than
 no suggestion at all.
+
+That's a real divergence from how graph retrieval is often built. Microsoft's
+GraphRAG names the same limitation in ordinary vector retrieval — it "struggles to
+connect the dots" across facts linked only by a shared attribute — and then builds
+its graph by having a model read the corpus and extract the entities and
+relationships it finds. That's the right trade when the relationships exist only
+in prose and no structured record of them exists. It's the wrong trade here,
+because a structured record already exists and the cost of a wrong edge is
+asymmetric. A hallucinated shared investor doesn't degrade an answer slightly. It
+manufactures a warm introduction that was never there.
 
 Two rules keep it honest, and the second is the one worth copying.
 
@@ -394,6 +580,53 @@ the note is recorded as unmatched and skipped — no node is created for it. The
 tracking sheet defines what exists. Inventing a company from a near-miss name
 would split one company's edges across two nodes, and a traversal over a split
 node returns answers that are confident and wrong.
+
+## Picking the representation is the retrieval decision
+
+The three stores have been described one at a time, which understates the
+interesting part. The routing layer's job isn't to pick a favourite. It's to read
+the shape of a question and send it where that shape is cheap.
+
+| Question | Where it goes | Because |
+| --- | --- | --- |
+| "How many candidates reached a final round?" | The table store | A grouped count over rows; no passage contains the answer |
+| "Why did that engagement end?" | The embedding index | A reason recorded in prose, which no column holds |
+| "Which untouched company shares an investor with one that replied?" | The graph | Two hops, where a table needs a join per hop |
+| "Is this company worth approaching, and through whom?" | All three | It decomposes into a count, a proof point, and a traversal |
+
+The fourth row is the one that matters architecturally, because it's the common
+case for anything worth calling an agent. A question that decomposes doesn't want
+a router that picks one store. It wants the sub-questions dispatched separately,
+the results assembled, and each fact labelled with where it came from before any
+of it reaches a model.
+
+![A single question arrives that no one store answers on its own: is this company worth approaching, and through whom. Before anything is searched, it splits into three sub-questions, because each is a different shape of answer. Which of my own proof points speaks to their problem goes to the meaning-search index. How many companies at this stage have replied before goes to DuckDB. Who do I already know one hop from this company goes to Kuzu. The three result sets meet in a fusion step that de-duplicates them, tags each fact with the store that produced it, and applies the sensitivity and provenance filters as a mask before ranking rather than as a pass afterwards. Only then does a model run, on the fused context, doing reasoning and synthesis rather than search. The output is a draft in a plain text file that a person sends themselves. Three retrievals, none of them metered, and one model call on a fraction of the context.](/blog/retrieval-fanout.svg)
+
+The word "fusion" covers two different operations, and conflating them is how
+this step gets built wrong. Combining two ranked lists over the *same* corpus is
+rank fusion in the technical sense, and the arithmetic above applies: shared rank
+positions, one relevance scale, a defensible combined order. That's what happens
+here between the keyword and dense rankers over the same passages.
+
+Combining a count from a table, a passage from an index, and a path from a graph
+is not that. There's no shared relevance scale between a number and a paragraph,
+and no meaningful way to rank one against the other. What that step actually does
+is assemble and label: keep every fact, record which store produced it, and hand
+the model a context where the provenance of each claim is explicit. Calling it
+fusion is fine. Implementing it as though the three results were comparable
+scores is not.
+
+Each store is also weakest at what another is best at, and the graph is the
+clearest case. Asked how many candidates reached a final round, it would have to
+walk every matching path and count what it landed on — a grouped count performed
+the expensive way, over a structure built for depth rather than breadth. That's
+the same question the table store answers in one statement. Neither of them is
+badly built; they're shaped for different questions.
+
+So the three are complementary in a specific sense rather than a diplomatic one.
+They aren't competing implementations with a winner pending. They're different
+projections of one business reality, and the projection that makes a question
+cheap is a property of the question, not of the technology.
 
 ## Sensitivity belongs in a separate file, not a flag on a row
 
@@ -501,14 +734,18 @@ write through identical, snapshotted, append-only functions. Two
 implementations of the same judgment call will disagree eventually; one
 source of truth read two different ways won't.
 
-**Fix what sits inside the retrievable unit before reaching for a better
-retriever.** Indexing a document's own title alongside its passages closed most
-of the gap between a keyword index and a vector one here, at no infrastructure
-cost, because several documents state their subject in the filename and never
-repeat it in the body. The same instruction covers the buried-fact case: when a
-single clause is invisible inside a large passage, changing the size of what you
-match against beats changing the model you match with. Reach for a heavier
-retriever after the cheap fixes to the unit are exhausted, not before.
+**Match the store to the shape of the question, and make that choice in
+infrastructure rather than in a prompt.** Writing "numbers come from the
+spreadsheet, never from prose" into a model's instructions did not stop a
+paraphrased rate from reaching a draft. A rule-based classifier in front of the
+search did, because it decides before anything is retrieved rather than hoping
+afterwards. Scaled up, that same instruction is an architecture: a count belongs
+in a table, a reason belongs in an index over prose, a two-hop connection belongs
+in a graph, and the fix for a pipeline that's slow, expensive and mediocre is
+usually a smaller, better-labelled context rather than a larger model. Exhaust
+the cheap fixes to what sits inside the retrievable unit first — a document's own
+title indexed alongside its passages, a smaller window to match against than the
+one you return — because those cost nothing and they close most of the gap.
 
 ## A reference architecture for this shape
 
@@ -556,3 +793,37 @@ directly from day one, rather than hand-copying them once and letting the
 copy drift; and writing the labelled question set before the retrieval
 layer rather than after, because every choice above it — chunk size, whether
 to index titles, whether fusion helps — is unarguable without it.
+
+The through-line, if there's one worth keeping past the job search: none of this
+was a choice between a table, an index and a graph. It was the same business
+reality written down three times, in three shapes, because the shape that makes a
+question cheap belongs to the question rather than to the technology. Structured
+facts stay structured. Prose stays searchable by meaning. Relationships become
+something you can walk. A router picks, only the relevant slice travels, and the
+model is left doing the part it's genuinely best at — reasoning over a small,
+well-labelled context. What that buys is unusual in moving four ways at once: less
+context, lower latency, a smaller bill, and better answers, because the passage
+that mattered is no longer competing with the corpus it arrived in.
+
+## References
+
+**Papers**
+
+- Cormack, Clarke and Büttcher, *Reciprocal Rank Fusion outperforms Condorcet and
+  individual Rank Learning Methods*, SIGIR '09 — the source of the fusion
+  arithmetic used here, including the constant of sixty and the reason for it.
+  [PDF](http://cormack.uwaterloo.ca/cormacksigir09-rrf.pdf)
+- Liu, Lin, Hewitt, Paranjape, Bevilacqua, Petroni and Liang, *Lost in the Middle:
+  How Language Models Use Long Contexts*, 2023 — the finding behind the attention
+  argument above. [arXiv:2307.03172](https://arxiv.org/abs/2307.03172)
+
+**Engineering write-ups**
+
+- Anthropic, *Introducing Contextual Retrieval* — prepending a model-written
+  situating description to each chunk before embedding, and the failure-rate
+  reductions quoted above, which are theirs and not mine.
+  [anthropic.com](https://www.anthropic.com/news/contextual-retrieval)
+- Microsoft Research, *GraphRAG: Unlocking LLM discovery on narrative private
+  data* — names the same limitation in ordinary vector retrieval, and builds its
+  graph by model-driven extraction rather than deterministically.
+  [microsoft.com](https://www.microsoft.com/en-us/research/blog/graphrag-unlocking-llm-discovery-on-narrative-private-data/)

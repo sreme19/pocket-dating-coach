@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 828" width="560" height="828" role="img" aria-labelledby="agat agad">
+  <title id="agat">What a node and an edge carry, and the two-hop traversal that pays for a graph store</title>
+  <desc id="agad">Two parts. The first is the anatomy of the property graph model as implemented by Kuzu. A node is an entity — here a Company — and it carries properties: a name, a vertical, a funding stage, an outreach status. Person and Investor are the other two node types. An edge is a named, directed relationship — here backed_by — and in a property graph the edge carries properties of its own: the round, the announced date, and the source of the claim. Employs and invested_in are other edge types. The footnote records that this is specific to the property graph model; in an RDF triple store an edge is a bare triple and giving it attributes of its own requires reification. The second part is the traversal that justifies keeping a third store at all. Start at a company where an outreach reply already landed. Walk the backed_by edge to its investor — a hop a relational table handles comfortably. Walk the same edge type in reverse to a second company in that investor's portfolio that has never been approached; this is the hop that turns a long backlog into a ranked shortlist, because the untouched company is now a warm approach rather than a cold one. Walk an employs edge to the person to contact there, whose name and title come from public search. All of it is one statement in Cypher, where a relational store needs a join per hop written by hand. The footer records the correctness rule: every edge is parsed from a tracking record or a written research note and none is inferred by a model, because a fabricated shared investor sends a cold approach down a warm-introduction path that does not exist.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .hot { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .k { font-family: system-ui, -apple-system, sans-serif; font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; fill: #97928a; }
+    .kb { font-family: system-ui, -apple-system, sans-serif; font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; fill: #b4541e; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14.5px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #6e6a63; }
+    .edge { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; fill: #b4541e; }
+    .el { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 600; fill: #97928a; }
+    .hop { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; fill: #2f6b46; }
+    .arrow { stroke: #97928a; stroke-width: 1.4; fill: none; }
+    .stat { stroke: #b4541e; stroke-width: 1.4; fill: none; }
+    .rule { stroke: #e8e3d8; stroke-width: 1; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+
+    /* the traversal connectors march downward so the figure reads as a walk.
+       the anatomy block above shows no movement, so it stays static. */
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: ag-arrow 0.9s linear infinite; }
+    }
+    @keyframes ag-arrow { to { stroke-dashoffset: -8; } }
+  </style>
+  <defs>
+    <marker id="ag" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+    <marker id="agr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b4541e"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="560" height="828" rx="8"/>
+
+  <text class="kb" x="24" y="30">THE PROPERTY GRAPH MODEL — KUZU, CYPHER</text>
+  <text class="s" x="24" y="50">Both ends and the link between them carry attributes</text>
+
+  <rect class="card" x="24" y="66" width="244" height="124" rx="6"/>
+  <text class="k" x="42" y="86">NODE — AN ENTITY</text>
+  <text class="h" x="42" y="110">Company</text>
+  <text class="s" x="42" y="132">name · vertical · stage</text>
+  <text class="s" x="42" y="150">outreach status</text>
+  <text class="s" x="42" y="176">Also: Person, Investor</text>
+
+  <rect class="card" x="292" y="66" width="244" height="124" rx="6"/>
+  <text class="k" x="310" y="86">EDGE — A NAMED DIRECTION</text>
+  <text class="h" x="310" y="110">backed_by</text>
+  <text class="s" x="310" y="132">round · announced date</text>
+  <text class="s" x="310" y="150">source of the claim</text>
+  <text class="s" x="310" y="176">Also: employs, invested_in</text>
+
+  <line class="stat" x1="268" y1="110" x2="292" y2="110" marker-end="url(#agr)"/>
+
+  <line class="rule" x1="24" y1="212" x2="536" y2="212"/>
+  <text class="kb" x="24" y="238">THE SECOND HOP IS THE ENTIRE VALUE</text>
+
+  <rect class="hot" x="146" y="254" width="268" height="74" rx="6"/>
+  <text class="kb" x="164" y="276">START HERE</text>
+  <text class="h" x="164" y="298">A company that replied</text>
+  <text class="s" x="164" y="317">A conversation already in progress</text>
+
+  <line class="arrow" x1="280" y1="328" x2="280" y2="366" marker-end="url(#ag)"/>
+  <text class="edge" x="292" y="351">backed_by</text>
+
+  <rect class="card" x="146" y="366" width="268" height="74" rx="6"/>
+  <text class="k" x="164" y="388">HOP ONE</text>
+  <text class="h" x="164" y="410">An investor</text>
+  <text class="s" x="164" y="429">A table handles this hop comfortably</text>
+
+  <line class="arrow" x1="280" y1="440" x2="280" y2="478" marker-end="url(#ag)"/>
+  <text class="edge" x="292" y="463">backed_by, reversed</text>
+
+  <rect class="hot" x="146" y="478" width="268" height="74" rx="6"/>
+  <text class="kb" x="164" y="500">HOP TWO — THE PAYOFF</text>
+  <text class="h" x="164" y="522">A company never approached</text>
+  <text class="s" x="164" y="541">Warm approach, not a cold one</text>
+
+  <line class="arrow" x1="280" y1="552" x2="280" y2="590" marker-end="url(#ag)"/>
+  <text class="edge" x="292" y="575">employs</text>
+
+  <rect class="card" x="146" y="590" width="268" height="74" rx="6"/>
+  <text class="k" x="164" y="612">HOP THREE</text>
+  <text class="h" x="164" y="634">The person to reach there</text>
+  <text class="s" x="164" y="653">Name and title, from public search</text>
+
+  <text class="hop" x="24" y="298">ONE</text>
+  <text class="hop" x="24" y="410">STATEMENT</text>
+  <text class="hop" x="24" y="522">IN</text>
+  <text class="hop" x="24" y="634">CYPHER</text>
+
+  <text class="el" x="428" y="400">a join per hop</text>
+  <text class="el" x="428" y="416">in a relational</text>
+  <text class="el" x="428" y="432">store, by hand</text>
+
+  <line class="rule" x1="24" y1="688" x2="536" y2="688"/>
+  <text class="foot" x="24" y="714">Every edge is parsed from a record or a research note.</text>
+  <text class="foot" x="24" y="734">None is inferred by a model — a fabricated shared investor</text>
+  <text class="foot" x="24" y="754">sends a cold approach down a warm path that isn’t there.</text>
+  <text class="s" x="24" y="786">Edge properties are a property-graph feature. In an RDF triple</text>
+  <text class="s" x="24" y="804">store an edge is a bare triple; attributes on it need reification.</text>
+</svg>
