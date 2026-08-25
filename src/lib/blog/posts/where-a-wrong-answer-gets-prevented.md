@@ -1,371 +1,413 @@
 ---
-title: A warm introduction through someone I actually worked with, and the graph schema that makes colleague a guarantee rather than a filter
+title: One agent, three databases, and how to decide whether a question belongs to a vector index, a SQL store or a graph
 date: 2026-08-25
-summary: The first professional query over eleven years of my own history returned a family member, because a filter is only as good as the caller who remembers to apply it. The fix was not a better filter but a schema — colleagues and private contacts got separate relationship tables, so the professional traversal is structurally incapable of reaching a clinician or a partner. That is a guarantee the other two stores in the same system cannot offer: an embedding index gets a mask at query time, a SQL store gets a second database file nobody attaches by accident, and only the graph can make a wrong answer unrepresentable. The measured price is recall — the conservative gate drops eleven real colleagues, and nine names stay filed as private with the conflict reported rather than resolved.
-tags: [data-platform, agent-architecture, guardrails, context-engineering]
+summary: An agent that drafts outreach kept quoting a performance number from a summary someone wrote once. The summary said 600 calls a week. The tracker it was summarising said about 1,850. The fix was to stop treating an archive of 1,100 work documents as one searchable pile, and split it by shape into three local stores — an embedding index for prose, DuckDB for spreadsheets, and a graph database for relationships — with a rule that decides where a question goes before anything is searched. This is what each store is genuinely good at, what it costs when you pick the wrong one, and the measured results, including the finding that indexing each document's title bought almost as much as the embedding model did.
+tags: [data-platform, agent-architecture, context-engineering, decision-systems]
 cover: /og/blog/where-a-wrong-answer-gets-prevented.png
 ---
 
-The first time I queried for people I had worked with, my father came back in
-the results.
+I asked my own system how many calls a week a voice agent I had built was
+handling. It came back with 600, and it had a source: a line in its own notes saying
+"600+ calls a week."
 
-Nothing failed in a way a test could catch. The graph had just been taught to
-read eleven years of my own diary. The extraction rule was defensible: a name
-appearing repeatedly inside a chapter dominated by one employer is probably a
-colleague there. He is mentioned throughout those chapters. One stray mention of
-an organisation nearby was enough, and he was given an edge in the professional
-table.
+The tracker that number was summarising said about 1,850 a week, across 18
+campaigns running at once. The note had been written once, early, and the real
+figure had tripled underneath it.
 
-That edge exists to serve one question. *Which person I actually worked with now
-sits at a company on my target list?* Answered correctly, it turns a cold
-approach into a warm introduction. Answered wrongly, it invents a warm
-introduction that was never there. In the worse version of the same bug, it
-proposes routing an executive job search through somebody I once went on a date
-with.
+Nothing errored. No test went red. The search did exactly what it was built to do. It found the passage that best
+matched "how many calls a week," and that passage was a summary of a number
+rather than the number. A summary of a number
+is not the number, and there is nothing in a similarity score that can tell you
+which one you just got.
 
-This is the third store in a system that already had two, and adding it changed
-what I think the interesting difference between the three actually is. It is not
-which questions each one answers cheaply. That comparison is real, and I have
-[written it up already](/blog/two-runtimes-and-no-send-button). It is where each
-one lets you *prevent* a wrong answer, and how much of that prevention survives a
-caller who forgets.
+That is the failure this whole architecture exists to prevent, and the fix was
+not a better search. It was noticing that the archive being searched contained
+three different kinds of thing, and that asking one index to handle all three
+was the actual mistake.
 
-## Three stores, and three different places a mistake can be stopped
+## The archive had three shapes, and one index over all of it was worse than three narrow ones
 
-The corpus underneath all of this is about eleven hundred of my own documents.
-Meeting notes, strategy decks, research logs, several thousand spreadsheets, and
-seventeen numbered diary chapters running to roughly four hundred and ten
-thousand words. It is split by shape rather than by subject.
+The material is about 1,100 documents: meeting notes, strategy decks, research
+logs, and several thousand spreadsheets. Four of the note files run 230 to 270
+printed pages each. Before any of this existed, answering one factual question
+meant opening a whole document — roughly 180,000 tokens of reading to retrieve a
+single figure.
 
-Prose goes into a local embedding index — a 384-dimension model executed on the
-processor, vectors in a plain array file, searched by one matrix multiply.
-Spreadsheets go into DuckDB, because chopping a grid into paragraph-sized text
-destroys the rows and columns that made it a grid. Companies, people and
-investors go into Kuzu, an embedded graph database with a predefined schema of
-node tables and relationship tables, and real Cypher over the top.
+The obvious move is to chop everything into passages and embed the lot. That is
+the standard recipe, and on this archive it is wrong in a specific way.
 
-Each of those stores holds material that must never reach a drafting prompt: my
-own compensation history, other people's interview scorecards, a personal diary.
-And each offers a structurally different answer to *how do you stop that*.
+Sort the same files by *shape* instead and three groups fall out.
 
-**The embedding index can only mask.** Sensitivity and provenance are applied as
-a filter over candidate rows before ranking, never as a pass over the results
-afterwards. Filtering before the cutoff matters more than it sounds. Filter
-afterwards and an excluded passage still consumes one of the five slots you asked
-for, so a query for five results quietly returns four. But it is still a
-predicate. Every retrieval path has to carry it, and a new path that forgets is a
-leak with no symptom.
+**Prose** — anything written in sentences. Meeting notes, strategy documents,
+research write-ups. The useful question here is "what happened, and why," and the
+answer is a passage.
 
-**The SQL store can separate the file.** Five of the workbooks are hiring
-pipelines keyed to real people's names. They are legitimately my own business
-records, so they load — into a *different* database file, which has to be
-explicitly attached before any query can see it. DuckDB's attachment is not
-persisted between sessions, so a new connection starts without it and has to ask
-again. A sensitivity column in the shared database would have been easier to
-build. It would also have put the burden on every query written from then on. A
-convention is something you remember. A second file is something you cannot
-forget.
+**Grids** — spreadsheets. The useful question is "how many," and the answer is a
+count over rows that no single passage contains.
 
-**The graph can make the wrong answer unrepresentable.** That is the one the
-other two cannot do, and it is what the last month of work was actually about.
+**Relationships** — which investor backed which company, who worked where. The
+useful question needs more than one hop, and the answer is a path.
 
-## The question that justified the graph was about me, not about them
+Each group goes to a different store. Prose to a local embedding index, grids to
+DuckDB, relationships to Kuzu. A fourth group — source code, media, financial and
+identity documents — goes nowhere at all.
 
-The company graph models who to approach: companies, their investors, the people
-to reach. Every node in it points outward, and none of them is me. It answers a
-two-hop question a table handles badly — which untouched company shares a backer
-with one where a reply already landed.
+![Splitting one archive into three stores by shape. About 1,100 documents, four of them 230 to 270 printed pages each, are classified once by shape before anything is indexed — one decision per file, about form rather than subject. A fourth group is indexed nowhere at all: source code, media, and financial or identity documents. Prose (meeting notes, strategy documents, research logs) is split into passages and then 120-token windows, with titles indexed alongside, into a local embedding index of 11,621 passages running a BGE-small model on the CPU. Grids (spreadsheets and exported tables) have their header row detected and every column loaded as text to be cast at query time, into DuckDB: 8,927 tables from 3,470 workbooks. Relationships (companies, people, investors) are parsed from records that already exist and never inferred, into Kuzu, an embedded graph database of node and relationship tables queried with real Cypher. Sensitivity is a separate label applied when a query runs, not implied by which store a file landed in.](/blog/three-store-ingest.svg)
 
-The second layer models the other direction. Eleven years of my own episodes, the
-organisations I passed through, the areas of life I tracked. The two share one
-database on purpose. *Someone I worked with who is now at a target company* is a
-traversal only if both halves live in the same store. Split across two databases,
-it becomes an export, a join in application code, and a name-matching problem
-nobody wants to own.
+The current build is 11,621 passages and 54,459 smaller windows over the prose,
+plus 8,927 tables extracted from 3,470 workbooks. Eight typical lookups that
+would have cost 1,031,560 tokens of reading now cost 16,290, and come back in
+about 17 milliseconds. That is a 98% reduction, and almost none of it came from a
+cleverer model.
 
-There is deliberately no node representing me. An ego node is connected to
-everything, which makes it useless to query — a node with a hundred per cent
-degree filters nothing and traverses nowhere. Ego networks conventionally omit
-the ego for exactly this reason: [it is tied to all alters by definition, so it
-offers little additional structural
-information](https://inarwhal.github.io/NetworkAnalysisR-book/ch6-Ego-Network-Data-R.html).
-The hub here is an episode — a time-boxed span of life — and organisations, areas
-and people all attach to that instead. "What was I doing in 2021" becomes a date
-range over episodes rather than a walk through a hub.
+## What a vector index is genuinely good at, measured against a baseline from the 1970s
 
-The episodes are transcribed, not inferred. I had already numbered the chapters
-myself, so each one yields exactly one episode and nothing invents a span I never
-wrote. Dating them needed one non-obvious choice. The naive span is the minimum
-and maximum date mentioned, and that is wrong here. One chapter otherwise
-entirely set in 2023 and 2024 mentions 2013 exactly once, in passing. Taking the
-minimum stretches that episode across a decade and overlaps every chapter in
-between.
+A vector index converts each passage into a list of numbers — a point in space —
+so that passages about similar things land near each other. A question becomes a
+point too, and search is finding the nearest neighbours. The payoff is that it
+matches on meaning rather than words. Ask about a "migration" and it can find the
+passage that describes moving a reporting stack without ever using that word.
 
-So the span is the fifth to ninety-fifth percentile of the dates present, and a
-separate count records how many fall more than six months outside it. That
-distinguishes a retrospective aside from ordinary spread. Counting dates outside
-the trimmed span would have flagged roughly ten per cent of every chapter by
-construction, which is to say it would have flagged nothing.
+The honest question is whether that is worth the machinery. So I measured it
+against BM25, a keyword ranking function older than most of the people
+deploying vector databases. It needs no model, no GPU, and no index beyond a
+word-count table. On an archive full of proper nouns, BM25 is hard to beat.
 
-## What cannot be derived should be recorded twice, not guessed once
+Five methods over 38 hand-labelled questions:
 
-Three chapters are titled with a working codename rather than an organisation.
-The obvious derivation is not merely unhelpful. It is confidently wrong, in a
-specific direction.
+| Method | Correct answer ranked first | Found in top 10 | Mean reciprocal rank |
+| --- | --- | --- | --- |
+| Plain word matching | 49% | 76% | 0.585 |
+| BM25 | 51% | 78% | 0.615 |
+| Vector search | **59%** | 81% | **0.657** |
+| Small-to-big (default) | 51% | **84%** | 0.654 |
+| Vector + BM25 fused | 57% | **84%** | 0.656 |
 
-Count organisation mentions in one of those chapters and it reads as ninety-nine
-per cent one employer, two hundred and thirty-eight mentions — with the
-organisation the chapter is actually *about* appearing zero times. That is not
-noise. In that year the new venture had no public name yet and the codename was
-the working name, while the payroll was still the previous employer. The same
-pattern repeats one era later, in the next chapter.
+Read that as a real, useful, unspectacular gain. Vector search puts the right
+answer first about eight percentage points more often than a decades-old keyword
+method. Worth having. Not the order-of-magnitude difference the category
+marketing implies.
 
-Both facts are true and they answer different questions. So the subject
-organisation is a hand-maintained mapping, and the measured dominance is kept in
-its own property on the episode node rather than discarded as an error. A
-property graph lets both sit on the same node without either pretending to be the
-other. The temptation in a tabular store is to pick a winner and write one
-column. The temptation with an embedding index is not to notice the question was
-ever ambiguous.
+Two findings mattered more than the choice of retriever.
 
-One chapter names no organisation I have confirmed. Text dominance says a
-particular employer at seventy-six per cent, which is exactly the payroll signal
-the other three chapters just proved untrustworthy. It stays unmapped, and is
-reported as unmapped. A few chapter titles encode a private figure rather than an
-organisation name at all. Those are flagged only so nothing downstream reads one
-as an employer, and what they decode to is recorded nowhere in the pipeline.
+**Indexing each document's title alongside its passages moved keyword-search
+quality from 0.590 to 0.671** — on its own, nearly the entire gain the embedding
+model delivered, for no model and no cost. Several files state their whole
+subject in the filename and never repeat it in the body, so a passage indexed
+without its title was invisible to the obvious question. Fix what is inside the
+retrievable unit before shopping for a better retriever.
 
-## Separate relationship tables, not a kind property
+**Match on small windows, return the big passage.** A 500-token passage about
+process rules containing one clause with a metric in it gets that clause averaged
+into invisibility. So the index matches against roughly 120-token windows, where
+a single clause is a large share of the signal, and then hands back the parent
+passage so the reader still gets context. That is why the small-to-big row leads
+on top-10 recall despite a mediocre first-place score.
 
-Here is the decision the whole layer turns on.
+**How to implement it.** A 384-dimension sentence-transformer running on the
+CPU via ONNX, with no API call. An archive holding private material should not
+be shipped to a hosted embedding endpoint in a batch job. At this size the
+vectors are a 7.8 MB array file and search is one matrix multiplication, so a
+specialised vector database would add operating surface for no measurable speed
+gain. Two things are easy to get wrong. These models expect a specific instruction
+prefix on the query side and not the document side, and skipping it costs real
+accuracy. And vectors must be cached by a hash of the text, never by row
+position. A position-keyed cache silently pairs the wrong vector with the
+wrong passage. When passages were re-split mid-project and 267 were inserted,
+only 43% of the index still pointed at the text it was built for. It caught
+itself on a row-count check and fell back to keyword search loudly, which is the
+right behaviour — searching a misaligned index returns real, confidently scored,
+completely wrong passages.
 
-The diary names colleagues, clinicians, family and dating contacts in the same
-four hundred and ten thousand words. The obvious model is one person node with a
-kind property, and a professional query that filters on it.
+## A spreadsheet stops being a spreadsheet the moment you embed it
 
-![Two ways to model people in a graph, compared. Above: one Person node table carrying a kind property whose value is colleague, clinical, intimate or family. Every professional traversal has to add a WHERE clause filtering on that property, and the query written later by somebody who never read the design doc omits it and returns a clinician, scored and sourced, with nothing about the row looking wrong. The guarantee lives in each caller. Below: the same people reached through two separate relationship tables declared in Kuzu, worked-with and known-privately, both running from an Episode node to an Acquaintance node. The professional traversal names the worked-with relationship type, so a clinician, a partner or a family member is not reachable from it at all. The guarantee lives in the schema, and the care moves to write time, where the extraction rules decide which table an edge goes into.](/blog/typed-edges-vs-kind-property.svg)
+This is the counter-intuitive one, and it is where the 600-versus-1,850 error
+came from.
 
-The obvious model is wrong, and the reason is the same one that put a second
-DuckDB file on disk. A property puts the guarantee in every caller's hands. Every
-traversal ever written against that graph has to remember the predicate. The one
-that forgets returns a clinician — confidently, with an evidence string and a
-mention count that make the row look thoroughly sourced.
+Chop a grid into paragraph-sized text and you destroy the rows and columns. What
+survives is a smear of numbers with their headers detached. "Which candidates
+reached the final round" is a `GROUP BY`, not a nearest-neighbour lookup. There
+is no passage anywhere that contains the answer, so the index does the only thing
+it can — it returns something that *reads like* the answer.
 
-So colleagues attach through one relationship table and everyone else through a
-second one. A professional query matches the first and therefore *cannot* return
-a doctor, even if whoever wrote the query never thought about doctors. Kuzu
-requires a predefined schema: node tables, relationship tables declared between
-specific node-table pairs, [typed properties declared up
-front](https://kuzudb.github.io/docs/). That requirement reads as friction while
-prototyping. Here it is the thing doing the protecting, because the constraint is
-checked by the store rather than by the caller.
+Worse, it degrades everything else in the index. Thousands of low-signal grid
+fragments sit in the same space competing with the prose that would have been
+useful. Embedding spreadsheets is the most common mistake in systems like this,
+and it damages both halves at once.
 
-The second half of the same decision: people named in the diary are their own
-node type, distinct from the node type holding target-company contacts. A diary
-first name and a target company's contact with the same first name are almost
-certainly two different people. Merging them on a shared primary key would
-fabricate precisely the warm-introduction path the company graph already refuses
-to invent. Linking the two halves is a deliberate act, with its own relationship
-table and a field recording who confirmed it. It is never a side effect of
-sharing a first name.
+So grids go into DuckDB and are queried as tables. Three implementation choices
+carried their weight:
 
-Compare what the same protection costs in the other two stores. In the embedding
-index it is a boolean mask recomputed on every search path, verified by a test
-that runs six retrieval methods across six provenance labels and asserts that no
-restricted passage comes back. In DuckDB it is a file that is not attached. In
-the graph it is a table that does not connect those two node types, and there is
-nothing to verify because there is nothing to get wrong.
+**Load everything as text, and cast in the query.** Real spreadsheets carry mixed
+types in one column — a date, a note, an empty string, an "N/A". Guessing a type
+per column either fails on load or silently discards data. Casting belongs in the
+query, where whoever wrote it can see the assumption.
 
-## What admits a name, and what merely weights it
+**Mirror the source of truth, never write back to it.** The live tracker is owned
+by one small set of functions that snapshot before every save. The SQL store
+holds a read-only copy for querying. Two writers would break that contract.
 
-Extraction is two tiers, and the split is the part worth copying.
+**Put restricted tables in a separate database file, not behind a flag.** Some
+workbooks are hiring pipelines keyed to real people's names. They load, into a
+different file that has to be explicitly attached before any query can see it,
+and that attachment does not persist between sessions. A sensitivity column in
+the shared database would have been easier to build and would have put the burden
+on every query written afterwards. A convention is something you remember. A
+separate file is something you cannot forget.
 
-Strong frames — a line beginning "Meeting", "Call with", "Followed up with" —
-take a person as their object almost without exception. Those decide *who is a
-person at all*. Three hundred and sixty-six names clear that gate. The rejections
-are as informative as the admissions: a city, a business function, a dating app
-and a former employer all follow "Meeting" as naturally as a person does, and all
-four are correctly refused.
+## A graph earns its place at the second hop
 
-Loose frames — "to X", "for X", "with X" — are far too permissive to admit
-anybody. They readily produce a city name and a department name. But they are
-perfectly good for counting how often an *already admitted* person is mentioned.
-So: strong frames gate, all frames weight.
+Here is the question that justified the third store. *Which company have I not
+approached yet that shares an investor with one where someone already
+replied?*
 
-That gate costs recall, and the cost is measured rather than assumed. Eleven real
-people never appear in one of those frames and are dropped. That is the intended
-direction of error. A missing colleague costs a query some recall. A mistyped
-intimate relationship costs me my dignity in front of a recruiter.
+That is a warm introduction instead of a cold approach, and it turns a long
+backlog into a short ranked list. It is also three joins deep. A table handles
+the first hop comfortably — list the investors in a given company. The second hop
+is where it turns awkward, and the second hop is the entire value.
 
-Two frames had to be promoted from typing-only to admitting, and both times the
-evidence was a recall hole found by hand-checking against the diary.
+A graph database stores entities as nodes and named, directed relationships as
+edges, both carrying their own properties. A company node holds a funding stage;
+the edge to its investor holds the round and the date. Traversal is following
+those edges: start somewhere you can name, walk a relationship type, arrive
+somewhere else, keep going. What comes back is a connected set of facts rather
+than a ranked list of passages.
 
-A clinician addressed only as "Dr" plus a surname never appears in a work frame,
-so clinical recall was one out of eight before the title itself became an
-admitting frame. And dating frames typed people without admitting them. A name
-appearing only in a dating context was correctly identified as private, then
-silently dropped. That sounds safe and is not: dropping the name leaves it free
-to be picked up later by a stray organisation mention. Making those frames admit
-took the private-contact count from three to twenty-two, and recovered every
-hand-verified case that was being lost.
+Ask an embedding index that question and it does not fail loudly. It embeds the
+question, returns the passages that read most similarly, and none of them is the
+answer. Nothing errors, no score collapses, and nothing in the output indicates
+that the real answer needed specific edges walked instead. That is the
+characteristic failure of the whole category: the wrong store does not refuse,
+it improvises.
 
-The narrowness of those frames is load-bearing in a way that is easy to
-underestimate. "Date with" looks like an obvious romantic signal. A real diary
-line reading *fix date with someone for the shoot* is a calendar entry with a
-photo editor, and on the first run it typed that colleague as a romantic partner.
-The pattern now excludes a scheduling verb before it and a purpose clause after
-it. Getting the negative lookahead to survive the engine's backtracking took a
-word boundary after the name. Without it the engine shortens the match until the
-exclusion no longer applies, and the purpose clause stops excluding anything.
+**How to implement it.** Kuzu, embedded — a directory on disk, no server, real
+Cypher. It requires a schema declared up front: node tables, relationship tables
+declared between specific pairs of node types, typed properties. That reads as
+friction while prototyping and turns out to be the most valuable property of the
+store.
 
-Family needed a different mechanism entirely. The diary says "dad" and "wife" two
-hundred and ninety times and almost never next to a name — the one pattern that
-matched "my wife" followed by a name matched falsely. What works is that the
-diary addresses family *by* the kinship term: "Meeting Dad". The term is the
-name. A kinship term clearing the strong-frame gate is a family member, which is
-how my father stopped being a colleague.
+Two rules, both learned the hard way:
 
-## A conflict recorded is better than a conflict resolved
+**Derive every edge from a record that already exists. Never infer one.** A
+fabricated shared investor does not degrade an answer slightly — it manufactures
+a warm introduction that never existed and sends a real approach down it. This
+is a real divergence from how graph retrieval is usually built; the well-known
+approach has a model read the corpus and extract relationships. That is the right
+trade when relationships exist only in prose. It is the wrong one when a
+structured record exists and a wrong edge is expensive.
 
-Some names appear in both a work frame and a dating frame. The typing rule puts
-private kinds ahead of colleague, so those are filed as private. That is the
-right default — mistyping a colleague as private costs recall, and the reverse
-costs something you cannot get back.
+**Refuse to create a node for a name you cannot match.** Company names in
+written notes carry forms a tracking sheet does not. A parenthetical legal
+name, two names joined by a slash, a corporate suffix. Matching the literal string alone
+dropped eight companies' data silently, so lookup now tries a series of derived
+keys, most specific first. When a name still matches nothing, it is logged as
+unmatched and skipped. Inventing a company from a near-miss splits one company's
+edges across two nodes, and a traversal over a split node is confident and wrong.
 
-But the conflict is real and unresolved. It may be two people sharing a first
-name, or one person who was genuinely both. Silently picking the safe answer
-throws away the information that the question was hard. So those names are marked
-as contested, the conflicting evidence is written into the record, and the build
-reports them. Nine surface on the real corpus. The typing stays private; the
-uncertainty stays visible.
+The honest limit: this store is only as good as its coverage, and right now 14 of
+113 companies have an investor recorded. A warm-introduction path needs a link on both ends, so the query mostly
+returns nothing. It says so, rather than returning a blank that reads like
+"there is nothing there." If you build this, add the field to your capture
+step on day one and report coverage as a number. A graph nobody fills in is an
+empty room with good architecture.
 
-This is the same conclusion the retrieval side reached from the opposite
-direction, which is why I trust it. On the embedding index I measured whether a
-score threshold could make a weak match abstain rather than answer. It cannot:
-the threshold that silences a wrong answer also silences real ones, on both term
-coverage and cosine distance. Weak matches are labelled instead of suppressed. In
-both stores the useful move was the same — keep the answer and attach the doubt
-to it, rather than build a rule that quietly decides.
+## An instruction in a prompt is not a mechanism
 
-There is one gap this does not close. A single first name can belong to two
-different people in two different eras: a work contact in one chapter, a private
-contact in another. That is one node in this graph, and the contested flag is the
-only thing that surfaces it. If you build this, make the identity assertion a
-human act with its own edge from day one — the way the link between diary people
-and target-company contacts already is. Retrofitting identity onto a graph that
-already merged two people means splitting every edge by hand.
+All of the above is useless if the question reaches the wrong store, which brings
+us back to the 600.
 
-## Where each store lets you stop a mistake
+The system's own written instructions already said numbers come from the
+spreadsheets. That is an instruction, and the search happily returned a
+paraphrase anyway, because an instruction sitting in a prompt does not constrain
+what a retriever does.
+
+So a rule-based classifier now runs *before* anything is searched. A question
+asking for a quantity goes to SQL. A question asking for a reason goes to prose.
+A question naming two entities and asking what links them goes to the graph. A
+question needing a number and the story around it goes to two stores, and the
+results are labelled by origin.
+
+![The end-to-end query path. A question arrives, for example whether a company is worth approaching and through whom. Before anything is searched, a rule-based classifier decides which store holds that shape of answer, using a vocabulary of 3,070 terms built from real table names, column names and row labels, and scoring 97 per cent on the labelled question set; a question needing both a figure and the story around it splits across stores. Quantity questions go to DuckDB, 8,927 tables from 3,470 workbooks across two database files, and return a number. Narrative questions go to a local embedding index, a 384-dimension BGE-small model on the CPU over 11,621 passages and 54,459 windows, matching a window and returning its parent passage, and return a passage. Relationship questions go to Kuzu, an embedded graph database with real Cypher holding companies, people and investors for two-hop traversals with no inferred edges, and return a path. The three results are assembled with every fact labelled by origin: a figure from DuckDB is the figure, while a figure appearing only inside prose is flagged as a paraphrase and never quoted as a number. Only then is a model called, writing from evidence deterministic queries already computed.](/blog/three-store-query-path.svg)
+
+It is rule-based rather than model-based on purpose. Routing is a small, closed
+problem; a model classifier would be non-deterministic across runs and awkward to
+unit-test, and would make the retrieval layer depend on the thing it is supposed
+to be feeding. It scores 97% on the labelled question set and 12 of 14 on unseen
+phrasings, and both failures sent a question to SQL when prose was right — the
+harmless direction.
+
+One implementation detail decides whether this works: the classifier is grounded
+in a 3,070-term vocabulary built at load time from actual table names, column
+names and row labels. Table names alone are far too weak. The table holding the
+call metrics contains neither "automation" nor "rate" in its name — those words
+are cell values. Build the vocabulary from the data, not from the schema.
+
+When a question routes to SQL, the prose results still appear, under a warning
+that they are a paraphrase at best and must not be quoted as a figure. That
+warning is the difference between a draft citing your real results and a draft
+citing a stale note about them.
+
+## Where each store lets you stop a wrong answer
+
+Choosing a store is usually framed as a performance question. In practice the
+more consequential difference is where each one lets you prevent a bad answer,
+because that determines who has to remember.
 
 | | Embedding index | SQL store | Graph |
 | --- | --- | --- | --- |
 | Question it makes cheap | Which passage explains this | How many rows match | What connects these two |
-| Where prevention lives | A mask applied before ranking | A separate database file, attached on request | A relationship table that does not exist between those types |
-| Who has to remember | Every retrieval path | Whoever writes the attach statement | Nobody |
-| How it fails | A path forgets the mask, and the result looks normal | Someone attaches the restricted file and forgets to detach | The extraction writes the edge into the wrong table |
-| Where the effort goes | Testing every path | One boundary, once | Getting the typing right at write time |
+| Answer shape | A ranked list of passages | A number or a table | A path |
+| Where prevention lives | A filter applied before ranking | A separate database file, attached on request | A relationship type that does not exist between those node types |
+| Who has to remember | Every query path | Whoever writes the attach statement | Nobody |
+| How it fails | A path forgets the filter, and the result looks normal | Someone attaches the restricted file and leaves it attached | The extraction writes an edge into the wrong table |
 
-Read the last row across. The graph does not remove the work; it moves it. An
-embedding index and a SQL store are defended at read time, over and over, by
-whoever writes each query. A graph is defended once, at write time, by whoever
-decides which table an edge goes into — and everything downstream inherits that
-decision whether or not it knows the decision was made.
+Read the "who has to remember" row across. An embedding index can only filter,
+and every retrieval path has to carry that filter — a new path that forgets is a
+leak with no symptom. A SQL store can put restricted rows in a file that is not
+attached. A graph can go further: if two kinds of relationship are declared as
+separate relationship types, a query that names one *cannot* return the other,
+whether or not whoever wrote it thought about the distinction.
 
-That is why the extraction rules above are so conservative, and why they are
-allowed to cost eleven colleagues. In a store where a wrong answer is prevented
-at write time, the write is the only place left to be careful.
+That mattered here for an ordinary reason. The archive mixes work contacts with
+personal ones, and a query looking for a former colleague must not return a
+personal contact. Rather than tag every person with a category and filter on it,
+the two kinds of connection are separate relationship types. The professional
+query names one of them, so the other is not reachable — not filtered out,
+unreachable.
 
-## Beyond one person's document folder
+The cost is that all the care moves to write time. A graph is defended once, by
+whoever decides which relationship type an edge belongs to, and everything
+downstream inherits that decision. Which is why the extraction rules that build
+it are deliberately strict, and why they are allowed to miss a real connection
+rather than guess at one.
 
-> When two populations must never be confused, the difference belongs in the
-> schema rather than in a predicate. A predicate is a promise every future
-> caller has to keep. A schema is a promise the store keeps on their behalf —
-> and the price is paid once, at write time, by whoever decides which table an
-> edge belongs in.
+One filter dimension applies to all three stores and is worth applying before the
+cutoff rather than after. Filter afterwards and an excluded row still consumes
+one of the five slots you asked for, so a query for five results quietly returns
+four.
 
-| Domain | Two edge types that must not be interchangeable | What one mistyped edge produces |
-| --- | --- | --- |
-| Clinical coordination | Treating clinician and next-of-kin contact | A discharge summary routed to a relative nobody authorised |
-| Financial crime | Transaction counterparty and shared-device link | An investigation naming someone connected only by a hotel network |
-| Recruiting | Former colleague and former candidate | A referral request sent to somebody you once rejected |
-| Corporate development | Board interlock and personal acquaintance | A confidential approach routed through a director's private friendship |
-| Field service | Certified installer and warranty claimant | A dispatch sent to the person who reported the fault |
-| Consumer social | Mutual professional contact and blocked contact | A suggested connection surfacing an ex to a user who blocked them |
+## Four employers wrote the same policy, and no retriever could tell them apart
+
+One more finding, because it is the case where all three stores fail equally and
+the fix is in none of them.
+
+The archive spans four employers, and each wrote an office policy, a leave policy
+and a contractor policy. The documents are near-identical in wording, because
+that is how such documents get written. Search matches on wording. Ask about one
+company's leave policy and that company's document ranked 16th under BM25 and
+25th under vector search. The default returns five results. So the honest
+description is that it confidently handed back a different company's policy, with
+no indication anything was wrong.
+
+Better search does not fix this, and it was worth measuring rather than assuming
+— the smarter method ranked the right answer *worse* than the crude one. The
+information needed to tell four near-identical documents apart was never in the
+text. It was in the file path: exported folders carry account names, and folder
+names carry company names.
+
+So each document now carries an organisation label derived from where it sits
+rather than what it says, and a search can be scoped to one. Two properties of
+that label are worth copying. A document can carry several labels at once,
+because a contractor policy can sit in a second company's folder inside a third
+company's export and all three are true. And the label describes provenance, not
+subject matter — a note filed under one company that discusses another is
+labelled by where it lives. That is a real limit and the right trade, since
+labelling by content would match every document that so much as mentions a
+company, which is the problem being fixed.
+
+One bug is worth recording, because it is the kind that hides. The machine's
+own user account is named after one of the companies. So the first version of
+the matcher matched every document in the archive, instead of the seventeen
+genuinely about that employer. There is now a test that fails if that ever stops being
+handled.
+
+## The pattern, without the job search
+
+> The shape that makes a question cheap belongs to the question, not to the
+> technology. A count belongs in a table, a reason belongs in an index over
+> prose, and a two-hop connection belongs in a graph. The engineering decision
+> is not which database is best. It is which representation each question needs,
+> and where that gets decided.
+
+| Domain | Goes to SQL | Goes to the vector index | Goes to the graph |
+| --- | --- | --- | --- |
+| Customer support | Tickets open past SLA this week | Find past tickets that read like this one | Why this account escalated three times running |
+| Insurance claims | Average settlement by claim type | Find comparable prior claims | Trace this claim's reassignments and reopenings |
+| Supply chain | Units short by SKU and region | Find comparable delayed shipments | Which upstream delay caused this stockout |
+| Clinical operations | Readmissions within 30 days | Find similar case notes | Trace a patient's referral and readmission chain |
+| Fraud investigation | Disputed volume by merchant | Find similarly worded disputes | Link two disputes by account, device and payment method |
+| B2B sales | Pipeline by stage and owner | Find accounts with similar problems | Which prospect shares a board member with a closed customer |
 
 Three choices generalise past any of these.
 
-**Put a distinction you cannot afford to get wrong into the schema, not into the
-predicate.** The test is not whether a filter works today — it will. The test is
-whether the fifth query written against this data, by somebody who never read the
-design note, still gets the right answer. A kind property fails that test. Two
-relationship tables pass it, and so does a separate database file. Pick the
-crudest boundary the store itself enforces, and accept that it looks heavier than
-it needs to be.
+**Split the corpus by shape before you index anything.** This is the decision
+that pays for itself, and it costs a day. Everything written in sentences goes
+one way, everything in rows and columns goes another, and everything that is
+neither goes nowhere. Teams reach for a better model when the actual problem is
+that a spreadsheet was chopped into paragraphs eight months ago and has been
+quietly poisoning retrieval ever since.
 
-**Make the gate that admits an entity stricter than the signal that weights it.**
-Conflating those two is why bad graphs get built. Evidence good enough to count
-how often something is mentioned is nowhere near good enough to decide that it is
-a person, or a company, or a fault. Use the narrow, high-precision pattern to
-decide what exists, then use everything you have to rank it. Then measure what
-the narrow gate costs, so the recall you gave up is a number you chose rather
-than one you never looked at.
+**Put the routing decision in code, not in a prompt.** "Numbers come from the
+database" is an instruction, and instructions do not constrain retrievers. A
+small rule-based classifier in front of the search decides before anything is
+retrieved, can be unit-tested, and gives the same answer twice. Score it on the
+same labelled question set as the retrieval itself, so a rule has to earn its
+place rather than just feel right.
 
-**When two typings genuinely conflict, record the conflict and keep the safe
-default.** Do not resolve it silently, and do not abstain. Abstention thresholds
-were measured on the retrieval side of this same system and they do not separate
-cleanly — the cutoff that suppresses a wrong answer suppresses real ones at the
-same rate. Attach the doubt to the answer instead, count how many carry it, and
-put that count in the build output where somebody will see it.
+**Write the labelled question set before you build the retrieval layer.** Thirty
+or forty real questions with known answers, written down. Without it, every
+choice above is unarguable in both directions: chunk size, whether to index
+titles, whether fusion helps, whether a graph is worth building. You will spend
+the budget on a bigger model instead of on the thing that was actually wrong.
 
-## A reference architecture for this shape
+## A reference architecture, in build order
 
-For anyone building the same thing. One ingest pass that classifies every source
-file by *shape* before anything is indexed — prose, grid, or excluded — with a
-sensitivity label decided independently of that and applied at query time rather
-than at ingest time. Prose into a local embedding index, a small
-sentence-transformer executed on the processor rather than a hosted endpoint,
-because a corpus with a diary in it should not be shipped off the machine in a
-batch job. Vectors in a plain array file, brute-forced with one matrix multiply
-until the corpus outgrows memory. Grids into an embedded SQL store, with anything
-covering identifiable third parties in a second database file that has to be
-explicitly attached. Entities and relationships into an embedded graph database
-with a declared schema, where every distinction that matters is a separate
-relationship table rather than a property on a shared one. A rule-based router in
-front of all three, scored on the same labelled question set as retrieval itself,
-so "numbers come from SQL" is a mechanism rather than an instruction. And every
-edge derived from deterministic extraction against a record that already exists,
-never from a model reading prose — a fabricated relationship does not degrade an
-answer slightly, it manufactures a connection that was never there.
+Start by classifying every source file by shape, with a sensitivity label decided
+separately and applied when a query runs rather than at ingest. Then the labelled
+question set, before any retrieval exists, because it is what makes every later
+choice arguable.
 
-Three things are cheap now and expensive later. Deciding which relationships get
-their own table before you have written any edges, because splitting a merged
-table means re-typing every edge by hand against source material you may no
-longer have. Making cross-domain identity an explicit, human-asserted edge from
-the first build, so "this diary contact is that target-company contact" has
-somewhere to live that is distinguishable from a guess. And writing the labelled
-question set before the retrieval layer rather than after, because every choice
-above it is unarguable in both directions without one — chunk size, whether to
-index titles, whether the gate is too strict.
+Then keyword search, as the baseline you have to beat. It costs an afternoon and
+on a corpus of proper nouns it is genuinely competitive. Index each document's
+title alongside its passages at this point — it is free and it closes most of the
+gap.
+
+Then the embedding index, if the baseline is not enough. A small sentence-
+transformer on the CPU rather than a hosted endpoint, vectors cached by a hash
+of the text, matched against small windows and returning parent passages, in a
+plain array file until the corpus outgrows memory.
+
+Then the SQL store for every grid, loaded as text and cast in the query, mirrored
+read-only from whatever owns the data, with restricted tables in a second
+database file that must be explicitly attached.
+
+Then the graph, and only once a specific multi-hop question has a name. Model the
+edges that question actually walks rather than a speculative entity graph. Every
+edge derived from an existing record, never inferred. Distinctions that matter
+become separate relationship types rather than a property to filter on.
+
+Finally the router in front of all three, rule-based, its vocabulary built from
+real table and column names, scored alongside retrieval.
+
+Three things are cheap now and expensive later. Deciding which distinctions get
+their own relationship type before any edges exist, because splitting a merged
+one means re-typing every edge by hand. Keying the vector cache by content hash
+rather than row position from the first build, since the position-keyed version
+fails silently and plausibly. And capturing the fields a graph will need at the
+moment a record is created, because a graph with 12% coverage answers nothing no
+matter how well it is modelled.
 
 ## References
-
-**Papers and texts**
-
-- *Ego Network Data*, in **Network Analysis: Integrating Social Network Theory,
-  Method, and Application with R** — the convention this layer follows in
-  omitting the ego node: "Ego is often (but not always) excluded from
-  visualizations and calculations because ego is, by definition, tied to all
-  alters."
-  [inarwhal.github.io](https://inarwhal.github.io/NetworkAnalysisR-book/ch6-Ego-Network-Data-R.html)
 
 **Tooling**
 
 - [Kuzu](https://kuzudb.github.io/docs/) — the embedded graph database used here.
   Its data model is "based on the property graph model, together with some
   structure (including node and relationship tables, and a pre-defined schema)",
-  and that pre-defined schema is the mechanism this whole post rests on.
+  and that pre-declared schema is what turns a filtering convention into a
+  structural guarantee.
 - [DuckDB's ATTACH statement](https://duckdb.org/docs/current/sql/statements/attach.html)
-  — how the restricted second database stays isolated. Attachment is explicit and
+  — how a restricted second database stays isolated. Attachment is explicit and
   not persisted between sessions: "when a new session is launched, you have to
   re-attach to all databases."
 - [BAAI/bge-small-en-v1.5](https://huggingface.co/BAAI/bge-small-en-v1.5) — the
@@ -375,6 +417,6 @@ index titles, whether the gate is too strict.
 
 *Companion to [Automating my job hunt outreach with an agent that finds,
 researches, and drafts](/blog/two-runtimes-and-no-send-button), which covers the
-router and the retrieval evaluation in full, and [pgvector and Neo4j sitting on
-top of Postgres](/blog/pgvector-and-neo4j-on-postgres), which makes the
-which-store-answers-which-question argument across three separate systems.*
+pipeline this memory layer sits under, and [pgvector and Neo4j sitting on top of
+Postgres](/blog/pgvector-and-neo4j-on-postgres), which makes the same argument
+across three separate systems.*

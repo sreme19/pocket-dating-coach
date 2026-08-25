@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 800" width="560" height="800"
+     role="img" aria-labelledby="tsqp-title tsqp-desc">
+  <title id="tsqp-title">The end-to-end query path across three stores</title>
+  <desc id="tsqp-desc">A question arrives, for example whether a company is worth approaching and through whom. Before anything is searched, a rule-based classifier decides which store holds that shape of answer, using a vocabulary of 3,070 terms built from real table names, column names and row labels, and scoring 97 per cent on the labelled question set. A question that needs both a figure and the story around it splits into sub-questions that run against more than one store. Quantity questions go to DuckDB, 8,927 tables extracted from 3,470 workbooks across two database files, where the restricted set opens only on an explicit opt-in and everything loads as text to be cast in the query; the answer shape is a number. Narrative questions go to a local embedding index, a 384-dimension BGE-small model run through ONNX on the CPU over 11,621 passages and 54,459 smaller windows, matching on a window and returning its parent passage, with each document's title indexed alongside its passages; the answer shape is a passage. Relationship questions go to Kuzu, an embedded graph database with real Cypher, holding companies, people and investors for two-hop traversals, where every edge is derived from an existing record and never inferred; the answer shape is a path. The three results are assembled with every fact labelled by where it came from. A figure from DuckDB is the figure. A figure that merely appears inside prose is a paraphrase and is flagged as one, so it is never quoted as a number. Only then is a model called, to write the answer from evidence that deterministic queries already computed. Everything above that call is re-runnable and testable.</desc>
+
+  <defs>
+    <marker id="tsqp-a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6e6a63"/>
+    </marker>
+    <marker id="tsqp-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f6b46"/>
+    </marker>
+    <marker id="tsqp-o" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b4541e"/>
+    </marker>
+    <style>
+      .h  { font-family: 'Iowan Old Style', Palatino, Georgia, serif; fill: #17161b; }
+      .t  { font-family: system-ui, -apple-system, sans-serif; fill: #17161b; }
+      .m  { font-family: system-ui, -apple-system, sans-serif; fill: #6e6a63; }
+      .cap{ font-family: system-ui, -apple-system, sans-serif; fill: #6e6a63;
+            font-size: 9.5px; font-weight: 700; letter-spacing: 0.09em; }
+      .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+      .flow { fill: none; stroke-width: 2; stroke-dasharray: 7 5; }
+      @media (prefers-reduced-motion: no-preference) {
+        .flow { animation: tsqp-march 1.1s linear infinite; }
+      }
+      @keyframes tsqp-march { to { stroke-dashoffset: -12; } }
+    </style>
+  </defs>
+
+  <rect width="560" height="800" fill="#fcfbf8"/>
+
+  <!-- 1. question -->
+  <rect class="card" x="28" y="26" width="504" height="60" rx="6"/>
+  <text class="cap" x="44" y="47">A QUESTION ARRIVES</text>
+  <text class="m" x="44" y="70" font-size="12">"Is this company worth approaching, and through whom?"</text>
+  <path class="flow" d="M 280 86 L 280 104" stroke="#6e6a63" marker-end="url(#tsqp-a)"/>
+
+  <!-- 2. router -->
+  <rect class="card" x="28" y="110" width="504" height="88" rx="6" stroke="#b4541e"/>
+  <text class="cap" x="44" y="131" fill="#b4541e">ROUTED BEFORE ANYTHING IS SEARCHED</text>
+  <text class="m" x="44" y="152" font-size="11.5">Rule-based, not a model. A vocabulary of 3,070 terms built from real</text>
+  <text class="m" x="44" y="169" font-size="11.5">table names, column names and row labels. 97% on the labelled set.</text>
+  <text class="t" x="44" y="188" font-size="11.5">A question needing a figure and its context splits across stores.</text>
+
+  <!-- fan out -->
+  <path class="flow" d="M 108 198 L 108 250" stroke="#6e6a63" marker-end="url(#tsqp-a)"/>
+  <path class="flow" d="M 280 198 L 280 250" stroke="#6e6a63" marker-end="url(#tsqp-a)"/>
+  <path class="flow" d="M 452 198 L 452 250" stroke="#6e6a63" marker-end="url(#tsqp-a)"/>
+  <text class="t" x="116" y="228" font-size="11" font-weight="600">quantity</text>
+  <text class="t" x="288" y="228" font-size="11" font-weight="600">narrative</text>
+  <text class="t" x="436" y="228" font-size="11" font-weight="600" text-anchor="end">relationship</text>
+
+  <!-- 3. three stores -->
+  <rect class="card" x="28" y="258" width="160" height="168" rx="6"/>
+  <text class="cap" x="42" y="279">GRIDS</text>
+  <text class="t" x="42" y="300" font-size="13.5" font-weight="600">DuckDB</text>
+  <text class="m" x="42" y="320" font-size="10.5">8,927 tables</text>
+  <text class="m" x="42" y="336" font-size="10.5">from 3,470 workbooks</text>
+  <text class="m" x="42" y="352" font-size="10.5">Two database files</text>
+  <text class="m" x="42" y="368" font-size="10.5">Restricted set opens</text>
+  <text class="m" x="42" y="384" font-size="10.5">only on an opt-in</text>
+  <text class="m" x="42" y="404" font-size="10.5">Loaded as text,</text>
+  <text class="m" x="42" y="418" font-size="10.5">cast in the query</text>
+
+  <rect class="card" x="200" y="258" width="160" height="168" rx="6"/>
+  <text class="cap" x="214" y="279">PROSE</text>
+  <text class="t" x="214" y="300" font-size="13.5" font-weight="600">Vector index</text>
+  <text class="m" x="214" y="320" font-size="10.5">BGE-small, 384 dims</text>
+  <text class="m" x="214" y="336" font-size="10.5">ONNX, on the CPU</text>
+  <text class="m" x="214" y="352" font-size="10.5">11,621 passages</text>
+  <text class="m" x="214" y="368" font-size="10.5">54,459 windows</text>
+  <text class="m" x="214" y="384" font-size="10.5">Match a window,</text>
+  <text class="m" x="214" y="404" font-size="10.5">return the parent</text>
+  <text class="m" x="214" y="418" font-size="10.5">Titles indexed too</text>
+
+  <rect class="card" x="372" y="258" width="160" height="168" rx="6"/>
+  <text class="cap" x="386" y="279">RELATIONSHIPS</text>
+  <text class="t" x="386" y="300" font-size="13.5" font-weight="600">Kuzu</text>
+  <text class="m" x="386" y="320" font-size="10.5">Embedded, real Cypher</text>
+  <text class="m" x="386" y="336" font-size="10.5">Companies, people,</text>
+  <text class="m" x="386" y="352" font-size="10.5">investors</text>
+  <text class="m" x="386" y="368" font-size="10.5">Two-hop traversal</text>
+  <text class="m" x="386" y="384" font-size="10.5">Every edge from a</text>
+  <text class="m" x="386" y="404" font-size="10.5">record, never</text>
+  <text class="m" x="386" y="418" font-size="10.5">inferred</text>
+
+  <!-- answer shapes -->
+  <text class="t" x="108" y="448" font-size="11.5" font-weight="600" fill="#2f6b46" text-anchor="middle">a number</text>
+  <text class="t" x="280" y="448" font-size="11.5" font-weight="600" fill="#2f6b46" text-anchor="middle">a passage</text>
+  <text class="t" x="452" y="448" font-size="11.5" font-weight="600" fill="#2f6b46" text-anchor="middle">a path</text>
+
+  <!-- fan in -->
+  <path class="flow" d="M 108 458 L 108 502" stroke="#2f6b46" marker-end="url(#tsqp-g)"/>
+  <path class="flow" d="M 280 458 L 280 502" stroke="#2f6b46" marker-end="url(#tsqp-g)"/>
+  <path class="flow" d="M 452 458 L 452 502" stroke="#2f6b46" marker-end="url(#tsqp-g)"/>
+
+  <!-- 4. assembled -->
+  <rect class="card" x="28" y="508" width="504" height="86" rx="6"/>
+  <text class="cap" x="44" y="529">EVERY FACT LABELLED WITH WHERE IT CAME FROM</text>
+  <text class="t" x="44" y="551" font-size="11.5">A figure from DuckDB is the figure.</text>
+  <text class="m" x="44" y="569" font-size="11.5">A figure that only appears inside prose is a paraphrase, and is flagged</text>
+  <text class="m" x="44" y="585" font-size="11.5">as one, so it is never quoted as a number. This label is what routing buys.</text>
+  <path class="flow" d="M 280 594 L 280 614" stroke="#6e6a63" marker-end="url(#tsqp-a)"/>
+
+  <!-- 5. generation -->
+  <rect class="card" x="28" y="620" width="504" height="72" rx="6" stroke="#b4541e"/>
+  <text class="cap" x="44" y="641" fill="#b4541e">ONLY NOW IS A MODEL CALLED</text>
+  <text class="t" x="44" y="663" font-size="11.5">Claude Opus 5, Messages API, writing from evidence already computed.</text>
+  <text class="m" x="44" y="681" font-size="11.5">Everything above this line is deterministic, re-runnable and testable.</text>
+  <path class="flow" d="M 280 692 L 280 712" stroke="#6e6a63" marker-end="url(#tsqp-a)"/>
+
+  <!-- 6. output -->
+  <rect x="28" y="718" width="504" height="58" rx="6" fill="#f6ece4"/>
+  <text class="cap" x="44" y="739" fill="#b4541e">WHAT COMES BACK</text>
+  <text class="t" x="44" y="761" font-size="12">An answer whose every number traces to a table, not to a sentence about one.</text>
+</svg>
