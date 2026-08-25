@@ -81,8 +81,31 @@
 	import { reportStoreClick } from '$lib/marketing/store-click-report';
 	import { reportPageView } from '$lib/marketing/page-view-report';
 
+	/**
+	 * Which audience this render is for.
+	 *
+	 * `/get` is the men's page and is byte-identical in behaviour to what it was
+	 * before this route gained a segment; `/get/w` is the women's. One file serves
+	 * both because only the copy differs — the attribution logic, both pixels, all
+	 * four CTAs and the entire stylesheet are audience-neutral, and the /get-photos
+	 * route already demonstrates what happens when this page is forked instead:
+	 * its own header claims check-banned-strings.sh scans it, and that has not been
+	 * true since the day it was copied.
+	 *
+	 * The women's page exists because the men's one is written in the second person
+	 * to a man on every line — "She asked how you spend your weekends", "then she
+	 * sees you" — so a woman arriving from a women's ad was reading about how a man
+	 * gets in front of her. 100% of store taps were male.
+	 */
+	const audience = $derived($page.params.audience === 'w' ? 'women' : 'men');
+
+	/** Landing-page id for our own measurement, and Play's install referrer. */
+	const lpId = $derived(audience === 'women' ? 'get_w' : 'get');
+
 	/** Campaign labels used when the ad URL carries no utm_* of its own. */
-	const DEFAULT_UTM = 'utm_source=snapchat&utm_medium=paid_social&utm_campaign=get_lp';
+	const defaultCampaign = $derived(audience === 'women' ? 'get_w_lp' : 'get_lp');
+	const DEFAULT_UTM_BASE = 'utm_source=snapchat&utm_medium=paid_social&utm_campaign=';
+	const DEFAULT_UTM = $derived(`${DEFAULT_UTM_BASE}${defaultCampaign}`);
 
 	/**
 	 * The Play listing, with attribution attached.
@@ -105,7 +128,7 @@
 		// utm_campaign and overrides this page's default label — and knowing
 		// whether the photo variant or this one produced an install is the only
 		// reason /get-photos exists.
-		referrer.set('ra_lp', 'get');
+		referrer.set('ra_lp', lpId);
 		return `${STORE_LINKS.android}&referrer=${encodeURIComponent(referrer.toString())}`;
 	});
 
@@ -148,8 +171,8 @@
 		// their counts live in a vendor dashboard, which makes them the one half
 		// of tap rate we cannot audit. Tap rate needs a denominator we own.
 		reportPageView({
-			page: 'get',
-			campaign: $page.url.searchParams.get('utm_campaign') ?? 'get_lp',
+			page: lpId,
+			campaign: $page.url.searchParams.get('utm_campaign') ?? defaultCampaign,
 			url: $page.url
 		});
 
@@ -160,7 +183,7 @@
 			// Which of the four buttons earned the tap, and the campaign that
 			// brought them — the same labels Play sees on the install referrer.
 			const which = cta.getAttribute('data-cta') ?? 'unknown';
-			const campaign = $page.url.searchParams.get('utm_campaign') ?? 'get_lp';
+			const campaign = $page.url.searchParams.get('utm_campaign') ?? defaultCampaign;
 
 			// One id for this tap, sent three ways. Both networks receive it twice
 			// — once from the browser and once from our server — and collapse the
@@ -176,65 +199,133 @@
 				client_dedup_id: eventId
 			});
 			trackMeta(META_STORE_CLICK, { cta: which, campaign }, eventId);
-			reportStoreClick({ eventId, page: 'get', cta: which, campaign, url: $page.url });
+			reportStoreClick({ eventId, page: lpId, cta: which, campaign, url: $page.url });
 		};
 
 		document.addEventListener('click', onClick, { capture: true });
 		return () => document.removeEventListener('click', onClick, { capture: true });
 	});
 
-	/** First-party measurements. Rates and medians only — see the header note. */
-	const PROOF = [
-		{ figure: '12 min', label: 'Median time to a first match, for men' },
-		{ figure: '54%', label: 'Of all messages, sent by an AI for someone' },
-		{ figure: '2:1', label: 'Our member ratio. Rivals run ~3 men per woman' },
-		{ figure: '14', label: 'Suitors the median woman here has — ranked' }
-	];
+	/**
+	 * Copy, per audience. First-party measurements only, quoted as rates and
+	 * medians — see the header note about why never a total.
+	 *
+	 * The men's block is exactly what this page said before it gained a women's
+	 * variant; nothing in it changed. The women's block is not a translation of it.
+	 * Three things are deliberately different rather than reworded:
+	 *
+	 *  1. Her page LEADS WITH THE LIST. His opens with the vetting because proving
+	 *     himself is his job; her problem is the flood — a hundred matches with no
+	 *     order — so the ordered list is the answer and it comes first, with the
+	 *     vetting second as the reason the order can be trusted.
+	 *  2. VERIFICATION IS SOMETHING SHE RECEIVES, not something she performs. On his
+	 *     page verification is a task; on hers it is a property of everyone who
+	 *     reached her list.
+	 *  3. THE 14-SUITORS NUMBER STAYS, REFRAMED. To her, fourteen suitors is not a
+	 *     benefit — it is the flood. The number is only worth quoting alongside the
+	 *     order, which is why the label carries both.
+	 */
+	const COPY = {
+		men: {
+			proof: [
+				{ figure: '12 min', label: 'Median time to a first match, for men' },
+				{ figure: '54%', label: 'Of all messages, sent by an AI for someone' },
+				{ figure: '2:1', label: 'Our member ratio. Rivals run ~3 men per woman' },
+				{ figure: '14', label: 'Suitors the median woman here has — ranked' }
+			],
+			them: ['Two hundred photos', 'Swipe and hope', 'Months of silence', 'Nothing like the profile'],
+			us: ['Verify once', 'Your AI does the asking', 'A ranked shortlist', 'Claims already proven'],
+			steps: [
+				{ icon: '🪪', h: 'Verify once', p: 'Read, then deleted. Never stored.' },
+				{ icon: '✨', h: 'Your AI does the talking', p: 'It asks what you never had time to.' },
+				{ icon: '🤝', h: 'You just meet', p: 'Only the few who actually fit.' }
+			],
+			diff: [
+				{ icon: '🚫', h: 'No swiping, ever', p: 'One free Notice Me. Both sides choose in.' },
+				{ icon: '🗑️', h: 'Proof, never stored', p: 'Read, signal taken, file gone.' },
+				{ icon: '🙅', h: 'The AI cannot flatter you', p: 'It says what happened, not how she feels.' },
+				{ icon: '🤐', h: 'A no costs you nothing', p: 'Never a warning on her side.' },
+				{ icon: '💬', h: 'Honest feedback, no cruelty', p: 'You get the fix, never the words.' },
+				{ icon: '🌿', h: 'Pause without deleting', p: 'Networking Season turns dating off.' }
+			],
+			faq: [
+				{ q: 'Another dating app?', a: 'No swipes. Ever. Just matches that mean something.' },
+				{ q: 'Will an AI feel cold?', a: 'It does the heavy lifting. You stay in control, and it always says it is an AI.' },
+				{ q: 'Why would anyone verify?', a: 'The shortlist is ordered by what you proved — and the proof is deleted once read.' },
+				{ q: 'Is it safe?', a: 'Identity-verified members, strictly 18+, and block or report on every profile.' },
+				{ q: 'iPhone?', a: 'Not yet — Android only for now. iPhone is on the way.' }
+			],
+			closing: ['Meet who you', 'actually want.']
+		},
+		women: {
+			proof: [
+				{ figure: '14', label: 'Suitors the median woman here has. You see them in order' },
+				{ figure: '2:1', label: 'Our member ratio. Rivals run ~3 men per woman' },
+				{ figure: '54%', label: 'Of all messages, sent by an AI on someone’s behalf' },
+				{ figure: '12 min', label: 'Median time to a first match, for men' }
+			],
+			them: ['A hundred new matches', 'Every opener the same', 'Sorting on photos alone', 'Nothing like the profile'],
+			us: ['One verified list', 'Your AI does the asking', 'In order before you look', 'Claims already proven'],
+			steps: [
+				{ icon: '🪪', h: 'Verify once', p: 'Read, then deleted. Never stored.' },
+				{ icon: '✨', h: 'Your AI does the asking', p: 'The questions you never have time for.' },
+				{ icon: '🤝', h: 'You just choose', p: 'From a list that is already short.' }
+			],
+			diff: [
+				{ icon: '🚫', h: 'No swiping, ever', p: 'One free Notice Me. Both sides choose in.' },
+				{ icon: '🗑️', h: 'Proof, never stored', p: 'He proves it. You never see the file.' },
+				{ icon: '🙅', h: 'The AI cannot be charmed', p: 'It reports what he proved, not how he sounds.' },
+				{ icon: '🤐', h: 'A no is silent', p: 'He is never told, and never sees a warning.' },
+				{ icon: '📋', h: 'In order before you look', p: 'By what you asked for, not who posted most.' },
+				{ icon: '🌿', h: 'Pause without deleting', p: 'Networking Season turns dating off.' }
+			],
+			faq: [
+				{ q: 'Another dating app?', a: 'No swipes. Ever. Just a short list that means something.' },
+				{ q: 'Will an AI feel cold?', a: 'It does the asking, so you are not repeating yourself to ten people. It always says it is an AI.' },
+				{ q: 'Why would he bother verifying?', a: 'Because that is how he reaches your list at all. He proves it, the document is read once and deleted, and you never see it.' },
+				{ q: 'Is it safe?', a: 'Identity-verified members, strictly 18+, and block or report on every profile.' },
+				{ q: 'iPhone?', a: 'Not yet — Android only for now. iPhone is on the way.' }
+			],
+			closing: ['A shortlist that', 'means something.']
+		}
+	} as const;
 
-	const THEM = ['Two hundred photos', 'Swipe and hope', 'Months of silence', 'Nothing like the profile'];
-	const US = ['Verify once', 'Your AI does the asking', 'A ranked shortlist', 'Claims already proven'];
-
-	const STEPS = [
-		{ icon: '🪪', h: 'Verify once', p: 'Read, then deleted. Never stored.' },
-		{ icon: '✨', h: 'Your AI does the talking', p: 'It asks what you never had time to.' },
-		{ icon: '🤝', h: 'You just meet', p: 'Only the few who actually fit.' }
-	];
-
-	const DIFF = [
-		{ icon: '🚫', h: 'No swiping, ever', p: 'One free Notice Me. Both sides choose in.' },
-		{ icon: '🗑️', h: 'Proof, never stored', p: 'Read, signal taken, file gone.' },
-		{ icon: '🙅', h: 'The AI cannot flatter you', p: 'It says what happened, not how she feels.' },
-		{ icon: '🤐', h: 'A no costs you nothing', p: 'Never a warning on her side.' },
-		{ icon: '💬', h: 'Honest feedback, no cruelty', p: 'You get the fix, never the words.' },
-		{ icon: '🌿', h: 'Pause without deleting', p: 'Networking Season turns dating off.' }
-	];
-
-	const FAQ = [
-		{ q: 'Another dating app?', a: 'No swipes. Ever. Just matches that mean something.' },
-		{ q: 'Will an AI feel cold?', a: 'It does the heavy lifting. You stay in control, and it always says it is an AI.' },
-		{ q: 'Why would anyone verify?', a: 'The shortlist is ordered by what you proved — and the proof is deleted once read.' },
-		{ q: 'Is it safe?', a: 'Identity-verified members, strictly 18+, and block or report on every profile.' },
-		{ q: 'iPhone?', a: 'Not yet — Android only for now. iPhone is on the way.' }
-	];
+	const c = $derived(COPY[audience]);
 </script>
 
 <svelte:head>
-	<title>riteangle · No swiping. Ever. Just matches.</title>
+	<title
+		>riteangle · {audience === 'women'
+			? 'A shortlist that means something.'
+			: 'No swiping. Ever. Just matches.'}</title
+	>
 	<meta
 		name="description"
-		content="An identity-verified dating app where an AI does the searching, the asking and the vetting — and hands you a short, ranked shortlist. Early access is open on Android."
+		content={audience === 'women'
+			? 'An identity-verified dating app where an AI does the asking and the vetting for you — and hands you a short list, already in the order you asked for. Early access is open on Android.'
+			: 'An identity-verified dating app where an AI does the searching, the asking and the vetting — and hands you a short, ranked shortlist. Early access is open on Android.'}
 	/>
 	<meta name="theme-color" content="#FFF3F0" />
 	<meta property="og:type" content="website" />
 	<meta property="og:site_name" content="riteangle" />
-	<meta property="og:title" content="No swiping. Ever. Just matches." />
+	<meta
+		property="og:title"
+		content={audience === 'women'
+			? 'A shortlist that means something.'
+			: 'No swiping. Ever. Just matches.'}
+	/>
 	<meta
 		property="og:description"
 		content="An AI does the searching, the asking and the vetting. You just meet. Early access is open on Android."
 	/>
 	<meta property="og:image" content="/og/riteangle-logo.png" />
 	<meta name="twitter:card" content="summary_large_image" />
-	<meta name="twitter:title" content="No swiping. Ever. Just matches." />
+	<meta
+		name="twitter:title"
+		content={audience === 'women'
+			? 'A shortlist that means something.'
+			: 'No swiping. Ever. Just matches.'}
+	/>
 	<meta name="twitter:image" content="/og/riteangle-logo.png" />
 </svelte:head>
 
@@ -291,7 +382,7 @@
 				<div class="sp them">
 					<span class="sp-tag">Every other app</span>
 					<ul>
-						{#each THEM as t (t)}
+						{#each c.them as t (t)}
 							<li><span class="x">✕</span>{t}</li>
 						{/each}
 					</ul>
@@ -299,7 +390,7 @@
 				<div class="sp us">
 					<span class="sp-tag">riteangle</span>
 					<ul>
-						{#each US as u (u)}
+						{#each c.us as u (u)}
 							<li><span class="v">✓</span>{u}</li>
 						{/each}
 					</ul>
@@ -313,7 +404,7 @@
 		<div class="wrap">
 			<h2 class="h2">Not a promise.<br />A measurement.</h2>
 			<div class="proof">
-				{#each PROOF as p (p.figure)}
+				{#each c.proof as p (p.figure)}
 					<div class="pcard">
 						<div class="fig">{p.figure}</div>
 						<div class="plabel">{p.label}</div>
@@ -324,57 +415,112 @@
 		</div>
 	</section>
 
-	<!-- ── Mockup 1: her AI goes first ───────────────────────────────────── -->
-	<section class="sec">
-		<div class="wrap">
-			<h2 class="h2">Her AI talks to him first</h2>
-			<div class="mock">
-				<div class="mock-top">
-					<span class="ava">B</span>
-					<span class="mock-name">Bestie</span>
-					<span class="ai-tag">✨ AI</span>
+	<!--
+		The mockups, and the one place the two pages genuinely diverge in structure
+		rather than wording.
+
+		HIS page runs vetting first, then the two-sided view: proving himself is his
+		job, so the chat where his AI answers on his behalf is the thing he needs to
+		understand, and the split afterwards shows him what she gets out of it.
+
+		HERS runs the list first. Her problem is the flood — a hundred matches with
+		no order — so the ordered list IS the product and it leads. The chat follows
+		as the reason the order can be trusted, and it is staged from her side of the
+		conversation, not his. Her page drops his progress bar entirely: it is his
+		surface, and on her page it would be a picture of a stranger's homework.
+	-->
+	{#if audience === 'women'}
+		<!-- ── Hers, 1: the list, already in order ───────────────────────────── -->
+		<section class="sec">
+			<div class="wrap">
+				<h2 class="h2">Your list, already in order</h2>
+				<div class="mock list">
+					<div class="mock-cap">What you see</div>
+					{#each [{ i: 'A', pct: 92 }, { i: 'R', pct: 78 }, { i: 'K', pct: 61 }] as r, idx (r.i)}
+						<div class="row">
+							<span class="rank">{idx + 1}</span>
+							<span class="ava sm">{r.i}</span>
+							<span class="meter"><span class="fill" style="width:{r.pct}%"></span></span>
+							<span class="pct">{r.pct}%</span>
+						</div>
+					{/each}
+					<div class="mock-foot">In the order you asked for — not who posted most</div>
 				</div>
-				<div class="b ai">She asked how you spend your weekends. One line is fine.</div>
-				<div class="b me">Climbing on Saturdays. Cooking on Sundays.</div>
-				<div class="b ai">Logged. That closes one of the three things she asked for.</div>
-				<div class="mock-foot">2 left → then she sees you</div>
+				<p class="cap">Short, because the asking already happened.</p>
 			</div>
-			<p class="cap">It asks the things she would never have time to ask.</p>
-		</div>
-	</section>
+		</section>
 
-	<!-- ── Mockup 2 + 3: what each side gets ─────────────────────────────── -->
-	<section class="sec tinted">
-		<div class="wrap">
-			<h2 class="h2">Two sides, two views</h2>
-
-			<div class="mock list">
-				<div class="mock-cap">What she sees</div>
-				{#each [{ i: 'A', pct: 92 }, { i: 'R', pct: 78 }, { i: 'K', pct: 61 }] as r, idx (r.i)}
-					<div class="row">
-						<span class="rank">{idx + 1}</span>
-						<span class="ava sm">{r.i}</span>
-						<span class="meter"><span class="fill" style="width:{r.pct}%"></span></span>
-						<span class="pct">{r.pct}%</span>
+		<!-- ── Hers, 2: how the order got there ──────────────────────────────── -->
+		<section class="sec tinted">
+			<div class="wrap">
+				<h2 class="h2">His answers came before you asked</h2>
+				<div class="mock">
+					<div class="mock-top">
+						<span class="ava">B</span>
+						<span class="mock-name">Bestie</span>
+						<span class="ai-tag">✨ AI</span>
 					</div>
-				{/each}
-				<div class="mock-foot">Ranked by what she asked for — not by who uploaded most</div>
-			</div>
-
-			<div class="mock prog">
-				<div class="mock-cap">What he sees</div>
-				<div class="segs">
-					<span class="seg on"></span>
-					<span class="seg on"></span>
-					<span class="seg on"></span>
-					<span class="seg"></span>
+					<div class="b ai">You said weekends matter. I asked him all three.</div>
+					<div class="b me">And?</div>
+					<div class="b ai">Climbs on Saturdays, cooks on Sundays. Workplace verified.</div>
+					<div class="mock-foot">One left → then he reaches your list</div>
 				</div>
-				<div class="prog-row"><strong>68%</strong> <span>and it never slides back</span></div>
-				<div class="next">Next: verify your workplace <span class="up">+9%</span></div>
-				<div class="mock-foot">Never a ranking against men he cannot see</div>
+				<p class="cap">It asks the things you would never have time to ask.</p>
 			</div>
-		</div>
-	</section>
+		</section>
+	{:else}
+		<!-- ── Mockup 1: her AI goes first ───────────────────────────────────── -->
+		<section class="sec">
+			<div class="wrap">
+				<h2 class="h2">Her AI talks to him first</h2>
+				<div class="mock">
+					<div class="mock-top">
+						<span class="ava">B</span>
+						<span class="mock-name">Bestie</span>
+						<span class="ai-tag">✨ AI</span>
+					</div>
+					<div class="b ai">She asked how you spend your weekends. One line is fine.</div>
+					<div class="b me">Climbing on Saturdays. Cooking on Sundays.</div>
+					<div class="b ai">Logged. That closes one of the three things she asked for.</div>
+					<div class="mock-foot">2 left → then she sees you</div>
+				</div>
+				<p class="cap">It asks the things she would never have time to ask.</p>
+			</div>
+		</section>
+
+		<!-- ── Mockup 2 + 3: what each side gets ─────────────────────────────── -->
+		<section class="sec tinted">
+			<div class="wrap">
+				<h2 class="h2">Two sides, two views</h2>
+
+				<div class="mock list">
+					<div class="mock-cap">What she sees</div>
+					{#each [{ i: 'A', pct: 92 }, { i: 'R', pct: 78 }, { i: 'K', pct: 61 }] as r, idx (r.i)}
+						<div class="row">
+							<span class="rank">{idx + 1}</span>
+							<span class="ava sm">{r.i}</span>
+							<span class="meter"><span class="fill" style="width:{r.pct}%"></span></span>
+							<span class="pct">{r.pct}%</span>
+						</div>
+					{/each}
+					<div class="mock-foot">Ranked by what she asked for — not by who uploaded most</div>
+				</div>
+
+				<div class="mock prog">
+					<div class="mock-cap">What he sees</div>
+					<div class="segs">
+						<span class="seg on"></span>
+						<span class="seg on"></span>
+						<span class="seg on"></span>
+						<span class="seg"></span>
+					</div>
+					<div class="prog-row"><strong>68%</strong> <span>and it never slides back</span></div>
+					<div class="next">Next: verify your workplace <span class="up">+9%</span></div>
+					<div class="mock-foot">Never a ranking against men he cannot see</div>
+				</div>
+			</div>
+		</section>
+	{/if}
 
 	<!-- ── Mid CTA ───────────────────────────────────────────────────────── -->
 	<section class="sec mid">
@@ -392,7 +538,7 @@
 		<div class="wrap">
 			<h2 class="h2">Three steps, two are ours</h2>
 			<div class="steps">
-				{#each STEPS as s, i (s.h)}
+				{#each c.steps as s, i (s.h)}
 					<div class="step">
 						<span class="tile">{s.icon}</span>
 						<div>
@@ -410,7 +556,7 @@
 		<div class="wrap">
 			<h2 class="h2">Things no other app does</h2>
 			<div class="grid">
-				{#each DIFF as d (d.h)}
+				{#each c.diff as d (d.h)}
 					<div class="card">
 						<span class="tile">{d.icon}</span>
 						<h3 class="h3">{d.h}</h3>
@@ -426,7 +572,7 @@
 		<div class="wrap">
 			<h2 class="h2">Fair questions</h2>
 			<div class="faq">
-				{#each FAQ as f (f.q)}
+				{#each c.faq as f (f.q)}
 					<details class="qa">
 						<summary>{f.q}</summary>
 						<p class="p">{f.a}</p>
@@ -439,7 +585,7 @@
 	<!-- ── Close ─────────────────────────────────────────────────────────── -->
 	<section class="sec close">
 		<div class="wrap narrow">
-			<h2 class="h2 c">Meet who you<br />actually want.</h2>
+			<h2 class="h2 c">{c.closing[0]}<br />{c.closing[1]}</h2>
 			<a class="cta" href={storeUrl} data-cta="footer" target="_blank" rel="noopener">
 				{@render playMark()}
 				Get the Android app

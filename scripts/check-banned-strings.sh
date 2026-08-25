@@ -39,7 +39,12 @@ fail=0
 
 # /get is the paid-social landing page. Ad copy is exactly the surface this
 # vocabulary comes back on, so it is scanned like any other user-facing page.
-USER_FACING_WEB="src/routes/verified-vibe src/routes/beta src/routes/get src/routes/+page.svelte src/lib/verified-vibe/components"
+# NOTE: these are passed to grep -r as paths, so "src/routes/get" covers the
+# /get route directory ONLY — it does not match sibling directories whose name
+# merely starts with "get". src/routes/get-photos claims in its own header that
+# this script scans it; that has been untrue since the day it was copied, and is
+# fixed by listing it explicitly here.
+USER_FACING_WEB="src/routes/verified-vibe src/routes/beta src/routes/get src/routes/get-photos src/routes/+page.svelte src/lib/verified-vibe/components"
 USER_FACING_ALL="mobile/lib $USER_FACING_WEB"
 
 # ── Case-insensitive: copy phrases that must not appear in any wording ───────
