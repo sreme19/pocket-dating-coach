@@ -1,5 +1,5 @@
 ---
-title: Tabular won because humans read tables, and the vector index and graph that follow when the reader is an agent paying by the token
+title: When to use a vector database, when a SQL table, and when a graph, and what it costs to pick wrong
 date: 2026-08-25
 summary: For decades we modelled data so a human could read it, which is why tabular won. The first consumer now is an agent, and an agent's binding constraint is not legibility but token cost. If context were free you would hand a frontier model all 1,100 documents and ask; it is not, so the job becomes retrieving the smallest correct slice. An agent that drafts outreach kept quoting 600 calls a week from a summary someone wrote once, when the tracker said about 1,850. The fix was to split the archive by shape into three local stores, an embedding index for prose, DuckDB for spreadsheets and a graph database for relationships, with a rule deciding where each question goes before anything is searched. Eight lookups that would have cost a million tokens of reading now cost sixteen thousand. This is what each store is good at, what picking the wrong one costs, and the measured results.
 tags: [data-platform, agent-architecture, context-engineering, decision-systems]
