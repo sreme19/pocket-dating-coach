@@ -1,7 +1,7 @@
 ---
 title: One agent, three databases, and how to decide whether a question belongs to a vector index, a SQL store or a graph
 date: 2026-08-25
-summary: An agent that drafts outreach kept quoting a performance number from a summary someone wrote once. The summary said 600 calls a week. The tracker it was summarising said about 1,850. The fix was to stop treating an archive of 1,100 work documents as one searchable pile, and split it by shape into three local stores — an embedding index for prose, DuckDB for spreadsheets, and a graph database for relationships — with a rule that decides where a question goes before anything is searched. This is what each store is genuinely good at, what it costs when you pick the wrong one, and the measured results, including the finding that indexing each document's title bought almost as much as the embedding model did.
+summary: For decades we modelled data so a human could read it, which is why tabular won. The first consumer now is an agent, and an agent's binding constraint is not legibility but token cost. If context were free you would hand a frontier model all 1,100 documents and ask; it is not, so the job becomes retrieving the smallest correct slice. An agent that drafts outreach kept quoting 600 calls a week from a summary someone wrote once, when the tracker said about 1,850. The fix was to split the archive by shape into three local stores, an embedding index for prose, DuckDB for spreadsheets and a graph database for relationships, with a rule deciding where each question goes before anything is searched. Eight lookups that would have cost a million tokens of reading now cost sixteen thousand. This is what each store is good at, what picking the wrong one costs, and the measured results.
 tags: [data-platform, agent-architecture, context-engineering, decision-systems]
 cover: /og/blog/where-a-wrong-answer-gets-prevented.png
 ---
@@ -20,10 +20,72 @@ rather than the number. A summary of a number
 is not the number, and there is nothing in a similarity score that can tell you
 which one you just got.
 
-That is the failure this whole architecture exists to prevent, and the fix was
-not a better search. It was noticing that the archive being searched contained
-three different kinds of thing, and that asking one index to handle all three
-was the actual mistake.
+That is the failure this architecture exists to prevent. The fix was not a
+better search, and it was not a better model. It was noticing that the reader
+had changed.
+
+For most of my career, data was modelled so that a person could read it. That
+is why tabular won. A human can scan a table, pivot it, put it on a dashboard,
+and apply the one reflex that matters here: hang on, is this figure still
+current? Star schemas, warehouses and BI tools were all built around human
+legibility.
+
+The first consumer of the data I model now is an agent, and the human works
+through it. That changes the design question. It is no longer whether a person
+can navigate the store. It is what shape lets an agent retrieve the right
+slice cheaply, and not be confidently wrong when it cannot.
+
+## Why not just hand the model everything?
+
+That is the honest baseline, and it deserves a straight answer rather than a
+hand-wave. If context were free and infinite, none of what follows would be
+worth building. You would pass all 1,100 documents to a frontier model with
+the question attached and take the answer.
+
+It is not free, and that is the whole reason these architectures exist.
+Retrieval is a cost-minimisation exercise before it is anything else. Four of
+these files run 230 to 270 printed pages each; opening one to find a single
+figure costs roughly 180,000 tokens of reading. Eight typical lookups done
+that way come to 1,031,560 tokens. Answering the same eight from three narrow
+stores costs 16,290, and returns in about 17 milliseconds. That is 98% less,
+and it is paid per query, every query, forever.
+
+Cost is the first reason and it is not the only one. Handing over everything
+would not have fixed the 600. Both numbers are in that archive: the stale
+summary and the tracker it summarised. A model given all of it sees both and
+has nothing to tell it which one is authoritative, because that fact is not in
+the text of either. More context does not adjudicate. It just moves the same
+ambiguity into a more expensive prompt.
+
+So the goal is not the largest context you can afford. It is the smallest
+slice that is provably the right one, with each fact carrying where it came
+from.
+
+Two things are being bought here, and they are worth naming separately,
+because almost every choice in this post trades against one or the other.
+
+**Fewer tokens.** Tokens are the line item. A slice that is a hundredth the
+size costs a hundredth as much, on every single query, and that gap widens as
+the archive grows rather than closing.
+
+**Faster answers.** A retrieval that returns in 17 milliseconds and hands over
+16,000 tokens produces an answer in a fraction of the time a million-token
+prompt would, because the model has less to read before it can start.
+
+Against those two, each store does a specific job:
+
+| Store | What it removes | What it adds |
+| --- | --- | --- |
+| Vector index | Reading whole documents. You scan the passages that match, not the file they sit in | Matching on meaning, so the right passage is found even when the question uses none of its words |
+| Graph | A hand-written join for every hop, and the modelling gymnastics that go with it | Relationships as something you can walk directly, which is the one thing neither other store expresses |
+| SQL store | Nothing. It does exactly what it always did | Exact aggregation over rows, still the only correct way to produce a number |
+
+The last row is the one people skip past, and it is the most important. The
+tabular store is not the legacy layer being replaced by the two newer ones.
+Its job did not change at all. Counting is still counting, and a `GROUP BY` is
+still the right answer to "how many." What changed is that it stopped being
+the only store, because two of the three questions an agent asks were never
+countable in the first place.
 
 ## The archive had three shapes, and one index over all of it was worse than three narrow ones
 
@@ -323,11 +385,14 @@ handled.
 
 ## The pattern, without the job search
 
-> The shape that makes a question cheap belongs to the question, not to the
-> technology. A count belongs in a table, a reason belongs in an index over
-> prose, and a two-hop connection belongs in a graph. The engineering decision
-> is not which database is best. It is which representation each question needs,
-> and where that gets decided.
+> These architectures exist because tokens cost money and answers have to be
+> fast. If context were free, one frontier model reading everything would win.
+> It is not, so the job is to hand over the smallest slice that is provably
+> right. A vector index means you stop reading whole documents. A graph means
+> relationships become something you walk instead of reconstruct. A tabular
+> store keeps doing what it always did, because counting never needed replacing.
+> The engineering decision is not which database is best. It is which
+> representation each question needs, and where that gets decided.
 
 | Domain | Goes to SQL | Goes to the vector index | Goes to the graph |
 | --- | --- | --- | --- |
