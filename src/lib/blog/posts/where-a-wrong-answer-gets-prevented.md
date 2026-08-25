@@ -61,8 +61,8 @@ So the goal is not the largest context you can afford. It is the smallest
 slice that is provably the right one, with each fact carrying where it came
 from.
 
-Two things are being bought here, and they are worth naming separately,
-because almost every choice in this post trades against one or the other.
+Three things are being bought here, in that order of importance, and they are
+worth naming separately.
 
 **Fewer tokens.** Tokens are the line item. A slice that is a hundredth the
 size costs a hundredth as much, on every single query, and that gap widens as
@@ -72,12 +72,16 @@ the archive grows rather than closing.
 16,000 tokens produces an answer in a fraction of the time a million-token
 prompt would, because the model has less to read before it can start.
 
+**Connections nobody thought to look for.** This one is the graph's alone, it
+is not about cost, and it is the reason the third store exists at all. More on
+it below.
+
 Against those two, each store does a specific job:
 
 | Store | What it removes | What it adds |
 | --- | --- | --- |
 | Vector index | Reading whole documents. You scan the passages that match, not the file they sit in | Matching on meaning, so the right passage is found even when the question uses none of its words |
-| Graph | A hand-written join for every hop, and the modelling gymnastics that go with it | Relationships as something you can walk directly, which is the one thing neither other store expresses |
+| Graph | A hand-written join for every hop, and having to think of the question first | Connections that surface on their own, including ones nobody would have known to ask for |
 | SQL store | Nothing. It does exactly what it always did | Exact aggregation over rows, still the only correct way to produce a number |
 
 The last row is the one people skip past, and it is the most important. The
@@ -217,7 +221,7 @@ the shared database would have been easier to build and would have put the burde
 on every query written afterwards. A convention is something you remember. A
 separate file is something you cannot forget.
 
-## A graph earns its place at the second hop
+## A graph surfaces the connection nobody thought to ask for
 
 Here is the question that justified the third store. *Which company have I not
 approached yet that shares an investor with one where someone already
@@ -241,6 +245,40 @@ answer. Nothing errors, no score collapses, and nothing in the output indicates
 that the real answer needed specific edges walked instead. That is the
 characteristic failure of the whole category: the wrong store does not refuse,
 it improvises.
+
+Cost and speed justify the first two stores. The graph earns its place on a
+different argument, and it is the one worth understanding, because it is the
+one people usually miss.
+
+Work through a concrete case. I approach company A. Company A has an investor,
+call them X. X has also backed company B, which I had never heard of and would
+never have searched for. That link is not trivia. An investor backs along a
+thesis, so the fact that X funded both A and B says something real about B. It
+is the kind of company X believes in, which is very likely the kind of company
+I was already targeting when I picked A. Company B just became a lead, and a
+warm one, because someone now exists who knows both sides.
+
+Every fact in that chain was already sitting in a tabular store. This is the
+part worth being precise about, because it is where the argument usually gets
+overstated: a relational database can absolutely answer this. Nothing is
+missing from the data. What is missing is the question.
+
+To get company B out of a table, somebody first has to sit down, imagine that
+a shared investor might imply a shared thesis, and then write the self-join
+that walks from A to its investors to their other portfolio companies and back
+out. The insight has to exist in a human head before the query can be written.
+The database only confirms what somebody already suspected.
+
+In a graph, nobody has to have the thought first. Company B falls out of an
+ordinary two-hop traversal from A, alongside every other company reachable the
+same way, because "follow this edge type, then follow it back" is simply how
+you move through the store rather than a clever thing you do to it. The
+structure does the imagining.
+
+So the case for a graph is not cheaper queries. It is that a graph makes
+discovery the default. A table answers the question you thought to ask. A
+graph hands you connections you did not know were available, which is what you
+want in front of an agent that will not have a hunch on your behalf.
 
 **How to implement it.** Kuzu, embedded — a directory on disk, no server, real
 Cypher. It requires a schema declared up front: node tables, relationship tables
@@ -308,6 +346,38 @@ When a question routes to SQL, the prose results still appear, under a warning
 that they are a paraphrase at best and must not be quoted as a figure. That
 warning is the difference between a draft citing your real results and a draft
 citing a stale note about them.
+
+## Three ingredients, one generation
+
+Described one at a time, the three stores sound like alternatives you choose
+between. In a real request they are not alternatives. They run together, and
+each contributes something the other two cannot.
+
+Take the outreach case end to end. The graph surfaces company B, which I did
+not know to ask about, through an investor it shares with a company already in
+play. The embedding index pulls the two or three paragraphs from my own
+archive that describe the work most relevant to what company B does, so the
+note cites something real rather than a generic claim. The tabular store
+supplies the exact figures that go in that note, drawn from the records that
+hold them rather than from a sentence about them.
+
+Only then does a model get called, and what it receives is a small, labelled
+bundle: a connection worth acting on, the evidence that makes it credible, and
+numbers that are correct. It writes from that.
+
+That combination is the actual argument for the architecture, and it moves
+four ways at once. The answer is more comprehensive, because it includes a
+lead no single store would have produced. It is more accurate, because every
+figure came from the store that holds figures. It is faster, because the model
+reads sixteen thousand tokens instead of a million. And it is cheaper, for the
+same reason.
+
+Those four usually trade against each other. More comprehensive normally means
+more context, which means slower and more expensive. The reason they move
+together here is that the work of deciding what is relevant happened before
+the model was called, in three stores that are each cheap at their own job,
+rather than inside a single expensive prompt that was handed everything and
+asked to sort it out.
 
 ## Where each store lets you stop a wrong answer
 
