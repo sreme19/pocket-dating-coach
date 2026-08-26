@@ -14,7 +14,7 @@ import {
 /**
  * POST /api/marketing/page-view
  *
- * Fired on arrival at /get, /get-photos and /aibestie. Writes the denominator
+ * Fired on arrival at /get, /get/w, /get-photos and /aibestie. Writes the denominator
  * for store-tap rate, which until now existed only inside Snap's and Meta's
  * dashboards.
  *
@@ -29,7 +29,7 @@ import {
  */
 
 /** Must match the table's check constraint. */
-const ALLOWED_PAGES = new Set(['get', 'get_photos', 'aibestie']);
+const ALLOWED_PAGES = new Set(['get', 'get_w', 'get_photos', 'aibestie']);
 
 export const POST: RequestHandler = async ({ request }) => {
   const noContent = new Response(null, { status: 204 });
@@ -58,7 +58,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
   await recordPageView({
     visitId,
-    page: page as 'get' | 'get_photos' | 'aibestie',
+    page: page as 'get' | 'get_w' | 'get_photos' | 'aibestie',
     campaign: clamp(body.campaign, MAX_CAMPAIGN),
     utm: sanitizeUtm(body.utm),
     userAgent: clamp(request.headers.get('user-agent'), MAX_UA),

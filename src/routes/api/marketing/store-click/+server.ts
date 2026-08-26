@@ -38,6 +38,8 @@ import {
  */
 const ALLOWED_CTAS: Record<string, Set<string>> = {
   get: new Set(['hero', 'mid', 'footer', 'sticky']),
+  // Her variant of /get carries the same four positions as his.
+  get_w: new Set(['hero', 'mid', 'footer', 'sticky']),
   get_photos: new Set(['hero', 'mid', 'footer', 'sticky']),
   // Four moments of persuasion on a chat page, not four positions on a
   // brochure: the header Continue, the in-chat signup gate, the profile sheet,
@@ -59,6 +61,7 @@ const MAX_FB_ID = 500;
 /** Landing pages that report taps, and the path each one lives at. */
 const PAGE_PATHS: Record<string, string> = {
   get: '/get',
+  get_w: '/get/w',
   get_photos: '/get-photos',
   aibestie: '/aibestie'
 };

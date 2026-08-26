@@ -41,7 +41,7 @@ export interface StoreClickInput {
   eventId: string;
   /** Joins this tap to the arrival that produced it. Null where sessionStorage was refused. */
   visitId: string | null;
-  /** Which landing page earned the tap — 'get' | 'get_photos' | 'aibestie'. */
+  /** Which landing page earned the tap — 'get' | 'get_w' | 'get_photos' | 'aibestie'. */
   page: string;
   /**
    * Meta's click identifier, from fbclid. The strongest match signal available:
