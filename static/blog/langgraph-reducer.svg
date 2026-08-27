@@ -2,11 +2,11 @@
      role="img" aria-labelledby="lgrTitle lgrDesc">
   <title id="lgrTitle">Why a parallel branch needs a reducer on the shared field</title>
   <desc id="lgrDesc">Two panels comparing the same situation. In both, two parallel branches — Intel
-  network writing the list bad row 12, and Coalition writing the list null cohort — write to the same
+  network writing the list weak source, and Coalition writing the list ally exposed — write to the same
   shared errors list at the same time. In the top panel, without a merge rule, the run stops with an
   INVALID_CONCURRENT_GRAPH_UPDATE error because two updates arrive for one key with no rule to combine
   them. In the bottom panel, an append reducer is attached to the field, so both writes land and the
-  list is merged into bad row 12 and null cohort, rather than one overwriting the other; order is not
+  list is merged into weak source and ally exposed, rather than one overwriting the other; order is not
   guaranteed.</desc>
 
   <style>
@@ -44,11 +44,11 @@
 
   <rect class="card" x="40" y="102" width="210" height="48" rx="10"/>
   <text class="h ink" x="145" y="124" font-size="14" font-weight="600" text-anchor="middle">Intel network</text>
-  <text class="m mut" x="145" y="140" font-size="11" text-anchor="middle">writes ["bad row 12"]</text>
+  <text class="m mut" x="145" y="140" font-size="11" text-anchor="middle">writes ["weak source"]</text>
 
   <rect class="card" x="310" y="102" width="210" height="48" rx="10"/>
   <text class="h ink" x="415" y="124" font-size="14" font-weight="600" text-anchor="middle">Coalition</text>
-  <text class="m mut" x="415" y="140" font-size="11" text-anchor="middle">writes ["null cohort"]</text>
+  <text class="m mut" x="415" y="140" font-size="11" text-anchor="middle">writes ["ally exposed"]</text>
 
   <path class="flow" d="M145 150 L250 194" marker-end="url(#rah)"/>
   <path class="flow" d="M415 150 L310 194" marker-end="url(#rah)"/>
@@ -69,11 +69,11 @@
 
   <rect class="card" x="40" y="378" width="210" height="48" rx="10"/>
   <text class="h ink" x="145" y="400" font-size="14" font-weight="600" text-anchor="middle">Intel network</text>
-  <text class="m mut" x="145" y="416" font-size="11" text-anchor="middle">writes ["bad row 12"]</text>
+  <text class="m mut" x="145" y="416" font-size="11" text-anchor="middle">writes ["weak source"]</text>
 
   <rect class="card" x="310" y="378" width="210" height="48" rx="10"/>
   <text class="h ink" x="415" y="400" font-size="14" font-weight="600" text-anchor="middle">Coalition</text>
-  <text class="m mut" x="415" y="416" font-size="11" text-anchor="middle">writes ["null cohort"]</text>
+  <text class="m mut" x="415" y="416" font-size="11" text-anchor="middle">writes ["ally exposed"]</text>
 
   <path class="flowg" d="M145 426 L250 470" marker-end="url(#rgh)"/>
   <path class="flowg" d="M415 426 L310 470" marker-end="url(#rgh)"/>
@@ -82,7 +82,7 @@
 
   <rect class="card" x="150" y="472" width="260" height="52" rx="10"/>
   <text class="m ink" x="280" y="494" font-size="13" font-weight="600" text-anchor="middle">errors</text>
-  <text class="m grn" x="280" y="512" font-size="11.5" text-anchor="middle">["bad row 12", "null cohort"]</text>
+  <text class="m grn" x="280" y="512" font-size="11.5" text-anchor="middle">["weak source", "ally exposed"]</text>
 
   <rect class="grnbox" x="40" y="540" width="480" height="52" rx="9"/>
   <text class="l grn" x="60" y="564" font-size="13" font-weight="700">✓ both writes land — the list is merged, not overwritten</text>

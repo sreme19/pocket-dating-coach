@@ -1,7 +1,7 @@
 ---
 title: What LangGraph buys over a hand-wired agent pipeline, and the one-line reducer that stops two parallel branches from clobbering each other
 date: 2026-08-27
-summary: Say your pipeline has a threat-scoring agent and a coalition-modelling agent, and both append their findings to the same warnings list on a shared state object. Neither depends on the other, so a for-loop wastes time running them back to back — but fire them off concurrently and both read the old list, both write their own copy back, and one agent's findings silently vanish. A plain loop makes you choose between slow and wrong. A graph runtime solves exactly this, and nothing more exotic — I built three engines on it (a Game of Thrones strategy oracle, an intelligence-operations oracle, and a survey-analysis pipeline), each eight to ten nodes over one shared typed state, where a one-line rule declaring that a field merges by appending rather than replacing lets two agents write the same list safely, and a validation gate kills a bad run before the expensive model step. If your pipeline is honestly a straight line — fetch, then compute, then summarize, each step waiting on the last — you have nothing to parallelize and nothing to merge; write the for-loop and move on.
+summary: Say your pipeline has a threat-scoring agent and a coalition-modelling agent, and both append their findings to the same warnings list on a shared state object. Neither depends on the other, so a for-loop wastes time running them back to back — but fire them off concurrently and both read the old list, both write their own copy back, and one agent's findings silently vanish. A plain loop makes you choose between slow and wrong. A graph runtime solves exactly this, and nothing more exotic — I built two engines on it (a Game of Thrones strategy oracle and an intelligence-operations oracle), each eight to ten nodes over one shared typed state, where a one-line rule declaring that a field merges by appending rather than replacing lets two agents write the same list safely, and a gate kills a broken run before the expensive model step. If your pipeline is honestly a straight line — fetch, then compute, then summarize, each step waiting on the last — you have nothing to parallelize and nothing to merge; write the for-loop and move on.
 tags: [agent-architecture, decision-systems]
 cover: /og/blog/langgraph-over-a-hand-wired-pipeline.png
 ---
@@ -23,17 +23,28 @@ for no reason, or running them together and hand-merging their results without
 dropping one. A graph runtime makes that a property of the wiring instead of a
 thing you remember to do by hand.
 
-## Three engines that all wanted the same shape
+## Two engines that wanted the same shape
 
-I have built the same skeleton three times, for three unrelated problems.
+I have built the same skeleton twice, for two unrelated problems.
 
-The first was a strategy oracle for a fictional political world — think great
-houses, shifting alliances, who moves against whom. It runs eight nodes: a step
-that assembles the board state, then two that branch off it in parallel — one
-scoring threats, one modelling coalitions — that converge on a step estimating
-what each actor believes, then a sequential run through an adversary model, a
-strategy solver, a simulator, and finally a narration step that turns the
-numbers into prose.
+The first was a [strategy oracle for Game of
+Thrones](https://github.com/sreme19/got-oracle) — give it a character at a
+turning point, say Joffrey deciding Ned Stark's fate at the Great Sept, and it
+tells you what he should have done instead and what it would have cost him. It
+runs eight nodes. A first step assembles the board state for that moment: who
+holds power, who owes whom, which alliances are live. Two branch off it in
+parallel — one scores threats by mapping the alliance network, where an
+information broker like Littlefinger outranks a rival with an army, and one
+models coalitions, pricing what each ally is actually worth to Joffrey's
+position. They converge on a step estimating what each actor believes,
+including the gap between what Joffrey thinks Littlefinger is doing and what
+Littlefinger is actually doing. Then a sequential run: an adversary model
+predicting how each rival weighs a loss, a strategy solver ranking the real
+options on the table — execute Ned, exile him, or honour the deal sending him
+to the Night's Watch, with zero weight landing on the execution he chose — a
+simulator rolling each option forward two thousand times to put a survival
+probability on it, and finally a narration step that turns the numbers into
+prose.
 
 The second was an intelligence-operations oracle — a single operative moving
 through a hostile network, planning under uncertainty about who is compromised.
@@ -44,14 +55,7 @@ information-value scoring, an adversary model, a planner that reasons over a
 belief state rather than a known one, a critical-path scheduler, a Monte Carlo
 simulator, and narration.
 
-The third has nothing to do with games. It is a survey-analysis pipeline that
-ingests three raw data files, inspects them with a model before touching them,
-cleans and de-duplicates cohorts, builds a lift table, assembles a schema, and
-then hits a validation gate. If the gate passes or passes-with-warnings, the run
-continues to a final assembly step. If it fails, the run stops there and the
-expensive step never executes.
-
-Three different problems, one recurring structure: some steps must happen in
+Two different problems, one recurring structure: some steps must happen in
 order, some genuinely can happen at once, one shared object carries the state
 between them, and at least one point in the flow is a fork where the run should
 either continue or stop.
@@ -129,7 +133,7 @@ of writes without changing the result.
 The before and after is stark, and worth seeing as two states rather than a
 description:
 
-![Two panels comparing parallel writes to the same shared errors list. Without a merge rule, an intel-network branch writing bad row 12 and a coalition branch writing null cohort both land on the errors field at once, and the run stops with an INVALID_CONCURRENT_GRAPH_UPDATE error because two updates arrive for one key with no rule to combine them. With an append reducer attached to the field, both writes land and the list is merged into bad row 12 and null cohort rather than one overwriting the other, though the order is not guaranteed.](/blog/langgraph-reducer.svg)
+![Two panels comparing parallel writes to the same shared errors list. Without a merge rule, an intel-network branch writing weak source and a coalition branch writing ally exposed both land on the errors field at once, and the run stops with an INVALID_CONCURRENT_GRAPH_UPDATE error because two updates arrive for one key with no rule to combine them. With an append reducer attached to the field, both writes land and the list is merged into weak source and ally exposed rather than one overwriting the other, though the order is not guaranteed.](/blog/langgraph-reducer.svg)
 
 One line of declaration at the point the field is defined, and the entire class
 of dropped-concurrent-write bugs is gone from every branch that touches that
@@ -141,32 +145,30 @@ its field is written, not just what type it holds.
 
 ## A fork in the wiring, not a scatter of early returns
 
-The survey pipeline has a validation gate two-thirds of the way through, and it
-is the clearest example of the third advantage. After the schema is assembled, a
-gate step returns a verdict — pass, pass-with-warnings, or fail. The wiring reads
-that verdict and sends the run one of two ways: onward to the final and most
-expensive assembly step, or straight to the end.
+Both oracles carry the clearest example of the third advantage: a gate in front
+of the narration step. Any step that hits something unrecoverable records a
+fatal error on the shared state, and a fork in the wiring reads that flag and
+routes the run straight to the end, skipping narration entirely — there is no
+point paying a model to narrate a broken run.
 
 The point is where that decision lives. It is one labelled fork in the topology,
 sitting next to every other connection, visible in the same map as the rest of
 the flow. The alternative — a check-and-return at the top of the expensive step,
 and another inside it, and a guard three steps earlier — spreads the same control
 flow across the very functions it is meant to protect, where no one reading any
-one of them can see the whole rule. Both oracles use the same fork for a
-different purpose: skip the narration step entirely if an earlier step recorded a
-fatal error, because there is no point paying a model to narrate a broken run.
+one of them can see the whole rule.
 
 ## Resuming an expensive run instead of restarting it
 
 The fourth advantage only matters once a run gets long enough to hurt. Because
 the shared state is a single well-defined object and the runtime knows the
 boundaries between steps, it can snapshot that state after each step. The
-survey pipeline turns this on: its state is checkpointed as it goes, so a run
-interrupted at the gate can resume from the gate rather than re-ingesting and
-re-cleaning three files from scratch.
+intelligence oracle turns this on: state is checkpointed as the run goes, so a
+run interrupted late in the spine resumes from the last completed step rather
+than re-running the whole analysis from the top.
 
-For the intelligence oracle this stopped being a nicety and became the plan for
-scale. That engine can be asked to reason over many turning points in sequence,
+For that oracle the snapshots also stopped being a nicety and became the plan
+for scale. That engine can be asked to reason over many turning points in sequence,
 each one an expensive planning problem. The intended design checkpoints after
 each turning point, so a run that dies on point nine of twelve restarts at nine.
 Without the snapshot boundary the runtime already maintains, that resume logic is
@@ -180,12 +182,12 @@ comes back at the right point rather than the top.
 
 There is a second thing the snapshot boundary buys, and it is the one worth
 wiring in even when runs are short. A checkpoint does not only survive a crash;
-it lets a run stop on purpose and wait. The survey pipeline's gate decides pass,
-warn, or fail on its own today. Replace that automated verdict with a person's,
+it lets a run stop on purpose and wait. The oracles' pre-narration gate reads an
+error flag on its own today. Replace that automated verdict with a person's,
 and nothing else in the wiring moves — the fork is already there, the snapshot is
 already taken, so the run can sit at that node for an hour or a week until
 someone approves, then resume exactly where it paused instead of starting the
-ingest over.
+analysis over.
 
 That is the honest way to put a human in front of a step you cannot take back —
 a report that goes to a client, a charge, anything published. It is not a new
@@ -194,21 +196,18 @@ person reading the verdict where a rule read it before. Keep it risk-based: a
 hold on every harmless step only makes the pipeline slow, so gate the
 irreversible nodes and let the rest run.
 
-## The three engines, side by side
+## The two engines, side by side
 
 | Engine | Steps | Parallel branch | The fork does |
 | --- | --- | --- | --- |
 | Strategy oracle | 8 | threat + coalition → belief | skip narration on fatal error |
 | Intelligence oracle | 10 | intel-network + coalition → belief | skip narration on fatal error |
-| Survey pipeline | 8 | none — strictly sequential | stop before final step on a failed gate |
 
-![The three engines drawn as graphs, stacked. The strategy oracle (8 nodes) and the intelligence oracle (10 nodes) share the same shape: a state node fanning out to two branches — threat and coalition for the strategy oracle, intel-network and coalition for the intelligence oracle — that fan back in to a belief node, then a sequential spine to a fork that routes to END on a fatal error or otherwise to a narration step. The survey pipeline (8 nodes) has no fan-out at all: a straight sequential chain of ingest, clean and schema into a gate that either continues to a finalize step or, on a failed gate, routes straight to END and skips the finalize step. The two oracles carry the fan-out and fan-in lens; the survey pipeline is a flat line with a gate.](/blog/langgraph-three-engines.svg)
-
-The survey pipeline is the useful counter-example in my own portfolio: it has no
-parallel branch at all, and it still earns the runtime — not for fan-out it never
-does, but for the gate and the checkpointing. That is worth sitting with. Three
-of the four advantages are independent of parallelism. If the only one you need
-is the first, and your flow is a line, you do not need any of this.
+The two rows are nearly identical, and that is the observation worth keeping:
+two engines built months apart, for a war of great houses and for a lone
+operative in a hostile network, converged on the same wiring without either
+copying the other. When unrelated problems keep producing the same skeleton,
+the skeleton is the thing worth writing down.
 
 ## Where this pattern shows up outside a game oracle
 
