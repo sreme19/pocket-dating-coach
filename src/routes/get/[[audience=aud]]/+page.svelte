@@ -549,9 +549,9 @@
 				<figure class="shot hero-shot">
 					<img
 						src="/get-w/hero.jpg"
-						alt="A woman at home, mid-sentence, talking straight to camera."
-						width="1080"
-						height="1440"
+						alt="A woman at home laughing, head tipped back, mid-conversation."
+						width="896"
+						height="1050"
 						fetchpriority="high"
 						decoding="async"
 					/>
@@ -611,15 +611,15 @@
 			<div class="wrap">
 				<figure class="shot">
 					<img
-						src="/get-w/phone-down.jpg"
-						alt="A phone face-down on a cafe table next to a glass of chai."
-						width="1080"
-						height="1350"
+						src="/get-w/moment.jpg"
+						alt="A woman mid-step on a Bangalore street, glancing back and laughing."
+						width="760"
+						height="1152"
 						loading="lazy"
 						decoding="async"
 					/>
 					<figcaption class="cap">
-						The tenth identical opener is the one you close the app on.
+						The asking is handled. You get your evening back.
 					</figcaption>
 				</figure>
 			</div>
@@ -675,9 +675,9 @@
 				<figure class="shot">
 					<img
 						src="/get-w/shortlist.jpg"
-						alt="A phone held in both hands showing a short, ordered list of three verified men."
-						width="1080"
-						height="1350"
+						alt="A phone showing a short, ordered list of three verified men."
+						width="928"
+						height="970"
 						loading="lazy"
 						decoding="async"
 					/>
