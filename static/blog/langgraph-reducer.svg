@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 620" width="560" height="620"
+     role="img" aria-labelledby="lgrTitle lgrDesc">
+  <title id="lgrTitle">Why a parallel branch needs a reducer on the shared field</title>
+  <desc id="lgrDesc">Two panels comparing the same situation. In both, two parallel branches — Intel
+  network writing the list bad row 12, and Coalition writing the list null cohort — write to the same
+  shared errors list at the same time. In the top panel, without a merge rule, the run stops with an
+  INVALID_CONCURRENT_GRAPH_UPDATE error because two updates arrive for one key with no rule to combine
+  them. In the bottom panel, an append reducer is attached to the field, so both writes land and the
+  list is merged into bad row 12 and null cohort, rather than one overwriting the other; order is not
+  guaranteed.</desc>
+
+  <style>
+    .paper { fill:#fcfbf8; }
+    .card  { fill:#ffffff; stroke:#e8e3d8; stroke-width:1.5; }
+    .soft  { fill:#f6ece4; stroke:#e6d3c2; stroke-width:1; }
+    .grnbox{ fill:#eef3ee; stroke:#cfe0d4; stroke-width:1; }
+    .h     { font-family:'Iowan Old Style', Palatino, Georgia, serif; fill:#17161b; }
+    .l     { font-family:system-ui,-apple-system,'Segoe UI',sans-serif; }
+    .m     { font-family:ui-monospace,'SF Mono',Menlo,monospace; }
+    .ink { fill:#17161b; } .mut { fill:#6e6a63; } .acc { fill:#b4541e; } .grn { fill:#2f6b46; }
+    .flow  { stroke:#b4541e; stroke-width:2; fill:none; }
+    .flowg { stroke:#2f6b46; stroke-width:2; fill:none; }
+    @media (prefers-reduced-motion: no-preference) {
+      .flow, .flowg { stroke-dasharray:6 6; animation:march 1s linear infinite; }
+      @keyframes march { to { stroke-dashoffset:-12; } }
+    }
+  </style>
+  <defs>
+    <marker id="rah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0 0 L7 3 L0 6 Z" fill="#b4541e"/>
+    </marker>
+    <marker id="rgh" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0 0 L7 3 L0 6 Z" fill="#2f6b46"/>
+    </marker>
+  </defs>
+
+  <rect class="paper" x="0" y="0" width="560" height="620"/>
+
+  <text class="h ink" x="28" y="38" font-size="21" font-weight="700">Two branches, one list</text>
+  <text class="l mut" x="28" y="59" font-size="13">What happens when parallel writes land on the same field</text>
+
+  <!-- ===== Panel 1: no reducer ===== -->
+  <text class="l acc" x="28" y="90" font-size="13" font-weight="700">Without a merge rule</text>
+
+  <rect class="card" x="40" y="102" width="210" height="48" rx="10"/>
+  <text class="h ink" x="145" y="124" font-size="14" font-weight="600" text-anchor="middle">Intel network</text>
+  <text class="m mut" x="145" y="140" font-size="11" text-anchor="middle">writes ["bad row 12"]</text>
+
+  <rect class="card" x="310" y="102" width="210" height="48" rx="10"/>
+  <text class="h ink" x="415" y="124" font-size="14" font-weight="600" text-anchor="middle">Coalition</text>
+  <text class="m mut" x="415" y="140" font-size="11" text-anchor="middle">writes ["null cohort"]</text>
+
+  <path class="flow" d="M145 150 L250 194" marker-end="url(#rah)"/>
+  <path class="flow" d="M415 150 L310 194" marker-end="url(#rah)"/>
+
+  <rect class="card" x="175" y="196" width="210" height="48" rx="10"/>
+  <text class="m ink" x="280" y="218" font-size="13" font-weight="600" text-anchor="middle">errors</text>
+  <text class="l mut" x="280" y="234" font-size="11" text-anchor="middle">shared list, written by both</text>
+
+  <rect class="soft" x="40" y="260" width="480" height="52" rx="9" stroke="#b4541e" stroke-width="1.3"/>
+  <text class="l acc" x="60" y="284" font-size="13" font-weight="700">✕ run stops — two updates for one key, no rule to combine them</text>
+  <text class="m mut" x="60" y="301" font-size="11">INVALID_CONCURRENT_GRAPH_UPDATE</text>
+
+  <!-- divider -->
+  <line x1="28" y1="338" x2="532" y2="338" stroke="#e8e3d8" stroke-width="1.5"/>
+
+  <!-- ===== Panel 2: append reducer ===== -->
+  <text class="l grn" x="28" y="366" font-size="13" font-weight="700">With an append reducer</text>
+
+  <rect class="card" x="40" y="378" width="210" height="48" rx="10"/>
+  <text class="h ink" x="145" y="400" font-size="14" font-weight="600" text-anchor="middle">Intel network</text>
+  <text class="m mut" x="145" y="416" font-size="11" text-anchor="middle">writes ["bad row 12"]</text>
+
+  <rect class="card" x="310" y="378" width="210" height="48" rx="10"/>
+  <text class="h ink" x="415" y="400" font-size="14" font-weight="600" text-anchor="middle">Coalition</text>
+  <text class="m mut" x="415" y="416" font-size="11" text-anchor="middle">writes ["null cohort"]</text>
+
+  <path class="flowg" d="M145 426 L250 470" marker-end="url(#rgh)"/>
+  <path class="flowg" d="M415 426 L310 470" marker-end="url(#rgh)"/>
+  <rect class="grnbox" x="238" y="436" width="84" height="22" rx="11"/>
+  <text class="l grn" x="280" y="451" font-size="11" font-weight="700" text-anchor="middle">append</text>
+
+  <rect class="card" x="150" y="472" width="260" height="52" rx="10"/>
+  <text class="m ink" x="280" y="494" font-size="13" font-weight="600" text-anchor="middle">errors</text>
+  <text class="m grn" x="280" y="512" font-size="11.5" text-anchor="middle">["bad row 12", "null cohort"]</text>
+
+  <rect class="grnbox" x="40" y="540" width="480" height="52" rx="9"/>
+  <text class="l grn" x="60" y="564" font-size="13" font-weight="700">✓ both writes land — the list is merged, not overwritten</text>
+  <text class="l mut" x="60" y="581" font-size="11">order is not guaranteed, so the field's rule must match how it is written</text>
+</svg>

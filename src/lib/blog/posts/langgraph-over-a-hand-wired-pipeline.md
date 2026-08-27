@@ -98,11 +98,7 @@ rejoin — is declared on its own, as a list of connections between named steps.
 
 That separation is why the whole flow fits on one screen and reads like a map:
 
-```text
-                 ┌──►  threat scoring   ──┐
- assemble state ─┤                        ├──►  belief estimate ──►  … ──►  narrate
-                 └──►  coalition model  ──┘
-```
+![The intelligence oracle wired as a LangGraph state machine: a start marker into an assemble-state node, which fans out to two NetworkX branches — intel network and coalition — that fan back in to a belief-estimate node where a barrier waits for both and an append reducer merges the shared error and warning lists; then a sequential spine of value-of-information, a Stackelberg adversary model, a POMDP strategy planner, a CPM critical-path scheduler and a Monte Carlo simulator; then a conditional fork that skips narration and routes straight to END on a fatal error, or otherwise runs a Claude narration step before END. State is snapshotted at each boundary so a long run can resume or pause for a human.](/blog/langgraph-topology.svg)
 
 Two connections leave the state-assembly step, so its two successors run as a
 parallel branch. Both successors connect to the belief step, so the belief step
@@ -133,15 +129,7 @@ of writes without changing the result.
 The before and after is stark, and worth seeing as two states rather than a
 description:
 
-```text
-no merge rule:   branch A writes  errors = ["bad row 12"]
-                 branch B writes  errors = ["null cohort"]
-                 → runtime refuses: two writes, one key, no rule → run dies
-
-append rule:     branch A writes  errors += ["bad row 12"]
-                 branch B writes  errors += ["null cohort"]
-                 → errors = ["bad row 12", "null cohort"]   (order not guaranteed)
-```
+![Two panels comparing parallel writes to the same shared errors list. Without a merge rule, an intel-network branch writing bad row 12 and a coalition branch writing null cohort both land on the errors field at once, and the run stops with an INVALID_CONCURRENT_GRAPH_UPDATE error because two updates arrive for one key with no rule to combine them. With an append reducer attached to the field, both writes land and the list is merged into bad row 12 and null cohort rather than one overwriting the other, though the order is not guaranteed.](/blog/langgraph-reducer.svg)
 
 One line of declaration at the point the field is defined, and the entire class
 of dropped-concurrent-write bugs is gone from every branch that touches that
