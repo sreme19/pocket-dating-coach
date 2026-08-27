@@ -188,6 +188,24 @@ length — the single-run checkpointing is what is live today, and the way to kn
 the resume path works is to kill a long run halfway on purpose and confirm it
 comes back at the right point rather than the top.
 
+## The same pause that survives a crash can wait on a person
+
+There is a second thing the snapshot boundary buys, and it is the one worth
+wiring in even when runs are short. A checkpoint does not only survive a crash;
+it lets a run stop on purpose and wait. The survey pipeline's gate decides pass,
+warn, or fail on its own today. Replace that automated verdict with a person's,
+and nothing else in the wiring moves — the fork is already there, the snapshot is
+already taken, so the run can sit at that node for an hour or a week until
+someone approves, then resume exactly where it paused instead of starting the
+ingest over.
+
+That is the honest way to put a human in front of a step you cannot take back —
+a report that goes to a client, a charge, anything published. It is not a new
+subsystem. It is the fork and the checkpoint the pipeline already has, with a
+person reading the verdict where a rule read it before. Keep it risk-based: a
+hold on every harmless step only makes the pipeline slow, so gate the
+irreversible nodes and let the rest run.
+
 ## The three engines, side by side
 
 | Engine | Steps | Parallel branch | The fork does |
@@ -265,7 +283,8 @@ narrate results the pipeline already computed, never to decide them.
 Three things are cheap to build in now and expensive to add later. The merge
 rule on every shared field, because adding it after the fact means auditing every
 branch that ever wrote there. The checkpoint boundary, because adding it later
-means rediscovering where your steps begin and end. And the discipline of steps
+means rediscovering where your steps begin and end — and because it is also what
+lets a fork pause for a human instead of only surviving a crash. And the discipline of steps
 that return only what they changed, because a step that rewrites the whole state
 defeats both the merge rules and the snapshots at once. Wire those three in on
 the first pass and the rest of the graph stays boring for as long as you own it.
