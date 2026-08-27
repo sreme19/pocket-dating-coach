@@ -903,6 +903,57 @@ export type Database = {
 				Update: Partial<Database['public']['Tables']['marketing_page_views']['Insert']>;
 				Relationships: [];
 			};
+			/**
+			 * Contactable leads from the paid landing pages.
+			 *
+			 * The table has existed since 20260815063021 with a dialer and an email
+			 * drip already wired to it, and until now nothing wrote a single row —
+			 * /get and /get/w captured no contact at all, which is the gap the ad
+			 * research kept flagging. `page` and `audience` are constrained in the
+			 * database (see 20260825120000_add_get_w_landing_page.sql); the unions
+			 * here mirror those constraints so a bad value fails at compile time
+			 * rather than as a 400 from PostgREST on a form the visitor is watching.
+			 */
+			marketing_leads: {
+				Row: {
+					id: string;
+					visit_id: string | null;
+					page: string;
+					audience: string | null;
+					contact_kind: string;
+					whatsapp_e164: string | null;
+					email: string | null;
+					campaign: string | null;
+					utm: Record<string, string>;
+					country: string | null;
+					city: string | null;
+					region: string | null;
+					user_agent: string | null;
+					status: string;
+					note: string | null;
+					created_at: string;
+				};
+				Insert: {
+					id?: string;
+					visit_id?: string | null;
+					page: 'get' | 'get_w' | 'get_photos' | 'aibestie';
+					audience?: 'man' | 'woman' | null;
+					contact_kind: 'whatsapp' | 'email';
+					whatsapp_e164?: string | null;
+					email?: string | null;
+					campaign?: string | null;
+					utm?: Record<string, string>;
+					country?: string | null;
+					city?: string | null;
+					region?: string | null;
+					user_agent?: string | null;
+					status?: string;
+					note?: string | null;
+					created_at?: string;
+				};
+				Update: Partial<Database['public']['Tables']['marketing_leads']['Insert']>;
+				Relationships: [];
+			};
 		};
 		Functions: {
 			match_book_chunks: {

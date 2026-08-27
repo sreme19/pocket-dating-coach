@@ -80,6 +80,7 @@
 	} from '$lib/marketing/meta-pixel';
 	import { reportStoreClick } from '$lib/marketing/store-click-report';
 	import { reportPageView } from '$lib/marketing/page-view-report';
+	import { submitLead } from '$lib/marketing/lead-report';
 
 	/**
 	 * Which audience this render is for.
@@ -215,15 +216,36 @@
 	 * Three things are deliberately different rather than reworded:
 	 *
 	 *  1. Her page LEADS WITH THE LIST. His opens with the vetting because proving
-	 *     himself is his job; her problem is the flood — a hundred matches with no
-	 *     order — so the ordered list is the answer and it comes first, with the
-	 *     vetting second as the reason the order can be trusted.
+	 *     himself is his job; hers opens with what she gets, and the vetting follows
+	 *     as the reason the order can be trusted.
 	 *  2. VERIFICATION IS SOMETHING SHE RECEIVES, not something she performs. On his
 	 *     page verification is a task; on hers it is a property of everyone who
 	 *     reached her list.
-	 *  3. THE 14-SUITORS NUMBER STAYS, REFRAMED. To her, fourteen suitors is not a
-	 *     benefit — it is the flood. The number is only worth quoting alongside the
-	 *     order, which is why the label carries both.
+	 *  3. THE 14-SUITORS NUMBER STAYS, REFRAMED. The number is only worth quoting
+	 *     alongside the order, which is why the label carries both.
+	 *
+	 * WHAT CHANGED ON 2026-08-27, and why the words above are no longer the flood.
+	 * This block was written on the premise that her problem is volume — "a hundred
+	 * matches with no order" — and every line followed from it. A scan of five
+	 * Indian women creators that week found not one describing too many options to
+	 * sort. What they describe is the QUALITY OF THE ATTENTION: an opener that is
+	 * clearly mass-produced and run on many women at once, claims that cannot be
+	 * checked, axes that do not line up. Plentiful but worthless is a different
+	 * complaint from overwhelming, and it is the one the product actually answers,
+	 * because vetting is what Riteangle does and sorting is merely how it shows the
+	 * result. So `them` and `us` now contrast checkable proof against unverifiable
+	 * charm, rather than one list against a hundred matches.
+	 *
+	 * Two things this deliberately does NOT do. It does not claim a better pool: a
+	 * Bangalore rival already runs "equality means better choices" with a guaranteed
+	 * 50:50 ratio, and our own membership is 31 men to 17 women, so competing on
+	 * pool composition invites exactly the comparison we lose. And it does not drop
+	 * the 14 — that number is first-party and true, and paired with the order it
+	 * still earns its place.
+	 *
+	 * Sources: ad-management-agent research/learnings/
+	 * lrn-2026-08-27-complaint-is-quality-not-volume, lrn-2026-08-27-vlncy-owns-
+	 * better-not-more, lrn-2026-08-27-ratio-guarantee-is-unanswerable.
 	 */
 	const COPY = {
 		men: {
@@ -259,13 +281,23 @@
 		},
 		women: {
 			proof: [
+				{ figure: '54%', label: 'Of all messages here, sent by an AI on someone’s behalf' },
 				{ figure: '14', label: 'Suitors the median woman here has. You see them in order' },
 				{ figure: '2:1', label: 'Our member ratio. Rivals run ~3 men per woman' },
-				{ figure: '54%', label: 'Of all messages, sent by an AI on someone’s behalf' },
 				{ figure: '12 min', label: 'Median time to a first match, for men' }
 			],
-			them: ['A hundred new matches', 'Every opener the same', 'Sorting on photos alone', 'Nothing like the profile'],
-			us: ['One verified list', 'Your AI does the asking', 'In order before you look', 'Claims already proven'],
+			them: [
+				'The same opener, ten times',
+				'Charm you cannot check',
+				'Sorting on photos alone',
+				'Nothing like the profile'
+			],
+			us: [
+				'Answers before you ask',
+				'Proof, not charm',
+				'In the order you asked for',
+				'Claims already checked'
+			],
 			steps: [
 				{ icon: '🪪', h: 'Verify once', p: 'Read, then deleted. Never stored.' },
 				{ icon: '✨', h: 'Your AI does the asking', p: 'The questions you never have time for.' },
@@ -281,6 +313,10 @@
 			],
 			faq: [
 				{ q: 'Another dating app?', a: 'No swipes. Ever. Just a short list that means something.' },
+				{
+					q: 'They all open with the same line.',
+					a: 'Here he answers your questions before he reaches you, in his own words, and you read the answers instead of the opener.'
+				},
 				{ q: 'Will an AI feel cold?', a: 'It does the asking, so you are not repeating yourself to ten people. It always says it is an AI.' },
 				{ q: 'Why would he bother verifying?', a: 'Because that is how he reaches your list at all. He proves it, the document is read once and deleted, and you never see it.' },
 				{ q: 'Is it safe?', a: 'Identity-verified members, strictly 18+, and block or report on every profile.' },
@@ -291,6 +327,69 @@
 	} as const;
 
 	const c = $derived(COPY[audience]);
+
+	/**
+	 * Lead capture — women's page only, and the first one Riteangle has ever run.
+	 *
+	 * WHY IT IS HERE AND NOT ON /get. Every CTA on this page goes to Google Play,
+	 * and there is no public iOS listing, so until now an iPhone visitor could do
+	 * precisely nothing with this page — she read it and left, and we did not even
+	 * learn she wanted in. On top of that the stated goal for the women's lane is
+	 * leads rather than installs, and TrulyMadly, BharatMatrimony and Shaadi.com all
+	 * capture contact above the fold while we captured none.
+	 *
+	 * WHY IT SITS BELOW THE PLAY BUTTON RATHER THAN ABOVE IT. The Play tap is the
+	 * one funnel already known to work, and putting a form in front of it would risk
+	 * the working path to test the new one. So the button keeps its place and the
+	 * form is the second option on the same screen, not a gate.
+	 *
+	 * One piece of state serves both placements on purpose: a visitor who submits in
+	 * the hero should not scroll down to an empty form asking again.
+	 */
+	let contactKind = $state<'whatsapp' | 'email'>('whatsapp');
+	let contact = $state('');
+	let sending = $state(false);
+	let sent = $state(false);
+	let leadError = $state<string | null>(null);
+
+	async function onLeadSubmit(event: SubmitEvent) {
+		event.preventDefault();
+		if (sending || sent) return;
+
+		const value = contact.trim();
+		if (!value) {
+			leadError = contactKind === 'whatsapp' ? 'Enter your number.' : 'Enter your email.';
+			return;
+		}
+
+		sending = true;
+		leadError = null;
+
+		const outcome = await submitLead({
+			page: lpId as 'get' | 'get_w',
+			audience: audience === 'women' ? 'woman' : 'man',
+			contactKind,
+			value,
+			campaign: defaultCampaign,
+			url: $page.url
+		});
+
+		sending = false;
+
+		if (outcome.status === 'ok') {
+			sent = true;
+			contact = '';
+			return;
+		}
+		// A bad number is hers to fix and says so; anything else is ours, and telling
+		// her to check her number when our database is down would be a lie.
+		leadError =
+			outcome.status === 'invalid'
+				? outcome.field === 'phone'
+					? 'That does not look like an Indian mobile number.'
+					: 'That does not look like an email address.'
+				: 'Something went wrong on our side. Try again?';
+	}
 </script>
 
 <svelte:head>
@@ -340,6 +439,76 @@
 	</span>
 {/snippet}
 
+<!--
+	The capture form. Takes an `id` because it is rendered twice on the same page
+	and a label's `for` has to point at exactly one input; the STATE is shared, so
+	submitting in the hero also settles the copy at the foot of the page.
+-->
+{#snippet capture(id: string)}
+	<div class="cap-box">
+		{#if sent}
+			<p class="cap-done">
+				<strong>You are on the list.</strong> We will message you when your invite is ready — nothing
+				else.
+			</p>
+		{:else}
+			<form class="cap-form" onsubmit={onLeadSubmit} novalidate>
+				<p class="cap-lead">Not on Android, or not today? Leave one line and we will come to you.</p>
+
+				<div class="cap-kind" role="group" aria-label="How should we reach you?">
+					<button
+						type="button"
+						class="cap-tab"
+						aria-pressed={contactKind === 'whatsapp'}
+						onclick={() => {
+							contactKind = 'whatsapp';
+							leadError = null;
+						}}>WhatsApp</button
+					>
+					<button
+						type="button"
+						class="cap-tab"
+						aria-pressed={contactKind === 'email'}
+						onclick={() => {
+							contactKind = 'email';
+							leadError = null;
+						}}>Email</button
+					>
+				</div>
+
+				<label class="cap-label" for="cap-{id}">
+					{contactKind === 'whatsapp' ? 'WhatsApp number' : 'Email address'}
+				</label>
+				<div class="cap-row">
+					<input
+						id="cap-{id}"
+						class="cap-input"
+						bind:value={contact}
+						type={contactKind === 'whatsapp' ? 'tel' : 'email'}
+						inputmode={contactKind === 'whatsapp' ? 'numeric' : 'email'}
+						autocomplete={contactKind === 'whatsapp' ? 'tel' : 'email'}
+						placeholder={contactKind === 'whatsapp' ? '98765 43210' : 'you@example.com'}
+						aria-invalid={leadError ? 'true' : undefined}
+						aria-describedby={leadError ? `cap-err-${id}` : `cap-note-${id}`}
+						disabled={sending}
+					/>
+					<button class="cap-go" type="submit" disabled={sending}>
+						{sending ? 'Sending…' : 'Send it'}
+					</button>
+				</div>
+
+				{#if leadError}
+					<p class="cap-err" id="cap-err-{id}" role="alert">{leadError}</p>
+				{:else}
+					<p class="cap-note" id="cap-note-{id}">
+						Used once, to tell you when your invite is ready. Not shared, and 18+ only.
+					</p>
+				{/if}
+			</form>
+		{/if}
+	</div>
+{/snippet}
+
 <div class="pg">
 	<!-- ── Hero ──────────────────────────────────────────────────────────── -->
 	<header class="hero">
@@ -351,21 +520,53 @@
 				>
 			</div>
 
-			<h1 class="h1">No swiping. <em>Ever.</em><br />Just matches.</h1>
+			<!--
+				HIS headline is the category promise: no swiping. HERS is the answer to
+				the complaint she actually has, which is not that there are too many men
+				but that nothing any of them says can be checked. It also matches the ad
+				that brings her here word for word, so the page does not open by changing
+				the subject. See the long note on COPY.women above.
 
-			<!-- Three jobs named, then the payoff on its own line in pink. The list is
-			     deliberately verb-free after the first word: "handles" carries all three,
-			     which is what makes it readable at a glance on a phone. -->
-			<p class="lede">
-				AI handles the conversations, the profile, the searching.
-				<em>You do the meeting.</em>
-			</p>
+				Three jobs named, then the payoff on its own line in pink. The men's list
+				is deliberately verb-free after the first word: "handles" carries all
+				three, which is what makes it readable at a glance on a phone.
+			-->
+			{#if audience === 'women'}
+				<h1 class="h1">Vetted <em>before</em><br />he reaches you.</h1>
+				<p class="lede">
+					Your AI asks what you would have asked.
+					<em>You read the answers.</em>
+				</p>
+			{:else}
+				<h1 class="h1">No swiping. <em>Ever.</em><br />Just matches.</h1>
+				<p class="lede">
+					AI handles the conversations, the profile, the searching.
+					<em>You do the meeting.</em>
+				</p>
+			{/if}
+
+			{#if audience === 'women'}
+				<figure class="shot hero-shot">
+					<img
+						src="/get-w/hero.jpg"
+						alt="A woman at home, mid-sentence, talking straight to camera."
+						width="1080"
+						height="1440"
+						fetchpriority="high"
+						decoding="async"
+					/>
+				</figure>
+			{/if}
 
 			<a class="cta" href={storeUrl} data-cta="hero" target="_blank" rel="noopener">
 				{@render playMark()}
 				Get the Android app
 			</a>
 			<p class="cta-note">Android only right now — iPhone is on the way.</p>
+
+			{#if audience === 'women'}
+				{@render capture('hero')}
+			{/if}
 
 			<ul class="chips">
 				<li>✓ ID-verified</li>
@@ -399,6 +600,32 @@
 		</div>
 	</section>
 
+	<!--
+		The problem in one frame, hers only. Every line in the split above is
+		something she has already lived; this is the moment at the end of it. No face
+		and nobody addressing her — creative-generation.md section 1 puts the camera
+		behind her eyes rather than pointed at her, and here that is literal.
+	-->
+	{#if audience === 'women'}
+		<section class="sec">
+			<div class="wrap">
+				<figure class="shot">
+					<img
+						src="/get-w/phone-down.jpg"
+						alt="A phone face-down on a cafe table next to a glass of chai."
+						width="1080"
+						height="1350"
+						loading="lazy"
+						decoding="async"
+					/>
+					<figcaption class="cap">
+						The tenth identical opener is the one you close the app on.
+					</figcaption>
+				</figure>
+			</div>
+		</section>
+	{/if}
+
 	<!-- ── Numbers ───────────────────────────────────────────────────────── -->
 	<section class="sec tinted">
 		<div class="wrap">
@@ -430,23 +657,35 @@
 		surface, and on her page it would be a picture of a stranger's homework.
 	-->
 	{#if audience === 'women'}
-		<!-- ── Hers, 1: the list, already in order ───────────────────────────── -->
+		<!--
+			── Hers, 1: the list, already in order ─────────────────────────────
+
+			The photograph replaces the CSS meter mock this section used to carry, and
+			the percentages go with it. That mock put a hard number beside each man —
+			92%, 78%, 61% — which is the one thing compliance.md #5 says never to do:
+			a score is not a verdict on a person's worth, and the men's side of this
+			same page is careful to promise "never a ranking against men he cannot
+			see". Her side was quietly doing the opposite. What is left is position in
+			her list and the reason for it, which is the sanctioned "ordered shortlist"
+			and is also the truer description of the product.
+		-->
 		<section class="sec">
 			<div class="wrap">
 				<h2 class="h2">Your list, already in order</h2>
-				<div class="mock list">
-					<div class="mock-cap">What you see</div>
-					{#each [{ i: 'A', pct: 92 }, { i: 'R', pct: 78 }, { i: 'K', pct: 61 }] as r, idx (r.i)}
-						<div class="row">
-							<span class="rank">{idx + 1}</span>
-							<span class="ava sm">{r.i}</span>
-							<span class="meter"><span class="fill" style="width:{r.pct}%"></span></span>
-							<span class="pct">{r.pct}%</span>
-						</div>
-					{/each}
-					<div class="mock-foot">In the order you asked for — not who posted most</div>
-				</div>
-				<p class="cap">Short, because the asking already happened.</p>
+				<figure class="shot">
+					<img
+						src="/get-w/shortlist.jpg"
+						alt="A phone held in both hands showing a short, ordered list of three verified men."
+						width="1080"
+						height="1350"
+						loading="lazy"
+						decoding="async"
+					/>
+				</figure>
+				<p class="cap">
+					In the order you asked for — not who posted most. Short, because the asking already
+					happened.
+				</p>
 			</div>
 		</section>
 
@@ -591,6 +830,10 @@
 				Get the Android app
 			</a>
 			<p class="cta-note c">One tap. Android only right now.</p>
+
+			{#if audience === 'women'}
+				{@render capture('close')}
+			{/if}
 		</div>
 	</section>
 
@@ -600,6 +843,19 @@
 			<p class="ftnote">
 				Strictly 18+, confirmed at verification. Verification documents are read once and discarded.
 			</p>
+			{#if audience === 'women'}
+				<!--
+					Required, not decorative: compliance.md section 6.2 says AI imagery is
+					labelled and that creative showing a portrait must never imply an
+					untouched snapshot. /get-photos carries the same line for its stock
+					photographs. Nobody pictured is a member and no quote is attributed to
+					anyone pictured — a face beside a testimonial would be a fabricated
+					review, which is why there isn't one anywhere on this page.
+				-->
+				<p class="ftnote">
+					Images are AI-generated illustrations. They do not depict members.
+				</p>
+			{/if}
 			<a class="ftlink" href="/privacy-policy">Privacy</a>
 		</div>
 	</footer>
@@ -861,6 +1117,166 @@
 		font-weight: 600;
 		color: var(--text-3);
 		text-align: center;
+	}
+
+	/* ── Photography ──────────────────────────────────────────────────────────
+	   The page was image-free by design for a long time and the mockups carried
+	   everything. These are the women's page only. Width and height are on every
+	   <img> so the layout does not jump while they load — a hero that reflows
+	   under her thumb on a 3G Bangalore connection costs more than it gains. */
+	.shot {
+		margin: 22px 0 0;
+		border-radius: 18px;
+		overflow: hidden;
+		background: var(--bg-2);
+		border: 1px solid var(--border-1);
+	}
+
+	.shot img {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+
+	.hero-shot {
+		margin: 24px 0 26px;
+		box-shadow: 0 22px 44px -26px rgba(27, 16, 32, 0.45);
+	}
+
+	.shot .cap {
+		padding: 12px 16px 14px;
+		margin: 0;
+	}
+
+	/* ── Lead capture ─────────────────────────────────────────────────────────
+	   Sits under the Play button, never in front of it. Styled as a quieter
+	   surface than .cta on purpose: this is the second option on the screen, and
+	   two things competing to be the loudest would make the page harder to act on,
+	   not easier. */
+	.cap-box {
+		margin: 18px 0 0;
+		padding: 16px;
+		border-radius: 16px;
+		background: var(--bg-2);
+		border: 1px solid var(--border-1);
+		text-align: left;
+	}
+
+	.cap-lead {
+		margin: 0 0 12px;
+		font-size: 14px;
+		line-height: 1.45;
+		font-weight: 600;
+		color: var(--text-2);
+	}
+
+	.cap-kind {
+		display: flex;
+		gap: 6px;
+		margin: 0 0 12px;
+	}
+
+	.cap-tab {
+		flex: 1;
+		min-height: 38px;
+		padding: 8px 10px;
+		border-radius: 10px;
+		border: 1px solid var(--border-2);
+		background: transparent;
+		color: var(--text-3);
+		font-family: inherit;
+		font-size: 13px;
+		font-weight: 700;
+		cursor: pointer;
+	}
+
+	.cap-tab[aria-pressed='true'] {
+		background: var(--accent);
+		border-color: var(--accent);
+		color: #fff;
+	}
+
+	.cap-label {
+		display: block;
+		margin: 0 0 6px;
+		font-size: 12px;
+		font-weight: 700;
+		color: var(--text-3);
+	}
+
+	.cap-row {
+		display: flex;
+		gap: 8px;
+	}
+
+	.cap-input {
+		flex: 1;
+		min-width: 0;
+		min-height: 48px;
+		padding: 12px 14px;
+		border-radius: 12px;
+		border: 1px solid var(--border-2);
+		background: var(--bg-1);
+		color: var(--text-1);
+		font-family: inherit;
+		/* 16px exactly: iOS Safari zooms the whole page when a focused input is any
+		   smaller, and a page that jumps on focus reads as broken. */
+		font-size: 16px;
+	}
+
+	.cap-input:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: 1px;
+	}
+
+	.cap-input[aria-invalid='true'] {
+		border-color: var(--accent-bright);
+	}
+
+	.cap-go {
+		min-height: 48px;
+		padding: 12px 18px;
+		border-radius: 12px;
+		border: 0;
+		background: linear-gradient(135deg, var(--accent) 0%, var(--accent-bright) 100%);
+		color: #fff;
+		font-family: inherit;
+		font-size: 15px;
+		font-weight: 800;
+		white-space: nowrap;
+		cursor: pointer;
+	}
+
+	.cap-go[disabled] {
+		opacity: 0.6;
+		cursor: default;
+	}
+
+	.cap-note,
+	.cap-err {
+		margin: 10px 0 0;
+		font-size: 12px;
+		line-height: 1.5;
+	}
+
+	.cap-note {
+		color: var(--text-4);
+	}
+
+	.cap-err {
+		color: var(--accent-bright);
+		font-weight: 700;
+	}
+
+	.cap-done {
+		margin: 0;
+		font-size: 14px;
+		line-height: 1.5;
+		color: var(--text-2);
+	}
+
+	.cap-done strong {
+		color: var(--text-1);
 	}
 
 	.sec.mid .cta,
