@@ -202,6 +202,8 @@ irreversible nodes and let the rest run.
 | Intelligence oracle | 10 | intel-network + coalition → belief | skip narration on fatal error |
 | Survey pipeline | 8 | none — strictly sequential | stop before final step on a failed gate |
 
+![The three engines drawn as graphs, stacked. The strategy oracle (8 nodes) and the intelligence oracle (10 nodes) share the same shape: a state node fanning out to two branches — threat and coalition for the strategy oracle, intel-network and coalition for the intelligence oracle — that fan back in to a belief node, then a sequential spine to a fork that routes to END on a fatal error or otherwise to a narration step. The survey pipeline (8 nodes) has no fan-out at all: a straight sequential chain of ingest, clean and schema into a gate that either continues to a finalize step or, on a failed gate, routes straight to END and skips the finalize step. The two oracles carry the fan-out and fan-in lens; the survey pipeline is a flat line with a gate.](/blog/langgraph-three-engines.svg)
+
 The survey pipeline is the useful counter-example in my own portfolio: it has no
 parallel branch at all, and it still earns the runtime — not for fan-out it never
 does, but for the gate and the checkpointing. That is worth sitting with. Three
