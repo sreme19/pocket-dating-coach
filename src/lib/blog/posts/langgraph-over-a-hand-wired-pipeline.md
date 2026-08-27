@@ -102,7 +102,7 @@ rejoin — is declared on its own, as a list of connections between named steps.
 
 That separation is why the whole flow fits on one screen and reads like a map:
 
-![The intelligence oracle wired as a LangGraph state machine: a start marker into an assemble-state node, which fans out to two NetworkX branches — intel network and coalition — that fan back in to a belief-estimate node where a barrier waits for both and an append reducer merges the shared error and warning lists; then a sequential spine of value-of-information, a Stackelberg adversary model, a POMDP strategy planner, a CPM critical-path scheduler and a Monte Carlo simulator; then a conditional fork that skips narration and routes straight to END on a fatal error, or otherwise runs a Claude narration step before END. State is snapshotted at each boundary so a long run can resume or pause for a human.](/blog/langgraph-topology.svg)
+![The intelligence oracle wired as a LangGraph state machine: a start marker into an assemble-state node, which fans out to two NetworkX branches — intel network and coalition — that fan back in to a belief-estimate node where a barrier waits for both and an append reducer merges the shared error and warning lists; then a sequential spine of value-of-information, a Stackelberg adversary model, a POMDP strategy planner, a CPM critical-path scheduler and a Monte Carlo simulator; then a conditional fork that skips narration and routes straight to END on a fatal error, or otherwise runs a Claude narration step before END. Snapshotting state at each boundary is what lets a long run resume or pause for a human.](/blog/langgraph-topology.svg)
 
 Two connections leave the state-assembly step, so its two successors run as a
 parallel branch. Both successors connect to the belief step, so the belief step
@@ -145,11 +145,11 @@ its field is written, not just what type it holds.
 
 ## A fork in the wiring, not a scatter of early returns
 
-Both oracles carry the clearest example of the third advantage: a gate in front
-of the narration step. Any step that hits something unrecoverable records a
-fatal error on the shared state, and a fork in the wiring reads that flag and
-routes the run straight to the end, skipping narration entirely — there is no
-point paying a model to narrate a broken run.
+The third advantage shows up in both oracles as the same piece of wiring: a gate
+in front of the narration step. Any step that hits something unrecoverable
+records a fatal error on the shared state, and a fork reads that flag and routes
+the run straight to the end, skipping narration entirely — there is no point
+paying a model to narrate a broken run.
 
 The point is where that decision lives. It is one labelled fork in the topology,
 sitting next to every other connection, visible in the same map as the rest of
@@ -160,41 +160,42 @@ one of them can see the whole rule.
 
 ## Resuming an expensive run instead of restarting it
 
-The fourth advantage only matters once a run gets long enough to hurt. Because
-the shared state is a single well-defined object and the runtime knows the
-boundaries between steps, it can snapshot that state after each step. The
-intelligence oracle turns this on: state is checkpointed as the run goes, so a
-run interrupted late in the spine resumes from the last completed step rather
-than re-running the whole analysis from the top.
+The fourth advantage only matters once a run gets long enough to hurt, and it is
+the one to wire in before you feel the need for it. Because the shared state is a
+single well-defined object and the runtime knows the boundaries between steps, it
+can snapshot that state after each step — which turns resuming a dead run from a
+subsystem you build into a flag you set.
 
-For that oracle the snapshots also stopped being a nicety and became the plan
-for scale. That engine can be asked to reason over many turning points in sequence,
-each one an expensive planning problem. The intended design checkpoints after
-each turning point, so a run that dies on point nine of twelve restarts at nine.
-Without the snapshot boundary the runtime already maintains, that resume logic is
-something you build and get wrong; with it, it is a flag. I will be honest that
-the multi-point resume is designed and not yet something I have run end to end at
-length — the single-run checkpointing is what is live today, and the way to know
-the resume path works is to kill a long run halfway on purpose and confirm it
-comes back at the right point rather than the top.
+Both oracles have the mode that makes that pay. Either can be asked for a whole
+arc instead of a single decision: every turning point in a character's timeline,
+in sequence, each one its own expensive planning problem. A twelve-point arc that
+dies on point nine has thrown away eight finished analyses, and without a
+snapshot boundary the recovery is bespoke — you invent somewhere to stash partial
+results and some way to work out what had already been done. With one, the
+boundary is already there and resuming is configuration.
+
+The rule worth following: turn checkpointing on in the first version of any
+pipeline whose full run costs real money or real minutes, and prove it by killing
+a long run halfway on purpose and confirming it comes back at the right point
+rather than the top. It is nearly free while the step boundaries are still fresh
+in your head, and it gets expensive once reconstructing them is its own project.
 
 ## The same pause that survives a crash can wait on a person
 
-There is a second thing the snapshot boundary buys, and it is the one worth
-wiring in even when runs are short. A checkpoint does not only survive a crash;
-it lets a run stop on purpose and wait. The oracles' pre-narration gate reads an
-error flag on its own today. Replace that automated verdict with a person's,
-and nothing else in the wiring moves — the fork is already there, the snapshot is
-already taken, so the run can sit at that node for an hour or a week until
-someone approves, then resume exactly where it paused instead of starting the
+There is a second thing the snapshot boundary buys, and it is worth wiring in
+even when runs are short. A checkpoint does not only survive a crash; it lets a
+run stop on purpose and wait. A fork already decides whether the run continues,
+and a snapshot already holds everything the run knows. Put those two together in
+front of a step you cannot take back, and the verdict that releases the run can
+come from a person rather than a rule — the run sits at that node for an hour or
+a week, then carries on from exactly where it paused instead of starting the
 analysis over.
 
-That is the honest way to put a human in front of a step you cannot take back —
-a report that goes to a client, a charge, anything published. It is not a new
-subsystem. It is the fork and the checkpoint the pipeline already has, with a
-person reading the verdict where a rule read it before. Keep it risk-based: a
-hold on every harmless step only makes the pipeline slow, so gate the
-irreversible nodes and let the rest run.
+That is the honest way to put a human in front of an irreversible step — a report
+that goes to a client, a charge, anything published. It is not a new subsystem.
+It is the fork and the checkpoint the graph already gives you, with a person
+reading the verdict. Keep it risk-based: a hold on every harmless step only makes
+the pipeline slow, so gate the irreversible nodes and let the rest run.
 
 ## The two engines, side by side
 
@@ -203,11 +204,13 @@ irreversible nodes and let the rest run.
 | Strategy oracle | 8 | threat + coalition → belief | skip narration on fatal error |
 | Intelligence oracle | 10 | intel-network + coalition → belief | skip narration on fatal error |
 
-The two rows are nearly identical, and that is the observation worth keeping:
-two engines built months apart, for a war of great houses and for a lone
-operative in a hostile network, converged on the same wiring without either
-copying the other. When unrelated problems keep producing the same skeleton,
-the skeleton is the thing worth writing down.
+The rows are nearly identical, and that is the observation worth keeping. A war
+of great houses and a lone operative in a hostile network share no subject matter
+at all, and the wiring came out the same anyway: fan the independent analyses
+out, converge them on a belief step, run the deterministic spine in order, gate
+the model call at the end. The skeleton belongs to neither story. It is what the
+shape of the problem demands once some steps are independent of each other and
+one object carries the state between them.
 
 ## Where this pattern shows up outside a game oracle
 
