@@ -549,9 +549,9 @@
 				<figure class="shot hero-shot">
 					<img
 						src="/get-w/hero.jpg"
-						alt="A woman at home laughing, head tipped back, mid-conversation."
-						width="896"
-						height="1050"
+						alt="Three women in their twenties on the steps of a Bangalore cafe, mid-conversation, one laughing."
+						width="1080"
+						height="1350"
 						fetchpriority="high"
 						decoding="async"
 					/>
@@ -613,8 +613,8 @@
 					<img
 						src="/get-w/moment.jpg"
 						alt="A woman mid-step on a Bangalore street, glancing back and laughing."
-						width="760"
-						height="1152"
+						width="1080"
+						height="1350"
 						loading="lazy"
 						decoding="async"
 					/>
