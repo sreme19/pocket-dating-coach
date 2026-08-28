@@ -821,6 +821,35 @@
 		</div>
 	</section>
 
+	<!--
+		Sree put this plate here on 2026-08-28, overriding two gates the
+		ad-management-agent repo holds against it: the scene is not India, and
+		creative-generation.md section 1 reads three styled women walking at the lens
+		as the object of the frame. Section 1's verdict for that is "escalate", which
+		means the app owner decides, and he did. Recorded in
+		creatives/_bakeoff/round-05-getw-genz/candidates.md rather than left to be
+		rediscovered.
+	-->
+	{#if audience === 'women'}
+		<section class="sec">
+			<div class="wrap">
+				<figure class="shot">
+					<img
+						src="/get-w/together.jpg"
+						alt="Three women walking together along a sunlit pavement."
+						width="1008"
+						height="1550"
+						loading="lazy"
+						decoding="async"
+					/>
+					<figcaption class="cap">
+						The AI does the searching. You do the meeting.
+					</figcaption>
+				</figure>
+			</div>
+		</section>
+	{/if}
+
 	<!-- ── Close ─────────────────────────────────────────────────────────── -->
 	<section class="sec close">
 		<div class="wrap narrow">
