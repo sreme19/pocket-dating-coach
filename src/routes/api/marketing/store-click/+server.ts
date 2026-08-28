@@ -45,7 +45,12 @@ const ALLOWED_CTAS: Record<string, Set<string>> = {
   // brochure: the header Continue, the in-chat signup gate, the profile sheet,
   // the leave sheet. Which moment converts is the question /aibestie exists to
   // answer.
-  aibestie: new Set(['header', 'chat_gate', 'profile_sheet', 'leave_sheet'])
+  aibestie: new Set(['header', 'chat_gate', 'profile_sheet', 'leave_sheet']),
+  // One button, and it only exists after she clears the age gate. Naming it
+  // 'qualified' rather than 'hero' keeps the position-breakdown chart honest:
+  // this is not a position on a brochure, it is the only CTA on the page and it
+  // is gated, so a tap here means she answered.
+  get_w_apply: new Set(['qualified'])
 };
 
 /**
@@ -63,7 +68,8 @@ const PAGE_PATHS: Record<string, string> = {
   get: '/get',
   get_w: '/get/w',
   get_photos: '/get-photos',
-  aibestie: '/aibestie'
+  aibestie: '/aibestie',
+  get_w_apply: '/get/w-apply'
 };
 
 export const POST: RequestHandler = async ({ request, getClientAddress, url }) => {

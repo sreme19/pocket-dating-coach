@@ -44,7 +44,7 @@ import {
  */
 
 /** Must match the table's check constraint. */
-const ALLOWED_PAGES = new Set(['get', 'get_w', 'get_photos', 'aibestie']);
+const ALLOWED_PAGES = new Set(['get', 'get_w', 'get_photos', 'aibestie', 'get_w_apply']);
 const ALLOWED_AUDIENCE = new Set(['man', 'woman']);
 const ALLOWED_KINDS = new Set(['whatsapp', 'email']);
 
@@ -94,7 +94,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	const result = await recordLead({
 		visitId,
-		page: page as 'get' | 'get_w' | 'get_photos' | 'aibestie',
+		page: page as 'get' | 'get_w' | 'get_photos' | 'aibestie' | 'get_w_apply',
 		audience: audience as LeadAudience,
 		contactKind: contactKind as LeadContactKind,
 		whatsappE164,

@@ -936,7 +936,7 @@ export type Database = {
 				Insert: {
 					id?: string;
 					visit_id?: string | null;
-					page: 'get' | 'get_w' | 'get_photos' | 'aibestie';
+					page: 'get' | 'get_w' | 'get_photos' | 'aibestie' | 'get_w_apply';
 					audience?: 'man' | 'woman' | null;
 					contact_kind: 'whatsapp' | 'email';
 					whatsapp_e164?: string | null;
@@ -952,6 +952,54 @@ export type Database = {
 					created_at?: string;
 				};
 				Update: Partial<Database['public']['Tables']['marketing_leads']['Insert']>;
+				Relationships: [];
+			};
+
+			/**
+			 * The age answer given on /get/w-apply, the qualification step between
+			 * Meta's instant form and the Play handoff.
+			 *
+			 * Separate from marketing_leads because on that funnel the contact
+			 * details never reach us at submit time — they sit in Meta until someone
+			 * exports them — so there is no lead row to hang an age off. This holds
+			 * Meta's own `ra_lead` id, the band, and the verdict; the export joins to
+			 * it. Deliberately carries no contact details: see
+			 * 20260828140000_add_get_w_apply_landing_page.sql.
+			 *
+			 * `age_band` is constrained in the database; the union here mirrors it so
+			 * a bad value fails at compile time rather than as a PostgREST 400 on a
+			 * page the visitor is watching.
+			 */
+			marketing_apply_gate: {
+				Row: {
+					id: string;
+					created_at: string;
+					ra_lead: string | null;
+					visit_id: string | null;
+					age_band: string;
+					qualified: boolean;
+					campaign: string | null;
+					utm: Record<string, string>;
+					user_agent: string | null;
+					country: string | null;
+					city: string | null;
+					region: string | null;
+				};
+				Insert: {
+					id?: string;
+					created_at?: string;
+					ra_lead?: string | null;
+					visit_id?: string | null;
+					age_band: '18-20' | '21-24' | '25-30' | '31+' | 'under-18';
+					qualified: boolean;
+					campaign?: string | null;
+					utm?: Record<string, string>;
+					user_agent?: string | null;
+					country?: string | null;
+					city?: string | null;
+					region?: string | null;
+				};
+				Update: Partial<Database['public']['Tables']['marketing_apply_gate']['Insert']>;
 				Relationships: [];
 			};
 		};
