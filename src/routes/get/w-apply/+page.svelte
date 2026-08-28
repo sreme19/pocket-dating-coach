@@ -122,6 +122,27 @@
 		return `${STORE_LINKS.android}&referrer=${encodeURIComponent(referrer.toString())}`;
 	});
 
+	/**
+	 * The form's POST target, with the query string carried explicitly.
+	 *
+	 * NOT `action="?/qualify"`, which is the obvious spelling and is WRONG here.
+	 * A relative URL beginning with `?` replaces the ENTIRE query string per URL
+	 * resolution, so a real browser post from /get/w-apply?ra_lead=X&utm_*=... goes
+	 * to /get/w-apply?/qualify and arrives with ra_lead and every utm_ stripped.
+	 *
+	 * This was live for one deploy and caught by reading the table rather than by
+	 * testing: a real tap wrote a row with ra_lead null, which the page's own load
+	 * function should make impossible. Curl tests missed it because they put the
+	 * params in the POST url by hand, which is exactly what a browser does not do.
+	 *
+	 * ra_lead is the only key joining this install back to the lead Meta captured.
+	 * Losing it here loses the entire funnel's attribution, which is the failure
+	 * this page was designed around.
+	 */
+	const actionUrl = $derived(
+		$pageStore.url.search ? `${$pageStore.url.search}&/qualify` : '?/qualify'
+	);
+
 	const qualified = $derived(form?.qualified === true);
 	const rejected = $derived(form?.qualified === false);
 
@@ -194,7 +215,7 @@
 
 			<form
 				method="POST"
-				action="?/qualify"
+				action={actionUrl}
 				use:enhance={() => {
 					submitting = true;
 					return async ({ update }) => {
