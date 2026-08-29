@@ -43,8 +43,11 @@ vi.mock('$lib/server/apply-gate', async () => {
 
 const { POST } = await import('./+server');
 
-function sign(body: string, secret = SECRET): string {
-	return createHmac('sha256', secret).update(body, 'utf8').digest('hex');
+const TS = '1788015850';
+
+/** Snap signs `{timestamp}.{body}`, not the body alone. */
+function sign(body: string, secret = SECRET, ts = TS): string {
+	return createHmac('sha256', secret).update(`${ts}.${body}`, 'utf8').digest('hex');
 }
 
 function payload(extra: Record<string, unknown> = {}) {
@@ -72,7 +75,8 @@ function call(body: string, headers: Record<string, string>) {
 	const request = new Request('https://x.example/api/marketing/snap-lead', {
 		method: 'POST',
 		body,
-		headers
+		// `t` unless a test overrides it — every real delivery carries one.
+		headers: { t: TS, ...headers }
 	});
 	return POST({ request } as never);
 }
@@ -86,7 +90,7 @@ beforeEach(() => {
 describe('signature gate', () => {
 	it('accepts a correctly signed body', async () => {
 		const body = payload();
-		const res = await call(body, { 'x-snap-signature': sign(body) });
+		const res = await call(body, { 'signature': sign(body) });
 		expect(res.status).toBe(200);
 		expect(recordSnapLead).toHaveBeenCalledOnce();
 	});
@@ -99,7 +103,7 @@ describe('signature gate', () => {
 
 	it('rejects a signature computed with the wrong secret', async () => {
 		const body = payload();
-		const res = await call(body, { 'x-snap-signature': sign(body, 'not-the-secret') });
+		const res = await call(body, { 'signature': sign(body, 'not-the-secret') });
 		expect(res.status).toBe(401);
 		expect(recordSnapLead).not.toHaveBeenCalled();
 	});
@@ -109,9 +113,48 @@ describe('signature gate', () => {
 		// validate against the signature of the original.
 		const signature = sign(payload());
 		const tampered = payload({ phone_number: '+91 99999 99999' });
-		const res = await call(tampered, { 'x-snap-signature': signature });
+		const res = await call(tampered, { 'signature': signature });
 		expect(res.status).toBe(401);
 		expect(recordSnapLead).not.toHaveBeenCalled();
+	});
+
+	it('signs {timestamp}.{body}, not the body alone', async () => {
+		// The bug the first live delivery found. Signing only the body produces a
+		// well-formed hex string that never matches, and the failure looks exactly
+		// like a wrong secret.
+		const body = payload();
+		const bodyOnly = createHmac('sha256', SECRET).update(body, 'utf8').digest('hex');
+		const res = await call(body, { signature: bodyOnly });
+		expect(res.status).toBe(401);
+		expect(recordSnapLead).not.toHaveBeenCalled();
+	});
+
+	it('rejects a signature computed with a different timestamp', async () => {
+		// The timestamp is inside the signed message, so it cannot be swapped.
+		const body = payload();
+		const res = await call(body, { signature: sign(body, SECRET, '1700000000') });
+		expect(res.status).toBe(401);
+	});
+
+	it('rejects a delivery with no timestamp header', async () => {
+		const body = payload();
+		const request = new Request('https://x.example/api/marketing/snap-lead', {
+			method: 'POST',
+			body,
+			headers: { signature: sign(body) }
+		});
+		const res = await POST({ request } as never);
+		expect(res.status).toBe(401);
+		expect(recordSnapLead).not.toHaveBeenCalled();
+	});
+
+	it('accepts an old timestamp — a retry must not expire', async () => {
+		// No freshness window on purpose: Snap retries, and rejecting a late retry
+		// loses the lead. Replay is inert because snap_lead_id is unique.
+		const body = payload();
+		const old = '1600000000';
+		const res = await call(body, { signature: sign(body, SECRET, old), t: old });
+		expect(res.status).toBe(200);
 	});
 
 	it('rejects a malformed signature without throwing a 500', async () => {
@@ -119,14 +162,14 @@ describe('signature gate', () => {
 		// header would become a 500 and Snap would retry it forever.
 		const body = payload();
 		for (const bad of ['', 'zz', 'not-hex-at-all', sign(body).slice(0, 20)]) {
-			const res = await call(body, { 'x-snap-signature': bad });
+			const res = await call(body, { 'signature': bad });
 			expect(res.status, bad).toBe(401);
 		}
 	});
 
 	it('accepts the sha256= prefix form and is case-insensitive', async () => {
 		const body = payload();
-		const res = await call(body, { 'x-snap-signature': `sha256=${sign(body).toUpperCase()}` });
+		const res = await call(body, { 'signature': `sha256=${sign(body).toUpperCase()}` });
 		expect(res.status).toBe(200);
 	});
 });
@@ -134,7 +177,7 @@ describe('signature gate', () => {
 describe('under-18 handling', () => {
 	it('records a suppression row and never a lead', async () => {
 		const body = payload({ birthday: '2012-01-01' });
-		const res = await call(body, { 'x-snap-signature': sign(body) });
+		const res = await call(body, { 'signature': sign(body) });
 
 		expect(res.status).toBe(200);
 		expect(await res.json()).toMatchObject({ stored: false, reason: 'under_18' });
@@ -152,7 +195,7 @@ describe('under-18 handling', () => {
 
 	it('treats an adult birthday normally', async () => {
 		const body = payload({ birthday: '1998-06-15' });
-		const res = await call(body, { 'x-snap-signature': sign(body) });
+		const res = await call(body, { 'signature': sign(body) });
 		expect(res.status).toBe(200);
 		expect(recordSnapLead).toHaveBeenCalledOnce();
 		expect(recordApplyGate).not.toHaveBeenCalled();
@@ -162,7 +205,7 @@ describe('under-18 handling', () => {
 		// The common case. "Unknown age" is not "minor" — the downstream gate is
 		// what covers it — but it must not silently drop the lead either.
 		const body = payload();
-		await call(body, { 'x-snap-signature': sign(body) });
+		await call(body, { 'signature': sign(body) });
 		expect(recordSnapLead).toHaveBeenCalledOnce();
 		expect(recordApplyGate).not.toHaveBeenCalled();
 	});
@@ -172,7 +215,7 @@ describe('under-18 handling', () => {
 		// only trace that this lead must be pulled from the Ads Manager export.
 		recordApplyGate.mockResolvedValue({ ok: false, reason: 'boom' });
 		const body = payload({ birthday: '2012-01-01' });
-		const res = await call(body, { 'x-snap-signature': sign(body) });
+		const res = await call(body, { 'signature': sign(body) });
 		expect(res.status).toBe(500);
 	});
 });
@@ -180,7 +223,7 @@ describe('under-18 handling', () => {
 describe('field mapping', () => {
 	it('normalises the contact and marks the kind as phone, not whatsapp', async () => {
 		const body = payload();
-		await call(body, { 'x-snap-signature': sign(body) });
+		await call(body, { 'signature': sign(body) });
 
 		const [lead] = recordSnapLead.mock.calls[0];
 		expect(lead.whatsappE164).toBe('+919876543210');
@@ -192,7 +235,7 @@ describe('field mapping', () => {
 
 	it('derives audience from the F/M marker in the ad squad name', async () => {
 		const body = payload();
-		await call(body, { 'x-snap-signature': sign(body) });
+		await call(body, { 'signature': sign(body) });
 		expect(recordSnapLead.mock.calls[0][0].audience).toBe('woman');
 	});
 
@@ -204,7 +247,7 @@ describe('field mapping', () => {
 			campaign_name: 'Female Leads',
 			ad_name: 'Female Leads'
 		});
-		await call(body, { 'x-snap-signature': sign(body) });
+		await call(body, { 'signature': sign(body) });
 		expect(recordSnapLead.mock.calls[0][0].audience).toBe('woman');
 	});
 
@@ -216,7 +259,7 @@ describe('field mapping', () => {
 			campaign_name: 'RA_LEADS_CASUAL_WOMEN_TOF_20260815',
 			ad_name: 'RA_LEADS_AD'
 		});
-		await call(body, { 'x-snap-signature': sign(body) });
+		await call(body, { 'signature': sign(body) });
 		expect(recordSnapLead.mock.calls[0][0].audience).toBe('woman');
 	});
 
@@ -228,7 +271,7 @@ describe('field mapping', () => {
 			campaign_name: 'SC_LEADS_TOF',
 			ad_name: 'SC_LEADS_AD'
 		});
-		await call(body, { 'x-snap-signature': sign(body) });
+		await call(body, { 'signature': sign(body) });
 		expect(recordSnapLead.mock.calls[0][0].audience).toBeNull();
 	});
 
@@ -236,7 +279,7 @@ describe('field mapping', () => {
 		// A non-Indian number normalisePhone rejects by design. Redelivery would
 		// produce exactly the same result, so there is nothing to retry.
 		const body = payload({ phone_number: '+44 7700 900123', email: null });
-		const res = await call(body, { 'x-snap-signature': sign(body) });
+		const res = await call(body, { 'signature': sign(body) });
 		expect(res.status).toBe(200);
 		expect(await res.json()).toMatchObject({ stored: false, reason: 'no_usable_contact' });
 		expect(recordSnapLead).not.toHaveBeenCalled();
@@ -247,7 +290,7 @@ describe('retry semantics', () => {
 	it('answers 200 to a redelivered lead so Snap stops retrying', async () => {
 		recordSnapLead.mockResolvedValue({ ok: true, duplicate: true });
 		const body = payload();
-		const res = await call(body, { 'x-snap-signature': sign(body) });
+		const res = await call(body, { 'signature': sign(body) });
 		expect(res.status).toBe(200);
 		expect(await res.json()).toMatchObject({ ok: true, stored: false });
 	});
@@ -255,20 +298,20 @@ describe('retry semantics', () => {
 	it('answers 500 on a write failure so the retry is the second chance', async () => {
 		recordSnapLead.mockResolvedValue({ ok: false, reason: 'transient' });
 		const body = payload();
-		const res = await call(body, { 'x-snap-signature': sign(body) });
+		const res = await call(body, { 'signature': sign(body) });
 		expect(res.status).toBe(500);
 	});
 
 	it('answers 400 to an authenticated body that is not JSON', async () => {
 		// Authenticated but unparseable — retrying cannot fix it.
 		const body = 'not json at all';
-		const res = await call(body, { 'x-snap-signature': sign(body) });
+		const res = await call(body, { 'signature': sign(body) });
 		expect(res.status).toBe(400);
 	});
 
 	it('answers 400 to an authenticated payload with no lead_id', async () => {
 		const body = JSON.stringify({ form_id: 'form-1', phone_number: '9876543210' });
-		const res = await call(body, { 'x-snap-signature': sign(body) });
+		const res = await call(body, { 'signature': sign(body) });
 		expect(res.status).toBe(400);
 		expect(recordSnapLead).not.toHaveBeenCalled();
 	});

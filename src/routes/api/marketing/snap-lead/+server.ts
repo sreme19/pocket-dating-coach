@@ -34,24 +34,29 @@ import { recordApplyGate, UNDER_18 } from '$lib/server/apply-gate';
  */
 
 /**
- * Snap signs with HMAC-SHA256 over the raw body, using the hmacSecret returned
- * when the integration was created — one secret per ad account, shared by every
- * integration under it.
+ * Snap signs HMAC-SHA256 over `{timestamp}.{body}` — NOT over the body alone —
+ * using the hmacSecret returned when the integration was created (one secret per
+ * ad account, shared by every integration under it). The timestamp arrives in
+ * its own `t` header and is part of the signed message, so it cannot be ignored:
+ * signing the body by itself produces a valid-looking hex string that never
+ * matches, which is exactly how the first live test delivery failed 401.
  *
- * THE HEADER NAME IS NOT PINNED IN SNAP'S DOCS, which say only that webhooks
- * "contain a Signature header". Rather than guess one and fail closed against a
- * live funnel, this accepts the plausible spellings and records which one
- * actually arrived, so the list can be cut to the real name after the first
- * delivery. It never widens what is ACCEPTED — every candidate is still checked
- * against the same HMAC.
+ * THE HEADER IS NAMED `signature`, observed from that delivery. The docs say
+ * only that webhooks "contain a Signature header" without naming it, so the
+ * other spellings stay as fallbacks — they cost nothing, every candidate is
+ * checked against the same HMAC, and a rename would otherwise take the funnel
+ * down silently.
  */
 const SIGNATURE_HEADERS = [
+	'signature',
 	'x-snap-signature',
 	'snap-signature',
 	'x-snapchat-signature',
-	'signature',
 	'x-hub-signature-256'
 ];
+
+/** Snap sends the signed timestamp separately, as `t`. */
+const TIMESTAMP_HEADERS = ['t', 'x-snap-timestamp', 'snap-timestamp'];
 
 /** A lead payload is small; anything large is not one. */
 const MAX_BODY_BYTES = 64 * 1024;
@@ -60,6 +65,14 @@ function presentedSignature(headers: Headers): { name: string; value: string } |
 	for (const name of SIGNATURE_HEADERS) {
 		const raw = headers.get(name);
 		if (raw) return { name, value: raw.trim() };
+	}
+	return null;
+}
+
+function presentedTimestamp(headers: Headers): string | null {
+	for (const name of TIMESTAMP_HEADERS) {
+		const raw = headers.get(name);
+		if (raw) return raw.trim();
 	}
 	return null;
 }
@@ -147,7 +160,28 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ ok: false }, { status: 401 });
 	}
 
-	const expected = createHmac('sha256', secret).update(raw, 'utf8').digest('hex');
+	// `{timestamp}.{body}`, per Snap's Step 1. The timestamp is NOT optional —
+	// without it the HMAC is computed over a different message than Snap signed.
+	//
+	// NO FRESHNESS WINDOW, deliberately. Including a timestamp in the signed
+	// message is the shape used for replay protection, and the usual companion is
+	// rejecting anything older than a few minutes. That would be wrong here: Snap
+	// retries a delivery it did not get a 2xx for, an outage can push a retry well
+	// past any sensible window, and rejecting it loses the lead permanently. The
+	// replay this would defend against is already inert — snap_lead_id is unique,
+	// so a replayed delivery is a no-op duplicate, not a second phone call.
+	const timestamp = presentedTimestamp(request.headers);
+	if (!timestamp) {
+		console.error(
+			'[snap-lead] no timestamp header. Saw:',
+			[...request.headers.keys()].join(', ')
+		);
+		return json({ ok: false }, { status: 401 });
+	}
+
+	const expected = createHmac('sha256', secret)
+		.update(`${timestamp}.${raw}`, 'utf8')
+		.digest('hex');
 	if (!signatureMatches(presented.value, expected)) {
 		// 401 is final: a wrong signature will still be wrong on redelivery, so
 		// there is nothing to retry. Never echo the expected value.
