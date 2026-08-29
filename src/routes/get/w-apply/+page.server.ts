@@ -31,7 +31,24 @@ import type { Actions, PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ url }) => {
 	const raLead = url.searchParams.get('ra_lead');
 
-	if (!raLead) {
+	/**
+	 * Snap arrivals carry no lead id, by platform limitation rather than by
+	 * choice: Snap's lead form has an end-page URL but documents no macro for it
+	 * (checked 2026-08-29), so there is nothing per-lead to carry. The app owner's
+	 * call, in as many words: proceed without the name rather than bounce her —
+	 * she DID just submit the form, so "one step left" is as true for her as for
+	 * a Meta arrival; the only thing lost is the per-lead join, which falls back
+	 * to the ad-squad-level UTMs the URL still carries.
+	 *
+	 * `ra_src=form` is set ONLY on lead-form end-page URLs we author. It is
+	 * guessable — anyone who reads it can skip the redirect — but the redirect
+	 * was never a security boundary: it exists so the mid-sentence framing isn't
+	 * shown to someone who never filled a form, and a guessed parameter is a
+	 * deliberate visit, not an accident.
+	 */
+	const fromForm = url.searchParams.get('ra_src') === 'form';
+
+	if (!raLead && !fromForm) {
 		const onward = new URLSearchParams(url.search);
 		throw redirect(307, `/get/w${onward.size ? `?${onward}` : ''}`);
 	}

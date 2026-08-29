@@ -118,6 +118,11 @@
 		const raLead = incoming.get('ra_lead');
 		if (raLead) referrer.set('ra_lead', raLead);
 
+		// Snap arrivals have no ra_lead; ra_src=form is what marks the install as
+		// form-sourced at all, so it rides the referrer the same way.
+		const raSrc = incoming.get('ra_src');
+		if (raSrc) referrer.set('ra_src', raSrc);
+
 		referrer.set('ra_lp', PAGE);
 		return `${STORE_LINKS.android}&referrer=${encodeURIComponent(referrer.toString())}`;
 	});
