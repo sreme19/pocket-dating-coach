@@ -196,6 +196,30 @@ describe('field mapping', () => {
 		expect(recordSnapLead.mock.calls[0][0].audience).toBe('woman');
 	});
 
+	it('reads space-separated names, not just underscore-separated ones', async () => {
+		// The live account mixes conventions: "Female College" and "Female Leads"
+		// are real ad squad and campaign names alongside SC_F_19-30_India.
+		const body = payload({
+			ad_squad_name: 'Female College',
+			campaign_name: 'Female Leads',
+			ad_name: 'Female Leads'
+		});
+		await call(body, { 'x-snap-signature': sign(body) });
+		expect(recordSnapLead.mock.calls[0][0].audience).toBe('woman');
+	});
+
+	it('does not read WOMEN as MEN', async () => {
+		// WOMEN_18-35_CASUAL_STORY_IND_LEADS is a real squad. If the man pattern
+		// matched the MEN inside WOMEN, every female lead would be mislabelled.
+		const body = payload({
+			ad_squad_name: 'WOMEN_18-35_CASUAL_STORY_IND_LEADS',
+			campaign_name: 'RA_LEADS_CASUAL_WOMEN_TOF_20260815',
+			ad_name: 'RA_LEADS_AD'
+		});
+		await call(body, { 'x-snap-signature': sign(body) });
+		expect(recordSnapLead.mock.calls[0][0].audience).toBe('woman');
+	});
+
 	it('leaves audience null rather than guessing when the names say nothing', async () => {
 		// A wrong guess here silently mis-segments every report grouped by audience,
 		// which is worse than an honest null.

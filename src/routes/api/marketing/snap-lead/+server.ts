@@ -81,11 +81,19 @@ function signatureMatches(presented: string, expectedHex: string): boolean {
 	}
 }
 
-/** Snap's ad squads encode gender in the name (SC_F_LEADS_*, SC_LEADS_M_TOF_*). */
+/**
+ * Snap's ad squads encode gender in the name (SC_F_LEADS_*, SC_LEADS_M_TOF_*).
+ *
+ * WHITESPACE IS A SEPARATOR TOO, not just underscore. The live account mixes
+ * conventions: most squads are SC_F_19-30_India, but hand-made ones are "Female
+ * College" and "Female Leads". An underscore-only boundary reads those as
+ * unknown, which is a silent null on real leads rather than a wrong guess — but
+ * still a worse answer than the obvious one.
+ */
 function audienceFromNames(...names: (string | null)[]): 'man' | 'woman' | null {
 	const haystack = names.filter(Boolean).join(' ').toUpperCase();
-	const woman = /(^|_)(F|W|WOMEN|WOMAN|FEMALE)(_|$)/.test(haystack);
-	const man = /(^|_)(M|MEN|MAN|MALE)(_|$)/.test(haystack);
+	const woman = /(^|[_\s])(F|W|WOMEN|WOMAN|FEMALE)([_\s]|$)/.test(haystack);
+	const man = /(^|[_\s])(M|MEN|MAN|MALE)([_\s]|$)/.test(haystack);
 	// Both or neither is genuinely unknown. audience is nullable, and a wrong
 	// guess here silently mis-segments every report that groups by it.
 	if (woman === man) return null;
