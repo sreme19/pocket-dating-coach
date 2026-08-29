@@ -117,15 +117,21 @@ export async function resolveNames(
 	token: string,
 	cache: Map<string, string>
 ): Promise<void> {
+	// ONE REQUEST PER OBJECT, not a batched `?ids=` call.
+	//
+	// The batch form is DEPRECATED in v26.0+ and answers HTTP 500 with "The ids
+	// query parameter is deprecated in v26.0+". Because the catch below swallows
+	// failures, that produced no error anywhere — it produced a lead with a null
+	// audience and a null campaign, on every single row. Found while backfilling:
+	// 122 of 122 came back unattributed and the totals looked fine.
+	//
+	// The cost of going one-by-one is bounded by the number of distinct ad
+	// objects, not by the number of leads, and the cache makes it once per run.
 	const missing = [...new Set(ids.filter((id) => id && !cache.has(id)))];
-	for (let i = 0; i < missing.length; i += 50) {
-		const batch = missing.slice(i, i + 50);
+	for (const id of missing) {
 		try {
-			const res = await graph(`/?ids=${batch.join(',')}&fields=name`, token);
-			for (const [id, obj] of Object.entries(res)) {
-				const name = (obj as Record<string, unknown>)?.name;
-				if (typeof name === 'string') cache.set(id, name);
-			}
+			const res = await graph(`/${id}?fields=name`, token);
+			if (typeof res.name === 'string') cache.set(id, res.name);
 		} catch {
 			// A name is a nicety; a lead is not. Never let this lose the lead —
 			// audience falls back to null, which is the honest answer anyway.
