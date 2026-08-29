@@ -932,13 +932,30 @@ export type Database = {
 					status: string;
 					note: string | null;
 					created_at: string;
+					source: string;
+					snap_lead_id: string | null;
+					snap_form_id: string | null;
+					first_name: string | null;
+					last_name: string | null;
+					snap_campaign_id: string | null;
+					snap_ad_squad_id: string | null;
+					snap_ad_squad_name: string | null;
+					snap_ad_id: string | null;
+					snap_ad_name: string | null;
+					submitted_at: string | null;
 				};
 				Insert: {
 					id?: string;
 					visit_id?: string | null;
-					page: 'get' | 'get_w' | 'get_photos' | 'aibestie' | 'get_w_apply';
+					/**
+					 * 'snap_lead_form' is reachable ONLY from the Snap webhook route. The
+					 * browser beacons keep their own narrower ALLOWED_PAGES set on purpose —
+					 * see 20260829170000, which explains why widening those would be a bug.
+					 */
+					page: 'get' | 'get_w' | 'get_photos' | 'aibestie' | 'get_w_apply' | 'snap_lead_form';
 					audience?: 'man' | 'woman' | null;
-					contact_kind: 'whatsapp' | 'email';
+					/** 'phone' is a number Snap prefilled, not a WhatsApp opt-in. */
+					contact_kind: 'whatsapp' | 'email' | 'phone';
 					whatsapp_e164?: string | null;
 					email?: string | null;
 					campaign?: string | null;
@@ -950,6 +967,17 @@ export type Database = {
 					status?: string;
 					note?: string | null;
 					created_at?: string;
+					source?: 'landing_page' | 'snap_lead_form';
+					snap_lead_id?: string | null;
+					snap_form_id?: string | null;
+					first_name?: string | null;
+					last_name?: string | null;
+					snap_campaign_id?: string | null;
+					snap_ad_squad_id?: string | null;
+					snap_ad_squad_name?: string | null;
+					snap_ad_id?: string | null;
+					snap_ad_name?: string | null;
+					submitted_at?: string | null;
 				};
 				Update: Partial<Database['public']['Tables']['marketing_leads']['Insert']>;
 				Relationships: [];
