@@ -2,7 +2,7 @@ import { json, text } from '@sveltejs/kit';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { env } from '$env/dynamic/private';
 import type { RequestHandler } from './$types';
-import { normalisePhone, normaliseEmail, recordSnapLead } from '$lib/server/marketing-leads';
+import { normalisePhone, normaliseEmail, recordAdLead } from '$lib/server/marketing-leads';
 import { recordApplyGate, UNDER_18 } from '$lib/server/apply-gate';
 
 /**
@@ -255,20 +255,21 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ ok: true, stored: false, reason: 'no_usable_contact' });
 	}
 
-	const result = await recordSnapLead({
-		snapLeadId: leadId,
-		snapFormId: str(body.form_id),
+	const result = await recordAdLead({
+		network: 'snap_lead_form',
+		adLeadId: leadId,
+		adFormId: str(body.form_id),
 		whatsappE164,
 		email,
 		firstName: str(body.first_name),
 		lastName: str(body.last_name),
 		audience: audienceFromNames(adSquadName, campaignName, adName),
 		campaign: campaignName,
-		snapCampaignId: str(body.campaign_id),
-		snapAdSquadId: str(body.ad_squad_id),
-		snapAdSquadName: adSquadName,
-		snapAdId: str(body.ad_id),
-		snapAdName: adName,
+		adCampaignId: str(body.campaign_id),
+		adGroupId: str(body.ad_squad_id),
+		adGroupName: adSquadName,
+		adId: str(body.ad_id),
+		adName: adName,
 		submittedAt: str(body.create_time)
 	});
 

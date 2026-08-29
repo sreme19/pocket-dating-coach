@@ -133,7 +133,7 @@ export async function recordLead(input: LeadInput): Promise<LeadResult> {
 }
 
 /**
- * A lead submitted inside Snap's own lead form, delivered by webhook.
+ * A lead submitted inside a network's own lead form (Snap or Meta).
  *
  * WHY A SECOND FUNCTION RATHER THAN A WIDER LeadInput. recordLead() serves a
  * person watching a button: it is called once, synchronously, and its result is
@@ -144,15 +144,18 @@ export async function recordLead(input: LeadInput): Promise<LeadResult> {
  * illegal for half the callers.
  *
  * THE DUPLICATE CASE MEANS SOMETHING DIFFERENT HERE. On the form path a
- * duplicate is one woman submitting twice. Here it is usually Snap redelivering
+ * duplicate is one woman submitting twice. Here it is usually the network redelivering
  * a webhook it did not get a 2xx for, and answering 200 to it is how the retries
  * stop. It can also be a genuine second submission from a different ad, in which
  * case the first row's attribution is kept and the second is dropped: one person
  * is one row, and the dialer must not call her twice.
  */
-export interface SnapLeadInput {
-	snapLeadId: string;
-	snapFormId: string | null;
+export type LeadNetwork = 'snap_lead_form' | 'meta_lead_form';
+
+export interface AdLeadInput {
+	network: LeadNetwork;
+	adLeadId: string;
+	adFormId: string | null;
 	/** Already normalised. Null when the form did not collect one. */
 	whatsappE164: string | null;
 	email: string | null;
@@ -161,17 +164,17 @@ export interface SnapLeadInput {
 	/** Derived from the ad squad name where it encodes gender; null when it does not. */
 	audience: LeadAudience | null;
 	campaign: string | null;
-	snapCampaignId: string | null;
-	snapAdSquadId: string | null;
-	snapAdSquadName: string | null;
-	snapAdId: string | null;
-	snapAdName: string | null;
-	/** Snap's create_time — when she submitted, not when we wrote the row. */
+	adCampaignId: string | null;
+	adGroupId: string | null;
+	adGroupName: string | null;
+	adId: string | null;
+	adName: string | null;
+	/** The network's own submit time — not when we wrote the row. */
 	submittedAt: string | null;
 }
 
-export async function recordSnapLead(input: SnapLeadInput): Promise<LeadResult> {
-	// The database enforces this too (marketing_leads_has_contact), but a Snap
+export async function recordAdLead(input: AdLeadInput): Promise<LeadResult> {
+	// The database enforces this too (marketing_leads_has_contact), but a lead
 	// form can legitimately be built with neither field, and finding that out as a
 	// constraint violation inside a retry loop is a worse way to learn it.
 	if (!input.whatsappE164 && !input.email) {
@@ -182,36 +185,36 @@ export async function recordSnapLead(input: SnapLeadInput): Promise<LeadResult> 
 		const supabase = getSupabase();
 
 		const { error } = await supabase.from('marketing_leads').insert({
-			source: 'snap_lead_form',
-			page: 'snap_lead_form',
-			// 'phone' rather than 'whatsapp': she gave Snap a number, not a WhatsApp
-			// opt-in. See the migration's note on what that distinction is for.
+			source: input.network,
+			page: input.network,
+			// 'phone' rather than 'whatsapp': she gave the network a number, not a
+			// WhatsApp opt-in. See the migration's note on that distinction.
 			contact_kind: input.whatsappE164 ? 'phone' : 'email',
-			snap_lead_id: input.snapLeadId,
-			snap_form_id: input.snapFormId,
+			ad_lead_id: input.adLeadId,
+			ad_form_id: input.adFormId,
 			whatsapp_e164: input.whatsappE164,
 			email: input.email,
 			first_name: input.firstName,
 			last_name: input.lastName,
 			audience: input.audience,
 			campaign: input.campaign,
-			snap_campaign_id: input.snapCampaignId,
-			snap_ad_squad_id: input.snapAdSquadId,
-			snap_ad_squad_name: input.snapAdSquadName,
-			snap_ad_id: input.snapAdId,
-			snap_ad_name: input.snapAdName,
+			ad_campaign_id: input.adCampaignId,
+			ad_group_id: input.adGroupId,
+			ad_group_name: input.adGroupName,
+			ad_id: input.adId,
+			ad_name: input.adName,
 			submitted_at: input.submittedAt,
 			utm: {}
 		});
 
-		// Covers all three unique indexes: snap_lead_id (a redelivery), the phone,
+		// Covers all three unique indexes: ad_lead_id (a redelivery), the phone,
 		// and lower(email). All three mean "this person is already a row".
 		if (error?.code === UNIQUE_VIOLATION) return { ok: true, duplicate: true };
 
 		if (error) {
 			console.error(
-				'[marketing] snap lead NOT recorded:',
-				input.snapLeadId,
+				'[marketing] ad lead NOT recorded:',
+				input.adLeadId,
 				error.code,
 				error.message,
 				error.hint ?? ''
@@ -221,7 +224,7 @@ export async function recordSnapLead(input: SnapLeadInput): Promise<LeadResult> 
 
 		return { ok: true, duplicate: false };
 	} catch (err) {
-		console.error('[marketing] failed to record snap lead', input.snapLeadId, err);
+		console.error('[marketing] failed to record ad lead', input.adLeadId, err);
 		return { ok: false, reason: 'exception' };
 	}
 }

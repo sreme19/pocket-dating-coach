@@ -19,7 +19,7 @@ import { createHmac } from 'node:crypto';
 
 const SECRET = 'test-hmac-secret';
 
-const recordSnapLead = vi.fn();
+const recordAdLead = vi.fn();
 const recordApplyGate = vi.fn();
 
 vi.mock('$env/dynamic/private', () => ({ env: { SNAP_LEAD_HMAC_SECRET: SECRET } }));
@@ -31,7 +31,7 @@ vi.mock('$lib/server/marketing-leads', async () => {
 	const actual = await vi.importActual<typeof import('$lib/server/marketing-leads')>(
 		'$lib/server/marketing-leads'
 	);
-	return { ...actual, recordSnapLead };
+	return { ...actual, recordAdLead };
 });
 
 vi.mock('$lib/server/apply-gate', async () => {
@@ -83,7 +83,7 @@ function call(body: string, headers: Record<string, string>) {
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	recordSnapLead.mockResolvedValue({ ok: true, duplicate: false });
+	recordAdLead.mockResolvedValue({ ok: true, duplicate: false });
 	recordApplyGate.mockResolvedValue({ ok: true });
 });
 
@@ -92,20 +92,20 @@ describe('signature gate', () => {
 		const body = payload();
 		const res = await call(body, { 'signature': sign(body) });
 		expect(res.status).toBe(200);
-		expect(recordSnapLead).toHaveBeenCalledOnce();
+		expect(recordAdLead).toHaveBeenCalledOnce();
 	});
 
 	it('rejects a body with no signature header and writes nothing', async () => {
 		const res = await call(payload(), {});
 		expect(res.status).toBe(401);
-		expect(recordSnapLead).not.toHaveBeenCalled();
+		expect(recordAdLead).not.toHaveBeenCalled();
 	});
 
 	it('rejects a signature computed with the wrong secret', async () => {
 		const body = payload();
 		const res = await call(body, { 'signature': sign(body, 'not-the-secret') });
 		expect(res.status).toBe(401);
-		expect(recordSnapLead).not.toHaveBeenCalled();
+		expect(recordAdLead).not.toHaveBeenCalled();
 	});
 
 	it('rejects a body altered after signing', async () => {
@@ -115,7 +115,7 @@ describe('signature gate', () => {
 		const tampered = payload({ phone_number: '+91 99999 99999' });
 		const res = await call(tampered, { 'signature': signature });
 		expect(res.status).toBe(401);
-		expect(recordSnapLead).not.toHaveBeenCalled();
+		expect(recordAdLead).not.toHaveBeenCalled();
 	});
 
 	it('signs {timestamp}.{body}, not the body alone', async () => {
@@ -126,7 +126,7 @@ describe('signature gate', () => {
 		const bodyOnly = createHmac('sha256', SECRET).update(body, 'utf8').digest('hex');
 		const res = await call(body, { signature: bodyOnly });
 		expect(res.status).toBe(401);
-		expect(recordSnapLead).not.toHaveBeenCalled();
+		expect(recordAdLead).not.toHaveBeenCalled();
 	});
 
 	it('rejects a signature computed with a different timestamp', async () => {
@@ -145,7 +145,7 @@ describe('signature gate', () => {
 		});
 		const res = await POST({ request } as never);
 		expect(res.status).toBe(401);
-		expect(recordSnapLead).not.toHaveBeenCalled();
+		expect(recordAdLead).not.toHaveBeenCalled();
 	});
 
 	it('accepts an old timestamp — a retry must not expire', async () => {
@@ -182,7 +182,7 @@ describe('under-18 handling', () => {
 		expect(res.status).toBe(200);
 		expect(await res.json()).toMatchObject({ stored: false, reason: 'under_18' });
 		// The assertion this file exists for.
-		expect(recordSnapLead).not.toHaveBeenCalled();
+		expect(recordAdLead).not.toHaveBeenCalled();
 		expect(recordApplyGate).toHaveBeenCalledOnce();
 
 		// And the suppression row carries an opaque id, not her details.
@@ -197,7 +197,7 @@ describe('under-18 handling', () => {
 		const body = payload({ birthday: '1998-06-15' });
 		const res = await call(body, { 'signature': sign(body) });
 		expect(res.status).toBe(200);
-		expect(recordSnapLead).toHaveBeenCalledOnce();
+		expect(recordAdLead).toHaveBeenCalledOnce();
 		expect(recordApplyGate).not.toHaveBeenCalled();
 	});
 
@@ -206,7 +206,7 @@ describe('under-18 handling', () => {
 		// what covers it — but it must not silently drop the lead either.
 		const body = payload();
 		await call(body, { 'signature': sign(body) });
-		expect(recordSnapLead).toHaveBeenCalledOnce();
+		expect(recordAdLead).toHaveBeenCalledOnce();
 		expect(recordApplyGate).not.toHaveBeenCalled();
 	});
 
@@ -225,18 +225,18 @@ describe('field mapping', () => {
 		const body = payload();
 		await call(body, { 'signature': sign(body) });
 
-		const [lead] = recordSnapLead.mock.calls[0];
+		const [lead] = recordAdLead.mock.calls[0];
 		expect(lead.whatsappE164).toBe('+919876543210');
 		expect(lead.email).toBe('her@example.com');
-		expect(lead.snapLeadId).toBe('lead-abc-123');
+		expect(lead.adLeadId).toBe('lead-abc-123');
 		expect(lead.submittedAt).toBe('2026-08-29T10:00:00Z');
-		expect(lead.snapAdSquadName).toBe('SC_F_LEADS_W_1830');
+		expect(lead.adGroupName).toBe('SC_F_LEADS_W_1830');
 	});
 
 	it('derives audience from the F/M marker in the ad squad name', async () => {
 		const body = payload();
 		await call(body, { 'signature': sign(body) });
-		expect(recordSnapLead.mock.calls[0][0].audience).toBe('woman');
+		expect(recordAdLead.mock.calls[0][0].audience).toBe('woman');
 	});
 
 	it('reads space-separated names, not just underscore-separated ones', async () => {
@@ -248,7 +248,7 @@ describe('field mapping', () => {
 			ad_name: 'Female Leads'
 		});
 		await call(body, { 'signature': sign(body) });
-		expect(recordSnapLead.mock.calls[0][0].audience).toBe('woman');
+		expect(recordAdLead.mock.calls[0][0].audience).toBe('woman');
 	});
 
 	it('does not read WOMEN as MEN', async () => {
@@ -260,7 +260,7 @@ describe('field mapping', () => {
 			ad_name: 'RA_LEADS_AD'
 		});
 		await call(body, { 'signature': sign(body) });
-		expect(recordSnapLead.mock.calls[0][0].audience).toBe('woman');
+		expect(recordAdLead.mock.calls[0][0].audience).toBe('woman');
 	});
 
 	it('leaves audience null rather than guessing when the names say nothing', async () => {
@@ -272,7 +272,7 @@ describe('field mapping', () => {
 			ad_name: 'SC_LEADS_AD'
 		});
 		await call(body, { 'signature': sign(body) });
-		expect(recordSnapLead.mock.calls[0][0].audience).toBeNull();
+		expect(recordAdLead.mock.calls[0][0].audience).toBeNull();
 	});
 
 	it('drops an unusable contact with a 200 so it is not retried forever', async () => {
@@ -282,13 +282,13 @@ describe('field mapping', () => {
 		const res = await call(body, { 'signature': sign(body) });
 		expect(res.status).toBe(200);
 		expect(await res.json()).toMatchObject({ stored: false, reason: 'no_usable_contact' });
-		expect(recordSnapLead).not.toHaveBeenCalled();
+		expect(recordAdLead).not.toHaveBeenCalled();
 	});
 });
 
 describe('retry semantics', () => {
 	it('answers 200 to a redelivered lead so Snap stops retrying', async () => {
-		recordSnapLead.mockResolvedValue({ ok: true, duplicate: true });
+		recordAdLead.mockResolvedValue({ ok: true, duplicate: true });
 		const body = payload();
 		const res = await call(body, { 'signature': sign(body) });
 		expect(res.status).toBe(200);
@@ -296,7 +296,7 @@ describe('retry semantics', () => {
 	});
 
 	it('answers 500 on a write failure so the retry is the second chance', async () => {
-		recordSnapLead.mockResolvedValue({ ok: false, reason: 'transient' });
+		recordAdLead.mockResolvedValue({ ok: false, reason: 'transient' });
 		const body = payload();
 		const res = await call(body, { 'signature': sign(body) });
 		expect(res.status).toBe(500);
@@ -313,6 +313,6 @@ describe('retry semantics', () => {
 		const body = JSON.stringify({ form_id: 'form-1', phone_number: '9876543210' });
 		const res = await call(body, { 'signature': sign(body) });
 		expect(res.status).toBe(400);
-		expect(recordSnapLead).not.toHaveBeenCalled();
+		expect(recordAdLead).not.toHaveBeenCalled();
 	});
 });
