@@ -19,7 +19,6 @@
 -- Every lead submitted before registration exists only in the Ads Manager export,
 -- and Snap deletes leads after 90 days. Those have to be exported by hand; this
 -- table will not grow them retroactively.
-
 -- 1. Provenance. Everything already in the table came from a landing-page form,
 --    so the default backfills the existing rows correctly.
 alter table public.marketing_leads
@@ -45,6 +44,7 @@ alter table public.marketing_leads
 
 alter table public.marketing_leads
   drop constraint if exists marketing_leads_source_check;
+
 alter table public.marketing_leads
   add constraint marketing_leads_source_check
   check (source in ('landing_page', 'snap_lead_form'));
@@ -60,6 +60,7 @@ alter table public.marketing_leads
 --    consult ALLOWED_PAGES. Widening those sets would be a bug, not consistency.
 alter table public.marketing_leads
   drop constraint if exists marketing_leads_page_check;
+
 alter table public.marketing_leads
   add constraint marketing_leads_page_check
   check (page in ('get', 'get_w', 'get_photos', 'aibestie', 'get_w_apply', 'snap_lead_form'));
@@ -75,12 +76,14 @@ alter table public.marketing_leads
 --    but the kind records what she actually agreed to.
 alter table public.marketing_leads
   drop constraint if exists marketing_leads_contact_kind_check;
+
 alter table public.marketing_leads
   add constraint marketing_leads_contact_kind_check
   check (contact_kind in ('whatsapp', 'email', 'phone'));
 
 alter table public.marketing_leads
   drop constraint if exists marketing_leads_has_contact;
+
 alter table public.marketing_leads
   add constraint marketing_leads_has_contact check (
     (contact_kind in ('whatsapp', 'phone') and whatsapp_e164 is not null) or
@@ -99,4 +102,4 @@ create index if not exists marketing_leads_source_idx
 --    The role reads aggregate ad performance; marketing_leads is a contact list.
 --    ad-management-agent should learn that a campaign produced eleven leads by
 --    counting, not by reading eleven phone numbers. If a count is ever needed
---    there, add a view that exposes counts only -- do not grant this table.
+--    there, add a view that exposes counts only -- do not grant this table.;

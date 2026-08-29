@@ -950,7 +950,7 @@ export type Database = {
 					/**
 					 * 'snap_lead_form' is reachable ONLY from the Snap webhook route. The
 					 * browser beacons keep their own narrower ALLOWED_PAGES set on purpose —
-					 * see 20260829170000, which explains why widening those would be a bug.
+					 * see 20260829144332, which explains why widening those would be a bug.
 					 */
 					page: 'get' | 'get_w' | 'get_photos' | 'aibestie' | 'get_w_apply' | 'snap_lead_form';
 					audience?: 'man' | 'woman' | null;
