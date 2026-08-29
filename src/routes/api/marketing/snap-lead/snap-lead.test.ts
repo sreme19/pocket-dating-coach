@@ -220,6 +220,50 @@ describe('under-18 handling', () => {
 	});
 });
 
+describe('synthetic test payloads', () => {
+	// The regression for 2026-08-29: a `snap-leads test` delivery wrote a real row
+	// into the contact list. It is signed with the real secret and structurally
+	// valid, so nothing upstream can catch it.
+	it('ignores the sample payload by campaign name', async () => {
+		const body = payload({ campaign_name: 'Snap Test Campaign Name' });
+		const res = await call(body, { signature: sign(body) });
+		expect(res.status).toBe(200);
+		expect(await res.json()).toMatchObject({ stored: false, reason: 'test_payload' });
+		expect(recordAdLead).not.toHaveBeenCalled();
+	});
+
+	it('ignores it by @snapchat.com email', async () => {
+		const body = payload({ email: 'johndoe@snapchat.com' });
+		const res = await call(body, { signature: sign(body) });
+		expect(res.status).toBe(200);
+		expect(recordAdLead).not.toHaveBeenCalled();
+	});
+
+	it('ignores it by the sample first name', async () => {
+		const body = payload({ first_name: 'Sample Lead First Name' });
+		const res = await call(body, { signature: sign(body) });
+		expect(res.status).toBe(200);
+		expect(recordAdLead).not.toHaveBeenCalled();
+	});
+
+	it('never writes a suppression row for a synthetic under-18 lead', async () => {
+		// A fake person must not land in marketing_apply_gate either.
+		const body = payload({ campaign_name: 'Snap Test Campaign Name', birthday: '2012-01-01' });
+		await call(body, { signature: sign(body) });
+		expect(recordApplyGate).not.toHaveBeenCalled();
+		expect(recordAdLead).not.toHaveBeenCalled();
+	});
+
+	it('still stores a real lead that merely mentions test elsewhere', async () => {
+		// The guard keys on Snap's fixed sample values, not on the word "test"
+		// appearing anywhere — a real campaign called RA_LEADS_AB_TEST must survive.
+		const body = payload({ campaign_name: 'RA_LEADS_AB_TEST_20260829' });
+		const res = await call(body, { signature: sign(body) });
+		expect(res.status).toBe(200);
+		expect(recordAdLead).toHaveBeenCalledOnce();
+	});
+});
+
 describe('field mapping', () => {
 	it('normalises the contact and marks the kind as phone, not whatsapp', async () => {
 		const body = payload();

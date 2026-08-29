@@ -113,6 +113,36 @@ function audienceFromNames(...names: (string | null)[]): 'man' | 'woman' | null 
 	return woman ? 'woman' : 'man';
 }
 
+/**
+ * Snap's own sample payload, which `GET /lead_gen/integrations/{id}/test` fires.
+ *
+ * WHY THIS IS NOT PARANOIA. The test delivery is signed with the real hmacSecret
+ * and is structurally a valid lead, so every check upstream passes it. On
+ * 2026-08-29 one was fired to prove the live form's integration worked, and it
+ * wrote a row: "Sample Lead First Name" / johndoe@snapchat.com / "Snap Test
+ * Campaign Name", sitting in a contact list a dialer works through. An earlier
+ * test had been rejected only by luck — its phone number was not a valid Indian
+ * mobile, so it fell out at the contact check. Change the sample data and that
+ * accident stops saving us.
+ *
+ * ANY ONE MARKER IS ENOUGH. These are Snap's fixed sample values, not a
+ * heuristic: the campaign name is literal, and a lead in an Indian dating funnel
+ * submitting an @snapchat.com address is not a lead worth the risk of storing.
+ * The cost of a false positive is one dropped lead; the cost of a false negative
+ * is a fabricated person in a table someone will phone.
+ */
+function isSnapTestPayload(body: Record<string, unknown>): boolean {
+	const email = (str(body.email) ?? '').toLowerCase();
+	if (email.endsWith('@snapchat.com')) return true;
+
+	const names = [body.campaign_name, body.ad_name, body.ad_squad_name, body.form_name]
+		.map((v) => (str(v) ?? '').toLowerCase())
+		.filter(Boolean);
+	if (names.some((n) => n.startsWith('snap test') || n.includes('test campaign name'))) return true;
+
+	return (str(body.first_name) ?? '').toLowerCase() === 'sample lead first name';
+}
+
 function str(value: unknown): string | null {
 	return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
@@ -203,6 +233,14 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (!leadId) {
 		console.error('[snap-lead] payload has no lead_id; keys:', Object.keys(body).join(', '));
 		return json({ ok: false }, { status: 400 });
+	}
+
+	// Before anything is stored, and before the under-18 check — a synthetic lead
+	// is not a person, so it must not produce a suppression row either. 200 so the
+	// test reports success and Snap stops retrying.
+	if (isSnapTestPayload(body)) {
+		console.warn('[snap-lead] synthetic test payload ignored, lead', leadId);
+		return json({ ok: true, stored: false, reason: 'test_payload' });
 	}
 
 	const campaignName = str(body.campaign_name);
