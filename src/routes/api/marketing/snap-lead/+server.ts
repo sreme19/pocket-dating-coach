@@ -2,7 +2,12 @@ import { json, text } from '@sveltejs/kit';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { env } from '$env/dynamic/private';
 import type { RequestHandler } from './$types';
-import { normalisePhone, normaliseEmail, recordAdLead } from '$lib/server/marketing-leads';
+import {
+	normalisePhone,
+	normaliseEmail,
+	recordAdLead,
+	recordLeadSubmission
+} from '$lib/server/marketing-leads';
 import { recordApplyGate, UNDER_18 } from '$lib/server/apply-gate';
 
 /**
@@ -247,6 +252,25 @@ export const POST: RequestHandler = async ({ request }) => {
 	const adSquadName = str(body.ad_squad_name);
 	const adName = str(body.ad_name);
 
+	// Snap counted this submission the moment she tapped submit. Everything below
+	// decides whether it becomes a marketing_leads row, and three of the four
+	// outcomes do not — so the count lives here, beside the decision, rather than
+	// being inferred later from the rows that happened to survive.
+	const countSubmission = (outcome: Parameters<typeof recordLeadSubmission>[0]['outcome']) =>
+		recordLeadSubmission({
+			network: 'snap_lead_form',
+			adLeadId: leadId,
+			adFormId: str(body.form_id),
+			outcome,
+			campaign: campaignName,
+			adCampaignId: str(body.campaign_id),
+			adGroupId: str(body.ad_squad_id),
+			adGroupName: adSquadName,
+			adId: str(body.ad_id),
+			adName: adName,
+			submittedAt: str(body.create_time)
+		});
+
 	// UNDER-18 IS HANDLED BEFORE ANY CONTACT DETAIL IS STORED.
 	//
 	// 20260828184124 kept contact details out of marketing_apply_gate on purpose,
@@ -274,6 +298,9 @@ export const POST: RequestHandler = async ({ request }) => {
 		// duplicate suppression row, because the alternative is no record that this
 		// lead must be pulled from the export.
 		if (!gate.ok) return json({ ok: false }, { status: 500 });
+		// Counted, never stored: the row carries the opaque lead id and no contact
+		// detail, which is exactly what the suppression row above already holds.
+		await countSubmission('under_18');
 		return json({ ok: true, stored: false, reason: 'under_18' });
 	}
 
@@ -290,6 +317,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			hadPhone: Boolean(phoneRaw),
 			hadEmail: Boolean(emailRaw)
 		});
+		await countSubmission('no_usable_contact');
 		return json({ ok: true, stored: false, reason: 'no_usable_contact' });
 	}
 
@@ -313,7 +341,12 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	// The one place a 500 is the right answer: the write failed for a reason a
 	// redelivery might not hit, and Snap's retry is the only second chance.
+	// Deliberately not counted — the submission is coming back.
 	if (!result.ok) return json({ ok: false }, { status: 500 });
+
+	// 'duplicate' is the outcome this whole ledger was built to make visible: she
+	// submitted, Snap counted it, and marketing_leads correctly kept one row.
+	await countSubmission(result.duplicate ? 'duplicate' : 'stored');
 
 	return json({ ok: true, stored: !result.duplicate });
 };

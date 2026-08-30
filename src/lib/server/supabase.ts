@@ -1030,6 +1030,55 @@ export type Database = {
 				Update: Partial<Database['public']['Tables']['marketing_apply_gate']['Insert']>;
 				Relationships: [];
 			};
+			/**
+			 * One row per lead-form submission a network actually delivered.
+			 *
+			 * The count of leads lives here; the person lives in marketing_leads.
+			 * They disagree on purpose: marketing_leads dedupes on phone and
+			 * lower(email) so the dialer never calls one person twice, which on
+			 * 2026-08-29 silently turned Snap's 9 leads into 7 rows with no error
+			 * anywhere. See 20260830120000_create_marketing_lead_submissions.sql.
+			 *
+			 * Carries no contact details, so it is safe to grant to a read-only
+			 * analytics role and safe to write for an under-18 submission.
+			 *
+			 * `outcome` and `network` are constrained in the database; the unions
+			 * here mirror them so a bad value fails at compile time.
+			 */
+			marketing_lead_submissions: {
+				Row: {
+					id: string;
+					created_at: string;
+					network: string;
+					ad_lead_id: string;
+					ad_form_id: string | null;
+					outcome: string;
+					campaign: string | null;
+					ad_campaign_id: string | null;
+					ad_group_id: string | null;
+					ad_group_name: string | null;
+					ad_id: string | null;
+					ad_name: string | null;
+					submitted_at: string | null;
+				};
+				Insert: {
+					id?: string;
+					created_at?: string;
+					network: 'snap_lead_form' | 'meta_lead_form';
+					ad_lead_id: string;
+					ad_form_id?: string | null;
+					outcome: 'stored' | 'duplicate' | 'no_usable_contact' | 'under_18';
+					campaign?: string | null;
+					ad_campaign_id?: string | null;
+					ad_group_id?: string | null;
+					ad_group_name?: string | null;
+					ad_id?: string | null;
+					ad_name?: string | null;
+					submitted_at?: string | null;
+				};
+				Update: Partial<Database['public']['Tables']['marketing_lead_submissions']['Insert']>;
+				Relationships: [];
+			};
 		};
 		Functions: {
 			match_book_chunks: {

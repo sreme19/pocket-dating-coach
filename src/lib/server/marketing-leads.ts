@@ -173,6 +173,77 @@ export interface AdLeadInput {
 	submittedAt: string | null;
 }
 
+/** What we did with a delivered submission. See the migration for why each is counted. */
+export type LeadSubmissionOutcome = 'stored' | 'duplicate' | 'no_usable_contact' | 'under_18';
+
+export interface LeadSubmissionInput {
+	network: LeadNetwork;
+	adLeadId: string;
+	adFormId: string | null;
+	outcome: LeadSubmissionOutcome;
+	campaign: string | null;
+	adCampaignId: string | null;
+	adGroupId: string | null;
+	adGroupName: string | null;
+	adId: string | null;
+	adName: string | null;
+	submittedAt: string | null;
+}
+
+/**
+ * Count a delivered submission, whatever became of it.
+ *
+ * Snap reported 9 leads on 2026-08-29 while marketing_leads held 7, with no error
+ * anywhere: both missing submissions were people who had already submitted an
+ * earlier Riteangle form, so the unique indexes on whatsapp_e164 and lower(email)
+ * dropped them and recordAdLead reported a contented `duplicate: true`. The dedupe
+ * is right — the dialer must not call her twice — but it left the only count we
+ * had disagreeing with the network's and nothing said so.
+ *
+ * NEVER THROWS, AND NEVER CHANGES THE CALLER'S ANSWER. This is a counter. If it
+ * fails, the lead itself has still been handled correctly and the receiver must
+ * still tell the network what happened to it; asking Snap to redeliver a lead we
+ * successfully stored, because a bookkeeping row did not write, would trade a real
+ * lead for a tidy number. Failures are logged loudly instead — an under-count that
+ * announces itself is the whole point of the table.
+ */
+export async function recordLeadSubmission(input: LeadSubmissionInput): Promise<void> {
+	try {
+		const supabase = getSupabase();
+
+		const { error } = await supabase.from('marketing_lead_submissions').insert({
+			network: input.network,
+			ad_lead_id: input.adLeadId,
+			ad_form_id: input.adFormId,
+			outcome: input.outcome,
+			campaign: input.campaign,
+			ad_campaign_id: input.adCampaignId,
+			ad_group_id: input.adGroupId,
+			ad_group_name: input.adGroupName,
+			ad_id: input.adId,
+			ad_name: input.adName,
+			submitted_at: input.submittedAt
+		});
+
+		// A redelivery of a submission we already counted. Expected, not a problem:
+		// the receiver enforces no freshness window precisely so retries land.
+		if (error?.code === UNIQUE_VIOLATION) return;
+
+		if (error) {
+			console.error(
+				'[marketing] lead submission NOT counted:',
+				input.network,
+				input.adLeadId,
+				error.code,
+				error.message,
+				error.hint ?? ''
+			);
+		}
+	} catch (err) {
+		console.error('[marketing] failed to count lead submission', input.network, input.adLeadId, err);
+	}
+}
+
 export async function recordAdLead(input: AdLeadInput): Promise<LeadResult> {
 	// The database enforces this too (marketing_leads_has_contact), but a lead
 	// form can legitimately be built with neither field, and finding that out as a

@@ -2,7 +2,11 @@ import { json, text } from '@sveltejs/kit';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { env } from '$env/dynamic/private';
 import type { RequestHandler } from './$types';
-import { recordAdLead } from '$lib/server/marketing-leads';
+import {
+	recordAdLead,
+	recordLeadSubmission,
+	type LeadSubmissionOutcome
+} from '$lib/server/marketing-leads';
 import { recordApplyGate, UNDER_18 } from '$lib/server/apply-gate';
 import {
 	fetchLead,
@@ -141,6 +145,24 @@ export const POST: RequestHandler = async ({ request }) => {
 	let stored = 0;
 	let skipped = 0;
 
+	// Meta counted the submission when she tapped submit on the instant form; only
+	// some of them become a marketing_leads row. Same ledger as the Snap receiver,
+	// and the same reason — see the migration that created the table.
+	const countSubmission = (lead: RawLead, outcome: LeadSubmissionOutcome) =>
+		recordLeadSubmission({
+			network: 'meta_lead_form',
+			adLeadId: lead.id,
+			adFormId: lead.form_id ?? null,
+			outcome,
+			campaign: lead.campaign_id ? (names.get(lead.campaign_id) ?? null) : null,
+			adCampaignId: lead.campaign_id ?? null,
+			adGroupId: lead.adset_id ?? null,
+			adGroupName: lead.adset_id ? (names.get(lead.adset_id) ?? null) : null,
+			adId: lead.ad_id ?? null,
+			adName: lead.ad_id ? (names.get(lead.ad_id) ?? null) : null,
+			submittedAt: lead.created_time ?? null
+		});
+
 	for (const id of ids) {
 		let lead: RawLead;
 		try {
@@ -168,6 +190,7 @@ export const POST: RequestHandler = async ({ request }) => {
 				region: null
 			});
 			if (!gate.ok) return json({ ok: false }, { status: 500 });
+			await countSubmission(lead, 'under_18');
 			skipped++;
 			continue;
 		}
@@ -177,12 +200,15 @@ export const POST: RequestHandler = async ({ request }) => {
 		const mapped = toAdLead(lead, names);
 		if (!mapped) {
 			console.warn('[meta-lead] no usable contact on lead', lead.id);
+			await countSubmission(lead, 'no_usable_contact');
 			skipped++;
 			continue;
 		}
 
 		const result = await recordAdLead(mapped);
+		// Not counted on failure: the 500 asks Meta to redeliver this submission.
 		if (!result.ok) return json({ ok: false }, { status: 500 });
+		await countSubmission(lead, result.duplicate ? 'duplicate' : 'stored');
 		if (!result.duplicate) stored++;
 	}
 

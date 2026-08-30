@@ -17,6 +17,7 @@ const SECRET = 'test-app-secret';
 const VERIFY = 'test-verify-token';
 
 const recordAdLead = vi.fn();
+const recordLeadSubmission = vi.fn();
 const recordApplyGate = vi.fn();
 const fetchLead = vi.fn();
 const pageToken = vi.fn();
@@ -34,7 +35,7 @@ vi.mock('$lib/server/marketing-leads', async () => {
 	const actual = await vi.importActual<typeof import('$lib/server/marketing-leads')>(
 		'$lib/server/marketing-leads'
 	);
-	return { ...actual, recordAdLead };
+	return { ...actual, recordAdLead, recordLeadSubmission };
 });
 
 vi.mock('$lib/server/apply-gate', async () => {
@@ -250,5 +251,57 @@ describe('field mapping and safety', () => {
 		const res = await call(body, { 'x-hub-signature-256': sign(body) });
 		expect(res.status).toBe(200);
 		expect(await res.json()).toMatchObject({ stored: 0 });
+	});
+
+	/**
+	 * The 2026-08-29 gap, pinned. Snap reported 9 leads against 7 rows because a
+	 * returning submitter is deduped by marketing_leads' unique indexes and left no
+	 * trace at all — a count that disagreed with the network and said nothing. The
+	 * dedupe stays; what must not regress is that the submission is still counted.
+	 */
+	it('counts a deduped submission, so the lead count still matches the network', async () => {
+		recordAdLead.mockResolvedValue({ ok: true, duplicate: true });
+		const body = hook('lead-1');
+		await call(body, { 'x-hub-signature-256': sign(body) });
+		expect(recordLeadSubmission).toHaveBeenCalledWith(
+			expect.objectContaining({ network: 'meta_lead_form', adLeadId: 'lead-1', outcome: 'duplicate' })
+		);
+	});
+
+	it('counts a stored submission as stored', async () => {
+		const body = hook('lead-1');
+		await call(body, { 'x-hub-signature-256': sign(body) });
+		expect(recordLeadSubmission).toHaveBeenCalledWith(
+			expect.objectContaining({ adLeadId: 'lead-1', outcome: 'stored' })
+		);
+	});
+
+	it('counts an under-18 submission without passing any contact detail', async () => {
+		fetchLead.mockResolvedValue(
+			lead({
+				field_data: [
+					{ name: 'full_name', values: ['Asha Rao'] },
+					{ name: 'phone_number', values: ['+919876543210'] },
+					{ name: 'date_of_birth', values: ['2012-01-01'] }
+				]
+			})
+		);
+		const body = hook('lead-1');
+		await call(body, { 'x-hub-signature-256': sign(body) });
+
+		const arg = recordLeadSubmission.mock.calls.at(-1)?.[0];
+		expect(arg).toMatchObject({ adLeadId: 'lead-1', outcome: 'under_18' });
+		// The whole reason this ledger can count a minor at all.
+		const serialised = JSON.stringify(arg);
+		expect(serialised).not.toContain('@');
+		expect(serialised).not.toMatch(/\d{10}/);
+	});
+
+	it('does not count a submission it asked Meta to redeliver', async () => {
+		recordAdLead.mockResolvedValue({ ok: false, reason: 'boom' });
+		const body = hook('lead-1');
+		const res = await call(body, { 'x-hub-signature-256': sign(body) });
+		expect(res.status).toBe(500);
+		expect(recordLeadSubmission).not.toHaveBeenCalled();
 	});
 });
