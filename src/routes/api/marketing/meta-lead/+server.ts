@@ -97,6 +97,15 @@ export const GET: RequestHandler = async ({ url }) => {
 };
 
 export const POST: RequestHandler = async ({ request }) => {
+	// Unconditional, before any check — same reasoning as the Snap receiver's.
+	// Every rejection below returns before it can record that a request arrived,
+	// which is exactly the state that made the 2026-08-29 lead gap undiagnosable.
+	console.warn('[meta-lead] inbound POST', {
+		hasSignature: request.headers.has('x-hub-signature-256'),
+		contentLength: request.headers.get('content-length') ?? 'absent',
+		userAgent: request.headers.get('user-agent') ?? 'absent'
+	});
+
 	const secret = appSecret();
 	if (!secret) {
 		// 500 not 401: the caller is legitimate and the fault is ours, so Meta

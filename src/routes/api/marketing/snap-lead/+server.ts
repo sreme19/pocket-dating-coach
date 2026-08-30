@@ -170,6 +170,27 @@ function isMinor(birthday: string | null): boolean | null {
 }
 
 export const POST: RequestHandler = async ({ request }) => {
+	/**
+	 * UNCONDITIONAL, BEFORE ANY CHECK. Nine leads were paid for on 2026-08-29-30
+	 * and seven reached the database, all seven by a manual import rather than by
+	 * this endpoint. The two submitted after the integration was created
+	 * (15:09:53Z) are absent entirely, and no log anywhere distinguishes the two
+	 * possibilities that matter: Snap never called us, or Snap called and we
+	 * turned it away. Every rejection below returns before it can say so, and the
+	 * one green check we had — Snap's test delivery answering 200 — is discarded
+	 * as a synthetic payload before it reaches the storage path, so it proves the
+	 * signature verifies and nothing else.
+	 *
+	 * Carries no body and no contact details: only that a request arrived, and
+	 * which of the headers the signature check needs were on it.
+	 */
+	console.warn('[snap-lead] inbound POST', {
+		hasT: request.headers.has('t'),
+		hasSignature: request.headers.has('signature'),
+		contentLength: request.headers.get('content-length') ?? 'absent',
+		userAgent: request.headers.get('user-agent') ?? 'absent'
+	});
+
 	const secret = env.SNAP_LEAD_HMAC_SECRET;
 	if (!secret) {
 		// 500 rather than 401: the caller is legitimate and the fault is ours, so
