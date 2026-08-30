@@ -107,6 +107,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     AppLogger.instance.screen('profile');
+    // Landing here after onboarding seeds the user's inbox once. Server-side
+    // idempotent + no-op if they already have matches, so calling on every open
+    // is safe. Fire-and-forget: never blocks or breaks the screen.
+    triggerOnboardingMatchmaker();
     _future = fetchProfile();
     _future.then((p) {
       if (mounted) setState(() => _gender = p.gender);

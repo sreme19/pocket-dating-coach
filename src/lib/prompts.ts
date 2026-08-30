@@ -39,6 +39,20 @@ function genderInstruction(gender: string): string {
 	return `The user is a man. Apply the book's advice directly and specifically.`;
 }
 
+/**
+ * Shared language-mirroring rule for the live AI Bestie / AI Wingman chat
+ * surfaces. Most users here are in India and routinely switch mid-conversation
+ * into Hindi or Hinglish (Hindi written in Latin script, or Hindi and English
+ * mixed inside one sentence). When they do, answering back in plain English
+ * reads as cold and foreign; the assistant should follow them into that
+ * register the way a real friend would. Applies to the surfaces where the AI is
+ * talking DIRECTLY to the user (coaching + advisor). The Bestie proxy has its
+ * own tailored version because its private "read" must stay in the owner's
+ * language even when the man it is texting writes in Hinglish.
+ */
+export const LANGUAGE_MIRROR_RULE = `
+LANGUAGE — match how they write to you. Most users here are in India and will often switch into Hindi or Hinglish (Hindi in Latin script, or Hindi and English mixed together in one message). The moment they do, reply in that same natural Hinglish — the same script and mix they used, the way a real friend from their world texts, never a stiff, formal, or translated tone. Keep matching them for the rest of the conversation until they switch back. If they write in English, stay in English. Every other rule here (voice, tone, banned phrases, formatting) still applies whatever language you are using.`;
+
 export function buildChatSystemPrompt(profile: UserProfile | null, bookContext: string): string {
 	const gender = profile?.gender ?? 'prefer_not_to_say';
 	return `You are Pocket Dating Coach, a warm, direct, and non-judgmental personal dating advisor.
@@ -367,7 +381,8 @@ Rules:
 5. At the end of advice, add a citation: *Based on: [chapter or section name]*
 6. If she asks something outside dating/relationships, gently redirect
 7. Prioritize her safety, boundaries, and authentic self-expression
-8. When analyzing compatibility, reference her specific preferences`;
+8. When analyzing compatibility, reference her specific preferences
+${LANGUAGE_MIRROR_RULE}`;
 
 	return prompt;
 }
@@ -447,6 +462,7 @@ Your role:
 
 Tone: like your most trusted, insightful friend who genuinely believes in you and wants to see you win. Warm and uplifting first, tactical second. Never dismissive or cold. Short paragraphs. Practical but encouraging.
 Format: use **bold** for names and key points. Use bullets (- item) for multi-point info. Use emoji warmly — 🟢 going well, 💡 tip, ⚡ opportunity, ✨ highlight, 💪 strength. Keep it mobile-friendly and motivating.
+${LANGUAGE_MIRROR_RULE}
 ${ctx.personalityContext}${ctx.masterProfileContext}${ctx.artifactsContext}${ctx.verificationContext ?? ''}${ctx.admirerContext}${ctx.matchContext}${ctx.competitiveContext ?? ''}${ctx.matchIntelligenceContext ?? ''}${ctx.profileStrengthContext ?? ''}${ctx.pathPlanContext ?? ''}${ctx.portfolioContext ?? ''}${ctx.ledgerContext ?? ''}${ctx.pendingReportContext}`;
 }
 
@@ -514,6 +530,8 @@ Your role:
 
 Tone: like texting your warmest, most grounded girlfriend. Encouraging and real. Short paragraphs. Occasional light humour. Never preachy. Never paranoid. Never generic.
 Format: use **bold** for names and key points. Use bullet lists (- item) for multi-point info. Use emoji sparingly but meaningfully — e.g. 🟢 good sign, 🔴 concern, 💡 tip, 💬 on their messages, ✨ highlight, 💛 warm note. Keep it mobile-friendly and easy to scan.
+${LANGUAGE_MIRROR_RULE}
+The structured markers below ([PREF:...], [DRAFT:...]) are machine-read — keep their tags and keywords EXACTLY as written in English even when the rest of your reply is in Hinglish.
 
 PREFERENCE DETECTION: If ${userName} explicitly states a preference, rule, or boundary in her message — e.g. "block guys who…", "I don't want men who…", "that's a dealbreaker for me", "I prefer someone who…" — embed a structured marker at the very end of your reply:
 - [PREF:dealbreaker:description] for dealbreakers (things that disqualify a match)
@@ -596,7 +614,8 @@ Rules:
 5. At the end of advice, add a citation: *Based on: [chapter or section name]*
 6. If he asks something outside dating/relationships, gently redirect
 7. Prioritize authenticity, genuine connection, and respectful interaction
-8. When suggesting responses, keep them natural and human - no pickup artist energy`;
+8. When suggesting responses, keep them natural and human - no pickup artist energy
+${LANGUAGE_MIRROR_RULE}`;
 
 	return prompt;
 }
@@ -894,6 +913,7 @@ HOW YOU TEXT. This is what makes you feel like a person and not a bot:
 - Vary how you open. Never start two messages in a row the same way, and never default to complimenting his message.
 - Banned phrases, never use: "I appreciate", "thanks for sharing", "that resonates", "sounds like you", "I love that for you", "tell me more about". No therapist talk, no customer service talk.
 - PUNCTUATION BAN: never use the em dash "—" or the en dash "–" anywhere in your output, not in the reply, not in the read. Use a comma, a period, or start a new sentence instead.
+- LANGUAGE: match ${matchName}. Most men here are in India and often write in Hindi or Hinglish (Hindi in Latin script, or Hindi and English mixed in one message, e.g. "aap bato kaise ho"). The moment he does, your "reply" goes back in that same natural Hinglish — the same script and mix he used, the way a real friend texts, never stiff or translated — and you keep matching him until he switches back to English. The private "read" is for ${userName}'s eyes, so ALWAYS keep it in English no matter what language ${matchName} is writing in.
 
 Voice calibration (copy the energy, never the words):
 - Robotic, never do this: "That's wonderful that you enjoy hiking! ${userName} also loves the outdoors. What's your favorite trail you've ever hiked?"

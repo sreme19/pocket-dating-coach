@@ -3564,6 +3564,26 @@ Future<MatchmakerResult> runFindMatches() async {
   }
 }
 
+/// Fire the one-time onboarding matchmaker seeding run for the current user.
+/// Called when they land on their profile page after onboarding so their inbox
+/// isn't empty. The server is idempotent (runs at most once, no-ops if they
+/// already have matches), so this is safe to call on every profile open.
+/// Fire-and-forget: any failure is swallowed — it must never disrupt the screen.
+Future<void> triggerOnboardingMatchmaker() async {
+  try {
+    await _dio.post(
+      '${Config.apiBase}/api/verified-vibe/matchmaker/onboarding-run',
+      options: Options(
+        headers: {'Authorization': _bearer()},
+        receiveTimeout: const Duration(seconds: 90),
+        validateStatus: (s) => true,
+      ),
+    );
+  } catch (_) {
+    // Best-effort only.
+  }
+}
+
 /// Fetch an AI Bestie reply suggestion for [conversationId] (shown to women chatting with men).
 /// Returns `{'suggestion': str, 'coaching': str?}`.
 Future<Map<String, dynamic>> fetchWingmanSuggestion(String conversationId) async {

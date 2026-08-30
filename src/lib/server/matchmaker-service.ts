@@ -677,6 +677,161 @@ export async function runMatchmakerForUser(
   };
 }
 
+// ── Onboarding bootstrap matcher ──────────────────────────────────────────────
+// Fired once, the first time a freshly-onboarded user lands on their profile
+// page, so their inbox is never empty while the pool is still small and the
+// nightly batch is dormant. It's a SYSTEM run (no press charged, no cap).
+//
+// TEMPORARY, women-specific behaviour (per product call, 2026-08-30): a woman is
+// seeded with AT LEAST THREE matches drawn from the most compatible men who were
+// active in the last week — a warm, populated inbox on day one rather than the
+// single best match the on-demand button gives. Men keep the single-best-match
+// path (delegated to runMatchmakerForUser) unchanged. Revisit once the nightly
+// batch is alive and the pool is dense enough to match organically.
+
+const ONBOARDING_ACTIVE_WINDOW_DAYS = 7;   // "active in the last week"
+const ONBOARDING_WOMAN_MATCH_TARGET = 3;   // seed her with at least this many
+
+export async function runOnboardingMatchmaker(
+  userId: string
+): Promise<
+  | { status: 'needs_verification' }
+  | { status: 'no_match'; created: 0 }
+  | { status: 'matched'; created: number }
+  | FindMatchResult
+> {
+  const db = getSupabase() as any;
+
+  const { data: me } = await db
+    .from('verified_vibe_users')
+    .select('id, gender')
+    .eq('id', userId)
+    .maybeSingle();
+  if (!me) return { status: 'needs_verification' };
+
+  // Men (and anyone without a hetero pool side) keep the existing single-best
+  // system run — the multi-match seeding is a women-only bootstrap for now.
+  if (me.gender !== 'woman') {
+    return runMatchmakerForUser(userId, { system: true });
+  }
+
+  // Eligibility: she must have an ACTIVE bestie pool entry (fully onboarded).
+  const { data: myPoolRaw } = await db
+    .from(POOL)
+    .select('*')
+    .eq('assistant_type', 'bestie')
+    .eq('user_id', userId)
+    .eq('availability_status', 'active')
+    .maybeSingle();
+  if (!myPoolRaw) return { status: 'needs_verification' };
+  const myPool = poolToBestieRow(myPoolRaw);
+
+  // Candidate men active in the last week. last_active_at lives on the users
+  // table, not the pool row, so gather the recently-active male ids first and
+  // intersect them with the active male pool.
+  const cutoff = new Date(
+    Date.now() - ONBOARDING_ACTIVE_WINDOW_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
+
+  const [{ data: candidateRows }, { data: recentMen }, { data: myMatches }] = await Promise.all([
+    db.from(POOL).select('*').eq('assistant_type', 'wingman').eq('availability_status', 'active'),
+    db.from('verified_vibe_users').select('id').eq('gender', 'man').gte('last_active_at', cutoff),
+    db.from('verified_vibe_matches').select('user1_id, user2_id').or(`user1_id.eq.${userId},user2_id.eq.${userId}`),
+  ]);
+
+  const recentMenIds = new Set<string>((recentMen ?? []).map((m: any) => m.id));
+  const matchedPartnerIds = new Set<string>(
+    (myMatches ?? []).map((m: any) => (m.user1_id === userId ? m.user2_id : m.user1_id))
+  );
+
+  const candidates = (candidateRows ?? []).map(poolToWingmanRow);
+
+  // Not-self, not-already-matched, dealbreaker-clean.
+  const eligible = candidates
+    .filter((c: WingmanPoolRow) => c.user_id !== userId)
+    .filter((c: WingmanPoolRow) => !matchedPartnerIds.has(c.user_id))
+    .filter((c: WingmanPoolRow) => !hardFilter(c, myPool, false));
+
+  // PREFER men active in the last week, but do NOT hard-gate on it: today most of
+  // the pool are seeded profiles whose last_active_at is just their creation
+  // time, so a strict 7-day filter would seed her with nobody — the opposite of
+  // the "at least 3" intent. So order recently-active men FIRST, then fall back
+  // to the rest of the active pool to guarantee the floor. Ordering the cap this
+  // way also means the recently-active always survive the Claude-call cap.
+  const survivors = [
+    ...eligible.filter((c: WingmanPoolRow) => recentMenIds.has(c.user_id)),
+    ...eligible.filter((c: WingmanPoolRow) => !recentMenIds.has(c.user_id)),
+  ].slice(0, ON_DEMAND_CANDIDATE_CAP);
+
+  if (!survivors.length) {
+    await logOnDemandRun(db, 0, 0);
+    return { status: 'no_match', created: 0 };
+  }
+
+  // Soft score each, then rank so recently-active men outrank the rest for the
+  // top slots (primary sort), and within each tier the MOST SUITABLE by
+  // compatibility come first (secondary sort). No score threshold — this is a
+  // temporary bootstrap that just needs her inbox populated — and we cap at the
+  // target so she isn't flooded.
+  const scored = await Promise.all(
+    survivors.map(async (male: WingmanPoolRow) => {
+      const s = await softScore(male, myPool);
+      return { maleId: male.user_id, score: s.score, recent: recentMenIds.has(male.user_id) };
+    })
+  );
+  scored.sort((a, b) => (Number(b.recent) - Number(a.recent)) || (b.score - a.score));
+
+  const chosen = scored.slice(0, Math.min(scored.length, ONBOARDING_WOMAN_MATCH_TARGET));
+
+  await logOnDemandRun(db, scored.length, chosen.length);
+
+  const newMatchIds: string[] = [];
+  for (const pick of chosen) {
+    const maleId = pick.maleId;
+    const femaleId = userId;
+
+    // Guard against a pre-existing row in either orientation.
+    const { data: existing } = await db
+      .from('verified_vibe_matches')
+      .select('id')
+      .or(`and(user1_id.eq.${maleId},user2_id.eq.${femaleId}),and(user1_id.eq.${femaleId},user2_id.eq.${maleId})`)
+      .maybeSingle();
+    if (existing?.id) continue;
+
+    const { data: created, error: createErr } = await db
+      .from('verified_vibe_matches')
+      .insert({ user1_id: maleId, user2_id: femaleId, status: 'mutual', source: 'matchmaker', ai_bestie_active: true })
+      .select('id')
+      .single();
+    if (createErr || !created) continue;
+
+    newMatchIds.push(created.id);
+    await Promise.allSettled([
+      sendMatchNotification(maleId, femaleId),
+      sendMatchNotification(femaleId, maleId),
+    ]);
+  }
+
+  // Bestie speaks first on each freshly-formed match (bounded, idempotent, non-fatal).
+  if (newMatchIds.length) {
+    try {
+      const { generateAndSendBestieOpener } = await import('./bestie-responder');
+      const CONCURRENCY = 4;
+      for (let i = 0; i < newMatchIds.length; i += CONCURRENCY) {
+        await Promise.allSettled(
+          newMatchIds.slice(i, i + CONCURRENCY).map((id) => generateAndSendBestieOpener(id))
+        );
+      }
+    } catch (e) {
+      console.error('[onboarding-matchmaker] Bestie openers failed (non-fatal):', e);
+    }
+  }
+
+  return newMatchIds.length
+    ? { status: 'matched', created: newMatchIds.length }
+    : { status: 'no_match', created: 0 };
+}
+
 // ── On-demand: read a user's eligibility + remaining quota (no AI, no charge) ──
 
 export async function getMatchmakerStatus(userId: string): Promise<{

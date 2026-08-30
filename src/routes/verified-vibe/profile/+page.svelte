@@ -1534,6 +1534,14 @@
       return;
     }
 
+    // Landing here after onboarding seeds the user's inbox once (server-side
+    // idempotent + no-op if they already have matches). Fire-and-forget: it must
+    // never block or break rendering the profile.
+    fetch('/api/verified-vibe/matchmaker/onboarding-run', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    }).catch(() => {});
+
     // Read-and-clear: the photo gate's notice is shown once, then forgotten.
     const handedOverNotice = localStorage.getItem('vv_photo_notice');
     if (handedOverNotice) {
