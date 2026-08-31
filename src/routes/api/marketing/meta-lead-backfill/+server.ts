@@ -43,7 +43,7 @@ function authorized(request: Request): boolean {
 	return header.startsWith('Bearer ') && header.slice(7) === secret;
 }
 
-export const POST: RequestHandler = async ({ request, url }) => {
+const handle: RequestHandler = async ({ request, url }) => {
 	if (!authorized(request)) return json({ ok: false }, { status: 401 });
 
 	// A dry run reports what it WOULD write and touches nothing. Worth having on
@@ -176,3 +176,14 @@ export const POST: RequestHandler = async ({ request, url }) => {
 		errors
 	});
 };
+
+/**
+ * GET and POST both run the backfill. GET exists because Vercel Cron invokes its
+ * targets with a GET (and injects `Authorization: Bearer <CRON_SECRET>`), so the
+ * scheduled Meta-lead sweep in vercel.json reaches this handler; POST stays for
+ * manual/ad-hoc invocation. Auth is identical for both — the Bearer check gates
+ * a write to a contact list regardless of method. Same shape as the /api/cron/*
+ * handlers (see ad-spend-sync).
+ */
+export const GET = handle;
+export const POST = handle;

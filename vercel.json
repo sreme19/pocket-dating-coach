@@ -55,6 +55,10 @@
     {
       "path": "/api/cron/ad-weekly",
       "schedule": "0 4 * * 1"
+    },
+    {
+      "path": "/api/marketing/meta-lead-backfill",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
