@@ -55,14 +55,18 @@ const handle: RequestHandler = async ({ request, url }) => {
 	try {
 		token = await pageToken();
 	} catch (err) {
-		return json({ ok: false, error: String(err) }, { status: 502 });
+		// Logged so the exact Meta failure (which step, which message) is visible in
+		// Vercel runtime logs — the 502 body alone never reached them.
+		console.error('[meta-lead-backfill] pageToken failed:', String(err));
+		return json({ ok: false, error: String(err), step: 'pageToken' }, { status: 502 });
 	}
 
 	let forms;
 	try {
 		forms = await listLeadForms(token);
 	} catch (err) {
-		return json({ ok: false, error: String(err) }, { status: 502 });
+		console.error('[meta-lead-backfill] listLeadForms failed:', String(err));
+		return json({ ok: false, error: String(err), step: 'listLeadForms' }, { status: 502 });
 	}
 	if (onlyForm) forms = forms.filter((f) => f.id === onlyForm);
 
