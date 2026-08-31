@@ -115,6 +115,19 @@ describe('storage & mapping', () => {
 		);
 	});
 
+	it('passes an inferred gender from the first name — man, woman, or null on unknown', async () => {
+		await POST({ request: req({ rows: [realLead({ firstName: 'Rahul' })] }) } as never);
+		expect(recordAdLead.mock.calls[0][0].inferredGender).toBe('man');
+
+		recordAdLead.mockClear();
+		await POST({ request: req({ rows: [realLead({ firstName: 'Priya' })] }) } as never);
+		expect(recordAdLead.mock.calls[0][0].inferredGender).toBe('woman');
+
+		recordAdLead.mockClear();
+		await POST({ request: req({ rows: [realLead({ firstName: 'Qwertzuiop' })] }) } as never);
+		expect(recordAdLead.mock.calls[0][0].inferredGender).toBeNull();
+	});
+
 	it('counts a duplicate as duplicate, not stored', async () => {
 		recordAdLead.mockResolvedValue({ ok: true, duplicate: true });
 		const res = await POST({ request: req({ rows: [realLead()] }) } as never);

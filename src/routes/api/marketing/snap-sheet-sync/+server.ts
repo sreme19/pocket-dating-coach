@@ -10,6 +10,7 @@ import {
 	type LeadAudience,
 	type LeadSubmissionOutcome
 } from '$lib/server/marketing-leads';
+import { inferGenderFromName } from '$lib/server/infer-gender';
 
 /**
  * POST /api/marketing/snap-sheet-sync
@@ -255,6 +256,9 @@ export const POST: RequestHandler = async ({ request }) => {
 			firstName: str(item.firstName),
 			lastName: str(item.lastName),
 			audience: audienceFromNames(adSquadName, campaignName, adName),
+			// A hint, not a fact: dictionary-only, null on unknown, stored in
+			// utm.inferred_gender (not `audience`). See infer-gender.ts.
+			inferredGender: inferGenderFromName(str(item.firstName)),
 			campaign: campaignName,
 			adCampaignId: str(item.campaignId),
 			adGroupId: str(item.adSquadId),

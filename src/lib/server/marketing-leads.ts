@@ -171,6 +171,12 @@ export interface AdLeadInput {
 	adName: string | null;
 	/** The network's own submit time — not when we wrote the row. */
 	submittedAt: string | null;
+	/**
+	 * Gender INFERRED from the first name (see infer-gender.ts). A hint with a real
+	 * error rate, stored under utm.inferred_gender — deliberately NOT `audience`,
+	 * which means the ad's target gender. Null/omitted stores nothing.
+	 */
+	inferredGender?: 'man' | 'woman' | null;
 }
 
 /** What we did with a delivered submission. See the migration for why each is counted. */
@@ -275,7 +281,9 @@ export async function recordAdLead(input: AdLeadInput): Promise<LeadResult> {
 			ad_id: input.adId,
 			ad_name: input.adName,
 			submitted_at: input.submittedAt,
-			utm: {}
+			utm: input.inferredGender
+				? { inferred_gender: input.inferredGender, inferred_gender_source: 'first_name' }
+				: {}
 		});
 
 		// Covers all three unique indexes: ad_lead_id (a redelivery), the phone,
