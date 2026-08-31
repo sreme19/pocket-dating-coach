@@ -882,6 +882,7 @@ HARD RULES, never break these:
 - Be transparent and honest about who you are. If ${matchName} asks who he's talking to, or mentions a bestie/AI, tell him plainly and warmly: you're ${userName}'s AI bestie, you chat with her matches first to help things get off to a great start, and ${userName} will jump in herself once they're clicking. Never deny it, never claim to be her, never pretend the message came from her.
 - NEVER frame yourself as screening, filtering, vetting, ranking, or sorting him, and never imply he's one of many being filtered. No "filtering through matches", no "deciding who's worth her time". You're his ally helping THIS match succeed, framed as helping him put his best foot forward.
 - You may share genuine things about ${userName} to build connection, within her boundaries and dealbreakers. Never share contact details, address, or anything she'd consider private.
+- NEVER emit a fill-in placeholder. Your "reply" is sent to ${matchName} word for word, so it must be finished text with zero blanks. Never write a square-bracket stand-in like "[specific interest from her bio]", "[her hobby]", "[related question]", or "[X]" expecting it to be filled in later, and never leave a template slot. If you don't have a concrete detail to name, don't reference one at all: say something real and general instead, or ask one genuine light question in plain words. A bracketed blank in the message is a broken message.
 - CONTACT DETAILS, including ones ALREADY IN THIS THREAD. If ${userName} has pasted her own Instagram, phone number, email, WhatsApp or any other handle or link into this conversation, that was HERS to share and it is not yours to repeat. Never re-send it, never spell it out, never confirm it, never help him find her with it, and never troubleshoot it for him if he says it isn't working. If he asks you for it, say it's hers to share and move on. The fact that it already appears above changes nothing.
 - ONLY say things about ${userName} that appear in the context above. If he asks something you don't have (her job, hobbies, a specific detail), say she'll tell him herself, e.g. "she'll fill you in on that" — NEVER invent or guess facts about her.
 - FOUR THINGS YOU NEVER KNOW, however harmless the guess feels. You have never asked her and you cannot see her screen:
@@ -941,6 +942,51 @@ export function stripBannedDashes(text: string): string {
 	return text
 		.replace(/(\d)\s*[—–]\s*(\d)/g, '$1-$2')
 		.replace(/\s*[—–]+\s*/g, ', ');
+}
+
+/**
+ * Matches a model-invented FILL-IN placeholder in outbound message text, e.g.
+ * "[specific interest from her bio]", "[related question]", "[book principle]".
+ * These leak when a generator is told to "reference her bio / ask a question"
+ * but has thin context to substitute, so it emits the literal bracket token.
+ *
+ * Deliberately EXCLUDES the structured machine markers the advisor/voice prompts
+ * emit on purpose — "[PREF:...]", "[DRAFT:...]", "[Name]" placeholders in those
+ * are read by code, not shown raw — by requiring the bracket to contain a
+ * lowercase letter AND not begin with an ALL-CAPS TAG: form. A human almost
+ * never types "[word]" into a dating chat, so false positives are negligible.
+ */
+const PLACEHOLDER_TOKEN_RE = /\[(?![A-Z0-9_]+\s*:)[^\]\n]*[a-z][^\]\n]*\]/g;
+
+/** True when text carries at least one fill-in placeholder token (see above). */
+export function hasPlaceholderTokens(text: string): boolean {
+	if (!text) return false;
+	PLACEHOLDER_TOKEN_RE.lastIndex = 0;
+	return PLACEHOLDER_TOKEN_RE.test(text);
+}
+
+/**
+ * Hard guarantee that a raw fill-in placeholder never reaches a user: strips any
+ * "[...]" fill-in token from outbound message/reply/suggestion text and repairs
+ * the punctuation and spacing the removal leaves behind (doubled spaces, an
+ * orphaned " ," / " ." / " ?", a dangling connective at the end). The prompt-side
+ * ban is the primary fix; this is the safety net for the imperfect-compliance
+ * tail. For an OPENER where the whole line was built around the placeholder, the
+ * caller should prefer a full regeneration/fallback over this cosmetic repair.
+ */
+export function stripPlaceholderTokens(text: string): string {
+	if (!text) return text;
+	let out = text.replace(PLACEHOLDER_TOKEN_RE, '');
+	out = out
+		.replace(/[ \t]{2,}/g, ' ') // collapse the gap the token left
+		.replace(/\s+([,.;:!?])/g, '$1') // pull punctuation back onto the word
+		.replace(/([,.;:])\1+/g, '$1') // ", ," / ".." → single
+		.replace(/\(\s*\)/g, '') // empty parens left behind
+		.replace(/\s+/g, ' ')
+		.trim();
+	// A stranded leading/trailing connective reads worse than a clean cut.
+	out = out.replace(/[\s,]+$/g, '').replace(/^[\s,]+/g, '').trim();
+	return out;
 }
 
 /**

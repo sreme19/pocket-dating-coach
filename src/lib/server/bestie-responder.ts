@@ -9,7 +9,7 @@ import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
 import { getSupabase } from '$lib/server/supabase';
 import { loadPreferences } from '$lib/server/profile-service';
 import type { PreferencesProfile } from '$lib/server/profile-service';
-import { buildBestieReplyPrompt, stripBannedDashes, buildBestieChecklistPrompt } from '$lib/prompts';
+import { buildBestieReplyPrompt, stripBannedDashes, stripPlaceholderTokens, hasPlaceholderTokens, buildBestieChecklistPrompt } from '$lib/prompts';
 import {
 	PROOF_CATEGORY_PRIORITY,
 	PROOF_CATEGORY_LABELS,
@@ -920,6 +920,27 @@ export async function generateBestieReply(
 	}
 
 	let finalReply = stripBannedDashes(parsed.reply ?? parsed.suggestedQuestion ?? '');
+
+	// Placeholder guard: the model sometimes emits a literal fill-in token like
+	// "[specific interest from her bio]" when the opener context is thin. That must
+	// never reach the man. On the OPENER, the whole line is usually built around the
+	// blank, so a cosmetic strip leaves a broken sentence — fall back to a clean,
+	// context-free warm hello instead. On later turns a strip is safe (the blank is
+	// incidental), so scrub in place.
+	if (hasPlaceholderTokens(finalReply)) {
+		if (isOpener) {
+			console.warn(`[bestie] opener had placeholder token, using safe fallback (match ${matchId})`);
+			finalReply = `Hey! I'm ${userName}'s AI bestie, here to help you two hit it off. She'll jump in herself once you're clicking. So tell me, what's got your attention these days?`;
+		} else {
+			const before = finalReply;
+			finalReply = stripPlaceholderTokens(finalReply);
+			console.warn(`[bestie] stripped placeholder token from reply (match ${matchId})`);
+			if (!finalReply.trim()) {
+				finalReply = `She'll fill you in on the details herself. What have you been up to lately?`;
+				console.warn(`[bestie] placeholder strip emptied reply, used fallback (match ${matchId}); was: ${before}`);
+			}
+		}
+	}
 	let proofStateFinal = proofStateUpdate;
 
 	// Did this turn try to wrap up (→ hand off to her)?
@@ -1011,7 +1032,7 @@ export async function generateBestieReply(
 
 	return {
 		signal,
-		read: stripBannedDashes(parsed.read ?? ''),
+		read: stripPlaceholderTokens(stripBannedDashes(parsed.read ?? '')),
 		reply: scrubbed.text,
 		userName,
 		...(proofStateFinal ? { proofStateUpdate: proofStateFinal } : {}),

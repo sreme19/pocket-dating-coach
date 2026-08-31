@@ -3,7 +3,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
 import { loadPreferences } from '$lib/server/profile-service';
 import type { PreferencesProfile } from '$lib/server/profile-service';
-import { buildBestieReplyPrompt, stripBannedDashes } from '$lib/prompts';
+import { buildBestieReplyPrompt, stripBannedDashes, stripPlaceholderTokens } from '$lib/prompts';
 
 function formatStructuredPreferences(prefs: PreferencesProfile): string {
 	const lines: string[] = ['\nHer known preferences:'];
@@ -160,10 +160,10 @@ export const POST: RequestHandler = async ({ request }) => {
 			throw new Error('Claude returned invalid JSON');
 		}
 
-		const reply = stripBannedDashes(parsed.reply ?? parsed.suggestedQuestion ?? '');
+		const reply = stripPlaceholderTokens(stripBannedDashes(parsed.reply ?? parsed.suggestedQuestion ?? ''));
 		return json({
 			signal: parsed.signal,
-			read: stripBannedDashes(parsed.read ?? ''),
+			read: stripPlaceholderTokens(stripBannedDashes(parsed.read ?? '')),
 			reply,
 			// Legacy alias: older clients read the reply from this key.
 			suggestedQuestion: reply

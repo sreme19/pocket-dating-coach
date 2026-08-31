@@ -14,6 +14,11 @@ import type { RequestHandler } from './$types';
 import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
 import { loadPersonality, loadPreferences } from '$lib/server/profile-service';
 import { getSupabase } from '$lib/server/supabase';
+import { stripPlaceholderTokens } from '$lib/prompts';
+
+// The message is sent to a real person verbatim, so it must contain zero blanks.
+const NO_PLACEHOLDER_LINE =
+  '- FINISHED TEXT ONLY: never write a square-bracket fill-in like "[specific interest from her bio]", "[his hobby]", or "[topic]" expecting it to be filled in later. If you have no concrete detail to name, keep it warm and general instead of naming one.';
 
 export const POST: RequestHandler = async ({ request }) => {
   try {
@@ -86,6 +91,7 @@ Also ensure the message is:
 - Under 500 characters — ideally 2-3 sentences
 - Natural and authentic, not AI-sounding
 - No generic compliments like "you're so handsome"
+${NO_PLACEHOLDER_LINE}
 Output ONLY the message text. No quotes, no intro, no explanation.`
       : `You are writing a "Craving Attention" message for a man who wants to get noticed by a woman he saw on a dating app.
 Tone: ${toneGuide}
@@ -94,6 +100,7 @@ Also ensure the message is:
 - Under 500 characters — ideally 2-3 sentences
 - Conversation-starting, not just a compliment
 - No generic openers like "hey" or "you're beautiful"
+${NO_PLACEHOLDER_LINE}
 Output ONLY the message text. No quotes, no intro, no explanation.`;
 
     const userPrompt = [
@@ -113,6 +120,10 @@ Output ONLY the message text. No quotes, no intro, no explanation.`;
 
     const block = response.content[0];
     let text = block.type === 'text' ? block.text.trim() : '';
+
+    // Safety net: strip any leaked "[fill in]" placeholder before it becomes a
+    // real message. (The prompt bans it; this guarantees it.)
+    text = stripPlaceholderTokens(text);
 
     // Enforce 500 char limit (Claude should already comply, but safety net)
     if (text.length > 500) text = text.slice(0, 497) + '…';

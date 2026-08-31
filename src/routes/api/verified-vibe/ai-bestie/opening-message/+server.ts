@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
-import { stripBannedDashes } from '$lib/prompts';
+import { stripBannedDashes, stripPlaceholderTokens } from '$lib/prompts';
 
 export const POST: RequestHandler = async ({ request }) => {
 	try {
@@ -31,6 +31,7 @@ Generate a single opening message to kick things off. It should:
 - Refer to ${owner} in the third person, by name. Never write as if you are her
 - Sound like a real person texting: casual, warm, a little playful. Contractions, short sentences, no formal greetings
 - Open the door for him to say something real, without firing a list of questions at him. One light question at most
+- FINISHED TEXT ONLY: never write a square-bracket fill-in like "[specific interest from her bio]" or "[topic]" expecting it to be filled in later. If you have no concrete detail, keep it warm and general instead
 - NEVER frame yourself as screening, filtering, vetting, or ranking him, and never imply he's one of many being filtered. You're his ally, rooting for this to work
 - Be one or two sentences, ready to send
 - Never use the em dash "—" or en dash "–". Use a comma or a period instead
@@ -45,7 +46,7 @@ Return only the message. No extra text.`
 			throw new Error('Unexpected response type from Claude');
 		}
 
-		return json({ message: stripBannedDashes(content.text.trim()) });
+		return json({ message: stripPlaceholderTokens(stripBannedDashes(content.text.trim())) });
 	} catch (error) {
 		console.error('Error generating opening message:', error);
 		return json(

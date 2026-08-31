@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { askClaude } from '$lib/claude';
 import { searchBookChunks } from '$lib/vectorstore';
 import { getEmbedding } from '$lib/embeddings';
-import { buildReplyPrompt } from '$lib/prompts';
+import { buildReplyPrompt, stripPlaceholderTokens } from '$lib/prompts';
 import type { UserProfile } from '$lib/types';
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -42,6 +42,16 @@ export const POST: RequestHandler = async ({ request }) => {
 		replies = JSON.parse(jsonMatch[0]);
 	} catch {
 		throw error(500, 'Failed to parse reply suggestions');
+	}
+
+	// The user fires "message" verbatim, so never let a leaked "[fill in]" token
+	// reach the compose box; drop any option whose whole body was a placeholder.
+	if (Array.isArray(replies)) {
+		replies = replies
+			.map((r: any) => (r && typeof r.message === 'string'
+				? { ...r, message: stripPlaceholderTokens(r.message) }
+				: r))
+			.filter((r: any) => !r || typeof r.message !== 'string' || r.message.trim().length > 0);
 	}
 
 	return json({ replies });

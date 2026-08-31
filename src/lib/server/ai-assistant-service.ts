@@ -2,7 +2,8 @@ import { askClaude } from '../claude';
 import {
 	buildAIBestieSystemPrompt,
 	buildAIWingmanSystemPrompt,
-	buildAIAssistantContextPrompt
+	buildAIAssistantContextPrompt,
+	stripPlaceholderTokens
 } from '../prompts';
 import type { UserProfile, ChatMessage, ReplyOption } from '../types';
 import type { PreferencesProfile, PersonalityProfile } from './profile-service';
@@ -206,13 +207,19 @@ Each reply should feel natural and human. No cringe. No pickup-artist lines.`;
 		const jsonMatch = response.match(/\[[\s\S]*\]/);
 		if (jsonMatch) {
 			const parsed = JSON.parse(jsonMatch[0]);
-			options = parsed.map((opt: any, index: number) => ({
-				id: `option-${index}`,
-				tone: opt.tone as 'playful' | 'warm' | 'direct',
-				message: opt.message,
-				why: opt.why,
-				citation: opt.citation
-			}));
+			options = parsed
+				.map((opt: any, index: number) => ({
+					id: `option-${index}`,
+					tone: opt.tone as 'playful' | 'warm' | 'direct',
+					// This is a send-ready message the user fires verbatim, so a leaked
+					// fill-in placeholder must never survive to the compose box.
+					message: stripPlaceholderTokens(opt.message ?? ''),
+					why: opt.why,
+					citation: opt.citation
+				}))
+				// A suggestion whose whole body was a placeholder is unusable — drop it
+				// rather than offer an empty bubble.
+				.filter((opt: ResponseOption) => opt.message.trim().length > 0);
 		}
 	} catch (error) {
 		console.error('Failed to parse response options:', error);

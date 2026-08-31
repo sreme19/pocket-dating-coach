@@ -13,6 +13,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
 import { getClaudeClient, CLAUDE_MODEL } from '$lib/claude';
+import { stripPlaceholderTokens } from '$lib/prompts';
 
 export const POST: RequestHandler = async ({ request }) => {
   try {
@@ -108,6 +109,8 @@ ${transcript || '(No messages yet — suggest a great opening line for him)'}
 
 Write a natural, genuine reply for ${manName} to send to ${womanName}. Keep it concise (1-3 sentences), warm and engaging. Do NOT be cheesy or use pickup lines — match the tone of the conversation.
 
+The suggestion is sent to ${womanName} word for word, so it must be finished text with NO blanks. Never write a square-bracket fill-in like "[her hobby]", "[specific interest from her bio]", or "[topic]" expecting it to be filled in later. If you don't have a concrete detail, keep it warm and general instead of naming one.
+
 Respond with JSON only:
 {
   "suggestion": "the reply text here",
@@ -131,7 +134,7 @@ Respond with JSON only:
 
     return json({
       data: {
-        suggestion: (result.suggestion ?? '').toString(),
+        suggestion: stripPlaceholderTokens((result.suggestion ?? '').toString()),
         coaching: result.coaching ? result.coaching.toString() : null,
       },
     });

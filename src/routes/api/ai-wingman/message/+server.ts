@@ -5,7 +5,8 @@ import { searchBookChunks } from '$lib/vectorstore';
 import { getEmbedding } from '$lib/embeddings';
 import {
 	buildAIWingmanSystemPrompt,
-	buildAIAssistantContextPrompt
+	buildAIAssistantContextPrompt,
+	stripPlaceholderTokens
 } from '$lib/prompts';
 import type { UserProfile, ChatMessage } from '$lib/types';
 import {
@@ -280,8 +281,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			m => `Based on:${m[1].trim()}`
 		);
 
-		// Remove citations from the main text and clean up extra spaces
-		const cleanText = fullText.replace(/\*Based on:[^*]+\*/g, '').replace(/\s+/g, ' ').trim();
+		// Remove citations from the main text and clean up extra spaces. Also strip
+		// any leaked "[fill in]" placeholder so no blank reaches the man's coaching or
+		// the copyable draft lines derived from it below.
+		const cleanText = stripPlaceholderTokens(
+			fullText.replace(/\*Based on:[^*]+\*/g, '').replace(/\s+/g, ' ').trim()
+		);
 
 		// Extract suggestions (lines starting with - or •)
 		const suggestions = cleanText

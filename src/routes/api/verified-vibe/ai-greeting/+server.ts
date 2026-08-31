@@ -23,6 +23,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getSupabase } from '$lib/server/supabase';
 import { complianceGate, SAFE_FALLBACK } from '$lib/server/ai-compliance';
 import { appendAdvisorMessage } from '$lib/server/advisor-thread';
+import { stripPlaceholderTokens } from '$lib/prompts';
 
 const CLAUDE_MODEL  = 'claude-sonnet-4-6';
 const GREETING_GAP  = 8 * 60 * 60 * 1000; // 8 hours in ms
@@ -212,7 +213,7 @@ TAGS: tag1, tag2, tag3
 
   // Split content from self-labelled tags
   const tagMatch = raw.match(/\nTAGS:\s*(.+)$/);
-  const content   = raw.replace(/\nTAGS:.*$/s, '').trim();
+  const content   = stripPlaceholderTokens(raw.replace(/\nTAGS:.*$/s, '').trim());
   const topicTags = tagMatch ? tagMatch[1].split(',').map(t => t.trim().toLowerCase()).filter(Boolean) : ['general'];
 
   return { content, topicTags };
