@@ -17,6 +17,14 @@
 -- public.marketing_store_clicks.page is deliberately NOT constrained — free
 -- text since 20260809171948. If a later migration adds a check, it must
 -- include 'get_w_drip' alongside the rest.
+--
+-- marketing_leads_page_check also has to keep 'snap_lead_form' and
+-- 'meta_lead_form' — the two values the webhook routes write that never go
+-- through the browser beacon's narrower ALLOWED_PAGES set (see the comment on
+-- that Insert type in src/lib/server/supabase.ts). The prior migration file
+-- for this table (20260828184124) omitted them; applying it as written
+-- against production failed with a check-constraint violation against real
+-- snap_lead_form/meta_lead_form rows, caught before anything committed.
 
 alter table public.marketing_page_views
   drop constraint if exists marketing_page_views_page_check;
@@ -28,4 +36,4 @@ alter table public.marketing_leads
   drop constraint if exists marketing_leads_page_check;
 alter table public.marketing_leads
   add constraint marketing_leads_page_check
-  check (page in ('get', 'get_w', 'get_photos', 'aibestie', 'get_w_apply', 'get_w_drip'));
+  check (page in ('get', 'get_w', 'get_photos', 'aibestie', 'get_w_apply', 'get_w_drip', 'snap_lead_form', 'meta_lead_form'));
