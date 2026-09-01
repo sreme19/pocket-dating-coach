@@ -24,7 +24,7 @@ import { captureMetaClickId } from './meta-identifiers';
 const ENDPOINT = '/api/marketing/page-view';
 
 /** The landing pages that report views. Must match the table's check constraint. */
-export type LandingPage = 'get' | 'get_w' | 'get_photos' | 'aibestie' | 'get_w_apply';
+export type LandingPage = 'get' | 'get_w' | 'get_photos' | 'aibestie' | 'get_w_apply' | 'get_w_drip';
 
 export interface PageViewReport {
   page: LandingPage;

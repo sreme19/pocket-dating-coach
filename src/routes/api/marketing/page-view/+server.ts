@@ -29,7 +29,7 @@ import {
  */
 
 /** Must match the table's check constraint. */
-const ALLOWED_PAGES = new Set(['get', 'get_w', 'get_photos', 'aibestie', 'get_w_apply']);
+const ALLOWED_PAGES = new Set(['get', 'get_w', 'get_photos', 'aibestie', 'get_w_apply', 'get_w_drip']);
 
 export const POST: RequestHandler = async ({ request }) => {
   const noContent = new Response(null, { status: 204 });

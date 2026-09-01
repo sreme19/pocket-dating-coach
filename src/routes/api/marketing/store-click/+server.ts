@@ -50,7 +50,10 @@ const ALLOWED_CTAS: Record<string, Set<string>> = {
   // 'qualified' rather than 'hero' keeps the position-breakdown chart honest:
   // this is not a position on a brochure, it is the only CTA on the page and it
   // is gated, so a tap here means she answered.
-  get_w_apply: new Set(['qualified'])
+  get_w_apply: new Set(['qualified']),
+  // Same three positions as /get_w's hero/mid/footer, minus 'sticky' — this
+  // page has no sticky bar.
+  get_w_drip: new Set(['hero', 'mid', 'footer'])
 };
 
 /**
@@ -69,7 +72,8 @@ const PAGE_PATHS: Record<string, string> = {
   get_w: '/get/w',
   get_photos: '/get-photos',
   aibestie: '/aibestie',
-  get_w_apply: '/get/w-apply'
+  get_w_apply: '/get/w-apply',
+  get_w_drip: '/get/w-drip'
 };
 
 export const POST: RequestHandler = async ({ request, getClientAddress, url }) => {

@@ -952,7 +952,15 @@ export type Database = {
 					 * The browser beacons keep their own narrower ALLOWED_PAGES set on
 					 * purpose — see 20260829144332, on why widening those would be a bug.
 					 */
-					page: 'get' | 'get_w' | 'get_photos' | 'aibestie' | 'get_w_apply' | 'snap_lead_form' | 'meta_lead_form';
+					page:
+						| 'get'
+						| 'get_w'
+						| 'get_photos'
+						| 'aibestie'
+						| 'get_w_apply'
+						| 'get_w_drip'
+						| 'snap_lead_form'
+						| 'meta_lead_form';
 					audience?: 'man' | 'woman' | null;
 					/** 'phone' is a number Snap prefilled, not a WhatsApp opt-in. */
 					contact_kind: 'whatsapp' | 'email' | 'phone';

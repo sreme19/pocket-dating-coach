@@ -44,7 +44,7 @@ import {
  */
 
 /** Must match the table's check constraint. */
-const ALLOWED_PAGES = new Set(['get', 'get_w', 'get_photos', 'aibestie', 'get_w_apply']);
+const ALLOWED_PAGES = new Set(['get', 'get_w', 'get_photos', 'aibestie', 'get_w_apply', 'get_w_drip']);
 const ALLOWED_AUDIENCE = new Set(['man', 'woman']);
 const ALLOWED_KINDS = new Set(['whatsapp', 'email']);
 
