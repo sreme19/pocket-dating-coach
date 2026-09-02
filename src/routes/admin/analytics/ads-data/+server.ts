@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { buildAdAnalytics } from '$lib/server/ad-analytics';
+import { buildLeadGenderReport } from '$lib/server/lead-gender';
 import { adSpendConfigStatus } from '$lib/server/ad-spend/sync';
 import { ADMIN_COOKIE, tokenIsValid } from '$lib/server/admin-auth';
 import { resolveGranularity, resolveIstRange } from '$lib/ist-dates';
@@ -65,14 +66,21 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 	const audience = isAudience(requestedAudience) ? requestedAudience : 'all';
 
 	try {
-		const data = await buildAdAnalytics({
-			start: range.start,
-			end: range.end,
-			currency,
-			granularity: gran.granularity,
-			network,
-			audience
-		});
+		const [data, leadGender] = await Promise.all([
+			buildAdAnalytics({
+				start: range.start,
+				end: range.end,
+				currency,
+				granularity: gran.granularity,
+				network,
+				audience
+			}),
+			// Independent of buildAdAnalytics on purpose — a lead-count pivot has
+			// nothing to do with spend/traffic aggregation, and keeping it a
+			// separate query means it can never regress that (tested, heavily
+			// documented) pipeline.
+			buildLeadGenderReport({ start: range.start, end: range.end })
+		]);
 		// Which credentials each network can see, by name and never by value.
 		// Included here so the health panel can distinguish "not configured yet"
 		// from "configured and returning nothing", which look identical on a chart.
@@ -80,6 +88,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 		// showing are not the dates that were asked for.
 		return json({
 			...data,
+			leadGender,
 			rangeClamped: range.clamped,
 			granularityClamped: gran.clamped,
 			spendConfig: adSpendConfigStatus()

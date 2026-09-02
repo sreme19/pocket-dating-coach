@@ -8,6 +8,7 @@
 		bucketCount,
 		formatBucket,
 		formatBucketLong,
+		formatIstDay,
 		granularityAllowed,
 		istPresetRange,
 		istToday,
@@ -112,22 +113,11 @@
 	$effect(() => {
 		if (!chartjsReady) return;
 
-		destroyCharts(['engagement-chart', 'messages-chart', 'events-chart', 'bestie-chart']);
+		destroyCharts(['messages-chart']);
 
-		renderLine('engagement-chart', data.likesByDay.labels, [
-			{ label: 'Likes', data: data.likesByDay.counts, borderColor: '#6366f1', backgroundColor: '#6366f120' },
-			{ label: 'Passes', data: data.passesByDay.counts, borderColor: '#f59e0b', backgroundColor: '#f59e0b20' },
-		]);
 		renderLine('messages-chart', data.messagesByDay.labels, [
 			{ label: 'Messages', data: data.messagesByDay.counts, borderColor: '#3b82f6', backgroundColor: '#3b82f620' },
 		]);
-		if (Object.keys(data.eventCounts).length) {
-			renderDoughnut('events-chart', Object.keys(data.eventCounts), Object.values(data.eventCounts),
-				['#10b981', '#6366f1', '#f59e0b', '#3b82f6', '#f472b6', '#94a3b8', '#ec4899', '#14b8a6']);
-		}
-		if (Object.keys(data.bestieTypes).length) {
-			renderBar('bestie-chart', Object.keys(data.bestieTypes), Object.values(data.bestieTypes), '#f472b6');
-		}
 	});
 
 	function destroyCharts(ids: string[]) {
@@ -364,9 +354,6 @@
 		filteredTotals.matches ? ((filteredTotals.mutualMatches / filteredTotals.matches) * 100).toFixed(1) : '0'
 	);
 
-	const femaleApprovalRate = data.totals.femaleProfiles
-		? ((data.totals.approvedFemale / data.totals.femaleProfiles) * 100).toFixed(1)
-		: '0';
 
 	// ── User Activity tab ──────────────────────────────────────────────
 	type Tab = 'overview' | 'activity' | 'ai_latency' | 'ads';
@@ -421,15 +408,6 @@
 	 * gender is reported separately and is deliberately not tied to this.
 	 */
 	let adsAudience = $state<'all' | 'men' | 'women' | 'unknown'>('all');
-	/**
-	 * Leaderboard-only, and applied CLIENT-SIDE on purpose.
-	 *
-	 * Unlike network and audience, delivery is a property of an ad set rather than
-	 * of a traffic row, so it filters table rows and must not touch the trend chart
-	 * or the totals. Everything it needs is already in the response, so there is no
-	 * refetch and no round trip.
-	 */
-	let adsDelivery = $state<'all' | 'delivering' | 'idle'>('all');
 
 	/** When the last successful fetch landed, for the freshness stamp. */
 	let adsFetchedAt = $state<number | null>(null);
@@ -486,48 +464,6 @@
 			: `updated ${adsFreshness}`;
 	});
 
-	/**
-	 * The network's OWN status (`deliveringNow`) wins whenever it's known — that
-	 * is the real answer to "is this live right now". `delivering` (had ANY
-	 * activity in the selected range) is only a fallback for rows where status
-	 * has never synced, which today is every row: the migration adding the
-	 * column ships alongside this UI change, not before it.
-	 */
-	function isCurrentlyDelivering(r: any): boolean {
-		return r.deliveringNow ?? r.delivering;
-	}
-
-	const adsLeaderboard = $derived(
-		((ads?.leaderboard ?? []) as any[]).filter(
-			(r) =>
-				adsDelivery === 'all' ||
-				(adsDelivery === 'delivering' ? isCurrentlyDelivering(r) : !isCurrentlyDelivering(r))
-		)
-	);
-	const adsDeliveryCounts = $derived({
-		all: ((ads?.leaderboard ?? []) as any[]).length,
-		delivering: ((ads?.leaderboard ?? []) as any[]).filter((r) => isCurrentlyDelivering(r)).length,
-		idle: ((ads?.leaderboard ?? []) as any[]).filter((r) => !isCurrentlyDelivering(r)).length
-	});
-
-	/**
-	 * The third dimension (ad/creative) is a per-row drill-down rather than a
-	 * separate flat table — most rows have no per-ad data yet (it needs
-	 * fetchSnapCreativeSpend or Meta's ad-level fetch to have run), and a
-	 * column that's empty for every row except a handful reads as broken.
-	 * Expansion state is keyed the same way "no ad set id" rows already
-	 * distinguish themselves elsewhere on this table.
-	 */
-	let expandedAdSetRows = $state(new Set<string>());
-	function adSetRowKey(c: any): string {
-		return c.adSetId ?? c.campaign;
-	}
-	function toggleAdSetRow(key: string) {
-		const next = new Set(expandedAdSetRows);
-		if (next.has(key)) next.delete(key);
-		else next.add(key);
-		expandedAdSetRows = next;
-	}
 
 	/**
 	 * Anomalies arrive as plain strings from the server — see ad-analytics.ts.
@@ -704,6 +640,75 @@
 	type GeoCell = { views: number; taps: number };
 	type DemoBucket = { bucket: string; spend: number; impressions: number; clicks: number };
 
+	// ── Snap leads by ad, as a campaign > ad set > ad tree ────────────────────
+	// The server returns one flat row per date + campaign + ad set + ad (see
+	// lead-gender.ts); date is rolled up and dropped here rather than sent to
+	// the client as a fourth nesting level — the table above this one already
+	// covers "leads by date", so campaign/ad-set/ad drill-down is this table's
+	// whole job, and a date on top of that would need one more click per ad to
+	// see anything.
+	type GenderTotals = { male: number; female: number; unclear: number; total: number };
+	type SnapAdNode = GenderTotals & { adName: string | null };
+	type SnapAdSetNode = GenderTotals & { adSetId: string | null; adSetName: string | null; ads: SnapAdNode[] };
+	type SnapCampaignNode = GenderTotals & { campaignId: string | null; adSets: SnapAdSetNode[] };
+
+	function addTotals(into: GenderTotals, from: GenderTotals) {
+		into.male += from.male;
+		into.female += from.female;
+		into.unclear += from.unclear;
+		into.total += from.total;
+	}
+	function zeroTotals(): GenderTotals {
+		return { male: 0, female: 0, unclear: 0, total: 0 };
+	}
+
+	const snapAdTree = $derived.by((): SnapCampaignNode[] => {
+		const rows = (ads?.leadGender?.snapByAd ?? []) as any[];
+		const campaigns = new Map<string, SnapCampaignNode>();
+		for (const r of rows) {
+			const cKey = r.campaignId ?? '';
+			let c = campaigns.get(cKey);
+			if (!c) {
+				c = { campaignId: r.campaignId, adSets: [], ...zeroTotals() };
+				campaigns.set(cKey, c);
+			}
+			addTotals(c, r);
+
+			const sKey = r.adSetId ?? '';
+			let s = c.adSets.find((x) => (x.adSetId ?? '') === sKey);
+			if (!s) {
+				s = { adSetId: r.adSetId, adSetName: r.adSetName, ads: [], ...zeroTotals() };
+				c.adSets.push(s);
+			}
+			addTotals(s, r);
+
+			const aKey = r.adName ?? '';
+			let a = s.ads.find((x) => (x.adName ?? '') === aKey);
+			if (!a) {
+				a = { adName: r.adName, ...zeroTotals() };
+				s.ads.push(a);
+			}
+			addTotals(a, r);
+		}
+		for (const c of campaigns.values()) {
+			c.adSets.sort((a, b) => b.total - a.total);
+			for (const s of c.adSets) s.ads.sort((a, b) => b.total - a.total);
+		}
+		return [...campaigns.values()].sort((a, b) => b.total - a.total);
+	});
+
+	/** Expansion state for the tree, keyed campaignId for row 1 and
+	 * `${campaignId}::${adSetId}` for row 2 — flat sets rather than nested
+	 * state, so toggling one branch never touches the others' reactivity. */
+	let expandedSnapCampaigns = $state(new Set<string>());
+	let expandedSnapAdSets = $state(new Set<string>());
+	function toggleSet(set: Set<string>, key: string): Set<string> {
+		const next = new Set(set);
+		if (next.has(key)) next.delete(key);
+		else next.add(key);
+		return next;
+	}
+
 	function fmtAgo(iso: string | null): string {
 		if (!iso) return 'never';
 		const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -717,7 +722,7 @@
 	$effect(() => {
 		if (!chartjsReady || activeTab !== 'ads' || !ads) return;
 
-		const ids = ['adsTrend', 'adsCta', 'adsTurns'];
+		const ids = ['adsTrend'];
 		destroyCharts(ids);
 
 		const keys = Object.keys(ads.trends.views);
@@ -757,14 +762,6 @@
 				keys.map((k) => formatBucketLong(k, g))
 			);
 		}
-
-		const ctaLabels = Object.keys(ads.byCta);
-		if (ctaLabels.length) {
-			renderBar('adsCta', ctaLabels, ctaLabels.map((k) => ads!.byCta[k]), '#10b981');
-		}
-
-		const turnLabels = Object.keys(ads.lpFunnel.turnHistogram);
-		renderBar('adsTurns', turnLabels, turnLabels.map((k) => ads!.lpFunnel.turnHistogram[k]), '#6366f1');
 
 		return () => destroyCharts(ids);
 	});
@@ -861,16 +858,10 @@
 		{/each}
 	</div>
 
-	<!-- Row 1: Signups + Engagement -->
-	<div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-		<div class="card">
-			<h2 class="chart-title">Signups — last 30 days</h2>
-			<div class="chart-box"><canvas id="signups-chart"></canvas></div>
-		</div>
-		<div class="card">
-			<h2 class="chart-title">Likes vs Passes — last 30 days</h2>
-			<div class="chart-box"><canvas id="engagement-chart"></canvas></div>
-		</div>
+	<!-- Signups -->
+	<div class="card mb-6">
+		<h2 class="chart-title">Signups — last 30 days</h2>
+		<div class="chart-box"><canvas id="signups-chart"></canvas></div>
 	</div>
 
 	<!-- Row 2: Messages + Gender -->
@@ -894,41 +885,6 @@
 		<div class="card">
 			<h2 class="chart-title">Trust score distribution</h2>
 			<div class="chart-box"><canvas id="trust-chart"></canvas></div>
-		</div>
-	</div>
-
-	<!-- Row 4: Analytics events + AI Bestie -->
-	<div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-		{#if Object.keys(data.eventCounts).length}
-			<div class="card">
-				<h2 class="chart-title">Analytics events by type</h2>
-				<div class="chart-box"><canvas id="events-chart"></canvas></div>
-			</div>
-		{/if}
-		{#if Object.keys(data.bestieTypes).length}
-			<div class="card">
-				<h2 class="chart-title">AI Bestie feedback types</h2>
-				<div class="chart-box"><canvas id="bestie-chart"></canvas></div>
-			</div>
-		{/if}
-	</div>
-
-	<!-- Female profile funnel -->
-	<div class="card mb-6">
-		<h2 class="chart-title">Female profile funnel</h2>
-		<div class="mt-4 flex flex-wrap gap-6">
-			<div class="text-center">
-				<div class="text-3xl font-bold text-indigo-400">{data.totals.femaleProfiles}</div>
-				<div class="text-xs text-slate-500">Total submitted</div>
-			</div>
-			<div class="text-center">
-				<div class="text-3xl font-bold text-emerald-400">{data.totals.approvedFemale}</div>
-				<div class="text-xs text-slate-500">Approved for matching</div>
-			</div>
-			<div class="text-center">
-				<div class="text-3xl font-bold text-amber-400">{femaleApprovalRate}%</div>
-				<div class="text-xs text-slate-500">Approval rate</div>
-			</div>
 		</div>
 	</div>
 
@@ -1567,222 +1523,6 @@
 			</div>
 		{/if}
 
-		<!-- Data health. First, not last: at these volumes the instrumentation is
-		     likelier to be wrong than the campaign, and every number below is
-		     worthless if the pipes are not running. -->
-		<div class="card mb-6">
-			<div class="chart-title">Data health</div>
-			<div class="grid grid-cols-2 gap-4 text-[15px] sm:grid-cols-4">
-				<div>
-					<div class="text-slate-500">Page views recorded</div>
-					<div class="text-lg font-semibold text-white">{ads.health.counts.views}</div>
-				</div>
-				<div>
-					<div class="text-slate-500">Store taps recorded</div>
-					<div class="text-lg font-semibold text-white">{ads.health.counts.taps}</div>
-				</div>
-				<div>
-					<div class="text-slate-500">Signups attributed</div>
-					<div class="text-lg font-semibold text-white">
-						{ads.health.counts.attributedSignups}/{ads.health.counts.totalSignups}
-					</div>
-					<div class="text-[14px] text-slate-600">
-						{fmtRate(ads.health.attributionCoverage, ads.health.counts.totalSignups)} coverage
-					</div>
-				</div>
-				<div>
-					<div class="text-slate-500">Spend rows</div>
-					<div class="text-lg font-semibold text-white">{ads.health.counts.spendRows}</div>
-					<div class="text-[14px] text-slate-600">
-						snap {fmtAgo(ads.health.lastSpendFetch.snap)} · meta {fmtAgo(
-							ads.health.lastSpendFetch.meta
-						)}
-					</div>
-				</div>
-			</div>
-
-			<div class="mt-4 grid gap-2 text-[14px] text-slate-500 sm:grid-cols-2">
-				<div>
-					Conversion forwards — Snap {ads.health.snapForwardOk} ok / {ads.health
-						.snapForwardFailed} failed · Meta {ads.health.metaForwardOk} ok / {ads.health
-						.metaForwardFailed} failed
-				</div>
-				<div>
-					Credentials present — Snap:
-					{Object.entries(ads.spendConfig.snap)
-						.filter(([, v]) => v)
-						.map(([k]) => k)
-						.join(', ') || 'none'} · Meta:
-					{Object.entries(ads.spendConfig.meta)
-						.filter(([, v]) => v)
-						.map(([k]) => k)
-						.join(', ') || 'none'}
-				</div>
-				{#if ads.health.tapsWithoutVisit > 0}
-					<div class="text-amber-400/80">
-						{ads.health.tapsWithoutVisit} tap{ads.health.tapsWithoutVisit === 1 ? '' : 's'} carried no
-						visit id and sit outside the per-visit rate (blocked sessionStorage, or recorded before
-						the beacon shipped).
-					</div>
-				{/if}
-				{#if ads.health.iosMembers > 0}
-					<div class="text-amber-400/80">
-						{ads.health.iosMembers} iOS member{ads.health.iosMembers === 1 ? '' : 's'} — iOS has no
-						install referrer, so these are unattributable, not organic.
-					</div>
-				{/if}
-				{#each Object.entries(ads.health.tables) as [name, err]}
-					{#if err}
-						<div class="text-red-400">{name}: {err}</div>
-					{/if}
-				{/each}
-			</div>
-		</div>
-
-		<!-- Network and audience split. ALWAYS THE FULL PICTURE, never narrowed by
-		     the chips above: the moment you filter to one network, the thing you
-		     most need is the denominator you just filtered away. -->
-		<div class="card mb-6">
-			<div class="mb-1 flex flex-wrap items-baseline justify-between gap-3">
-				<div class="chart-title mb-0">Split by network and targeted audience</div>
-				<span class="text-[14px] text-slate-600">whole range, ignores the filters above</span>
-			</div>
-			<p class="mb-4 text-[14px] text-slate-600">
-				Real views are what survives the quality filter; excluded rows are shown beside them, not
-				dropped. Audience is what the campaign <em>targeted</em>, read off its name — not who
-				arrived. Rates are withheld below n={ads.minSample}.
-			</p>
-
-			<div class="grid gap-6 lg:grid-cols-2">
-				{#each [{ facet: 'network', chips: NETWORK_CHIPS, active: adsNetwork }, { facet: 'audience', chips: AUDIENCE_CHIPS, active: adsAudience }] as group}
-					{@const f = ads.facets[group.facet]}
-					{@const rows = group.chips.filter((c) => c.id !== 'all')}
-					<!-- Bars are scaled to the biggest raw total in this group, so the two
-					     groups stay independently readable rather than one dwarfing the other. -->
-					{@const scale = Math.max(
-						1,
-						...rows.map((c) => Number(f.views[c.id] ?? 0) + Number(f.viewsExcluded[c.id] ?? 0))
-					)}
-					<div>
-						<div class="mb-2 text-[14px] uppercase tracking-wide text-slate-500">
-							{group.facet === 'network' ? 'Ad network' : 'Targeted audience'}
-						</div>
-						{#each rows as chip}
-							{@const real = Number(f.views[chip.id] ?? 0)}
-							{@const excl = Number(f.viewsExcluded[chip.id] ?? 0)}
-							{@const taps = Number(f.taps[chip.id] ?? 0)}
-							{@const dim = group.active !== 'all' && group.active !== chip.id}
-							<div class="mb-3 {dim ? 'opacity-40' : ''}">
-								<div class="flex items-baseline gap-2 text-[15px]">
-									<span class="min-w-[3.5rem] font-medium text-slate-200">{chip.label}</span>
-									<span class="text-slate-400">{real} real</span>
-									{#if excl > 0}
-										<span class="text-slate-600">of {real + excl} raw</span>
-									{/if}
-									<span class="ml-auto text-slate-400"
-										>{taps} tap{taps === 1 ? '' : 's'} ·
-										{#if real >= ads.minSample}
-											{((100 * taps) / real).toFixed(1)}%
-										{:else}
-											<span class="text-slate-600" title="{real} views is below the minimum sample"
-												>n&lt;{ads.minSample}</span
-											>
-										{/if}
-									</span>
-								</div>
-								<!-- Solid = counted, faded = set aside. One bar so the ratio is
-								     readable without doing the subtraction. -->
-								<div class="mt-1 flex h-1.5 overflow-hidden rounded bg-white/[0.04]">
-									<div
-										class={group.facet === 'network' ? 'bg-sky-400' : 'bg-fuchsia-400'}
-										style="width:{(100 * real) / scale}%"
-									></div>
-									<div
-										class={group.facet === 'network' ? 'bg-sky-400/25' : 'bg-fuchsia-400/25'}
-										style="width:{(100 * excl) / scale}%"
-									></div>
-								</div>
-								{#if taps > 0 && real === 0}
-									<!-- A tap can outlive its view when the view was excluded. Said
-									     rather than divided, or the rate reads above 100%. -->
-									<div class="mt-1 text-[12px] text-amber-500/80">
-										{taps} tap{taps === 1 ? '' : 's'} with no surviving view — no rate possible
-									</div>
-								{/if}
-							</div>
-						{/each}
-					</div>
-				{/each}
-			</div>
-
-			<!-- Why rows were set aside, and how confidently the rest was placed. The
-			     server has always returned this; it had nowhere to be shown. -->
-			<div class="mt-2 border-t border-white/[0.06] pt-3">
-				<div class="mb-2 text-[14px] uppercase tracking-wide text-slate-500">
-					Set aside, and how the rest was placed
-				</div>
-				<div class="flex flex-wrap items-baseline gap-x-5 gap-y-1 text-[15px]">
-					{#each Object.entries(ads.traffic.byReason) as [, info]}
-						<span class="text-slate-400"
-							>{(info as any).count}
-							<span class="text-slate-600">{(info as any).label.toLowerCase()}</span></span
-						>
-					{:else}
-						<span class="text-slate-600">nothing excluded in this window</span>
-					{/each}
-				</div>
-				{#if ads.traffic.viewsReconciledByName || ads.traffic.viewsUnattributed}
-					<!-- Two different confidence levels, kept apart: a name match is placed
-					     and countable, an unattributed row is neither, and only the second
-					     needs chasing. -->
-					<div class="mt-1.5 flex flex-wrap items-baseline gap-x-5 gap-y-1 text-[15px]">
-						{#if ads.traffic.viewsReconciledByName}
-							<span
-								class="text-slate-400"
-								title="No ad set id in utm_term, but the campaign name matched an ad set that spend gave an id to"
-								>{ads.traffic.viewsReconciledByName}
-								<span class="text-slate-600">matched to an ad set by name</span></span
-							>
-						{/if}
-						{#if ads.traffic.viewsUnattributed}
-							<span
-								class="text-amber-400/80"
-								title="No ad set id and no name match — these cannot be tied to spend"
-								>{ads.traffic.viewsUnattributed}
-								<span class="text-amber-400/60">could not be placed at all</span></span
-							>
-						{/if}
-					</div>
-				{/if}
-			</div>
-
-			<!-- Actual signup gender. A DIFFERENT POPULATION from the audience filter,
-			     so it is kept in its own block with the join gap stated. -->
-			<div class="mt-3 border-t border-white/[0.06] pt-3">
-				<div class="mb-2 text-[14px] uppercase tracking-wide text-slate-500">
-					Signups by actual gender
-				</div>
-				<div class="flex flex-wrap items-baseline gap-x-5 gap-y-1 text-[15px] text-slate-300">
-					<span>{ads.signupGender.man} men</span>
-					<span>{ads.signupGender.woman} women</span>
-					{#if ads.signupGender.unknown > 0}
-						<span class="text-slate-500">{ads.signupGender.unknown} unstated</span>
-					{/if}
-				</div>
-				<p class="mt-2 text-[14px] {ads.signupGender.joinableToCampaign ? 'text-slate-600' : 'text-amber-400/80'}">
-					{#if ads.signupGender.joinableToCampaign}
-						Whole range. This is who signed up, not who the ads targeted — a men-targeted campaign
-						producing women signups is normal, and the two columns are meant to differ.
-					{:else}
-						Whole range, and <strong>not</strong> narrowed by the filters above — no signup can be
-						joined to a campaign yet, because <code>user_acquisition</code> has no rows until the new
-						Flutter build ships. Until then these totals cannot be attributed to a network or an
-						audience.
-					{/if}
-				</p>
-			</div>
-		</div>
-
 		<!-- Trends -->
 		<div class="card mb-6">
 			<div class="chart-title">Views, store taps and signups — per {adsGranularityLabel}</div>
@@ -1812,31 +1552,128 @@
 			{/if}
 		</div>
 
-		<!-- Per-visit funnel + CTA breakdown -->
-		<div class="mb-6 grid gap-4 lg:grid-cols-2">
-			<div class="card">
-				<div class="chart-title">Visit → store tap</div>
-				<div class="flex items-baseline gap-3">
-					<div class="text-3xl font-bold text-white">
-						{fmtRate(ads.visitFunnel.tapRate, ads.visitFunnel.visits)}
-					</div>
-					<div class="text-[15px] text-slate-500">
-						{ads.visitFunnel.tapped} of {ads.visitFunnel.visits} visits
-					</div>
-				</div>
-				<p class="mt-3 text-[14px] leading-relaxed text-slate-600">
-					A join on visit id, not two totals divided by each other — so a visitor who tapped three
-					times counts once, and a reload cannot push this over 100%.
-					{#if ads.visitFunnel.visits < ads.minSample}
-						Below {ads.minSample} visits the rate is withheld rather than shown as a number the
-						sample cannot support.
-					{/if}
-				</p>
-			</div>
-			<div class="card">
-				<div class="chart-title">Taps by CTA position</div>
-				<div class="chart-box"><canvas id="adsCta"></canvas></div>
-			</div>
+		<!-- Leads by date x source x gender. Gender is INFERRED from first name via
+		     a small on-page dictionary (see lib/server/lead-gender.ts) — never a
+		     stored fact, and never presented as measured. Names the dictionary does
+		     not recognise land in Unclear rather than being guessed. -->
+		<div class="card mb-6 overflow-x-auto">
+			<div class="chart-title">Leads by date · source · inferred gender</div>
+			<p class="mb-3 text-[14px] text-slate-600">
+				Snap and meta lead-form submissions only (landing-page leads excluded). Gender is inferred
+				from first name against a small name dictionary — anything it doesn't recognise is
+				Unclear, not guessed.
+			</p>
+			<table class="w-full min-w-[40rem] text-[15px]">
+				<thead class="text-slate-500">
+					<tr>
+						<th class="py-1 text-left">Date</th>
+						<th class="py-1 text-left">Source</th>
+						<th class="text-right">Male</th>
+						<th class="text-right">Female</th>
+						<th class="text-right">Unclear</th>
+						<th class="text-right">Total</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each ads.leadGender?.byDate ?? [] as row}
+						<tr class="border-t border-white/[0.04]">
+							<td class="py-1.5 text-slate-300">{formatIstDay(row.date)}</td>
+							<td class="py-1.5 text-slate-400 capitalize">{row.source === 'snap_lead_form' ? 'Snap' : 'Meta'}</td>
+							<td class="text-right tabular-nums text-slate-200">{row.male}</td>
+							<td class="text-right tabular-nums text-slate-200">{row.female}</td>
+							<td class="text-right tabular-nums text-slate-500">{row.unclear}</td>
+							<td class="text-right tabular-nums font-medium text-slate-200">{row.total}</td>
+						</tr>
+					{:else}
+						<tr><td colspan="6" class="py-6 text-center text-slate-600">No ad-form leads in this window.</td></tr>
+					{/each}
+				</tbody>
+			</table>
+			{#if ads.leadGender?.error}
+				<p class="mt-3 text-[14px] text-amber-400/80">marketing_leads unreadable — {ads.leadGender.error}</p>
+			{/if}
+		</div>
+
+		<!-- Snap leads by campaign/ad set/ad x gender, nested. Snap only: it's the
+		     network with real campaign/ad-set/ad ids on the lead row today (see
+		     20260829183000_generalise_ad_lead_columns.sql) — Meta's equivalent ids
+		     aren't landing on this table yet. Totals at every level are rolled up
+		     across the whole date range — see the note by snapAdTree for why date
+		     itself isn't a nesting level. -->
+		<div class="card mb-6 overflow-x-auto">
+			<div class="chart-title">Snap leads by ad · inferred gender</div>
+			<p class="mb-3 text-[14px] text-slate-600">
+				Campaign → ad set → ad, click a row to expand. Totals are rolled up across the whole
+				range above. Same inferred-gender caveat as above.
+			</p>
+			<table class="w-full min-w-[44rem] text-[15px]">
+				<thead class="text-slate-500">
+					<tr>
+						<th class="py-1 text-left">Campaign / ad set / ad</th>
+						<th class="text-right">Male</th>
+						<th class="text-right">Female</th>
+						<th class="text-right">Unclear</th>
+						<th class="text-right">Total</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each snapAdTree as c}
+						{@const cKey = c.campaignId ?? ''}
+						{@const cOpen = expandedSnapCampaigns.has(cKey)}
+						<tr class="border-t border-white/[0.04]">
+							<td class="py-1.5">
+								<button
+									onclick={() => (expandedSnapCampaigns = toggleSet(expandedSnapCampaigns, cKey))}
+									class="flex items-center gap-1.5 text-slate-300 transition-colors hover:text-slate-100"
+								>
+									<span class="text-slate-500">{cOpen ? '▾' : '▸'}</span>
+									<span class="font-mono text-[13px]">{c.campaignId ?? '(no campaign id)'}</span>
+									<span class="text-slate-600">· {c.adSets.length} ad set{c.adSets.length === 1 ? '' : 's'}</span>
+								</button>
+							</td>
+							<td class="text-right tabular-nums text-slate-200">{c.male}</td>
+							<td class="text-right tabular-nums text-slate-200">{c.female}</td>
+							<td class="text-right tabular-nums text-slate-500">{c.unclear}</td>
+							<td class="text-right tabular-nums font-medium text-slate-200">{c.total}</td>
+						</tr>
+						{#if cOpen}
+							{#each c.adSets as s}
+								{@const sKey = `${cKey}::${s.adSetId ?? ''}`}
+								{@const sOpen = expandedSnapAdSets.has(sKey)}
+								<tr class="border-t border-white/[0.02] bg-white/[0.015]">
+									<td class="py-1.5 pl-6">
+										<button
+											onclick={() => (expandedSnapAdSets = toggleSet(expandedSnapAdSets, sKey))}
+											class="flex items-center gap-1.5 text-slate-400 transition-colors hover:text-slate-200"
+										>
+											<span class="text-slate-600">{sOpen ? '▾' : '▸'}</span>
+											<span title={s.adSetId ?? ''}>{s.adSetName ?? s.adSetId ?? '(no ad set id)'}</span>
+											<span class="text-slate-600">· {s.ads.length} ad{s.ads.length === 1 ? '' : 's'}</span>
+										</button>
+									</td>
+									<td class="text-right tabular-nums text-slate-300">{s.male}</td>
+									<td class="text-right tabular-nums text-slate-300">{s.female}</td>
+									<td class="text-right tabular-nums text-slate-600">{s.unclear}</td>
+									<td class="text-right tabular-nums font-medium text-slate-300">{s.total}</td>
+								</tr>
+								{#if sOpen}
+									{#each s.ads as a}
+										<tr class="border-t border-white/[0.02] bg-white/[0.03]">
+											<td class="py-1.5 pl-12 text-slate-400">↳ {a.adName ?? '(no ad name)'}</td>
+											<td class="text-right tabular-nums text-slate-400">{a.male}</td>
+											<td class="text-right tabular-nums text-slate-400">{a.female}</td>
+											<td class="text-right tabular-nums text-slate-600">{a.unclear}</td>
+											<td class="text-right tabular-nums text-slate-300">{a.total}</td>
+										</tr>
+									{/each}
+								{/if}
+							{/each}
+						{/if}
+					{:else}
+						<tr><td colspan="5" class="py-6 text-center text-slate-600">No Snap lead-form leads in this window.</td></tr>
+					{/each}
+				</tbody>
+			</table>
 		</div>
 
 		<!-- Landing page variants + country + city -->
@@ -1978,228 +1815,6 @@
 			{/if}
 		</div>
 
-		<!-- Ad set leaderboard. Named for what the rows actually are: the rollup is
-		     keyed on ad set, because that is the only key spend and traffic share. -->
-		<div class="card mb-6 overflow-x-auto">
-			<div class="mb-3 flex flex-wrap items-center justify-between gap-3">
-				<div class="chart-title mb-0">Ad set leaderboard · spend in {adsCurrency}</div>
-				<!-- Delivery. Filters rows only — a not-delivering ad set contributes no
-				     traffic by definition, so hiding it must not move the charts above.
-				     Prefers the network's OWN status where it's known (isCurrentlyDelivering);
-				     falls back to "had any activity in this range" only for rows synced
-				     before the status column existed. -->
-				<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-[15px]">
-					{#each [{ id: 'all', label: 'All' }, { id: 'delivering', label: 'Delivering' }, { id: 'idle', label: 'Not delivering' }] as chip}
-						<button
-							onclick={() => (adsDelivery = chip.id as typeof adsDelivery)}
-							title={chip.id === 'idle'
-								? 'Paused on the network, or — where status has not synced yet — nothing served, charged, or arrived in this range'
-								: chip.id === 'delivering'
-									? 'Active on the network right now, or — where status has not synced yet — any activity in this range'
-									: 'Every ad set either side has seen'}
-							class="px-3 py-1.5 transition-colors {adsDelivery === chip.id
-								? 'bg-emerald-500/20 text-emerald-400'
-								: 'text-slate-400 hover:text-slate-200'}"
-							>{chip.label}<span class="ml-1 opacity-50"
-								>{adsDeliveryCounts[chip.id as keyof typeof adsDeliveryCounts]}</span
-							></button
-						>
-					{/each}
-				</div>
-			</div>
-			<!-- 16px, not 13: 13 was legible only at 125% browser zoom, which is a
-			     reader telling you the type is too small. The whole card is scaled by
-			     that same 1.25 — badges and the footnote too — so the proportions the
-			     zoom produced are what ships, rather than one row of bigger numbers
-			     against unchanged chrome.
-			     Values at slate-200 rather than slate-400: slate-400 on this
-			     background is about 4:1, under the 4.5:1 threshold, and it failed
-			     worst on the numeric columns where it matters most. Headers stay
-			     dimmer — the hierarchy was never the problem.
-			     min-width grows with the type or eight columns of 16px crush. -->
-			<table class="w-full min-w-[70rem] text-[16px]">
-				<thead class="text-slate-500">
-					<tr>
-						<!-- Blank header for the expand toggle column — nothing to label,
-						     it exists only where a row has ads to drill into. -->
-						<th class="w-6"></th>
-						<th class="py-1 text-left">Campaign</th>
-						<th class="py-1 text-left">Ad set</th>
-						<th class="text-right">Spend</th>
-						<th class="text-right">Impr.</th>
-						<th class="text-right">Views</th>
-						<th class="text-right">Taps</th>
-						<th class="text-right">Tap rate</th>
-						<th class="text-right">Signups</th>
-						<th class="text-right">Cost/signup</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each adsLeaderboard as c}
-						{@const rowKey = adSetRowKey(c)}
-						{@const expanded = expandedAdSetRows.has(rowKey)}
-						<tr class="border-t border-white/[0.04]">
-							<td class="py-2 text-center">
-								{#if c.ads.length > 0}
-									<button
-										onclick={() => toggleAdSetRow(rowKey)}
-										title="{c.ads.length} ad{c.ads.length === 1 ? '' : 's'} — {expanded
-											? 'collapse'
-											: 'show the ad-level breakdown'}"
-										class="text-slate-500 transition-colors hover:text-slate-200"
-										>{expanded ? '▾' : '▸'}</button
-									>
-								{/if}
-							</td>
-							<td class="py-2 text-slate-400">{c.campaignName ?? '—'}</td>
-							<td class="py-2 text-slate-200"
-								>{c.campaign}
-								{#if c.paidButNoTraffic && c.networkClicks >= ads.paidNoTrafficMinClicks}
-									<!-- Said on the row, not left to be inferred from a line of
-									     zeros: this one is being billed for clicks that never
-									     arrive, which reads as "quiet" without the badge. Gated on
-									     the same threshold as the anomaly, so a single click with no
-									     view does not get a red badge it has not earned. -->
-									<span
-										class="ml-1.5 whitespace-nowrap rounded bg-rose-500/15 px-2 py-0.5 text-[12px] text-rose-300"
-										title="{c.networkClicks} clicks charged for, zero landing page views — check where this ad set points"
-										>no arrivals</span
-									>
-								{:else if c.deliveringNow === false}
-									<!-- The network's OWN status, not a guess from activity — this row
-									     may still show real spend and impressions from before it was
-									     paused. Kept visually distinct from "idle" below: this ad set
-									     ran, it was simply turned off, which is a different fact from
-									     "nothing ever happened here". -->
-									<span
-										class="ml-1.5 whitespace-nowrap rounded bg-white/[0.06] px-2 py-0.5 text-[12px] text-slate-500"
-										title="Paused on the network as of the last sync — may still show spend and impressions from before it was paused"
-										>paused</span
-									>
-								{:else if !c.delivering}
-									<span
-										class="ml-1.5 whitespace-nowrap rounded bg-white/[0.06] px-2 py-0.5 text-[12px] text-slate-500"
-										title="Nothing served, nothing charged, nobody arrived in this range"
-										>idle</span
-									>
-								{/if}
-								{#if !c.adSetId}
-									<!-- Two rows can share a label and still be different keys: one
-									     carries an ad set id, the other never had a utm_term. They are
-									     not merged, because only spend can confirm an id — so the
-									     difference is shown instead of looking like a duplicate. -->
-									<span
-										class="ml-1.5 whitespace-nowrap rounded bg-white/[0.06] px-2 py-0.5 text-[12px] text-slate-500"
-										title="No ad set id on these rows, so they cannot be keyed to an ad set or joined to spend"
-										>no ad set id</span
-									>
-								{/if}
-							</td>
-							<!-- A literal zero stays dim so a row of zeros does not compete with
-							     the rows that actually have data. -->
-							<td class="text-right tabular-nums text-slate-200"
-								>{c.spend ? fmtMoney(c.spend) : '—'}</td
-							>
-							<td class="text-right tabular-nums text-slate-200">{c.impressions || '—'}</td>
-							<td class="text-right tabular-nums {c.views ? 'text-slate-200' : 'text-slate-500'}"
-								>{c.views}</td
-							>
-							<td class="text-right tabular-nums {c.taps ? 'text-slate-200' : 'text-slate-500'}"
-								>{c.taps}</td
-							>
-							<!-- Suppressed rates keep the dimmer treatment: they are deliberately
-							     de-emphasised, and that reads as intentional now the real numbers
-							     beside them are legible. -->
-							<td
-								class="text-right tabular-nums {c.tapRate == null
-									? 'text-slate-500'
-									: 'text-slate-200'}">{fmtRate(c.tapRate, c.views)}</td
-							>
-							<td class="text-right tabular-nums {c.signups ? 'text-slate-200' : 'text-slate-500'}"
-								>{c.signups}</td
-							>
-							<td class="text-right tabular-nums text-slate-200"
-								>{c.costPerSignup ? fmtMoney(c.costPerSignup) : '—'}</td
-							>
-						</tr>
-						{#if expanded}
-							{#each c.ads as ad}
-								<!-- The ad (creative) row — one level below the ad set. Signups and
-								     cost/signup stay blank rather than 0 or a computed number: neither
-								     is tracked at this grain, and a number here would look measured
-								     rather than simply absent. -->
-								<tr class="border-t border-white/[0.02] bg-white/[0.015] text-[15px]">
-									<td></td>
-									<td class="py-1.5"></td>
-									<td class="py-1.5 pl-4 text-slate-400">↳ {ad.creativeName ?? ad.creativeId}</td>
-									<td class="text-right tabular-nums text-slate-400"
-										>{ad.spend ? fmtMoney(ad.spend) : '—'}</td
-									>
-									<td class="text-right tabular-nums text-slate-400">{ad.impressions || '—'}</td>
-									<td class="text-right tabular-nums {ad.views ? 'text-slate-400' : 'text-slate-600'}"
-										>{ad.views}</td
-									>
-									<td class="text-right tabular-nums {ad.taps ? 'text-slate-400' : 'text-slate-600'}"
-										>{ad.taps}</td
-									>
-									<td
-										class="text-right tabular-nums {ad.tapRate == null
-											? 'text-slate-600'
-											: 'text-slate-400'}">{fmtRate(ad.tapRate, ad.views)}</td
-									>
-									<td class="text-right text-slate-600">—</td>
-									<td class="text-right text-slate-600">—</td>
-								</tr>
-							{/each}
-						{/if}
-					{:else}
-						<!-- Distinguishes "the filter hid everything" from "there is nothing
-						     here", which look identical as an empty table. -->
-						<tr
-							><td colspan="10" class="py-6 text-center text-slate-600"
-								>{adsDelivery === 'all'
-									? 'No ad set data in this window.'
-									: `No ad set is ${adsDelivery === 'delivering' ? 'delivering' : 'idle'} in this window.`}</td
-							></tr
-						>
-					{/each}
-				</tbody>
-			</table>
-			<p class="mt-3 text-[14px] text-slate-600">
-				Rates are withheld below {ads.minSample} observations and shown as the raw count instead — at
-				current volumes most per-campaign differences are noise, and a percentage off a handful of
-				visitors invites a decision the data cannot support.
-			</p>
-		</div>
-
-		<!-- /aibestie conversation depth -->
-		<div class="grid gap-4 lg:grid-cols-2">
-			<div class="card">
-				<div class="chart-title">/aibestie funnel</div>
-				<table class="w-full text-[15px]">
-					<tbody>
-						{#each [['Opened the page', ads.lpFunnel.opened], ['Sent a message', ads.lpFunnel.spoke], ['Reached 3+ turns', ads.lpFunnel.reached3Turns], ['Tapped the store CTA', ads.lpFunnel.tappedCta], ['Claimed after install', ads.lpFunnel.claimed]] as [label, n]}
-							<tr class="border-t border-white/[0.04]">
-								<td class="py-1.5 text-slate-300">{label}</td>
-								<td class="text-right font-semibold text-white">{n}</td>
-								<td class="w-24 text-right text-slate-500"
-									>{ads.lpFunnel.opened ? `${Math.round((Number(n) / ads.lpFunnel.opened) * 100)}%` : '—'}</td
-								>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-				<p class="mt-3 text-[14px] leading-relaxed text-slate-600">
-					This page's mid-funnel metric is conversation depth, not clicks. Note the CTA-seen step is
-					missing: <code class="text-slate-500">cta_shown_at</code> is declared in the schema and never
-					written, so "tapped" cannot yet be divided by "was shown".
-				</p>
-			</div>
-			<div class="card">
-				<div class="chart-title">Turns before drop-off</div>
-				<div class="chart-box"><canvas id="adsTurns"></canvas></div>
-			</div>
-		</div>
 	{/if}
 	</div>
 {/if}
