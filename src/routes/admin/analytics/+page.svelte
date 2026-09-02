@@ -4,14 +4,20 @@
 	import IstDateRangePicker from '$lib/components/IstDateRangePicker.svelte';
 	import {
 		GRANULARITIES,
+		MONTHS_LONG,
+		addDays,
 		autoGranularity,
 		bucketCount,
+		dayOfWeek,
 		formatBucket,
 		formatBucketLong,
 		formatIstDay,
+		formatIstRange,
 		granularityAllowed,
 		istPresetRange,
 		istToday,
+		monthOf,
+		yearOf,
 		type Granularity
 	} from '$lib/ist-dates';
 
@@ -465,59 +471,6 @@
 	});
 
 
-	/**
-	 * Anomalies arrive as plain strings from the server — see ad-analytics.ts.
-	 * Classified here, client-side, against the handful of fixed templates that
-	 * file actually emits, so a dismiss survives an in-page Refresh (the numbers
-	 * inside a message change every fetch; the ISSUE it names does not) while a
-	 * real reload of the page clears the dismiss set and brings everything back.
-	 *
-	 * Severity governs sort order and which few show by default — six warning
-	 * banners stacked above the charts is the thing being fixed here, not the
-	 * anomalies themselves.
-	 */
-	const ANOMALY_RULES: Array<{ test: RegExp; severity: 0 | 1 | 2; key: (m: RegExpMatchArray) => string }> = [
-		{ test: /^Landing page views down/, severity: 0, key: () => 'decline' },
-		{ test: /^Every Snap conversion forward failed/, severity: 0, key: () => 'snap-capi' },
-		{ test: /^Every Meta conversion forward failed/, severity: 0, key: () => 'meta-capi' },
-		{
-			test: /^(.+?): \d+ clicks charged for and zero landing page views/,
-			severity: 0,
-			key: (m) => `spend-leak:${m[1]}`
-		},
-		{ test: /^Spend in a currency with no/, severity: 1, key: () => 'fx-missing' },
-		{ test: /^(.+?): \d+ store taps and zero attributed signups\./, severity: 1, key: (m) => `zero-signup:${m[1]}` },
-		{ test: /arrived in the single minute/, severity: 2, key: () => 'burst' }
-	];
-	function classifyAnomaly(note: string): { key: string; severity: 0 | 1 | 2 } {
-		for (const rule of ANOMALY_RULES) {
-			const m = note.match(rule.test);
-			if (m) return { key: rule.key(m), severity: rule.severity };
-		}
-		return { key: note, severity: 1 };
-	}
-
-	/** In-memory only — a fresh page load is what brings a dismissed anomaly back. */
-	let dismissedAnomalies = $state(new Set<string>());
-	/** How many surface before the reader has to ask for more. */
-	const ANOMALIES_SHOWN_BY_DEFAULT = 3;
-	let anomaliesExpanded = $state(false);
-
-	const adsAnomalies = $derived.by(() => {
-		const notes = (ads?.anomalies ?? []) as string[];
-		return notes
-			.map((note) => ({ note, ...classifyAnomaly(note) }))
-			.filter((a) => !dismissedAnomalies.has(a.key))
-			.sort((a, b) => a.severity - b.severity);
-	});
-	const adsAnomaliesVisible = $derived(
-		anomaliesExpanded ? adsAnomalies : adsAnomalies.slice(0, ANOMALIES_SHOWN_BY_DEFAULT)
-	);
-	const adsAnomaliesHiddenCount = $derived(Math.max(0, adsAnomalies.length - adsAnomaliesVisible.length));
-
-	function dismissAnomaly(key: string) {
-		dismissedAnomalies = new Set(dismissedAnomalies).add(key);
-	}
 
 	const NETWORK_CHIPS = [
 		{ id: 'all', label: 'All' },
@@ -640,18 +593,7 @@
 	type GeoCell = { views: number; taps: number };
 	type DemoBucket = { bucket: string; spend: number; impressions: number; clicks: number };
 
-	// ── Snap leads by ad, as a campaign > ad set > ad tree ────────────────────
-	// The server returns one flat row per date + campaign + ad set + ad (see
-	// lead-gender.ts); date is rolled up and dropped here rather than sent to
-	// the client as a fourth nesting level — the table above this one already
-	// covers "leads by date", so campaign/ad-set/ad drill-down is this table's
-	// whole job, and a date on top of that would need one more click per ad to
-	// see anything.
 	type GenderTotals = { male: number; female: number; unclear: number; total: number };
-	type SnapAdNode = GenderTotals & { adName: string | null };
-	type SnapAdSetNode = GenderTotals & { adSetId: string | null; adSetName: string | null; ads: SnapAdNode[] };
-	type SnapCampaignNode = GenderTotals & { campaignId: string | null; adSets: SnapAdSetNode[] };
-
 	function addTotals(into: GenderTotals, from: GenderTotals) {
 		into.male += from.male;
 		into.female += from.female;
@@ -661,6 +603,59 @@
 	function zeroTotals(): GenderTotals {
 		return { male: 0, female: 0, unclear: 0, total: 0 };
 	}
+
+	// ── Leads-by-date table: zoom between day, week and month ─────────────────
+	// The server always returns daily rows (see lead-gender.ts); coarser
+	// buckets are rolled up here rather than re-fetched, since it's the same
+	// data either way and there's no reason to round-trip for a client-side
+	// sum. Sunday-start week, to match the calendar picker elsewhere on this
+	// page.
+	let leadGenderGranularity = $state<'day' | 'week' | 'month'>('day');
+
+	function leadBucketStart(day: string, g: 'day' | 'week' | 'month'): string {
+		if (g === 'day') return day;
+		if (g === 'week') return addDays(day, -dayOfWeek(day));
+		return `${day.slice(0, 7)}-01`;
+	}
+	function leadBucketLabel(bucketStart: string, g: 'day' | 'week' | 'month'): string {
+		if (g === 'day') return formatIstDay(bucketStart);
+		if (g === 'week') return formatIstRange(bucketStart, addDays(bucketStart, 6));
+		return `${MONTHS_LONG[monthOf(bucketStart)]} ${yearOf(bucketStart)}`;
+	}
+
+	type LeadGenderRow = GenderTotals & { key: string; bucketStart: string; label: string; source: string };
+
+	const leadGenderRows = $derived.by((): LeadGenderRow[] => {
+		const rows = (ads?.leadGender?.byDate ?? []) as any[];
+		const g = leadGenderGranularity;
+		const map = new Map<string, LeadGenderRow>();
+		for (const r of rows) {
+			const bucketStart = leadBucketStart(r.date, g);
+			const key = `${bucketStart}|${r.source}`;
+			let cell = map.get(key);
+			if (!cell) {
+				cell = { key, bucketStart, label: '', source: r.source, ...zeroTotals() };
+				map.set(key, cell);
+			}
+			addTotals(cell, r);
+		}
+		const out = [...map.values()];
+		for (const c of out) c.label = leadBucketLabel(c.bucketStart, g);
+		return out.sort((a, b) =>
+			a.bucketStart === b.bucketStart ? a.source.localeCompare(b.source) : a.bucketStart < b.bucketStart ? 1 : -1
+		);
+	});
+
+	// ── Snap leads by ad, as a campaign > ad set > ad tree ────────────────────
+	// The server returns one flat row per date + campaign + ad set + ad (see
+	// lead-gender.ts); date is rolled up and dropped here rather than sent to
+	// the client as a fourth nesting level — the table above this one already
+	// covers "leads by date", so campaign/ad-set/ad drill-down is this table's
+	// whole job, and a date on top of that would need one more click per ad to
+	// see anything.
+	type SnapAdNode = GenderTotals & { adName: string | null };
+	type SnapAdSetNode = GenderTotals & { adSetId: string | null; adSetName: string | null; ads: SnapAdNode[] };
+	type SnapCampaignNode = GenderTotals & { campaignId: string | null; adSets: SnapAdSetNode[] };
 
 	const snapAdTree = $derived.by((): SnapCampaignNode[] => {
 		const rows = (ads?.leadGender?.snapByAd ?? []) as any[];
@@ -1489,40 +1484,6 @@
 					: ''}.
 			</div>
 		{/if}
-		<!-- Anomalies. Deliberately above every chart: on a day when something is
-		     broken, this is the only thing on the page worth reading. Capped and
-		     dismissible so that "something is broken" does not itself become the
-		     thing crowding the rest of the page out — see classifyAnomaly above. -->
-		{#if adsAnomalies.length}
-			<div class="mb-6 space-y-2">
-				{#each adsAnomaliesVisible as a (a.key)}
-					<div
-						class="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[15px] text-amber-300"
-					>
-						<span class="flex-1">⚠ {a.note}</span>
-						<button
-							onclick={() => dismissAnomaly(a.key)}
-							title="Dismiss — reappears next time this dashboard is opened"
-							class="shrink-0 rounded px-1.5 text-amber-300/60 transition-colors hover:bg-amber-500/10 hover:text-amber-200"
-							>✕</button
-						>
-					</div>
-				{/each}
-				{#if adsAnomaliesHiddenCount > 0}
-					<button
-						onclick={() => (anomaliesExpanded = true)}
-						class="text-[14px] text-amber-300/70 transition-colors hover:text-amber-200"
-						>Show {adsAnomaliesHiddenCount} more issue{adsAnomaliesHiddenCount === 1 ? '' : 's'}</button
-					>
-				{:else if anomaliesExpanded && adsAnomalies.length > ANOMALIES_SHOWN_BY_DEFAULT}
-					<button
-						onclick={() => (anomaliesExpanded = false)}
-						class="text-[14px] text-amber-300/70 transition-colors hover:text-amber-200">Show fewer</button
-					>
-				{/if}
-			</div>
-		{/if}
-
 		<!-- Trends -->
 		<div class="card mb-6">
 			<div class="chart-title">Views, store taps and signups — per {adsGranularityLabel}</div>
@@ -1557,7 +1518,19 @@
 		     stored fact, and never presented as measured. Names the dictionary does
 		     not recognise land in Unclear rather than being guessed. -->
 		<div class="card mb-6 overflow-x-auto">
-			<div class="chart-title">Leads by date · source · inferred gender</div>
+			<div class="mb-1 flex flex-wrap items-center justify-between gap-3">
+				<div class="chart-title mb-0">Leads by date · source · inferred gender</div>
+				<div class="flex overflow-hidden rounded-lg border border-white/[0.08] text-[14px]">
+					{#each [{ id: 'day', label: 'Day' }, { id: 'week', label: 'Week' }, { id: 'month', label: 'Month' }] as g}
+						<button
+							onclick={() => (leadGenderGranularity = g.id as typeof leadGenderGranularity)}
+							class="px-3 py-1 transition-colors {leadGenderGranularity === g.id
+								? 'bg-emerald-500/20 text-emerald-400'
+								: 'text-slate-400 hover:text-slate-200'}">{g.label}</button
+						>
+					{/each}
+				</div>
+			</div>
 			<p class="mb-3 text-[14px] text-slate-600">
 				Snap and meta lead-form submissions only (landing-page leads excluded). Gender is inferred
 				from first name against a small name dictionary — anything it doesn't recognise is
@@ -1566,7 +1539,7 @@
 			<table class="w-full min-w-[40rem] text-[15px]">
 				<thead class="text-slate-500">
 					<tr>
-						<th class="py-1 text-left">Date</th>
+						<th class="py-1 text-left">{leadGenderGranularity === 'day' ? 'Date' : leadGenderGranularity === 'week' ? 'Week' : 'Month'}</th>
 						<th class="py-1 text-left">Source</th>
 						<th class="text-right">Male</th>
 						<th class="text-right">Female</th>
@@ -1575,9 +1548,9 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each ads.leadGender?.byDate ?? [] as row}
+					{#each leadGenderRows as row}
 						<tr class="border-t border-white/[0.04]">
-							<td class="py-1.5 text-slate-300">{formatIstDay(row.date)}</td>
+							<td class="py-1.5 text-slate-300">{row.label}</td>
 							<td class="py-1.5 text-slate-400 capitalize">{row.source === 'snap_lead_form' ? 'Snap' : 'Meta'}</td>
 							<td class="text-right tabular-nums text-slate-200">{row.male}</td>
 							<td class="text-right tabular-nums text-slate-200">{row.female}</td>
