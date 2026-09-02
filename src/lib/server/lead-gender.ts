@@ -101,6 +101,10 @@ export interface LeadDetail {
 	phone: string | null;
 	gender: InferredGender;
 	location: string | null;
+	/** Populated for Snap rows only — see LeadGenderByAd's own note. */
+	campaignId: string | null;
+	adSetId: string | null;
+	adName: string | null;
 }
 
 export interface LeadGenderReport {
@@ -168,7 +172,10 @@ export async function buildLeadGenderReport(opts: { start: string; end: string }
 			email: r.email ?? null,
 			phone: r.whatsapp_e164 ?? null,
 			gender: g,
-			location: [r.city, r.region, r.country].filter(Boolean).join(', ') || null
+			location: [r.city, r.region, r.country].filter(Boolean).join(', ') || null,
+			campaignId: r.source === 'snap_lead_form' ? (r.ad_campaign_id ?? null) : null,
+			adSetId: r.source === 'snap_lead_form' ? (r.ad_group_id ?? null) : null,
+			adName: r.source === 'snap_lead_form' ? (r.ad_name ?? null) : null
 		});
 
 		if (r.source !== 'snap_lead_form') continue;

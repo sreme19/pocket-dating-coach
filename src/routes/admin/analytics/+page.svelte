@@ -661,13 +661,19 @@
 		);
 	});
 
-	// ── Lead detail drill-down: click a leads-by-date row to see who's in it ──
-	let leadDetailRow = $state<LeadGenderRow | null>(null);
+	// ── Lead detail drill-down: click a row on either lead table to see who's
+	// in it. Generic on purpose — the leads-by-date table filters by
+	// source+date-range, the Snap ad tree filters by source+campaign(+ad
+	// set)(+ad), and both just hand this a title and a predicate. -->
+	type LeadDetailQuery = { title: string; predicate: (l: any) => boolean };
+	let leadDetailQuery = $state<LeadDetailQuery | null>(null);
+	function openLeadDetail(title: string, predicate: (l: any) => boolean) {
+		leadDetailQuery = { title, predicate };
+	}
 	const leadDetailList = $derived.by(() => {
-		if (!leadDetailRow) return [];
-		const r = leadDetailRow;
+		if (!leadDetailQuery) return [];
 		return ((ads?.leadGender?.leads ?? []) as any[])
-			.filter((l) => l.source === r.source && l.date >= r.bucketStart && l.date <= r.bucketEnd)
+			.filter(leadDetailQuery.predicate)
 			.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 	});
 
@@ -1575,7 +1581,11 @@
 				<tbody>
 					{#each leadGenderRows as row}
 						<tr
-							onclick={() => (leadDetailRow = row)}
+							onclick={() =>
+								openLeadDetail(
+									`${row.label} · ${row.source === 'snap_lead_form' ? 'Snap' : 'Meta'}`,
+									(l) => l.source === row.source && l.date >= row.bucketStart && l.date <= row.bucketEnd
+								)}
 							class="cursor-pointer border-t border-white/[0.04] transition-colors hover:bg-white/[0.03]"
 							title="Click to see who's in this row"
 						>
@@ -1622,14 +1632,22 @@
 					{#each snapAdTree as c}
 						{@const cKey = c.campaignId ?? ''}
 						{@const cOpen = expandedSnapCampaigns.has(cKey)}
-						<tr class="border-t border-white/[0.04]">
+						{@const cLabel = c.campaignId ?? '(no campaign id)'}
+						<tr
+							onclick={() => openLeadDetail(cLabel, (l) => l.source === 'snap_lead_form' && (l.campaignId ?? '') === cKey)}
+							class="cursor-pointer border-t border-white/[0.04] transition-colors hover:bg-white/[0.03]"
+							title="Click to see who's in this campaign"
+						>
 							<td class="py-1.5">
 								<button
-									onclick={() => (expandedSnapCampaigns = toggleSet(expandedSnapCampaigns, cKey))}
+									onclick={(e) => {
+										e.stopPropagation();
+										expandedSnapCampaigns = toggleSet(expandedSnapCampaigns, cKey);
+									}}
 									class="flex items-center gap-1.5 text-slate-300 transition-colors hover:text-slate-100"
 								>
 									<span class="text-slate-500">{cOpen ? '▾' : '▸'}</span>
-									<span class="font-mono text-[13px]">{c.campaignId ?? '(no campaign id)'}</span>
+									<span class="font-mono text-[13px]">{cLabel}</span>
 									<span class="text-slate-600">· {c.adSets.length} ad set{c.adSets.length === 1 ? '' : 's'}</span>
 								</button>
 							</td>
@@ -1642,10 +1660,25 @@
 							{#each c.adSets as s}
 								{@const sKey = `${cKey}::${s.adSetId ?? ''}`}
 								{@const sOpen = expandedSnapAdSets.has(sKey)}
-								<tr class="border-t border-white/[0.02] bg-white/[0.015]">
+								{@const sLabel = `${cLabel} · ${s.adSetName ?? s.adSetId ?? '(no ad set id)'}`}
+								<tr
+									onclick={() =>
+										openLeadDetail(
+											sLabel,
+											(l) =>
+												l.source === 'snap_lead_form' &&
+												(l.campaignId ?? '') === cKey &&
+												(l.adSetId ?? '') === (s.adSetId ?? '')
+										)}
+									class="cursor-pointer border-t border-white/[0.02] bg-white/[0.015] transition-colors hover:bg-white/[0.035]"
+									title="Click to see who's in this ad set"
+								>
 									<td class="py-1.5 pl-6">
 										<button
-											onclick={() => (expandedSnapAdSets = toggleSet(expandedSnapAdSets, sKey))}
+											onclick={(e) => {
+												e.stopPropagation();
+												expandedSnapAdSets = toggleSet(expandedSnapAdSets, sKey);
+											}}
 											class="flex items-center gap-1.5 text-slate-400 transition-colors hover:text-slate-200"
 										>
 											<span class="text-slate-600">{sOpen ? '▾' : '▸'}</span>
@@ -1660,7 +1693,19 @@
 								</tr>
 								{#if sOpen}
 									{#each s.ads as a}
-										<tr class="border-t border-white/[0.02] bg-white/[0.03]">
+										<tr
+											onclick={() =>
+												openLeadDetail(
+													`${sLabel} · ${a.adName ?? '(no ad name)'}`,
+													(l) =>
+														l.source === 'snap_lead_form' &&
+														(l.campaignId ?? '') === cKey &&
+														(l.adSetId ?? '') === (s.adSetId ?? '') &&
+														(l.adName ?? '') === (a.adName ?? '')
+												)}
+											class="cursor-pointer border-t border-white/[0.02] bg-white/[0.03] transition-colors hover:bg-white/[0.05]"
+											title="Click to see who's in this ad"
+										>
 											<td class="py-1.5 pl-12 text-slate-400">↳ {a.adName ?? '(no ad name)'}</td>
 											<td class="text-right tabular-nums text-slate-400">{a.male}</td>
 											<td class="text-right tabular-nums text-slate-400">{a.female}</td>
@@ -1821,9 +1866,9 @@
 	</div>
 {/if}
 
-{#if leadDetailRow}
+{#if leadDetailQuery}
 	<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onclick={() => (leadDetailRow = null)}>
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onclick={() => (leadDetailQuery = null)}>
 		<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 		<div
 			class="max-h-[80vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-white/[0.08] bg-[#0d1522] p-6 shadow-2xl"
@@ -1831,16 +1876,14 @@
 		>
 			<div class="mb-1 flex items-start justify-between gap-4">
 				<div>
-					<h3 class="text-lg font-bold text-white">
-						{leadDetailRow.label} · {leadDetailRow.source === 'snap_lead_form' ? 'Snap' : 'Meta'}
-					</h3>
+					<h3 class="text-lg font-bold text-white">{leadDetailQuery.title}</h3>
 					<p class="mt-0.5 text-[13px] text-slate-500">
 						{leadDetailList.length} lead{leadDetailList.length === 1 ? '' : 's'}. Gender is inferred, same
 						caveat as the table.
 					</p>
 				</div>
 				<button
-					onclick={() => (leadDetailRow = null)}
+					onclick={() => (leadDetailQuery = null)}
 					class="shrink-0 rounded px-2 py-1 text-slate-500 transition-colors hover:bg-white/[0.06] hover:text-slate-200"
 					>✕</button
 				>
