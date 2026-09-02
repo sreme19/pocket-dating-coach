@@ -88,9 +88,25 @@ export type LeadGenderByAd = GenderCell & {
 	adName: string | null;
 };
 
+/**
+ * One row per lead, for the drill-down the dashboard opens when a pivot cell
+ * is clicked. Same admin-gated trust boundary as the Users table on this same
+ * page, which already lists member emails — this is not a new exposure.
+ */
+export interface LeadDetail {
+	date: string;
+	source: 'snap_lead_form' | 'meta_lead_form';
+	name: string | null;
+	email: string | null;
+	phone: string | null;
+	gender: InferredGender;
+	location: string | null;
+}
+
 export interface LeadGenderReport {
 	byDate: LeadGenderByDate[];
 	snapByAd: LeadGenderByAd[];
+	leads: LeadDetail[];
 	error?: string;
 }
 
@@ -114,14 +130,16 @@ export async function buildLeadGenderReport(opts: { start: string; end: string }
 
 	const { data, error } = await supabase
 		.from('marketing_leads')
-		.select('source, first_name, submitted_at, ad_campaign_id, ad_group_id, ad_group_name, ad_name')
+		.select(
+			'source, first_name, last_name, email, whatsapp_e164, city, region, country, submitted_at, ad_campaign_id, ad_group_id, ad_group_name, ad_name'
+		)
 		.in('source', AD_LEAD_SOURCES as unknown as string[])
 		.gte('submitted_at', fromIso)
 		.lte('submitted_at', toIso);
 
 	if (error) {
 		console.warn('[lead-gender] marketing_leads unreadable —', error.message);
-		return { byDate: [], snapByAd: [], error: error.message };
+		return { byDate: [], snapByAd: [], leads: [], error: error.message };
 	}
 
 	const rows = ((data ?? []) as any[]).filter((r) => {
@@ -132,6 +150,7 @@ export async function buildLeadGenderReport(opts: { start: string; end: string }
 
 	const byDateMap = new Map<string, LeadGenderByDate>();
 	const snapByAdMap = new Map<string, LeadGenderByAd>();
+	const leads: LeadDetail[] = [];
 
 	for (const r of rows) {
 		const date = istDay(r.submitted_at);
@@ -141,6 +160,16 @@ export async function buildLeadGenderReport(opts: { start: string; end: string }
 		const dateCell = byDateMap.get(dateKey) ?? { date, source: r.source, ...emptyCell() };
 		bump(dateCell, g);
 		byDateMap.set(dateKey, dateCell);
+
+		leads.push({
+			date,
+			source: r.source,
+			name: [r.first_name, r.last_name].filter(Boolean).join(' ') || null,
+			email: r.email ?? null,
+			phone: r.whatsapp_e164 ?? null,
+			gender: g,
+			location: [r.city, r.region, r.country].filter(Boolean).join(', ') || null
+		});
 
 		if (r.source !== 'snap_lead_form') continue;
 		const campaignId = r.ad_campaign_id ?? null;
@@ -168,5 +197,5 @@ export async function buildLeadGenderReport(opts: { start: string; end: string }
 		a.date === b.date ? b.total - a.total : a.date < b.date ? 1 : -1
 	);
 
-	return { byDate, snapByAd };
+	return { byDate, snapByAd, leads };
 }

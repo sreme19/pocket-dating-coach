@@ -9,6 +9,7 @@
 		autoGranularity,
 		bucketCount,
 		dayOfWeek,
+		firstOfMonth,
 		formatBucket,
 		formatBucketLong,
 		formatIstDay,
@@ -17,6 +18,7 @@
 		istPresetRange,
 		istToday,
 		monthOf,
+		shiftMonth,
 		yearOf,
 		type Granularity
 	} from '$lib/ist-dates';
@@ -617,13 +619,26 @@
 		if (g === 'week') return addDays(day, -dayOfWeek(day));
 		return `${day.slice(0, 7)}-01`;
 	}
+	/** Inclusive end of the bucket — the drill-down filters on [start, end]. */
+	function leadBucketEnd(bucketStart: string, g: 'day' | 'week' | 'month'): string {
+		if (g === 'day') return bucketStart;
+		if (g === 'week') return addDays(bucketStart, 6);
+		const { year, month } = shiftMonth(yearOf(bucketStart), monthOf(bucketStart), 1);
+		return addDays(firstOfMonth(year, month), -1);
+	}
 	function leadBucketLabel(bucketStart: string, g: 'day' | 'week' | 'month'): string {
 		if (g === 'day') return formatIstDay(bucketStart);
 		if (g === 'week') return formatIstRange(bucketStart, addDays(bucketStart, 6));
 		return `${MONTHS_LONG[monthOf(bucketStart)]} ${yearOf(bucketStart)}`;
 	}
 
-	type LeadGenderRow = GenderTotals & { key: string; bucketStart: string; label: string; source: string };
+	type LeadGenderRow = GenderTotals & {
+		key: string;
+		bucketStart: string;
+		bucketEnd: string;
+		label: string;
+		source: string;
+	};
 
 	const leadGenderRows = $derived.by((): LeadGenderRow[] => {
 		const rows = (ads?.leadGender?.byDate ?? []) as any[];
@@ -634,7 +649,7 @@
 			const key = `${bucketStart}|${r.source}`;
 			let cell = map.get(key);
 			if (!cell) {
-				cell = { key, bucketStart, label: '', source: r.source, ...zeroTotals() };
+				cell = { key, bucketStart, bucketEnd: leadBucketEnd(bucketStart, g), label: '', source: r.source, ...zeroTotals() };
 				map.set(key, cell);
 			}
 			addTotals(cell, r);
@@ -644,6 +659,16 @@
 		return out.sort((a, b) =>
 			a.bucketStart === b.bucketStart ? a.source.localeCompare(b.source) : a.bucketStart < b.bucketStart ? 1 : -1
 		);
+	});
+
+	// ── Lead detail drill-down: click a leads-by-date row to see who's in it ──
+	let leadDetailRow = $state<LeadGenderRow | null>(null);
+	const leadDetailList = $derived.by(() => {
+		if (!leadDetailRow) return [];
+		const r = leadDetailRow;
+		return ((ads?.leadGender?.leads ?? []) as any[])
+			.filter((l) => l.source === r.source && l.date >= r.bucketStart && l.date <= r.bucketEnd)
+			.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 	});
 
 	// ── Snap leads by ad, as a campaign > ad set > ad tree ────────────────────
@@ -1549,7 +1574,11 @@
 				</thead>
 				<tbody>
 					{#each leadGenderRows as row}
-						<tr class="border-t border-white/[0.04]">
+						<tr
+							onclick={() => (leadDetailRow = row)}
+							class="cursor-pointer border-t border-white/[0.04] transition-colors hover:bg-white/[0.03]"
+							title="Click to see who's in this row"
+						>
 							<td class="py-1.5 text-slate-300">{row.label}</td>
 							<td class="py-1.5 text-slate-400 capitalize">{row.source === 'snap_lead_form' ? 'Snap' : 'Meta'}</td>
 							<td class="text-right tabular-nums text-slate-200">{row.male}</td>
@@ -1789,6 +1818,62 @@
 		</div>
 
 	{/if}
+	</div>
+{/if}
+
+{#if leadDetailRow}
+	<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onclick={() => (leadDetailRow = null)}>
+		<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+		<div
+			class="max-h-[80vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-white/[0.08] bg-[#0d1522] p-6 shadow-2xl"
+			onclick={(e) => e.stopPropagation()}
+		>
+			<div class="mb-1 flex items-start justify-between gap-4">
+				<div>
+					<h3 class="text-lg font-bold text-white">
+						{leadDetailRow.label} · {leadDetailRow.source === 'snap_lead_form' ? 'Snap' : 'Meta'}
+					</h3>
+					<p class="mt-0.5 text-[13px] text-slate-500">
+						{leadDetailList.length} lead{leadDetailList.length === 1 ? '' : 's'}. Gender is inferred, same
+						caveat as the table.
+					</p>
+				</div>
+				<button
+					onclick={() => (leadDetailRow = null)}
+					class="shrink-0 rounded px-2 py-1 text-slate-500 transition-colors hover:bg-white/[0.06] hover:text-slate-200"
+					>✕</button
+				>
+			</div>
+			<div class="mt-4 overflow-x-auto">
+				<table class="w-full min-w-[44rem] text-[15px]">
+					<thead class="text-slate-500">
+						<tr>
+							<th class="py-1 text-left">Name</th>
+							<th class="py-1 text-left">Email</th>
+							<th class="py-1 text-left">Phone</th>
+							<th class="py-1 text-left">Source</th>
+							<th class="py-1 text-left">Gender</th>
+							<th class="py-1 text-left">Location</th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each leadDetailList as lead}
+							<tr class="border-t border-white/[0.04]">
+								<td class="py-1.5 text-slate-200">{lead.name ?? '—'}</td>
+								<td class="py-1.5 text-slate-400">{lead.email ?? '—'}</td>
+								<td class="py-1.5 text-slate-400">{lead.phone ?? '—'}</td>
+								<td class="py-1.5 text-slate-400 capitalize">{lead.source === 'snap_lead_form' ? 'Snap' : 'Meta'}</td>
+								<td class="py-1.5 text-slate-400 capitalize">{lead.gender}</td>
+								<td class="py-1.5 text-slate-400">{lead.location ?? 'not captured'}</td>
+							</tr>
+						{:else}
+							<tr><td colspan="6" class="py-6 text-center text-slate-600">No leads matched.</td></tr>
+						{/each}
+					</tbody>
+				</table>
+			</div>
+		</div>
 	</div>
 {/if}
 
