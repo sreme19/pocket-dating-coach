@@ -8,6 +8,7 @@ import 'package:http_parser/http_parser.dart' show MediaType;
 import 'package:supabase_flutter/supabase_flutter.dart' hide MultipartFile;
 import 'app_logger.dart';
 import 'config.dart';
+import 'error_text.dart';
 
 /// The user's profile, assembled from the same two sources the web app uses:
 ///  1. `verified_vibe_users` row (identity, avatar_url, trust) — direct Supabase.
@@ -1522,7 +1523,7 @@ Future<Map> uploadProof(String category, List<String> filePaths,
       ),
     );
   } on DioException {
-    throw Exception('Connection error — please check your internet and try again.');
+    throw Exception(kConnectionErrorMessage);
   }
   final body = resp.data is Map ? resp.data as Map : const {};
   if ((resp.statusCode ?? 0) >= 400) {
@@ -1558,7 +1559,7 @@ Future<bool> verifyIdStep(String imagePath) async {
       ),
     );
   } on DioException catch (e) {
-    throw Exception('Network error — check your connection and try again.');
+    throw Exception(kNetworkRetryMessage);
   }
   final body = resp.data is Map ? resp.data as Map : const {};
   if (resp.statusCode == 201 || body['status'] == 'completed') return true;
@@ -1590,7 +1591,7 @@ Future<Map<String, dynamic>> verifyIdExtract(String imagePath) async {
       ),
     );
   } on DioException {
-    throw Exception('Network error — check your connection and try again.');
+    throw Exception(kNetworkRetryMessage);
   }
   final body = resp.data is Map ? resp.data as Map : const {};
   if (resp.statusCode != 201 && body['status'] != 'completed') {
@@ -1636,7 +1637,7 @@ Future<bool> verifySelfieVsId(String selfiePath, String idBase64, String idMime)
       ),
     );
   } on DioException {
-    throw Exception('Network error — check your connection and try again.');
+    throw Exception(kNetworkRetryMessage);
   }
   final body = resp.data is Map ? resp.data as Map : const {};
   if (resp.statusCode != 201 && body['status'] != 'completed') {
@@ -1684,7 +1685,7 @@ Future<Map> _uploadProofPost(FormData form) async {
       ),
     );
   } on DioException {
-    throw Exception('Connection error — please check your internet and try again.');
+    throw Exception(kConnectionErrorMessage);
   }
   final body = resp.data is Map ? resp.data as Map : const {};
   if ((resp.statusCode ?? 0) >= 400) {

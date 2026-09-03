@@ -741,8 +741,8 @@ Future<void> _editIdentity(BuildContext context, ProfileData d, VoidCallback onC
             final addr = resp.data['address'] as Map? ?? {};
             final city = (addr['city'] ?? addr['town'] ?? addr['village'] ?? addr['county'] ?? '').toString();
             if (city.isNotEmpty && ctx.mounted) setS(() => cityCtrl.text = city);
-          } catch (_) {
-            AppLogger.instance.error('geocode_location failed', screen: 'profile', action: 'geocode_location');
+          } catch (e, s) {
+            AppLogger.instance.error(e, stack: s, screen: 'profile', action: 'geocode_location');
           } finally {
             if (ctx.mounted) setS(() => detecting = false);
           }
@@ -1283,8 +1283,8 @@ Future<void> _editBrings(BuildContext context, ProfileData d, List<BringsItem> c
                   await saveBrings(updated, d.rawGenerated);
                   if (ctx.mounted) Navigator.of(ctx).pop();
                   onChanged();
-                } catch (_) {
-                  AppLogger.instance.error('save_brings failed', screen: 'profile', action: 'save_brings');
+                } catch (e, s) {
+                  AppLogger.instance.error(e, stack: s, screen: 'profile', action: 'save_brings');
                   setS(() => saving = false);
                 }
               },
@@ -1668,8 +1668,8 @@ Future<void> _editCountries(BuildContext context, ProfileData d, VoidCallback on
                           changed = true;
                           // onChanged() dipanggil setelah sheet tutup supaya
                           // parent setState tidak menutup bottom sheet ini
-                        } catch (_) {
-                          AppLogger.instance.error('save_countries failed', screen: 'profile', action: 'save_countries');
+                        } catch (e, s) {
+                          AppLogger.instance.error(e, stack: s, screen: 'profile', action: 'save_countries');
                           setS(() => countries.insert(0, c));
                         } finally {
                           if (ctx.mounted) setS(() => deletingCountry = null);
@@ -2468,8 +2468,8 @@ class _HeroState extends State<_Hero> {
                   final bytes = base64Decode(url.substring(comma + 1));
                   return Image.memory(bytes, fit: BoxFit.cover,
                       errorBuilder: (c, _, _) => const _PhotoPlaceholder());
-                } catch (_) {
-                  AppLogger.instance.error('decode_photo failed', screen: 'profile', action: 'decode_photo');
+                } catch (e, s) {
+                  AppLogger.instance.error(e, stack: s, screen: 'profile', action: 'decode_photo');
                   return const _PhotoPlaceholder();
                 }
               }

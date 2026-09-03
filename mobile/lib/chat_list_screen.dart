@@ -126,7 +126,21 @@ class _ChatListScreenState extends State<ChatListScreen>
     }
   }
 
-  Future<void> _loadMatchmakerStatus() async {
+  /// Coalesced: ten call sites reach this — initState, the poll tick, every tab
+  /// switch, both realtime subscriptions, the verification return — and nothing
+  /// stopped them overlapping. Duplicate passes each opened their own socket,
+  /// which is how one dead spot on 2026-09-02 produced four simultaneous
+  /// 15-second connect timeouts on this single endpoint. A caller arriving mid
+  /// flight now awaits the pass already running; a dropped tick self-heals on
+  /// the next one, since this only reads a quota counter.
+  Future<void>? _fmStatusInFlight;
+
+  Future<void> _loadMatchmakerStatus() {
+    return _fmStatusInFlight ??= _fetchMatchmakerStatus()
+        .whenComplete(() => _fmStatusInFlight = null);
+  }
+
+  Future<void> _fetchMatchmakerStatus() async {
     try {
       final s = await getMatchmakerStatus();
       if (!mounted) return;
@@ -135,8 +149,8 @@ class _ChatListScreenState extends State<ChatListScreen>
         _fmRunsUsed = s.runsUsed;
         _fmRunsLimit = s.runsLimit;
       });
-    } catch (_) {
-      AppLogger.instance.error('load_matchmaker_status failed', screen: 'chat_list', action: 'load_matchmaker_status');
+    } catch (e, s) {
+      AppLogger.instance.error(e, stack: s, screen: 'chat_list', action: 'load_matchmaker_status');
     }
   }
 
@@ -507,8 +521,8 @@ class _ChatListScreenState extends State<ChatListScreen>
         admirers = results[0] as List<Admirer>;
         sentAdmirers = results[1] as List<SentAdmirer>;
         tipSummary = results[2] as TipSummary;
-      } catch (_) {
-        AppLogger.instance.error('load_secondary_data failed', screen: 'chat_list', action: 'load_secondary_data');
+      } catch (e, s) {
+        AppLogger.instance.error(e, stack: s, screen: 'chat_list', action: 'load_secondary_data');
         /* non-fatal */
       }
       _cachedConversations = convos;
@@ -524,7 +538,7 @@ class _ChatListScreenState extends State<ChatListScreen>
           msg.contains('connection timeout') || msg.contains('receive timeout') ||
           msg.contains('connect timeout') || msg.contains('Network is unreachable') ||
           msg.contains('Connection refused')) {
-        throw Exception('No internet connection. Please check your network and retry.');
+        throw Exception(kNetworkErrorMessage);
       }
       if (msg.contains('timed out') && !msg.contains('401')) {
         throw Exception('Server took too long to respond. Please try again.');
@@ -541,7 +555,35 @@ class _ChatListScreenState extends State<ChatListScreen>
     }
   }
 
-  Future<void> _refresh() async {
+  Future<void>? _refreshInFlight;
+  bool _refreshQueued = false;
+
+  /// Coalesced like [_loadMatchmakerStatus], but with a trailing pass, because
+  /// this one drives what she actually sees: a realtime insert that lands while
+  /// a fetch is in flight must not be dropped, so a mid-flight caller both
+  /// awaits the running pass and books one more after it.
+  ///
+  /// Fifteen call sites reach this, and several fire together — closing a chat
+  /// alone triggers it twice (the screen's `onReturn`, then the push's `.then`).
+  /// Each pass is four requests (conversations, tips, admirers, sent-admirers),
+  /// so four overlapping passes meant sixteen in flight at once: that is the
+  /// burst that timed out together on 2026-09-02.
+  Future<void> _refresh() {
+    if (_refreshInFlight != null) {
+      _refreshQueued = true;
+      return _refreshInFlight!;
+    }
+    final pass = _runRefresh().whenComplete(() {
+      _refreshInFlight = null;
+      final owed = _refreshQueued;
+      _refreshQueued = false;
+      if (owed && mounted) _refresh();
+    });
+    _refreshInFlight = pass;
+    return pass;
+  }
+
+  Future<void> _runRefresh() async {
     if (!mounted) return;
     // Load in background — don't replace _future until data is ready so the
     // existing list stays visible (no loading spinner on every 15s poll).

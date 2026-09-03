@@ -238,8 +238,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
       }
 
       if (mounted) setState(() {});
-    } catch (_) {
-      AppLogger.instance.error('init_camera failed', screen: 'verification', action: 'init_camera');
+    } catch (e, s) {
+      AppLogger.instance.error(e, stack: s, screen: 'verification', action: 'init_camera');
     }
   }
 
@@ -380,8 +380,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
           );
         }
       }
-    } catch (_) {
-      AppLogger.instance.error('capture_id failed', screen: 'verification', action: 'capture_id');
+    } catch (e, s) {
+      AppLogger.instance.error(e, stack: s, screen: 'verification', action: 'capture_id');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Could not detect location. Please type your city manually.')),
@@ -591,8 +591,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
               age: int.tryParse(_ageCtrl.text.trim()),
               city: _cityCtrl.text.trim(),
             );
-          } catch (_) {
-            AppLogger.instance.error('parse_age failed', screen: 'verification', action: 'parse_age');
+          } catch (e, s) {
+            AppLogger.instance.error(e, stack: s, screen: 'verification', action: 'parse_age');
           }
           final photoResult = await verifyStep('photos', {
             'images': imgs,

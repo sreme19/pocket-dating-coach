@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:dio/dio.dart';
 import 'config.dart';
+import 'error_text.dart';
 
 /// Dio interceptor attached to the shared `_dio` in api.dart.
 /// - Logs all successful write operations (POST/PUT/PATCH/DELETE) as 'action'.
@@ -94,7 +95,11 @@ class AppLogger {
   AppLogger._();
   static final AppLogger instance = AppLogger._();
 
-  static const _appVersion = '1.0.5';
+  /// Stamped onto every logged event and every alert email. Kept in step with
+  /// `pubspec.yaml` by a test, because it had already drifted three releases
+  /// behind it: the 2026-09-02 alerts all claimed 1.0.5 while the build in the
+  /// store was 1.0.8, which points triage at the wrong code.
+  static const appVersion = '1.0.8';
 
   /// Stamped onto every event so admin tooling can tell which OS a user is on
   /// even when they declined push permission (no `device_tokens` row to read).
@@ -127,7 +132,16 @@ class AppLogger {
   }
 
   /// Log a client-side error. Writes to DB and sends an email alert
-  /// (subject to a 5-minute cooldown per error type × screen).
+  /// (subject to a 5-minute cooldown per error type × screen × action).
+  ///
+  /// Connectivity failures are the exception: they get the DB row but never the
+  /// email. A phone in a dead spot is not a bug in the app, and the polling
+  /// screens make one dead spot look like an outage — chat_list alone refreshes
+  /// five endpoints a minute, so a single 15-second stall fires an alert per
+  /// endpoint. That is what happened on 2026-09-02: a burst of Dio connect
+  /// timeouts emailed `load_matchmaker_status failed` while every server-side
+  /// GET on either side of the burst returned 200. The interceptor's own row
+  /// (endpoint, elapsed ms, Dio's message) is what actually diagnoses these.
   Future<void> error(
     dynamic err, {
     StackTrace? stack,
@@ -153,8 +167,14 @@ class AppLogger {
       },
     );
 
-    // Rate-limit email alerts: same error type + screen → max 1 email per 5 min
-    final cooldownKey = '$errType:${screen ?? '_'}';
+    // The user's network dropped — recorded above, but nothing to act on.
+    if (err is Object && isConnectivityFailure(err)) return;
+
+    // Rate-limit email alerts: same error type + screen + action → max 1 email
+    // per 5 min. The action belongs in the key: without it every literal-string
+    // error on a screen shared the key `String:chat_list`, so the first one
+    // through silenced all the others for five minutes.
+    final cooldownKey = '$errType:${screen ?? '_'}:${action ?? '_'}';
     final last = _alertCooldown[cooldownKey];
     if (last != null && DateTime.now().difference(last).inMinutes < 5) return;
     _alertCooldown[cooldownKey] = DateTime.now();
@@ -192,7 +212,7 @@ class AppLogger {
           'error_message': errorMessage,
           'error_type':    errorType,
           'metadata':      {'platform': _platform, ...?meta},
-          'app_version':   _appVersion,
+          'app_version':   appVersion,
         });
       } catch (e) {
         if (kDebugMode) debugPrint('[AppLogger] DB write failed: $e');
@@ -228,7 +248,7 @@ class AppLogger {
           'errorType':    errorType,
           'screen':       screen,
           'action':       action,
-          'appVersion':   _appVersion,
+          'appVersion':   appVersion,
           'stack':        stack,
           'meta':         meta,
         },

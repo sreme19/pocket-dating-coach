@@ -178,8 +178,8 @@ class PushService {
   static Future<void> signOutCleanup() async {
     try {
       await FirebaseMessaging.instance.deleteToken();
-    } catch (_) {
-      AppLogger.instance.error('sign_out_cleanup failed', screen: 'push_service', action: 'sign_out_cleanup');
+    } catch (e, s) {
+      AppLogger.instance.error(e, stack: s, screen: 'push_service', action: 'sign_out_cleanup');
       // best-effort
     }
     reset();

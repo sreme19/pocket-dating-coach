@@ -852,8 +852,8 @@ class _TrustBoostScreenState extends State<TrustBoostScreen> {
                         try {
                           await saveCountries(List<String>.from(countries));
                           changed = true;
-                        } catch (_) {
-                          AppLogger.instance.error('save_countries failed', screen: 'trust_boost', action: 'save_countries');
+                        } catch (e, s) {
+                          AppLogger.instance.error(e, stack: s, screen: 'trust_boost', action: 'save_countries');
                           setS(() => countries.insert(0, c));
                         } finally {
                           if (ctx.mounted) setS(() => deletingCountry = null);

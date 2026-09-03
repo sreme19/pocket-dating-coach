@@ -155,8 +155,8 @@ class _ConversationScreenState extends State<ConversationScreen>
     AppLogger.instance.action('conversation', 'load_messages');
     try {
       // Refresh session if expired before loading
-      try { await Supabase.instance.client.auth.refreshSession(); } catch (_) {
-        AppLogger.instance.error('refresh_session failed', screen: 'conversation', action: 'refresh_session');
+      try { await Supabase.instance.client.auth.refreshSession(); } catch (e, s) {
+        AppLogger.instance.error(e, stack: s, screen: 'conversation', action: 'refresh_session');
       }
       final thread = await fetchConversation(widget.conversationId);
       _otherId = thread.otherId;
@@ -189,8 +189,8 @@ class _ConversationScreenState extends State<ConversationScreen>
           _myName = (me['first_name'] ?? '').toString();
           _myAvatar = me['avatar_url'] as String?;
         }
-      } catch (_) {
-        AppLogger.instance.error('load_user_profile failed', screen: 'conversation', action: 'load_user_profile');
+      } catch (e, s) {
+        AppLogger.instance.error(e, stack: s, screen: 'conversation', action: 'load_user_profile');
       }
       if (mounted) setState(() => _loading = false);
       markConversationRead(widget.conversationId).catchError((_) {});
@@ -238,8 +238,8 @@ class _ConversationScreenState extends State<ConversationScreen>
           _askMore = thread.askMore;
         });
       }
-    } catch (_) {
-      AppLogger.instance.error('load_thread_state failed', screen: 'conversation', action: 'load_thread_state');
+    } catch (e, s) {
+      AppLogger.instance.error(e, stack: s, screen: 'conversation', action: 'load_thread_state');
       /* transient */
     }
   }
@@ -265,8 +265,8 @@ class _ConversationScreenState extends State<ConversationScreen>
           if (msg.senderId != _myId) {
             markConversationRead(widget.conversationId).catchError((_) {});
           }
-        } catch (_) {
-          AppLogger.instance.error('mark_read failed', screen: 'conversation', action: 'mark_read');
+        } catch (e, s) {
+          AppLogger.instance.error(e, stack: s, screen: 'conversation', action: 'mark_read');
         }
       },
     ).subscribe();

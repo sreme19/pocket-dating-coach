@@ -74,8 +74,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await Supabase.instance.client.auth.signOut(
         scope: localOnly ? SignOutScope.local : SignOutScope.global,
       );
-    } catch (_) {
-      AppLogger.instance.error('sign_out failed', screen: 'settings', action: 'sign_out');
+    } catch (e, s) {
+      AppLogger.instance.error(e, stack: s, screen: 'settings', action: 'sign_out');
       // If server-side user was already deleted, force local session clear.
       await Supabase.instance.client.auth.signOut(scope: SignOutScope.local);
     }

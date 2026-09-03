@@ -207,8 +207,8 @@ class _AdvisorScreenState extends State<AdvisorScreen> with WidgetsBindingObserv
         }
       });
       _scrollToBottom();
-    } catch (_) {
-      AppLogger.instance.error('load_history failed', screen: 'advisor', action: 'load_history');
+    } catch (e, s) {
+      AppLogger.instance.error(e, stack: s, screen: 'advisor', action: 'load_history');
     }
   }
 
@@ -417,8 +417,8 @@ class _AdvisorScreenState extends State<AdvisorScreen> with WidgetsBindingObserv
       } else {
         await submitMessageFeedback(wingman: _wm, messageContent: t.content, positive: positive);
       }
-    } catch (_) {
-      AppLogger.instance.error('submit_feedback failed', screen: 'advisor', action: 'submit_feedback');
+    } catch (e, s) {
+      AppLogger.instance.error(e, stack: s, screen: 'advisor', action: 'submit_feedback');
       /* non-fatal */
     }
   }

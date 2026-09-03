@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:verified_vibe/app_logger.dart';
 
 // ── Isolated pure-Dart logic ─────────────────────────────────────────────────
 // Mirrors the business rules in the app without requiring network, Supabase,
@@ -51,6 +54,8 @@ class MatchmakerStatus {
 // ─────────────────────────────────────────────────────────────────────────────
 
 void main() {
+  _versionStampTests();
+
   // ── Form validation ───────────────────────────────────────────────────────
   group('Email validation', () {
     test('accepts valid email: a@b.com', () {
@@ -202,5 +207,24 @@ void main() {
       ));
       expect(find.text('smoke'), findsOneWidget);
     });
+  });
+}
+
+// ── Version stamped on every logged event ───────────────────────────────────
+// AppLogger.appVersion is a hand-written constant, and hand-written constants
+// drift: it sat at 1.0.5 while the shipped build was 1.0.8, so every event row
+// and every alert email named a release three versions old. Triage reads that
+// field first. Nothing can derive it at runtime without a new dependency, so
+// this test is the thing that keeps it honest — if you bumped pubspec and
+// landed here, bump AppLogger.appVersion to match.
+void _versionStampTests() {
+  test('AppLogger.appVersion matches the version in pubspec.yaml', () {
+    final pubspec = File('pubspec.yaml').readAsLinesSync();
+    final line = pubspec.firstWhere((l) => l.startsWith('version:'));
+    // 'version: 1.0.8+1107' → '1.0.8'; the build number is not part of it.
+    final declared = line.split(':')[1].trim().split('+').first;
+
+    expect(AppLogger.appVersion, declared,
+        reason: 'pubspec.yaml says $declared — update AppLogger.appVersion');
   });
 }

@@ -1,5 +1,19 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:verified_vibe/error_text.dart';
+
+/// A real `DioException` rather than its string form: `isConnectivityFailure`
+/// reads `type`, which is the part that survives when the message does not.
+DioException _dio(DioExceptionType type, {int? status}) => DioException(
+      requestOptions: RequestOptions(path: '/api/verified-vibe/matchmaker/find-matches'),
+      type: type,
+      response: status == null
+          ? null
+          : Response(
+              requestOptions: RequestOptions(path: '/api/verified-vibe/matchmaker/find-matches'),
+              statusCode: status,
+            ),
+    );
 
 /// Verbatim Dio message strings, because the whole class of bug this guards
 /// against came from pattern-matching the wrong part of them.
@@ -110,6 +124,45 @@ void main() {
         ];
         expect(hits, [expected], reason: 'for: $message');
       });
+    });
+  });
+
+  group('isConnectivityFailure', () {
+    // Guards the alert path: a connectivity failure is the user's network, so
+    // it must never email. Anything else has to stay loud.
+    test('true for every Dio transport type', () {
+      expect(isConnectivityFailure(_dio(DioExceptionType.connectionTimeout)), isTrue);
+      expect(isConnectivityFailure(_dio(DioExceptionType.sendTimeout)), isTrue);
+      expect(isConnectivityFailure(_dio(DioExceptionType.receiveTimeout)), isTrue);
+      expect(isConnectivityFailure(_dio(DioExceptionType.connectionError)), isTrue);
+    });
+
+    test('true once a screen has re-wrapped the error in its own Exception', () {
+      // chat_list's _load rethrows this, so `type` is long gone by then.
+      expect(
+        isConnectivityFailure(Exception('No internet connection. Please check your network and retry.')),
+        isTrue,
+      );
+      expect(isConnectivityFailure(_socket), isTrue);
+    });
+
+    test('false for a response that did arrive — including our own 5xx', () {
+      expect(isConnectivityFailure(_dio(DioExceptionType.badResponse, status: 500)), isFalse);
+      expect(isConnectivityFailure(_dio(DioExceptionType.badResponse, status: 404)), isFalse);
+      expect(isConnectivityFailure(_dio500), isFalse);
+      expect(isConnectivityFailure(_dio401), isFalse);
+      expect(isConnectivityFailure(_loggedHttp500), isFalse);
+    });
+
+    test('a 5xx stays ours even when the server calls it a timeout', () {
+      // 'timeout' alone would send a real gateway failure down the silent path.
+      expect(isConnectivityFailure('HTTP 504 on GET /api/verified-vibe/tips — gateway timeout'), isFalse);
+    });
+
+    test('false for an ordinary app bug', () {
+      expect(isConnectivityFailure(TypeError()), isFalse);
+      expect(isConnectivityFailure(StateError('Not authenticated')), isFalse);
+      expect(isConnectivityFailure(Exception('Null check operator used on a null value')), isFalse);
     });
   });
 
