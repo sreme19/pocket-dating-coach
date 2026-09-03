@@ -1,11 +1,13 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { runHealthCheck } from '$lib/server/health';
+import { runHealthCheck, isUpstreamOnly } from '$lib/server/health';
 import { sendSlackAlert } from '$lib/server/slack';
 
 /**
  * Health alert cron — runs every 10 minutes via Vercel Cron.
- * Sends an email alert via Resend if any service is down or degraded.
+ * Posts to Slack whenever any service is down or degraded, and emails via
+ * Resend as well — unless every fault in the report is upstream and waiting is
+ * the only remedy (see isUpstreamOnly).
  * Auth: Authorization: Bearer <CRON_SECRET>
  */
 
@@ -114,6 +116,10 @@ const handle: RequestHandler = async ({ request }) => {
 	const isCritical = report.status === 'down';
 	const appUrl = process.env.APP_URL ?? 'https://riteangle.dating';
 
+	// Slack gets every report. The email is for reports with something in them
+	// to act on — see isUpstreamOnly.
+	const upstreamOnly = isUpstreamOnly(report);
+
 	// Slack alert
 	const failedServices = Object.entries(report.services)
 		.filter(([, s]) => s.status !== 'ok')
@@ -133,6 +139,11 @@ const handle: RequestHandler = async ({ request }) => {
 		footer:       'Vercel Cron health-alert',
 		dashboardUrl: `${appUrl}/admin/monitoring`,
 	});
+
+	if (upstreamOnly) {
+		console.log(`[health-alert] Slack only — every fault is upstream: ${failedServices}`);
+		return json({ alerted: false, emailSkipped: 'upstream_only', status: report.status, services: report.services });
+	}
 
 	try {
 		await sendAlert(subject, buildAlertHtml(report));

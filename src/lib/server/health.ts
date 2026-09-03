@@ -4,6 +4,14 @@ export interface ServiceStatus {
   status: 'ok' | 'degraded' | 'down';
   latencyMs?: number;
   error?: string;
+  /**
+   * Set when the fault is a provider's and there is no action on our side —
+   * Anthropic shedding load, say. The alert cron reads this to decide whether
+   * the report is worth an email, so only set it where waiting genuinely is
+   * the whole remedy. An upstream cause is NOT enough on its own: a Claude
+   * outage still breaks our AI features and still has to wake someone.
+   */
+  upstream?: boolean;
 }
 
 export interface HealthReport {
@@ -55,7 +63,7 @@ async function checkClaude(): Promise<ServiceStatus> {
       signal: AbortSignal.timeout(10_000),
     });
     const latencyMs = Date.now() - start;
-    if (resp.status === 529) return { status: 'degraded', latencyMs, error: 'Anthropic is overloaded (529) — not our outage, should recover on its own.' };
+    if (resp.status === 529) return { status: 'degraded', latencyMs, upstream: true, error: 'Anthropic is overloaded (529) — not our outage, should recover on its own.' };
     if (!resp.ok) return { status: 'down', latencyMs, error: await claudeErrorMessage(resp) };
     return { status: 'ok', latencyMs };
   } catch (e) {
@@ -93,6 +101,23 @@ async function checkSupabase(): Promise<ServiceStatus> {
   } catch (e) {
     return { status: 'down', latencyMs: Date.now() - start, error: `Supabase unreachable — ${String(e)}` };
   }
+}
+
+/**
+ * Is every fault in this report someone else's, with waiting as the only
+ * remedy? Anthropic shedding load (529) is the case this exists for: the report
+ * is accurate and worth having in Slack, but an email whose own body reads
+ * "not our outage, should recover on its own" asks for a decision nobody can
+ * make, and a monitor that cries wolf gets filtered into a folder.
+ *
+ * Deliberately strict. Anything `down` fails this even when the cause is
+ * upstream, and one un-flagged degradation among several upstream ones fails it
+ * too — a report is only skippable if there is nothing in it to act on.
+ */
+export function isUpstreamOnly(report: HealthReport): boolean {
+  if (report.status === 'down') return false;
+  const failing = Object.values(report.services).filter((s) => s.status !== 'ok');
+  return failing.length > 0 && failing.every((s) => s.upstream === true);
 }
 
 export async function runHealthCheck(): Promise<HealthReport> {
