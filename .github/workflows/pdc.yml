@@ -153,7 +153,11 @@ jobs:
 
   web-deploy-staging:
     name: Web — Deploy Staging
-    needs: [web-test, web-security]
+    # banned-strings-check added 2026-09-04. Production already gated on it; this
+    # job did not, so a PR could publish 1.1.4 vocabulary to a Vercel staging URL
+    # that production would refuse. It runs on pull_request too, so this adds a
+    # dependency rather than a skip.
+    needs: [web-test, web-security, banned-strings-check]
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     continue-on-error: true  # Non-blocking until Vercel secrets are set
