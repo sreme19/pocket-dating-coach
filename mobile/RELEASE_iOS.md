@@ -42,6 +42,21 @@ the API key, so nothing needs to pre-exist in the keychain) → `exportArchive`
 which uploads straight to App Store Connect. The build appears under **TestFlight**
 after Apple finishes processing (a few minutes).
 
+## Record it
+
+Once the upload succeeds, tell `store-release-ops` — otherwise the release
+tracker's idea of what shipped drifts from what actually did, and the first time
+you notice is when you are trying to work out which build Apple rejected.
+
+```bash
+scripts/record-release.sh --platform ios
+```
+
+Version, build number and commit are read from the tree rather than typed. The
+script writes through `store-ops check-in`, which is that repo's own CLI — it
+never touches its files directly. It does not submit for review, promote a track,
+or release to users; those stay human actions.
+
 ## Versioning
 
 - Current: `1.0.1+1` (in `pubspec.yaml`). The live Capacitor build is `1.0 (1)`.
