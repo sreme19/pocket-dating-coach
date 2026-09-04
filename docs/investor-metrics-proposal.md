@@ -60,8 +60,26 @@ needs your confirmation rather than my inference.
 | W1 / W4 retention cohorts | needs a per-user first-seen date | **guess** |
 | AI assistant usage per active | `vv_ai_response_timings` | **guess** |
 
+## Prerequisite, found 4 September
+
+**The privacy policy does not currently mention aggregate analytics.** Section 2
+of `src/routes/privacy-policy/+page.svelte` enumerates its purposes — operating
+the profile and matching, identity verification through Trust & Boost, trust
+scores, the AI companions, keeping the profile current — and says nothing about
+aggregate statistics, business measurement or service improvement in 11,697
+bytes.
+
+That reorders this work rather than blocking it. Creating security-definer
+aggregates over the member tables, for a fundraising deck, under a policy that
+does not mention aggregate analysis, is the wrong order under DPDP's purpose
+limitation. **The clause lands first.** Something to the effect of *"to produce
+aggregate, non-identifying statistics about how the service is used, for
+operating and improving it"* — wording is the owner's call, and possibly a
+lawyer's.
+
 ## What I need from you
 
+0. **The policy clause above**, before any view is created.
 1. **Which of these belong in the fixed set.** Fixed matters: the agent reports
    the whole set every time rather than choosing, which is the difference between
    optimism and misrepresentation when the same investor sees two updates.
