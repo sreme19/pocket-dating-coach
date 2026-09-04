@@ -91,7 +91,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check for vulnerabilities in production dependencies
-        run: npm audit --audit-level=high --omit=dev
+        # Not `npm audit` directly: that exits 1 both when it finds a high-severity
+        # vulnerability and when it cannot reach the registry, and those deserve
+        # different responses. npmjs.org returned 503 twice on 2026-09-04, once
+        # after seven minutes, and the second blocked a staging deploy on a PR
+        # that had not touched a dependency. See the script's header.
+        run: bash scripts/audit-production-deps.sh
 
   # ════════════════════════════════════════════════════════════════════════════
   # BANNED STRINGS — Guideline 1.1.4 regression gate  (push/PR → main, development)
