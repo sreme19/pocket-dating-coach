@@ -245,7 +245,7 @@ class GateStep extends StatelessWidget {
               Row(children: [
                 _genderCard('man', '♂', 'Man', 'See Casual & Marriage-Minded', gender == 'man', () => onGender('man')),
                 const SizedBox(width: 10),
-                _genderCard('woman', '♀', 'Woman', 'See Spoilt & Safety-First', gender == 'woman', () => onGender('woman')),
+                _genderCard('woman', '♀', 'Woman', 'See Experience-Led & Safety-First', gender == 'woman', () => onGender('woman')),
               ]),
               const SizedBox(height: 22),
               // Q2: I'm 18 or older
