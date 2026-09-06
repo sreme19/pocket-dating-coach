@@ -19,6 +19,14 @@ import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/publi
 import { createClient } from '@supabase/supabase-js';
 import { runMatchmakerForUser, getMatchmakerStatus } from '$lib/server/matchmaker-service';
 
+// POST awaits runMatchmakerForUser synchronously, which on a match also
+// generates the Bestie opener inline (Claude + DB writes, ~9s) — the same
+// Claude-dependent work every sibling matchmaker route (matchmaker/run,
+// matchmaker/intelligence) already raises maxDuration for. Without it here,
+// a real match could get created and then have its request killed by
+// Vercel's short default duration mid-opener, with nothing logged.
+export const config = { maxDuration: 60 };
+
 async function getUserId(request: Request): Promise<string | null> {
   const authHeader = request.headers.get('authorization') ?? '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;

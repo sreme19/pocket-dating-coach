@@ -23,6 +23,13 @@ import { logAppError } from '$lib/server/logAppError';
  *   matchId?: string (if matched)
  * }
  */
+// On a mutual match, the Bestie opener is generated in a waitUntil() background
+// task after the response is flushed (see below) — the same shape as chat/send,
+// which needed this same override because Bestie generation (~9s: Claude + DB
+// writes) doesn't fit inside Vercel's short default duration. Without it here,
+// the opener's Claude call was getting killed mid-flight with nothing logged.
+export const config = { maxDuration: 60 };
+
 export const POST: RequestHandler = async ({ request }) => {
   try {
     const body = await request.json() as LikeRequest & { userId: string };
