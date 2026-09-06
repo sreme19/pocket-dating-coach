@@ -48,6 +48,7 @@ export const POST: RequestHandler = async ({ request }) => {
   try {
     const body = await request.json() as {
       secret?: string;
+      maxUsers?: number;
       cityScoped?: boolean;
       task?: 'trust-normalize' | 'match-scores' | 'build-vectors' | 'inspect-vectors'
         | 'score-vectors-shadow' | 'diff-scores' | 'match-v2-dryrun' | 'match-v2'
@@ -159,7 +160,10 @@ export const POST: RequestHandler = async ({ request }) => {
     // Trust normalization only — runs SYNCHRONOUSLY and returns the before/after
     // report. Used for the one-time backfill and ad-hoc re-normalization.
     if (body.task === 'trust-normalize') {
-      const report = await runTrustNormalization();
+      // `maxUsers` bounds one invocation — the whole pass no longer fits in
+      // Vercel's 300s ceiling. Call repeatedly until `count` comes back 0 or
+      // short; ordering is stalest-first, so calls converge.
+      const report = await runTrustNormalization({ maxUsers: body.maxUsers });
       return json({ task: 'trust-normalize', count: report.length, report });
     }
 

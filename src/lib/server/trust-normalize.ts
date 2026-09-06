@@ -175,13 +175,30 @@ export async function recomputeAndNormalize(
  * every real user, then normalizes everyone against their freshly-computed
  * cohort. Returns a before/after report for review. Seeds are left untouched.
  */
-export async function runTrustNormalization(): Promise<
+export async function runTrustNormalization(
+	opts: { maxUsers?: number } = {}
+): Promise<
 	Array<{ userId: string; firstName: string; gender: string; before: number; rawTrust: number; after: number }>
 > {
 	const db = getSupabase() as any;
-	const { data: users } = await realMembersOnly(
+
+	// Stalest first, so repeated calls converge instead of redoing the same head
+	// of the list. The pass costs roughly two seconds per member (a raw recompute
+	// reads every proof source), and at 146 real members it stopped fitting in
+	// one invocation: on 2026-09-06 it hit Vercel's 300s ceiling — already the
+	// maximum, so there is no bigger number to reach for — after rewriting 29 of
+	// them, leaving the other 117 on the previous scoring rule. A half-migrated
+	// trust table is worse than either rule applied consistently.
+	//
+	// `maxUsers` lets a caller take a bite that comfortably fits, and ordering by
+	// trust_updated_at means the next bite picks up exactly where this one
+	// stopped. Nulls first: a member who has never been normalized has no score
+	// at all and is the most urgent, not the least.
+	let query = realMembersOnly(
 		db.from('verified_vibe_users').select('id, first_name, gender, trust_score')
-	);
+	).order('trust_updated_at', { ascending: true, nullsFirst: true });
+	if (opts.maxUsers) query = query.limit(opts.maxUsers);
+	const { data: users } = await query;
 
 	if (!users?.length) return [];
 
