@@ -123,7 +123,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // truth or not appear at all.
           if (_ledger != null) _ledgerRow(),
           _header('APP'),
-          _row('Version', '1.0.1 (9)'),
+          // Reads AppLogger.appVersion, which regression_test.dart pins to
+          // pubspec. This row was the literal '1.0.1 (9)' and had drifted eight
+          // releases -- the version a member reads off Settings when they report
+          // a bug, so triage was being pointed at 1.0.1 while 1.0.9 shipped. The
+          // 1.0.9 release pinned pubspec and AppLogger together for exactly this
+          // reason and did not know about this third copy.
+          _row('Version', AppLogger.appVersion),
           _row('Build', 'Flutter · riteangle'),
           const SizedBox(height: 28),
           Padding(
