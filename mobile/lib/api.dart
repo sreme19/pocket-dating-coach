@@ -1208,18 +1208,17 @@ class DiscoveryProfile {
 
   bool get isNetworking => discoveryMode == 'networking';
 
-  String get trustLabel {
-    // Thresholds match trustScore.README.md (75 / 50 / 25). They were 80/60/40
-    // here, so one score could read 'Trusted' on mobile and 'High Trust' in the
-    // web UI describing the same member.
-    if (trustScore >= 75) return 'High Trust';
-    if (trustScore >= 50) return 'Trusted';
-    if (trustScore >= 25) return 'Building Trust';
-    return 'New here';
-  }
+  // DiscoveryProfile.trustLabel was removed here — it had no callers.
+  //
+  // Every band label a user actually sees comes from the top-level
+  // trustLabel(int) below (Minimal / Low / Medium / High / Fully Verified,
+  // matching trustScore.README.md), which discover_screen, discover_profile_detail
+  // and match_profile_screen all call. This getter was a second, unreachable
+  // scheme with different words for the same score. Left in place it would
+  // eventually be used, and the two would disagree.
+  //
+  // If a card ever needs a word beside the ring, call trustLabel(trustScore).
 
-  /// Turn a raw archetype code into a label, e.g.
-  /// `hopeless_romantic_woman` → `Hopeless-Romantic`.
   // prettyArchetype() was removed here, deliberately, and should not come back.
   //
   // It title-cased a raw archetype key into a chip label: `casual_generous_man`
