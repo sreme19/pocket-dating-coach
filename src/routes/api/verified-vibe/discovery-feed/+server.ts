@@ -265,6 +265,14 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
       // a different question from how trustworthy the member is, and only the
       // second one moved to the stored score.
       verificationSteps.forEach((step: any) => {
+        // Only a COMPLETED step counts. verify-step/+server.ts:433 is
+        // `passed ? 'completed' : 'under_review'` and persists the row either
+        // way, so testing for the row's existence let a member who FAILED
+        // liveness through the Discover gate below and gave them a tick badge
+        // for it. Latent when this was written -- every liveness and photos row
+        // in production was 'completed', so nobody had slipped through yet --
+        // but it would have opened on the first failure.
+        if (step.status !== 'completed') return;
         if (!verificationMap.has(step.user_id)) {
           verificationMap.set(step.user_id, new Set());
         }
