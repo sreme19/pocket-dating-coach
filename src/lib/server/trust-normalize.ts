@@ -34,7 +34,33 @@ import { realMembersOnly } from './member-state';
 
 const ACTIVE_WINDOW_DAYS = 7;
 const COLD_START_FULL_N = 30;   // cohort size at which we trust the percentile fully
-const IDENTITY_PENALTY = 0.5;   // multiplier applied when ID + liveness aren't done
+/**
+ * Multiplier applied when a member has not proved they are a live human.
+ *
+ * "Proved" means the LIVENESS step, not liveness + government ID. It used to
+ * mean both, and that was wrong in a way that made the whole displayed scale
+ * meaningless: government ID is not something this product asks for.
+ * POOL_REQUIRED_STEPS is ['liveness','photos'], and its comment states that
+ * "'id' / government ID is never part of pool eligibility — it only gates
+ * spending/wealth proof uploads."
+ *
+ * So the penalty was halving almost everyone for skipping a step they were
+ * never asked to take. Measured 2026-09-06 on live data: 123 of 127 real men
+ * and 16 of 17 real women were being penalized, only 5 members of 144 had
+ * completed both steps, and the median displayed score sat at 22 against a raw
+ * median of 39. The Discover feed read "Low trust" for 118 of 127 men.
+ *
+ * It was also a double charge. Missing ID already costs raw trust once:
+ * trust-recompute computes `subscores.identity = (idScore + livScore) / 2`,
+ * which calculateCGTotal weights at 20%. Halving the normalized score on top
+ * charged the same omission a second time, and far more heavily.
+ *
+ * Keyed on liveness the penalty does the job it was written for — someone who
+ * never proved a live face is genuinely unproven, and the photo identity gate
+ * depends on that same anchor selfie. If ID ever becomes required, key this on
+ * `identityVerified` again rather than reintroducing a second penalty.
+ */
+const IDENTITY_PENALTY = 0.5;
 
 /**
  * Pure normalization: map a raw score to its displayed trust score against a
@@ -43,7 +69,7 @@ const IDENTITY_PENALTY = 0.5;   // multiplier applied when ID + liveness aren't 
  */
 export function normalizeScore(
 	rawTrust: number,
-	identityVerified: boolean,
+	livenessVerified: boolean,
 	cohortRaws: number[]
 ): number {
 	const n = cohortRaws.length;
@@ -52,7 +78,7 @@ export function normalizeScore(
 		: rawTrust;
 	const w = Math.min(1, n / COLD_START_FULL_N);
 	const blended = w * percentile + (1 - w) * rawTrust;
-	const penalized = identityVerified ? blended : blended * IDENTITY_PENALTY;
+	const penalized = livenessVerified ? blended : blended * IDENTITY_PENALTY;
 	return Math.round(Math.max(0, Math.min(100, penalized)));
 }
 
@@ -76,7 +102,7 @@ async function fetchCohortRaws(db: any, gender: string): Promise<number[]> {
 
 /**
  * Normalize a single user against their current cohort and persist
- * normalized_trust + trust_score. Assumes raw_trust/identity_verified are already
+ * normalized_trust + trust_score. Assumes raw_trust is already
  * persisted (recomputeRawTrust does that). Cheap enough to run per upload.
  */
 export async function normalizeUser(userId: string): Promise<number | null> {
@@ -84,10 +110,22 @@ export async function normalizeUser(userId: string): Promise<number | null> {
 		const db = getSupabase() as any;
 		const { data: user } = await db
 			.from('verified_vibe_users')
-			.select('gender, raw_trust, identity_verified')
+			.select('gender, raw_trust')
 			.eq('id', userId)
 			.maybeSingle();
 		if (!user) return null;
+
+		// Liveness is read from the verification rows, not from the
+		// identity_verified column: that column means ID *and* liveness, and is
+		// left alone because match-scoring reads it. See IDENTITY_PENALTY.
+		const { data: livenessRow } = await db
+			.from('verified_vibe_verification')
+			.select('user_id')
+			.eq('user_id', userId)
+			.eq('step', 'liveness')
+			.eq('status', 'completed')
+			.maybeSingle();
+		const livenessVerified = !!livenessRow;
 
 		const cohort = await fetchCohortRaws(db, user.gender);
 		// Ensure the user's own raw is represented even if they're not in the
@@ -95,7 +133,7 @@ export async function normalizeUser(userId: string): Promise<number | null> {
 		const raw = user.raw_trust ?? 0;
 		if (!cohort.length) cohort.push(raw);
 
-		const normalized = normalizeScore(raw, !!user.identity_verified, cohort);
+		const normalized = normalizeScore(raw, livenessVerified, cohort);
 
 		await db
 			.from('verified_vibe_users')
@@ -148,10 +186,10 @@ export async function runTrustNormalization(): Promise<
 	if (!users?.length) return [];
 
 	// 1. Recompute raw for everyone first so cohorts reflect current proofs.
-	const raws = new Map<string, { raw: number; identityVerified: boolean }>();
+	const raws = new Map<string, { raw: number; livenessVerified: boolean }>();
 	for (const u of users) {
 		const r = await recomputeRawTrust(u.id);
-		raws.set(u.id, { raw: r.rawTrust, identityVerified: r.identityVerified });
+		raws.set(u.id, { raw: r.rawTrust, livenessVerified: r.livenessVerified });
 	}
 
 	// 2. Build per-gender active cohorts from the fresh raw values.
@@ -168,9 +206,9 @@ export async function runTrustNormalization(): Promise<
 	// 3. Normalize + persist everyone.
 	const report = [];
 	for (const u of users) {
-		const { raw, identityVerified } = raws.get(u.id) ?? { raw: 0, identityVerified: false };
+		const { raw, livenessVerified } = raws.get(u.id) ?? { raw: 0, livenessVerified: false };
 		const cohort = cohorts[u.gender]?.length ? cohorts[u.gender] : [raw];
-		const after = normalizeScore(raw, identityVerified, cohort);
+		const after = normalizeScore(raw, livenessVerified, cohort);
 		await db
 			.from('verified_vibe_users')
 			.update({ normalized_trust: after, trust_score: after, trust_updated_at: new Date().toISOString() })

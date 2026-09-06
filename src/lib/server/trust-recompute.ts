@@ -97,6 +97,15 @@ export interface SubscoreResult {
 	identityScore: number;
 	proofScore: number;
 	identityVerified: boolean;
+	/**
+	 * Liveness alone — the ONLY identity step this product actually requires.
+	 * Separate from `identityVerified` (ID *and* liveness) because government ID
+	 * is not part of pool eligibility at all: POOL_REQUIRED_STEPS in
+	 * pool-registry.ts is ['liveness','photos'], and its own comment records that
+	 * "'id' / government ID is never part of pool eligibility — it only gates
+	 * spending/wealth proof uploads."
+	 */
+	livenessVerified: boolean;
 }
 
 /**
@@ -224,6 +233,7 @@ export async function computeSubscores(userId: string): Promise<SubscoreResult> 
 		identityScore: subscores.identity,
 		proofScore: proofScoreFromSubscores(subscores),
 		identityVerified: idDone && livDone,
+		livenessVerified: livDone,
 	};
 }
 
@@ -232,6 +242,7 @@ export interface RawTrustResult {
 	identityScore: number;
 	proofScore: number;
 	identityVerified: boolean;
+	livenessVerified: boolean;
 	subscores: CGTrustSubscores;
 }
 
@@ -264,6 +275,7 @@ export async function recomputeRawTrust(userId: string): Promise<RawTrustResult>
 		identityScore: r.identityScore,
 		proofScore: r.proofScore,
 		identityVerified: r.identityVerified,
+		livenessVerified: r.livenessVerified,
 		subscores: r.subscores,
 	};
 }
