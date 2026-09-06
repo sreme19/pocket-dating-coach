@@ -26,7 +26,7 @@ Total Score = (Archetype Score × 0.6) + (Q&A Score × 0.3) + (Trust Score × 0.
 #### 1. Archetype Compatibility (60%)
 Based on a predefined compatibility matrix that reflects how well different archetypes align:
 
-- **Casual Man** ↔ **Spoilt Woman**: 70% (complementary energy)
+- **Casual Man** ↔ **Experience-Led Woman**: 70% (complementary energy)
 - **Marriage-Minded Man** ↔ **Safety-First Woman**: 80% (aligned goals)
 - **Same Archetype**: 50-70% (depends on archetype)
 
@@ -170,11 +170,11 @@ const sorted = sortByCompatibility(profiles); // Descending order
 
 ## Archetype Compatibility Matrix
 
-| | Casual Man | Marriage-Minded Man | Spoilt Woman | Safety-First Woman |
+| | Casual Man | Marriage-Minded Man | Experience-Led Woman | Safety-First Woman |
 |---|---|---|---|---|
 | **Casual Man** | 50 | 30 | 70 | 40 |
 | **Marriage-Minded Man** | 30 | 60 | 50 | 80 |
-| **Spoilt Woman** | 70 | 50 | 60 | 40 |
+| **Experience-Led Woman** | 70 | 50 | 60 | 40 |
 | **Safety-First Woman** | 40 | 80 | 40 | 70 |
 
 ## Compatibility Labels

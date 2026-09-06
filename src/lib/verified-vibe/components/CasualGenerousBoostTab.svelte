@@ -169,7 +169,7 @@
   const TIER_MESSAGES: Record<number, { emoji: string; title: string; desc: string }> = {
     60: { emoji: '🎉', title: 'You hit Visible tier!',  desc: 'You are now showing up in match pools.' },
     70: { emoji: '🚀', title: 'You hit Featured tier!', desc: 'Lifestyle-Oriented Women now see you in their feed.' },
-    85: { emoji: '⭐', title: 'You hit Priority tier!', desc: 'You appear first. Spoilt Women\'s pool fully unlocked.' },
+    85: { emoji: '⭐', title: 'You hit Priority tier!', desc: 'You appear first. The Experience-Led pool is fully unlocked.' },
     95: { emoji: '👑', title: 'You hit Elite tier!',    desc: 'Exclusive visibility across all match pools.' },
   };
   let tierUnlock = $state<{ emoji: string; title: string; desc: string } | null>(null);

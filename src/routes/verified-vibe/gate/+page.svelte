@@ -75,7 +75,7 @@
         >
           <span class="pick-ico" aria-hidden="true">♀</span>
           <span class="pick-name">Woman</span>
-          <span class="pick-sub">See Spoilt &amp; Safety-First</span>
+          <span class="pick-sub">See Experience-Led &amp; Safety-First</span>
         </button>
 
       </div>

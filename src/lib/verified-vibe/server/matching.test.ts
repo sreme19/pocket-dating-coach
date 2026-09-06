@@ -446,11 +446,11 @@ describe('Compatibility Scoring', () => {
 
   describe('Archetype Compatibility Matrix', () => {
     it('should have symmetric compatibility for some archetypes', () => {
-      const casualManSpoiltWoman = calculateCompatibility(mockUser3, mockUser4);
-      const spoiltWomanCasualMan = calculateCompatibility(mockUser4, mockUser3);
+      const casualManExperienceLedWoman = calculateCompatibility(mockUser3, mockUser4);
+      const experienceLedWomanCasualMan = calculateCompatibility(mockUser4, mockUser3);
 
       // Both should have similar archetype scores
-      expect(Math.abs(casualManSpoiltWoman.archetypeScore - spoiltWomanCasualMan.archetypeScore)).toBeLessThan(5);
+      expect(Math.abs(casualManExperienceLedWoman.archetypeScore - experienceLedWomanCasualMan.archetypeScore)).toBeLessThan(5);
     });
 
     it('should reflect traditional_matrimony_man + traditional_matrimony_woman as high compatibility', () => {

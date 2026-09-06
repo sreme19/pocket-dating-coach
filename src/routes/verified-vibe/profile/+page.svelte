@@ -37,7 +37,7 @@
   const ARCHETYPE_LABELS: Record<string, string> = {
     casual_man: 'Casual',
     marriage_minded_man: 'Marriage-Minded',
-    spoilt_woman: 'Spoilt',
+    spoilt_woman: 'Experience-Led',
     safety_first_woman: 'Safety-First'
   };
 

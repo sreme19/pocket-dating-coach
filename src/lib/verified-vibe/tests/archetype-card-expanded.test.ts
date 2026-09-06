@@ -78,7 +78,7 @@ describe('ArchetypeCard - Expanded View', () => {
     it('should have lead traits marked correctly for spoilt_woman', () => {
       const leadTraits = spoiltWomanArchetype.matchTraits.filter(t => t.lead);
       expect(leadTraits.length).toBeGreaterThan(0);
-      // Spoilt woman should match with casual_man and marriage_minded_man
+      // Experience-Led woman should match with casual_man and marriage_minded_man
       expect(leadTraits.some(t => t.label.includes('Casual Men'))).toBe(true);
       expect(leadTraits.some(t => t.label.includes('Marriage-Minded Men'))).toBe(true);
     });
@@ -87,7 +87,7 @@ describe('ArchetypeCard - Expanded View', () => {
       const leadTraits = marriageMindedManArchetype.matchTraits.filter(t => t.lead);
       expect(leadTraits.length).toBeGreaterThan(0);
       // Marriage-minded man should match with spoilt_woman and safety_first_woman
-      expect(leadTraits.some(t => t.label.includes('Spoilt Women'))).toBe(true);
+      expect(leadTraits.some(t => t.label.includes('Experience-Led'))).toBe(true);
       expect(leadTraits.some(t => t.label.includes('Safety-First Women'))).toBe(true);
     });
 

@@ -30,7 +30,7 @@
     // Legacy (keep for any existing records)
     casual_man:          { emoji: '🎯', label: 'Casual',          color: '#f59e0b', bg: 'rgba(245,158,11,0.13)'  },
     marriage_minded_man: { emoji: '💍', label: 'Marriage-Minded', color: '#FF7A4D', bg: 'rgba(255,122,77,0.13)'  },
-    spoilt_woman:        { emoji: '💎', label: 'Spoilt Woman',     color: '#ec4899', bg: 'rgba(236,72,153,0.13)'  },
+    spoilt_woman:        { emoji: '💎', label: 'Experience-Led',    color: '#ec4899', bg: 'rgba(236,72,153,0.13)'  },
     safety_first_woman:  { emoji: '🛡️', label: 'Safety-First',    color: '#FF3B6B', bg: 'rgba(255,59,107,0.13)'  },
     // New archetypes (PDC-48)
     casual_generous_man:       { emoji: '💫', label: 'Experience-Led',     color: '#FF3B6B', bg: 'rgba(255,59,107,0.13)' },

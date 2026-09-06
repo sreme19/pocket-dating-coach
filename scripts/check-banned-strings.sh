@@ -88,6 +88,15 @@ PATTERNS_PHRASE=(
 PATTERNS_EXACT=(
   'Casual-Generous'
   'Spoiled-Casual'
+  # 'Spoilt' and bare 'Spoiled ' as user-facing prose. The hyphenated display
+  # name above was the only spelling listed, so "See Spoilt & Safety-First" sat
+  # on the pre-auth gate -- the first screen anyone opens, and one that was
+  # about to go onto the App Store product page -- while this gate reported
+  # clean. A euphemism does not stop being the flagged one because it is spelled
+  # the British way. Hyphen-free 'Spoiled' is matched with a trailing space so
+  # 'spoiled_casual_woman' (a DB key, which must not change) is untouched.
+  'Spoilt'
+  'Spoiled '
   'generositySignals'
 )
 
