@@ -99,7 +99,7 @@ class AppLogger {
   /// `pubspec.yaml` by a test, because it had already drifted three releases
   /// behind it: the 2026-09-02 alerts all claimed 1.0.5 while the build in the
   /// store was 1.0.8, which points triage at the wrong code.
-  static const appVersion = '1.0.8';
+  static const appVersion = '1.0.9';
 
   /// Stamped onto every event so admin tooling can tell which OS a user is on
   /// even when they declined push permission (no `device_tokens` row to read).
