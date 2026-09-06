@@ -66,7 +66,16 @@ export const GET: RequestHandler = async ({ request }) => {
 			ALL_DIMENSION_IDS.map((id) => [id, stored[id] ?? DEFAULT_IMPORTANCE]),
 		);
 		return json({
-			dimensions: ALL_DIMENSIONS.map((d) => ({ id: d.id, label: d.label, cls: d.cls, blurb: d.blurb })),
+			// Sorted by label for DISPLAY only. ALL_DIMENSIONS is ordered by avgWeight,
+			// so serving it raw put 'Financial standing' (0.16, the heaviest open
+			// dimension) at the top of the preference screen — which reads as "money is
+			// the first thing we weight in a partner" to anyone looking at it, including
+			// an App Store reviewer who rejected this app under Guideline 1.1.4. Display
+			// order and model weight are different things; this changes only the first.
+			// The weights themselves are untouched and still come from the canonical array.
+			dimensions: [...ALL_DIMENSIONS]
+				.sort((a, b) => a.label.localeCompare(b.label))
+				.map((d) => ({ id: d.id, label: d.label, cls: d.cls, blurb: d.blurb })),
 			importance,
 			weightsSource: data?.weights_source ?? null,
 			maxImportance: MAX_IMPORTANCE,
