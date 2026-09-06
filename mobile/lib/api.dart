@@ -1220,15 +1220,24 @@ class DiscoveryProfile {
 
   /// Turn a raw archetype code into a label, e.g.
   /// `hopeless_romantic_woman` → `Hopeless-Romantic`.
-  static String prettyArchetype(String? raw) {
-    if (raw == null || raw.isEmpty) return '';
-    final stripped = raw.replaceAll(RegExp(r'_(man|woman)$'), '');
-    final parts = stripped
-        .split('_')
-        .where((p) => p.isNotEmpty)
-        .map((p) => p[0].toUpperCase() + p.substring(1));
-    return parts.join('-');
-  }
+  // prettyArchetype() was removed here, deliberately, and should not come back.
+  //
+  // It title-cased a raw archetype key into a chip label: `casual_generous_man`
+  // became "Casual-Generous" and `spoiled_casual_woman` became "Spoiled-Casual"
+  // — the two terms App Review cited when it rejected build 1.0.5 under
+  // Guideline 1.1.4. The server had renamed both to "Experience-Led"; the card
+  // rebuilt the old words from the database key and displayed them to 21 of 133
+  // members, changing on tap to the correct name.
+  //
+  // check-banned-strings.sh lists both terms and scans mobile/lib. It could not
+  // catch this, because it greps for literals and no literal existed — the
+  // strings were assembled at runtime from a database value.
+  //
+  // Archetype keys are internal identifiers. Display names come from the server,
+  // which resolves them against the canonical ARCHETYPES table. A client that
+  // derives user-facing copy from an identifier will resurrect the next retired
+  // word the same way.
+
 }
 
 Future<List<DiscoveryProfile>> fetchDiscovery({int limit = 12}) async {
@@ -1253,7 +1262,7 @@ Future<List<DiscoveryProfile>> fetchDiscovery({int limit = 12}) async {
       city: (p['city'] as String?)?.trim().isNotEmpty == true ? p['city'] as String : null,
       avatar: p['avatar'] as String?,
       trustScore: p['trustScore'] is num ? (p['trustScore'] as num).toInt() : 0,
-      archetypeLabel: DiscoveryProfile.prettyArchetype(p['archetype'] as String?),
+      archetypeLabel: (p['archetypeName'] ?? '').toString(),
       intent: (p['looking'] ?? p['hereFor']) as String?,
       distance: p['distance'] as String?,
       verifiedCount: (p['verified'] as List?)?.length ?? 0,
@@ -2983,7 +2992,7 @@ Future<MatchDetail> fetchMatchDetail(String profileId) async {
     city: d['city'] as String?,
     avatar: d['avatar'] as String?,
     trustScore: d['trustScore'] is num ? (d['trustScore'] as num).toInt() : 0,
-    archetypeLabel: (d['archetypeName'] ?? DiscoveryProfile.prettyArchetype(d['archetype'] as String?)).toString(),
+    archetypeLabel: (d['archetypeName'] ?? '').toString(),
     archetypeEmoji: (d['archetypeEmoji'] ?? '✨').toString(),
     hereFor: d['hereFor'] as String?,
     about: d['about'] as String?,

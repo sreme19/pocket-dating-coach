@@ -144,6 +144,34 @@ for p in "${PATTERNS_REFER[@]}"; do
   scan "-Fi" "$p" mobile/lib/refer_screen.dart
 done
 
+# ── Constructed strings: the ones grep cannot see ────────────────────────────
+#
+# Every check above greps for a literal. On 2026-09-06 the banned vocabulary
+# came back with no literal anywhere: the Flutter Discover card built its chip
+# label by stripping `_man`/`_woman` off the raw archetype key and title-casing
+# what was left, so `casual_generous_man` rendered as "Casual-Generous" and
+# `spoiled_casual_woman` as "Spoiled-Casual". Both are on the list above. Both
+# were live for 21 of 133 members. Neither appeared in any source file.
+#
+# What is checked here is NOT "does a key prettify into a banned term" — two
+# keys always will, the keys are database values and must not change, and a gate
+# that fails forever gets deleted. The invariant is narrower and is the actual
+# defect: user-facing code must not turn an archetype key into display copy.
+# Display names come from ARCHETYPES[key].name, resolved server-side.
+#
+# The tell is the strip: `_(man|woman)` applied as a pattern in client code.
+echo "→ checking no client derives a display label from an archetype key"
+derive_hits=$(grep -rnE "replace(All)?\(.*_\(man\|woman\)" $USER_FACING_ALL 2>/dev/null \
+  | grep -vE "^\s*(//|#|\*)" || true)
+if [ -n "$derive_hits" ]; then
+  echo "  ✗ user-facing code is building a label from an archetype key:"
+  echo "$derive_hits" | sed 's/^/      /'
+  echo "    Archetype keys are internal identifiers. Two of them title-case into"
+  echo "    Guideline 1.1.4 terms, so this is how the rejected vocabulary returns"
+  echo "    without any banned literal for the checks above to find."
+  fail=1
+fi
+
 if [ "$fail" -eq 0 ]; then
   echo "✓ clean — no banned strings found"
   exit 0

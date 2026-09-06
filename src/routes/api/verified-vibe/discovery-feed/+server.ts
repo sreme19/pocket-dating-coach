@@ -3,7 +3,7 @@ import { displayTrustScore } from '$lib/verified-vibe/server/trustScore';
 import type { RequestHandler } from '@sveltejs/kit';
 import type { DiscoveryProfile } from '$lib/verified-vibe/types';
 import { getSupabase } from '$lib/server/supabase';
-import { MATCH_MATRIX } from '$lib/verified-vibe/constants';
+import { MATCH_MATRIX, ARCHETYPES } from '$lib/verified-vibe/constants';
 import { analyzeAbout, profileHideReason } from '$lib/server/profile-moderation';
 import { buildPublicPhotos, pickHeroUrl } from '$lib/server/profile-photos';
 import { realMembersOnly } from '$lib/server/member-state';
@@ -401,7 +401,22 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
           id: p.id,
           gender: p.gender || 'man',
           discoveryMode: p.discovery_mode === 'networking' ? 'networking' : 'date',
-          archetype: p.archetype || 'casual_man',
+          archetype: p.archetype || '',
+          // The DISPLAY name, resolved here from the canonical ARCHETYPES table,
+          // exactly as public-profile already does. The card used to receive only
+          // the raw key and title-case it on the phone, which quietly reversed a
+          // rename that App Review required: `casual_generous_man` prettifies to
+          // "Casual-Generous" and `spoiled_casual_woman` to "Spoiled-Casual" —
+          // the two terms Guideline 1.1.4 cited when it rejected build 1.0.5.
+          // Fourteen of the sixteen archetypes happened to prettify to their real
+          // display name, so the disagreement showed on exactly those two, for 21
+          // of 133 feed-eligible members, and changed on tap.
+          //
+          // check-banned-strings.sh lists both terms and scans mobile/lib, but it
+          // greps for literals and these were built at runtime from a database
+          // value, so nothing in source ever spelled them.
+          archetypeName: ARCHETYPES[p.archetype]?.name ?? '',
+          archetypeEmoji: ARCHETYPES[p.archetype]?.emoji ?? '✨',
           firstName: p.first_name || 'User',
           age: p.age || 25,
           city: p.city || 'Unknown',

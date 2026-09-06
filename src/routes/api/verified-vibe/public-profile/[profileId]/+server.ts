@@ -161,7 +161,13 @@ export const GET: RequestHandler = async ({ params }) => {
     if (profileRes.error || !profileRes.data) return json({ error: 'Profile not found' }, { status: 404 });
     const profile = profileRes.data;
 
-    const archetype: string = profile.archetype ?? 'casual_man';
+    // `|| ''`, not `?? 'casual_man'`. Two reasons the old default was wrong:
+    // 'casual_man' is not a key in ARCHETYPES (the real one is
+    // 'casual_generous_man'), so every lookup below fell through to its own
+    // default anyway; and `??` keeps an empty string while the discovery feed's
+    // `||` replaced it, so the two surfaces disagreed about the same member.
+    // Today that only reaches provisional members, who never enter the feed.
+    const archetype: string = profile.archetype || '';
     const archetypeDef = ARCHETYPES[archetype];
 
     const completedSteps = (verificationRes.data ?? []).filter((s: any) => s.status === 'completed');
