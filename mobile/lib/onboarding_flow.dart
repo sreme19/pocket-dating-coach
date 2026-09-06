@@ -286,7 +286,7 @@ class GateStep extends StatelessWidget {
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text('Yes, I\'m 18+', style: TextStyle(color: Color(Config.text1), fontWeight: FontWeight.w600, fontSize: 15)),
                         SizedBox(height: 2),
-                        Text('Required — we ID-verify everyone, no exceptions.', style: TextStyle(color: Color(Config.text3), fontSize: 12)),
+                        Text('Required — we identity-verify every member with a live selfie.', style: TextStyle(color: Color(Config.text3), fontSize: 12)),
                       ]),
                     ),
                   ]),
@@ -319,7 +319,7 @@ class GateStep extends StatelessWidget {
                 text: TextSpan(
                   style: const TextStyle(fontSize: 11, color: Color(Config.text3), height: 1.55),
                   children: [
-                    const TextSpan(text: 'By continuing you agree to ID verification, our '),
+                    const TextSpan(text: 'By continuing you agree to identity verification, our '),
                     TextSpan(
                       text: 'Terms',
                       style: const TextStyle(color: Color(Config.text2), decoration: TextDecoration.underline),
