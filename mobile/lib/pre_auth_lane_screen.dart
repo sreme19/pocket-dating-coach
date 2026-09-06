@@ -149,7 +149,7 @@ class _PreAuthLaneScreenState extends State<PreAuthLaneScreen> {
               // Trust note
               const Center(
                 child: Text(
-                  'We verify ID, photos, lifestyle & intent.\nNo one sees the raw files — only the signals you allow.',
+                  'We verify identity, photos, lifestyle & intent.\nNo one sees the raw files — only the signals you allow.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 12, color: Color(Config.text3), height: 1.6),
                 ),
