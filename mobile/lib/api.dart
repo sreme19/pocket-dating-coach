@@ -246,35 +246,25 @@ Future<ProfileData> fetchProfile() async {
   final age = row?['age'] != null ? _asInt(row!['age']) : (draft?['age'] != null ? _asInt(draft!['age']) : null);
   final city = (row?['city'] ?? draft?['city'])?.toString();
   final about = (generated?['about'] ?? '').toString();
-  // Compute trust score as sum of pts (matches Trust & Boost screen logic)
-  Map? _vstepFor(String name) {
-    for (final s in verifySteps) { if (s['step'] == name) return s; }
-    return null;
-  }
-  final _idScore  = _stepScore(_vstepFor('id'));
-  final _livScore = _stepScore(_vstepFor('liveness'));
-  final _phScore  = _stepScore(_vstepFor('photos'));
-  final _qaScore  = _stepScore(_vstepFor('spending_or_qa'));
-  final _vPts = (_idScore > 0 ? 10 : 0) + (_livScore > 0 ? 10 : 0)
-              + (_phScore > 0 ? 15 : 0) + (_qaScore  > 0 ? 10 : 0);
-  // Proof pts + count computed directly from verifySteps so they are accurate
-  // even if the master-profile API call fails (proofs list would be empty).
-  const _catPts = <String, int>{
-    'lifestyle': 8, 'hosting': 6, 'discipline': 4, 'social_proof': 4,
-    'linkedin': 5, 'instagram': 3, 'twitter': 2, 'habit_tracker': 2,
-    'intro': 8, 'spending': 10, 'assets': 10, 'wealth': 12, 'travel': 8,
-  };
-  int _proofPts = 0;
+  // Proof COUNT (not points) computed directly from verifySteps so it is
+  // accurate even if the master-profile API call fails, which would leave the
+  // proofs list empty.
   int _proofCount = 0;
   for (final s in verifySteps) {
     final step = s['step']?.toString() ?? '';
-    if (step.startsWith('proof_') && s['status'] == 'completed') {
-      _proofCount++;
-      final cat = step.replaceFirst('proof_', '');
-      _proofPts += _catPts[cat] ?? 4;
-    }
+    if (step.startsWith('proof_') && s['status'] == 'completed') _proofCount++;
   }
-  final trust = (_vPts + _proofPts).clamp(0, 100);
+
+  // The stored, cohort-normalized score — the same number the Discover card and
+  // the public profile now show. The `row` query above has always selected
+  // trust_score; this line used to ignore it and re-derive its own from weighted
+  // step points plus per-category proof points, which is why a member could read
+  // one score on her card and a different one on her own profile.
+  //
+  // The step and proof-point arithmetic that used to live here is gone rather
+  // than kept "for the checklist": nothing else in this function read it. The
+  // Trust & Boost screen computes its own.
+  final trust = _asInt(row?['trust_score'] ?? 0).clamp(0, 100);
   final gender = row?['gender']?.toString();
   final archetype = (row?['archetype'] ?? '').toString();
   final hardNos = <String>[];
@@ -1219,9 +1209,12 @@ class DiscoveryProfile {
   bool get isNetworking => discoveryMode == 'networking';
 
   String get trustLabel {
-    if (trustScore >= 80) return 'High Trust';
-    if (trustScore >= 60) return 'Trusted';
-    if (trustScore >= 40) return 'Building Trust';
+    // Thresholds match trustScore.README.md (75 / 50 / 25). They were 80/60/40
+    // here, so one score could read 'Trusted' on mobile and 'High Trust' in the
+    // web UI describing the same member.
+    if (trustScore >= 75) return 'High Trust';
+    if (trustScore >= 50) return 'Trusted';
+    if (trustScore >= 25) return 'Building Trust';
     return 'New here';
   }
 

@@ -307,3 +307,35 @@ export function getVerificationProgress(verificationRecords: VerificationRecord[
 
   return Math.round((completedCount / steps.length) * 100);
 }
+
+/**
+ * The trust score shown on a Discover card.
+ *
+ * Reads the stored, cohort-normalized score and nothing else. This used to sum
+ * 25 points per completed verification ROW, which produced two separate bugs:
+ * a member who re-completed a step was counted twice and rendered as "125%"
+ * (clamped in 6b8f3a42), and — the reason this function now does almost
+ * nothing — the number disagreed with every other screen showing it. Measured
+ * 2026-09-06 against live data: 123 of 146 members read a different trust
+ * score on their card than on their detail view, by up to 20 points.
+ *
+ * There were four formulas. The card scored 25/step; the detail view
+ * (public-profile) scored core*20 + proof*4; a member's own profile
+ * (mobile/lib/api.dart) scored weighted steps plus per-category proof points;
+ * and trustScore.ts weighted four steps by confidence. None matched
+ * verified_vibe_users.trust_score, which trust-recompute.ts calls "the SINGLE
+ * source of truth" and trust-normalize.ts records as the product decision:
+ * the normalized value IS the trust score. It is what the matchmaker, the
+ * Bestie flags, the pool registry and admin have always read.
+ *
+ * So the fix is not a better formula here. It is no formula here.
+ *
+ * Kept as a named function rather than inlining `p.trust_score` so the rule has
+ * one place to be tested, and so the next person who wants to "just adjust the
+ * card score" finds this note instead of an expression.
+ */
+export function displayTrustScore(profile: { trust_score?: number | null }): number {
+  const stored = profile?.trust_score;
+  if (typeof stored !== 'number' || Number.isNaN(stored)) return 0;
+  return Math.min(100, Math.max(0, Math.round(stored)));
+}

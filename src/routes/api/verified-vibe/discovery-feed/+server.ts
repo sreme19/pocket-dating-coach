@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { displayTrustScore } from '$lib/verified-vibe/server/trustScore';
 import type { RequestHandler } from '@sveltejs/kit';
 import type { DiscoveryProfile } from '$lib/verified-vibe/types';
 import { getSupabase } from '$lib/server/supabase';
@@ -118,47 +119,6 @@ function buildSeedProfiles(targetGender: string, compatibleArchetypes: string[])
   return filtered.length > 0 ? filtered : pool;
 }
 
-/**
- * Trust score shown on a Discover card: 25 points per completed verification
- * step, bounded to 0-100.
- *
- * The bound is the point. This sums verification ROWS, while the sibling
- * verificationMap in the handler is a Set keyed on step NAME — so a member who
- * re-completed a step has two 'completed' rows for it, was counted twice, and
- * rendered as "125%" on their card. Observed in the live iOS build 2026-09-05.
- * calculateTrustScore() in trustScore.ts has always clamped the same way; this
- * path simply never did.
- *
- * KNOWN AND STILL OPEN (deliberately not fixed here — see
- * ios-trust-score-inconsistent in pdc-store-release-ops):
- *
- *  1. This is not the same number as the profile detail view. That screen
- *     computes its own score in mobile/lib/api.dart — verification points PLUS
- *     per-category proof points, separately clamped. The same member read 75%
- *     on her card and 60% one tap later on her own profile.
- *  2. Neither path uses the canonical score. verified_vibe_users.trust_score is
- *     written by trust-normalize.ts, which states the product decision that the
- *     normalized value IS the trust score — and the handler below already
- *     selects it, then ignores it.
- *
- * trust-recompute.ts opens by describing this exact failure happening once
- * before ("trust_score used to be written by two paths that fought each
- * other"). It is currently written by three.
- */
-export function trustScoresFromVerificationRows(
-  rows: Array<{ user_id: string; status?: string }>
-): Map<string, number> {
-  const raw = new Map<string, number>();
-  for (const row of rows) {
-    const points = row.status === 'completed' ? 25 : 0;
-    raw.set(row.user_id, (raw.get(row.user_id) || 0) + points);
-  }
-  const bounded = new Map<string, number>();
-  for (const [userId, score] of raw) {
-    bounded.set(userId, Math.min(100, Math.max(0, score)));
-  }
-  return bounded;
-}
 
 export const GET: RequestHandler = async ({ url, locals, request }) => {
   try {
@@ -291,7 +251,6 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
       (supabase as any).from('verified_vibe_verification').select('user_id, data').eq('step', 'photos'),
     ]);
 
-    const trustScoreMap = new Map<string, number>();
     const verificationMap = new Map<string, Set<string>>();
     // Photo identity-gate verdict per user (from the photos step) — 'rejected'
     // means the displayed photos were screened and are NOT the profile owner.
@@ -302,12 +261,9 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
     }
 
     if (verificationSteps) {
-      // Trust points (25 per completed step, bounded 0-100) — see
-      // trustScoresFromVerificationRows above for why the bound exists.
-      for (const [userId, score] of trustScoresFromVerificationRows(verificationSteps)) {
-        trustScoreMap.set(userId, score);
-      }
-
+      // Verification rows still drive the tick badges — which steps are done is
+      // a different question from how trustworthy the member is, and only the
+      // second one moved to the stored score.
       verificationSteps.forEach((step: any) => {
         if (!verificationMap.has(step.user_id)) {
           verificationMap.set(step.user_id, new Set());
@@ -420,8 +376,9 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
           return null;
         }
         const aboutVerdict = analyzeAbout(effectiveAbout);
-        // Already bounded 0-100 by trustScoresFromVerificationRows.
-        const trustScore = trustScoreMap.get(p.id) || 0;
+        // The stored, cohort-normalized score — the same number every other
+        // surface shows. See displayTrustScore.
+        const trustScore = displayTrustScore(p);
         const verifiedSteps = Array.from(verificationMap.get(p.id) || new Set()).map(s => {
           const stepNames: Record<string, string> = {
             id: 'ID',

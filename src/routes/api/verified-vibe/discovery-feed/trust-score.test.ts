@@ -1,84 +1,70 @@
 /**
- * Regression tests for the Discover card's trust score.
+ * Regression tests for the trust score shown on a Discover card.
  *
- * The bug these pin: the feed summed 25 points per completed verification ROW
- * with no upper bound, while the handler's sibling verificationMap is a Set
- * keyed on step NAME. A member who re-completed a step therefore had two
- * 'completed' rows, was scored twice, and rendered as "125%" on their Discover
- * card — observed in the live iOS build on 2026-09-05, on the exact screen a
- * pending App Store 4.3(b) resubmission is built to showcase.
+ * Two bugs, one after the other, on the screen a pending App Store 4.3(b)
+ * resubmission exists to showcase:
+ *
+ *  1. The card summed 25 points per completed verification ROW with no upper
+ *     bound, so a member who re-completed a step was scored twice and rendered
+ *     as "125%". Clamped in 6b8f3a42; the clamp cases below are kept so it
+ *     cannot come back by way of a new formula.
+ *  2. The number disagreed with every other screen showing it. Measured
+ *     2026-09-06 against live data: 123 of 146 members read a different trust
+ *     score on their card than on their detail view, by up to 20 points. There
+ *     were four competing formulas.
+ *
+ * The fix for (2) is that no surface computes a trust score any more — they all
+ * read verified_vibe_users.trust_score, which trust-recompute.ts calls the
+ * single source of truth. So these tests assert a passthrough, and the ones
+ * about "25 points per step" are gone because that rule is gone.
  */
 
 import { describe, it, expect } from 'vitest';
-import { trustScoresFromVerificationRows } from './+server';
+import { displayTrustScore } from '$lib/verified-vibe/server/trustScore';
 
-const row = (user_id: string, status: string) => ({ user_id, status });
-
-describe('trustScoresFromVerificationRows', () => {
-  it('awards 25 points per completed step', () => {
-    const scores = trustScoresFromVerificationRows([
-      row('u1', 'completed'),
-      row('u1', 'completed')
-    ]);
-    expect(scores.get('u1')).toBe(50);
+describe('displayTrustScore', () => {
+  it('returns the stored score unchanged', () => {
+    expect(displayTrustScore({ trust_score: 34 })).toBe(34);
+    expect(displayTrustScore({ trust_score: 100 })).toBe(100);
   });
 
-  it('scores the four-step maximum as exactly 100', () => {
-    const scores = trustScoresFromVerificationRows([
-      row('u1', 'completed'),
-      row('u1', 'completed'),
-      row('u1', 'completed'),
-      row('u1', 'completed')
-    ]);
-    expect(scores.get('u1')).toBe(100);
+  // A genuine 0 must display as 0. The expression this replaced ended in
+  // `|| (profile.trust_score ?? 0)`, and `||` fires on 0 — so the one member
+  // the fallback was written for, the one who had verified nothing, was the
+  // one it silently gave a different number to.
+  it('treats a stored 0 as a real score, not as missing', () => {
+    expect(displayTrustScore({ trust_score: 0 })).toBe(0);
   });
 
-  // The actual regression. Five completed rows is what a re-completed step
-  // looks like in verified_vibe_verification, and it used to render "125%".
-  it('never exceeds 100, even with duplicate completed rows for one step', () => {
-    const scores = trustScoresFromVerificationRows([
-      row('u1', 'completed'),
-      row('u1', 'completed'),
-      row('u1', 'completed'),
-      row('u1', 'completed'),
-      row('u1', 'completed')
-    ]);
-    expect(scores.get('u1')).toBe(100);
-    expect(scores.get('u1')).toBeLessThanOrEqual(100);
+  it('reads a missing or malformed score as 0 rather than NaN', () => {
+    expect(displayTrustScore({ trust_score: null })).toBe(0);
+    expect(displayTrustScore({ trust_score: undefined })).toBe(0);
+    expect(displayTrustScore({})).toBe(0);
+    expect(displayTrustScore({ trust_score: NaN })).toBe(0);
   });
 
-  it('stays bounded under heavy duplication', () => {
-    const rows = Array.from({ length: 40 }, () => row('u1', 'completed'));
-    expect(trustScoresFromVerificationRows(rows).get('u1')).toBe(100);
+  // The 125% guard. It can no longer arise from this path, but the bound is
+  // cheap and the failure was user-visible on a review build.
+  it('never renders outside 0-100, whatever is stored', () => {
+    expect(displayTrustScore({ trust_score: 125 })).toBe(100);
+    expect(displayTrustScore({ trust_score: 1000 })).toBe(100);
+    expect(displayTrustScore({ trust_score: -20 })).toBe(0);
   });
 
-  it('ignores rows that are not completed', () => {
-    const scores = trustScoresFromVerificationRows([
-      row('u1', 'completed'),
-      row('u1', 'pending'),
-      row('u1', 'failed')
-    ]);
-    expect(scores.get('u1')).toBe(25);
+  it('rounds, so a card never shows a fraction', () => {
+    expect(displayTrustScore({ trust_score: 61.4 })).toBe(61);
+    expect(displayTrustScore({ trust_score: 61.6 })).toBe(62);
   });
 
-  it('never returns a negative score', () => {
-    const scores = trustScoresFromVerificationRows([row('u1', 'pending')]);
-    expect(scores.get('u1')).toBe(0);
-  });
-
-  it('scores each user independently', () => {
-    const scores = trustScoresFromVerificationRows([
-      row('u1', 'completed'),
-      row('u2', 'completed'),
-      row('u2', 'completed'),
-      row('u3', 'pending')
-    ]);
-    expect(scores.get('u1')).toBe(25);
-    expect(scores.get('u2')).toBe(50);
-    expect(scores.get('u3')).toBe(0);
-  });
-
-  it('returns an empty map for no rows', () => {
-    expect(trustScoresFromVerificationRows([]).size).toBe(0);
+  // The invariant that was missing: the card and the detail view are handed the
+  // same profile row and must not be able to disagree. Both call sites now pass
+  // their row straight to this function, so agreement is a property of there
+  // being one function — this pins that it stays that way.
+  it('gives the same answer to every surface for the same member', () => {
+    const member = { trust_score: 34 };
+    const card = displayTrustScore(member);   // discovery-feed
+    const detail = displayTrustScore(member); // public-profile/[profileId]
+    expect(card).toBe(detail);
+    expect(card).toBe(34);
   });
 });

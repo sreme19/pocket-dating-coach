@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { getSupabase } from '$lib/server/supabase';
 import { ARCHETYPES } from '$lib/verified-vibe/constants';
+import { displayTrustScore } from '$lib/verified-vibe/server/trustScore';
 import { sanitizeAboutForDetail, isAbusiveName, isAbusiveCity, cleanChipList } from '$lib/server/profile-moderation';
 import { buildPublicPhotos, pickHeroUrl } from '$lib/server/profile-photos';
 
@@ -163,12 +164,22 @@ export const GET: RequestHandler = async ({ params }) => {
     const archetype: string = profile.archetype ?? 'casual_man';
     const archetypeDef = ARCHETYPES[archetype];
 
-    // Live trust score
     const completedSteps = (verificationRes.data ?? []).filter((s: any) => s.status === 'completed');
     const coreSteps = ['id', 'liveness', 'photos', 'spending_or_qa'];
     const proofCount = completedSteps.filter((s: any) => s.step.startsWith('proof_')).length;
     const coreCount = completedSteps.filter((s: any) => coreSteps.includes(s.step)).length;
-    const trustScore = Math.min(100, coreCount * 20 + proofCount * 4) || (profile.trust_score ?? 0);
+
+    // The stored, cohort-normalized score — the same number the Discover card
+    // shows. This was `core*20 + proof*4`, one of four competing formulas, and
+    // it is the one that read 60% on a member whose card read 75% one tap
+    // earlier (observed on the live iOS build 2026-09-05).
+    //
+    // The `|| (profile.trust_score ?? 0)` tail that used to close that
+    // expression went with it, and deserves its own note: `||` fires on 0, so a
+    // member who had genuinely completed nothing did not display 0 — she fell
+    // through and borrowed the stored score. The one case the fallback existed
+    // for was the one case it got wrong.
+    const trustScore = displayTrustScore(profile);
 
     // Title-case name (fall back when the stored name is symbol/digit garbage)
     const rawName: string = isAbusiveName(profile.first_name) ? 'Member' : (profile.first_name ?? 'User');
