@@ -14,6 +14,7 @@
 library;
 
 import 'package:dio/dio.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// The API returned 5xx. Matched on Dio's own phrasing rather than a bare "500",
 /// which would also hit any id, duration or count containing those digits.
@@ -76,6 +77,40 @@ bool _isRewrappedNetworkFailure(String s) =>
     s.contains(kConnectionErrorMessage) ||
     s.contains(kNetworkRetryMessage);
 
+/// Auth codes that describe the user's situation rather than a fault in the app.
+///
+/// A ban is something we did on purpose; an expired code is someone typing the
+/// old one out of an old email. Neither is news, and both arrive over and over
+/// from the same person, because the natural response to a rejected login is to
+/// try again.
+///
+/// Matched on gotrue's `code`, never on the class name — `AuthApiException` is
+/// also what a 500 from the auth server arrives as, and that one has to stay
+/// visible. Same rule the `DioException` note above exists for.
+const _expectedAuthCodes = {
+  'user_banned',
+  'otp_expired',
+  'invalid_credentials',
+  'over_email_send_rate_limit',
+};
+
+/// Is this login failure an outcome, rather than a bug?
+///
+/// Recorded either way; the difference is whether it pages a human. On
+/// 2026-09-06 a single banned account retrying `verify_otp` emailed an app
+/// error that no amount of code could have fixed — the account was closed, and
+/// the alert said only that the person had noticed.
+///
+/// A 5xx is never an expected outcome, even when the auth server phrases its
+/// own failure as a rejection.
+bool isExpectedAuthOutcome(Object err) {
+  if (isServerError(err.toString())) return false;
+  if (err is! AuthApiException) return false;
+  final status = err.statusCode;
+  if (status != null && status.startsWith('5')) return false;
+  return _expectedAuthCodes.contains(err.code);
+}
+
 /// The session is gone or was never valid.
 bool isAuthError(String s) => s.contains('401') || s.contains('Unauthorized');
 
@@ -102,3 +137,13 @@ const String kConnectionErrorMessage =
     'Connection error — please check your internet and try again.';
 const String kNetworkRetryMessage =
     'Network error — check your connection and try again.';
+
+/// What to tell someone whose account we closed.
+///
+/// The old wording here was "That code is incorrect or has expired", which is
+/// both false and an instruction to keep trying: it sent a banned user back to
+/// request another code, indefinitely. If the answer is no, say no, and say
+/// where to take it.
+const String kAccountBannedMessage =
+    'This account has been closed and can no longer sign in. '
+    'If you think that\'s a mistake, email support@riteangle.dating.';

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:verified_vibe/error_text.dart';
 
 /// A real `DioException` rather than its string form: `isConnectivityFailure`
@@ -164,6 +165,65 @@ void main() {
       expect(isConnectivityFailure(StateError('Not authenticated')), isFalse);
       expect(isConnectivityFailure(Exception('Null check operator used on a null value')), isFalse);
     });
+  });
+
+  group('isExpectedAuthOutcome', () {
+    // The alert that prompted this: one closed account retrying verify_otp,
+    // emailing an "app error" nothing in the app could fix.
+    test('a banned account is an outcome, not a bug', () {
+      expect(
+        isExpectedAuthOutcome(
+            AuthApiException('User is banned', statusCode: '403', code: 'user_banned')),
+        isTrue,
+      );
+    });
+
+    test('the everyday login failures are outcomes too', () {
+      for (final code in ['otp_expired', 'invalid_credentials', 'over_email_send_rate_limit']) {
+        expect(
+          isExpectedAuthOutcome(AuthApiException('rejected', statusCode: '400', code: code)),
+          isTrue,
+          reason: code,
+        );
+      }
+    });
+
+    // The reason this reads `code` and not the class: the auth server falling
+    // over arrives as the same exception type, and has to keep paging us.
+    test('an auth server 5xx is still ours', () {
+      expect(
+        isExpectedAuthOutcome(AuthApiException('Internal server error',
+            statusCode: '500', code: 'unexpected_failure')),
+        isFalse,
+      );
+      expect(
+        isExpectedAuthOutcome(AuthApiException('upstream is banned',
+            statusCode: '503', code: 'user_banned')),
+        isFalse,
+        reason: 'a 5xx outranks a recognised code',
+      );
+    });
+
+    test('an unrecognised auth code stays visible', () {
+      expect(
+        isExpectedAuthOutcome(
+            AuthApiException('boom', statusCode: '400', code: 'something_new')),
+        isFalse,
+      );
+    });
+
+    test('false for anything that is not an auth failure', () {
+      expect(isExpectedAuthOutcome(StateError('Not authenticated')), isFalse);
+      expect(isExpectedAuthOutcome(_dio(DioExceptionType.receiveTimeout)), isFalse);
+    });
+  });
+
+  test('the banned message closes the door instead of inviting a retry', () {
+    expect(kAccountBannedMessage.toLowerCase(), contains('closed'));
+    expect(kAccountBannedMessage, contains('support@riteangle.dating'));
+    // The wording it replaced sent banned users back for another code.
+    expect(kAccountBannedMessage.toLowerCase(), isNot(contains('try again')));
+    expect(kAccountBannedMessage.toLowerCase(), isNot(contains('expired')));
   });
 
   test('the server-fault message blames us, not the user', () {

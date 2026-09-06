@@ -170,6 +170,13 @@ class AppLogger {
     // The user's network dropped — recorded above, but nothing to act on.
     if (err is Object && isConnectivityFailure(err)) return;
 
+    // The login was refused on purpose — a closed account, or a code typed out
+    // of a stale email. Also recorded above, also nothing to act on, and worse
+    // than useless as an alert: the person on the other end keeps retrying, so
+    // one closed account pages us every five minutes for as long as they care
+    // to. Read these off `mobile_event_log` when you want to see a ban wave.
+    if (err is Object && isExpectedAuthOutcome(err)) return;
+
     // Rate-limit email alerts: same error type + screen + action → max 1 email
     // per 5 min. The action belongs in the key: without it every literal-string
     // error on a screen shared the key `String:chat_list`, so the first one

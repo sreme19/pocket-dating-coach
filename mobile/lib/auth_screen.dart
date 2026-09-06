@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'config.dart';
 import 'app_logger.dart';
+import 'error_text.dart';
 import 'onboarding_flow.dart' show GateStep, pendingSignupGender, pendingSignupArchetype;
 import 'pre_auth_lane_screen.dart';
 import 'season.dart';
@@ -85,6 +86,11 @@ class _AuthScreenState extends State<AuthScreen> {
               ? 'Please wait $waitSecs seconds before requesting another code.'
               : 'You\'ve requested too many codes. Please wait a moment and try again.',
         );
+      } else if (_isBanned(e)) {
+        // Caught here too: gotrue refuses a banned address at the send step as
+        // well, and "check your connection" would be the same false lead.
+        AppLogger.instance.error(e, screen: 'auth', action: 'send_otp');
+        _showAlert(title: 'Account closed', body: kAccountBannedMessage);
       } else {
         AppLogger.instance.error(e, screen: 'auth', action: 'send_otp',
             meta: {'email': _email.text.trim()});
@@ -92,6 +98,10 @@ class _AuthScreenState extends State<AuthScreen> {
       }
     }
   }
+
+  /// Reads gotrue's `code` rather than the message, which is free text the
+  /// auth server is allowed to reword.
+  bool _isBanned(Object e) => e is AuthApiException && e.code == 'user_banned';
 
   Future<void> _verify() async {
     AppLogger.instance.action('auth', 'verify_otp');
@@ -116,6 +126,13 @@ class _AuthScreenState extends State<AuthScreen> {
       AppLogger.instance.error(e, screen: 'auth', action: 'verify_otp');
       setState(() => _loading = false);
       if (!mounted) return;
+      // A closed account is not a bad code. Telling her it was one sends her
+      // round the request-a-new-code loop forever, which is exactly what the
+      // 2026-09-06 alerts were: the same person trying again.
+      if (_isBanned(e)) {
+        _showAlert(title: 'Account closed', body: kAccountBannedMessage);
+        return;
+      }
       _showAlert(title: 'Invalid code', body: 'That code is incorrect or has expired. Check your email and try again.');
     }
   }
