@@ -95,3 +95,49 @@ A migration creating the views and the role, a scheduled or manual snapshot
 writer producing `metrics/YYYY-MM-DD.json`, and `pdc_traction` reading that file
 instead of returning `unavailable`. None of it needs the investor agent to touch
 the database at all.
+
+## Confirmed 7 September, against production
+
+Six of the eleven candidate metrics above were marked **guess**. Producing traction
+figures for an external application form settled most of them by running read-only
+counts against production. Corrected mappings:
+
+| Metric | Actual source | Note |
+|---|---|---|
+| Members | `verified_vibe_users` | **must** filter `is_seed=false, is_provisional=false` |
+| Matches produced | `verified_vibe_matches` | not `ts_runs`/`ts_pair_scores`; has a `source` column (`matchmaker`, `notice_me`, `aibestie_lp`, `beta_invite`) |
+| Matchmaker runs | `vv_matchmaker_runs` | |
+| Monthly actives | distinct `sender_id` in `verified_vibe_messages` | `mobile_event_log` not needed for this |
+| Activation | `verified_vibe_verification` (`step`, `status`) | per-step, distinct users |
+| Trust | `verified_vibe_users.trust_score` | **continuous** 0–100, not bucketed to 0/25/50/75/100 |
+| AI Bestie vetting conversations | `aibestie_lp_sessions` | |
+
+### Two traps that make a metric wrong while it still looks fine
+
+**1. `verified_vibe_messages.is_ai` — over half the message volume is the product,
+not the members.** 1,724 of 3,299 messages have `is_ai = true`. Any engagement
+metric computed without that filter measures our own send rate. Concretely:
+"matches with a conversation in them" reads **570 of 573** unfiltered and **322 of
+573** on human messages only. The first number is an artefact and would not have
+survived a diligence question.
+
+**2. supabase-js silently caps a `select` at 1000 rows.** No error, no warning — a
+short array. A distinct-count over `verified_vibe_messages` therefore read **257**
+matches-with-messages on the capped fetch versus **570** paginated, and the
+distinct-sender count read 71 versus the true 109. Any metric derived from row
+sets rather than `{ count: 'exact', head: true }` has to paginate with `.range()`
+and assert the total before it is quoted.
+
+### The metric nobody was computing
+
+Both members sending a human message: **13 of 573 matches**. Matches are produced
+and one side talks; two-way conversation is the actual funnel step, and it is
+absent from the candidate list above. It belongs there — for a matching product it
+is closer to activation than any signup count.
+
+### Standing note on the privacy clause
+
+The prerequisite recorded on 4 September still stands: the privacy policy does not
+mention aggregate analytics. The counts described here are aggregate and
+non-identifying, but they have now been used externally once, ahead of that
+clause. That ordering was not ideal and is worth closing before the next use.
