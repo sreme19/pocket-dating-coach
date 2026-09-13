@@ -29,6 +29,15 @@ interface SlackAlertOptions {
 	dashboardUrl?: string;
 }
 
+/**
+ * Is Slack actually wired up? Without a webhook sendSlackAlert returns silently,
+ * so any code that routes an alert "to Slack instead of email" is routing it
+ * nowhere. Callers check this before deciding an email is redundant.
+ */
+export function isSlackConfigured(): boolean {
+	return Boolean(process.env.SLACK_WEBHOOK_URL);
+}
+
 export async function sendSlackAlert(opts: SlackAlertOptions): Promise<void> {
 	const webhookUrl = process.env.SLACK_WEBHOOK_URL;
 	if (!webhookUrl) return;

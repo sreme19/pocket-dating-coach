@@ -1,13 +1,18 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { runHealthCheck, isUpstreamOnly } from '$lib/server/health';
-import { sendSlackAlert } from '$lib/server/slack';
+import { sendSlackAlert, isSlackConfigured } from '$lib/server/slack';
+import { decideAlert, readAlertState, writeAlertState } from '$lib/server/health-alert-state';
 
 /**
  * Health alert cron — runs every 10 minutes via Vercel Cron.
  * Posts to Slack whenever any service is down or degraded, and emails via
  * Resend as well — unless every fault in the report is upstream and waiting is
- * the only remedy (see isUpstreamOnly).
+ * the only remedy (see isUpstreamOnly), or we already emailed about this exact
+ * fault inside the last 24 hours (see health-alert-state).
+ *
+ * Checking stays at 10 minutes so /api/health and /admin/monitoring keep showing
+ * live truth. Only the emails are throttled.
  * Auth: Authorization: Bearer <CRON_SECRET>
  */
 
@@ -63,8 +68,8 @@ function buildAlertHtml(report: Awaited<ReturnType<typeof runHealthCheck>>): str
 		})
 		.join('');
 
-	const bgColor = status === 'down' ? '#fef2f2' : '#fffbeb';
-	const headerColor = status === 'down' ? '#dc2626' : '#d97706';
+	const bgColor = status === 'ok' ? '#f0fdf4' : status === 'down' ? '#fef2f2' : '#fffbeb';
+	const headerColor = status === 'ok' ? '#16a34a' : status === 'down' ? '#dc2626' : '#d97706';
 
 	return `<!DOCTYPE html>
 <html>
@@ -72,7 +77,7 @@ function buildAlertHtml(report: Awaited<ReturnType<typeof runHealthCheck>>): str
 <body style="font-family:sans-serif;background:#f9fafb;margin:0;padding:24px">
   <div style="max-width:540px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1)">
     <div style="background:${headerColor};color:#fff;padding:20px 24px">
-      <h2 style="margin:0;font-size:18px">${statusEmoji(status)} Pocket Dating Coach — Service Alert</h2>
+      <h2 style="margin:0;font-size:18px">${statusEmoji(status)} Pocket Dating Coach — ${status === 'ok' ? 'Service Recovered' : 'Service Alert'}</h2>
     </div>
     <div style="padding:20px 24px;background:${bgColor};border-bottom:1px solid #e5e7eb">
       <p style="margin:0;font-size:15px">Overall status: <strong>${status.toUpperCase()}</strong></p>
@@ -105,8 +110,30 @@ const handle: RequestHandler = async ({ request }) => {
 
 	const report = await runHealthCheck();
 
+	// undefined means "could not ask" — a Supabase outage looks exactly like
+	// this, and it is the one case where the cron has no memory to consult.
+	const state = await readAlertState();
+	const decision = decideAlert(report, new Date(), state);
+	const storeBlind = state === undefined;
+
 	if (report.status === 'ok') {
-		return json({ alerted: false, status: 'ok' });
+		if (!decision.email) {
+			return json({ alerted: false, status: 'ok', reason: decision.reason });
+		}
+		// Recovered. Send first, then forget the incident, so a failed send is
+		// retried on the next run rather than silently dropped.
+		try {
+			await sendAlert('✅ RECOVERED: All services healthy — Pocket Dating Coach', buildAlertHtml(report));
+			await writeAlertState(null);
+			console.log('[health-alert] Sent recovery notice to', process.env.ALERT_EMAIL);
+			return json({ alerted: true, status: 'ok', reason: 'recovered' });
+		} catch (err) {
+			console.error('[health-alert] Failed to send recovery email:', err);
+			return json(
+				{ alerted: false, error: err instanceof Error ? err.message : String(err) },
+				{ status: 500 }
+			);
+		}
 	}
 
 	const subject = report.status === 'down'
@@ -116,11 +143,6 @@ const handle: RequestHandler = async ({ request }) => {
 	const isCritical = report.status === 'down';
 	const appUrl = process.env.APP_URL ?? 'https://riteangle.dating';
 
-	// Slack gets every report. The email is for reports with something in them
-	// to act on — see isUpstreamOnly.
-	const upstreamOnly = isUpstreamOnly(report);
-
-	// Slack alert
 	const failedServices = Object.entries(report.services)
 		.filter(([, s]) => s.status !== 'ok')
 		.map(([name, s]) => `• *${name}*: ${s.status.toUpperCase()}${s.error ? ` — ${s.error}` : ''}`)
@@ -140,17 +162,31 @@ const handle: RequestHandler = async ({ request }) => {
 		dashboardUrl: `${appUrl}/admin/monitoring`,
 	});
 
-	if (upstreamOnly) {
+	// "Slack has it, so the email is redundant" is only true when Slack exists.
+	// With no webhook configured sendSlackAlert returns silently, and skipping
+	// the email here would route the alert to nobody at all.
+	if (isUpstreamOnly(report) && isSlackConfigured()) {
 		console.log(`[health-alert] Slack only — every fault is upstream: ${failedServices}`);
 		return json({ alerted: false, emailSkipped: 'upstream_only', status: report.status, services: report.services });
 	}
 
+	if (!decision.email) {
+		console.log(`[health-alert] Email suppressed (${decision.reason}): ${failedServices}`);
+		return json({ alerted: false, emailSkipped: decision.reason, status: report.status, services: report.services });
+	}
+
+	// Record before sending. If the send fails the record is rolled back, but if
+	// the process dies mid-send the worst case is one missed email — where the
+	// opposite order risks the repeat storm this whole module exists to stop.
+	if (!storeBlind && decision.nextState) await writeAlertState(decision.nextState);
+
 	try {
 		await sendAlert(subject, buildAlertHtml(report));
-		console.log(`[health-alert] Sent ${report.status} alert to ${process.env.ALERT_EMAIL}`);
-		return json({ alerted: true, status: report.status, services: report.services });
+		console.log(`[health-alert] Sent ${report.status} alert (${decision.reason}) to ${process.env.ALERT_EMAIL}`);
+		return json({ alerted: true, reason: decision.reason, status: report.status, services: report.services });
 	} catch (err) {
 		console.error('[health-alert] Failed to send email:', err);
+		if (!storeBlind && decision.nextState) await writeAlertState(state ?? null);
 		return json(
 			{ alerted: false, error: err instanceof Error ? err.message : String(err) },
 			{ status: 500 }
