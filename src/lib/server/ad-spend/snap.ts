@@ -264,7 +264,45 @@ async function listEntities<T>(token: string, url: string, key: string): Promise
  * Falls back to the old campaign-level breakdown if the ad-squad listing fails.
  * Coarse spend that still joins by date is worth far more than no spend at all.
  */
-export async function fetchSnapSpend(start: string, end: string): Promise<FetchResult> {
+/**
+ * Which entities are worth asking Snap about this run.
+ *
+ * WHY THIS EXISTS. The sync used to walk every campaign and ad squad the account
+ * has ever held, every hour, whether or not it was running — roughly 165 API
+ * calls an hour against an account whose campaigns were all paused. Snap
+ * answered 11 of ~24 ad squads with HTTP 429 on 2026-09-13. The entity list only
+ * ever grows, so the volume climbs forever while the useful answers do not.
+ *
+ * THE RULE IS DELIBERATELY TIMID, AND IT IS ABOUT MONEY. This sync re-reads a
+ * trailing week every run because Snap finalises metrics roughly 48 hours after
+ * a day ends — so an ad squad that was paused yesterday is still restating the
+ * spend it made the day before. Filtering on "ACTIVE" alone would freeze those
+ * days at whatever they read the moment the campaign stopped, and understate the
+ * final figure with nothing anywhere reporting a problem.
+ *
+ * So an entity is skipped ONLY when Snap positively says PAUSED *and* it has no
+ * spend inside the window we are re-reading. An unknown status is always
+ * fetched: not knowing is not the same as knowing it is off.
+ */
+export interface ActivityHint {
+  /** Ad squad ids with recorded spend inside the sync window. */
+  adSetIds: Set<string>;
+  /** Campaign ids with recorded spend inside the sync window. */
+  campaignIds: Set<string>;
+}
+
+export function worthFetching(
+  id: string | undefined,
+  status: unknown,
+  recent: Set<string> | undefined
+): id is string {
+  if (!id) return false;
+  if (!recent) return true;          // no hint supplied — behave exactly as before
+  if (status !== 'PAUSED') return true;
+  return recent.has(id);
+}
+
+export async function fetchSnapSpend(start: string, end: string, hint?: ActivityHint): Promise<FetchResult> {
   const { clientId, clientSecret, refreshToken, adAccountId } = credentials();
 
   if (!clientId || !clientSecret || !refreshToken || !adAccountId) {
@@ -295,7 +333,7 @@ export async function fetchSnapSpend(start: string, end: string): Promise<FetchR
 
     const campaignNames = new Map<string, string>();
     try {
-      const campaigns = await listEntities<{ id?: string; name?: string }>(
+      const campaigns = await listEntities<{ id?: string; name?: string; status?: string }>(
         token,
         `${API_BASE}/adaccounts/${adAccountId}/campaigns?limit=500`,
         'campaigns'
@@ -309,7 +347,7 @@ export async function fetchSnapSpend(start: string, end: string): Promise<FetchR
     const errors: string[] = [];
 
     for (const squad of squads) {
-      if (!squad.id) continue;
+      if (!worthFetching(squad.id, squad.status, hint?.adSetIds)) continue;
       const params = new URLSearchParams({
         granularity: 'DAY',
         fields: 'spend,impressions,swipes,conversion_purchases',
@@ -393,7 +431,7 @@ export async function fetchSnapSpend(start: string, end: string): Promise<FetchR
  * an ad set whose per-ad listing failed keeps its existing aggregate rather
  * than losing spend.
  */
-export async function fetchSnapCreativeSpend(start: string, end: string): Promise<FetchResult> {
+export async function fetchSnapCreativeSpend(start: string, end: string, hint?: ActivityHint): Promise<FetchResult> {
   const { clientId, clientSecret, refreshToken, adAccountId } = credentials();
 
   if (!clientId || !clientSecret || !refreshToken || !adAccountId) {
@@ -408,7 +446,7 @@ export async function fetchSnapCreativeSpend(start: string, end: string): Promis
     const toDay = addDays(end, 1);
     const to = `${toDay}T00:00:00.000${offsetSuffix(meta.timezone, toDay)}`;
 
-    let squads: Array<{ id?: string; name?: string; campaign_id?: string }>;
+    let squads: Array<{ id?: string; name?: string; campaign_id?: string; status?: string }>;
     try {
       squads = await listEntities(token, `${API_BASE}/adaccounts/${adAccountId}/adsquads?limit=500`, 'adsquads');
     } catch (err) {
@@ -417,7 +455,7 @@ export async function fetchSnapCreativeSpend(start: string, end: string): Promis
 
     const campaignNames = new Map<string, string>();
     try {
-      const campaigns = await listEntities<{ id?: string; name?: string }>(
+      const campaigns = await listEntities<{ id?: string; name?: string; status?: string }>(
         token,
         `${API_BASE}/adaccounts/${adAccountId}/campaigns?limit=500`,
         'campaigns'
@@ -431,7 +469,7 @@ export async function fetchSnapCreativeSpend(start: string, end: string): Promis
     const errors: string[] = [];
 
     for (const squad of squads) {
-      if (!squad.id) continue;
+      if (!worthFetching(squad.id, squad.status, hint?.adSetIds)) continue;
 
       let ads: Array<{ id?: string; name?: string; status?: string }>;
       try {
@@ -634,7 +672,7 @@ const SNAP_DIMENSIONS: Array<{ dimension: DemographicRow['dimension']; param: st
   { dimension: 'country', param: 'COUNTRY' }
 ];
 
-export async function fetchSnapDemographics(start: string, end: string): Promise<DemographicResult> {
+export async function fetchSnapDemographics(start: string, end: string, hint?: ActivityHint): Promise<DemographicResult> {
   const { clientId, clientSecret, refreshToken, adAccountId } = credentials();
   if (!clientId || !clientSecret || !refreshToken || !adAccountId) {
     return { rows: [], error: null, configured: false };
@@ -648,17 +686,17 @@ export async function fetchSnapDemographics(start: string, end: string): Promise
     const toDay = addDays(end, 1);
     const to = `${toDay}T00:00:00.000${offsetSuffix(meta.timezone, toDay)}`;
 
-    const campaigns = await listEntities<{ id?: string; name?: string }>(
+    const campaigns = await listEntities<{ id?: string; name?: string; status?: string }>(
       token,
       `${API_BASE}/adaccounts/${adAccountId}/campaigns?limit=500`,
       'campaigns'
-    ).catch(() => [] as Array<{ id?: string; name?: string }>);
+    ).catch(() => [] as Array<{ id?: string; name?: string; status?: string }>);
 
     const rows: DemographicRow[] = [];
     const errors: string[] = [];
 
     for (const campaign of campaigns) {
-      if (!campaign.id) continue;
+      if (!worthFetching(campaign.id, campaign.status, hint?.campaignIds)) continue;
 
       for (const { dimension, param } of SNAP_DIMENSIONS) {
         const params = new URLSearchParams({

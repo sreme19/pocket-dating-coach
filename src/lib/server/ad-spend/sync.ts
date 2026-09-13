@@ -20,6 +20,7 @@ import {
   fetchSnapSpend,
   fetchSnapCreativeSpend,
   fetchSnapDemographics,
+  type ActivityHint,
   addDays,
   snapConfigStatus,
   type DemographicRow,
@@ -306,6 +307,65 @@ async function writeDemographics(rows: DemographicRow[]): Promise<number> {
  * honest; taking the hourly spend sync down to record a diagnostic would be a
  * poor trade.
  */
+/**
+ * The hour, in UTC, when the demographic breakdowns are refreshed.
+ *
+ * 03:00 UTC puts them in the 03:20 run, comfortably before the ad-health mail
+ * goes out at 03:45.
+ */
+export const DEMOGRAPHICS_HOUR_UTC = 3;
+
+/**
+ * Should this run fetch demographic breakdowns?
+ *
+ * They used to be fetched hourly — four dimensions for every campaign the
+ * account has ever held, which at 19 campaigns was 76 Snap calls an hour, the
+ * single largest contributor to the 429s Snap started returning on 2026-09-13.
+ * Yesterday's age split does not change between 9am and 10am, so once a day buys
+ * back 1,748 calls and loses nothing.
+ */
+export function shouldSyncDemographics(now: Date = new Date()): boolean {
+  return now.getUTCHours() === DEMOGRAPHICS_HOUR_UTC;
+}
+
+/**
+ * Which Snap entities spent inside the window we are about to re-read, according
+ * to our own table.
+ *
+ * Read from ad_spend_daily rather than asked of Snap, because the entire point is
+ * to make fewer Snap calls. It feeds the PAUSED-and-silent test in
+ * `worthFetching`: an entity Snap says is paused is still fetched if it appears
+ * here, because Snap restates a day's figures for about 48 hours after it ends
+ * and freezing those would understate real spend.
+ *
+ * On any error the hint is undefined, which makes the fetchers walk everything
+ * exactly as they did before. Failing back to "ask about more than we need" is
+ * the only safe direction for a filter standing in front of money.
+ */
+async function activityHint(start: string): Promise<ActivityHint | undefined> {
+  try {
+    const supabase = getSupabase() as any;
+    const { data, error } = await supabase
+      .from('ad_spend_daily')
+      .select('campaign_id,ad_set_id')
+      .eq('network', 'snap')
+      .gte('date', start);
+    if (error) {
+      console.warn('[ad-spend] no activity hint, fetching every entity:', error.message ?? error);
+      return undefined;
+    }
+    const hint: ActivityHint = { adSetIds: new Set(), campaignIds: new Set() };
+    for (const row of (data ?? []) as Array<{ campaign_id?: string; ad_set_id?: string }>) {
+      if (row.ad_set_id) hint.adSetIds.add(row.ad_set_id);
+      if (row.campaign_id) hint.campaignIds.add(row.campaign_id);
+    }
+    return hint;
+  } catch (err: any) {
+    console.warn('[ad-spend] no activity hint, fetching every entity:', err?.message ?? err);
+    return undefined;
+  }
+}
+
 async function recordSyncRuns(outcome: SyncOutcome): Promise<void> {
   const supabase = getSupabase() as any;
   const rows = outcome.networks.map((n) => ({
@@ -331,20 +391,33 @@ async function recordSyncRuns(outcome: SyncOutcome): Promise<void> {
   }
 }
 
-export async function syncAdSpend(windowDays = SYNC_WINDOW_DAYS): Promise<SyncOutcome> {
+export async function syncAdSpend(
+  windowDays = SYNC_WINDOW_DAYS,
+  opts: { demographics?: boolean } = {}
+): Promise<SyncOutcome> {
   const end = todayUtc();
   const start = addDays(end, -Math.max(0, windowDays - 1));
+
+  // Skips entities Snap reports paused that also spent nothing in the window.
+  const hint = await activityHint(start);
+  const withDemographics = opts.demographics ?? shouldSyncDemographics();
 
   // Five independent fetches. A demographics or creative-level call failing
   // must not stop the campaign/ad-set spend from syncing — that is the number
   // decisions are actually made on, and the finer breakdowns are colour
   // around it.
   const [snap, meta, snapCreative, snapDemo, metaDemo] = await Promise.all([
-    fetchSnapSpend(start, end),
+    fetchSnapSpend(start, end, hint),
     fetchMetaSpend(start, end),
-    fetchSnapCreativeSpend(start, end),
-    fetchSnapDemographics(start, end),
-    fetchMetaDemographics(start, end)
+    fetchSnapCreativeSpend(start, end, hint),
+    // Once a day, not hourly — see shouldSyncDemographics. A skipped run reports
+    // configured:true with no error, so nothing downstream reads it as a failure.
+    withDemographics
+      ? fetchSnapDemographics(start, end, hint)
+      : Promise.resolve({ rows: [], error: null, configured: true }),
+    withDemographics
+      ? fetchMetaDemographics(start, end)
+      : Promise.resolve({ rows: [], error: null, configured: true })
   ]);
 
   let written = 0;

@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { syncAdSpend, SYNC_WINDOW_DAYS } from '$lib/server/ad-spend/sync';
+import { syncAdSpend, SYNC_WINDOW_DAYS, shouldSyncDemographics } from '$lib/server/ad-spend/sync';
 
 /**
  * Ad spend sync — pulls daily campaign spend from Snap and Meta.
@@ -40,7 +40,13 @@ const handle: RequestHandler = async ({ request, url }) => {
 	const days = Number.isFinite(requested) ? Math.min(Math.max(1, requested), 90) : SYNC_WINDOW_DAYS;
 
 	try {
-		const outcome = await syncAdSpend(days);
+		// Demographics are refreshed once a day, not every hour — four dimensions
+		// per campaign was the largest slice of the ~165 hourly Snap calls that
+		// earned 429s. `?demographics=1` forces them for a manual backfill.
+		const forced = url.searchParams.get('demographics');
+		const demographics = forced === '1' ? true : forced === '0' ? false : shouldSyncDemographics();
+
+		const outcome = await syncAdSpend(days, { demographics });
 
 		// A network that is configured and errored is reported as ok:false even
 		// though the request itself succeeded — otherwise a dead token shows up as
@@ -54,7 +60,14 @@ const handle: RequestHandler = async ({ request, url }) => {
 		// a fetch that has never once succeeded goes a month without being noticed.
 		const demoFailed = outcome.demographics.networks.filter((n) => n.configured && n.error);
 
-		return json({ ok: failed.length === 0, demographicsOk: demoFailed.length === 0, ...outcome });
+		return json({
+			ok: failed.length === 0,
+			demographicsOk: demoFailed.length === 0,
+			// Stated outright so an empty demographics result is never mistaken for
+			// a fetch that silently returned nothing.
+			demographicsFetched: demographics,
+			...outcome
+		});
 	} catch (err: any) {
 		console.error('ad-spend-sync cron failed:', err);
 		return json({ ok: false, error: err?.message ?? String(err) }, { status: 500 });
