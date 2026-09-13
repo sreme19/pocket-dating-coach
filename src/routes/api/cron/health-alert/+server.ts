@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { runHealthCheck, isUpstreamOnly } from '$lib/server/health';
 import { sendSlackAlert, isSlackConfigured } from '$lib/server/slack';
-import { decideAlert, readAlertState, writeAlertState } from '$lib/server/health-alert-state';
+import { decideAlert, readAlertState, writeAlertState, stateChanged } from '$lib/server/health-alert-state';
 
 /**
  * Health alert cron — runs every 10 minutes via Vercel Cron.
@@ -116,37 +116,56 @@ const handle: RequestHandler = async ({ request }) => {
 	const decision = decideAlert(report, new Date(), state);
 	const storeBlind = state === undefined;
 
-	if (report.status === 'ok') {
-		if (!decision.email) {
-			return json({ alerted: false, status: 'ok', reason: decision.reason });
+	const failedServices = Object.entries(report.services)
+		.filter(([, s]) => s.status !== 'ok')
+		.map(([name, s]) => `• *${name}*: ${s.status.toUpperCase()}${s.error ? ` — ${s.error}` : ''}`)
+		.join('\n');
+
+	/** Persist first, send second. An email that was sent but not recorded is
+	 *  the failure that repeats, so a failed write cancels the send. */
+	const recordThenSend = async (subject: string, html: string) => {
+		if (!storeBlind && decision.nextState) {
+			const stored = await writeAlertState(decision.nextState);
+			if (!stored) {
+				console.error('[health-alert] send cancelled — state could not be recorded');
+				return json({ alerted: false, emailSkipped: 'state_write_failed', status: report.status });
+			}
 		}
-		// Recovered. Send first, then forget the incident, so a failed send is
-		// retried on the next run rather than silently dropped.
 		try {
-			await sendAlert('✅ RECOVERED: All services healthy — Pocket Dating Coach', buildAlertHtml(report));
-			await writeAlertState(null);
-			console.log('[health-alert] Sent recovery notice to', process.env.ALERT_EMAIL);
-			return json({ alerted: true, status: 'ok', reason: 'recovered' });
+			await sendAlert(subject, html);
+			console.log(`[health-alert] Sent ${report.status} (${decision.reason}) to ${process.env.ALERT_EMAIL}`);
+			return json({ alerted: true, reason: decision.reason, status: report.status, services: report.services });
 		} catch (err) {
-			console.error('[health-alert] Failed to send recovery email:', err);
+			console.error('[health-alert] Failed to send email:', err);
 			return json(
 				{ alerted: false, error: err instanceof Error ? err.message : String(err) },
 				{ status: 500 }
 			);
 		}
-	}
+	};
 
-	const subject = report.status === 'down'
-		? `🔴 ALERT: Service down — Pocket Dating Coach`
-		: `⚠️ WARNING: Service degraded — Pocket Dating Coach`;
+	// Not sending: still persist, because the consecutive-fault count and the
+	// 24h clock have to advance on quiet runs too. Best effort — a failure here
+	// costs at most one duplicate later, never a storm.
+	const recordOnly = async () => {
+		if (!storeBlind && decision.nextState && stateChanged(state ?? null, decision.nextState)) {
+			await writeAlertState(decision.nextState);
+		}
+	};
+
+	if (report.status === 'ok') {
+		if (!decision.email) {
+			await recordOnly();
+			return json({ alerted: false, status: 'ok', reason: decision.reason });
+		}
+		return recordThenSend(
+			'✅ RECOVERED: All services healthy — Pocket Dating Coach',
+			buildAlertHtml(report)
+		);
+	}
 
 	const isCritical = report.status === 'down';
 	const appUrl = process.env.APP_URL ?? 'https://riteangle.dating';
-
-	const failedServices = Object.entries(report.services)
-		.filter(([, s]) => s.status !== 'ok')
-		.map(([name, s]) => `• *${name}*: ${s.status.toUpperCase()}${s.error ? ` — ${s.error}` : ''}`)
-		.join('\n');
 
 	await sendSlackAlert({
 		color:    isCritical ? 'critical' : 'warning',
@@ -166,32 +185,21 @@ const handle: RequestHandler = async ({ request }) => {
 	// With no webhook configured sendSlackAlert returns silently, and skipping
 	// the email here would route the alert to nobody at all.
 	if (isUpstreamOnly(report) && isSlackConfigured()) {
-		console.log(`[health-alert] Slack only — every fault is upstream: ${failedServices}`);
+		await recordOnly();
 		return json({ alerted: false, emailSkipped: 'upstream_only', status: report.status, services: report.services });
 	}
 
 	if (!decision.email) {
 		console.log(`[health-alert] Email suppressed (${decision.reason}): ${failedServices}`);
+		await recordOnly();
 		return json({ alerted: false, emailSkipped: decision.reason, status: report.status, services: report.services });
 	}
 
-	// Record before sending. If the send fails the record is rolled back, but if
-	// the process dies mid-send the worst case is one missed email — where the
-	// opposite order risks the repeat storm this whole module exists to stop.
-	if (!storeBlind && decision.nextState) await writeAlertState(decision.nextState);
+	const subject = isCritical
+		? `🔴 ALERT: Service down — Pocket Dating Coach`
+		: `⚠️ WARNING: Service degraded — Pocket Dating Coach`;
 
-	try {
-		await sendAlert(subject, buildAlertHtml(report));
-		console.log(`[health-alert] Sent ${report.status} alert (${decision.reason}) to ${process.env.ALERT_EMAIL}`);
-		return json({ alerted: true, reason: decision.reason, status: report.status, services: report.services });
-	} catch (err) {
-		console.error('[health-alert] Failed to send email:', err);
-		if (!storeBlind && decision.nextState) await writeAlertState(state ?? null);
-		return json(
-			{ alerted: false, error: err instanceof Error ? err.message : String(err) },
-			{ status: 500 }
-		);
-	}
+	return recordThenSend(subject, buildAlertHtml(report));
 };
 
 export const GET = handle;

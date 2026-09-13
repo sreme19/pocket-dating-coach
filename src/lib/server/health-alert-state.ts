@@ -1,15 +1,14 @@
 import { getSupabase } from './supabase';
-import type { AlertState } from './health-alert-policy';
+import { EMPTY_STATE, type AlertState } from './health-alert-policy';
 
 /**
- * Persistence for the health-alert cron's memory. The rules themselves live in
+ * Persistence for the health-alert cron's memory. The rules live in
  * health-alert-policy.ts; this file only reads and writes the record.
  *
- * State lives in verified_vibe_analytics as a single marker row, following the
- * pattern new-member-alert already uses. That avoids a migration, and avoids the
- * failure mode this repo has hit before where a cron reads a table that was
- * never created and takes the route down with it — every call here is wrapped,
- * and an unreachable store degrades to the fallback rather than throwing.
+ * One marker row in verified_vibe_analytics, following the pattern
+ * new-member-alert already uses — no migration. Every call is wrapped, so a
+ * missing or unreachable table degrades to the clock fallback rather than
+ * throwing, which this repo has been bitten by before.
  */
 
 const SENTINEL_USER_ID = '00000000-0000-0000-0000-000000000000';
@@ -36,11 +35,16 @@ export async function readAlertState(): Promise<AlertState | null | undefined> {
 			return undefined;
 		}
 		const meta = (data ?? [])[0]?.metadata;
-		if (!meta?.signature || !meta?.lastEmailedAt) return null;
+		if (!meta) return null;
 		return {
-			signature: String(meta.signature),
-			firstSeenAt: String(meta.firstSeenAt ?? meta.lastEmailedAt),
-			lastEmailedAt: String(meta.lastEmailedAt),
+			...EMPTY_STATE,
+			// `signature` is the v1 field name: a record written before flap
+			// damping existed meant "what we last reported".
+			reportedSignature: String(meta.reportedSignature ?? meta.signature ?? ''),
+			currentSignature: String(meta.currentSignature ?? ''),
+			consecutiveFaults: Number(meta.consecutiveFaults ?? 0) || 0,
+			firstSeenAt: String(meta.firstSeenAt ?? ''),
+			lastEmailedAt: String(meta.lastEmailedAt ?? ''),
 		};
 	} catch (err: any) {
 		console.warn('[health-alert] state unreadable, falling back to the daily slot:', err?.message ?? err);
@@ -49,35 +53,41 @@ export async function readAlertState(): Promise<AlertState | null | undefined> {
 }
 
 /**
- * Replace the marker row (or remove it, for `null`). Kept to exactly one row so
- * this can never grow into the analytics table.
+ * Replace the marker row. Returns whether the new record is definitely stored —
+ * the caller must not send an email on `false`, because an email that was sent
+ * but not recorded is exactly what repeats.
+ *
+ * Insert first, then remove the older rows. The reverse order has a window
+ * where no record exists at all, and a run landing in it reads a continuing
+ * fault as brand new. A failed cleanup only leaves a stale row behind, and the
+ * read above takes the newest.
  */
-export async function writeAlertState(next: AlertState | null): Promise<boolean> {
+export async function writeAlertState(next: AlertState): Promise<boolean> {
 	try {
 		const db = getSupabase() as any;
+		const { data, error } = await db
+			.from('verified_vibe_analytics')
+			.insert({ user_id: SENTINEL_USER_ID, event_type: STATE_EVENT, metadata: next })
+			.select('id')
+			.single();
+
+		if (error || !data?.id) {
+			console.error('[health-alert] state NOT recorded — no email will be sent this run:', error?.message ?? error);
+			return false;
+		}
+
 		const { error: delErr } = await db
 			.from('verified_vibe_analytics')
 			.delete()
-			.eq('event_type', STATE_EVENT);
+			.eq('event_type', STATE_EVENT)
+			.neq('id', data.id);
 		if (delErr) {
-			console.error('[health-alert] could not clear old state:', delErr.message ?? delErr);
-			return false;
-		}
-		if (next === null) return true;
-
-		const { error } = await db.from('verified_vibe_analytics').insert({
-			user_id: SENTINEL_USER_ID,
-			event_type: STATE_EVENT,
-			metadata: next,
-		});
-		if (error) {
-			// Loud: a state write that keeps failing is how the email storm returns.
-			console.error('[health-alert] could not record state — repeats may resume:', error.message ?? error);
-			return false;
+			// Harmless: the newest row still wins on read.
+			console.warn('[health-alert] could not tidy older state rows:', delErr.message ?? delErr);
 		}
 		return true;
 	} catch (err: any) {
-		console.error('[health-alert] could not record state — repeats may resume:', err?.message ?? err);
+		console.error('[health-alert] state NOT recorded — no email will be sent this run:', err?.message ?? err);
 		return false;
 	}
 }
