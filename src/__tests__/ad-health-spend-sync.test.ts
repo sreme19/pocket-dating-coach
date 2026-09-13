@@ -34,14 +34,15 @@ describe('the case that produced the false alarm on 2026-09-13', () => {
 });
 
 describe('what it does flag', () => {
-	it('reports an API error as broken, quoting it', () => {
+	it('reports a total API failure as broken, quoting it', () => {
 		const f = spendSyncFinding({
 			...base,
-			run: { ...healthyEmptyRun, error: 'insights 400 — access token expired or revoked: {"code":190}' },
+			run: { ...healthyEmptyRun, rows_returned: 0, error: 'insights 400 — access token expired or revoked: {"code":190}' },
 		});
 		expect(f?.severity).toBe('broken');
 		expect(f?.title).toBe('meta spend sync is failing');
 		expect(f?.detail).toContain('code":190');
+		expect(f?.detail).toContain('reads as zero');
 	});
 
 	it('reports a stopped job as broken once it is hours late', () => {
@@ -101,5 +102,58 @@ describe('precedence — the most actionable cause wins', () => {
 			run: { ...healthyEmptyRun, ran_at: '2026-09-12T00:00:00Z', error: 'insights 400: bad request' },
 		});
 		expect(f?.title).toContain('is failing');
+	});
+});
+
+describe('partial failure is not total failure', () => {
+	// The real 08:20 run on 2026-09-13: Snap rate-limited 11 ad squads with 429
+	// while 91 rows landed fine. Calling that a dead pipeline is false.
+	// Verbatim from ad_sync_runs after the live 08:20 run — including the
+	// <meta tag truncated mid-attribute by snap.ts's own slice, which an
+	// invented test string did not have and which defeated the first
+	// version of condenseError.
+	const SNAP_429 =
+		'11 ad squad(s) failed: GET_ID_M_2840_ANDROID: 429 <html>\n<head>\n<meta http-equiv="Content-Type" content="text/html;charset=ISO-885 | WOMEN_18-30_CASUAL_MOVEON-STORY: 429 <html>\n<head>\n<meta http-equiv="Content-Type" content="text/html;charset=ISO-885 | Women_18-3';
+
+	const partial = {
+		...base,
+		network: 'snap' as const,
+		run: { network: 'snap', ran_at: '2026-09-13T08:20:38Z', rows_returned: 91, error: SNAP_429 },
+	};
+
+	it('is a warning, not broken, when rows came back alongside the error', () => {
+		const f = spendSyncFinding(partial);
+		expect(f?.severity).toBe('warning');
+		expect(f?.title).toBe('snap spend sync is partly failing');
+	});
+
+	it('says the spend is understated, and never that it reads as zero', () => {
+		const f = spendSyncFinding(partial);
+		expect(f?.detail).toContain('91 rows');
+		expect(f?.detail).toContain('understated');
+		expect(f?.detail).not.toContain('reads as zero');
+	});
+
+	it('condenses the HTML error page into one readable line', () => {
+		const d = spendSyncFinding(partial)!.detail;
+		expect(d).not.toContain('<');
+		expect(d).not.toContain('\n');
+		expect(d).not.toContain('http-equiv');
+		expect(d).toContain('429');
+		expect(d).toContain('11 ad squad(s) failed');
+	});
+
+	it('keeps every ad squad name the error listed', () => {
+		const d = spendSyncFinding(partial)!.detail;
+		expect(d).toContain('GET_ID_M_2840_ANDROID');
+		expect(d).toContain('WOMEN_18-30_CASUAL_MOVEON-STORY');
+	});
+
+	it('treats an absent row count as a total failure rather than assuming success', () => {
+		const f = spendSyncFinding({
+			...partial,
+			run: { network: 'snap', ran_at: '2026-09-13T08:20:38Z', error: SNAP_429 },
+		});
+		expect(f?.severity).toBe('broken');
 	});
 });

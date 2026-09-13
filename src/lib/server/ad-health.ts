@@ -49,6 +49,25 @@ const MIN_VIEWS_FOR_TAP_ALARM = 30;
 /** A sync running hourly is late, not idle, after three hours. */
 const SPEND_STALE_HOURS = 3;
 
+/**
+ * Network error text is raw API output and arrives in whatever shape the network
+ * felt like: Snap answers a rate limit with an entire HTML error page, newlines
+ * and all. It is escaped before it reaches the mail, so it cannot break the
+ * layout — it just renders as a wall of unreadable markup. Collapse it to one
+ * readable line first, keeping the part that names the cause.
+ */
+function condenseError(raw: string): string {
+  return raw
+    // Complete tags, and tags TRUNCATED MID-ATTRIBUTE — snap.ts slices the
+    // network's reply to a fixed length, so the last tag usually has no closing
+    // bracket at all and a `<[^>]*>` pattern walks straight past it. Stopping at
+    // `|` too keeps the ad squad names, which are the only part worth reading.
+    .replace(/<[^>|]*>?/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 200);
+}
+
 /** The most recent recorded run of a network's spend sync. */
 export interface SyncRunRecord {
   network: string;
@@ -109,12 +128,29 @@ export function spendSyncFinding(input: SpendSyncInput): Finding | null {
   }
 
   const seen = lastDeliveryDate ?? 'never';
+  const returned = run.rows_returned ?? 0;
+
+  /*
+   * PARTIAL AND TOTAL FAILURE ARE DIFFERENT PROBLEMS. Snap answers a rate limit
+   * with 429 on individual ad squads while the rest of the fetch succeeds, so a
+   * run can carry an error AND 91 good rows. Calling that "spend reads as zero
+   * everywhere" is false and urgent-sounding; the truth is quieter and worse to
+   * miss — the numbers that landed are real but short, so every chart built on
+   * them looks entirely plausible while understating the spend.
+   */
+  if (run.error && returned > 0) {
+    return {
+      severity: 'warning',
+      title: `${network} spend sync is partly failing`,
+      detail: `The sync ran at ${run.ran_at} and returned ${returned} rows, but part of the request was refused: ${condenseError(run.error)}. The spend that did land is understated rather than absent, so the dashboard looks plausible and is quietly short — which is harder to notice than a chart reading zero.`
+    };
+  }
 
   if (run.error) {
     return {
       severity: 'broken',
       title: `${network} spend sync is failing`,
-      detail: `The sync ran at ${run.ran_at} and the network's API refused: ${run.error}. Last day with any recorded delivery: ${seen}. Until this clears, spend reads as zero everywhere — which looks exactly like a campaign nobody is funding.`
+      detail: `The sync ran at ${run.ran_at} and returned nothing: ${condenseError(run.error)}. Last day with any recorded delivery: ${seen}. Until this clears, spend reads as zero everywhere — which looks exactly like a campaign nobody is funding.`
     };
   }
 
