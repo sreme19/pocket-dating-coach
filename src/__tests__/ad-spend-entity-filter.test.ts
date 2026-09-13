@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { shouldSyncDemographics, DEMOGRAPHICS_HOUR_UTC } from '$lib/server/ad-spend/sync';
 // The real filter, not a copy of it — a mirrored implementation in a test proves
 // only what the test author believed, and drifts from the code in silence.
-import { worthFetching } from '$lib/server/ad-spend/snap';
+import { worthFetching, retryPlan } from '$lib/server/ad-spend/snap';
 
 describe('the filter never drops spend Snap is still restating', () => {
 	const spentRecently = new Set(['squad_a']);
@@ -68,5 +68,68 @@ describe('what the two changes buy, at this account size', () => {
 	it('still costs a full demographics pass once a day, not 24', () => {
 		const daily = CAMPAIGNS * DIMENSIONS;
 		expect(daily * 24 - daily).toBe(1748); // calls no longer made
+	});
+});
+
+describe('backoff on a rate limit', () => {
+	const FULL = 20_000;
+
+	it('retries a 429 and a 503, and nothing else', () => {
+		for (const status of [429, 503]) {
+			expect(retryPlan({ status, attempt: 0, retryAfter: null, budgetLeftMs: FULL }).retry).toBe(true);
+		}
+		for (const status of [200, 400, 401, 404, 500]) {
+			expect(retryPlan({ status, attempt: 0, retryAfter: null, budgetLeftMs: FULL }))
+				.toMatchObject({ retry: false, reason: 'not-retryable' });
+		}
+	});
+
+	it('backs off further each attempt, then gives up', () => {
+		const delay = (attempt: number) =>
+			retryPlan({ status: 429, attempt, retryAfter: null, budgetLeftMs: FULL });
+		expect(delay(0)).toMatchObject({ retry: true, delayMs: 500 });
+		expect(delay(1)).toMatchObject({ retry: true, delayMs: 1500 });
+		expect(delay(2)).toMatchObject({ retry: false, reason: 'attempts-exhausted' });
+	});
+
+	it('obeys Retry-After when Snap sends one', () => {
+		expect(retryPlan({ status: 429, attempt: 0, retryAfter: '3', budgetLeftMs: FULL }))
+			.toMatchObject({ retry: true, delayMs: 3000, reason: 'retry-after' });
+	});
+
+	it('caps an over-patient Retry-After rather than sitting out the run', () => {
+		// A serverless function obediently waiting two minutes is just a dead run.
+		expect(retryPlan({ status: 429, attempt: 0, retryAfter: '120', budgetLeftMs: FULL }).delayMs)
+			.toBe(5000);
+	});
+
+	it('ignores a malformed or useless Retry-After and falls back to the curve', () => {
+		for (const header of ['', 'soon', '0', '-5', 'Wed, 21 Oct 2026 07:28:00 GMT']) {
+			expect(retryPlan({ status: 429, attempt: 0, retryAfter: header, budgetLeftMs: FULL }))
+				.toMatchObject({ retry: true, delayMs: 500, reason: 'backoff' });
+		}
+	});
+
+	it('stops waiting once the run has spent its allowance', () => {
+		// The failure this prevents is the whole run being killed for exceeding
+		// the function time limit, which loses every row including the good ones.
+		expect(retryPlan({ status: 429, attempt: 0, retryAfter: null, budgetLeftMs: 100 }))
+			.toMatchObject({ retry: false, reason: 'budget-exhausted' });
+	});
+
+	it('bounds the worst case: total sleep can never exceed the budget', () => {
+		let budget = FULL;
+		let slept = 0;
+		// 24 ad squads all rate-limited, each retrying as far as it is allowed.
+		for (let squad = 0; squad < 24; squad++) {
+			for (let attempt = 0; attempt < 5; attempt++) {
+				const p = retryPlan({ status: 429, attempt, retryAfter: null, budgetLeftMs: budget });
+				if (!p.retry) break;
+				budget -= p.delayMs;
+				slept += p.delayMs;
+			}
+		}
+		expect(slept).toBeLessThanOrEqual(FULL);
+		expect(budget).toBeGreaterThanOrEqual(0);
 	});
 });

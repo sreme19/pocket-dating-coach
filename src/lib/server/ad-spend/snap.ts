@@ -120,13 +120,100 @@ export function snapConfigStatus(): Record<string, boolean> {
   };
 }
 
-async function withTimeout(url: string, init: RequestInit): Promise<Response> {
+/**
+ * Back-off for Snap's rate limiting.
+ *
+ * Snap answered 11 of ~24 ad squads with HTTP 429 on 2026-09-13 and the client
+ * simply noted each failure and fired the next request immediately, which is the
+ * one response guaranteed to keep a throttle engaged.
+ *
+ * THE BUDGET IS THE IMPORTANT PART, AND IT IS NOT ABOUT POLITENESS. This runs in
+ * a serverless function with a wall-clock limit, and a run that exceeds it is
+ * killed outright — losing every row, including the ones that fetched perfectly.
+ * Waiting is therefore not free: it is spent against the run's own survival.
+ * Unbudgeted, eleven squads retrying twice at 1.5s would add half a minute to a
+ * run already making ~165 sequential calls. So the whole run shares one sleep
+ * allowance, and once it is gone every later 429 fails straight through. Eleven
+ * missing ad squads is a bad hour; a killed run is a bad day.
+ */
+const RETRY_STATUSES = new Set([429, 503]);
+const MAX_RETRIES = 2;
+const RETRY_BUDGET_MS = 20_000;
+/** Longest single wait, however patient Snap's Retry-After asks us to be. */
+const MAX_SINGLE_WAIT_MS = 5_000;
+
+let retryBudgetMs = RETRY_BUDGET_MS;
+
+/** Called once per sync run, so one bad run cannot starve the next. */
+export function resetRetryBudget(): void {
+  retryBudgetMs = RETRY_BUDGET_MS;
+}
+
+export interface RetryDecision {
+  retry: boolean;
+  delayMs: number;
+  reason: 'not-retryable' | 'attempts-exhausted' | 'budget-exhausted' | 'retry-after' | 'backoff';
+}
+
+/**
+ * Whether to retry, and how long to wait first. Pure, so the budget arithmetic
+ * can be tested without sleeping through it.
+ *
+ * Honours Retry-After when Snap sends one — it knows its own limits better than
+ * a hardcoded curve does — but caps it, because an obedient client asked to wait
+ * two minutes inside a serverless function is just a dead run.
+ */
+export function retryPlan(opts: {
+  status: number;
+  attempt: number;
+  retryAfter: string | null;
+  budgetLeftMs: number;
+}): RetryDecision {
+  const { status, attempt, retryAfter, budgetLeftMs } = opts;
+  if (!RETRY_STATUSES.has(status)) return { retry: false, delayMs: 0, reason: 'not-retryable' };
+  if (attempt >= MAX_RETRIES) return { retry: false, delayMs: 0, reason: 'attempts-exhausted' };
+
+  const seconds = Number(retryAfter);
+  const asked = Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : 0;
+  const delayMs = asked
+    ? Math.min(asked, MAX_SINGLE_WAIT_MS)
+    : [500, 1500][attempt] ?? 1500;
+
+  if (delayMs > budgetLeftMs) return { retry: false, delayMs: 0, reason: 'budget-exhausted' };
+  return { retry: true, delayMs, reason: asked ? 'retry-after' : 'backoff' };
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function fetchOnce(url: string, init: RequestInit): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
     return await fetch(url, { ...init, signal: controller.signal });
   } finally {
     clearTimeout(timer);
+  }
+}
+
+async function withTimeout(url: string, init: RequestInit): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetchOnce(url, init);
+
+    const plan = retryPlan({
+      status: res.status,
+      attempt,
+      retryAfter: res.headers.get('retry-after'),
+      budgetLeftMs: retryBudgetMs
+    });
+    if (!plan.retry) {
+      if (plan.reason === 'budget-exhausted') {
+        console.warn(`[ad-spend] retry budget spent, letting ${res.status} through`);
+      }
+      return res;
+    }
+
+    retryBudgetMs -= plan.delayMs;
+    await sleep(plan.delayMs);
   }
 }
 

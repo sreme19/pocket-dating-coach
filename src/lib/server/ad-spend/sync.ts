@@ -20,6 +20,7 @@ import {
   fetchSnapSpend,
   fetchSnapCreativeSpend,
   fetchSnapDemographics,
+  resetRetryBudget,
   type ActivityHint,
   addDays,
   snapConfigStatus,
@@ -397,6 +398,9 @@ export async function syncAdSpend(
 ): Promise<SyncOutcome> {
   const end = todayUtc();
   const start = addDays(end, -Math.max(0, windowDays - 1));
+
+  // One sleep allowance for the whole run — see resetRetryBudget.
+  resetRetryBudget();
 
   // Skips entities Snap reports paused that also spent nothing in the window.
   const hint = await activityHint(start);
