@@ -292,6 +292,45 @@ async function writeDemographics(rows: DemographicRow[]): Promise<number> {
   return payload.length;
 }
 
+/**
+ * Record that each network's sync ran, whatever it returned.
+ *
+ * THE POINT IS THE ZERO. A run that fetches nothing writes nothing, so without
+ * this a healthy sync over paused campaigns and a sync whose token has died look
+ * identical in the database — and the health check reported the first as the
+ * second. Recording the run makes "worked, nothing to report" a fact rather than
+ * an absence.
+ *
+ * Never throws and never blocks the sync. If the migration has not been run this
+ * logs once and the health check falls back to saying it cannot tell, which is
+ * honest; taking the hourly spend sync down to record a diagnostic would be a
+ * poor trade.
+ */
+async function recordSyncRuns(outcome: SyncOutcome): Promise<void> {
+  const supabase = getSupabase() as any;
+  const rows = outcome.networks.map((n) => ({
+    network: n.network,
+    ran_at: new Date().toISOString(),
+    window_start: outcome.start,
+    window_end: outcome.end,
+    rows_returned: n.rows,
+    error: n.error,
+    configured: n.configured
+  }));
+
+  try {
+    const { error } = await supabase.from('ad_sync_runs').upsert(rows, { onConflict: 'network' });
+    if (error) {
+      console.warn(
+        '[ad-spend] sync run not recorded (run 20260913080000_create_ad_sync_runs_table.sql):',
+        error.message ?? error
+      );
+    }
+  } catch (err: any) {
+    console.warn('[ad-spend] sync run not recorded:', err?.message ?? err);
+  }
+}
+
 export async function syncAdSpend(windowDays = SYNC_WINDOW_DAYS): Promise<SyncOutcome> {
   const end = todayUtc();
   const start = addDays(end, -Math.max(0, windowDays - 1));
@@ -324,7 +363,7 @@ export async function syncAdSpend(windowDays = SYNC_WINDOW_DAYS): Promise<SyncOu
   demoWritten += await writeDemographics(snapDemo.rows);
   demoWritten += await writeDemographics(metaDemo.rows);
 
-  return {
+  const outcome: SyncOutcome = {
     start,
     end,
     written,
@@ -352,6 +391,9 @@ export async function syncAdSpend(windowDays = SYNC_WINDOW_DAYS): Promise<SyncOu
       ]
     }
   };
+
+  await recordSyncRuns(outcome);
+  return outcome;
 }
 
 /**

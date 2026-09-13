@@ -49,18 +49,105 @@ const MIN_VIEWS_FOR_TAP_ALARM = 30;
 /** A sync running hourly is late, not idle, after three hours. */
 const SPEND_STALE_HOURS = 3;
 
+/** The most recent recorded run of a network's spend sync. */
+export interface SyncRunRecord {
+  network: string;
+  ran_at: string;
+  rows_returned?: number;
+  error?: string | null;
+}
+
+export interface SpendSyncInput {
+  network: 'snap' | 'meta';
+  /** Credential name -> present. Values never appear. */
+  credentials: Record<string, boolean>;
+  run: SyncRunRecord | null;
+  /** False when ad_sync_runs could not be read at all. */
+  runsReadable: boolean;
+  /** Most recent day this network delivered anything, ever. */
+  lastDeliveryDate: string | null;
+  now: Date;
+}
+
+/**
+ * Is this network's spend pipeline broken, and how would we know?
+ *
+ * THE DISTINCTION THIS FUNCTION EXISTS FOR. A sync that runs perfectly and finds
+ * nothing writes nothing. So "campaigns are paused" and "the access token died"
+ * leave the database in an identical state — no recent spend rows — and the
+ * previous version of this check read that emptiness as a broken pipeline. On
+ * 2026-09-13 it mailed "meta spend sync returning nothing — check the cron logs
+ * for an API error" forty minutes after a successful sync, about campaigns the
+ * owner had deliberately paused. There was no error to find.
+ *
+ * Only the RUN RECORD separates them, which is why ad_sync_runs exists. Returns
+ * null — say nothing — when the sync demonstrably ran and simply had nothing to
+ * report, because a paused campaign is a decision somebody already made and this
+ * file's contract is that a delivered mail always means there is something to do.
+ */
+export function spendSyncFinding(input: SpendSyncInput): Finding | null {
+  const { network, credentials, run, runsReadable, lastDeliveryDate, now } = input;
+
+  const missing = Object.entries(credentials)
+    .filter(([, present]) => !present)
+    .map(([name]) => name);
+
+  if (missing.length) {
+    return {
+      severity: 'pending',
+      title: `${network} spend not configured`,
+      detail: `Missing: ${missing.join(', ')}. Without spend there is no cost per signup, so "spend more here, pause that" cannot be answered at all — it is the one column that turns a conversion count into a decision.`
+    };
+  }
+
+  if (!runsReadable || !run) {
+    return {
+      severity: 'pending',
+      title: `${network} sync runs are not being recorded`,
+      detail: `Nothing in ad_sync_runs for ${network}, so a healthy sync with paused campaigns cannot be told apart from a dead access token — both leave no recent rows. Run 20260913080000_create_ad_sync_runs_table.sql; the next hourly sync fills it in.`
+    };
+  }
+
+  const seen = lastDeliveryDate ?? 'never';
+
+  if (run.error) {
+    return {
+      severity: 'broken',
+      title: `${network} spend sync is failing`,
+      detail: `The sync ran at ${run.ran_at} and the network's API refused: ${run.error}. Last day with any recorded delivery: ${seen}. Until this clears, spend reads as zero everywhere — which looks exactly like a campaign nobody is funding.`
+    };
+  }
+
+  const ranHoursAgo = (now.getTime() - new Date(run.ran_at).getTime()) / 3600_000;
+  if (!Number.isFinite(ranHoursAgo) || ranHoursAgo > SPEND_STALE_HOURS) {
+    return {
+      severity: 'broken',
+      title: `${network} spend sync has stopped running`,
+      detail: `Last run ${Number.isFinite(ranHoursAgo) ? `${ranHoursAgo.toFixed(0)}h ago at ${run.ran_at}` : `unreadable (${run.ran_at})`}, and it runs hourly. Last day with any recorded delivery: ${seen}. This is a stopped job rather than a quiet day — the job not running and the campaigns not spending produce the same empty dashboard, and only this timestamp separates them.`
+    };
+  }
+
+  // Ran fine, nothing to report. Silence is the correct answer.
+  return null;
+}
+
 export async function buildAdHealth(): Promise<HealthReport> {
   const supabase = getSupabase();
   const today = istToday();
   const since = new Date(Date.now() - 24 * 3600_000).toISOString();
 
-  const [views, clicks, spend, acquisition, members, lpSessions] = await Promise.all([
+  const [views, clicks, spend, lastDelivery, syncRuns, acquisition, members, lpSessions] = await Promise.all([
     supabase.from('marketing_page_views').select('campaign,created_at').gte('created_at', since),
     supabase
       .from('marketing_store_clicks')
       .select('campaign,snap_forwarded,meta_forwarded,forward_error,created_at')
       .gte('created_at', since),
     supabase.from('ad_spend_daily').select('*').gte('date', addDays(today, -3)),
+    // Deliberately unfiltered by date: the whole question below is what the
+    // most recent delivery was, however long ago. The 3-day filter above is
+    // what used to hide it.
+    supabase.from('ad_spend_daily').select('network,date').order('date', { ascending: false }).limit(400),
+    supabase.from('ad_sync_runs').select('*'),
     supabase.from('user_acquisition').select('user_id', { count: 'exact', head: true }),
     supabase
       .from('verified_vibe_users')
@@ -146,45 +233,31 @@ export async function buildAdHealth(): Promise<HealthReport> {
   /* ─── spend ─────────────────────────────────────────────────────────── */
 
   const config = adSpendConfigStatus();
+
+  /**
+   * The most recent day each network actually delivered anything, however long
+   * ago. A network with no row here has never recorded spend at all.
+   */
+  const lastDeliveryDate: Record<string, string | null> = { snap: null, meta: null };
+  for (const row of (lastDelivery.data ?? []) as Array<{ network: string; date: string }>) {
+    const current = lastDeliveryDate[row.network];
+    if (!current || row.date > current) lastDeliveryDate[row.network] = row.date;
+  }
+
+  const runByNetwork = new Map<string, any>(
+    ((syncRuns.data ?? []) as any[]).map((r) => [r.network, r])
+  );
+
   for (const network of ['snap', 'meta'] as const) {
-    const creds = config[network];
-    const configured = Object.values(creds).every(Boolean);
-    const rows = spendRows.filter((s: any) => s.network === network);
-
-    if (!configured) {
-      const missing = Object.entries(creds)
-        .filter(([, present]) => !present)
-        .map(([name]) => name)
-        .join(', ');
-      findings.push({
-        severity: 'pending',
-        title: `${network} spend not configured`,
-        detail: `Missing: ${missing}. Without spend there is no cost per signup, so "spend more here, pause that" cannot be answered at all — it is the one column that turns a conversion count into a decision.`
-      });
-      continue;
-    }
-
-    if (rows.length === 0) {
-      findings.push({
-        severity: 'broken',
-        title: `${network} spend sync returning nothing`,
-        detail: `Credentials are present but no rows landed for the last 3 days. The sync runs hourly; check the cron logs for an API error.`
-      });
-      continue;
-    }
-
-    const newest = rows.reduce(
-      (max: string, s: any) => (s.fetched_at > max ? s.fetched_at : max),
-      rows[0].fetched_at as string
-    );
-    const ageHours = (Date.now() - new Date(newest).getTime()) / 3600_000;
-    if (ageHours > SPEND_STALE_HOURS) {
-      findings.push({
-        severity: 'broken',
-        title: `${network} spend is ${ageHours.toFixed(0)}h stale`,
-        detail: `Last successful fetch ${newest}. The sync runs hourly, so this is a stopped job rather than a quiet day. A stale sync reads as a campaign that spent nothing.`
-      });
-    }
+    const finding = spendSyncFinding({
+      network,
+      credentials: config[network],
+      run: runByNetwork.get(network) ?? null,
+      runsReadable: !syncRuns.error,
+      lastDeliveryDate: lastDeliveryDate[network],
+      now: new Date()
+    });
+    if (finding) findings.push(finding);
   }
 
   // Spend against a campaign nobody arrived from: usually a tagging or link fault.
