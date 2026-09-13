@@ -27,11 +27,13 @@
  * `sync.ts` exists to guard against on the Snap side. Rolling these rows up by
  * campaign_id (or by ad_set_id) reproduces exactly what a campaign-level (or
  * ad-set-level) fetch would have returned, so nothing is lost by going straight
- * to the finest grain. UNVERIFIED AGAINST THE LIVE API: this account has never
- * had META_MARKETING_TOKEN set (see the Ad Analytics memory), so the exact field
- * names below (`adset_id`/`adset_name`/`ad_id`/`ad_name`) are Meta's documented
- * Insights breakdown fields, not something this code has ever seen a real
- * response for.
+ * to the finest grain.
+ *
+ * VERIFIED AGAINST THE LIVE API on 2026-09-13. This header previously warned that
+ * the field names below were documented guesses no response had ever been seen
+ * for. META_MARKETING_TOKEN is now set, and `adset_id`/`adset_name`/`ad_id`/
+ * `ad_name` all come back populated — real campaign, ad set and creative names,
+ * spend in INR, one row per ad per day.
  */
 
 import { env } from '$env/dynamic/private';
@@ -127,9 +129,8 @@ export async function fetchMetaSpend(start: string, end: string): Promise<FetchR
       // as fact is worse than an absent one.
       accountTimezone: null,
       // `effective_status` lives on the entity-read endpoint, not on an Insights
-      // row — a separate API call this function does not make. Null until
-      // that's wired up, same as every other Meta row here until credentials
-      // exist to test any of it against.
+      // row — a separate API call this function does not make. Null until that
+      // is wired up.
       status: null
     }));
 
