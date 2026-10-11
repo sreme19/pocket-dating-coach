@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 640" width="560" height="640" role="img" aria-labelledby="mgt mgd">
+  <title id="mgt">Thirteen systems sorted by layer</title>
+  <desc id="mgd">A grid of thirteen systems against four columns: reason, code, math and a person. A filled dot means that column owns the system's key step; a ring means it supports. Math owns the key step in the IPL XI optimizer, the women's T20 oracle, the spy-thriller oracle, the Game of Thrones oracle and the dating matchmaker, with the model only narrating or reading. Code owns it in the dating reply agent, the clinic chatbot, the weekly profitability report, the lead-routing editor, the ad-operations agent, the graph retrieval demo and the call-compliance detectors. The model owns a key step only where it writes something a person reads: the dating reply agent, the clinic chatbot, the job-search agent and the ad-operations agent, and in each of those code or a person stands after it. A person keeps the final call in the lead-routing editor, the job-search agent and the ad-operations agent. The call-compliance detectors use code alone.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .zebra { fill: #ffffff; }
+    .t { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 18px; fill: #17161b; }
+    .n { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 13.5px; fill: #17161b; }
+    .k { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; fill: #6e6a63; }
+    .ch { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #6e6a63; }
+    .rule { stroke: #e8e3d8; stroke-width: 1; }
+  </style>
+  <rect class="bg" width="560" height="640" rx="8"/>
+  <text class="t" x="24" y="36">Thirteen systems, sorted by layer</text>
+  <text class="ch" x="336" y="78" text-anchor="middle" fill="#b4541e">REASON</text>
+  <text class="ch" x="398" y="78" text-anchor="middle" fill="#17161b">CODE</text>
+  <text class="ch" x="460" y="78" text-anchor="middle" fill="#2f6b46">MATH</text>
+  <text class="ch" x="522" y="78" text-anchor="middle" fill="#6e6a63">PERSON</text>
+  <line class="rule" x1="24" y1="88" x2="540" y2="88"/>
+  <rect class="zebra" x="16" y="92" width="528" height="34" rx="4"/>
+  <text class="n" x="24" y="107">IPL XI optimizer</text>
+  <text class="k" x="24" y="120">MILP, Monte Carlo</text>
+  <circle cx="336" cy="109" r="6" fill="none" stroke="#b4541e" stroke-width="1.6"/>
+  <circle cx="398" cy="109" r="6" fill="none" stroke="#17161b" stroke-width="1.6"/>
+  <circle cx="460" cy="109" r="7" fill="#2f6b46"/>
+  <text class="n" x="24" y="141">Women's T20 oracle</text>
+  <text class="k" x="24" y="154">MILP, tiered evidence</text>
+  <circle cx="336" cy="143" r="6" fill="none" stroke="#b4541e" stroke-width="1.6"/>
+  <circle cx="398" cy="143" r="6" fill="none" stroke="#17161b" stroke-width="1.6"/>
+  <circle cx="460" cy="143" r="7" fill="#2f6b46"/>
+  <rect class="zebra" x="16" y="160" width="528" height="34" rx="4"/>
+  <text class="n" x="24" y="175">Spy-thriller oracle</text>
+  <text class="k" x="24" y="188">POMDP, Monte Carlo</text>
+  <circle cx="336" cy="177" r="6" fill="none" stroke="#b4541e" stroke-width="1.6"/>
+  <circle cx="398" cy="177" r="6" fill="none" stroke="#17161b" stroke-width="1.6"/>
+  <circle cx="460" cy="177" r="7" fill="#2f6b46"/>
+  <text class="n" x="24" y="209">Game of Thrones oracle</text>
+  <text class="k" x="24" y="222">CFR, Shapley</text>
+  <circle cx="336" cy="211" r="6" fill="none" stroke="#b4541e" stroke-width="1.6"/>
+  <circle cx="398" cy="211" r="6" fill="none" stroke="#17161b" stroke-width="1.6"/>
+  <circle cx="460" cy="211" r="7" fill="#2f6b46"/>
+  <rect class="zebra" x="16" y="228" width="528" height="34" rx="4"/>
+  <text class="n" x="24" y="243">Dating matchmaker</text>
+  <text class="k" x="24" y="256">Dot product, min-cost flow</text>
+  <circle cx="336" cy="245" r="6" fill="none" stroke="#b4541e" stroke-width="1.6"/>
+  <circle cx="398" cy="245" r="6" fill="none" stroke="#17161b" stroke-width="1.6"/>
+  <circle cx="460" cy="245" r="7" fill="#2f6b46"/>
+  <text class="n" x="24" y="277">Dating reply agent</text>
+  <text class="k" x="24" y="290">Five overrides</text>
+  <circle cx="336" cy="279" r="7" fill="#b4541e"/>
+  <circle cx="398" cy="279" r="7" fill="#17161b"/>
+  <rect class="zebra" x="16" y="296" width="528" height="34" rx="4"/>
+  <text class="n" x="24" y="311">Clinic chatbot</text>
+  <text class="k" x="24" y="324">Keyword gate, output filter</text>
+  <circle cx="336" cy="313" r="7" fill="#b4541e"/>
+  <circle cx="398" cy="313" r="7" fill="#17161b"/>
+  <text class="n" x="24" y="345">Weekly profitability report</text>
+  <text class="k" x="24" y="358">Reconciliation checks</text>
+  <circle cx="336" cy="347" r="6" fill="none" stroke="#b4541e" stroke-width="1.6"/>
+  <circle cx="398" cy="347" r="7" fill="#17161b"/>
+  <circle cx="460" cy="347" r="6" fill="none" stroke="#2f6b46" stroke-width="1.6"/>
+  <rect class="zebra" x="16" y="364" width="528" height="34" rx="4"/>
+  <text class="n" x="24" y="379">Lead-routing editor</text>
+  <text class="k" x="24" y="392">Replay harness</text>
+  <circle cx="336" cy="381" r="6" fill="none" stroke="#b4541e" stroke-width="1.6"/>
+  <circle cx="398" cy="381" r="7" fill="#17161b"/>
+  <circle cx="522" cy="381" r="7" fill="#6e6a63"/>
+  <text class="n" x="24" y="413">Job-search agent</text>
+  <text class="k" x="24" y="426">Rule router, ledger</text>
+  <circle cx="336" cy="415" r="7" fill="#b4541e"/>
+  <circle cx="398" cy="415" r="6" fill="none" stroke="#17161b" stroke-width="1.6"/>
+  <circle cx="522" cy="415" r="7" fill="#6e6a63"/>
+  <rect class="zebra" x="16" y="432" width="528" height="34" rx="4"/>
+  <text class="n" x="24" y="447">Ad-operations agent</text>
+  <text class="k" x="24" y="460">Budget floors, paused push</text>
+  <circle cx="336" cy="449" r="7" fill="#b4541e"/>
+  <circle cx="398" cy="449" r="7" fill="#17161b"/>
+  <circle cx="522" cy="449" r="7" fill="#6e6a63"/>
+  <text class="n" x="24" y="481">Graph retrieval demo</text>
+  <text class="k" x="24" y="494">Cypher facts</text>
+  <circle cx="336" cy="483" r="6" fill="none" stroke="#b4541e" stroke-width="1.6"/>
+  <circle cx="398" cy="483" r="7" fill="#17161b"/>
+  <circle cx="460" cy="483" r="6" fill="none" stroke="#2f6b46" stroke-width="1.6"/>
+  <rect class="zebra" x="16" y="500" width="528" height="34" rx="4"/>
+  <text class="n" x="24" y="515">Call-compliance detectors</text>
+  <text class="k" x="24" y="528">dbt detectors</text>
+  <circle cx="398" cy="517" r="7" fill="#17161b"/>
+  <line class="rule" x1="24" y1="540" x2="540" y2="540"/>
+  <circle cx="34" cy="564" r="7" fill="#17161b"/><text class="foot" x="48" y="568">Owns the key step</text>
+  <circle cx="190" cy="564" r="6" fill="none" stroke="#17161b" stroke-width="1.6"/><text class="foot" x="204" y="568">Supports it</text>
+  <text class="foot" x="320" y="568">Blank: not used</text>
+  <text class="foot" x="280" y="600" text-anchor="middle">Every selection, probability and permission comes from math or code,</text>
+  <text class="foot" x="280" y="618" text-anchor="middle">or waits for a person.</text>
+</svg>

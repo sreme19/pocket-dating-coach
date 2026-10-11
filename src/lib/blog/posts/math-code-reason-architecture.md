@@ -1,5 +1,5 @@
 ---
-title: Splitting an AI agent into math, code and reason, and what breaks when the language model is left to do all three
+title: Splitting an AI agent into math, code and reason
 date: 2026-10-11
 summary: Ask one language model to score every possible pair in a dating pool, enforce a privacy rule and explain the result, and it will do all three, a little differently each night, with no way to tell which part went wrong. Across thirteen systems I have built, the ones that hold up split the work three ways. Solvers handle anything with a best answer or a probability. Plain code handles anything that must hold every time. The model reads and writes what no rule can describe. The price is translation, because math and code need the problem in numbers and fields, so the riskiest moment moves to the seam where the model hands them over.
 tags: [agentic-architecture, decision-systems, agent-architecture]

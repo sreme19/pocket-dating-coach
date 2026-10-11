@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 660" width="560" height="660" role="img" aria-labelledby="mst msd">
+  <title id="mst">The math, code and reason stack</title>
+  <desc id="msd">Three horizontal layers. Reason, at the top, is the language model: Claude Sonnet turns profile text into attribute scores and Claude Haiku grades replies and narrates facts; it never decides and never computes the answer. Code, in the middle, decides what is allowed and what is exact: a regex gate before the model, override functions after it, largest-remainder rounding, checks to the dollar, and a replay harness that reproduced 5,501 of 5,501 past routing decisions. Math, at the bottom, decides what is best and how likely: integer programs in PuLP with the CBC solver, min-cost flow, NumPy Monte Carlo at 10,000 runs, POMDP and counterfactual regret minimization, giving the same answer for the same input at any model temperature. A request enters at the top left and travels down through code into math. The decision travels back up the right side through code before the model writes the answer.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .reason { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .code { fill: #f3f1ec; stroke: #17161b; stroke-width: 1.2; }
+    .math { fill: #e8f0ea; stroke: #2f6b46; stroke-width: 1.4; }
+    .t { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 18px; fill: #17161b; }
+    .h { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 15px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #3d3a36; }
+    .wr { font-family: system-ui, -apple-system, sans-serif; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; fill: #b4541e; }
+    .wc { font-family: system-ui, -apple-system, sans-serif; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; fill: #17161b; }
+    .wm { font-family: system-ui, -apple-system, sans-serif; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; fill: #2f6b46; }
+    .p { font-family: system-ui, -apple-system, sans-serif; font-size: 12px; fill: #17161b; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    .arrow { stroke: #97928a; stroke-width: 1.6; fill: none; }
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 5 4; animation: ms-flow 0.9s linear infinite; }
+    }
+    @keyframes ms-flow { to { stroke-dashoffset: -9; } }
+  </style>
+  <defs>
+    <marker id="ms-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="560" height="660" rx="8"/>
+  <text class="t" x="280" y="34" text-anchor="middle">Three layers, one request</text>
+
+  <rect class="card" x="16" y="54" width="150" height="34" rx="17"/>
+  <text class="p" x="91" y="75" text-anchor="middle">A request arrives</text>
+  <rect class="card" x="394" y="54" width="150" height="34" rx="17"/>
+  <text class="p" x="469" y="75" text-anchor="middle">The answer leaves</text>
+
+  <rect class="reason" x="62" y="112" width="436" height="124" rx="8"/>
+  <text class="wr" x="84" y="136">REASON</text>
+  <text class="h" x="84" y="158">Reads what arrives, writes what leaves</text>
+  <text class="s" x="84" y="182">Claude Sonnet: profile text into attribute scores</text>
+  <text class="s" x="84" y="200">Claude Haiku: grades replies, narrates facts</text>
+  <text class="s" x="84" y="218">Never decides, never computes the answer</text>
+
+  <rect class="code" x="62" y="268" width="436" height="124" rx="8"/>
+  <text class="wc" x="84" y="292">CODE</text>
+  <text class="h" x="84" y="314">Decides what is allowed and what is exact</text>
+  <text class="s" x="84" y="338">Regex gate before the model, overrides after it</text>
+  <text class="s" x="84" y="356">Largest-remainder rounding, checks to the dollar</text>
+  <text class="s" x="84" y="374">Replay harness: 5,501 of 5,501 past decisions</text>
+
+  <rect class="math" x="62" y="424" width="436" height="124" rx="8"/>
+  <text class="wm" x="84" y="448">MATH</text>
+  <text class="h" x="84" y="470">Decides what is best and how likely</text>
+  <text class="s" x="84" y="494">PuLP and CBC integer programs, min-cost flow</text>
+  <text class="s" x="84" y="512">NumPy Monte Carlo at 10,000 runs, POMDP, CFR</text>
+  <text class="s" x="84" y="530">Same input, same answer, at any temperature</text>
+
+  <path class="arrow" d="M40 88 L40 174 L56 174" marker-end="url(#ms-a)"/>
+  <path class="arrow" d="M110 238 L110 264" marker-end="url(#ms-a)"/>
+  <path class="arrow" d="M110 394 L110 420" marker-end="url(#ms-a)"/>
+  <path class="arrow" d="M450 422 L450 396" marker-end="url(#ms-a)"/>
+  <path class="arrow" d="M450 266 L450 240" marker-end="url(#ms-a)"/>
+  <path class="arrow" d="M504 174 L520 174 L520 92" marker-end="url(#ms-a)"/>
+
+  <text class="foot" x="280" y="584" text-anchor="middle">Down the left, the model's reading becomes fields that code validates.</text>
+  <text class="foot" x="280" y="604" text-anchor="middle">Up the right, the solver's decision is checked by code before</text>
+  <text class="foot" x="280" y="624" text-anchor="middle">the model is allowed to write a word about it.</text>
+</svg>

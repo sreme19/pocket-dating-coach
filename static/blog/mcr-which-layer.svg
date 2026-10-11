@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 560" width="560" height="560" role="img" aria-labelledby="mwt mwd">
+  <title id="mwt">Which layer owns this step?</title>
+  <desc id="mwd">A decision path with three questions asked in order. First: is the step's input or output free text, images or speech? If yes, the model reads it into fields or writes from a finished result. If no, second: does the step choose among options or estimate a likelihood? If yes, a solver or a simulation decides. If no, third: must it hold on every run or match exactly? If yes, code decides, through a gate, a check or exact arithmetic. If no, the step is a judgment about meaning, so the model decides with code bounding its output. The footer gives the test: switch the model off, and if the answer is still there, the model was only narrating.</desc>
+  <style>
+    .bg { fill: #fcfbf8; }
+    .card { fill: #ffffff; stroke: #e8e3d8; stroke-width: 1; }
+    .reason { fill: #f6ece4; stroke: #b4541e; stroke-width: 1.4; }
+    .code { fill: #f3f1ec; stroke: #17161b; stroke-width: 1.2; }
+    .math { fill: #e8f0ea; stroke: #2f6b46; stroke-width: 1.4; }
+    .q { font-family: 'Iowan Old Style', Palatino, Georgia, serif; font-size: 14px; fill: #17161b; }
+    .s { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #17161b; }
+    .yn { font-family: system-ui, -apple-system, sans-serif; font-size: 10.5px; font-weight: 700; fill: #6e6a63; }
+    .lr { font-family: system-ui, -apple-system, sans-serif; font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em; fill: #b4541e; }
+    .lc { font-family: system-ui, -apple-system, sans-serif; font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em; fill: #17161b; }
+    .lm { font-family: system-ui, -apple-system, sans-serif; font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em; fill: #2f6b46; }
+    .p { font-family: system-ui, -apple-system, sans-serif; font-size: 12px; fill: #17161b; }
+    .foot { font-family: system-ui, -apple-system, sans-serif; font-size: 11.5px; fill: #6e6a63; }
+    .arrow { stroke: #97928a; stroke-width: 1.5; fill: none; }
+    @media (prefers-reduced-motion: no-preference) {
+      .arrow { stroke-dasharray: 4 4; animation: mw-flow 0.9s linear infinite; }
+    }
+    @keyframes mw-flow { to { stroke-dashoffset: -8; } }
+  </style>
+  <defs>
+    <marker id="mw-a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#97928a"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="560" height="560" rx="8"/>
+
+  <rect class="card" x="100" y="22" width="180" height="34" rx="17"/>
+  <text class="p" x="190" y="43" text-anchor="middle">A step in the system</text>
+  <path class="arrow" d="M190 56 L190 88" marker-end="url(#mw-a)"/>
+
+  <rect class="card" x="24" y="92" width="332" height="62" rx="6"/>
+  <text class="q" x="190" y="118" text-anchor="middle">Is its input or output free text,</text>
+  <text class="q" x="190" y="138" text-anchor="middle">images or speech?</text>
+  <path class="arrow" d="M358 123 L386 123" marker-end="url(#mw-a)"/>
+  <text class="yn" x="371" y="114" text-anchor="middle">Yes</text>
+  <rect class="reason" x="390" y="86" width="146" height="76" rx="6"/>
+  <text class="lr" x="404" y="104">REASON</text>
+  <text class="s" x="404" y="122">The model reads it into</text>
+  <text class="s" x="404" y="137">fields, or writes from a</text>
+  <text class="s" x="404" y="152">finished result</text>
+  <path class="arrow" d="M190 154 L190 192" marker-end="url(#mw-a)"/>
+  <text class="yn" x="200" y="178">No</text>
+
+  <rect class="card" x="24" y="196" width="332" height="62" rx="6"/>
+  <text class="q" x="190" y="222" text-anchor="middle">Does it choose among options,</text>
+  <text class="q" x="190" y="242" text-anchor="middle">or estimate a likelihood?</text>
+  <path class="arrow" d="M358 227 L386 227" marker-end="url(#mw-a)"/>
+  <text class="yn" x="371" y="218" text-anchor="middle">Yes</text>
+  <rect class="math" x="390" y="196" width="146" height="62" rx="6"/>
+  <text class="lm" x="404" y="214">MATH</text>
+  <text class="s" x="404" y="232">A solver or a</text>
+  <text class="s" x="404" y="247">simulation decides</text>
+  <path class="arrow" d="M190 258 L190 296" marker-end="url(#mw-a)"/>
+  <text class="yn" x="200" y="282">No</text>
+
+  <rect class="card" x="24" y="300" width="332" height="62" rx="6"/>
+  <text class="q" x="190" y="326" text-anchor="middle">Must it hold on every run,</text>
+  <text class="q" x="190" y="346" text-anchor="middle">or match exactly?</text>
+  <path class="arrow" d="M358 331 L386 331" marker-end="url(#mw-a)"/>
+  <text class="yn" x="371" y="322" text-anchor="middle">Yes</text>
+  <rect class="code" x="390" y="300" width="146" height="62" rx="6"/>
+  <text class="lc" x="404" y="318">CODE</text>
+  <text class="s" x="404" y="336">A gate, a check or</text>
+  <text class="s" x="404" y="351">exact arithmetic</text>
+  <path class="arrow" d="M190 362 L190 400" marker-end="url(#mw-a)"/>
+  <text class="yn" x="200" y="386">No</text>
+
+  <rect class="reason" x="24" y="404" width="512" height="62" rx="6"/>
+  <text class="lr" x="44" y="426">REASON, BOUNDED BY CODE</text>
+  <text class="p" x="44" y="448">A judgment about meaning: the model decides, and code limits what it may return.</text>
+
+  <text class="foot" x="280" y="508" text-anchor="middle">The test: switch the model off. If the answer is still there,</text>
+  <text class="foot" x="280" y="528" text-anchor="middle">the model was only narrating.</text>
+</svg>
